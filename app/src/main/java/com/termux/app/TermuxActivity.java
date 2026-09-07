@@ -3523,6 +3523,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             this::computeImeVisibility);
                 }
                 com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: show (target session kbIntent=true)");
+            } else if (showKeyboardIfFocused && imeVisibleNow) {
+                // The IME is up and the landed session wants it up: fine for now, BUT if this
+                // switch came from closing the current tab, the adapter rebuild detaches the
+                // closed page's view (the served IME target) a moment later and the system
+                // drops the IME AFTER this reconcile ran — too late to act. Arm a bounded
+                // re-assert: if the IME ended up down, restore it per the session's memory.
+                scheduleSwitchKeyboardReassert(mTerminalView != null ? mTerminalView : currentInput);
             }
         }
         } else if (visible) {
@@ -3531,6 +3538,32 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             restoreTextInputForSession(session);
         }
         updateToggleTextInputButtonIcon();
+    }
+
+    /**
+     * Post-switch keyboard re-assert. When the landed session's keyboard intent says the IME
+     * should be up and it was still up at reconcile time, closing the current tab makes the
+     * adapter rebuild detach the closed page's view (the served IME target) a moment later and
+     * the system drops the IME AFTER the reconcile ran — too late to act. Schedule a bounded
+     * verify: if the IME ended up down, re-assert it per the session's memory.
+     */
+    private void scheduleSwitchKeyboardReassert(@Nullable View target) {
+        if (target == null) return;
+        final TerminalSession armed = getCurrentSession();
+        target.postDelayed(() -> {
+            if (isFinishing() || mIsPaused) return;
+            TerminalSession current = getCurrentSession();
+            if (current == null || current != armed) return;                 // switched elsewhere meanwhile
+            if (!mTextInputState.isSoftKeyboardIntent(current)) return;      // user hid it meanwhile
+            if (computeImeVisibility()) return;                              // it survived — nothing to do
+            if (KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
+                    mPreferences.isSoftKeyboardEnabled(),
+                    mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware())) return;
+            KeyboardUtils.setSoftInputModeAdjustResize(this);
+            com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
+                    this::computeImeVisibility);
+            com.termux.app.terminal.io.KBTrace.i("switch reassert: re-show after close-rebind drop");
+        }, 300);
     }
 
     /** Apply per-session panel visibility with focus move (tab switch). */
