@@ -1,6 +1,7 @@
 package com.termux.shared.termux.extrakeys;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,10 @@ import java.util.Locale;
  * Bindings are whitespace-separated sequences of tokens. A token is a delay if it starts with
  * {@code DELAY_} or {@code SLEEP_} (case-insensitive) followed by a positive integer. Legacy
  * {@code SLEEP_} tokens are normalized to {@code DELAY_}.
+ * <p>
+ * A token may itself contain whitespace when it is a literal piece of text (a custom binding such
+ * as {@code ls -la}). Such tokens are written wrapped in double quotes, e.g. {@code "ls -la" ENTER},
+ * so that the whitespace belonging to the token is not mistaken for a token separator.
  */
 public class BindingTokenizer {
 
@@ -26,6 +31,12 @@ public class BindingTokenizer {
 
     /** Legacy sleep prefix, normalized to {@link #DELAY_PREFIX} during tokenization. */
     public static final String LEGACY_SLEEP_PREFIX = "SLEEP_";
+
+    /** Character used to quote a literal token that contains whitespace inside a macro. */
+    public static final char QUOTE_CHAR = '"';
+
+    /** Character used to escape a quote or a backslash inside a quoted token. */
+    private static final char ESCAPE_CHAR = '\\';
 
     private static final int PARSE_BASE = 10;
 
@@ -57,6 +68,92 @@ public class BindingTokenizer {
     }
 
     /**
+     * Split a macro binding into tokens, keeping double-quoted spans together.
+     * <p>
+     * Termux macros are whitespace-separated token sequences, so a literal token that itself
+     * contains spaces (a custom binding such as {@code ls -la}) would otherwise be split into
+     * several tokens and lose its structure. Such tokens are written wrapped in double quotes,
+     * e.g. {@code "ls -la" ENTER}, and are returned here as one token with the quotes stripped.
+     * <p>
+     * Quoting is only honoured when the quoted span actually contains whitespace. A quoted span
+     * without whitespace (as found in hand-written configs, e.g. {@code echo "hi"}) is kept
+     * verbatim, so existing layouts keep their current meaning.
+     * <p>
+     * Unquoted bindings tokenize exactly as before, so this method is backward compatible.
+     *
+     * @param macro the raw macro string (may be {@code null}).
+     * @return a non-null list of normalized tokens.
+     */
+    @NonNull
+    public static List<String> tokenizeMacro(@Nullable String macro) {
+        List<String> result = new ArrayList<>();
+        if (macro == null || macro.isEmpty()) return result;
+
+        final int len = macro.length();
+        int i = 0;
+        while (i < len) {
+            // Skip the whitespace separating two tokens.
+            while (i < len && isWhitespace(macro.charAt(i))) i++;
+            if (i >= len) break;
+
+            if (macro.charAt(i) == QUOTE_CHAR) {
+                int close = findClosingQuote(macro, i + 1);
+                if (close >= 0) {
+                    String inner = unescape(macro.substring(i + 1, close));
+                    if (hasWhitespace(inner)) {
+                        result.add(normalize(inner));
+                        i = close + 1;
+                        continue;
+                    }
+                    // No whitespace inside: the quotes are literal characters of the token, so
+                    // fall through and read it as a plain token.
+                }
+                // Unterminated quote: treat it as a literal character too.
+            }
+
+            int start = i;
+            while (i < len && !isWhitespace(macro.charAt(i))) i++;
+            result.add(normalize(macro.substring(start, i)));
+        }
+        return result;
+    }
+
+    /**
+     * Join tokens back into a macro string, quoting every token that contains whitespace so that
+     * {@link #tokenizeMacro(String)} restores exactly the same token list.
+     *
+     * @param tokens the token list to serialize.
+     * @return the macro string.
+     */
+    @NonNull
+    public static String joinMacro(@NonNull List<String> tokens) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            if (token == null) continue;
+            if (i > 0) sb.append(' ');
+            if (hasWhitespace(token)) {
+                sb.append(QUOTE_CHAR).append(escape(token)).append(QUOTE_CHAR);
+            } else {
+                sb.append(token);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Apply delay normalization to a single token: convert {@code SLEEP_} to {@code DELAY_} and
+     * clamp the value. Unlike {@link #tokenize(String)} this never splits the input.
+     *
+     * @param token the token to normalize.
+     * @return the normalized token.
+     */
+    @NonNull
+    public static String normalizeToken(@NonNull String token) {
+        return normalize(token);
+    }
+
+    /**
      * Returns {@code true} if {@code token} is a valid delay token: starts with {@link #DELAY_PREFIX}
      * followed by a positive integer in [{@link #MIN_DELAY_MS}, {@link #MAX_DELAY_MS}].
      *
@@ -80,6 +177,65 @@ public class BindingTokenizer {
         if (token == null) return false;
         String upper = token.toUpperCase(Locale.US);
         return upper.startsWith(DELAY_PREFIX) || upper.startsWith(LEGACY_SLEEP_PREFIX);
+    }
+
+    /**
+     * Index of the quote that closes a quoted span starting at {@code from}, or {@code -1} if the
+     * span is never closed. Backslash escapes are honoured.
+     */
+    private static int findClosingQuote(@NonNull String s, int from) {
+        for (int i = from; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == ESCAPE_CHAR && i + 1 < s.length()) {
+                i++;
+                continue;
+            }
+            if (c == QUOTE_CHAR) return i;
+        }
+        return -1;
+    }
+
+    /** Reverse of {@link #escape(String)}: turns {@code \"} into {@code "} and {@code \\} into {@code \}. */
+    @NonNull
+    private static String unescape(@NonNull String s) {
+        if (s.indexOf(ESCAPE_CHAR) < 0) return s;
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == ESCAPE_CHAR && i + 1 < s.length()
+                    && (s.charAt(i + 1) == QUOTE_CHAR || s.charAt(i + 1) == ESCAPE_CHAR)) {
+                sb.append(s.charAt(i + 1));
+                i++;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Escape quotes and backslashes so a token can be embedded inside a quoted span. */
+    @NonNull
+    private static String escape(@NonNull String s) {
+        StringBuilder sb = new StringBuilder(s.length() + 2);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == ESCAPE_CHAR || c == QUOTE_CHAR) sb.append(ESCAPE_CHAR);
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /** True if the string contains any whitespace that would act as a token separator. */
+    private static boolean hasWhitespace(@NonNull String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (isWhitespace(s.charAt(i))) return true;
+        }
+        return false;
+    }
+
+    /** Same character set as the {@code \s} class used by {@link String#split(String)}. */
+    private static boolean isWhitespace(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == 0x0B || c == '\f' || c == '\r';
     }
 
     /**

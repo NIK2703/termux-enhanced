@@ -258,6 +258,13 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private boolean mIsInvalidState;
 
     private int mNavBarHeight;
+    // Last known IME (soft keyboard) height in px, taken from WindowInsetsCompat.Type.ime().
+    // This is an INDEPENDENT signal of the real keyboard height, not derived from
+    // getWindowVisibleDisplayFrame(), so it is reliable even when the visible-frame reading
+    // is garbage (e.g. during an IME-height change in multi-window). TermuxActivityRootView
+    // uses it to reject implausible bottom-margin measurements. Zero when the IME is hidden
+    // or insets are unavailable (API < 30 without ADJUST_RESIZE).
+    private int mLastImeBottomPx = 0;
     // Tracks the last known IME (soft keyboard) visibility so we can react to it
     // being hidden while the text input panel is open.
     private boolean mSoftKeyboardVisible = false;
@@ -316,6 +323,29 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
 
     public boolean isTerminalPageSwitchInProgress() {
         return mTerminalPageSwitchInProgress;
+    }
+
+    /**
+     * Whether the ViewPager2 is currently animating a page scroll — i.e. its scroll state is
+     * DRAGGING (finger down) or SETTLING (the settle animation), as opposed to IDLE.
+     *
+     * Derived live from the pager instead of tracked in a private boolean: a hand-rolled flag has
+     * to be cleared from exactly the right callback, and getting that wrong either leaks it (the
+     * button margin freezes forever) or drops it too early — which is precisely the bug this
+     * replaced. The framework's own scroll state is already exact and self-healing, and
+     * {@code ScrollEventAdapter} assigns {@code mScrollState} BEFORE dispatching
+     * onPageScrollStateChanged, so it reads correctly from inside the callbacks too.
+     *
+     * While this is true, {@code onPageScrolled()} is the SOLE owner of the floating toggle
+     * button's marginEnd and the settled-state writers must keep their hands off it. Deliberately
+     * separate from {@link #mTerminalPageSwitchInProgress}: that one is an IME-suppression flag
+     * whose lifetime is tied to focus delivery, not to the scroll animation, so reusing it here
+     * left the button unguarded for most of the settle.
+     */
+    public boolean isPagerScrollInProgress() {
+        androidx.viewpager2.widget.ViewPager2 pager = getTerminalPager();
+        return pager != null
+            && pager.getScrollState() != androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_IDLE;
     }
 
     /** Per-session text input state (content, visibility, focus, caret). */
@@ -511,8 +541,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         content.setOnApplyWindowInsetsListener((v, insets) -> {
             mNavBarHeight = insets.getSystemWindowInsetBottom();
             WindowInsetsCompat _compat = WindowInsetsCompat.toWindowInsetsCompat(insets);
+            // Independent signal of the real keyboard height, used by TermuxActivityRootView to
+            // reject bottom-margin measurements that are physically impossible. It is not derived
+            // from getWindowVisibleDisplayFrame(), so it stays correct while that reading is
+            // garbage (IME height change in multi-window).
+            mLastImeBottomPx = _compat.getInsets(WindowInsetsCompat.Type.ime()).bottom;
             onImeInsetsChanged(_compat.isVisible(WindowInsetsCompat.Type.ime())
-                || _compat.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0);
+                || mLastImeBottomPx > 0);
             return v.onApplyWindowInsets(insets);
         });
 
@@ -1612,23 +1647,38 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return hasScrollbar ? Math.max((int)(30 * density + 0.5f) - 2, 0) : (int)(6 * density + 0.5f);
     }
 
-    private void updateFloatingButtonMargin() {
-        ImageButton toggleButton = findViewById(R.id.toggle_text_input_button);
-        if (toggleButton == null) return;
+    /**
+     * Recompute and apply the floating button's SETTLED-state right margin from the current
+     * terminal view's scrollbar state.
+     *
+     * No-op while the pager is animating a page scroll. In that window
+     * {@code SessionPagerManager.updateFloatingButtonMarginForScroll()} owns the margin and drives
+     * it frame by frame, interpolating between the leaving and the entering page. Writing the
+     * settled value here would yank the button to its final position and the very next scroll
+     * frame would pull it back — the jitter that showed up as the button trembling on every chunk
+     * of terminal output while swiping onto a session that prints continuously.
+     */
+    public void updateFloatingButtonMargin() {
+        if (isPagerScrollInProgress()) return;
+        setFloatingButtonMarginEnd(computeSettledFloatingButtonMarginEnd(mTerminalView));
+    }
 
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) toggleButton.getLayoutParams();
-        int targetMarginEnd = computeFloatingButtonMarginEnd(mTerminalView, getResources());
+    /**
+     * The marginEnd the floating button should have once the pager is AT REST on {@code view}'s
+     * page. Single source of truth: {@code SessionPagerManager} interpolates between two of these
+     * while scrolling, so there must be exactly one implementation — a second, drifting copy would
+     * reintroduce a jump at the seam where the scroll hands the margin back to the settled state.
+     */
+    public int computeSettledFloatingButtonMarginEnd(@Nullable TerminalView view) {
+        int marginEnd = computeFloatingButtonMarginEnd(view, getResources());
         // The terminal's own right inset only pushes the button further in when this
         // page actually shows a scrollbar — that is when the button must clear the
         // terminal edge/scrollbar. Without a scrollbar the button keeps its standard
         // margin, independent of the terminal margins.
-        if (hasScrollbar(mTerminalView)) {
-            targetMarginEnd += getTerminalRightInsetPx();
+        if (hasScrollbar(view)) {
+            marginEnd += getTerminalRightInsetPx();
         }
-        if (params.rightMargin != targetMarginEnd) {
-            params.rightMargin = targetMarginEnd;
-            toggleButton.setLayoutParams(params);
-        }
+        return marginEnd;
     }
 
     /**
@@ -2575,18 +2625,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
         mTerminalView = view;
         if (view != null) {
-            // During a ViewPager2 page switch, the leaving page's OnScreenUpdateListener
-            // must NOT override the interpolated margin set by
-            // SessionPagerManager.updateFloatingButtonMarginForScroll().  The guard
-            // skips margin updates from the listener mid-swipe; the direct call below
-            // (ran from onTerminalPageSelected -> setTerminalView) still applies the
-            // correct settled-state margin for the new page.
-            view.setOnScreenUpdateListener(() -> {
-                if (!isTerminalPageSwitchInProgress()) {
-                    updateFloatingButtonMargin();
-                }
-            });
-            // Also update margin immediately for the new page
+            // During a ViewPager2 page switch the OnScreenUpdateListener must NOT override the
+            // interpolated margin set by
+            // SessionPagerManager.updateFloatingButtonMarginForScroll(). The guard lives inside
+            // updateFloatingButtonMargin() itself and keys off the pager's OWN scroll state rather
+            // than mTerminalPageSwitchInProgress: that flag is cleared one frame after
+            // onPageSelected() fires, and onPageSelected() fires at the START of the settle, so it
+            // was already down for most of the animation — which let every chunk of terminal output
+            // overwrite the interpolated margin with the settled one and made the button tremble.
+            view.setOnScreenUpdateListener(() -> updateFloatingButtonMargin());
+            // Also update margin immediately for the new page. No-op while the pager is still
+            // scrolling — the settled value is applied by the refresh SessionPagerManager posts
+            // from onPageScrollStateChanged(IDLE).
             updateFloatingButtonMargin();
         }
     }
@@ -2708,6 +2758,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /** True if the extra keys panel should currently be shown (honours preference). */
     private boolean shouldShowExtraKeys() {
         return !(mPreferences.shouldHideExtraKeysWithKeyboard() && !mSoftKeyboardVisible);
+    }
+
+    /**
+     * Get the last known IME (soft keyboard) height in px as reported by
+     * {@link WindowInsetsCompat.Type#ime()}.
+     *
+     * This is an independent signal of the real keyboard height, not derived from
+     * {@code getWindowVisibleDisplayFrame()}, so {@link TermuxActivityRootView} can use it to reject
+     * bottom-margin measurements that are physically impossible. Returns {@code 0} when the IME is
+     * hidden or when insets are unavailable (API < 30 without {@code ADJUST_RESIZE}), in which case
+     * the root view falls back to the legacy behaviour.
+     */
+    public int getLastImeBottomPx() {
+        return mLastImeBottomPx;
     }
 
     /**

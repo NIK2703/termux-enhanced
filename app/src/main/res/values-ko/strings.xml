@@ -415,7 +415,7 @@ $HOME/bin/termux-url-opener
     <string name="extra_keys_editor_signal_backslash">백슬래시 (\\)</string>
     <string name="extra_keys_editor_signal_quote">따옴표 (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">아포스트로피 (\')</string>
-    <string name="extra_keys_editor_signal_custom">사용자 정의 바인딩…</string>
+    <string name="extra_keys_editor_signal_custom">기호/텍스트…</string>
     
 
     
@@ -684,7 +684,7 @@ $HOME/bin/termux-url-opener
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_add_delay">지연 추가…</string>
+    <string name="extra_keys_editor_signal_add_delay">지연…</string>
     <string name="extra_keys_editor_delay_dialog_title">지연 추가</string>
 
     

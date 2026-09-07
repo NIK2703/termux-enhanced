@@ -45,9 +45,9 @@ android {
     defaultConfig {
         minSdkVersion project.properties.minSdkVersion.toInteger()
         targetSdkVersion project.properties.targetSdkVersion.toInteger()
-        versionCode 118015 // 0.118.0 base + mod release 15
+        versionCode 118016 // 0.118.0 base + mod release 16
 
-        versionName "0.118.0+enhanced.15" // base Termux version + mod release 15
+        versionName "0.118.0+enhanced.16" // base Termux version + mod release 16
         if (appVersionName) versionName = appVersionName
         validateVersionName(versionName)
 

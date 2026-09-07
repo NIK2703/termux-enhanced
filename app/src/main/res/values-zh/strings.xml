@@ -429,7 +429,7 @@
     <string name="extra_keys_editor_signal_backslash">反斜杠（\\）</string>
     <string name="extra_keys_editor_signal_quote">引号（\"）</string>
     <string name="extra_keys_editor_signal_apostrophe">撇号（\'）</string>
-    <string name="extra_keys_editor_signal_custom">自定义绑定…</string>
+    <string name="extra_keys_editor_signal_custom">符号/文本…</string>
 
     <string name="terminal_category_title">终端</string>
     <string name="key_behaviour_category_title">按键行为</string>
@@ -655,7 +655,7 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_add_delay">添加延迟…</string>
+    <string name="extra_keys_editor_signal_add_delay">延迟…</string>
     <string name="extra_keys_editor_delay_dialog_title">添加延迟</string>
 
     <!-- AbiUtils error messages -->

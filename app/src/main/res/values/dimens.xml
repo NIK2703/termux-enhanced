@@ -12,6 +12,16 @@
          of px) so genuine changes are never swallowed. -->
     <dimen name="root_view_layout_tolerance">24dp</dimen>
 
+    <!-- Extra slack (on top of root_view_layout_tolerance) allowed when validating a window
+         measurement against the IME height. In the "window was resized for the keyboard" world the
+         bottom space view can only ever be hidden by an IME candidates/suggestions row that the
+         system does not account for — Gboard's header is ~176px tall — so the available window
+         bottom may legitimately sit that far above the window bottom. Anything beyond this (a
+         keyboard height, let alone two) is an impossible reading produced while the IME changes
+         its height in multi-window, and the frame must be ignored instead of being turned into a
+         bottom margin. -->
+    <dimen name="root_view_candidates_slack">70dp</dimen>
+
     <!-- Tab dimensions -->
     <dimen name="terminal_tab_height_double">36dp</dimen>
     <dimen name="terminal_tab_height_single">24dp</dimen>

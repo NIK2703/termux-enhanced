@@ -59,6 +59,10 @@ public class SignalPickerDialogFragment extends DialogFragment {
     private ViewGroup mChipsContainer;
     private AlertDialog mDialog;
     private int mEditingDelayIndex = -1;
+    /** Index of a custom-text token being edited, or -1 when adding a new one. */
+    private int mEditingCustomIndex = -1;
+    /** Known grid signal values; tokens not in this set are user custom text (editable). */
+    private Set<String> mSignalValues;
 
     public static SignalPickerDialogFragment newInstance(int row, int col, BindTarget target, ArrayList<String> currentSignals) {
         Bundle args = new Bundle();
@@ -86,6 +90,7 @@ public class SignalPickerDialogFragment extends DialogFragment {
         Context context = requireContext();
         String[] entries = getResources().getStringArray(R.array.extra_keys_editor_signal_entries);
         String[] values = getResources().getStringArray(R.array.extra_keys_editor_signal_values);
+        mSignalValues = new HashSet<>(Arrays.asList(values));
 
         View view = getLayoutInflater().inflate(R.layout.extra_keys_signal_grid, null);
         mChipsContainer = view.findViewById(R.id.chips_container);
@@ -229,6 +234,12 @@ public class SignalPickerDialogFragment extends DialogFragment {
             chipLp.setMargins(dp1, 0, dp1, 0);
             chip.setLayoutParams(chipLp);
 
+            // The non-modifier target token (last in the group) is editable when it is
+            // custom text: tapping it reopens the custom-text dialog pre-filled for editing.
+            if (j == end - 1 && isEditableCustomText(mSelected.get(index))) {
+                chip.setOnClickListener(v -> openCustomTextDialog(index));
+            }
+
             groupLayout.addView(chip);
         }
 
@@ -260,6 +271,9 @@ public class SignalPickerDialogFragment extends DialogFragment {
                 mEditingDelayIndex = index;
                 openDelayInputDialog(String.valueOf(currentMs));
             });
+        } else if (isEditableCustomText(mSelected.get(index))) {
+            // Tap on a custom-text chip to edit its text in place
+            chip.setOnClickListener(v -> openCustomTextDialog(index));
         }
 
         mChipsContainer.addView(chip);
@@ -316,10 +330,25 @@ public class SignalPickerDialogFragment extends DialogFragment {
     }
 
     private void openCustomTextDialog() {
+        openCustomTextDialog(-1);
+    }
+
+    /**
+     * Open the custom-text dialog. With {@code editIndex < 0} it appends a new custom signal;
+     * with a valid index it pre-fills the field with the existing token at that position so the
+     * user can edit it, replacing it in place on confirm.
+     */
+    private void openCustomTextDialog(int editIndex) {
         Context context = requireContext();
+        mEditingCustomIndex = editIndex;
+
         EditText editText = new EditText(context);
         editText.setMaxLines(1);
         editText.setEms(1);
+        if (editIndex >= 0 && editIndex < mSelected.size()) {
+            editText.setText(mSelected.get(editIndex));
+            editText.selectAll();
+        }
 
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(context, R.style.ThemeOverlay_TermuxActivity_Dialog)
             .setTitle(R.string.extra_keys_editor_custom_text_title)
@@ -344,7 +373,7 @@ public class SignalPickerDialogFragment extends DialogFragment {
 
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String text = editText.getText().toString().trim();
-                if (!text.isEmpty() && addCustomSignal(text)) {
+                if (!text.isEmpty() && addOrSetCustomSignal(text)) {
                     hideKeyboard(editText);
                     dialog.dismiss();
                 }
@@ -352,25 +381,11 @@ public class SignalPickerDialogFragment extends DialogFragment {
         });
 
         dialog.setOnCancelListener(d -> hideKeyboard(editText));
-        dialog.setOnDismissListener(d -> hideKeyboard(editText));
-        dialog.show();
-
-        editText.addTextChangedListener(new android.text.TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override
-            public void afterTextChanged(android.text.Editable s) {
-                if (s.length() > 0) {
-                    String text = s.toString().trim();
-                    if (!text.isEmpty() && addCustomSignal(text)) {
-                        hideKeyboard(editText);
-                        dialog.dismiss();
-                    }
-                }
-            }
+        dialog.setOnDismissListener(d -> {
+            mEditingCustomIndex = -1;
+            hideKeyboard(editText);
         });
+        dialog.show();
     }
 
     private void openDelayInputDialog(String initialValue) {
@@ -448,15 +463,37 @@ public class SignalPickerDialogFragment extends DialogFragment {
         }
     }
 
-    private boolean addCustomSignal(String text) {
+    /** True if the token is user-entered custom text that can be edited in place
+     *  (i.e. not a known grid signal, not a modifier, not a delay token). */
+    private boolean isEditableCustomText(String token) {
+        if (token == null || token.isEmpty()) return false;
+        if (mSignalValues.contains(token)) return false;
+        if (BindingTokenizer.isDelay(token) || BindingTokenizer.hasDelayPrefix(token)) return false;
+        return true;
+    }
+
+    /**
+     * Add a new custom signal, or replace an existing one when {@link #mEditingCustomIndex}
+     * points at a valid position. Editing does not count against the 8-signal cap because it
+     * only replaces an existing token.
+     */
+    private boolean addOrSetCustomSignal(String text) {
+        if (mEditingCustomIndex >= 0) {
+            int idx = mEditingCustomIndex;
+            mEditingCustomIndex = -1;
+            if (idx >= 0 && idx < mSelected.size()) {
+                mSelected.set(idx, text);
+                rebuildChipsWithGrouping();
+                updateDoneButton();
+            }
+            return true;
+        }
         if (mSelected.size() >= 8) {
             Toast.makeText(requireContext(), getString(R.string.extra_keys_editor_max_signals), Toast.LENGTH_SHORT).show();
             return false;
         }
-        if (text.contains(" ")) {
-            Toast.makeText(requireContext(), getString(R.string.extra_keys_editor_custom_text_no_space), Toast.LENGTH_SHORT).show();
-            return false;
-        }
+        // Spaces are allowed: a custom binding such as "ls -la" is stored as a single
+        // literal key, so the spaces are preserved and the text is sent verbatim.
         mSelected.add(text);
         rebuildChipsWithGrouping();
         updateDoneButton();

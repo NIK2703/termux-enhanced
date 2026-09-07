@@ -599,7 +599,7 @@
     <string name="extra_keys_editor_preview_title">Предпросмотр</string>
     <string name="extra_keys_editor_preview_summary">Интерактивная панель — нажмите на любую кнопку, чтобы изменить её сигнал.</string>
     <string name="extra_keys_editor_signal_dialog_title">Назначить сигнал</string>
-    <string name="extra_keys_editor_custom_text_title">Своя привязка</string>
+    <string name="extra_keys_editor_custom_text_title">Символ/текст</string>
     <string name="extra_keys_editor_custom_text_message">Нажмите любую клавишу для привязки:</string>
     <string name="extra_keys_editor_save_title">Применить к дополнительным кнопкам</string>
     <string name="extra_keys_editor_save_summary">Сохранить раскладку в настройки дополнительных кнопок.</string>
@@ -660,8 +660,8 @@
     <string name="extra_keys_editor_signal_backslash">Обратная косая черта (\\)</string>
     <string name="extra_keys_editor_signal_quote">Кавычка (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">Апостроф (\')</string>
-    <string name="extra_keys_editor_signal_custom">Своя привязка…</string>
-    <string name="extra_keys_editor_signal_add_delay">Добавить задержку…</string>
+    <string name="extra_keys_editor_signal_custom">Символ/текст…</string>
+    <string name="extra_keys_editor_signal_add_delay">Задержка…</string>
     <string name="extra_keys_editor_delay_dialog_title">Задержка</string>
     <string name="extra_keys_editor_delay_format">⏱ %d мс</string>
     <string name="extra_keys_editor_delay_presets">Быстрый выбор:</string>

@@ -10,10 +10,14 @@ public class ScrollFollowTextTest extends TerminalTestCase {
 
     private int mTopRow;
 
+    /** Mirror of TerminalView.isFlingActive(): while true, the scroller owns mTopRow. */
+    private boolean mFlingActive;
+
     private void newEmulator(int rows) {
         // Buffer total: 100 rows, of which 'rows' are the screen → transcript max = 100-rows.
         mTerminal = new TerminalEmulator(mOutput, 10, rows, INITIAL_CELL_WIDTH_PIXELS, INITIAL_CELL_HEIGHT_PIXELS, 100, null);
         mTopRow = 0;
+        mFlingActive = false;
     }
 
     private void scrollUp(int lines) {
@@ -28,6 +32,9 @@ public class ScrollFollowTextTest extends TerminalTestCase {
 
         if (mTopRow == 0) {
             // at bottom: stay at bottom
+        } else if (mFlingActive) {
+            // Mirror of the fling branch: the OverScroller owns mTopRow during a fling —
+            // no follow-text compensation and no snap-to-bottom; the counter is still consumed.
         } else if (autoScrollDisabled) {
             int rowShift = mTerminal.getScrollCounter();
             if (-mTopRow + rowShift > rowsInHistory) {
@@ -129,5 +136,54 @@ public class ScrollFollowTextTest extends TerminalTestCase {
         output("new-0\r\n");
         onScreenUpdated(false);
         assertEquals(0, mTopRow);
+    }
+
+    public void testFlingActiveSkipsFollowTextCompensation() {
+        newEmulator(4);
+        final int maxTranscript = 100 - 4;
+
+        for (int i = 0; i < maxTranscript + 4; i++) {
+            output("line-" + i + "\r\n");
+        }
+        onScreenUpdated(true);
+
+        scrollUp(3);
+        assertEquals(-3, mTopRow);
+
+        // Fling in progress: new output must NOT shift mTopRow (the scroller owns the
+        // position), and the scroll counter is still consumed.
+        mFlingActive = true;
+        output("new-0\r\nnew-1\r\n");
+        onScreenUpdated(true);
+        assertEquals("mTopRow must stay scroller-owned during fling", -3, mTopRow);
+        assertEquals("Scroll counter must be consumed during fling", 0, mTerminal.getScrollCounter());
+
+        // Even with auto-scroll enabled there is no snap-to-bottom while flinging.
+        output("new-2\r\n");
+        onScreenUpdated(false);
+        assertEquals("No snap-to-bottom during fling", -3, mTopRow);
+
+        // Fling finished: follow-text compensation applies again to newly arrived output.
+        mFlingActive = false;
+        output("new-3\r\n");
+        onScreenUpdated(true);
+        assertEquals("follow-text compensation resumes after fling", -4, mTopRow);
+    }
+
+    public void testFollowTextUnchangedWithoutFling() {
+        // Guard against the fling branch leaking into normal behaviour: without an active
+        // fling the compensation must work exactly as before.
+        newEmulator(4);
+        final int maxTranscript = 100 - 4;
+
+        for (int i = 0; i < maxTranscript + 4; i++) {
+            output("line-" + i + "\r\n");
+        }
+        onScreenUpdated(true);
+
+        scrollUp(3);
+        output("new-0\r\nnew-1\r\n");
+        onScreenUpdated(true);
+        assertEquals(-5, mTopRow);
     }
 }

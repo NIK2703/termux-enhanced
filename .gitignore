@@ -1,6 +1,7 @@
 # Agent artifacts
 AGENT*.md
 .hermes/
+.workbuddy-ai/
 AGENT*.java
 AGENT*.txt
 agent*.patch
@@ -11,6 +12,9 @@ patches/
 # Secrets / generated
 app/keystore.properties
 app/src/main/cpp/bootstrap-*.zip
+# Release signing key: never commit it (referenced by local.properties KEYSTORE_FILE)
+*.keystore
+*.jks
 
 # IDE
 .idea/

@@ -670,8 +670,8 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_custom">カスタムバインド…</string>
-    <string name="extra_keys_editor_signal_add_delay">遅延を追加…</string>
+    <string name="extra_keys_editor_signal_custom">記号/テキスト…</string>
+    <string name="extra_keys_editor_signal_add_delay">遅延…</string>
     <string name="extra_keys_editor_delay_dialog_title">遅延を追加</string>
 
     <!-- Extra keys editor swipe suffixes -->

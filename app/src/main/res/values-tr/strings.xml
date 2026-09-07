@@ -416,7 +416,7 @@
     <string name="extra_keys_editor_signal_keyboard">Klavye aç/kapat</string>
     <string name="extra_keys_editor_signal_paste">Yapıştır</string>
     <string name="extra_keys_editor_signal_scroll">Kaydırma kilidi</string>
-    <string name="extra_keys_editor_signal_custom">Özel bağlama…</string>
+    <string name="extra_keys_editor_signal_custom">Simge/metin…</string>
 
     
     
@@ -704,7 +704,7 @@
     <string name="extra_keys_editor_signal_backslash">Ters Bölü (\\)</string>
     <string name="extra_keys_editor_signal_quote">Tırnak (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">Kesme İşareti (\')</string>
-    <string name="extra_keys_editor_signal_add_delay">Gecikme ekle…</string>
+    <string name="extra_keys_editor_signal_add_delay">Gecikme…</string>
     <string name="extra_keys_editor_delay_dialog_title">Gecikme ekle</string>
 
     <!-- AbiUtils error messages -->

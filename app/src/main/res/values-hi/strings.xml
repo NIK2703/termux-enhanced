@@ -618,8 +618,8 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_custom">कस्टम बाइंड…</string>
-    <string name="extra_keys_editor_signal_add_delay">विलंब जोड़ें…</string>
+    <string name="extra_keys_editor_signal_custom">प्रतीक/पाठ…</string>
+    <string name="extra_keys_editor_signal_add_delay">विलंब…</string>
     <string name="extra_keys_editor_delay_dialog_title">विलंब जोड़ें</string>
 
     <!-- AbiUtils error messages -->

@@ -2138,7 +2138,10 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
      * Returns a shortened string with "+..." suffix if truncation is needed.
      */
     private static String truncateMacroText(String fullText, TextPaint paint, int widthPx, int maxLines) {
-        String[] binds = fullText.split(" ");
+        // Binds are joined with "+" in the composed display, so that is the boundary to cut at.
+        // Splitting on whitespace would be wrong because a single bind may itself contain spaces
+        // (a quoted literal token such as "ls -la").
+        String[] binds = fullText.split("\\+");
         if (binds.length <= 1) return null;
 
         // Check if full text already fits
@@ -2177,13 +2180,13 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Join the first N binds with spaces.
+     * Join the first N binds with "+", matching the composed display format.
      */
     private static String joinBinds(String[] binds, int count) {
         StringBuilder sb = new StringBuilder();
         int n = Math.min(count, binds.length);
         for (int i = 0; i < n; i++) {
-            if (i > 0) sb.append(' ');
+            if (i > 0) sb.append('+');
             sb.append(binds[i]);
         }
         return sb.toString();

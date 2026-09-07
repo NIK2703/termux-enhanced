@@ -414,7 +414,7 @@
     <string name="extra_keys_editor_signal_backslash">Barra invertida (\\)</string>
     <string name="extra_keys_editor_signal_quote">Aspas (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">Apóstrofo (\')</string>
-    <string name="extra_keys_editor_signal_custom">Atalho personalizado…</string>
+    <string name="extra_keys_editor_signal_custom">Símbolo/texto…</string>
     <string name="extra_keys_editor_signal_ctrl">Ctrl</string>
     <string name="extra_keys_editor_signal_alt">Alt</string>
     <string name="extra_keys_editor_signal_shift">Shift</string>
@@ -445,7 +445,7 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_add_delay">Adicionar atraso…</string>
+    <string name="extra_keys_editor_signal_add_delay">Atraso…</string>
     <string name="extra_keys_editor_delay_dialog_title">Adicionar atraso</string>
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
     <string name="extra_keys_editor_delay_presets">Seleção rápida:</string>

@@ -184,18 +184,27 @@ public final class SessionPagerManager {
                     mUserScrollInProgress = false;
                 }
 
-                // Suppress IME hide/show churn for the ENTIRE swipe gesture, not just after
-                // onPageSelected() fires. onPageSelected() only runs at the end of the settle, by
-                // which point the old page has already lost focus and its focus listener (if the
-                // guard were still false) would have hidden the keyboard mid-swipe — that is the
-                // keyboard flicker when switching tabs/sessions. Raise the guard on DRAGGING and
-                // SETTLING (the whole transition) and lower it on IDLE (after the settle, posted so
-                // it does not clear while a late focus event is still in flight).
+                // Suppress IME hide/show churn for the ENTIRE swipe gesture, not just around
+                // onPageSelected(). Note that onPageSelected() does NOT run at the end of the
+                // settle — ScrollEventAdapter dispatches it on the first scroll frame AFTER the
+                // DRAGGING->SETTLING transition, i.e. at the very START of the settle animation
+                // (mDispatchSelected is armed on the state change and consumed on the next
+                // onScrolled). So the guard must be tied to the scroll states themselves, not to
+                // onPageSelected(): raise it on DRAGGING and SETTLING (the whole transition) and
+                // lower it on IDLE (posted so it does not clear while a late focus event is still
+                // in flight). Otherwise the old page's focus listener hides the keyboard mid-swipe
+                // — that is the keyboard flicker when switching tabs/sessions.
                 if (state == ViewPager2.SCROLL_STATE_DRAGGING
                         || state == ViewPager2.SCROLL_STATE_SETTLING) {
                     mActivity.setTerminalPageSwitchInProgress(true);
                 } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
                     mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
+                    // Hand the floating button's margin back to the settled state. onPageScrolled()
+                    // is the sole owner of it while the pager scrolls (updateFloatingButtonMargin()
+                    // early-returns during a scroll), so without this the button would stay parked
+                    // at whatever interpolated value the last scroll frame produced — and a
+                    // cancelled swipe would leave it at the wrong offset entirely.
+                    mTerminalPager.post(() -> mActivity.updateFloatingButtonMargin());
                     // If the swipe was cancelled (released back to the same page),
                     // onPageSelected never fires and the tab strip may be left in an
                     // intermediate blended state. Reset to clean selection state here.
@@ -631,21 +640,20 @@ public final class SessionPagerManager {
     }
 
     /**
-     * Compute the button's right marginEnd in pixels based on scrollbar visibility.
-     * Matches the logic in {@link TermuxActivity#updateFloatingButtonMargin()}: the
-     * terminal's own right inset is only added when THIS page shows a scrollbar —
-     * that is when the button must clear the terminal edge/scrollbar. Without a
-     * scrollbar the button keeps its standard margin. Because the margin is computed
-     * per page and interpolated during a swipe, the button animates smoothly between
-     * the two pages' positions.
+     * Compute the button's right marginEnd in pixels for a page at rest, based on that page's
+     * scrollbar visibility: the terminal's own right inset is only added when THIS page shows a
+     * scrollbar — that is when the button must clear the terminal edge/scrollbar. Without a
+     * scrollbar the button keeps its standard margin. Because the margin is computed per page and
+     * interpolated during a swipe, the button animates smoothly between the two pages' positions.
+     *
+     * Delegates to {@link TermuxActivity#computeSettledFloatingButtonMarginEnd(TerminalView)} —
+     * the single implementation. This used to carry its own copy of the formula; two copies drift,
+     * and every difference is a visible jump at the seam where the scroll hands the margin back to
+     * the settled state.
      */
     private int computeMarginEnd(@Nullable TerminalView view) {
         if (mActivity == null) return 0;
-        int marginEnd = TermuxActivity.computeFloatingButtonMarginEnd(view, mActivity.getResources());
-        if (TermuxActivity.hasScrollbar(view)) {
-            marginEnd += mActivity.getTerminalRightInsetPx();
-        }
-        return marginEnd;
+        return mActivity.computeSettledFloatingButtonMarginEnd(view);
     }
 
     /** Returns the {@link TerminalView} for the pager page at {@code position}, or null if not bound. */

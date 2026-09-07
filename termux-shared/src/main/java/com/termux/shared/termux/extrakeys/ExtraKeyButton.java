@@ -8,7 +8,7 @@ import androidx.annotation.Nullable;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -144,35 +144,44 @@ public class ExtraKeyButton {
                           @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyAliasMap) throws JSONException {
         String keyFromConfig = getStringFromJson(config, KEY_KEY_NAME);
         String macroFromConfig = getStringFromJson(config, KEY_MACRO);
-        String[] keys;
+        List<String> keys;
         if (keyFromConfig != null && macroFromConfig != null) {
             throw new JSONException("Both key and macro can't be set for the same key. key: \"" + keyFromConfig + "\", macro: \"" + macroFromConfig + "\"");
         } else if (keyFromConfig != null) {
-            keys = new String[]{keyFromConfig};
+            keys = new ArrayList<>();
+            keys.add(keyFromConfig);
             this.macro = false;
         } else if (macroFromConfig != null) {
-            keys = macroFromConfig.split("\\s+");
+            // Quote-aware: a literal token containing whitespace (e.g. "ls -la" ENTER) stays one token.
+            keys = BindingTokenizer.tokenizeMacro(macroFromConfig);
+            if (keys.isEmpty()) keys.add("");
             this.macro = true;
         } else if (swipeUp != null || swipeDown != null || swipeLeft != null || swipeRight != null) {
-            keys = new String[]{""};
+            keys = new ArrayList<>();
+            keys.add("");
             this.macro = false;
         } else {
             throw new JSONException("All keys have to specify either key or macro");
         }
 
-        for (int i = 0; i < keys.length; i++) {
-            keys[i] = replaceAlias(extraKeyAliasMap, keys[i]);
+        for (int i = 0; i < keys.size(); i++) {
+            keys.set(i, replaceAlias(extraKeyAliasMap, keys.get(i)));
         }
 
         this.key = TextUtils.join(" ", keys);
-        mParsedTokens = BindingTokenizer.tokenize(this.key);
+        // Normalize the already-parsed tokens instead of re-splitting the joined key: a macro token
+        // may legitimately contain spaces (a quoted literal), and splitting again would undo it.
+        mParsedTokens = new ArrayList<>(keys.size());
+        for (String token : keys) {
+            mParsedTokens.add(BindingTokenizer.normalizeToken(token));
+        }
         mHasDelay = BindingTokenizer.containsDelay(mParsedTokens);
 
         String displayFromConfig = getStringFromJson(config, KEY_DISPLAY_NAME);
         if (displayFromConfig != null) {
             this.display = displayFromConfig;
         } else {
-            this.display = Arrays.stream(keys)
+            this.display = keys.stream()
                 .map(key -> extraKeyDisplayMap.get(key, key))
                 .collect(Collectors.joining(" "));
         }

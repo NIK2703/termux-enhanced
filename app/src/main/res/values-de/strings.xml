@@ -405,7 +405,7 @@
     <string name="extra_keys_editor_signal_enter">Eingabe</string>
     <string name="extra_keys_editor_signal_quote">Anführungszeichen (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">Apostroph (\')</string>
-    <string name="extra_keys_editor_signal_custom">Eigene Belegung…</string>
+    <string name="extra_keys_editor_signal_custom">Zeichen/Text…</string>
 
     <string name="key_behaviour_category_title">Tastenverhalten</string>
     <string name="screen_category_title">Bildschirm</string>
@@ -644,7 +644,7 @@
     <string name="extra_keys_editor_signal_esc">Esc</string>
     <string name="extra_keys_editor_signal_tab">Tab</string>
     <string name="extra_keys_editor_signal_home">Pos1</string>
-    <string name="extra_keys_editor_signal_add_delay">Verzögerung hinzufügen…</string>
+    <string name="extra_keys_editor_signal_add_delay">Verzögerung…</string>
     <string name="extra_keys_editor_delay_dialog_title">Verzögerung hinzufügen</string>
     <string name="extra_keys_editor_signal_backslash">Backslash (\\)</string>
     <!-- F1-F12 -->

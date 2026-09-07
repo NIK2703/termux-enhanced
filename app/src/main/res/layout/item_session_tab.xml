@@ -11,9 +11,8 @@
 
     <TextView
         android:id="@+id/session_tab_title"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
         android:maxWidth="@dimen/terminal_tab_title_max_width"
         android:ellipsize="end"
         android:maxLines="2"

@@ -761,8 +761,8 @@
 <string name="extra_keys_editor_signal_backslash">Backslash (\\)</string>
 <string name="extra_keys_editor_signal_quote">Quote (\")</string>
 <string name="extra_keys_editor_signal_apostrophe">Apostrophe (\')</string>
-<string name="extra_keys_editor_signal_custom">Ikat kustom…</string>
-<string name="extra_keys_editor_signal_add_delay">Tambah tunda…</string>
+<string name="extra_keys_editor_signal_custom">Simbol/teks…</string>
+<string name="extra_keys_editor_signal_add_delay">Tunda…</string>
 
 <!-- Extra keys editor swipe direction suffixes -->
 <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>

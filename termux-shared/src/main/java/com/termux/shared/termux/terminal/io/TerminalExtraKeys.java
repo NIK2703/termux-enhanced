@@ -68,9 +68,10 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
             List<String> tokens = buttonInfo.getParsedTokens();
             mMacroRunner.start(tokens);
         } else if (buttonInfo.isMacro()) {
-            String[] keys = buttonInfo.getKey().split(" ");
             boolean ctrlDown = false, altDown = false, shiftDown = false, fnDown = false;
-            for (String key : keys) {
+            // Use the tokens parsed by ExtraKeyButton: a literal token may itself contain spaces
+            // (a quoted custom binding such as "ls -la"), so the joined key must not be re-split.
+            for (String key : buttonInfo.getParsedTokens()) {
                 if (SpecialButton.CTRL.getKey().equals(key)) {
                     ctrlDown = true;
                 } else if (SpecialButton.ALT.getKey().equals(key)) {

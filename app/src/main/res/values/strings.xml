@@ -658,7 +658,7 @@
     <string name="extra_keys_editor_preview_title">Preview</string>
     <string name="extra_keys_editor_preview_summary">Live panel — tap any key to change its signal.</string>
     <string name="extra_keys_editor_signal_dialog_title">Assign signal</string>
-    <string name="extra_keys_editor_custom_text_title">Custom bind</string>
+    <string name="extra_keys_editor_custom_text_title">Symbol/text</string>
     <string name="extra_keys_editor_custom_text_message">Press any key to bind:</string>
     <string name="extra_keys_editor_save_title">Apply to extra keys</string>
     <string name="extra_keys_editor_save_summary">Save this layout to the extra-keys setting.</string>
@@ -726,8 +726,8 @@
     <string name="extra_keys_editor_signal_backslash">Backslash (\\)</string>
     <string name="extra_keys_editor_signal_quote">Quote (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">Apostrophe (\')</string>
-    <string name="extra_keys_editor_signal_custom">Custom bind…</string>
-    <string name="extra_keys_editor_signal_add_delay">Add delay…</string>
+    <string name="extra_keys_editor_signal_custom">Symbol/text…</string>
+    <string name="extra_keys_editor_signal_add_delay">Delay…</string>
     <string name="extra_keys_editor_delay_dialog_title">Add delay</string>
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
     <string name="extra_keys_editor_delay_presets">Quick select:</string>

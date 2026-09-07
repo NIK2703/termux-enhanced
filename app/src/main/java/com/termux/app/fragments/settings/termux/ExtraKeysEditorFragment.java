@@ -52,7 +52,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -78,11 +77,14 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
     private static final int REQUEST_CODE_IMPORT_PROFILE = 2002;
 
     private static class KeyCell {
-        String tap = "";
-        String swipeUp = "";
-        String swipeDown = "";
-        String swipeLeft = "";
-        String swipeRight = "";
+        // Each binding is a list of signal tokens. A single token may itself contain
+        // spaces (e.g. a custom literal key like "ls -la"); multiple tokens form a macro
+        // (space = token separator) such as "CTRL c".
+        List<String> tap = new ArrayList<>();
+        List<String> swipeUp = new ArrayList<>();
+        List<String> swipeDown = new ArrayList<>();
+        List<String> swipeLeft = new ArrayList<>();
+        List<String> swipeRight = new ArrayList<>();
         /** Custom key label; empty = auto-generated from the main action macro. */
         String display = "";
     }
@@ -746,11 +748,11 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             if (src == null || dst == null) return;
 
             // Swap all 5 fields between source and destination
-            String tmpTap = src.tap;
-            String tmpSwipeUp = src.swipeUp;
-            String tmpSwipeDown = src.swipeDown;
-            String tmpSwipeLeft = src.swipeLeft;
-            String tmpSwipeRight = src.swipeRight;
+            List<String> tmpTap = src.tap;
+            List<String> tmpSwipeUp = src.swipeUp;
+            List<String> tmpSwipeDown = src.swipeDown;
+            List<String> tmpSwipeLeft = src.swipeLeft;
+            List<String> tmpSwipeRight = src.swipeRight;
             String tmpDisplay = src.display;
 
             src.tap = dst.tap;
@@ -910,11 +912,11 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
                 KeyCell cell = mGrid[gridStartRow + r][gridStartCol + c];
                 if (r < matrix.length && matrix[r] != null && c < matrix[r].length && matrix[r][c] != null) {
                     ExtraKeyButton btn = matrix[r][c];
-                    cell.tap = btn.getKey() != null ? btn.getKey() : "";
-                    cell.swipeUp = btn.getSwipeUp() != null ? btn.getSwipeUp().getKey() : "";
-                    cell.swipeDown = btn.getSwipeDown() != null ? btn.getSwipeDown().getKey() : "";
-                    cell.swipeLeft = btn.getSwipeLeft() != null ? btn.getSwipeLeft().getKey() : "";
-                    cell.swipeRight = btn.getSwipeRight() != null ? btn.getSwipeRight().getKey() : "";
+                    setCellBinding(cell.tap, btn);
+                    setCellBinding(cell.swipeUp, btn.getSwipeUp());
+                    setCellBinding(cell.swipeDown, btn.getSwipeDown());
+                    setCellBinding(cell.swipeLeft, btn.getSwipeLeft());
+                    setCellBinding(cell.swipeRight, btn.getSwipeRight());
                 }
             }
         }
@@ -952,6 +954,28 @@ try {
         syncRowColSeekbars();
     }
 
+    /**
+     * Fills {@code target} with the signal tokens of {@code btn}. A single literal key (which may
+     * itself contain spaces, e.g. a custom binding "ls -la") becomes one token; a macro becomes its
+     * space-separated tokens (e.g. "CTRL c" → ["CTRL", "c"]). A {@code null} or empty button fills
+     * an empty list.
+     */
+    private void setCellBinding(List<String> target, @Nullable ExtraKeyButton btn) {
+        target.clear();
+        if (btn == null) return;
+        String key = btn.getKey();
+        if (key == null || key.isEmpty()) return;
+        if (btn.isMacro()) {
+            // Tokens as parsed by ExtraKeyButton: a quoted literal such as "ls -la" is
+            // already reassembled into a single token with its spaces intact.
+            for (String token : btn.getParsedTokens()) {
+                if (!token.isEmpty()) target.add(token);
+            }
+        } else {
+            target.add(key);
+        }
+    }
+
     private void syncRowColSeekbars() {
         SeekBarPreference colsPref = findPreference("extra_keys_editor_columns");
         if (colsPref != null) colsPref.setValue(mCols);
@@ -967,27 +991,35 @@ try {
             JSONArray row = new JSONArray();
             for (int c = 0; c < mCols; c++) {
                 KeyCell cell = mGrid[vr + r][vc + c];
-                if (cell.tap.isEmpty() && cell.swipeUp.isEmpty() && cell.swipeDown.isEmpty()
-                    && cell.swipeLeft.isEmpty() && cell.swipeRight.isEmpty()) {
+
+                String tapValue = joinBinding(cell.tap);
+                String swipeUpValue = joinBinding(cell.swipeUp);
+                String swipeDownValue = joinBinding(cell.swipeDown);
+                String swipeLeftValue = joinBinding(cell.swipeLeft);
+                String swipeRightValue = joinBinding(cell.swipeRight);
+
+                if (tapValue.isEmpty() && swipeUpValue.isEmpty() && swipeDownValue.isEmpty()
+                    && swipeLeftValue.isEmpty() && swipeRightValue.isEmpty()) {
                     row.put("");
                     continue;
                 }
 
                 JSONObject obj = new JSONObject();
-                if (!cell.tap.isEmpty()) {
-                    putSignal(obj, ExtraKeyButton.KEY_KEY_NAME, cell.tap);
+                if (!tapValue.isEmpty()) {
+                    // A single token (even with spaces) is a literal key; multiple tokens form a macro.
+                    putSignal(obj, ExtraKeyButton.KEY_KEY_NAME, tapValue, cell.tap);
                     // Custom label overrides the auto-composed display of the main action.
                     if (!cell.display.isEmpty()) {
                         obj.put(ExtraKeyButton.KEY_DISPLAY_NAME, cell.display);
                     }
                 }
-                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_UP, cell.swipeUp);
-                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_DOWN, cell.swipeDown);
-                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_LEFT, cell.swipeLeft);
-                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_RIGHT, cell.swipeRight);
+                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_UP, swipeUpValue, cell.swipeUp);
+                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_DOWN, swipeDownValue, cell.swipeDown);
+                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_LEFT, swipeLeftValue, cell.swipeLeft);
+                putSwipe(obj, ExtraKeyButton.KEY_SWIPE_RIGHT, swipeRightValue, cell.swipeRight);
 
-                if (!cell.swipeUp.isEmpty()) {
-                    putSwipe(obj, ExtraKeyButton.KEY_POPUP, cell.swipeUp);
+                if (!swipeUpValue.isEmpty()) {
+                    putSwipe(obj, ExtraKeyButton.KEY_POPUP, swipeUpValue, cell.swipeUp);
                 }
 
                 row.put(obj);
@@ -997,29 +1029,40 @@ try {
         return matrix.toString();
     }
 
-    private void putSignal(JSONObject obj, String key, String value) throws JSONException {
+    private void putSignal(JSONObject obj, String key, String value, List<String> signals) throws JSONException {
         if (value == null || value.isEmpty()) return;
-        if (value.contains(" ")) {
+        if (signals != null && signals.size() > 1) {
             obj.put(ExtraKeyButton.KEY_MACRO, value);
             // Auto-composition with "+" between macro elements. The label stays
             // separate and empty — on load this display is recognized as auto
             // (see loadLayoutIntoGrid) and does not fill in the label field.
-            obj.put(ExtraKeyButton.KEY_DISPLAY_NAME, computeDisplay(value));
+            obj.put(ExtraKeyButton.KEY_DISPLAY_NAME, computeDisplay(signals));
         } else {
+            // Single literal key — may contain spaces, which are preserved verbatim
+            // (e.g. custom text "ls -la" is sent as the literal text "ls -la").
             obj.put(key, value);
         }
     }
 
-    private void putSwipe(JSONObject obj, String jsonKey, String value) throws JSONException {
+    private void putSwipe(JSONObject obj, String jsonKey, String value, List<String> signals) throws JSONException {
         if (value == null || value.isEmpty()) return;
-        if (value.contains(" ")) {
+        if (signals != null && signals.size() > 1) {
             JSONObject swipeObj = new JSONObject();
             swipeObj.put(ExtraKeyButton.KEY_MACRO, value);
-            swipeObj.put(ExtraKeyButton.KEY_DISPLAY_NAME, computeDisplay(value));
+            swipeObj.put(ExtraKeyButton.KEY_DISPLAY_NAME, computeDisplay(signals));
             obj.put(jsonKey, swipeObj);
         } else {
             obj.put(jsonKey, value);
         }
+    }
+
+    /** Joins signal tokens for storage. A single token is returned as-is (spaces preserved);
+     *  multiple tokens are joined into a macro string, quoting any token that itself contains
+     *  whitespace so the token list survives the round-trip. */
+    private static String joinBinding(List<String> signals) {
+        if (signals == null || signals.isEmpty()) return "";
+        if (signals.size() == 1) return signals.get(0);
+        return BindingTokenizer.joinMacro(signals);
     }
 
     /**
@@ -1027,9 +1070,9 @@ try {
      * recognize old auto-generated labels on load, so they do not fill in the
      * label field (see {@link #loadLayoutIntoGrid}).
      */
-    private String computeDisplay(String macroValue) {
-        if (macroValue == null || macroValue.isEmpty()) return "";
-        return Arrays.stream(macroValue.split(" "))
+    private String computeDisplay(List<String> tokens) {
+        if (tokens == null || tokens.isEmpty()) return "";
+        return tokens.stream()
             .map(key -> {
                 if (BindingTokenizer.isDelay(key)) {
                     return "⏱" + BindingTokenizer.parseDelayMs(key) + "ms";
@@ -1043,38 +1086,32 @@ try {
 
     private void openSignalPicker(int row, int col, int direction) {
         KeyCell cell = mGrid[visibleRowStart() + row][visibleColStart() + col];
-        String currentValue;
+        ArrayList<String> currentSignals;
         SignalPickerDialogFragment.BindTarget target;
 
         switch (direction) {
             case DIR_TAP:
-                currentValue = cell.tap;
+                currentSignals = new ArrayList<>(cell.tap);
                 target = SignalPickerDialogFragment.BindTarget.TAP;
                 break;
             case DIR_UP:
-                currentValue = cell.swipeUp;
+                currentSignals = new ArrayList<>(cell.swipeUp);
                 target = SignalPickerDialogFragment.BindTarget.SWIPE_UP;
                 break;
             case DIR_DOWN:
-                currentValue = cell.swipeDown;
+                currentSignals = new ArrayList<>(cell.swipeDown);
                 target = SignalPickerDialogFragment.BindTarget.SWIPE_DOWN;
                 break;
             case DIR_LEFT:
-                currentValue = cell.swipeLeft;
+                currentSignals = new ArrayList<>(cell.swipeLeft);
                 target = SignalPickerDialogFragment.BindTarget.SWIPE_LEFT;
                 break;
             case DIR_RIGHT:
-                currentValue = cell.swipeRight;
+                currentSignals = new ArrayList<>(cell.swipeRight);
                 target = SignalPickerDialogFragment.BindTarget.SWIPE_RIGHT;
                 break;
             default:
                 return;
-        }
-
-        ArrayList<String> currentSignals = new ArrayList<>();
-        if (currentValue != null && !currentValue.isEmpty()) {
-            currentSignals.addAll(Arrays.asList(currentValue.split(" ")));
-            currentSignals.removeIf(String::isEmpty);
         }
 
         SignalPickerDialogFragment fragment = SignalPickerDialogFragment.newInstance(row, col, target, currentSignals);
@@ -1088,10 +1125,11 @@ try {
         input.setMaxLines(1);
         input.setText(cell.display);
         // The hint previews what the button will show if the label is left empty:
-        // the auto-composed display of the main action macro (cell.tap). It must NOT come
+        // the main action. A single literal key (even with spaces, e.g. "ls -la") is shown
+        // verbatim; a macro is shown with its "+"-joined auto-composition. It must NOT come
         // from previewBtn.getDisplay(), which already reflects the current custom label and
         // would leak that label back into the hint after the field contents are deleted.
-        input.setHint(computeDisplay(cell.tap));
+        input.setHint(cell.tap.size() == 1 ? cell.tap.get(0) : computeDisplay(cell.tap));
         new MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.extra_keys_editor_label_dialog_title)
             .setView(input)
@@ -1120,22 +1158,14 @@ try {
             return;
         }
 
-        String value;
-        if (signals.isEmpty()) {
-            value = "";
-        } else if (signals.size() == 1) {
-            value = signals.get(0);
-        } else {
-            value = TextUtils.join(" ", signals);
-        }
-
         KeyCell cell = mGrid[visibleRowStart() + row][visibleColStart() + col];
+        ArrayList<String> newSignals = new ArrayList<>(signals);
         switch (target) {
-            case TAP: cell.tap = value; break;
-            case SWIPE_UP: cell.swipeUp = value; break;
-            case SWIPE_DOWN: cell.swipeDown = value; break;
-            case SWIPE_LEFT: cell.swipeLeft = value; break;
-            case SWIPE_RIGHT: cell.swipeRight = value; break;
+            case TAP: cell.tap = newSignals; break;
+            case SWIPE_UP: cell.swipeUp = newSignals; break;
+            case SWIPE_DOWN: cell.swipeDown = newSignals; break;
+            case SWIPE_LEFT: cell.swipeLeft = newSignals; break;
+            case SWIPE_RIGHT: cell.swipeRight = newSignals; break;
         }
 
         rebuildPreview();

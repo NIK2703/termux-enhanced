@@ -72,8 +72,11 @@ def ndkPrebuiltDir() {
         ndkRoot = props.getProperty('ndk.dir') ?: "${props.getProperty('sdk.dir')}/ndk/${project.properties.ndkVersion}"
     }
     def prebuilt = "${ndkRoot}/toolchains/llvm/prebuilt"
-    for (arch in ['linux-aarch64', 'linux-x86_64']) {
-        if (new File("${prebuilt}/${arch}/bin/clang-tidy").canExecute()) return "${prebuilt}/${arch}"
+    for (arch in ['linux-aarch64', 'linux-x86_64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']) {
+        def bare = new File("${prebuilt}/${arch}/bin/clang-tidy")
+        def exe = new File("${prebuilt}/${arch}/bin/clang-tidy.exe")
+        if (bare.canExecute()) return "${prebuilt}/${arch}"
+        if (exe.exists()) return "${prebuilt}/${arch}"
     }
     throw new GradleException("clang-tidy not found under ANDROID_NDK_HOME=${ndkRoot}; check the NDK layout")
 }

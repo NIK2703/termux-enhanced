@@ -591,8 +591,8 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_custom">Enlace personalizado…</string>
-    <string name="extra_keys_editor_signal_add_delay">Añadir retardo…</string>
+    <string name="extra_keys_editor_signal_custom">Símbolo/texto…</string>
+    <string name="extra_keys_editor_signal_add_delay">Retardo…</string>
     <string name="extra_keys_editor_delay_dialog_title">Añadir retardo</string>
 
     <!-- Extra keys editor swipe direction suffixes -->

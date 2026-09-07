@@ -421,7 +421,7 @@
     <string name="extra_keys_editor_signal_backslash">خط مائل عكسي (\\)</string>
     <string name="extra_keys_editor_signal_quote">اقتباس (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">فاصلة عليا (\')</string>
-    <string name="extra_keys_editor_signal_custom">ربط مخصص…</string>
+    <string name="extra_keys_editor_signal_custom">رمز/نص…</string>
 
     
     <string name="termux_api_debugging_title">تصحيح أخطاء Termux:API</string>
@@ -635,7 +635,7 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_add_delay">إضافة تأخير…</string>
+    <string name="extra_keys_editor_signal_add_delay">تأخير…</string>
     <string name="extra_keys_editor_delay_dialog_title">إضافة تأخير</string>
 
     <!-- AbiUtils error messages -->
