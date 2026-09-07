@@ -271,13 +271,18 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private boolean mSoftKeyboardVisible = false;
 
     /** IME visibility as reported by {@link WindowInsetsCompat.Type#ime()} (insets method).
-     *  Combined with {@link ImeVisibilityDetector} (visible-frame method) via OR logic:
-     *  IME is considered visible if EITHER method reports visible. This handles three
-     *  fallback situations:
-     *  1) API < 30 without ADJUST_RESIZE → insets always returns 0, frame works
-     *  2) Floating/undocked keyboard → frame may miss it, insets catches it (API 30+)
-     *  3) Startup/recreate race → whichever fires first sets state, second confirms */
+     *  AUTHORITY over the visible-frame method on API 30+ (see {@link #computeImeVisibility()}),
+     *  which fixes the keyboard intent being poisoned by a visible-frame false positive:
+     *  frame garbage (mid-resize frame at onPause, multi-window half-height window) made the
+     *  hidden keyboard read as "visible", so the intent captured in onPause said "visible"
+     *  and the keyboard popped back up on resume. The frame method remains the fallback only
+     *  for API < 30, where ime() insets are unavailable even with ADJUST_RESIZE. */
     private boolean mImeVisibleFromInsets = false;
+
+    /** True once at least one WindowInsets dispatch has been processed by the root
+     *  onApplyWindowInsets listener. Guards {@link #computeImeVisibility()} so the insets
+     *  signal is only trusted when the platform actually delivers it. */
+    private boolean mImeInsetsSeen = false;
 
     /** True while the terminal toolbar is temporarily shown just for the text input panel. */
     private boolean mToolbarTemporarilyShownForTextInput = false;
@@ -911,7 +916,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (view != null) {
             mTextInputState.setScrollState(session, view.getTopRow(), view.getScrollTranscriptRows());
         }
-        mTextInputState.setSoftKeyboardVisibleIntent(mSoftKeyboardVisible);
+        // Capture the keyboard intent from the AUTHORITATIVE combined signal, not the raw
+        // mSoftKeyboardVisible latch: the visible-frame detector can transiently report a
+        // false positive at pause time (mid-resize frame / multi-window), which previously
+        // flipped a "hidden" intent to "visible" and popped the keyboard on resume.
+        mTextInputState.setSoftKeyboardVisibleIntent(computeImeVisibility());
     }
 
     /** Ordered live TerminalSession list (service order == snapshot order). */
@@ -1017,9 +1026,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
             if (kbIntent && !kbDisabled) {
                 target.requestFocus();
-                com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target, () ->
-                        mImeVisibleFromInsets
-                                || (mImeDetector != null && mImeDetector.isImeVisible()));
+                // Probe must use the SAME authoritative signal as the intent capture: a
+                // visible-frame false positive here would make showWithRetry believe the
+                // IME is already up and skip the show entirely.
+                com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
+                        this::computeImeVisibility);
                 // showWithRetry is up to 4x120ms; keep the latch until everything settles.
                 target.postDelayed(() -> mRestoringKeyboard = false, 800);
             } else {
@@ -3108,19 +3119,37 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Stores the insets signal and re-evaluates combined visibility.
      */
     private void onImeInsetsChanged(boolean imeVisible) {
+        mImeInsetsSeen = true;
         mImeVisibleFromInsets = imeVisible;
         reevaluateImeVisibility();
     }
 
     /**
-     * Combines insets-based and visible-frame-based IME detection via OR logic.
-     * IME is considered visible if EITHER method reports it visible, covering
-     * three fallback situations where one method is unreliable.
+     * Combines the two IME detection methods into a single visibility signal.
+     *
+     * On API 30+ the insets method ({@link WindowInsetsCompat.Type#ime()}) is the
+     * AUTHORITY once the platform has delivered at least one insets dispatch
+     * ({@link #mImeInsetsSeen}); the visible-frame method is only consulted before
+     * that, and on API &lt; 30 where ime() insets are not delivered even with
+     * ADJUST_RESIZE.
+     *
+     * Why not OR (the previous logic): the visible-frame method has false positives
+     * — a transient mid-resize frame at onPause, or any multi-window/split-screen
+     * configuration where the window is half the screen height — that poisoned the
+     * persisted keyboard intent ("hidden" became "visible") and made the keyboard
+     * pop back up on resume.
      */
+    private boolean computeImeVisibility() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mImeInsetsSeen) {
+            return mImeVisibleFromInsets;
+        }
+        return mImeVisibleFromInsets
+                || (mImeDetector != null && mImeDetector.isImeVisible());
+    }
+
+    /** Recompute the IME visibility and fan out through {@link #onImeVisibilityChanged(boolean)}. */
     private void reevaluateImeVisibility() {
-        boolean imeVisible = mImeVisibleFromInsets
-            || (mImeDetector != null && mImeDetector.isImeVisible());
-        onImeVisibilityChanged(imeVisible);
+        onImeVisibilityChanged(computeImeVisibility());
     }
 
     /**
