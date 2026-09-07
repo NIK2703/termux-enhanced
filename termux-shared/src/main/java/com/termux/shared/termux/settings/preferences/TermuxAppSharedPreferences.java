@@ -190,6 +190,14 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED, value, false);
     }
 
+    public boolean isKeyboardStateFollowTabSwitch() {
+        return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_KEYBOARD_STATE_FOLLOW_TAB_SWITCH, TERMUX_APP.DEFAULT_VALUE_KEYBOARD_STATE_FOLLOW_TAB_SWITCH);
+    }
+
+    public void setKeyboardStateFollowTabSwitch(boolean value) {
+        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_KEYBOARD_STATE_FOLLOW_TAB_SWITCH, value, false);
+    }
+
     public boolean isSoftKeyboardEnabledOnlyIfNoHardware() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE, TERMUX_APP.DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE);
     }

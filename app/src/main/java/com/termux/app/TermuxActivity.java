@@ -3504,6 +3504,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
 
         if (applyFocus) {
+            // "Keyboard state when switching tabs" toggle. ON (default): the keyboard follows
+            // the landed session's remembered state (the reconcile below). OFF: the keyboard
+            // state must not change on a tab switch — and per the toggle semantics, switching
+            // from a hidden-keyboard tab to a session whose input panel was open CLOSES that
+            // panel instead of opening it without a keyboard.
+            boolean followKbOnSwitch = mPreferences.isKeyboardStateFollowTabSwitch();
+            if (!followKbOnSwitch && visible && isFocusOnInputForSession(session)
+                    && !computeImeVisibility()) {
+                visible = false;
+                if (session != null) mTextInputState.setVisible(session.mHandle, false);
+                setTextInputSlotVisible(false);
+                com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): panel closed (IME hidden, target wanted it open)");
+            }
             // On switch, restore where focus was last for this session:
             // on the panel (with keyboard) or on the terminal.
             if (visible && isFocusOnInputForSession(session)) {
@@ -3522,6 +3535,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             if (imm != null) {
                                 imm.showSoftInput(textInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
                             }
+                        } else if (!followKbOnSwitch) {
+                            // Toggle OFF: the keyboard state must not change — leave the IME
+                            // exactly as it is (it is up in this branch, otherwise the panel
+                            // was closed above).
                         } else {
                             // Keyboard must stay hidden on this session: swallow the
                             // focus-triggered show and cancel any stray pending show so a
@@ -3549,15 +3566,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     mTerminalView.requestFocus();
                 }
             }
-            // Per-session keyboard reconcile. Truth table against the TARGET session's memory:
+            // Per-session keyboard reconcile — gated by the toggle. Truth table against the
+            // TARGET session's memory:
             //   IME up   + target hidden -> actively hide (don't drag the keyboard across tabs)
             //   IME down + target open   -> actively re-show (the pager rebind detaches the served
             //                               view when a new tab is created, which makes the IME
             //                               close by itself; switching from a hidden-keyboard
             //                               tab to an open-keyboard tab must open it)
             //   otherwise                -> leave the IME alone (no churn)
+            // With the toggle OFF the keyboard state does not change on a tab switch: skip
+            // the whole reconcile (and the close-rebind re-assert below).
             boolean imeVisibleNow = computeImeVisibility();
-            if (!showKeyboardIfFocused && imeVisibleNow) {
+            if (!followKbOnSwitch) {
+                com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): keyboard untouched");
+            } else if (!showKeyboardIfFocused && imeVisibleNow) {
                 if (mTermuxTerminalViewClient != null) {
                     mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
                     mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();

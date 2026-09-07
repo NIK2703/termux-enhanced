@@ -126,6 +126,14 @@
             app:title="@string/termux_soft_keyboard_enabled_only_if_no_hardware_title"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            app:key="keyboard_state_follow_tab_switch"
+            app:defaultValue="true"
+            app:summaryOff="@string/keyboard_state_follow_tab_switch_off"
+            app:summaryOn="@string/keyboard_state_follow_tab_switch_on"
+            app:title="@string/keyboard_state_follow_tab_switch_title"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

@@ -148,6 +148,16 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED = true;
 
         /**
+         * Defines the key for whether switching tabs changes the soft keyboard state to match
+         * the per-session remembered state of the target session (true), or leaves the
+         * keyboard exactly as it currently is (false). When false, switching to a tab whose
+         * input panel was open while the keyboard is hidden closes that panel instead of
+         * opening it without a keyboard.
+         */
+        public static final String KEY_KEYBOARD_STATE_FOLLOW_TAB_SWITCH = "keyboard_state_follow_tab_switch";
+        public static final boolean DEFAULT_VALUE_KEYBOARD_STATE_FOLLOW_TAB_SWITCH = true;
+
+        /**
          * Defines the key for whether the soft keyboard will be enabled only if no hardware keyboard
          * attached, for cases where users want to use a hardware keyboard instead.
          */
