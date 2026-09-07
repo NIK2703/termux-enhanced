@@ -45,6 +45,8 @@ public final class SessionUiStateStore {
     public static final String ARG_SCROLL_ROWS_PER_SESSION = "scroll_rows_per_session";
     public static final String ARG_SOFT_KEYBOARD_VISIBLE = "soft_keyboard_visible";
     public static final String ARG_ACTIVE_SESSION_INDEX = "active_session_index";
+    // New keys.
+    public static final String ARG_KB_INTENT_PER_SESSION = "kb_intent_per_session";
 
     /** Hard cap for stored per-session input text so Bundle/JSON can never explode. */
     private static final int MAX_STORED_INPUT_LENGTH = 32_000;
@@ -56,6 +58,9 @@ public final class SessionUiStateStore {
         public boolean panelVisible;
         public boolean hasPanelVisible;
         public boolean focusOnInput;
+        /** Whether the soft keyboard SHOULD be open for this session (per-session restore intent). */
+        public boolean hasKeyboardIntent = false;
+        public boolean keyboardIntent = true;
         /** TerminalView.mTopRow at save time (0 == follow-the-bottom). */
         public int scrollTopRow;
         /** activeTranscriptRows() at save time, for proportional remap on restore. */
@@ -213,6 +218,32 @@ public final class SessionUiStateStore {
         return mSoftKeyboardVisibleIntent;
     }
 
+    // ── Per-session keyboard intent ─────────────────────────────────────
+
+    /**
+     * Record whether the soft keyboard should be open for the given session.
+     * Only honest user-driven IME transitions (foreground, no restore/switch
+     * in progress) reach this.
+     */
+    public void setSoftKeyboardIntent(@Nullable TerminalSession session, boolean visible) {
+        if (session == null) return;
+        SessionUiState s = state(session.mHandle);
+        s.hasKeyboardIntent = true;
+        s.keyboardIntent = visible;
+    }
+
+    /**
+     * Read the per-session keyboard intent. Falls back to the global intent for
+     * sessions that have no recorded one (e.g. freshly created), so a brand-new
+     * tab inherits "what the user was doing".
+     */
+    public boolean isSoftKeyboardIntent(@Nullable TerminalSession session) {
+        if (session == null) return mSoftKeyboardVisibleIntent;
+        SessionUiState s = mStates.get(session.mHandle);
+        if (s == null || !s.hasKeyboardIntent) return mSoftKeyboardVisibleIntent;
+        return s.keyboardIntent;
+    }
+
     public void setActiveSessionIndex(int index) {
         mActiveSessionIndex = index;
     }
@@ -297,6 +328,14 @@ public final class SessionUiStateStore {
                 }
             }
         }
+        Bundle kbBundle = savedInstanceState.getBundle(ARG_KB_INTENT_PER_SESSION);
+        if (kbBundle != null) {
+            for (String key : kbBundle.keySet()) {
+                SessionUiState s = state(key);
+                s.hasKeyboardIntent = true;
+                s.keyboardIntent = kbBundle.getBoolean(key);
+            }
+        }
         if (savedInstanceState.containsKey(ARG_SOFT_KEYBOARD_VISIBLE)) {
             mSoftKeyboardVisibleIntent = savedInstanceState.getBoolean(ARG_SOFT_KEYBOARD_VISIBLE, true);
         }
@@ -310,6 +349,7 @@ public final class SessionUiStateStore {
         Bundle caretBundle = new Bundle();
         Bundle scrollRowBundle = new Bundle();
         Bundle scrollRowsBundle = new Bundle();
+        Bundle kbBundle = new Bundle();
 
         for (Map.Entry<String, SessionUiState> e : mStates.entrySet()) {
             String key = e.getKey();
@@ -322,6 +362,7 @@ public final class SessionUiStateStore {
                 scrollRowBundle.putInt(key, s.scrollTopRow);
                 scrollRowsBundle.putInt(key, s.scrollTranscriptRows);
             }
+            if (s.hasKeyboardIntent) kbBundle.putBoolean(key, s.keyboardIntent);
         }
 
         if (!textBundle.isEmpty()) outState.putBundle(ARG_TEXT_INPUT_PER_SESSION, textBundle);
@@ -330,6 +371,7 @@ public final class SessionUiStateStore {
         if (!caretBundle.isEmpty()) outState.putBundle(ARG_TEXT_INPUT_CARET_PER_SESSION, caretBundle);
         if (!scrollRowBundle.isEmpty()) outState.putBundle(ARG_SCROLL_TOP_PER_SESSION, scrollRowBundle);
         if (!scrollRowsBundle.isEmpty()) outState.putBundle(ARG_SCROLL_ROWS_PER_SESSION, scrollRowsBundle);
+        if (!kbBundle.isEmpty()) outState.putBundle(ARG_KB_INTENT_PER_SESSION, kbBundle);
 
         outState.putBoolean(ARG_SOFT_KEYBOARD_VISIBLE, mSoftKeyboardVisibleIntent);
         outState.putInt(ARG_ACTIVE_SESSION_INDEX, mActiveSessionIndex);
@@ -366,6 +408,7 @@ public final class SessionUiStateStore {
                 o.put("panelVisible", s.panelVisible);
                 o.put("hasPanelVisible", s.hasPanelVisible);
                 o.put("focusOnInput", s.focusOnInput);
+                if (s.hasKeyboardIntent) o.put("kb", s.keyboardIntent);
                 o.put("scrollRow", s.scrollTopRow);
                 o.put("scrollRows", s.scrollTranscriptRows);
                 arr.put(o);
@@ -405,6 +448,10 @@ public final class SessionUiStateStore {
                 s.hasPanelVisible = o.optBoolean("hasPanelVisible", false);
                 s.panelVisible = o.optBoolean("panelVisible", false);
                 s.focusOnInput = o.optBoolean("focusOnInput", false);
+                if (o.has("kb")) {
+                    s.hasKeyboardIntent = true;
+                    s.keyboardIntent = o.optBoolean("kb", true);
+                }
                 s.scrollTopRow = o.optInt("scrollRow", 0);
                 s.scrollTranscriptRows = o.optInt("scrollRows", 0);
             }

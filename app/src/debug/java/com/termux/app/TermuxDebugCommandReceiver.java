@@ -279,6 +279,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
             sb.append(" t").append(i).append("panel=").append(store.hasVisible(s.mHandle)
                     ? (store.isVisible(s.mHandle) ? 1 : 0) : -1);
             sb.append(" t").append(i).append("focus=").append(store.isFocusOnInput(s) ? 1 : 0);
+            sb.append(" t").append(i).append("kb=").append(store.isSoftKeyboardIntent(s) ? 1 : 0);
             sb.append(" t").append(i).append("top=").append(store.getScrollTopRow(s));
             sb.append(" t").append(i).append("rows=").append(store.getScrollTranscriptRows(s));
             if (s == currentSession) current = i;

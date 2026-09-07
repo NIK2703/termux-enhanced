@@ -756,7 +756,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // hide at .465, platform SHOW at .494). SOFT_INPUT_STATE_ALWAYS_HIDDEN makes the
             // platform skip the auto-show entirely. When the intent says the keyboard should
             // come back, make sure the window state allows showing instead.
-            final boolean kbIntentEarly = mTextInputState.isSoftKeyboardVisibleIntent();
+            final boolean kbIntentEarly = mTextInputState.isSoftKeyboardIntent(getCurrentSession());
             if (kbIntentEarly) {
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
             } else {
@@ -795,7 +795,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // Capture the keyboard intent NOW — before any insets churn of the
                 // resume frames can overwrite it (onImeVisibilityChanged is guarded
                 // by mJustResumed/mRestoringKeyboard, but keep the read here too).
-                final boolean kbIntent = mTextInputState.isSoftKeyboardVisibleIntent();
+                // Per-session memory first: THIS session's own "keyboard was open"
+                // record; the global flag is only the fallback for sessions without one.
+                final boolean kbIntent = mTextInputState.isSoftKeyboardIntent(currentSession);
                 // Slot + text ONLY, no focus/IME: focus and keyboard are driven
                 // exclusively by runKeyboardRestore(), which waits for a clean
                 // toolbar re-layout (fixes the cached zero-height measure).
@@ -947,8 +949,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // mSoftKeyboardVisible latch: the visible-frame detector can transiently report a
         // false positive at pause time (mid-resize frame / multi-window), which previously
         // flipped a "hidden" intent to "visible" and popped the keyboard on resume.
-        mTextInputState.setSoftKeyboardVisibleIntent(computeImeVisibility());
-        com.termux.app.terminal.io.KBTrace.i("capture: kbIntent->" + mTextInputState.isSoftKeyboardVisibleIntent()
+        // Recorded globally AND for the current session (per-session keyboard memory).
+        boolean kbIntentCapture = computeImeVisibility();
+        mTextInputState.setSoftKeyboardVisibleIntent(kbIntentCapture);
+        mTextInputState.setSoftKeyboardIntent(session, kbIntentCapture);
+        com.termux.app.terminal.io.KBTrace.i("capture: kbIntent->" + kbIntentCapture
                 + " paused=" + mIsPaused
                 + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
                 + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
@@ -1068,6 +1073,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // SHOW_IMPLICIT (used by the retry) is ignored while ALWAYS_HIDDEN is set;
                 // a show request is an explicit intent — make the window showable first.
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
+                com.termux.app.terminal.io.KBTrace.i("restore show: showWithRetry");
                 target.requestFocus();
                 // Probe must use the SAME authoritative signal as the intent capture: a
                 // visible-frame false positive here would make showWithRetry believe the
@@ -3231,9 +3237,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     || mPendingKeyboardRestore
                     || isTerminalPageSwitchInProgress();
 
-            // Record the keyboard INTENT only in honest foreground states.
+            // Record the keyboard INTENT only in honest foreground states. Both the global
+            // fallback and the CURRENT session's own memory: each tab remembers whether ITS
+            // keyboard was open, so switching back to it re-opens (or hides) the keyboard.
             if (!inTransition) {
                 mTextInputState.setSoftKeyboardVisibleIntent(imeVisible);
+                mTextInputState.setSoftKeyboardIntent(getCurrentSession(), imeVisible);
             }
 
             // Auto-close text input panel when keyboard hides
@@ -3393,14 +3402,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Does not re-record per-session state.
      */
     public void applyTextInputVisibilityForSession(@Nullable TerminalSession session, boolean applyFocus) {
-        // The GLOBAL keyboard intent (the last explicit show/hide action) decides whether the
-        // keyboard comes up when focus lands on the panel. This is what makes
-        // "keyboard was hidden before the switch -> stays hidden on the target session" hold,
-        // while still restoring the keyboard for a session the user was actively typing into
-        // (intent still true). Keeps the tab-switch path consistent with the resume path,
-        // which passes the same intent explicitly.
+        // The TARGET session's own keyboard memory decides whether the keyboard comes up
+        // when focus lands on it — and whether it is actively hidden when switching to a
+        // session where it was closed. Sessions without a recorded memory fall back to the
+        // global intent. Keeps the tab-switch path consistent with the resume path.
         applyTextInputVisibilityForSession(session, applyFocus,
-                mTextInputState.isSoftKeyboardVisibleIntent());
+                mTextInputState.isSoftKeyboardIntent(session));
     }
 
     /**
@@ -3470,22 +3477,35 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         }
                     }, 6);
                 }
-            } else {
-                // Panel hidden, or focus was on the terminal: focus the terminal — UNLESS the
-                // text input EditText still holds focus. Stealing focus here is what makes a later
-                // long-press on the input panel bubble its context menu up to the terminal menu
-                // instead of selecting a word (long-press regression on the input panel). The
-                // EditText is a sibling of the pager (not inside a page), so it must keep focus
-                // across page switches when the user was typing into it.
-                final EditText currentInput = findViewById(R.id.terminal_toolbar_text_input);
-                if (currentInput == null || !currentInput.hasFocus()) {
-                    if (mTermuxTerminalViewClient != null)
-                        mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
-                    if (mTerminalView != null) {
-                        mTerminalView.requestFocus();
-                    }
+        } else {
+            // Panel hidden, or focus was on the terminal: focus the terminal — UNLESS the
+            // text input EditText still holds focus. Stealing focus here is what makes a later
+            // long-press on the input panel bubble its context menu up to the terminal menu
+            // instead of selecting a word (long-press regression on the input panel). The
+            // EditText is a sibling of the pager (not inside a page), so it must keep focus
+            // across page switches when the user was typing into it.
+            final EditText currentInput = findViewById(R.id.terminal_toolbar_text_input);
+            if (currentInput == null || !currentInput.hasFocus()) {
+                if (mTermuxTerminalViewClient != null)
+                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                if (mTerminalView != null) {
+                    mTerminalView.requestFocus();
                 }
             }
+            // Per-session keyboard reconcile: if the TARGET session's keyboard was hidden
+            // but the IME is still up from the session we just left, actively hide it.
+            // Without this, "open keyboard in tab A -> swipe to tab B (hidden)" would drag
+            // A's keyboard into B. The focus listener is already suppressed for this
+            // switch, so the hide here is the single authority.
+            if (!showKeyboardIfFocused && computeImeVisibility()) {
+                if (mTermuxTerminalViewClient != null) {
+                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                    mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
+                }
+                KeyboardUtils.hideSoftKeyboard(this, currentInput != null ? currentInput : mTerminalView);
+                com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: hide (target session kbIntent=false)");
+            }
+        }
         } else if (visible) {
             // At startup we still want the saved text restored into the field,
             // just without grabbing focus / popping the keyboard.
