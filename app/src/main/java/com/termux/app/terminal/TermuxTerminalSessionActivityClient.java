@@ -900,6 +900,16 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // Drop the per-session saved text input for the removed session.
         mActivity.clearTextInputForSession(finishedSession);
 
+        // Suppress IME/focus churn for the whole close sequence. The pager rebuild detaches
+        // the closed page's view (the served IME target), which fires a focus LOSS and an
+        // imeChange HIDE on the main looper. Without the guard those run with
+        // mTerminalPageSwitchInProgress already false, so the focus listener hides the IME
+        // and — worse — the HIDE is treated as an honest user action and OVERWRITES the
+        // LANDED session's keyboard intent to "hidden" before its reconcile runs (the
+        // "keyboard state not restored after closing a tab" bug). The landed session's own
+        // reconcile then restores its remembered state untouched.
+        mActivity.setTerminalPageSwitchInProgress(true);
+
         int index = service.removeTermuxSession(finishedSession);
 
         int size = service.getTermuxSessionsSize();
@@ -931,6 +941,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // lookup overrides it.
             termuxSessionListNotifyUpdated(index);
         }
+
+        // The deferred page-switch bookkeeping (onTerminalPageSelected ->
+        // applyTextInputVisibilityForSession -> reconcile) runs on a posted runnable, AFTER
+        // this method returns. Clear the close-suppression flag in a posted runnable as well
+        // so it stays raised for the whole close+reconcile window.
+        mActivity.getWindow().getDecorView().post(() ->
+                mActivity.setTerminalPageSwitchInProgress(false));
     }
 
     public void termuxSessionListNotifyUpdated() {

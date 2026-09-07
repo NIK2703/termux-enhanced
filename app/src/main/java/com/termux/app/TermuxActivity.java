@@ -3217,11 +3217,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // (panel open, restore retry) would be silently ignored.
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
             }
+            // A system-driven IME drop (NOT a user action) fires when the pager rebuild detaches
+            // the served view: closing a tab, or the rebind right after creating one. Detection:
+            // the window's focused view is null or not attached. In that state the intent must
+            // NOT be recorded — the event belongs to the OLD session being torn down, but
+            // getCurrentSession() already points at the LANDED one, so a "hidden" write here
+            // clobbers the landed session's memory before its reconcile can restore it.
+            View focusedNow = getCurrentFocus();
+            boolean systemDrop = !imeVisible
+                    && (focusedNow == null || !focusedNow.isAttachedToWindow());
             com.termux.app.terminal.io.KBTrace.i("imeChange " + (imeVisible ? "SHOW" : "HIDE")
                     + " paused=" + mIsPaused + " justResumed=" + mJustResumed
                     + " restoringKb=" + mRestoringKeyboard + " pendingKb=" + mPendingKeyboardRestore
                     + " switchInProg=" + isTerminalPageSwitchInProgress()
                     + " panelVis=" + isTextInputVisible()
+                    + " systemDrop=" + systemDrop
                     + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
                     + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
             // Any of these states means the change is NOT an honest user action we should
@@ -3230,12 +3240,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             //  - mJustResumed: transient post-return insets frames (400ms window);
             //  - mRestoringKeyboard / mPendingKeyboardRestore: runKeyboardRestore() is the
             //    authority and is still applying the real state;
-            //  - isTerminalPageSwitchInProgress(): the shared IME must not churn mid-switch.
+            //  - isTerminalPageSwitchInProgress(): the shared IME must not churn mid-switch;
+            //  - systemDrop: the served view was detached by a close/create rebind — the HIDE
+            //    belongs to the old session, not to the now-current (landed) one.
             boolean inTransition = mIsPaused
                     || mJustResumed
                     || mRestoringKeyboard
                     || mPendingKeyboardRestore
-                    || isTerminalPageSwitchInProgress();
+                    || isTerminalPageSwitchInProgress()
+                    || systemDrop;
 
             // Record the keyboard INTENT only in honest foreground states. Both the global
             // fallback and the CURRENT session's own memory: each tab remembers whether ITS
