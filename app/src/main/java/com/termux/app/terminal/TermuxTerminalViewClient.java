@@ -65,11 +65,54 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private boolean mShowSoftKeyboardWithDelayOnce;
 
     /**
+     * Auto-clear runnable for {@link #mShowSoftKeyboardIgnoreOnce}. Bounds the latch lifetime
+     * so that a stale latch (set, but never consumed because requestFocus() was a no-op on an
+     * already-focused view) cannot swallow a later legitimate keyboard show.
+     */
+    private Runnable mIgnoreOnceAutoClearRunnable;
+
+    /**
      * Set to ignore the next soft keyboard show request triggered by terminal view focus change.
      * Used when hiding the text input panel to prevent keyboard from reopening on terminal focus.
+     *
+     * The latch self-clears after 1 second: if the expected focus change never happens
+     * (the view was already focused and requestFocus() did not fire onFocusChange), the latch
+     * must not linger and eat a later legitimate show.
      */
     public void ignoreOnceSoftKeyboardOnFocus() {
         mShowSoftKeyboardIgnoreOnce = true;
+        final TerminalView tv = mActivity.getTerminalView();
+        if (tv != null) {
+            if (mIgnoreOnceAutoClearRunnable != null)
+                tv.removeCallbacks(mIgnoreOnceAutoClearRunnable);
+            mIgnoreOnceAutoClearRunnable = () -> mShowSoftKeyboardIgnoreOnce = false;
+            tv.postDelayed(mIgnoreOnceAutoClearRunnable, 1000);
+        }
+    }
+
+    /** Clear the ignore-once latch and its auto-clear timer (used before an intended show). */
+    public void clearIgnoreOnceSoftKeyboardOnFocus() {
+        mShowSoftKeyboardIgnoreOnce = false;
+        removeIgnoreOnceAutoClear();
+    }
+
+    private void removeIgnoreOnceAutoClear() {
+        final TerminalView tv = mActivity.getTerminalView();
+        if (tv != null && mIgnoreOnceAutoClearRunnable != null) {
+            tv.removeCallbacks(mIgnoreOnceAutoClearRunnable);
+        }
+    }
+
+    /**
+     * Cancel any pending delayed keyboard-show runnable posted to the active terminal view.
+     * Used on the "keep hidden" paths so a previously scheduled +500ms show cannot pop the
+     * keyboard back after we explicitly hid it.
+     */
+    public void cancelPendingSoftKeyboardShow() {
+        final TerminalView tv = mActivity.getTerminalView();
+        if (tv != null) {
+            tv.removeCallbacks(getShowSoftKeyboardRunnable());
+        }
     }
 
     private boolean mTerminalCursorBlinkerStateAlreadySet;
@@ -643,39 +686,49 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // Clear any previous flags to disable soft keyboard in case setting updated
             KeyboardUtils.clearDisableSoftKeyboardFlags(mActivity);
 
-            // If soft keyboard is to be hidden on startup
-            if (isStartup && mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
+            // If soft keyboard is to be hidden on startup. Applies ONLY to a true cold start
+            // (first resume after onCreate, not a recreate): on resume-from-background /
+            // recreate the keyboard-restore path (runKeyboardRestore) is the single authority
+            // and honours the persisted keyboard intent. Forcing SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            // here on every resume would fight that restore (the "hidden on startup vs
+            // showWithRetry" conflict).
+            if (isStartup && mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()
+                && mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
                 Logger.logVerbose(LOG_TAG, "Hiding soft keyboard on startup");
-                // Required to keep keyboard hidden when Termux app is switched back from another app
+                // Required to keep keyboard hidden at app startup while the window gains focus
                 KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(mActivity);
 
                 KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
                 terminalView.requestFocus();
                 noShowKeyboard = true;
-                // Required to keep keyboard hidden on app startup
-                mShowSoftKeyboardIgnoreOnce = true;
+                // Required to keep keyboard hidden on app startup. Use the self-clearing
+                // variant so a no-op focus change cannot leave the latch stuck forever.
+                ignoreOnceSoftKeyboardOnFocus();
             }
         }
 
         // Do not force show soft keyboard if termux-reload-settings command was run with hardware keyboard
         // or soft keyboard is to be hidden or is disabled
         if (!isReloadTermuxProperties && !noShowKeyboard) {
-            // Request focus for TerminalView
-            // Also show the keyboard, since onFocusChange will not be called if TerminalView already
-            // had focus on startup to show the keyboard, like when opening url with context menu
-            // "Select URL" long press and returning to Termux app with back button. This
-            // will also show keyboard even if it was closed before opening url. #2111
+            // Request focus for TerminalView.
+            // On a resume/recreate this requestFocus() may fire the per-page focus listener, but
+            // onResume() raises mRestoringKeyboard BEFORE calling this method, so the listener
+            // early-returns and no +500ms show is scheduled here.
             Logger.logVerbose(LOG_TAG, "Requesting TerminalView focus and showing soft keyboard");
             terminalView.requestFocus();
-            // On resume-after-background / recreate the persisted keyboard INTENT (the
-            // SessionUiStateStore soft-keyboard flag) is the authority: only schedule the
-            // delayed show when the keyboard was actually visible before leaving. Otherwise
-            // a user-hidden keyboard would pop back up on every return from the background.
-            // Cold start (first resume after onCreate) keeps the historical always-show
-            // behaviour; runKeyboardRestore() re-asserts the IME for the restored panel state.
+            // On resume-after-background / recreate the keyboard RESTORE path (runKeyboardRestore)
+            // is the single authority for the IME; do not schedule any show here. When the
+            // persisted intent is hidden, also cancel a stale pending show so a stray
+            // requestFocus-triggered runnable cannot pop the keyboard after the restore hides it.
+            // Cold start (first resume after onCreate) keeps the historical always-show behaviour
+            // (also covers opening a URL via the "Select URL" long press and returning: #2111).
             boolean restoreFromState = !mActivity.isOnResumeAfterOnCreate() || mActivity.isActivityRecreated();
             boolean kbIntent = mActivity.getTextInputState().isSoftKeyboardVisibleIntent();
-            if (!restoreFromState || kbIntent) {
+            if (restoreFromState) {
+                if (!kbIntent) {
+                    terminalView.removeCallbacks(getShowSoftKeyboardRunnable());
+                }
+            } else {
                 terminalView.postDelayed(getShowSoftKeyboardRunnable(), 300);
             }
         }
@@ -690,6 +743,18 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         terminalView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View view, boolean hasFocus) {
+                // During a page switch OR a keyboard restore, the shared IME and the panel/focus
+                // bookkeeping are owned by onTerminalPageSelected() / runKeyboardRestore().
+                // Suppress ALL churn here and return BEFORE any side effect: the old page losing
+                // focus mid-switch, or the restore's requestFocus(), must not pop the keyboard,
+                // close the panel, or clobber the per-session focus flag. This kills both the
+                // +500ms show leak and the panel/focus clobber on resume. (Fixes #InputPanel6,
+                // keeps #InputPanel5 intact.)
+                if (mActivity.isTerminalPageSwitchInProgress() || mActivity.isRestoringKeyboard()) {
+                    Logger.logVerbose(LOG_TAG, "Suppressing soft keyboard churn: switch/restore in progress");
+                    return;
+                }
+
                 // Force show soft keyboard if TerminalView or toolbar text input view has
                 // focus and close it if they don't
                 boolean textInputViewHasFocus = false;
@@ -698,7 +763,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
                 if (hasFocus || textInputViewHasFocus) {
                     if (mShowSoftKeyboardIgnoreOnce) {
-                        mShowSoftKeyboardIgnoreOnce = false; return;
+                        mShowSoftKeyboardIgnoreOnce = false;
+                        removeIgnoreOnceAutoClear();
+                        return;
                     }
                     // Terminal got focus (not the panel): remember input goes to terminal.
                     if (hasFocus && !textInputViewHasFocus) {
@@ -708,17 +775,12 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                         // the extra keys panel. This is driven by the user interacting with
                         // the terminal, independent of the "Action on send" preference
                         // (which only governs what happens right when text is sent).
-                        // Skip during page switch to avoid flicker: the incoming page's own
-                        // visibility state is applied by applyTextInputVisibilityForSession()
-                        // after onPageSelected.
-                        if (!mActivity.isTerminalPageSwitchInProgress()) {
-                            View container = mActivity.findViewById(
-                                    com.termux.R.id.terminal_toolbar_text_input_container);
-                            if (container != null
-                                    && container.getVisibility() == View.VISIBLE) {
-                                mActivity.setTextInputVisible(false);
-                                mActivity.updateToggleTextInputButtonIcon();
-                            }
+                        View container = mActivity.findViewById(
+                                com.termux.R.id.terminal_toolbar_text_input_container);
+                        if (container != null
+                                && container.getVisibility() == View.VISIBLE) {
+                            mActivity.setTextInputVisible(false);
+                            mActivity.updateToggleTextInputButtonIcon();
                         }
                     }
                     Logger.logVerbose(LOG_TAG, "Showing soft keyboard on focus change");
@@ -727,19 +789,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 }
 
                 boolean showKeyboard = hasFocus || textInputViewHasFocus;
-                if (mActivity.isTerminalPageSwitchInProgress() || mActivity.isRestoringKeyboard()) {
-                    // A pager page switch OR the post-resume keyboard restore is in progress.
-                    // During the animation the OLD page temporarily loses focus while the NEW
-                    // page gains it. Both pages share a single window/IME, so any show/hide
-                    // churn here pops the keyboard globally; worse,
-                    // KeyboardUtils.setSoftKeyboardVisibility(false) also cancels the shared
-                    // showSoftKeyboardRunnable, killing the new page's pending re-show. Suppress
-                    // ALL IME churn while switching/restoring; onTerminalPageSelected() /
-                    // runKeyboardRestore() is the single authority that re-asserts the keyboard
-                    // for the landed page. This fixes #InputPanel6 (keyboard vanishing on tab
-                    // click) and keeps #InputPanel5 (keyboard vanishing on manual swipe) intact.
-                    Logger.logVerbose(LOG_TAG, "Suppressing soft keyboard churn: switch/restore in progress");
-                } else if (!showKeyboard && terminalView != mActivity.getTerminalView()) {
+                if (!showKeyboard && terminalView != mActivity.getTerminalView()) {
                     // Fallback guard for the non-switching case (e.g. a detached/recycled page
                     // losing focus outside a tracked switch): skip the hide when the losing view
                     // is no longer the activity's active page.

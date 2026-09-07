@@ -719,6 +719,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // honoured on return from the background.
         final boolean resumeFocusWasOnInput = isFocusOnInputForSession(getCurrentSession());
 
+        // Whether this resume runs the keyboard/focus restore (return from background or a
+        // recreate). A fresh cold start (first resume after onCreate) keeps the historical
+        // "show keyboard on launch" behaviour and skips the restore.
+        final boolean willRestoreKeyboard = !mIsOnResumeAfterOnCreate || mIsActivityRecreated;
+
+        // Raise the restore latch BEFORE the view client runs setSoftKeyboardState(), so the
+        // per-page focus listener suppresses ALL IME / panel churn triggered by its
+        // requestFocus(). runKeyboardRestore() owns the final state and clears the latch.
+        // Without this, setSoftKeyboardState()'s requestFocus() schedules a +500ms show that
+        // outlives the restore's hide (the "keyboard pops back on resume" bug) and the focus
+        // listener clobbers the saved per-session panel/focus state before the restore reads it.
+        if (willRestoreKeyboard) {
+            mRestoringKeyboard = true;
+        }
+
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onResume();
 
@@ -741,7 +756,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         TerminalSession currentSession = getCurrentSession();
         mResumeFocusRestore = true;
         try {
-            if (!mIsOnResumeAfterOnCreate || mIsActivityRecreated) {
+            if (willRestoreKeyboard) {
                 // Restore the pre-background focus target clobbered by the client above.
                 setFocusOnInputForCurrentSession(resumeFocusWasOnInput);
 
@@ -950,6 +965,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *    in onWindowFocusChanged(true));
      *  - no active page is bound yet (cold start — consumed at the end of
      *    SessionPagerManager.onTerminalPageSelected via consumePendingKeyboardRestoreIfReady()).
+     *
+     * Note: mRestoringKeyboard is already raised in onResume() before the view client runs,
+     * so the focus listener stays suppressed for the whole deferral window as well.
      */
     private void scheduleKeyboardRestoreForResumedSession(boolean kbIntent) {
         mKeyboardRestoreIntent = kbIntent;
@@ -986,25 +1004,33 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // (2) Wait for the target to have real sizes, THEN focus + keyboard.
         whenViewLaidOut(target, () -> {
-            // Terminal target + keyboard was hidden: swallow the focus-triggered
-            // show (same mechanism setSoftKeyboardState uses at startup).
-            if (!focusOnInput && !kbIntent && mTermuxTerminalViewClient != null) {
-                mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+            // Drop a stale ignore-once latch so it cannot swallow the show we are about to
+            // request (and cannot survive to eat a later legitimate show).
+            if (mTermuxTerminalViewClient != null) {
+                mTermuxTerminalViewClient.clearIgnoreOnceSoftKeyboardOnFocus();
             }
-            target.requestFocus();
 
-            if (kbIntent) {
+            // Respect a user-disabled soft keyboard: never attempt to show it.
+            final boolean kbDisabled = KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
+                    mPreferences.isSoftKeyboardEnabled(),
+                    mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware());
+
+            if (kbIntent && !kbDisabled) {
+                target.requestFocus();
                 com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target, () ->
                         mImeVisibleFromInsets
                                 || (mImeDetector != null && mImeDetector.isImeVisible()));
                 // showWithRetry is up to 4x120ms; keep the latch until everything settles.
                 target.postDelayed(() -> mRestoringKeyboard = false, 800);
             } else {
-                // The user hid the keyboard before backgrounding: do not pop it back
-                // and swallow any focus-driven auto-show from the EditText.
-                if (focusOnInput && mTermuxTerminalViewClient != null) {
+                // The user hid the keyboard before backgrounding (or it is disabled): keep it
+                // hidden. Swallow the focus-triggered show AND cancel any stray pending show
+                // so the hide sticks even against a previously scheduled +500ms show runnable.
+                if (mTermuxTerminalViewClient != null) {
                     mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                    mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
                 }
+                target.requestFocus();
                 KeyboardUtils.hideSoftKeyboard(this, target);
                 target.postDelayed(() -> mRestoringKeyboard = false, 300);
             }
@@ -3106,17 +3132,26 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mSoftKeyboardVisible = imeVisible;
 
         if (imeVisible != wasVisible) {
-            // Record the keyboard INTENT only in honest foreground states: not while
-            // paused (the system hides the IME when we go to background — that must
-            // not clear the "keyboard was open" intent), not in the 400ms just-resumed
-            // window (transient insets frames), not mid-restore, and not while a
-            // deferred restore is still waiting to run.
-            if (!mIsPaused && !mJustResumed && !mRestoringKeyboard && !mPendingKeyboardRestore) {
+            // Any of these states means the change is NOT an honest user action we should
+            // record or react to:
+            //  - mIsPaused: system hides the IME when we go to background;
+            //  - mJustResumed: transient post-return insets frames (400ms window);
+            //  - mRestoringKeyboard / mPendingKeyboardRestore: runKeyboardRestore() is the
+            //    authority and is still applying the real state;
+            //  - isTerminalPageSwitchInProgress(): the shared IME must not churn mid-switch.
+            boolean inTransition = mIsPaused
+                    || mJustResumed
+                    || mRestoringKeyboard
+                    || mPendingKeyboardRestore
+                    || isTerminalPageSwitchInProgress();
+
+            // Record the keyboard INTENT only in honest foreground states.
+            if (!inTransition) {
                 mTextInputState.setSoftKeyboardVisibleIntent(imeVisible);
             }
 
             // Auto-close text input panel when keyboard hides
-            if (!mIsPaused && !mJustResumed && !mRestoringKeyboard && !mPendingKeyboardRestore
+            if (!inTransition
                     && wasVisible && !imeVisible && isTextInputVisible()
                     && !mButtonTouchInProgress && !mPopupCtrl.isHistoryPopupShowing()) {
                 dismissAutoCompleteSuggestions();
@@ -3124,7 +3159,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 updateToggleTextInputButtonIcon();
             }
 
-            // Auto-show/hide extra keys with keyboard
+            // Auto-show/hide extra keys with keyboard. Kept OUTSIDE the transition guard on
+            // purpose: the extra-keys panel must always mirror the REAL IME visibility.
             if (mExtraKeysView != null
                     && getTerminalToolbarContainer().getVisibility() == View.VISIBLE
                     && !isTextInputVisible()
@@ -3267,7 +3303,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Does not re-record per-session state.
      */
     public void applyTextInputVisibilityForSession(@Nullable TerminalSession session, boolean applyFocus) {
-        applyTextInputVisibilityForSession(session, applyFocus, true);
+        // The GLOBAL keyboard intent (the last explicit show/hide action) decides whether the
+        // keyboard comes up when focus lands on the panel. This is what makes
+        // "keyboard was hidden before the switch -> stays hidden on the target session" hold,
+        // while still restoring the keyboard for a session the user was actively typing into
+        // (intent still true). Keeps the tab-switch path consistent with the resume path,
+        // which passes the same intent explicitly.
+        applyTextInputVisibilityForSession(session, applyFocus,
+                mTextInputState.isSoftKeyboardVisibleIntent());
     }
 
     /**
@@ -3322,6 +3365,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             if (imm != null) {
                                 imm.showSoftInput(textInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
                             }
+                        } else {
+                            // Keyboard must stay hidden on this session: swallow the
+                            // focus-triggered show and cancel any stray pending show so a
+                            // previously scheduled runnable cannot pop it back.
+                            if (mTermuxTerminalViewClient != null) {
+                                mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                                mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
+                            }
+                            KeyboardUtils.hideSoftKeyboard(TermuxActivity.this, textInput);
                         }
                     }, 6);
                 }
