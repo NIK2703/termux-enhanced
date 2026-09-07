@@ -472,6 +472,19 @@ public final class SessionPagerManager {
         }
         if (selected == null) return;
 
+        // Persist the scroll position of the page we are LEAVING while its TerminalView
+        // is still live. Guarded so the initial/self-selection (view == incoming page)
+        // does not clobber the freshly bound page's state with its pre-layout mTopRow.
+        TerminalView leavingView = mActivity.getTerminalView();
+        TerminalView incomingView = getPagerPageView(position);
+        if (leavingView != null && leavingView != incomingView) {
+            TerminalSession leavingSession = leavingView.getCurrentSession();
+            if (leavingSession != null) {
+                mActivity.getTextInputState().setScrollState(leavingSession,
+                        leavingView.getTopRow(), leavingView.getScrollTranscriptRows());
+            }
+        }
+
         // Mark a page switch in progress so the per-page focus listener
         // (registerTerminalViewFocusListener) suppresses IME hide/show churn while the old page
         // loses focus and the new one gains it during a swipe / tab / hotkey switch. Cleared at the
@@ -598,6 +611,10 @@ public final class SessionPagerManager {
         // is still true while the focus listener processes the switch, then drops. onPageScrollStateChanged(IDLE)
         // also posts a clear (harmless, idempotent) for the swipe path; the explicit/startup path relies on this one.
         mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
+
+        // A keyboard restore may have been deferred until an active page exists
+        // (cold start: onResume ran before the service connected and bound page 0).
+        mActivity.consumePendingKeyboardRestoreIfReady();
     }
 
     /**

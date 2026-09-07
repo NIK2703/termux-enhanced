@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-build-only additions: automation hooks for adb-driven testing.
+     Merged only into the debug variant; release is unaffected. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver
+            android:name="com.termux.app.TermuxDebugCommandReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.termux.debug.DEBUG_CMD" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name="com.termux.app.TermuxDebugActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+    </application>
+
+</manifest>

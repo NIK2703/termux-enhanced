@@ -20,6 +20,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.ViewParent;
 import android.view.Window;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -65,7 +66,7 @@ import com.termux.app.terminal.io.TextInputPanelController;
 import com.termux.app.terminal.io.autocomplete.AutoCompleteController;
 import com.termux.app.terminal.io.autocomplete.DirectoryHistoryController;
 import com.termux.app.terminal.io.autocomplete.DirectoryHistoryPopupController;
-import com.termux.app.terminal.io.TextInputSessionStateManager;
+import com.termux.app.terminal.io.SessionUiStateStore;
 import com.termux.app.terminal.io.autocomplete.MessageHistoryController;
 import com.termux.app.terminal.io.FullScreenWorkAround;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
@@ -348,8 +349,8 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
             && pager.getScrollState() != androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_IDLE;
     }
 
-    /** Per-session text input state (content, visibility, focus, caret). */
-    private final TextInputSessionStateManager mTextInputState = new TextInputSessionStateManager();
+    /** Single store of per-session + global UI state (supersedes TextInputSessionStateManager). */
+    private final SessionUiStateStore mTextInputState = new SessionUiStateStore();
 
     private float mTerminalToolbarDefaultHeight;
 
@@ -403,6 +404,38 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private static final String ARG_ACTIVITY_RECREATED = "activity_recreated";
     private static final String PREF_TEXT_INPUT_VISIBLE = "text_input_visible";
     private static final String PREF_MESSAGE_HISTORY = "message_history";
+
+    /** Pref key (in termux_prefs) holding the L3 (process-death) UI state JSON. */
+    private static final String PREF_UI_STATE_JSON = "ui_state_json";
+
+    /** Keyboard-restore intent captured in onResume (before any insets churn). */
+    private boolean mKeyboardRestoreIntent = true;
+    /** True while a deferred keyboard/focus restore is waiting for window focus or a bound page. */
+    private boolean mPendingKeyboardRestore = false;
+    /** Latch: raised while the post-resume keyboard restore is in flight. */
+    private boolean mRestoringKeyboard = false;
+    /** One-shot flag: keeps reassertPanelLayout()'s GONE→VISIBLE kick from firing more than once. */
+    private boolean mPanelRelayoutKickDone = false;
+
+    public boolean isRestoringKeyboard() {
+        return mRestoringKeyboard;
+    }
+
+    /** True while a keyboard restore waits for window focus / a bound page (diagnostics/tests). */
+    public boolean isPendingKeyboardRestore() {
+        return mPendingKeyboardRestore;
+    }
+
+    /** Combined IME visibility (insets OR visible-frame) — diagnostics/tests. */
+    public boolean isSoftKeyboardVisible() {
+        return mSoftKeyboardVisible;
+    }
+
+    /** Current session-pager page index — diagnostics/tests. */
+    public int getPagerCurrentItem() {
+        androidx.viewpager2.widget.ViewPager2 pager = getTerminalPager();
+        return pager != null ? pager.getCurrentItem() : -1;
+    }
 
     /** Pref key (in termux_prefs) persisting the per-directory message history map (JSON object). */
     private static final String PREF_MESSAGE_HISTORY_PER_DIR = "message_history_per_dir";
@@ -651,6 +684,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
 
+        // A keyboard restore deferred in onResume (window not yet focused, e.g.
+        // returning from Settings) is executed here — showSoftInput only works
+        // once the window has focus.
+        if (hasFocus && mPendingKeyboardRestore) {
+            runKeyboardRestore();
+        }
+
         // When Termux regains focus (e.g. after returning from Settings), apply
         // the screen-orientation choice immediately so the change is visible
         // without restarting the app.
@@ -704,7 +744,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             if (!mIsOnResumeAfterOnCreate || mIsActivityRecreated) {
                 // Restore the pre-background focus target clobbered by the client above.
                 setFocusOnInputForCurrentSession(resumeFocusWasOnInput);
-                applyTextInputVisibilityForSession(currentSession, true);
+
+                // Capture the keyboard intent NOW — before any insets churn of the
+                // resume frames can overwrite it (onImeVisibilityChanged is guarded
+                // by mJustResumed/mRestoringKeyboard, but keep the read here too).
+                final boolean kbIntent = mTextInputState.isSoftKeyboardVisibleIntent();
+                // Slot + text ONLY, no focus/IME: focus and keyboard are driven
+                // exclusively by runKeyboardRestore(), which waits for a clean
+                // toolbar re-layout (fixes the cached zero-height measure).
+                applyTextInputVisibilityForSession(currentSession, false, kbIntent);
+                reassertPanelLayout();
+                scheduleKeyboardRestoreForResumedSession(kbIntent);
             }
         } finally {
             mResumeFocusRestore = false;
@@ -725,8 +775,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Mark paused so the IME-hidden handler (WindowInsetsListener) does not
         // close the text input panel when the system dismisses the soft keyboard
-        // on background. The panel must stay open and reappear on resume.
+        // on pause. The panel must stay open and reappear on resume.
         mIsPaused = true;
+
+        // Snapshot the current session's full UI state (focus target, input text,
+        // caret, terminal scroll position, keyboard intent) into the store while
+        // the views are still live — this is the last reliable moment before the
+        // system may hide the IME / kill the window.
+        captureCurrentSessionUiState();
     }
 
     @Override
@@ -757,6 +813,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Snapshot open tabs (cwd/name) so a later cold start can reopen them.
         saveSessionSnapshot();
+
+        // L3 persist of the per-session UI state (text, caret, panel visibility,
+        // focus, scroll, keyboard intent) keyed by session index for the
+        // process-death restore path.
+        persistUiState();
 
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onStop();
@@ -813,6 +874,248 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Persist per-session text input state across activity recreation
         mTextInputState.saveToBundle(savedInstanceState);
+    }
+
+    /**
+     * Snapshot the CURRENT session's full UI state into the store: focus target,
+     * input text + caret, terminal scroll position, and the keyboard intent.
+     * Called from onPause (last reliable moment before the system may hide the
+     * IME / kill the window) so the restore in onResume reads a consistent picture.
+     */
+    public void captureCurrentSessionUiState() {
+        TerminalSession session = getCurrentSession();
+        if (session == null) return;
+
+        final EditText input = findViewById(R.id.terminal_toolbar_text_input);
+        if (input != null) {
+            mTextInputState.setFocusOnInput(session, input.hasFocus());
+        }
+        saveTextInputForCurrentSession();   // text + caret
+
+        TerminalView view = getTerminalView();
+        if (view != null) {
+            mTextInputState.setScrollState(session, view.getTopRow(), view.getScrollTranscriptRows());
+        }
+        mTextInputState.setSoftKeyboardVisibleIntent(mSoftKeyboardVisible);
+    }
+
+    /** Ordered live TerminalSession list (service order == snapshot order). */
+    @NonNull
+    private java.util.ArrayList<TerminalSession> orderedTerminalSessions() {
+        java.util.ArrayList<TerminalSession> out = new java.util.ArrayList<>();
+        TermuxService service = getTermuxService();
+        if (service != null) {
+            for (int i = 0; i < service.getTermuxSessionsSize(); i++) {
+                com.termux.shared.termux.shell.command.runner.terminal.TermuxSession ts =
+                        service.getTermuxSession(i);
+                if (ts != null && ts.getTerminalSession() != null) out.add(ts.getTerminalSession());
+            }
+        }
+        return out;
+    }
+
+    /** L3 persist: index-keyed JSON, written once per onStop. */
+    public void persistUiState() {
+        TermuxService service = getTermuxService();
+        if (service == null) return;
+        java.util.ArrayList<TerminalSession> ordered = orderedTerminalSessions();
+        if (ordered.isEmpty()) return;
+        TerminalSession current = getCurrentSession();
+        int activeIndex = (current != null) ? service.getIndexOfSession(current) : -1;
+        mTextInputState.setActiveSessionIndex(activeIndex);
+        String json = mTextInputState.exportToJson(ordered, activeIndex);
+        if (json != null) {
+            getSharedPreferences("termux_prefs", MODE_PRIVATE).edit()
+                    .putString(PREF_UI_STATE_JSON, json).apply();
+        }
+    }
+
+    /**
+     * L3 restore for the process-death path: re-key the persisted (index-based)
+     * state onto the sessions just rebuilt from the snapshot. Call this in
+     * onServiceConnected RIGHT AFTER restoreSessionSnapshot() and BEFORE
+     * syncTerminalPagerToService().
+     */
+    public void restorePersistedUiState() {
+        if (getTermuxService() == null) return;
+        String json = getSharedPreferences("termux_prefs", MODE_PRIVATE)
+                .getString(PREF_UI_STATE_JSON, null);
+        if (json == null) return;
+        mTextInputState.importFromJson(json, orderedTerminalSessions());
+    }
+
+    /**
+     * Schedule the post-resume keyboard/focus restore. Defers itself when:
+     *  - the window has no focus yet (returning from another activity — consumed
+     *    in onWindowFocusChanged(true));
+     *  - no active page is bound yet (cold start — consumed at the end of
+     *    SessionPagerManager.onTerminalPageSelected via consumePendingKeyboardRestoreIfReady()).
+     */
+    private void scheduleKeyboardRestoreForResumedSession(boolean kbIntent) {
+        mKeyboardRestoreIntent = kbIntent;
+        if (getActiveTerminalView() == null && !isTextInputVisible()) {
+            mPendingKeyboardRestore = true;
+            return;
+        }
+        runKeyboardRestore();
+    }
+
+    private void runKeyboardRestore() {
+        if (isFinishing()) return;
+        if (!hasWindowFocus()) {
+            mPendingKeyboardRestore = true;   // consumed by onWindowFocusChanged(true)
+            return;
+        }
+        final TerminalSession session = getCurrentSession();
+        final boolean panelVisible = isTextInputVisible();
+        final boolean focusOnInput = panelVisible && mTextInputState.isFocusOnInput(session);
+        final boolean kbIntent = mKeyboardRestoreIntent;
+        final View target = focusOnInput
+                ? findViewById(R.id.terminal_toolbar_text_input)
+                : getActiveTerminalView();
+        if (target == null) {
+            mPendingKeyboardRestore = true;   // page not bound yet
+            return;
+        }
+        mPendingKeyboardRestore = false;
+        mRestoringKeyboard = true;
+
+        // (1) First force a clean toolbar measure so the EditText is not 0-sized
+        // (a zero-sized view is never a "served" IME target — see findings).
+        if (focusOnInput) reassertPanelLayout();
+
+        // (2) Wait for the target to have real sizes, THEN focus + keyboard.
+        whenViewLaidOut(target, () -> {
+            // Terminal target + keyboard was hidden: swallow the focus-triggered
+            // show (same mechanism setSoftKeyboardState uses at startup).
+            if (!focusOnInput && !kbIntent && mTermuxTerminalViewClient != null) {
+                mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+            }
+            target.requestFocus();
+
+            if (kbIntent) {
+                com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target, () ->
+                        mImeVisibleFromInsets
+                                || (mImeDetector != null && mImeDetector.isImeVisible()));
+                // showWithRetry is up to 4x120ms; keep the latch until everything settles.
+                target.postDelayed(() -> mRestoringKeyboard = false, 800);
+            } else {
+                // The user hid the keyboard before backgrounding: do not pop it back
+                // and swallow any focus-driven auto-show from the EditText.
+                if (focusOnInput && mTermuxTerminalViewClient != null) {
+                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                }
+                KeyboardUtils.hideSoftKeyboard(this, target);
+                target.postDelayed(() -> mRestoringKeyboard = false, 300);
+            }
+        }, 6);
+    }
+
+    /** Called by SessionPagerManager.onTerminalPageSelected once a page is live. */
+    public void consumePendingKeyboardRestoreIfReady() {
+        if (mPendingKeyboardRestore && getActiveTerminalView() != null) {
+            runKeyboardRestore();
+        }
+    }
+
+    /**
+     * Forces a clean measure/layout pass of the toolbar subtree.
+     *
+     * Root cause being worked around: with ADJUST_RESIZE the system hides the IME while
+     * we are in the background; the window resizes, the RelativeLayout re-measures its
+     * children across transient frames, and the wrap_content toolbar (and the pager that
+     * depends on it via layout_above) can end up with a cached degenerate 0 size. The
+     * resume path re-asserts visibilities that are ALREADY in place (VISIBLE→VISIBLE),
+     * so nobody calls requestLayout() and the cached "0" lives forever. A real visibility
+     * change (the manual GONE→VISIBLE cycle) fixes it because it sets PFLAG_FORCE_LAYOUT.
+     * Here we do the same without flicker: first a requestLayout() over the whole subtree,
+     * then check the height on the next pre-draw and, if it is still 0, apply the
+     * guaranteed kick exactly once.
+     */
+    private void reassertPanelLayout() {
+        final LinearLayout toolbar = getTerminalToolbarContainer();
+        if (toolbar == null) return;
+        mPanelRelayoutKickDone = false;
+
+        kickLayoutTree(toolbar);
+        // Nudge the RelativeLayout too so the pager dependency (layout_above) is
+        // resolved against the re-measured toolbar.
+        ViewParent rp = toolbar.getParent();
+        if (rp instanceof View) ((View) rp).requestLayout();
+
+        // After the next measure/layout pass, verify the result. One-shot pre-draw.
+        androidx.core.view.OneShotPreDrawListener.add(toolbar, () -> {
+            if (toolbar.getVisibility() == View.VISIBLE
+                    && toolbar.getHeight() <= 0
+                    && !mPanelRelayoutKickDone) {
+                forceSlotRelayoutByToggle();   // guaranteed recovery, exactly once
+            }
+        });
+    }
+
+    /** Recursive requestLayout()/invalidate() over a view subtree. */
+    private static void kickLayoutTree(@Nullable View v) {
+        if (v == null) return;
+        v.requestLayout();
+        v.invalidate();
+        if (v instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) kickLayoutTree(vg.getChildAt(i));
+        }
+    }
+
+    /** The manual fix: a real visibility change sets PFLAG_FORCE_LAYOUT and makes the
+     *  system re-measure the slot from scratch. Honours whichever child currently owns
+     *  the shared slot (text input panel vs extra keys) so the kick can never force the
+     *  input panel open while the extra keys panel is the active one. */
+    private void forceSlotRelayoutByToggle() {
+        mPanelRelayoutKickDone = true;
+        final View container = findViewById(R.id.terminal_toolbar_text_input_container);
+        final ExtraKeysView ekv = getExtraKeysView();
+        if (isTextInputVisible()) {
+            if (container == null) return;
+            // Text input owns the slot: a real GONE→VISIBLE cycle on its container.
+            container.setVisibility(View.GONE);
+            container.setVisibility(View.VISIBLE);
+            if (ekv != null) ekv.setVisibility(View.GONE);
+        } else {
+            // Extra keys own the slot: cycle the extra keys instead, keep the
+            // text input panel hidden — otherwise it would reappear below them.
+            if (ekv == null) return;
+            ekv.setVisibility(View.GONE);
+            ekv.setVisibility(shouldShowExtraKeys() ? View.VISIBLE : View.GONE);
+            if (container != null) container.setVisibility(View.GONE);
+        }
+        ViewParent slot = container != null ? container.getParent() : null;
+        if (slot instanceof View) ((View) slot).requestLayout();
+        ViewParent toolbar = slot != null ? slot.getParent() : null;
+        if (toolbar instanceof View) ((View) toolbar).requestLayout();
+        updateTextInputToggleButtonAnchor();
+    }
+
+    /**
+     * Runs {@code action} once the view is attached and has non-zero sizes.
+     * If already laid out — runs immediately; otherwise waits for pre-draw, with a
+     * bounded number of attempts so the restore can never hang forever.
+     */
+    private static void whenViewLaidOut(@NonNull final View view,
+                                        @NonNull final Runnable action,
+                                        final int attemptsLeft) {
+        if (view.isAttachedToWindow() && view.getWidth() > 0 && view.getHeight() > 0) {
+            action.run();
+            return;
+        }
+        if (attemptsLeft <= 0) {
+            action.run();   // cannot wait any longer — run as-is
+            return;
+        }
+        androidx.core.view.OneShotPreDrawListener.add(view, () -> {
+            if (view.isAttachedToWindow() && view.getWidth() > 0 && view.getHeight() > 0) {
+                action.run();
+            } else {
+                view.post(() -> whenViewLaidOut(view, action, attemptsLeft - 1));
+            }
+        });
     }
 
 
@@ -2610,7 +2913,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** Per-session text input state (content, visibility, focus, caret). */
     @NonNull
-    public TextInputSessionStateManager getTextInputState() {
+    public SessionUiStateStore getTextInputState() {
         return mTextInputState;
     }
 
@@ -2803,8 +3106,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mSoftKeyboardVisible = imeVisible;
 
         if (imeVisible != wasVisible) {
+            // Record the keyboard INTENT only in honest foreground states: not while
+            // paused (the system hides the IME when we go to background — that must
+            // not clear the "keyboard was open" intent), not in the 400ms just-resumed
+            // window (transient insets frames), not mid-restore, and not while a
+            // deferred restore is still waiting to run.
+            if (!mIsPaused && !mJustResumed && !mRestoringKeyboard && !mPendingKeyboardRestore) {
+                mTextInputState.setSoftKeyboardVisibleIntent(imeVisible);
+            }
+
             // Auto-close text input panel when keyboard hides
-            if (!mIsPaused && !mJustResumed && wasVisible && !imeVisible && isTextInputVisible()
+            if (!mIsPaused && !mJustResumed && !mRestoringKeyboard && !mPendingKeyboardRestore
+                    && wasVisible && !imeVisible && isTextInputVisible()
                     && !mButtonTouchInProgress && !mPopupCtrl.isHistoryPopupShowing()) {
                 dismissAutoCompleteSuggestions();
                 setTextInputVisible(false);
@@ -2954,6 +3267,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Does not re-record per-session state.
      */
     public void applyTextInputVisibilityForSession(@Nullable TerminalSession session, boolean applyFocus) {
+        applyTextInputVisibilityForSession(session, applyFocus, true);
+    }
+
+    /**
+     * As {@link #applyTextInputVisibilityForSession(TerminalSession, boolean)}, but lets the
+     * caller decide whether the keyboard should be shown when focus lands on the panel
+     * (the resume path passes the persisted keyboard intent so a keyboard hidden by the
+     * user before backgrounding is not popped back up).
+     */
+    public void applyTextInputVisibilityForSession(@Nullable TerminalSession session,
+                                                   boolean applyFocus,
+                                                   boolean showKeyboardIfFocused) {
         View textInputContainer = findViewById(R.id.terminal_toolbar_text_input_container);
         if (textInputContainer == null) return;
 
@@ -2985,15 +3310,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // On switch, restore where focus was last for this session:
             // on the panel (with keyboard) or on the terminal.
             if (visible && isFocusOnInputForSession(session)) {
-                EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
+                final EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
                 if (textInput != null) {
-                    textInput.requestFocus();
-                    textInput.post(() -> {
-                        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                        if (imm != null) {
-                            imm.showSoftInput(textInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    // Wait for real sizes so requestFocus/showSoftInput hit a served
+                    // view instead of a zero-sized (unservable) one.
+                    whenViewLaidOut(textInput, () -> {
+                        textInput.requestFocus();
+                        if (showKeyboardIfFocused) {
+                            android.view.inputmethod.InputMethodManager imm =
+                                    (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                            if (imm != null) {
+                                imm.showSoftInput(textInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                            }
                         }
-                    });
+                    }, 6);
                 }
             } else {
                 // Panel hidden, or focus was on the terminal: focus the terminal — UNLESS the

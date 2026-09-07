@@ -667,7 +667,17 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // will also show keyboard even if it was closed before opening url. #2111
             Logger.logVerbose(LOG_TAG, "Requesting TerminalView focus and showing soft keyboard");
             terminalView.requestFocus();
-            terminalView.postDelayed(getShowSoftKeyboardRunnable(), 300);
+            // On resume-after-background / recreate the persisted keyboard INTENT (the
+            // SessionUiStateStore soft-keyboard flag) is the authority: only schedule the
+            // delayed show when the keyboard was actually visible before leaving. Otherwise
+            // a user-hidden keyboard would pop back up on every return from the background.
+            // Cold start (first resume after onCreate) keeps the historical always-show
+            // behaviour; runKeyboardRestore() re-asserts the IME for the restored panel state.
+            boolean restoreFromState = !mActivity.isOnResumeAfterOnCreate() || mActivity.isActivityRecreated();
+            boolean kbIntent = mActivity.getTextInputState().isSoftKeyboardVisibleIntent();
+            if (!restoreFromState || kbIntent) {
+                terminalView.postDelayed(getShowSoftKeyboardRunnable(), 300);
+            }
         }
     }
 
@@ -717,18 +727,18 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 }
 
                 boolean showKeyboard = hasFocus || textInputViewHasFocus;
-                if (mActivity.isTerminalPageSwitchInProgress()) {
-                    // A pager page switch is in progress (tab click -> setCurrentItem, or the
-                    // smooth settle of a swipe). During the animation the OLD page temporarily
-                    // loses focus while the NEW page gains it. Both pages share a single
-                    // window/IME, so any show/hide churn here pops the keyboard globally; worse,
+                if (mActivity.isTerminalPageSwitchInProgress() || mActivity.isRestoringKeyboard()) {
+                    // A pager page switch OR the post-resume keyboard restore is in progress.
+                    // During the animation the OLD page temporarily loses focus while the NEW
+                    // page gains it. Both pages share a single window/IME, so any show/hide
+                    // churn here pops the keyboard globally; worse,
                     // KeyboardUtils.setSoftKeyboardVisibility(false) also cancels the shared
                     // showSoftKeyboardRunnable, killing the new page's pending re-show. Suppress
-                    // ALL IME churn while switching; onTerminalPageSelected() is the single
-                    // authority that re-asserts the keyboard for the landed page. This fixes
-                    // #InputPanel6 (keyboard vanishing on tab click) and keeps #InputPanel5
-                    // (keyboard vanishing on manual swipe) intact.
-                    Logger.logVerbose(LOG_TAG, "Suppressing soft keyboard churn: page switch in progress");
+                    // ALL IME churn while switching/restoring; onTerminalPageSelected() /
+                    // runKeyboardRestore() is the single authority that re-asserts the keyboard
+                    // for the landed page. This fixes #InputPanel6 (keyboard vanishing on tab
+                    // click) and keeps #InputPanel5 (keyboard vanishing on manual swipe) intact.
+                    Logger.logVerbose(LOG_TAG, "Suppressing soft keyboard churn: switch/restore in progress");
                 } else if (!showKeyboard && terminalView != mActivity.getTerminalView()) {
                     // Fallback guard for the non-switching case (e.g. a detached/recycled page
                     // losing focus outside a tracked switch): skip the hide when the losing view

@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
+import com.termux.app.terminal.io.SessionUiStateStore;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.view.ViewUtils;
 import com.termux.terminal.TerminalColors;
@@ -304,6 +305,13 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // loses transcript and re-binding is cheap.
         terminalView.attachSession(session);
 
+        // Restore this session's scroll position. Applied once the emulator + view
+        // size are ready (see TerminalView.queueScrollRestore); idempotent.
+        SessionUiStateStore store = mActivity.getTextInputState();
+        terminalView.queueScrollRestore(
+                store.getScrollTopRow(session),
+                store.getScrollTranscriptRows(session));
+
         // Re-apply the active color scheme + typeface so the freshly bound page matches the
         // current theme (covers both initial bind and re-bind after the adapter was rebuilt).
         mActivity.getTermuxTerminalSessionClient().checkForFontAndColorsForView(terminalView);
@@ -338,6 +346,17 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     @Override
     public void onViewRecycled(@NonNull TerminalPageViewHolder holder) {
         super.onViewRecycled(holder);
+        // The page view is about to be detached/recycled — persist its live scroll
+        // position so the next bind (possibly after a multi-page jump) restores it.
+        // Must run BEFORE attachSession(null) drops the emulator below.
+        if (holder.mTerminalView != null) {
+            TerminalSession recycledSession = holder.mTerminalView.getCurrentSession();
+            if (recycledSession != null) {
+                mActivity.getTextInputState().setScrollState(recycledSession,
+                        holder.mTerminalView.getTopRow(),
+                        holder.mTerminalView.getScrollTranscriptRows());
+            }
+        }
         if (holder == mPlaceholderHolder) {
             mPlaceholderHintContent = null;
             mPlaceholderHolder = null;

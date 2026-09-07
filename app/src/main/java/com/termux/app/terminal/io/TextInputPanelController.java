@@ -25,7 +25,7 @@ public final class TextInputPanelController {
 
     @NonNull private final Context mContext;
     @NonNull private final Host mHost;
-    @NonNull private final TextInputSessionStateManager mTextInputState;
+    @NonNull private final SessionUiStateStore mTextInputState;
 
     @Nullable private EditText mEditText;
     @Nullable private View mTextInputContainer;
@@ -36,7 +36,7 @@ public final class TextInputPanelController {
 
     public TextInputPanelController(@NonNull Context context,
                                     @NonNull Host host,
-                                    @NonNull TextInputSessionStateManager textInputState) {
+                                    @NonNull SessionUiStateStore textInputState) {
         mContext = context;
         mHost = host;
         mTextInputState = textInputState;

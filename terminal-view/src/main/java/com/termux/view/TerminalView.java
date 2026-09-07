@@ -91,6 +91,16 @@ public final class TerminalView extends View {
     /** The top row of text to display. Ranges from -activeTranscriptRows to 0. */
     int mTopRow;
 
+    // ── Deferred scroll-position restore ────────────────────────────────
+    /**
+     * Pending scroll restore, queued while the emulator / view size are not ready
+     * yet (view just (re)bound by the pager). Consumed exactly once in updateSize()
+     * when the emulator is (re)set. Applying is idempotent.
+     */
+    private boolean mHasPendingScrollRestore = false;
+    private int mPendingRestoreTopRow = 0;
+    private int mPendingRestoreTranscriptRows = 0;
+
     /** Reusable clip-bounds probe used in {@link #onDraw} to detect the dirty region. */
     private final Rect mClipBounds = new Rect();
 
@@ -1901,6 +1911,10 @@ public final class TerminalView extends View {
 
         if (mEmulator == null || (newColumns != mEmulator.mColumns || newRows != mEmulator.mRows)) {
             stopFlingAndClear();
+            // Remember where we were: for a LIVE resize of the same session this keeps
+            // the viewport stable instead of jumping to the bottom; after attachSession()
+            // this is 0 and the queued restore below overrides it.
+            int previousTopRow = mTopRow;
             mTermSession.updateSize(newColumns, newRows, (int) mRenderer.getFontWidth(), mRenderer.getFontLineSpacing());
             mEmulator = mTermSession.getEmulator();
             mClient.onEmulatorSet();
@@ -1909,7 +1923,11 @@ public final class TerminalView extends View {
             if (mTerminalCursorBlinkerRunnable != null)
                 mTerminalCursorBlinkerRunnable.setEmulator(mEmulator);
 
-            mTopRow = 0;
+            int liveRows = mEmulator.getScreen().getActiveTranscriptRows();
+            mTopRow = Math.max(-liveRows, Math.min(0, previousTopRow));
+            // A pager (re)bind queued a per-session scroll position — it wins over the
+            // carry-over above. No-op when nothing was queued.
+            consumePendingScrollRestore();
             scrollTo(0, 0);
             invalidate();
         } else if (gridOffsetChanged) {
@@ -2089,6 +2107,69 @@ public final class TerminalView extends View {
 
     public void setTopRow(int mTopRow) {
         this.mTopRow = mTopRow;
+    }
+
+    /** @return number of active transcript rows of the attached emulator, or 0. */
+    public int getScrollTranscriptRows() {
+        return (mEmulator == null) ? 0 : mEmulator.getScreen().getActiveTranscriptRows();
+    }
+
+    /**
+     * Queue a scroll position to be restored as soon as the emulator and the view
+     * size are ready. Safe to call before attach/layout: the value is applied in
+     * updateSize() when the emulator is (re)created. Applying is idempotent.
+     *
+     * @param topRow               saved mTopRow (0 = follow bottom, negative = scrolled up).
+     * @param savedTranscriptRows  activeTranscriptRows() at save time; when the live
+     *                             transcript size differs at restore time (reflow / more
+     *                             output since), the position is remapped proportionally.
+     */
+    public void queueScrollRestore(int topRow, int savedTranscriptRows) {
+        if (mEmulator != null && getWidth() > 0 && getHeight() > 0) {
+            applyScrollRestore(topRow, savedTranscriptRows);
+        } else {
+            mHasPendingScrollRestore = true;
+            mPendingRestoreTopRow = topRow;
+            mPendingRestoreTranscriptRows = savedTranscriptRows;
+        }
+    }
+
+    private void consumePendingScrollRestore() {
+        if (!mHasPendingScrollRestore) return;
+        mHasPendingScrollRestore = false;
+        int row = mPendingRestoreTopRow;
+        int rows = mPendingRestoreTranscriptRows;
+        mPendingRestoreTopRow = 0;
+        mPendingRestoreTranscriptRows = 0;
+        applyScrollRestore(row, rows);
+    }
+
+    private void applyScrollRestore(int topRow, int savedTranscriptRows) {
+        if (mEmulator == null) return;
+        int liveRows = mEmulator.getScreen().getActiveTranscriptRows();
+        if (liveRows <= 0 || topRow >= 0) {
+            // Empty transcript (fresh session after a process death degrades here)
+            // or the saved position was "follow the bottom": nothing to restore.
+            mTopRow = 0;
+            mEmulator.setAutoScrollDisabled(false);
+            return;
+        }
+        int target;
+        if (savedTranscriptRows > 0 && savedTranscriptRows != liveRows) {
+            // Proportional remap: keep the same relative depth in the history.
+            float fraction = (savedTranscriptRows + topRow) / (float) savedTranscriptRows; // 1 = bottom
+            if (fraction < 0f) fraction = 0f;
+            if (fraction > 1f) fraction = 1f;
+            target = Math.round(fraction * liveRows) - liveRows;
+        } else {
+            target = topRow;
+        }
+        target = Math.max(-liveRows, Math.min(0, target));
+        mTopRow = target;
+        // Same contract as doScroll(): scrolled away from the bottom disables
+        // follow-to-bottom so incoming output does not snap the restored position.
+        mEmulator.setAutoScrollDisabled(mTopRow != 0);
+        invalidate();
     }
 
     public float getGridOffsetX() {

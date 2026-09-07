@@ -165,6 +165,10 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
                         // Reopen the tabs from the last session if the feature is on and a
                         // snapshot exists; otherwise fall back to a single fresh session.
                         if (!launchFailsafe && mActivity.restoreSessionSnapshot()) {
+                            // Re-key persisted per-session UI state onto the freshly
+                            // restored sessions (process-death restore path). Must run
+                            // AFTER the sessions exist and BEFORE the pager sync.
+                            mActivity.restorePersistedUiState();
                             // Sessions restored from snapshot, but their emulators are
                             // not yet initialized (no JNI.createSubprocess / fork has
                             // run).  The immediate syncTerminalPagerToService() below
