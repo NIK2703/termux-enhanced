@@ -763,6 +763,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         TermuxSession newTermuxSession = service.createTermuxSession(null, null, null, workingDirectory, isFailSafe, sessionName);
         if (newTermuxSession == null) return null;
         TerminalSession newTerminalSession = newTermuxSession.getTerminalSession();
+        // A new tab inherits the keyboard state of the moment it is created (user expectation:
+        // creating a tab must not make the keyboard jump). Record it BEFORE the page switch so
+        // the per-session reconcile in applyTextInputVisibilityForSession works with the
+        // inherited value instead of the global fallback (which races the switch churn).
+        mActivity.getTextInputState().setSoftKeyboardIntent(newTerminalSession,
+                mActivity.computeImeVisibility());
         // CALLER_MANAGED (right-swipe gesture): the caller handles selection / pager bookkeeping /
         // its own end-scroll, so just hand back the session.
         if (selectMode == NewSessionSelectMode.CALLER_MANAGED) {

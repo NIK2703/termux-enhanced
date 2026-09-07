@@ -3188,7 +3188,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * persisted keyboard intent ("hidden" became "visible") and made the keyboard
      * pop back up on resume.
      */
-    private boolean computeImeVisibility() {
+    public boolean computeImeVisibility() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mImeInsetsSeen) {
             return mImeVisibleFromInsets;
         }
@@ -3492,18 +3492,37 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     mTerminalView.requestFocus();
                 }
             }
-            // Per-session keyboard reconcile: if the TARGET session's keyboard was hidden
-            // but the IME is still up from the session we just left, actively hide it.
-            // Without this, "open keyboard in tab A -> swipe to tab B (hidden)" would drag
-            // A's keyboard into B. The focus listener is already suppressed for this
-            // switch, so the hide here is the single authority.
-            if (!showKeyboardIfFocused && computeImeVisibility()) {
+            // Per-session keyboard reconcile. Truth table against the TARGET session's memory:
+            //   IME up   + target hidden -> actively hide (don't drag the keyboard across tabs)
+            //   IME down + target open   -> actively re-show (the pager rebind detaches the served
+            //                               view when a new tab is created, which makes the IME
+            //                               close by itself; switching from a hidden-keyboard
+            //                               tab to an open-keyboard tab must open it)
+            //   otherwise                -> leave the IME alone (no churn)
+            boolean imeVisibleNow = computeImeVisibility();
+            if (!showKeyboardIfFocused && imeVisibleNow) {
                 if (mTermuxTerminalViewClient != null) {
                     mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
                     mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
                 }
                 KeyboardUtils.hideSoftKeyboard(this, currentInput != null ? currentInput : mTerminalView);
                 com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: hide (target session kbIntent=false)");
+            } else if (showKeyboardIfFocused && !imeVisibleNow
+                    && !KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
+                            mPreferences.isSoftKeyboardEnabled(),
+                            mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware())) {
+                if (mTermuxTerminalViewClient != null) {
+                    mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
+                }
+                // SHOW_IMPLICIT is ignored while SOFT_INPUT_STATE_ALWAYS_HIDDEN is set;
+                // an open-intent is an explicit user intent — make the window showable first.
+                KeyboardUtils.setSoftInputModeAdjustResize(this);
+                View showTarget = mTerminalView != null ? mTerminalView : currentInput;
+                if (showTarget != null) {
+                    com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(showTarget,
+                            this::computeImeVisibility);
+                }
+                com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: show (target session kbIntent=true)");
             }
         }
         } else if (visible) {

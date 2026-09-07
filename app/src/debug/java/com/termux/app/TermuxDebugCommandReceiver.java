@@ -10,6 +10,7 @@ import android.widget.EditText;
 
 import com.termux.R;
 import com.termux.app.terminal.io.SessionUiStateStore;
+import com.termux.shared.view.KeyboardUtils;
 import com.termux.terminal.TerminalSession;
 
 /**
@@ -110,6 +111,26 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                         if (tv == null) { log("kb toggle: no terminal view"); return; }
                         tv.requestFocus();
                         activity.getTermuxTerminalViewClient().onToggleSoftKeyboardRequest();
+                    });
+                    break;
+                case "kb force-show":
+                    // Test helper: make the keyboard visible regardless of the disabled pref.
+                    activity.runOnUiThread(() -> {
+                        com.termux.view.TerminalView tv2 = activity.getTerminalView();
+                        if (tv2 == null) { log("kb force-show: no terminal view"); return; }
+                        tv2.requestFocus();
+                        KeyboardUtils.clearDisableSoftKeyboardFlags(activity);
+                        KeyboardUtils.setSoftInputModeAdjustResize(activity);
+                        KeyboardUtils.showSoftKeyboard(activity, tv2);
+                        log("kb force-show done");
+                    });
+                    break;
+                case "kb force-hide":
+                    activity.runOnUiThread(() -> {
+                        com.termux.view.TerminalView tv3 = activity.getTerminalView();
+                        View focus = tv3 != null ? tv3 : activity.getCurrentFocus();
+                        if (focus != null) KeyboardUtils.hideSoftKeyboard(activity, focus);
+                        log("kb force-hide done");
                     });
                     break;
                 case "tap toggle":
