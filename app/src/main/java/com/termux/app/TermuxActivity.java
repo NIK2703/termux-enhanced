@@ -693,7 +693,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // returning from Settings) is executed here — showSoftInput only works
         // once the window has focus.
         if (hasFocus && mPendingKeyboardRestore) {
+            com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) -> runKeyboardRestore (pending)");
             runKeyboardRestore();
+        } else if (hasFocus) {
+            com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) (no pending)"
+                    + " kbIntent=" + mTextInputState.isSoftKeyboardVisibleIntent()
+                    + " insetsVis=" + mImeVisibleFromInsets);
         }
 
         // When Termux regains focus (e.g. after returning from Settings), apply
@@ -729,6 +734,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // "show keyboard on launch" behaviour and skips the restore.
         final boolean willRestoreKeyboard = !mIsOnResumeAfterOnCreate || mIsActivityRecreated;
 
+        com.termux.app.terminal.io.KBTrace.i("onResume willRestore=" + willRestoreKeyboard
+                + " coldStart=" + mIsOnResumeAfterOnCreate + " recreated=" + mIsActivityRecreated
+                + " resumeFocusWasOnInput=" + resumeFocusWasOnInput
+                + " kbIntent=" + mTextInputState.isSoftKeyboardVisibleIntent()
+                + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
+                + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
+
         // Raise the restore latch BEFORE the view client runs setSoftKeyboardState(), so the
         // per-page focus listener suppresses ALL IME / panel churn triggered by its
         // requestFocus(). runKeyboardRestore() owns the final state and clears the latch.
@@ -737,6 +749,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // listener clobbers the saved per-session panel/focus state before the restore reads it.
         if (willRestoreKeyboard) {
             mRestoringKeyboard = true;
+            // Pre-empt the PLATFORM's window-focus-gain auto-show. When the window regains
+            // focus with a focused editor (TerminalView is onCheckIsTextEditor=true) and the
+            // window soft-input state is UNSPECIFIED, the system shows the IME ~30ms AFTER
+            // our restore-hide ran — runKeyboardRestore()'s hide loses that race (measured:
+            // hide at .465, platform SHOW at .494). SOFT_INPUT_STATE_ALWAYS_HIDDEN makes the
+            // platform skip the auto-show entirely. When the intent says the keyboard should
+            // come back, make sure the window state allows showing instead.
+            final boolean kbIntentEarly = mTextInputState.isSoftKeyboardVisibleIntent();
+            if (kbIntentEarly) {
+                KeyboardUtils.setSoftInputModeAdjustResize(this);
+            } else {
+                KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(this);
+            }
+            com.termux.app.terminal.io.KBTrace.i("onResume windowState: kbIntent=" + kbIntentEarly
+                    + " -> " + (kbIntentEarly ? "ADJUST_RESIZE(showable)" : "ALWAYS_HIDDEN"));
         }
 
         if (mTermuxTerminalSessionActivityClient != null)
@@ -921,6 +948,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // false positive at pause time (mid-resize frame / multi-window), which previously
         // flipped a "hidden" intent to "visible" and popped the keyboard on resume.
         mTextInputState.setSoftKeyboardVisibleIntent(computeImeVisibility());
+        com.termux.app.terminal.io.KBTrace.i("capture: kbIntent->" + mTextInputState.isSoftKeyboardVisibleIntent()
+                + " paused=" + mIsPaused
+                + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
+                + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
     }
 
     /** Ordered live TerminalSession list (service order == snapshot order). */
@@ -991,6 +1022,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (isFinishing()) return;
         if (!hasWindowFocus()) {
             mPendingKeyboardRestore = true;   // consumed by onWindowFocusChanged(true)
+            com.termux.app.terminal.io.KBTrace.i("restore defer: no window focus");
             return;
         }
         final TerminalSession session = getCurrentSession();
@@ -1002,8 +1034,16 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 : getActiveTerminalView();
         if (target == null) {
             mPendingKeyboardRestore = true;   // page not bound yet
+            com.termux.app.terminal.io.KBTrace.i("restore defer: no target (panelVis=" + panelVisible
+                    + " focusOnInput=" + focusOnInput + ")");
             return;
         }
+        com.termux.app.terminal.io.KBTrace.i("restore run: kbIntent=" + kbIntent
+                + " panelVis=" + panelVisible + " focusOnInput=" + focusOnInput
+                + " target=" + (target == findViewById(R.id.terminal_toolbar_text_input) ? "panel" : "terminal")
+                + " kbDisabled=" + KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
+                        mPreferences.isSoftKeyboardEnabled(),
+                        mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware()));
         mPendingKeyboardRestore = false;
         mRestoringKeyboard = true;
 
@@ -1025,6 +1065,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware());
 
             if (kbIntent && !kbDisabled) {
+                // SHOW_IMPLICIT (used by the retry) is ignored while ALWAYS_HIDDEN is set;
+                // a show request is an explicit intent — make the window showable first.
+                KeyboardUtils.setSoftInputModeAdjustResize(this);
                 target.requestFocus();
                 // Probe must use the SAME authoritative signal as the intent capture: a
                 // visible-frame false positive here would make showWithRetry believe the
@@ -3161,6 +3204,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mSoftKeyboardVisible = imeVisible;
 
         if (imeVisible != wasVisible) {
+            if (imeVisible) {
+                // The IME genuinely came up (any source: toggle, tap, restore-show). Make sure
+                // the window state allows it and drop any ALWAYS_HIDDEN set by a previous
+                // resume-with-hidden-intent, otherwise later SHOW_IMPLICIT requests
+                // (panel open, restore retry) would be silently ignored.
+                KeyboardUtils.setSoftInputModeAdjustResize(this);
+            }
+            com.termux.app.terminal.io.KBTrace.i("imeChange " + (imeVisible ? "SHOW" : "HIDE")
+                    + " paused=" + mIsPaused + " justResumed=" + mJustResumed
+                    + " restoringKb=" + mRestoringKeyboard + " pendingKb=" + mPendingKeyboardRestore
+                    + " switchInProg=" + isTerminalPageSwitchInProgress()
+                    + " panelVis=" + isTextInputVisible()
+                    + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
+                    + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
             // Any of these states means the change is NOT an honest user action we should
             // record or react to:
             //  - mIsPaused: system hides the IME when we go to background;
@@ -3289,6 +3346,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
                 if (textInput != null) {
                     textInput.requestFocus();
+                    // Opening the panel is an explicit user intent to type: clear
+                    // SOFT_INPUT_STATE_ALWAYS_HIDDEN (set by a resume-with-hidden-intent)
+                    // so the SHOW_IMPLICIT below is not silently ignored.
+                    KeyboardUtils.setSoftInputModeAdjustResize(this);
                     textInput.post(() -> {
                         android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                         if (imm != null) {
@@ -3389,6 +3450,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     whenViewLaidOut(textInput, () -> {
                         textInput.requestFocus();
                         if (showKeyboardIfFocused) {
+                            // Explicit show intent: ensure the window is not left in
+                            // SOFT_INPUT_STATE_ALWAYS_HIDDEN from a resume-with-hidden-intent.
+                            KeyboardUtils.setSoftInputModeAdjustResize(this);
                             android.view.inputmethod.InputMethodManager imm =
                                     (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                             if (imm != null) {

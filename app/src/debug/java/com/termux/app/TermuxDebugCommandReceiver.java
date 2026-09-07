@@ -103,6 +103,15 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                         if (v != null && imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
                     });
                     break;
+                case "kb toggle":
+                    // Same code path as the KEYBOARD extra key (onToggleSoftKeyboardRequest).
+                    activity.runOnUiThread(() -> {
+                        com.termux.view.TerminalView tv = activity.getTerminalView();
+                        if (tv == null) { log("kb toggle: no terminal view"); return; }
+                        tv.requestFocus();
+                        activity.getTermuxTerminalViewClient().onToggleSoftKeyboardRequest();
+                    });
+                    break;
                 case "tap toggle":
                     activity.runOnUiThread(() -> {
                         View b = activity.findViewById(R.id.toggle_text_input_button);

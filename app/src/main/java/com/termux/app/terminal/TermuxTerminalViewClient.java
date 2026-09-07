@@ -627,6 +627,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 Logger.logVerbose(LOG_TAG, "Enabling soft keyboard on toggle");
                 mActivity.getPreferences().setSoftKeyboardEnabled(true);
                 KeyboardUtils.clearDisableSoftKeyboardFlags(mActivity);
+                // Clear SOFT_INPUT_STATE_ALWAYS_HIDDEN (may be left by a resume-with-hidden-intent)
+                // so the show below is not silently ignored.
+                KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
                 if(mShowSoftKeyboardWithDelayOnce) {
                     mShowSoftKeyboardWithDelayOnce = false;
                     terminalView.postDelayed(getShowSoftKeyboardRunnable(), 500);
@@ -644,6 +647,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             } else {
                 Logger.logVerbose(LOG_TAG, "Showing/Hiding soft keyboard on toggle");
                 KeyboardUtils.clearDisableSoftKeyboardFlags(mActivity);
+                // toggleSoftInput(SHOW_FORCED) can be suppressed by ALWAYS_HIDDEN on some
+                // builds; a user toggle is an explicit intent — restore the normal mode first.
+                KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
                 KeyboardUtils.toggleSoftKeyboard(mActivity);
             }
         }
@@ -715,6 +721,13 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // onResume() raises mRestoringKeyboard BEFORE calling this method, so the listener
             // early-returns and no +500ms show is scheduled here.
             Logger.logVerbose(LOG_TAG, "Requesting TerminalView focus and showing soft keyboard");
+            boolean restoreFromState = !mActivity.isOnResumeAfterOnCreate() || mActivity.isActivityRecreated();
+            boolean kbIntent = mActivity.getTextInputState().isSoftKeyboardVisibleIntent();
+            com.termux.app.terminal.io.KBTrace.i("setSoftKeyboardState: requestFocus"
+                    + " startup=" + isStartup + " reload=" + isReloadTermuxProperties
+                    + " restoreFromState=" + restoreFromState + " kbIntent=" + kbIntent
+                    + " restoringKb=" + mActivity.isRestoringKeyboard()
+                    + " switchInProg=" + mActivity.isTerminalPageSwitchInProgress());
             terminalView.requestFocus();
             // On resume-after-background / recreate the keyboard RESTORE path (runKeyboardRestore)
             // is the single authority for the IME; do not schedule any show here. When the
@@ -722,8 +735,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // requestFocus-triggered runnable cannot pop the keyboard after the restore hides it.
             // Cold start (first resume after onCreate) keeps the historical always-show behaviour
             // (also covers opening a URL via the "Select URL" long press and returning: #2111).
-            boolean restoreFromState = !mActivity.isOnResumeAfterOnCreate() || mActivity.isActivityRecreated();
-            boolean kbIntent = mActivity.getTextInputState().isSoftKeyboardVisibleIntent();
             if (restoreFromState) {
                 if (!kbIntent) {
                     terminalView.removeCallbacks(getShowSoftKeyboardRunnable());
@@ -743,6 +754,11 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         terminalView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View view, boolean hasFocus) {
+                com.termux.app.terminal.io.KBTrace.i("focusChange " + (hasFocus ? "GAIN" : "LOSS")
+                        + " view=" + (view == mActivity.getTerminalView() ? "activeTerm" : "page")
+                        + " restoringKb=" + mActivity.isRestoringKeyboard()
+                        + " switchInProg=" + mActivity.isTerminalPageSwitchInProgress()
+                        + " ignoreOnce=" + mShowSoftKeyboardIgnoreOnce);
                 // During a page switch OR a keyboard restore, the shared IME and the panel/focus
                 // bookkeeping are owned by onTerminalPageSelected() / runKeyboardRestore().
                 // Suppress ALL churn here and return BEFORE any side effect: the old page losing
@@ -795,6 +811,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                     // is no longer the activity's active page.
                     Logger.logVerbose(LOG_TAG, "Skipping soft keyboard hide on focus change: page no longer active (switched)");
                 } else {
+                    com.termux.app.terminal.io.KBTrace.i("focusChange -> setSoftKeyboardVisibility show=" + showKeyboard);
                     KeyboardUtils.setSoftKeyboardVisibility(getShowSoftKeyboardRunnable(), mActivity, terminalView, showKeyboard);
                 }
             }
@@ -804,6 +821,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private Runnable getShowSoftKeyboardRunnable() {
         if (mShowSoftKeyboardRunnable == null) {
             mShowSoftKeyboardRunnable = () -> {
+                com.termux.app.terminal.io.KBTrace.i("showSoftKeyboardRunnable FIRES");
                 TerminalView tv = mActivity.getTerminalView();
                 if (tv != null) KeyboardUtils.showSoftKeyboard(mActivity, tv);
             };
