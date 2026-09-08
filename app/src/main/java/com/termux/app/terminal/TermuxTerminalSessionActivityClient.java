@@ -1253,36 +1253,85 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // Restyle the rest of the activity (window, status bar, open popups) from the scheme.
             mActivity.applySchemeColors();
 
-            // Reset the colors on the emulator the TerminalView is actually rendering. If the view
-            // is not yet attached to a session (e.g. during activity recreation on a system
-            // day/night switch, before attachSession()/updateSize() binds mEmulator), fall back to
-            // the current session's emulator so the color update is not silently lost. Both paths
-            // resolve to the same TerminalEmulator instance once the view is attached.
-            TerminalView terminalView = mActivity.getTerminalView();
-            TerminalEmulator emulator = (terminalView != null) ? terminalView.mEmulator : null;
-            if (emulator == null) {
-                TerminalSession session = mActivity.getCurrentSession();
-                if (session != null) emulator = session.getEmulator();
-            }
-            if (emulator != null) {
-                emulator.mColors.reset();
-            }
+            // Reset the cached palette on EVERY live terminal emulator — not just the one currently
+            // on screen. Each emulator keeps its colours in mColors, so leaving the others stale is
+            // exactly what made already-open terminals keep showing the previous scheme while only
+            // newly created terminals picked up the new one (their view is bound after the change
+            // and runs checkForFontAndColorsForView(), which re-syncs mColors).
+            resetAllEmulatorColors();
+
             updateBackgroundColor();
 
             // A full forced redraw is NOT required: TerminalRenderer.render() now clears the entire
             // canvas to the current background color and then repaints every visible row on each
             // onDraw() call, so a plain invalidate()/onScreenUpdated() is a COMPLETE repaint of both
-            // the glyphs AND the pane background with the new scheme. We keep the invalidate()
-            // unconditional because onScreenUpdated() early-returns when mEmulator is null.
-            if (terminalView != null) {
-                terminalView.invalidate();
-                terminalView.onScreenUpdated();
-            }
-
+            // the glyphs AND the pane background with the new scheme. We repaint the active view AND
+            // every offscreen page the ViewPager2 keeps bound so the change is visible everywhere at
+            // once instead of only after a tab switch. onScreenUpdated() early-returns when mEmulator
+            // is null, which is why the emulator reset above runs first.
             final Typeface newTypeface = resolveTerminalTypeface();
-            if (terminalView != null) terminalView.setTypeface(newTypeface);
+            invalidateAllTerminalViews(newTypeface);
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in applyTerminalColorScheme()", e);
+        }
+    }
+
+    /**
+     * Re-sync the cached colour array of every live terminal emulator with the global
+     * {@link TerminalColors#COLOR_SCHEME} so a scheme change is reflected by all open terminals,
+     * not only the active one.
+     *
+     * <p>Emulators are owned by their {@link TerminalSession} and hold their palette in
+     * {@code mColors}; the active view's emulator is one of these, so covering all sessions also
+     * covers the active terminal. Called from {@link #applyTerminalColorScheme} which only runs
+     * when the scheme actually changed (it is gated by {@link #checkForFontAndColors}), so the
+     * per-session cost here is paid rarely.
+     */
+    private void resetAllEmulatorColors() {
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null) return;
+        final int n = service.getTermuxSessionsSize();
+        for (int i = 0; i < n; i++) {
+            TermuxSession ts = service.getTermuxSession(i);
+            if (ts == null) continue;
+            TerminalSession session = ts.getTerminalSession();
+            if (session == null) continue;
+            TerminalEmulator emulator = session.getEmulator();
+            if (emulator != null) emulator.mColors.reset();
+        }
+    }
+
+    /**
+     * Force a complete repaint of the active terminal view and every offscreen page the
+     * ViewPager2 keeps bound, so a freshly applied colour scheme shows up everywhere immediately.
+     *
+     * @param typeface The (cached) terminal typeface to apply to each view.
+     */
+    private void invalidateAllTerminalViews(@Nullable Typeface typeface) {
+        final TerminalView active = mActivity.getTerminalView();
+        if (active != null) {
+            active.invalidate();
+            active.onScreenUpdated();
+            if (typeface != null) active.setTypeface(typeface);
+        }
+
+        androidx.viewpager2.widget.ViewPager2 pager = mActivity.getTerminalPager();
+        if (pager == null) return;
+        final int pages = pager.getChildCount();
+        for (int i = 0; i < pages; i++) {
+            View child = pager.getChildAt(i);
+            if (!(child instanceof androidx.recyclerview.widget.RecyclerView)) continue;
+            androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) child;
+            final int count = rv.getChildCount();
+            for (int j = 0; j < count; j++) {
+                View v = rv.getChildAt(j);
+                if (!(v instanceof TerminalView)) continue;
+                TerminalView tv = (TerminalView) v;
+                if (tv == active) continue; // already handled above
+                tv.invalidate();
+                tv.onScreenUpdated();
+                if (typeface != null) tv.setTypeface(typeface);
+            }
         }
     }
 
