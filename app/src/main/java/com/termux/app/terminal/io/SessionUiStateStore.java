@@ -384,7 +384,10 @@ public final class SessionUiStateStore {
             JSONObject root = new JSONObject();
             root.put("version", 1);
             root.put("activeIndex", activeIndex);
-            root.put("keyboardVisible", mSoftKeyboardVisibleIntent);
+            // NOTE: panel visibility, panel focus and the keyboard intents are
+            // deliberately NOT persisted — they are RAM-only (L1) by design and
+            // must not survive the app. A fresh run starts with closed panels and
+            // the platform-default keyboard state.
 
             JSONArray arr = new JSONArray();
             for (TerminalSession session : sessionsInOrder) {
@@ -396,10 +399,6 @@ public final class SessionUiStateStore {
                 JSONObject o = new JSONObject();
                 if (s.textInput != null) o.put("text", s.textInput);
                 o.put("caret", s.caret);
-                o.put("panelVisible", s.panelVisible);
-                o.put("hasPanelVisible", s.hasPanelVisible);
-                o.put("focusOnInput", s.focusOnInput);
-                if (s.hasKeyboardIntent) o.put("kb", s.keyboardIntent);
                 o.put("scrollRow", s.scrollTopRow);
                 o.put("scrollRows", s.scrollTranscriptRows);
                 arr.put(o);
@@ -421,7 +420,9 @@ public final class SessionUiStateStore {
         try {
             JSONObject root = new JSONObject(json);
             mImportedActiveIndex = root.optInt("activeIndex", -1);
-            mSoftKeyboardVisibleIntent = root.optBoolean("keyboardVisible", true);
+            // NOTE: keyboardVisible / panelVisible / hasPanelVisible / focusOnInput /
+            // "kb" are NOT read back: those states are RAM-only and must not survive
+            // the app. Old JSON files may still carry the keys — they are ignored.
 
             JSONArray arr = root.optJSONArray("sessions");
             if (arr == null) return;
@@ -436,13 +437,6 @@ public final class SessionUiStateStore {
                 s.textInput = (text != null && text.length() > MAX_STORED_INPUT_LENGTH)
                         ? text.substring(text.length() - MAX_STORED_INPUT_LENGTH) : text;
                 s.caret = o.optInt("caret", -1);
-                s.hasPanelVisible = o.optBoolean("hasPanelVisible", false);
-                s.panelVisible = o.optBoolean("panelVisible", false);
-                s.focusOnInput = o.optBoolean("focusOnInput", false);
-                if (o.has("kb")) {
-                    s.hasKeyboardIntent = true;
-                    s.keyboardIntent = o.optBoolean("kb", true);
-                }
                 s.scrollTopRow = o.optInt("scrollRow", 0);
                 s.scrollTranscriptRows = o.optInt("scrollRows", 0);
             }
