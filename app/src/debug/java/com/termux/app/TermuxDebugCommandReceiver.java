@@ -10,6 +10,7 @@ import android.widget.EditText;
 
 import com.termux.R;
 import com.termux.app.terminal.io.SessionUiStateStore;
+import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.view.KeyboardUtils;
 import com.termux.terminal.TerminalSession;
 
@@ -133,6 +134,15 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                         log("kb force-hide done");
                     });
                     break;
+                case "storm": {
+                    // Deterministic chaos test for the per-session text-input store.
+                    // Runs a scripted sequence of panel/keyboard/tab actions, checking
+                    // after every step that each session's remembered text survived.
+                    // arg = number of rounds (default 1).
+                    final int rounds = parseArg(intent, 1);
+                    runStormTest(activity, rounds);
+                    break;
+                }
                 case "tap toggle":
                     activity.runOnUiThread(() -> {
                         View b = activity.findViewById(R.id.toggle_text_input_button);
@@ -226,7 +236,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     StringBuilder dsb = new StringBuilder("DUMPSESS");
                     if (svc2 != null) {
                         for (int i = 0; i < svc2.getTermuxSessionsSize(); i++) {
-                            com.termux.shared.termux.shell.command.runner.terminal.TermuxSession ts =
+                            TermuxSession ts =
                                     svc2.getTermuxSession(i);
                             TerminalSession s = ts == null ? null : ts.getTerminalSession();
                             dsb.append(" s").append(i).append("=")
@@ -288,7 +298,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         int current = activity.getPagerCurrentItem();
         TerminalSession currentSession = activity.getCurrentSession();
         for (int i = 0; i < sessions; i++) {
-            com.termux.shared.termux.shell.command.runner.terminal.TermuxSession ts =
+            TermuxSession ts =
                     service.getTermuxSession(i);
             TerminalSession s = ts == null ? null : ts.getTerminalSession();
             if (s == null) continue;
@@ -323,6 +333,241 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         sb.append(" live_termfocus=").append(
                 activity.getActiveTerminalView() != null && activity.getActiveTerminalView().hasFocus() ? 1 : 0);
         log(sb.toString());
+    }
+
+    /**
+     * Deterministic storm test for the per-session text-input store.
+     *
+     * Setup: ensures at least 2 sessions, opens panel on each, types a unique marker
+     * per session ("STORM_<i>_<tag>"), then runs <rounds> rounds of scripted chaos:
+     *   - switch to another tab (panel-open -> panel-open)
+     *   - panel close / panel open on the landed tab
+     *   - kb force-show / kb force-hide (keyboard churn without tab switch)
+     *   - extra keys slot churn via toggle button visibility update
+     *   - another tab switch back
+     * After every step the full store + live field is verified: every session whose
+     * marker was typed and not yet "sent" must still have it in the store, and the
+     * LIVE field must show the marker of whichever session is current when its panel
+     * is open (after the defensive clear + restore cycle).
+     *
+     * Any mismatch logs "STORM FAIL <step> ..." with the expected/found text; success
+     * logs "STORM PASS rounds=N".
+     */
+    private static void runStormTest(TermuxActivity activity, int rounds) {
+        // Run on a BACKGROUND thread: every step posts to the UI thread and waits for it
+        // to complete (runOnUiThreadSync). Sleeping on the main looper — the previous
+        // implementation — starved the posted focus/insets/pager events the test is
+        // supposed to exercise, so half the machinery never ran.
+        new Thread(() -> {
+            try {
+                stormBody(activity, rounds);
+            } catch (Throwable t) {
+                log("STORM FAIL exception: " + t);
+            }
+        }, "storm-test").start();
+    }
+
+    /** Post to the UI thread and WAIT until the action completed (main looper stays live). */
+    private static void runOnUiThreadSync(TermuxActivity activity, Runnable action) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            action.run();
+            return;
+        }
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        activity.runOnUiThread(() -> {
+            try {
+                action.run();
+            } finally {
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {}
+    }
+
+    private static void stormBody(TermuxActivity activity, int rounds) {
+        TermuxService service = activity.getTermuxService();
+        if (service == null) { log("STORM FAIL: no service"); return; }
+
+        String tag = String.valueOf(System.currentTimeMillis() % 100000);
+        int n = service.getTermuxSessionsSize();
+        // Ensure 2 sessions with panel open + markers typed.
+        while (n < 2) {
+            final boolean[] added = {false};
+            runOnUiThreadSync(activity, () -> {
+                activity.getTermuxTerminalSessionClient().addNewSession(false, null);
+                added[0] = true;
+            });
+            n = service.getTermuxSessionsSize();
+        }
+        try { Thread.sleep(400); } catch (InterruptedException ignored) {}
+
+        String[] markers = new String[n];
+        for (int i = 0; i < n; i++) {
+            selectTab(activity, i);
+            openPanel(activity);
+            setField(activity, "STORM" + i + "_" + tag);
+            markers[i] = "STORM" + i + "_" + tag;
+            StringBuilder hs = new StringBuilder("STORM typed session idx=" + i);
+            for (int j = 0; j < service.getTermuxSessionsSize(); j++) {
+                com.termux.shared.termux.shell.command.runner.terminal.TermuxSession ts = service.getTermuxSession(j);
+                TerminalSession s = ts == null ? null : ts.getTerminalSession();
+                hs.append(" [").append(j).append("]=")
+                  .append(s == null ? "null" : Integer.toHexString(System.identityHashCode(s)));
+            }
+            hs.append(" live=").append(activity.getCurrentSession() == null ? "null"
+                    : Integer.toHexString(System.identityHashCode(activity.getCurrentSession())));
+            log(hs.toString());
+        }
+
+        int cur = activity.getPagerCurrentItem();
+        int failures = 0;
+
+        java.util.Random rnd = new java.util.Random(20260908L);
+        for (int r = 0; r < rounds; r++) {
+            // 1. switch to a random other tab (panel-open -> panel-open)
+            int next = (cur + 1 + rnd.nextInt(Math.max(1, n - 1))) % n;
+            if (next == cur) next = (cur + 1) % n;
+            selectTab(activity, next);
+            failures += verifyStoreSync(activity, "r" + r + " after switch->" + next, markers);
+            failures += verifyLiveSync(activity, "r" + r + " live after switch->" + next, markers[next]);
+            cur = next;
+
+            // 2. panel close
+            panelClose(activity);
+            failures += verifyStoreSync(activity, "r" + r + " after panel close", markers);
+
+            // 3. kb churn while panel hidden
+            kbShow(activity); kbHide(activity);
+
+            // 4. panel open again (same session, must restore marker)
+            openPanel(activity);
+            failures += verifyStoreSync(activity, "r" + r + " after panel reopen", markers);
+            failures += verifyLiveSync(activity, "r" + r + " live after panel reopen", markers[cur]);
+
+            // 5. kb churn while panel open. kbHide is a user action: the panel
+            // legitimately auto-closes (per-session flag -> hidden). Reopen it and
+            // verify the store survived the churn AND the field shows the marker.
+            kbShow(activity); kbHide(activity);
+            openPanel(activity);
+            failures += verifyStoreSync(activity, "r" + r + " after kb churn (open)", markers);
+            failures += verifyLiveSync(activity, "r" + r + " live after kb churn reopen", markers[cur]);
+
+            // 6. toggle-button visibility churn (styling-like path)
+            runOnUiThreadSync(activity, () -> activity.updateToggleTextInputButtonVisibility());
+            failures += verifyStoreSync(activity, "r" + r + " after toggle visibility churn", markers);
+            failures += verifyLiveSync(activity, "r" + r + " live after toggle churn", markers[cur]);
+
+            // 7. switch back to previous tab
+            int back = (next == 0) ? n - 1 : next - 1;
+            selectTab(activity, back);
+            failures += verifyStoreSync(activity, "r" + r + " after switch back->" + back, markers);
+            failures += verifyLiveSync(activity, "r" + r + " live after switch back->" + back, markers[back]);
+            cur = back;
+        }
+
+        if (failures == 0) {
+            log("STORM PASS rounds=" + rounds + " sessions=" + n + " tag=" + tag);
+        } else {
+            log("STORM FAIL total=" + failures + " rounds=" + rounds + " sessions=" + n + " tag=" + tag);
+        }
+    }
+
+    /** Every non-sent marker must still be in the store. State read on the UI thread. */
+    private static int verifyStoreSync(TermuxActivity activity, String step, String[] markers) {
+        final int[] failures = {0};
+        runOnUiThreadSync(activity, () -> {
+            TermuxService service = activity.getTermuxService();
+            SessionUiStateStore store = activity.getTextInputState();
+            for (int i = 0; i < service.getTermuxSessionsSize() && i < markers.length; i++) {
+                TermuxSession ts = service.getTermuxSession(i);
+                TerminalSession s = ts == null ? null : ts.getTerminalSession();
+                if (s == null) continue;
+                String got = store.getInputText(s.mHandle);
+                boolean ok = markers[i] != null && markers[i].equals(got);
+                if (!ok) {
+                    failures[0]++;
+                    log("STORM FAIL " + step + " session" + i
+                            + " expected=" + markers[i] + " got=" + got);
+                }
+            }
+        });
+        return failures[0];
+    }
+
+    /** The LIVE field must show the marker of the current session. Read on the UI thread. */
+    private static int verifyLiveSync(TermuxActivity activity, String step, String expected) {
+        final String[] got = {null};
+        runOnUiThreadSync(activity, () -> {
+            android.widget.EditText et = activity.findViewById(com.termux.R.id.terminal_toolbar_text_input);
+            got[0] = et == null ? null : et.getText().toString();
+        });
+        boolean ok = expected != null && expected.equals(got[0]);
+        if (!ok) {
+            log("STORM FAIL " + step + " live expected=" + expected + " got=" + got[0]);
+            return 1;
+        }
+        return 0;
+    }
+
+    private static void selectTab(TermuxActivity activity, int idx) {
+        runOnUiThreadSync(activity, () -> activity.getTermuxTerminalSessionClient().switchToSession(idx));
+        try { Thread.sleep(250); } catch (InterruptedException ignored) {}   // let pager animation settle
+    }
+
+    private static void openPanel(TermuxActivity activity) {
+        runOnUiThreadSync(activity, () -> {
+            if (!activity.isTextInputVisible()) {
+                activity.setTextInputVisible(true);
+                activity.updateToggleTextInputButtonIcon();
+            }
+        });
+        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+    }
+
+    private static void panelClose(TermuxActivity activity) {
+        runOnUiThreadSync(activity, () -> {
+            if (activity.isTextInputVisible()) {
+                activity.setTextInputVisible(false);
+                activity.updateToggleTextInputButtonIcon();
+            }
+        });
+        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+    }
+
+    private static void setField(TermuxActivity activity, String text) {
+        runOnUiThreadSync(activity, () -> {
+            android.widget.EditText ti = activity.findViewById(com.termux.R.id.terminal_toolbar_text_input);
+            if (ti != null) {
+                ti.setText(text);
+                ti.setSelection(text.length());
+            }
+        });
+    }
+
+    private static void kbShow(TermuxActivity activity) {
+        runOnUiThreadSync(activity, () -> {
+            android.view.View v = activity.getCurrentFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+            if (v != null && imm != null) imm.showSoftInput(v, 0);
+        });
+        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+    }
+
+    private static void kbHide(TermuxActivity activity) {
+        runOnUiThreadSync(activity, () -> {
+            android.view.View v = activity.getCurrentFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+            if (v != null && imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+        });
+        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+    }
+
+    private static void sleepUi(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
     }
 
     private static String sanitizeHead(String text) {

@@ -292,6 +292,11 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
 
     private TextInputPanelController mTextInputPanel;
     private AutoCompleteController mAutoCompleteCtrl;
+    /** The session whose text the shared input field currently displays. Set ONLY by
+     * restoreTextInputForSession() — the single authority that re-points the field.
+     * Invariant: the field is always the live buffer of the CURRENT session; every
+     * switch transfers ownership through one ordered bind, visible panel or not. */
+    private TerminalSession mTiBoundSession;
     private TermuxActivityPopupController mPopupCtrl;
     private FullScreenWorkAround mFullScreenWorkAround;
     private ImeVisibilityDetector mImeDetector;
@@ -1454,8 +1459,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Setup text input
         final EditText editText = findViewById(R.id.terminal_toolbar_text_input);
-        // Per-session input text is restored via restoreTextInputForSession() on tab switch
-        // and panel show; on first creation just clear it.
+        // Per-session input text is bound via restoreTextInputForSession() on every
+        // session switch and panel show; on first creation just clear it.
         editText.setText("");
 
         // Record per-session focus: when the text input gains focus, remember that
@@ -1606,14 +1611,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Save the current text input field content into the per-session map,
      * keyed by the current TerminalSession.mHandle.
      *
-     * GUARDED: when the text-input panel is hidden, the shared EditText no longer
-     * represents this session's text (it is empty after the switch-time defensive
-     * clear, and the panel-hide path already saved the real text). Saving then would
-     * WIPE the session's remembered text with an empty field — e.g. captureCurrentSessionUiState()
-     * at onPause / the onStop save would destroy the text of every tab whose panel is
-     * hidden as soon as the app is backgrounded. The panel-hidden record is frozen at
-     * whatever the hide path saved; use {@link #saveTextInputForCurrentSession(boolean)}
-     * with force=true from the hide path itself.
+     * The field is the live buffer of the session bound to it (mTiBoundSession ==
+     * current session at every moment it holds user-editable state), so saving it is
+     * always correct and unconditional: text AND caret, no visibility heuristics, no
+     * empty-over-store guards. Ownership transfer on a switch happens BEFORE the
+     * session pointer moves (see the callers), so this never saves into the wrong
+     * session, and never saves another session's leftover text into a hidden session.
      */
     public void saveTextInputForCurrentSession() {
         saveTextInputForCurrentSession(false);
@@ -1621,48 +1624,42 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     public void saveTextInputForCurrentSession(boolean force) {
         final TerminalSession session = getCurrentSession();
-        if (session == null) {
-            com.termux.app.terminal.io.KBTrace.i("tiSave: no session");
-            return;
-        }
-        if (!force && !isTextInputVisible()) {
-            com.termux.app.terminal.io.KBTrace.i("tiSave: skip (panel hidden) len keep");
-            return;
-        }
+        if (session == null) return;
         final EditText textInputView = findViewById(R.id.terminal_toolbar_text_input);
         if (textInputView == null) return;
+        if (mTiBoundSession != session) return;   // field shows another session — not ours to save
         String text = textInputView.getText().toString();
-        com.termux.app.terminal.io.KBTrace.i("tiSave: " + text.length() + "ch visible=" + isTextInputVisible());
         mTextInputState.saveInput(session.mHandle, text);
-        // Remember the caret position so it can be restored on tab switch and on
-        // panel hide/show for the same session. The EditText keeps its selection
-        // even after losing focus, so getSelectionStart() is valid regardless of
-        // focus — we always record it (no hasFocus() guard), otherwise hiding the
-        // panel after the focus had already moved to the terminal would drop the
-        // caret and it would jump to the end on re-open.
+        // The EditText keeps its selection even after losing focus, so getSelectionStart()
+        // is valid regardless of focus — always record it, otherwise the caret jumps to
+        // the end on re-open.
         mTextInputState.setCaret(session.mHandle, textInputView.getSelectionStart());
     }
 
     /**
-     * Restore the text input field content for the given session (by mHandle)
-     * into the EditText. Called on tab switch and panel show.
+     * Bind the shared text input field to the given session: make the field the live
+     * buffer of that session. Called on every ownership transfer (tab switch, panel
+     * show, session close) — visible panel or not, so the field NEVER carries another
+     * session's text across a switch (the root cause of both the wiped-text and the
+     * resurrected-text bugs). Loads the session's text from the store, muting the
+     * autocomplete controller while doing so; converges (no-op setText) when the field
+     * already shows the target text.
      */
     public void restoreTextInputForSession(@Nullable TerminalSession session) {
         final EditText textInputView = findViewById(R.id.terminal_toolbar_text_input);
         if (textInputView == null) return;
-        if (session == null) {
-            textInputView.setText("");
-            return;
-        }
-        String text = mTextInputState.getInputText(session.mHandle);
-        com.termux.app.terminal.io.KBTrace.i("tiRestore: store=" + (text == null ? -1 : text.length())
-                + " live=" + textInputView.getText().length());
+        mTiBoundSession = session;
+        String text = session == null ? "" : mTextInputState.getInputText(session.mHandle);
+        String target = text != null ? text : "";
+        com.termux.app.terminal.io.KBTrace.i("tiBind: " + target.length() + "ch live="
+                + textInputView.getText().length());
+        if (target.contentEquals(textInputView.getText())) return;   // already converged
         mAutoCompleteCtrl.setRestoringInput(true);
         try {
-            textInputView.setText(text != null ? text : "");
+            textInputView.setText(target);
             // Restore the caret position saved for this session, if any. getCaret() returns
             // -1 when nothing was recorded, so only valid positions (>= 0) are applied.
-            int caret = mTextInputState.getCaret(session.mHandle);
+            int caret = session == null ? -1 : mTextInputState.getCaret(session.mHandle);
             if (caret >= 0) {
                 textInputView.setSelection(Math.min(caret, textInputView.length()));
             }
@@ -1673,9 +1670,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /**
      * Remove the saved text input content for a session (e.g. when the session is closed),
-     * so the per-session map does not grow with stale entries.
+     * so the per-session map does not grow with stale entries. Also unbinds the shared
+     * field first if it is currently showing THIS session, so a late write-through from
+     * the watcher cannot resurrect the cleared record.
      */
     public void clearTextInputForSession(@NonNull TerminalSession session) {
+        if (mTiBoundSession == session) restoreTextInputForSession(null);
         mTextInputState.clear(session);
     }
 
@@ -3356,6 +3356,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * @param visible true to show, false to hide
      */
     public void setTextInputVisible(boolean visible) {
+        {
+            StackTraceElement[] st = Thread.currentThread().getStackTrace();
+            String caller = st.length > 3 ? st[3].getMethodName() : "?";
+            com.termux.app.terminal.io.KBTrace.i("tiVis: " + visible + " session="
+                    + (getCurrentSession() == null ? "null" : Integer.toHexString(System.identityHashCode(getCurrentSession())))
+                    + " via " + caller);
+        }
         // Dismiss auto-complete suggestions when hiding the panel. Use the
         // controller's dismiss() (not the raw popup dismiss) so any in-progress
         // swipe-gesture suppression guard is also cleared and auto-complete is
@@ -3385,17 +3392,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
             // Switch focus based on visibility
             if (visible) {
-                // Restore this session's saved input text before showing the panel — but
-                // ONLY when the panel was actually hidden. When it is already visible the
-                // EditText holds the user's LIVE (possibly unsaved) text: a re-restore
-                // would replace it with the stale saved copy and the typed characters
-                // would be lost (e.g. updateToggleTextInputButtonVisibility calling
-                // setTextInputVisible(isTextInputVisible()) on a styling reload).
-                boolean alreadyOpen = findViewById(R.id.terminal_toolbar_text_input_container)
-                        .getVisibility() == View.VISIBLE;
-                if (!alreadyOpen) {
-                    restoreTextInputForSession(getCurrentSession());
-                }
+                // Bind the field to this session (idempotent — no-op when already bound;
+                // the switch path has already bound it below, visible panel or not).
+                restoreTextInputForSession(getCurrentSession());
                 // Focus on text input and show keyboard
                 EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
                 if (textInput != null) {
@@ -3482,26 +3481,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // tab-switch or startup restore (which otherwise left hasVisible()==false
         // and made Back finish the app instead of hiding the panel).
         if (session != null) {
+            com.termux.app.terminal.io.KBTrace.i("tiApply: session="
+                    + Integer.toHexString(System.identityHashCode(session))
+                    + " visible=" + visible + " hasRecorded=" + hasRecorded + " applyFocus=" + applyFocus);
             mTextInputState.setVisible(session.mHandle, visible);
         }
         setTextInputSlotVisible(visible);
 
-        // Restore this session's saved text whenever the panel was HIDDEN and is being
-        // revealed — or when the shared EditText was defensively cleared by a tab switch
-        // (live empty + store has text). The discriminating rule: the LIVE EditText is the
-        // authority whenever it is non-empty (it holds either the user's unsaved input or
-        // the just-restored text of the session being left); restore from the store only
-        // fills an EMPTY field. This both preserves typed-but-unsaved text on a
-        // settings/pause round trip with the panel open AND brings the saved text back
-        // after a tab switch between two panel-open sessions (the switch's defensive
-        // clear emptied the field, the container stayed VISIBLE, and an already-open
-        // check alone would skip the restore leaving the field blank).
-        if (visible) {
-            boolean shouldRestore = !isTextInputLiveTextPresent(textInputContainer);
-            if (shouldRestore) {
-                restoreTextInputForSession(session);
-            }
-        }
+        // Ownership transfer: bind the shared field to THIS session on every switch —
+        // visible panel or not. The field is the live buffer of the CURRENT session at
+        // all times, so the save-outgoing before the switch never captures a previous
+        // session's leftover, and nothing needs to defensively clear the field in
+        // between. Idempotent: same-session binds are skipped inside
+        // restoreTextInputForSession(), so unsaved typing is never clobbered.
+        restoreTextInputForSession(session);
 
         if (applyFocus) {
             // "Keyboard state when switching tabs" toggle. ON (default): the keyboard follows
@@ -3611,12 +3604,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 scheduleSwitchKeyboardReassert(mTerminalView != null ? mTerminalView : currentInput);
             }
         }
-        } else if (visible) {
-            // At startup / resume: same empty-field rule as above — bring the saved text
-            // back when the field is empty, never overwrite live input.
-            if (!isTextInputLiveTextPresent(textInputContainer)) {
-                restoreTextInputForSession(session);
-            }
         }
         updateToggleTextInputButtonIcon();
     }
@@ -3645,19 +3632,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     this::computeImeVisibility);
             com.termux.app.terminal.io.KBTrace.i("switch reassert: re-show after close-rebind drop");
         }, 300);
-    }
-
-    /**
-     * Whether the shared text-input EditText currently holds live text (non-empty).
-     * Used by the restore decision: a non-empty field is authoritative (user's unsaved
-     * input or the just-saved text of the session being left); restore from the store
-     * only fills an EMPTY field, never overwrites.
-     */
-    private boolean isTextInputLiveTextPresent(@Nullable View textInputContainer) {
-        if (textInputContainer == null || textInputContainer.getVisibility() != View.VISIBLE)
-            return false;
-        EditText et = findViewById(R.id.terminal_toolbar_text_input);
-        return et != null && et.getText().length() > 0;
     }
 
     /** Apply per-session panel visibility with focus move (tab switch). */

@@ -8,6 +8,7 @@ agent*.patch
 agent*.diff
 *.patch
 patches/
+storm_results.txt
 
 # Secrets / generated
 app/keystore.properties

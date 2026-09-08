@@ -580,12 +580,11 @@ public final class SessionPagerManager {
         // needed for extra keys to follow along.
         mActivity.setTerminalView(pageView);
 
-        // Defensive clear: after re-pointing the active TerminalView, wipe any leftover
-        // text in the shared EditText so it cannot leak into the incoming session's
-        // text-input state if saveTextInputForCurrentSession() is ever called by another
-        // code path between here and the restore in applyTextInputVisibilityForSession().
-        EditText et = mActivity.findViewById(R.id.terminal_toolbar_text_input);
-        if (et != null) et.setText("");
+        // NOTE: no defensive clear of the shared text-input EditText here anymore. The
+        // field is bound per-session by restoreTextInputForSession() (converged to the
+        // store), and the write-through watcher persists every change into the BOUND
+        // session's record, so a stale field can neither leak text into the incoming
+        // session nor wipe it — there is no text-bearing save path left to race with.
 
         // Refresh the tab highlight for the page we landed on. We call setCurrentSession(position)
         // (NOT updateTabs()) because updateTabs() does removeAllViews() + recreate every tab,
