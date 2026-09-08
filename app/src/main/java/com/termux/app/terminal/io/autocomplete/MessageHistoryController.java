@@ -1,6 +1,8 @@
 package com.termux.app.terminal.io.autocomplete;
 
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
@@ -58,8 +60,58 @@ public final class MessageHistoryController {
 
     private final SharedPreferences mPrefs;
 
+    // ── Debounced persistence ──
+    // save()/savePerDirectory()/saveGlobal() serialize the ENTIRE history store to
+    // JSON and rewrite the prefs file. Bursts of mutations (a message sent, then
+    // the field cleared, then a history pick) would each pay that cost, even though
+    // SharedPreferences.apply() is itself async — the in-memory mutation is already
+    // visible to readers. Coalescing keeps identical persistence semantics (the
+    // last mutation always lands on disk) at a fraction of the CPU/IO cost.
+    private static final long PERSIST_DEBOUNCE_MS = 250;
+    private final Handler mPersistHandler = new Handler(Looper.getMainLooper());
+    @Nullable private Runnable mPersistPending;
+
     public MessageHistoryController(@NonNull SharedPreferences prefs) {
         mPrefs = prefs;
+    }
+
+    /** Schedule (or re-schedule) the store-wide persist on the main looper. */
+    private void schedulePersist() {
+        if (mPersistPending != null) mPersistHandler.removeCallbacks(mPersistPending);
+        if (mPersistPending == null) {
+            mPersistPending = this::flushPersist;
+        }
+        mPersistHandler.postDelayed(mPersistPending, PERSIST_DEBOUNCE_MS);
+    }
+
+    /**
+     * If a debounced persist is pending, run it now. Called by the host from
+     * {@code onPause()} (and before mode switches) so history is always on disk
+     * before the process can be stopped.
+     */
+    public void flushPersist() {
+        if (mPersistPending != null) {
+            mPersistHandler.removeCallbacks(mPersistPending);
+            mPersistPending = null;
+            saveNow();
+        }
+    }
+
+    /** Cancel a pending debounced persist without writing (teardown). */
+    public void cancelPersist() {
+        if (mPersistPending != null) {
+            mPersistHandler.removeCallbacks(mPersistPending);
+            mPersistPending = null;
+        }
+    }
+
+    /** Run the store-wide persist synchronously (used by the debounce flush). */
+    private void saveNow() {
+        if (mPerDirectoryMessageHistory) {
+            savePerDirectory();
+        } else {
+            saveGlobal();
+        }
     }
 
     // ── Feature flags ──
@@ -197,6 +249,8 @@ public final class MessageHistoryController {
             }
             mMessageHistoryPerDirectory.put(cwd, migrated);
             mMessageHistory.addAll(migrated);
+            // Persist the migration synchronously: this is a one-time
+            // destructive move (the global store is dropped below).
             savePerDirectory();
             mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
         } catch (JSONException ignored) {
@@ -229,7 +283,7 @@ public final class MessageHistoryController {
         while (mMessageHistory.size() > mMessageHistoryMax) {
             mMessageHistory.remove(mMessageHistory.size() - 1);
         }
-        save();
+        schedulePersist();
         mHistoryVersion++;
     }
 
@@ -257,7 +311,7 @@ public final class MessageHistoryController {
         while (mMessageHistory.size() > mMessageHistoryMax) {
             mMessageHistory.remove(mMessageHistory.size() - 1);
         }
-        save();
+        schedulePersist();
         mHistoryVersion++;
     }
 
@@ -345,6 +399,8 @@ public final class MessageHistoryController {
                     mHistoryCurrentDirectory = fallbackCwd;
                     mMessageHistory.clear();
                     mMessageHistory.addAll(migrated);
+                    // Persist the migration synchronously: this is a one-time
+                    // destructive move (the global store is dropped below).
                     savePerDirectory();
                     mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
                     return;
@@ -363,11 +419,8 @@ public final class MessageHistoryController {
     }
 
     public void save() {
-        if (mPerDirectoryMessageHistory) {
-            savePerDirectory();
-        } else {
-            saveGlobal();
-        }
+        cancelPersist();
+        saveNow();
     }
 
     private void saveGlobal() {

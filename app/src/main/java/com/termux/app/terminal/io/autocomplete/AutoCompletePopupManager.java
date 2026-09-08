@@ -72,11 +72,6 @@ final class AutoCompletePopupManager {
     // (every keystroke) — avoids a new int[2] allocation per call.
     private final int[] mTmpLoc = new int[2];
 
-    // Reused BOLD span instance — avoids a new StyleSpan allocation on every
-    // character typed (applyBoldSpan runs on each visible line per keystroke).
-    private static final android.text.style.StyleSpan BOLD_SPAN =
-            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD);
-
     private int mLastBuiltHistoryVersion = -1;
     @Nullable private String mLastAppliedPrefix = "";
 
@@ -201,40 +196,33 @@ final class AutoCompletePopupManager {
 
     private void showAutoCompletePopup(@NonNull EditText inputField) {
         final String input = inputField.getText().toString();
-        int historyN = mData.getSuggestions().size();
-        final boolean hasHistory = historyN > 0;
+        final boolean hasHistory = !mData.getSuggestions().isEmpty();
 
         boolean historyReuse = mHistoryPopup != null && mHistoryPopup.isShowing()
                 && mHistoryContent != null && mHistoryContent.getParent() != null;
 
-        if (!hasHistory || (historyReuse && !contentChangedForWindow())) {
-            // Rebuild (not just re-bold) so the highlight tracks the edited prefix
-            // reliably — an in-place span mutation inside a showing PopupWindow is
-            // not guaranteed to repaint (and is exactly why a backspace left the
-            // old characters bold).
-            if (mHistoryContent != null) rebuildHistoryViews(mHistoryContent, input);
-            mLastBuiltHistoryVersion = mData.getHistoryVersion();
-            mLastAppliedPrefix = input;
-            applyPopupGeometry(inputField);
+        if (!hasHistory) {
+            // Nothing to show: drop any live window and bail out.
+            if (mHistoryPopup != null) {
+                try { mHistoryPopup.dismiss(); } catch (Exception ignored) {}
+                mHistoryPopup = null;
+                mHistoryContent = null;
+            }
             return;
         }
 
-        if (!hasHistory && mHistoryPopup != null) { try { mHistoryPopup.dismiss(); } catch (Exception ignored) {} mHistoryPopup = null; mHistoryContent = null; }
-
-        if (hasHistory) {
-            if (historyReuse && mHistoryContent != null) {
-                final int savedScroll = mHistoryContent.getScrollY();
-                rebuildHistoryViews(mHistoryContent, input);
-                mHistoryContent.setScrollY(savedScroll);
-            } else {
-                if (mHistoryPopup != null) { try { mHistoryPopup.dismiss(); } catch (Exception ignored) {} mHistoryPopup = null; }
-                mHistoryContent = new LinearLayout(mContext);
-                mHistoryContent.setOrientation(LinearLayout.VERTICAL);
-                mHistoryContent.setBackgroundColor(Color.TRANSPARENT);
-                rebuildHistoryViews(mHistoryContent, input);
-                mHistoryPopup = buildPopupWindow(mHistoryContent);
-                showPopupAtCaret(mHistoryPopup, inputField);
-            }
+        if (historyReuse && mHistoryContent != null) {
+            final int savedScroll = mHistoryContent.getScrollY();
+            rebuildHistoryViews(mHistoryContent, input);
+            mHistoryContent.setScrollY(savedScroll);
+        } else {
+            if (mHistoryPopup != null) { try { mHistoryPopup.dismiss(); } catch (Exception ignored) {} mHistoryPopup = null; }
+            mHistoryContent = new LinearLayout(mContext);
+            mHistoryContent.setOrientation(LinearLayout.VERTICAL);
+            mHistoryContent.setBackgroundColor(Color.TRANSPARENT);
+            rebuildHistoryViews(mHistoryContent, input);
+            mHistoryPopup = buildPopupWindow(mHistoryContent);
+            showPopupAtCaret(mHistoryPopup, inputField);
         }
 
         mLastBuiltHistoryVersion = mData.getHistoryVersion();
@@ -404,11 +392,6 @@ final class AutoCompletePopupManager {
             showAutoCompletePopup(inputField);
             return;
         }
-        final int historyN = mData.getSuggestions().size();
-        if (historyN > 0 && !historyShowing) {
-            showAutoCompletePopup(inputField);
-            return;
-        }
 
         boolean historyChanged = contentChangedForWindow();
         boolean prefixChanged = !newText.equals(mLastAppliedPrefix);
@@ -433,18 +416,35 @@ final class AutoCompletePopupManager {
     // ── Per-window rebuild + bold spans ──
 
     private void rebuildHistoryViews(@NonNull LinearLayout content, @NonNull String input) {
-        content.removeAllViews();
         final int n = displayCount();
-        int rendered = 0;
+        final int existing = content.getChildCount();
         // Reversed rendering: oldest item on top, newest (history index 0) at the
         // very bottom of the list. History entries are stored newest-first, so we
         // walk from (n-1) down to 0.
-        for (int i = n - 1; i >= 0 && rendered < n; i--, rendered++) {
+        for (int i = n - 1; i >= 0; i--) {
             String suggestion = mData.getSuggestions().get(i);
-            TextView tv = mData.buildSuggestionTextView(suggestion, input, false);
-            content.addView(tv, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            final int viewIdx = n - 1 - i;
+            TextView tv = null;
+            if (viewIdx < existing) {
+                View child = content.getChildAt(viewIdx);
+                if (child instanceof TextView) tv = (TextView) child;
+            }
+            if (tv != null) {
+                // Rebind in place — no view, listener or drawable allocation on
+                // the per-keystroke path. Only the SpannableString is rebuilt
+                // (the bold prefix and truncation track the typed input).
+                mData.rebindSuggestionTextView(tv, suggestion, input);
+            } else {
+                if (viewIdx < existing) content.removeViewAt(viewIdx);
+                TextView nv = mData.buildSuggestionTextView(suggestion, input);
+                content.addView(nv, viewIdx, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+        }
+        // Drop surplus views if the shown set shrank.
+        while (content.getChildCount() > n) {
+            content.removeViewAt(content.getChildCount() - 1);
         }
         // The rebuilt views reflect the current prefix, so record it as applied.
         // Without this, updatePopupContent would treat every subsequent keystroke
@@ -452,89 +452,6 @@ final class AutoCompletePopupManager {
         mLastAppliedPrefix = input;
     }
 
-    private void updateBoldSpansOnly(@NonNull String newText) {
-        updateBoldSpansInWindow(mHistoryPopup, mHistoryContent, newText);
-    }
-
-    /** Cheap refresh of bold spans only (no rebuild/dismiss) for the active popup. */
-    void updateBoldOnly(@NonNull String newText) {
-        updateBoldSpansOnly(newText);
-    }
-
-    private void updateBoldSpansInWindow(@Nullable PopupWindow popup,
-                                          @Nullable LinearLayout content,
-                                          @NonNull String newText) {
-        if (popup == null || !popup.isShowing() || content == null) return;
-        // Skip entirely if the prefix text did not change.
-        if (newText.equals(mLastAppliedPrefix)) return;
-        mLastAppliedPrefix = newText;
-        final int n = displayCount();
-        int rendered = 0;
-        int viewIdx = 0;
-        // In sync with rebuildHistoryViews: the view at position viewIdx shows the
-        // history entry with index (n-1 - viewIdx), i.e. newest at the bottom.
-        for (int displayIdx = n - 1; displayIdx >= 0 && rendered < n; displayIdx--, rendered++) {
-            TextView tv = textViewAt(content, viewIdx++);
-            if (tv == null) break;
-            applyBoldSpan(tv, mData.getSuggestions().get(displayIdx), newText);
-        }
-    }
-
-    private static TextView textViewAt(@NonNull LinearLayout content, int i) {
-        if (i < 0 || i >= content.getChildCount()) return null;
-        View child = content.getChildAt(i);
-        return (child instanceof TextView) ? (TextView) child : null;
-    }
-
-    private void applyBoldSpan(@NonNull TextView tv, @NonNull String suggestion,
-            @NonNull String newText) {
-        final int inputLen = newText.length();
-        final int wordStart = Math.min(AutoCompleteTextRenderer.wordStartOffset(newText), suggestion.length());
-        final int boldLen = inputLen - wordStart;
-        final boolean hasLastWord = boldLen > 0;
-        final String prefix = (wordStart > 0) ? "... " : "";
-        final int prefixLen = prefix.length();
-
-        int ws = Math.min(wordStart, suggestion.length());
-
-        CharSequence currentText = tv.getText();
-        // Lazily compute the expected display string — only on the rebuild branch
-        // (rare case of crossing a word boundary). Normally currentText already
-        // equals suggestion, so we compare without concatenating substring+prefix.
-        final int curLen = currentText.length();
-        final int sugLen = suggestion.length();
-        boolean displayMatches;
-        if (prefixLen == 0) {
-            displayMatches = (curLen == sugLen) && suggestion.contentEquals(currentText);
-        } else {
-            displayMatches = (curLen == prefixLen + (sugLen - ws))
-                    && prefix.contentEquals(currentText.subSequence(0, prefixLen))
-                    && TextUtils.regionMatches(suggestion, ws, currentText, prefixLen, sugLen - ws);
-        }
-        if (!displayMatches) {
-            int availWidth = tv.getWidth() - tv.getPaddingLeft() - tv.getPaddingRight();
-            android.text.SpannableString ss = AutoCompleteTextRenderer.buildSuggestionSpannable(
-                    suggestion, newText, Math.max(0, availWidth), tv.getPaint(), false);
-            tv.setText(ss, TextView.BufferType.SPANNABLE);
-        } else {
-            // The only bold-span is known (BOLD_SPAN), so remove it directly
-            // without a getSpans() array allocation per line per character.
-            android.text.Spannable sp = (android.text.Spannable) currentText;
-            sp.removeSpan(BOLD_SPAN);
-            if (hasLastWord && prefixLen + boldLen <= sp.length()
-                    && suggestion.regionMatches(true, 0, newText, 0, inputLen)) {
-                sp.setSpan(BOLD_SPAN,
-                        prefixLen, prefixLen + boldLen,
-                        android.text.SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-            // Re-set the (already mutated) Spannable so the TextView re-measures and
-            // repaints. invalidate() alone is unreliable for an in-place span change
-            // inside a showing PopupWindow (and is why the popup could appear frozen
-            // on backspace, where caret X often doesn't move enough to force a window
-            // update()).
-            tv.setText(sp, TextView.BufferType.SPANNABLE);
-        }
-    }
 
     // ── Display math ──
 
@@ -555,14 +472,13 @@ final class AutoCompletePopupManager {
         if (popup == null || !popup.isShowing() || content == null) return false;
         final int n = displayCount();
         if (content.getChildCount() != Math.min(n, mData.getSuggestions().size())) return true;
-        int rendered = 0;
-        int viewIdx = 0;
         // The view order is reversed relative to the history: view viewIdx maps to
         // the history entry with index (n-1 - viewIdx).
-        for (int displayIdx = n - 1; displayIdx >= 0 && rendered < n; displayIdx--, rendered++) {
-            TextView tv = textViewAt(content, viewIdx++);
-            if (tv == null) break;
-            String expectedText = mData.getSuggestions().get(displayIdx);
+        for (int viewIdx = 0; viewIdx < n; viewIdx++) {
+            View child = content.getChildAt(viewIdx);
+            if (!(child instanceof TextView)) return true;
+            TextView tv = (TextView) child;
+            String expectedText = mData.getSuggestions().get(n - 1 - viewIdx);
             if (!tv.getTag().equals(expectedText)) return true;
         }
         return false;

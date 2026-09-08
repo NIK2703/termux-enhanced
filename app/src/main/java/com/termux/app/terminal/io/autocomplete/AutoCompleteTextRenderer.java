@@ -14,19 +14,13 @@ import androidx.annotation.NonNull;
 /**
  * Pure text-rendering helpers for auto-complete suggestion rows.
  *
- * <p>Everything here is a {@code static} function of its arguments (no hidden
- * state, no dependency on {@code AutoCompleteController} fields) so the logic is
- * trivially testable and isolated from the popup-window management code. The
- * only external dependency is {@link ShellCompletionProvider#lastWordOf(String)},
- * used to pick the shell-completion match token.
- *
  * <p>Responsibility split:
  * <ul>
  *   <li>{@code AutoCompleteTextRenderer} — how a suggestion STRING is drawn
  *       (word truncation, bold prefix, line-fitting);</li>
- *   <li>{@code AutoCompletePopupManager} — how the popup WINDOWS are built,
+ *   <li>{@code AutoCompletePopupManager} — how the popup WINDOW is built,
  *       positioned and shown;</li>
- *   <li>{@code AutoCompleteController} — orchestration (fetch, merge, input
+ *   <li>{@code AutoCompleteController} — orchestration (fetch, filter, input
  *       handling, insertion) and ownership of the suggestion data.</li>
  * </ul>
  */
@@ -92,8 +86,8 @@ final class AutoCompleteTextRenderer {
      */
     @NonNull
     static SpannableString buildSuggestionSpannable(@NonNull String suggestion,
-            @NonNull String input, int availWidth, @NonNull TextPaint paint, boolean isShell) {
-        String matchStr = isShell ? AutoCompleteController.lastWordOf(input) : input;
+            @NonNull String input, int availWidth, @NonNull TextPaint paint) {
+        String matchStr = input;
         int wordStart = Math.min(wordStartOffset(matchStr), suggestion.length());
         int boldLen = matchStr.length() - wordStart;
         boolean hasLastWord = boldLen > 0;
@@ -102,7 +96,7 @@ final class AutoCompleteTextRenderer {
         String displayText = (prefixLen > 0) ? prefix + suggestion.substring(wordStart) : suggestion;
 
         if (availWidth > 0) {
-            displayText = truncateToLines(displayText, availWidth, paint, 2, false);
+            displayText = truncateToLines(displayText, availWidth, paint, 2);
         }
 
         SpannableString ss = new SpannableString(displayText);
@@ -118,67 +112,24 @@ final class AutoCompleteTextRenderer {
     /**
      * Truncate {@code text} so it fits within {@code maxLines} lines of width
      * {@code availWidth}. Returns the original text unchanged if it already fits.
-     * Otherwise keeps the start (when {@code middle} is false) and appends a
-     * single {@code '…'}, or keeps the start and end and replaces the dropped
-     * middle with a {@code '…'} (when {@code middle} is true, for paths).
+     * Otherwise keeps the start and appends a single {@code '…'}.
      */
     @NonNull
     static String truncateToLines(@NonNull String text, int availWidth,
-            @NonNull TextPaint paint, int maxLines, boolean middle) {
+            @NonNull TextPaint paint, int maxLines) {
         if (text.length() == 0 || fitsLines(text, availWidth, paint, maxLines)) {
             return text;
-        }
-        if (!middle) {
-            int lo = 0, hi = text.length();
-            while (lo < hi) {
-                int mid = (lo + hi + 1) / 2;
-                if (fitsLines(text, 0, mid, true, availWidth, paint, maxLines)) {
-                    lo = mid;
-                } else {
-                    hi = mid - 1;
-                }
-            }
-            return text.substring(0, lo) + "…";
         }
         int lo = 0, hi = text.length();
         while (lo < hi) {
             int mid = (lo + hi + 1) / 2;
-            if (fitsLinesMiddle(text, mid, availWidth, paint, maxLines)) {
+            if (fitsLines(text, 0, mid, true, availWidth, paint, maxLines)) {
                 lo = mid;
             } else {
                 hi = mid - 1;
             }
         }
-        return middleCandidate(text, lo);
-    }
-
-    @NonNull
-    static String middleCandidate(@NonNull String text, int keep) {
-        int head = keep / 2;
-        int tail = keep - head;
-        if (head > text.length()) head = text.length();
-        if (tail > text.length() - head) tail = text.length() - head;
-        if (tail < 0) tail = 0;
-        return text.substring(0, head) + "…" + text.substring(text.length() - tail);
-    }
-
-    /** True when the (head + "…" + tail) middle candidate fits within {@code maxLines} lines. */
-    static boolean fitsLinesMiddle(@NonNull String text, int keep, int availWidth,
-            @NonNull TextPaint paint, int maxLines) {
-        int head = keep / 2;
-        int tail = keep - head;
-        if (head > text.length()) head = text.length();
-        if (tail > text.length() - head) tail = text.length() - head;
-        if (tail < 0) tail = 0;
-        int tailStart = text.length() - tail;
-        String key = layoutKey(text, 0, head, tailStart, text.length(), true, availWidth, maxLines);
-        StaticLayout layout = sLayoutCache.get(key);
-        if (layout == null) {
-            String slice = text.substring(0, head) + "…" + text.substring(tailStart);
-            layout = buildLayout(slice, availWidth, paint, maxLines);
-            sLayoutCache.put(key, layout);
-        }
-        return layout.getLineCount() <= maxLines;
+        return text.substring(0, lo) + "…";
     }
 
     /** True when {@code text} lays out to at most {@code maxLines} lines of {@code availWidth}. */

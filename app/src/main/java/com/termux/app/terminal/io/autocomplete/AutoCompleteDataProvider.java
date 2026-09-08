@@ -25,11 +25,8 @@ import java.util.ArrayList;
  */
 interface AutoCompleteDataProvider {
 
-    /** Current merged suggestion strings (shell completions first, then history). */
+    /** Current suggestion strings (message-history candidates, newest first). */
     @NonNull ArrayList<String> getSuggestions();
-
-    /** Parallel isShell flags for {@link #getSuggestions()}. */
-    @NonNull ArrayList<Boolean> getIsShell();
 
     /** Max number of suggestions to RENDER (user setting). */
     int getDisplayMax();
@@ -44,7 +41,13 @@ interface AutoCompleteDataProvider {
     @Nullable android.view.Window getWindow();
 
     /** Build a single suggestion row TextView (wires the tap/swipe handlers). */
-    @NonNull TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input, boolean isShell);
+    @NonNull TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input);
+
+    /**
+     * Rebind an existing suggestion row to new data without re-allocating the view.
+     * Must restore the same visual state a fresh {@link #buildSuggestionTextView} would.
+     */
+    void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion, @NonNull String input);
 
     /** Current history version (to skip a rebuild when history is unchanged). */
     int getHistoryVersion();

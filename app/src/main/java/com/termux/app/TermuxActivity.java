@@ -368,7 +368,6 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
 
     /** Message history controller — owns command history list and per-directory store. */
     private MessageHistoryController mMessageHistoryCtrl = null;
-    private boolean mPerDirectoryMessageHistory = false;
 
 
 
@@ -445,9 +444,6 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
         androidx.viewpager2.widget.ViewPager2 pager = getTerminalPager();
         return pager != null ? pager.getCurrentItem() : -1;
     }
-
-    /** Pref key (in termux_prefs) persisting the per-directory message history map (JSON object). */
-    private static final String PREF_MESSAGE_HISTORY_PER_DIR = "message_history_per_dir";
 
     /** Listens for message-history settings changes from the Settings activity. */
     private final SharedPreferences.OnSharedPreferenceChangeListener mPerDirPrefListener =
@@ -608,14 +604,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mAutoCompleteCtrl = new AutoCompleteController(this,
                 getTerminalToolbarTextInput(),
                 mMessageHistoryCtrl, mColorSchemeManager);
-
-        // Feed the controller the working directory of the active session so shell
-        // completion (file/path candidates) resolves in the right place.
-        mAutoCompleteCtrl.setCwdProvider(() -> {
-            TerminalSession session = getCurrentSession();
-            String cwd = session != null ? session.getCwd() : null;
-            return cwd != null ? cwd : ".";
-        });
 
         setNewSessionButtonView();
 
@@ -864,6 +852,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onStop();
 
+        // Flush the debounced message-history persist so history is on disk
+        // before the process can be stopped in the background.
+        mMessageHistoryCtrl.flushPersist();
+
         // Snapshot open tabs (cwd/name) so a later cold start can reopen them.
         saveSessionSnapshot();
 
@@ -892,6 +884,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 .unregisterOnSharedPreferenceChangeListener(mPerDirPrefListener);
 
         unregisterTermuxActivityBroadcastReceiver();
+
+        // Drop any pending debounced history persist — onStop() already flushed it.
+        mMessageHistoryCtrl.cancelPersist();
 
         // Unbind the TermuxService, releasing the session client so the service no longer holds
         // a reference to this activity.
@@ -1844,23 +1839,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void setToggleTextInputButtonView() {
         ImageButton toggleTextInputButton = findViewById(R.id.toggle_text_input_button);
         if (toggleTextInputButton != null) {
+            SharedPreferences prefs = getSharedPreferences("termux_prefs", MODE_PRIVATE);
             // Load the persisted sent-message history once.
-            mMessageHistoryCtrl.setMaxSize(getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                    .getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
-            mMessageHistoryCtrl.setPerDirectoryEnabled(getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                    .getBoolean("per_directory_message_history", false));
-            mMessageHistoryCtrl.setSaveClearedToHistory(getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                    .getBoolean("save_cleared_to_history", true));
+            mMessageHistoryCtrl.setMaxSize(prefs.getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
+            mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean("per_directory_message_history", false));
+            mMessageHistoryCtrl.setSaveClearedToHistory(prefs.getBoolean("save_cleared_to_history", true));
             loadMessageHistory();
 
             // Hot-reload: when the user toggles per-directory history in Settings,
             // the mode switches immediately.
-            getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                    .registerOnSharedPreferenceChangeListener(mPerDirPrefListener);
+            prefs.registerOnSharedPreferenceChangeListener(mPerDirPrefListener);
 
             // Load the persisted recent-directories history once.
-            mDirectoryHistoryCtrl.setMaxSize(getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                    .getInt("directory_history_max", DIRECTORY_HISTORY_MAX_DEFAULT));
+            mDirectoryHistoryCtrl.setMaxSize(prefs.getInt("directory_history_max", DIRECTORY_HISTORY_MAX_DEFAULT));
             loadDirectoryHistory();
 
             // A touch listener drives two gestures on the pencil button:
@@ -2166,8 +2157,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     public void addToMessageHistory(@NonNull String message) {
         if (TextUtils.isEmpty(message)) return;
-        String cwd = getCurrentCwdForHistory();
-        mMessageHistoryCtrl.addToMessageHistory(message, cwd);
+        mMessageHistoryCtrl.addToMessageHistory(message, getCurrentCwdForHistory());
     }
 
     /**
@@ -2177,21 +2167,27 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     public void addNewOnTop(@NonNull String message) {
         if (TextUtils.isEmpty(message)) return;
-        String cwd = getCurrentCwdForHistory();
-        mMessageHistoryCtrl.addNewOnTop(message, cwd);
+        mMessageHistoryCtrl.addNewOnTop(message, getCurrentCwdForHistory());
     }
 
     /**
      * Returns the current working directory to use as a per-directory history key,
      * or a fallback if unavailable.
+     *
+     * <p>The CWD is resolved with a {@code /proc/<pid>/cwd} readlink — real file
+     * I/O on the main thread. In global (non-per-directory) history mode the key
+     * is never consulted by {@link MessageHistoryController}, so the read is
+     * skipped entirely there.
      */
     @NonNull
     @Override
     public String getCurrentCwdForHistory() {
-        TerminalSession session = getCurrentSession();
-        if (session != null) {
-            String cwd = session.getCwd();
-            if (!TextUtils.isEmpty(cwd)) return cwd;
+        if (mMessageHistoryCtrl != null && mMessageHistoryCtrl.isPerDirectoryEnabled()) {
+            TerminalSession session = getCurrentSession();
+            if (session != null) {
+                String cwd = session.getCwd();
+                if (!TextUtils.isEmpty(cwd)) return cwd;
+            }
         }
         return ".";
     }
@@ -2200,77 +2196,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mMessageHistoryCtrl.load(getCurrentCwdForHistory());
     }
 
-    private void saveMessageHistory() {
-        mMessageHistoryCtrl.save();
-    }
-
 
 
 
     // ── Auto-complete suggestions from message history ────────────────
 
-    /**
-     * Three-way dispatcher for the auto-complete popup:
-     *
-     * Path A (full rebuild) — called when the user deletes, replaces, pastes, or the
-     * history has changed externally.  Re-scans the full mMessageHistoryCtrl.getHistoryList() and creates a
-     * brand-new PopupWindow (dismiss + showAtLocation).
-     *
-     * Path B (additive filter) — called when the user only types more characters without
-     * deleting any text.  Filters mCurrentSuggestions in place (O(maxCount) instead of
-     * O(mMessageHistoryCtrl.getHistoryList())), removes non-matching views from the existing popup, top-ups
-     * from history if the result is smaller than maxCount, recalculates bold spans, and
-     * updates the popup size/position (one IPC instead of two).
-     *
-     * Path C (reposition only) — not truly a separate path here; when the text hasn't
-     * changed w.r.t. the previous call the {@link OnGlobalLayoutListener} and
-     * {@link OnTouchListener} already call {@link #repositionAutoCompletePopup()}
-     * separately.  The dispatcher here always receives a text-change event.
-     */
-    public void updateAutoCompleteSuggestions() {
-        // Handled by AutoCompleteController's internal TextWatcher.
-    }
-
-    /** Removed — handled by AutoCompleteController. */
-    private void fullRescanSuggestions(@NonNull String text, int maxCount) { }
-
-    /** Removed — handled by AutoCompleteController. */
-
-    /** Removed — handled by AutoCompleteController. */
-
-    /**
-
-     * Build the display {@link android.text.SpannableString} for an auto-complete
-     * suggestion. Applies the word-based leading truncation (the {@code "... "}
-     * prefix added when the match starts mid-word) and, when the result would
-     * exceed {@code maxLines} lines, manually truncates it and appends a trailing
-     * {@code '…'}.
-     *
-     * <p>Why manual truncation instead of {@code TextView.setEllipsize(END)}:
-     * on Android (API 21-28 in particular) {@code ellipsize=end} is only reliably
-     * honored for <b>single-line</b> text. With {@code setMaxLines(n)} where
-     * {@code n > 1} the framework routes to {@code StaticLayout} but the trailing
-     * ellipsis on the last line is unreliable and frequently never appears. We
-     * therefore measure and cut the text ourselves so the {@code '…'} is
-     * guaranteed for long suggestions/messages regardless of OS version. The
-     * matched input prefix is rendered in BOLD on top of the (possibly truncated)
-     * display text.
-     *
-     * @param availWidth available text width in px (popup width minus padding);
-     *                   pass {@code 0} to skip truncation (e.g. not yet laid out).
-     */
-    /** @return starting position of the last token in {@code s}, split on space or slash. */
-    private static int wordStartOffset(@NonNull String s) {
-        int i = s.length();
-        while (i > 0) {
-            char c = s.charAt(i - 1);
-            if (c == ' ' || c == '/') return i;
-            i--;
-        }
-        return 0;
-    }
-
-
+    /** Dismiss the auto-complete suggestions popup (handled by AutoCompleteController). */
     public void dismissAutoCompleteSuggestions() {
         mAutoCompleteCtrl.dismiss();
     }

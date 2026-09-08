@@ -67,8 +67,9 @@ public final class TermuxActivityPopupController {
 
     // History popup state
     private final java.util.ArrayList<View> mHistoryItemViews = new java.util.ArrayList<>();
+    /** Reused per-highlight / per-frame location buffer (avoids int[2] churn). */
+    private final int[] mTmpLoc = new int[2];
     private int mHistoryHighlightIndex = -1;
-    private boolean mHistoryEmptyHintShown = false;
 
     // Dependencies injected by the host activity (mirrors TermuxActivity fields).
     @Nullable private MessageHistoryController mMessageHistoryCtrl = null;
@@ -133,10 +134,10 @@ public final class TermuxActivityPopupController {
 
         // Empty state detection: no history and no typed text.
         boolean hasHistory = mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty();
-        EditText inputFieldRO = ((Activity) mContext).findViewById(R.id.terminal_toolbar_text_input);
-        String currInputText = inputFieldRO != null && inputFieldRO.getText() != null
-                ? inputFieldRO.getText().toString() : "";
-        boolean emptyState = !hasHistory && TextUtils.isEmpty(currInputText);
+        final EditText inputField = ((Activity) mContext).findViewById(R.id.terminal_toolbar_text_input);
+        final String inputText = inputField != null && inputField.getText() != null
+                ? inputField.getText().toString() : "";
+        boolean emptyState = !hasHistory && TextUtils.isEmpty(inputText);
         LinearLayout content = new LinearLayout(mContext);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setBackgroundColor(Color.TRANSPARENT);
@@ -215,8 +216,6 @@ public final class TermuxActivityPopupController {
         // Synthetic "Clear" row pinned at the BOTTOM of the popup (nearest the
         // pencil button): remembers the current input text in history, then empties
         // the input field. Shown only when the input panel actually has text.
-        final EditText inputField = ((Activity) mContext).findViewById(R.id.terminal_toolbar_text_input);
-        final String inputText = inputField != null ? inputField.getText().toString() : "";
         if (!TextUtils.isEmpty(inputText)) {
             TextView tv = new TextView(mContext);
             tv.setText(mContext.getString(R.string.message_history_clear));
@@ -378,7 +377,7 @@ public final class TermuxActivityPopupController {
         startHistoryAutoScroll();
 
         int newIndex = -1;
-        int[] loc = new int[2];
+        int[] loc = mTmpLoc;
         for (View tv : mHistoryItemViews) {
             tv.getLocationOnScreen(loc);
             if (rawX >= loc[0] && rawX <= loc[0] + tv.getWidth()
@@ -431,7 +430,7 @@ public final class TermuxActivityPopupController {
             mHistoryAutoScrolling = false;
             return;
         }
-        int[] loc = new int[2];
+        int[] loc = mTmpLoc;
         mHistoryScroll.getLocationOnScreen(loc);
         int top = loc[1];
         int bottom = loc[1] + mHistoryScroll.getHeight();

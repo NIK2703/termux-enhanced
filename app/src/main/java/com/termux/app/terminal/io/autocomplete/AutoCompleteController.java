@@ -55,22 +55,17 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
     /** Called when a suggestion is chosen, so the host can dismiss its message-history popup. */
     @NonNull private Runnable mMessageHistoryDismissListener = () -> {};
-    /** Provides the current working directory used as the per-directory history key. */
-    @NonNull private CwdProvider mCwdProvider = () -> ".";
 
     /** True while the host is in an invalid state and auto-complete must be suppressed. */
     private boolean mIsInvalidState;
 
-    // ── Auto-complete suggestions: TWO separate popups ──
-    // The shell (bash) completion candidates and the message-history candidates
-    // are shown in TWO distinct, visually identical popup windows. The shell
-    // window is anchored ABOVE the history window (both float above the input
-    // field); each is its own PopupWindow so they can be positioned/shown/dismissed
-    // independently. There is no in-window divider anymore.
+    // ── Auto-complete suggestions popup ──
+    // The message-history suggestion candidates are shown in a single popup window
+    // floating above the input field.
     //
     // Ownership split: this controller owns the SUGGESTION DATA and the
-    // fetch/merge/input pipeline; {@link AutoCompletePopupManager} owns the two
-    // popup windows and all of their rendering/positioning.
+    // fetch/merge/input pipeline; {@link AutoCompletePopupManager} owns the
+    // popup window and all of its rendering/positioning.
     /** Current list of suggestion strings being displayed (message history). */
     private final java.util.ArrayList<String> mCurrentSuggestions = new java.util.ArrayList<>();
 
@@ -95,15 +90,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** History version at which {@link #mPrefixTrie} is valid. */
     private int mPrefixCacheVersion = -1;
     /**
-     * Parallel to {@link #mCurrentSuggestions}: always {@code false} (history
-     * suggestions only — shell completion has been removed).
-     */
-    private final java.util.ArrayList<Boolean> mCurrentIsShell = new java.util.ArrayList<>();
-    /**
      * Maximum number of suggestions to RENDER in the popup (the user setting
-     * "suggestions_max_count"). The stored {@link #mCurrentSuggestions} list may
-     * hold more (especially all cached shell candidates), but only this many are
-     * displayed; the rest remain available to Path B local filtering.
+     * "suggestions_max_count").
      */
     private int mDisplayMax = 4;
     /** Suppress auto-complete popup during programmatic text changes (suggestion tap, etc.). */
@@ -135,6 +123,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private final HashSet<String> mSeenSet = new HashSet<>();
     /** Shared immutable empty list returned by getCandidatesForPrefix when there are no matches. */
     private static final ArrayList<String> EMPTY_LIST = new ArrayList<>();
+    /**
+     * History sizes at or below this are served by a linear {@code regionMatches}
+     * scan over the live list (allocation-free, trivially cheap for ≤100 entries
+     * — the default cap). The version-keyed prefix trie is only built for larger
+     * histories, where its O(chars × entries) node graph pays off.
+     */
+    private static final int TRIE_MIN_HISTORY = 128;
 
     // ── Incremental auto-complete optimization fields ──
     /** Previous text (CharSequence reference, no copy) before a change, for additive detection. */
@@ -150,10 +145,15 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Last text prefix used to build mCurrentSuggestions. */
     private String mLastAppliedPrefix = "";
 
-    /** History version captured the last time the suggestion set was rebuilt. */
+    /**
+     * History version captured the last time the suggestion set was rebuilt.
+     * Maintained by the rebuild paths ({@link #fullRescanSuggestions}, the
+     * backspace path) so the early-skip guard and the additive-filter dispatch
+     * (Path B) can detect that the in-memory set matches the live history.
+     */
     private int mLastBuiltHistoryVersion = -1;
 
-    /** Owns and renders the two suggestion popup windows. */
+    /** Owns and renders the suggestion popup window. */
     @NonNull private final AutoCompletePopupManager mPopupManager;
 
     // ── IME composing coalescing (no delay on committed input) ──
@@ -184,11 +184,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private final int mPopupMinYPx;
     private final float mPopupContentAlpha;
     private final float mPopupShadowAlpha;
-
-    /** Provider for the current working directory (per-directory history key). */
-    public interface CwdProvider {
-        @NonNull String getCwd();
-    }
 
     /**
      * @param context              the host Activity/Context (used for resources and the window).
@@ -246,31 +241,27 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     // ── AutoCompleteDataProvider: expose suggestion data + callbacks to the popup manager ──
 
     @Override @NonNull public ArrayList<String> getSuggestions() { return mCurrentSuggestions; }
-    @Override @NonNull public ArrayList<Boolean> getIsShell() { return mCurrentIsShell; }
     @Override public int getDisplayMax() { return mDisplayMax; }
     @Override public boolean isSwipeActive() { return mSwipeHandler.isEngaged(); }
     @Override @Nullable public EditText getInputField() { return mInputField; }
     @Override @NonNull public TermuxColorSchemeManager getColorSchemeManager() { return mColorSchemeManager; }
     @Override @Nullable public Window getWindow() { return getWindowInternal(); }
-    @Override @NonNull public TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input, boolean isShell) {
-        return buildSuggestionTextViewInternal(suggestion, input, isShell);
+    @Override @NonNull public TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input) {
+        return buildSuggestionTextViewInternal(suggestion, input);
+    }
+    @Override public void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion, @NonNull String input) {
+        rebindSuggestionTextViewInternal(tv, suggestion, input);
     }
     @Override public int getHistoryVersion() { return mMessageHistoryCtrl.getHistoryVersion(); }
     @Override public void onSuggestionDismissed() {
         // Clear the suggestion data the controller owns.
         mCurrentSuggestions.clear();
-        mCurrentIsShell.clear();
-        mLastAppliedPrefix = "";
     }
 
     // ── Wiring callbacks (optional) ───────────────────
 
     public void setMessageHistoryDismissListener(@NonNull Runnable listener) {
         mMessageHistoryDismissListener = listener;
-    }
-
-    public void setCwdProvider(@NonNull CwdProvider provider) {
-        mCwdProvider = provider;
     }
 
     public void setInvalidState(boolean invalid) {
@@ -280,11 +271,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Test-only: current merged suggestion list (history only). */
     java.util.ArrayList<String> debugSuggestions() {
         return mCurrentSuggestions;
-    }
-
-    /** Test-only: parallel isShell flags for {@link #debugSuggestions()}. */
-    java.util.ArrayList<Boolean> debugIsShell() {
-        return mCurrentIsShell;
     }
 
     /** Test-only: install the text the dispatcher believes preceded this change. */
@@ -393,17 +379,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Whether either the shell or the history suggestion window is currently showing. */
     public boolean isShowing() {
         return mPopupManager.isShowing();
-    }
-
-    /** Load suggestions for the current directory (delegates to the history controller). */
-    public void loadSuggestions() {
-        mMessageHistoryCtrl.load(mCwdProvider.getCwd());
-    }
-
-    /** Remember a non-empty sent message in the history (dedup, newest first). */
-    public void addToMessageHistory(@NonNull String message) {
-        if (TextUtils.isEmpty(message)) return;
-        mMessageHistoryCtrl.addToMessageHistory(message, mCwdProvider.getCwd());
     }
 
     // ── Internal: listeners ───────────────────────────
@@ -731,26 +706,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (!additive && mCurrentSuggestions != null && !mCurrentSuggestions.isEmpty()
                 && prevText != null && prevText.length() > text.length()
                 && TextUtils.regionMatches(prevText, 0, text, 0, text.length())) {
-            if (mPrefixTrie == null
-                    || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
-                buildTrie();
-            }
             mCurrentSuggestions.clear();
-            mCurrentIsShell.clear();
-            mSeenSet.clear();
-            final int tLen = text.length();
-            for (String msg : getCandidatesForPrefix(text)) {
-                if (mCurrentSuggestions.size() >= maxCount) break;
-                if (mSeenSet.add(msg)
-                        && msg.length() > tLen
-                        && !msg.equals(text)) {
-                    mCurrentSuggestions.add(msg);
-                    mCurrentIsShell.add(Boolean.FALSE);
-                }
-            }
+            mSeenSet.clear(); // full re-derive: no pre-existing entries to skip
+            collectPrefixCandidates(text, maxCount, mCurrentSuggestions);
             if (mCurrentSuggestions.isEmpty()) {
                 // dropped to 0 — full rescan
             } else {
+                mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
                 updatePopupContent(text, inputField);
                 return;
             }
@@ -763,12 +725,12 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         }
 
         // ── Path B (additive filter): only appending characters ──
-        // Filter mCurrentSuggestions in-place using the single unified routine that
-        // matches shell candidates against the last word and history against the whole
-        // line (kept in lock-step with mCurrentIsShell). The cached, full shell list
-        // stays intact so no re-query is needed; only local narrowing happens.
+        // Filter mCurrentSuggestions in-place: drop entries that no longer have
+        // the (grown) typed text as a prefix. The candidates for the new prefix
+        // are a subset of the old ones (same newest-first order), so the local
+        // filter is equivalent to a full rescan — and costs O(maxCount).
         final int preFilterCount = mCurrentSuggestions.size();
-        filterSuggestionsByPrefix(text, mCurrentSuggestions, mCurrentIsShell);
+        filterSuggestionsByPrefix(text, mCurrentSuggestions);
         int filteredRemoved = preFilterCount - mCurrentSuggestions.size();
 
         if (mCurrentSuggestions.isEmpty()) {
@@ -783,25 +745,16 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             return;
         }
 
-        // Top-up from history if filtered list is smaller than maxCount.
-        // Reuse the prefix trie instead of scanning the full history again.
+        // Top-up from history if the filtered list is smaller than maxCount.
         if (mCurrentSuggestions.size() < maxCount) {
-            if (mPrefixTrie == null
-                    || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
-                buildTrie();
-            }
             mSeenSet.clear();
             mSeenSet.addAll(mCurrentSuggestions);
-            final int tLen = text.length();
-            for (String msg : getCandidatesForPrefix(text)) {
-                if (mCurrentSuggestions.size() >= maxCount) break;
-                if (mSeenSet.add(msg)
-                        && msg.length() > tLen
-                        && !msg.equals(text)) {
-                    mCurrentSuggestions.add(msg);
-                }
-            }
+            collectPrefixCandidates(text, maxCount, mCurrentSuggestions);
         }
+
+        // The set now matches the live history version (Path B never consults
+        // stale data: a version change dispatches to Path A above).
+        mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
 
 
         // If neither window is showing yet, build them fresh
@@ -827,11 +780,12 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mPrefixTrie = new TrieNode();
         for (String msg : mMessageHistoryCtrl.getHistoryList()) {
             if (msg == null || msg.isEmpty()) continue;
-            String lower = msg.toLowerCase();
             TrieNode node = mPrefixTrie;
             node.words.add(msg);
-            for (int i = 0; i < lower.length(); i++) {
-                int c = lower.charAt(i);
+            for (int i = 0; i < msg.length(); i++) {
+                // Fold per character (NOT String.toLowerCase) so the keys here match
+                // the per-character folding of the descent in getCandidatesForPrefix.
+                int c = Character.toLowerCase(msg.charAt(i));
                 TrieNode child = node.children.get(c);
                 if (child == null) { child = new TrieNode(); node.children.put(c, child); }
                 child.words.add(msg);
@@ -867,6 +821,49 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     }
 
     /**
+     * Collect at most {@code maxCount} history candidates matching {@code text}
+     * (case-insensitive whole-line prefix, excluding the exact typed line) into
+     * {@code out}, preserving newest-first order. Serves the backspace re-derive
+     * path and the Path B top-up. Uses the linear scan / trie split of
+     * {@link #fullRescanSuggestions}.
+     *
+     * <p>{@link #mSeenSet} is consulted (never cleared here) so a top-up caller
+     * that preloads it with the surviving suggestions does not re-add them.
+     * The backspace caller must clear it first (the list was just emptied).
+     */
+    private void collectPrefixCandidates(@NonNull String text, int maxCount,
+            @NonNull ArrayList<String> out) {
+        final int tLen = text.length();
+        final ArrayList<String> historyList = mMessageHistoryCtrl.getHistoryList();
+        if (historyList.size() <= TRIE_MIN_HISTORY) {
+            mPrefixTrie = null;
+            mPrefixCacheVersion = mMessageHistoryCtrl.getHistoryVersion();
+            for (int i = 0; i < historyList.size(); i++) {
+                String msg = historyList.get(i);
+                if (msg == null || msg.length() <= tLen) continue;
+                if (mSeenSet.add(msg)
+                        && !msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
+                    out.add(msg);
+                    if (out.size() >= maxCount) break;
+                }
+            }
+            return;
+        }
+        if (mPrefixTrie == null
+                || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
+            buildTrie();
+        }
+        for (String msg : getCandidatesForPrefix(text)) {
+            if (out.size() >= maxCount) break;
+            if (mSeenSet.add(msg)
+                    && msg.length() > tLen
+                    && !msg.equals(text)) {
+                out.add(msg);
+            }
+        }
+    }
+
+    /**
      * Path A: full re-scan of the message history. History suggestions are gathered
      * immediately and the popup is shown (or dismissed if empty).
      */
@@ -875,29 +872,45 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mDisplayMax = maxCount;
 
         mCurrentSuggestions.clear();
-        mCurrentIsShell.clear();
 
-        // Ensure the prefix trie is valid: rebuild if the history version changed
-        // (a single version-keyed rebuild covers every prefix at once).
-        if (mPrefixTrie == null
-                || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
-            buildTrie();
-        }
-
-        // History suggestions: the trie already narrowed history to the typed
-        // prefix, so just exclude the exact-typed line and apply maxCount + dedup.
-        mSeenSet.clear();
+        // Collect from the live history (linear scan or trie depending on size).
+        final ArrayList<String> historyList = mMessageHistoryCtrl.getHistoryList();
         final int tLen = text.length();
-        for (String msg : getCandidatesForPrefix(text)) {
-            if (mCurrentSuggestions.size() >= maxCount) break;
-            if (mSeenSet.add(msg)
-                    && msg.length() > tLen
-                    && !msg.equals(text)) {
-                mCurrentSuggestions.add(msg);
-                mCurrentIsShell.add(Boolean.FALSE);
+        if (historyList.size() <= TRIE_MIN_HISTORY) {
+            mPrefixTrie = null;
+            mPrefixCacheVersion = mMessageHistoryCtrl.getHistoryVersion();
+            for (int i = 0; i < historyList.size(); i++) {
+                String msg = historyList.get(i);
+                if (msg == null || msg.length() <= tLen) continue;
+                if (!msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
+                    mCurrentSuggestions.add(msg);
+                    if (mCurrentSuggestions.size() >= maxCount) break;
+                }
+            }
+        } else {
+            // Ensure the prefix trie is valid: rebuild if the history version
+            // changed (a single version-keyed rebuild covers every prefix at once).
+            if (mPrefixTrie == null
+                    || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
+                buildTrie();
+            }
+
+            // History suggestions: the trie already narrowed history to the typed
+            // prefix, so just exclude the exact-typed line and apply maxCount + dedup.
+            mSeenSet.clear();
+            for (String msg : getCandidatesForPrefix(text)) {
+                if (mCurrentSuggestions.size() >= maxCount) break;
+                if (mSeenSet.add(msg)
+                        && msg.length() > tLen
+                        && !msg.equals(text)) {
+                    mCurrentSuggestions.add(msg);
+                }
             }
         }
 
+        // The rebuilt set now reflects the live history version. Without this,
+        // every keystroke would take Path A instead of the incremental filter.
+        mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
 
         if (mCurrentSuggestions.isEmpty()) {
             // During an active composition keep the popup only when it is still
@@ -924,91 +937,49 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
      * equal to the committed word but with stale suggestions must NOT pass this
      * check, which forces a re-scan that dismisses the mismatched popup.
      */
-    private boolean suggestionsMatchText(@NonNull CharSequence text) {
+    private boolean suggestionsMatchText(@NonNull String text) {
         if (mCurrentSuggestions.isEmpty()) return false;
         final int len = text.length();
         if (len == 0) return false;
         for (int i = 0; i < mCurrentSuggestions.size(); i++) {
             final String s = mCurrentSuggestions.get(i);
-            if (s == null || s.length() < len || !s.regionMatches(true, 0, text.toString(), 0, len)) {
+            if (s == null || s.length() < len || !s.regionMatches(true, 0, text, 0, len)) {
                 return false;
             }
         }
         return true;
     }
 
-    /** Path separator set used by {@link AutoCompleteTextRenderer#wordStartOffset} to find word boundaries. */
-    private static final String WORD_SEPARATORS = " /";  // space + slash
-
     /**
-     * Returns the last whitespace-delimited token of {@code s} (the word currently
-     * being typed/completed). Words are delimited by any character in
-     * {@link #WORD_SEPARATORS}. History candidates continue to be matched against
-     * the whole line.
-     */
-    @NonNull
-    static String lastWordOf(@NonNull String s) {
-        int end = s.length();
-        int start = end;
-        while (start > 0) {
-            char c = s.charAt(start - 1);
-            if (c == ' ' || c == '/') break;
-            start--;
-        }
-        return s.substring(start, end);
-    }
-
-    /**
-     * Last word with one layer of surrounding shell quotes stripped, matching the
-     * unquoted form used for local prefix-matching.
-     */
-    @NonNull
-    static String lastWordOfStripped(@NonNull String s) {
-        String last = lastWordOf(s);
-        if (last.length() >= 2) {
-            char first = last.charAt(0);
-            char lastc = last.charAt(last.length() - 1);
-            if ((first == '\'' && lastc == '\'') || (first == '"' && lastc == '"')) {
-                return last.substring(1, last.length() - 1);
-            }
-        }
-        return last;
-    }
-
-    /**
-     * Unified local filter used by every additive (Path B) update. Mutates the
-     * parallel {@code sugg} / {@code isShell} lists in lock-step, dropping entries
-     * that no longer match the typed text. Shell-completion candidates are matched
-     * against the LAST WORD of the line (the token actually being completed);
-     * history candidates are matched against the WHOLE line. A trailing slash on a
-     * shell prefix also accepts candidates equal to the prefix minus that slash
-     * (the provider strips trailing {@code '/'} during normalization, so a typed
-     * "dir/" must still keep the normalized "dir" candidate).
+     * Unified local filter used by every additive (Path B) update. Mutates
+     * {@code sugg} in place, dropping entries that no longer match the typed
+     * text. History candidates are matched against the WHOLE line. A trailing
+     * slash on the typed prefix also accepts candidates equal to the prefix
+     * minus that slash.
      */
     void filterSuggestionsByPrefix(@NonNull String text,
-            @NonNull List<String> sugg, @NonNull List<Boolean> isShell) {
+            @NonNull List<String> sugg) {
         int tLen = text.length();
         for (int i = sugg.size() - 1; i >= 0; i--) {
             String s = sugg.get(i);
             int pLen = tLen;
             boolean matches = (pLen == 0)
-                    || (s.regionMatches(true, 0, text.toString(), 0, pLen)
+                    || (s.regionMatches(true, 0, text, 0, pLen)
                         || (text.endsWith("/")
-                            && s.regionMatches(true, 0, text.toString(), 0, pLen - 1)));
+                            && s.regionMatches(true, 0, text, 0, pLen - 1)));
             if (s.length() <= pLen || !matches || s.equals(text)) {
                 sugg.remove(i);
-                if (i < isShell.size()) isShell.remove(i);
             }
         }
     }
 
     /**
-     * Path B: update the existing popups in-place after an additive text change.
+     * Path B: update the existing popup in-place after an additive text change.
      *
      * <p>The controller first top-ups the suggestion list from history (data
      * concern), then hands off to {@link AutoCompletePopupManager} which rebuilds
-     * the per-window content, refreshes spans and resizes/positions the two
-     * windows (shell stacked above history).
+     * the per-window content, refreshes spans and resizes/positions the
+     * popup window.
      */
     private void updatePopupContent(@NonNull String newText, @NonNull EditText inputField) {
         // mCurrentSuggestions is already filtered and top-upped (Path B's
@@ -1023,7 +994,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
      * Path B local filtering.
      */
     // ── Package-private debug hooks for unit tests ──
-    // (debugSuggestions / debugIsShell are declared earlier.)
+    // (debugSuggestions is declared earlier.)
 
     /** Current incremental-change field used by the additive-detection logic. */
     void debugSetChangeState(@NonNull String prevText, int changeCount) {
@@ -1033,53 +1004,34 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     }
 
     /**
-     * Seed the current suggestion list with history items (isShell = false),
-     * resetting the shell group. Lets merge tests populate the controller state
-     * without going through the popup-building code paths.
+     * Seed the current suggestion list with history items. Lets merge tests
+     * populate the controller state without going through the popup-building
+     * code paths.
      */
     void debugSeedHistorySuggestions(@NonNull String... history) {
         mCurrentSuggestions.clear();
-        mCurrentIsShell.clear();
         for (String h : history) {
             mCurrentSuggestions.add(h);
-            mCurrentIsShell.add(Boolean.FALSE);
         }
     }
 
-    /** Build a single suggestion TextView (reusable helper). */
-    private TextView buildSuggestionTextViewInternal(@NonNull String suggestion, @NonNull String input, boolean isShell) {
-        int padH = mPopupItemPadHPx;
-        int padV = mPopupItemPadVPx;
+    /**
+     * Build a single suggestion TextView (reusable helper).
+     *
+     * <p>Rows are only CREATED here — per-keystroke updates go through
+     * {@link #rebindSuggestionTextViewInternal}, which never touches the
+     * background. The pressed-state selector is therefore allocated once per
+     * row (max {@code displayMax} per popup session) and must stay per-view:
+     * a Drawable instance shared across views would make one pressed row
+     * highlight them all.
+     */
+    private TextView buildSuggestionTextViewInternal(@NonNull String suggestion, @NonNull String input) {
         TextView tv = new TextView(mContext);
-
-        tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setPadding(padH, padV, padH, padV);
-
-        // Available text width = popup width minus horizontal padding. Mirrors the
-        // width the popup is sized to in showAutoCompletePopup (sumWidth).
-        int fieldWidth = mInputField != null ? mInputField.getWidth() : 0;
-        int popupWidth = mPopupManager.computePopupWidth(fieldWidth);
-        int availWidth = Math.max(0, popupWidth - 2 * padH);
-
-        // Word-based leading truncation + manual trailing '…' (TextView's
-        // setEllipsize(END) is unreliable for maxLines>1 on API 21-28).
-        SpannableString ss = AutoCompleteTextRenderer.buildSuggestionSpannable(
-                suggestion, input, availWidth, tv.getPaint(), isShell);
-        tv.setText(ss, TextView.BufferType.SPANNABLE);
-        tv.setMaxLines(2);
-        tv.setEllipsize(TextUtils.TruncateAt.END); // backup; text already fits 2 lines
-        tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setPadding(padH, padV, padH, padV);
-        // Accessibility: describe shells vs history and the candidate type.
-        tv.setContentDescription((isShell ? "Completion: " : "History: ") + suggestion);
-        tv.setTag(suggestion);
+        styleSuggestionTextView(tv);
         // Solid press highlight matching the message-history popup (per-theme)
         StateListDrawable sel = new StateListDrawable();
-        int highlightColor = mColorSchemeManager.getHistoryHighlightFill();
         sel.addState(new int[]{android.R.attr.state_pressed},
-                new ColorDrawable(highlightColor));
+                new ColorDrawable(mColorSchemeManager.getHistoryHighlightFill()));
         sel.addState(new int[]{},
                 new ColorDrawable(Color.TRANSPARENT));
         sel.setEnterFadeDuration(0);
@@ -1090,13 +1042,17 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             tv.setBackgroundDrawable(sel);
         }
         tv.setClickable(true);
-        final String finalSuggestion = suggestion;
-
+        // Read the candidate from the view's TAG at click time, NOT from the
+        // captured `suggestion` argument: this row is REBOUND to different
+        // suggestions on every keystroke (see rebindSuggestionTextViewInternal),
+        // so the captured value can be stale — inserting the wrong history entry.
         tv.setOnClickListener(v -> {
+            Object tag = v.getTag();
+            if (!(tag instanceof String)) return;
             mSuppressAutoComplete = true;
             try {
                 if (mInputField != null) {
-                    insertCandidate(finalSuggestion);
+                    insertCandidate((String) tag);
                 }
             } finally {
                 mSuppressAutoComplete = false;
@@ -1106,7 +1062,43 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             mMessageHistoryDismissListener.run();
         });
         tv.setOnTouchListener(mSwipeHandler::onTouch);
+        rebindSuggestionTextViewInternal(tv, suggestion, input);
         return tv;
+    }
+
+    /** One-time static styling of a suggestion row (colours re-applied on rebind). */
+    private void styleSuggestionTextView(@NonNull TextView tv) {
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tv.setPadding(mPopupItemPadHPx, mPopupItemPadVPx, mPopupItemPadHPx, mPopupItemPadVPx);
+        tv.setMaxLines(2);
+        tv.setEllipsize(TextUtils.TruncateAt.END); // backup; text already fits 2 lines
+        tv.setClickable(true);
+    }
+
+    /**
+     * Rebind an existing suggestion row to new data: text, bold prefix,
+     * accessibility description and scheme colours. Restores everything a fresh
+     * {@link #buildSuggestionTextViewInternal} would set except the one-time
+     * listeners and background.
+     */
+    private void rebindSuggestionTextViewInternal(@NonNull TextView tv,
+            @NonNull String suggestion, @NonNull String input) {
+        tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
+        int padH = mPopupItemPadHPx;
+        // Available text width = popup width minus horizontal padding. Mirrors the
+        // width the popup is sized to in showAutoCompletePopup (sumWidth).
+        int fieldWidth = mInputField != null ? mInputField.getWidth() : 0;
+        int popupWidth = mPopupManager.computePopupWidth(fieldWidth);
+        int availWidth = Math.max(0, popupWidth - 2 * padH);
+
+        // Word-based leading truncation + manual trailing '…' (TextView's
+        // setEllipsize(END) is unreliable for maxLines>1 on API 21-28).
+        SpannableString ss = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                suggestion, input, availWidth, tv.getPaint());
+        tv.setText(ss, TextView.BufferType.SPANNABLE);
+        // Accessibility: describe the history candidate.
+        tv.setContentDescription("History: " + suggestion);
+        tv.setTag(suggestion);
     }
 
     /**
