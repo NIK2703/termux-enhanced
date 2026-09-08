@@ -203,6 +203,19 @@
         <item name="android:textColorPrimary">@color/scheme_dialog_on_surface</item>
         <item name="android:textColor">@color/scheme_dialog_on_surface</item>
         <item name="android:listSelector">@color/scheme_dialog_selector</item>
+        <!-- Popup item views do not read android:textColorPrimary/textColor — they resolve the
+             textAppearance attrs below, whose colour chains through ?attr/colorOnSurface (the
+             scheme overlay's white placeholder) and can come out white-on-white in light mode.
+             Pin them per light/dark mode like the dialog title styles. -->
+        <item name="textAppearanceLargePopupMenu">@style/BaseActivity.Scheme.PopupMenu.ItemText</item>
+        <item name="textAppearanceSmallPopupMenu">@style/BaseActivity.Scheme.PopupMenu.ItemText</item>
+    </style>
+
+    <!-- Pinned popup-menu item text: black in day mode; overridden to white in values-night.
+         Mirrors BaseDialog.Title.Text Light/Dark so items never inherit the scheme overlay's
+         white on-surface placeholder and vanish on a light popup background. -->
+    <style name="BaseActivity.Scheme.PopupMenu.ItemText" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textColor">@color/black</item>
     </style>
 
     <style name="BaseActivity.Scheme.ListPopup" parent="Widget.MaterialComponents.PopupMenu.ListPopupWindow">

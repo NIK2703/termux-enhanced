@@ -1,14 +1,20 @@
 package com.termux.shared.termux.interact;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.text.Selection;
 import android.util.TypedValue;
+import android.view.ContextThemeWrapper;
 import android.view.KeyEvent;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+
+import androidx.appcompat.app.AlertDialog;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.termux.shared.R;
 
 public final class TextInputDialogUtils {
 
@@ -21,7 +27,15 @@ public final class TextInputDialogUtils {
                                  int neutralButtonText, final TextSetListener onNeutral,
                                  int negativeButtonText, final TextSetListener onNegative,
                                  final DialogInterface.OnDismissListener onDismiss) {
-        final EditText input = new EditText(activity);
+        // Theme the dialog with ThemeOverlay.BaseDialog.DayNight instead of the raw
+        // (scheme-wrapped) activity context: the activity theme's on-surface colour is a
+        // runtime scheme placeholder that can resolve to white for a framework AlertDialog
+        // title in light mode (white-on-white title). The overlay pins the title colours per
+        // light/dark mode (BaseDialog.Title.Text.Light/Dark), matching every other dialog
+        // in the app.
+        Context dialogContext = new ContextThemeWrapper(activity, R.style.ThemeOverlay_BaseDialog_DayNight);
+
+        final EditText input = new EditText(dialogContext);
         input.setSingleLine();
         if (initialText != null) {
             input.setText(initialText);
@@ -41,13 +55,13 @@ public final class TextInputDialogUtils {
         int paddingTopAndSides = Math.round(16 * dipInPixels);
         int paddingBottom = Math.round(24 * dipInPixels);
 
-        LinearLayout layout = new LinearLayout(activity);
+        LinearLayout layout = new LinearLayout(dialogContext);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         layout.setPadding(paddingTopAndSides, paddingTopAndSides, paddingTopAndSides, paddingBottom);
         layout.addView(input);
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(dialogContext)
             .setTitle(titleText).setView(layout)
             .setPositiveButton(positiveButtonText, (d, whichButton) -> onPositive.onTextSet(input.getText().toString()));
 
