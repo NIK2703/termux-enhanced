@@ -150,15 +150,6 @@ public final class SessionUiStateStore {
         return s != null && s.focusOnInput;
     }
 
-    @NonNull
-    public HashMap<String, Boolean> getFocusOnInputMap() {
-        HashMap<String, Boolean> out = new HashMap<>();
-        for (Map.Entry<String, SessionUiState> e : mStates.entrySet()) {
-            out.put(e.getKey(), e.getValue().focusOnInput);
-        }
-        return out;
-    }
-
     // ── Caret ───────────────────────────────────────────────────────────
 
     /** Values < 0 (e.g. the -1 sentinel of EditText.getSelectionStart()) are ignored. */

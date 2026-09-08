@@ -154,6 +154,11 @@ public final class MessageHistoryController {
     public void onHistoryDirectoryChanged(@NonNull String oldCwd, @NonNull String newCwd) {
         if (!mPerDirectoryMessageHistory) return;
 
+        // Same directory (the common case: switching tabs inside one project):
+        // the save/clear/reload round trip below would rebuild the identical list,
+        // so keep the in-memory state untouched.
+        if (newCwd.equals(oldCwd)) return;
+
         // Save current CWD's history before switching
         if (mHistoryCurrentDirectory != null) {
             mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));

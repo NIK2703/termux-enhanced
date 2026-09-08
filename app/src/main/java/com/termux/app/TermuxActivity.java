@@ -412,7 +412,6 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private static final String ARG_TEXT_INPUT_VISIBLE_PER_SESSION = "text_input_visible_per_session";
     private static final String ARG_FOCUS_ON_INPUT_PER_SESSION = "focus_on_input_per_session";
     private static final String ARG_ACTIVITY_RECREATED = "activity_recreated";
-    private static final String PREF_TEXT_INPUT_VISIBLE = "text_input_visible";
     private static final String PREF_MESSAGE_HISTORY = "message_history";
 
     /** Pref key (in termux_prefs) holding the L3 (process-death) UI state JSON. */
@@ -607,7 +606,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setTerminalToolbarView(savedInstanceState);
 
         mAutoCompleteCtrl = new AutoCompleteController(this,
-                findViewById(R.id.terminal_toolbar_text_input),
+                getTerminalToolbarTextInput(),
                 mMessageHistoryCtrl, mColorSchemeManager);
 
         // Feed the controller the working directory of the active session so shell
@@ -698,10 +697,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // returning from Settings) is executed here — showSoftInput only works
         // once the window has focus.
         if (hasFocus && mPendingKeyboardRestore) {
-            com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) -> runKeyboardRestore (pending)");
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) -> runKeyboardRestore (pending)");
             runKeyboardRestore();
         } else if (hasFocus) {
-            com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) (no pending)"
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) (no pending)"
                     + " kbIntent=" + mTextInputState.isSoftKeyboardVisibleIntent()
                     + " insetsVis=" + mImeVisibleFromInsets);
         }
@@ -739,7 +738,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // "show keyboard on launch" behaviour and skips the restore.
         final boolean willRestoreKeyboard = !mIsOnResumeAfterOnCreate || mIsActivityRecreated;
 
-        com.termux.app.terminal.io.KBTrace.i("onResume willRestore=" + willRestoreKeyboard
+        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onResume willRestore=" + willRestoreKeyboard
                 + " coldStart=" + mIsOnResumeAfterOnCreate + " recreated=" + mIsActivityRecreated
                 + " resumeFocusWasOnInput=" + resumeFocusWasOnInput
                 + " kbIntent=" + mTextInputState.isSoftKeyboardVisibleIntent()
@@ -767,7 +766,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             } else {
                 KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(this);
             }
-            com.termux.app.terminal.io.KBTrace.i("onResume windowState: kbIntent=" + kbIntentEarly
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onResume windowState: kbIntent=" + kbIntentEarly
                     + " -> " + (kbIntentEarly ? "ADJUST_RESIZE(showable)" : "ALWAYS_HIDDEN"));
         }
 
@@ -858,7 +857,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // or the terminal, and persist the caret position — exactly as a tab
         // switch does before leaving a tab. This lets onResume() restore the same
         // focus target and caret when the app returns from the background.
-        final EditText toolbarTextInput = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText toolbarTextInput = getTerminalToolbarTextInput();
         setFocusOnInputForCurrentSession(toolbarTextInput != null && toolbarTextInput.hasFocus());
         saveTextInputForCurrentSession();
 
@@ -940,7 +939,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         TerminalSession session = getCurrentSession();
         if (session == null) return;
 
-        final EditText input = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText input = getTerminalToolbarTextInput();
         if (input != null) {
             mTextInputState.setFocusOnInput(session, input.hasFocus());
         }
@@ -958,7 +957,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         boolean kbIntentCapture = computeImeVisibility();
         mTextInputState.setSoftKeyboardVisibleIntent(kbIntentCapture);
         mTextInputState.setSoftKeyboardIntent(session, kbIntentCapture);
-        com.termux.app.terminal.io.KBTrace.i("capture: kbIntent->" + kbIntentCapture
+        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("capture: kbIntent->" + kbIntentCapture
                 + " paused=" + mIsPaused
                 + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
                 + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
@@ -1032,7 +1031,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (isFinishing()) return;
         if (!hasWindowFocus()) {
             mPendingKeyboardRestore = true;   // consumed by onWindowFocusChanged(true)
-            com.termux.app.terminal.io.KBTrace.i("restore defer: no window focus");
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore defer: no window focus");
             return;
         }
         final TerminalSession session = getCurrentSession();
@@ -1040,17 +1039,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final boolean focusOnInput = panelVisible && mTextInputState.isFocusOnInput(session);
         final boolean kbIntent = mKeyboardRestoreIntent;
         final View target = focusOnInput
-                ? findViewById(R.id.terminal_toolbar_text_input)
+                ? getTerminalToolbarTextInput()
                 : getActiveTerminalView();
         if (target == null) {
             mPendingKeyboardRestore = true;   // page not bound yet
-            com.termux.app.terminal.io.KBTrace.i("restore defer: no target (panelVis=" + panelVisible
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore defer: no target (panelVis=" + panelVisible
                     + " focusOnInput=" + focusOnInput + ")");
             return;
         }
-        com.termux.app.terminal.io.KBTrace.i("restore run: kbIntent=" + kbIntent
+        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore run: kbIntent=" + kbIntent
                 + " panelVis=" + panelVisible + " focusOnInput=" + focusOnInput
-                + " target=" + (target == findViewById(R.id.terminal_toolbar_text_input) ? "panel" : "terminal")
+                + " target=" + (target == getTerminalToolbarTextInput() ? "panel" : "terminal")
                 + " kbDisabled=" + KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
                         mPreferences.isSoftKeyboardEnabled(),
                         mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware()));
@@ -1078,7 +1077,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // SHOW_IMPLICIT (used by the retry) is ignored while ALWAYS_HIDDEN is set;
                 // a show request is an explicit intent — make the window showable first.
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
-                com.termux.app.terminal.io.KBTrace.i("restore show: showWithRetry");
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore show: showWithRetry");
                 target.requestFocus();
                 // Probe must use the SAME authoritative signal as the intent capture: a
                 // visible-frame false positive here would make showWithRetry believe the
@@ -1458,7 +1457,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         extraKeysView.setButtonColors(csm.getButtonText(), deriveActiveTextColor(csm.getButtonText()), csm.getButtonBg(), csm.getButtonActiveBg());
 
         // Setup text input
-        final EditText editText = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText editText = getTerminalToolbarTextInput();
         // Per-session input text is bound via restoreTextInputForSession() on every
         // session switch and panel show; on first creation just clear it.
         editText.setText("");
@@ -1600,7 +1599,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void saveTerminalToolbarTextInput(Bundle savedInstanceState) {
         if (savedInstanceState == null) return;
 
-        final EditText textInputView = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText textInputView = getTerminalToolbarTextInput();
         if (textInputView != null) {
             String textInput = textInputView.getText().toString();
             if (!textInput.isEmpty()) savedInstanceState.putString(ARG_TERMINAL_TOOLBAR_TEXT_INPUT, textInput);
@@ -1625,7 +1624,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public void saveTextInputForCurrentSession(boolean force) {
         final TerminalSession session = getCurrentSession();
         if (session == null) return;
-        final EditText textInputView = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText textInputView = getTerminalToolbarTextInput();
         if (textInputView == null) return;
         if (mTiBoundSession != session) return;   // field shows another session — not ours to save
         String text = textInputView.getText().toString();
@@ -1646,12 +1645,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * already shows the target text.
      */
     public void restoreTextInputForSession(@Nullable TerminalSession session) {
-        final EditText textInputView = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText textInputView = getTerminalToolbarTextInput();
         if (textInputView == null) return;
         mTiBoundSession = session;
         String text = session == null ? "" : mTextInputState.getInputText(session.mHandle);
         String target = text != null ? text : "";
-        com.termux.app.terminal.io.KBTrace.i("tiBind: " + target.length() + "ch live="
+        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tiBind: " + target.length() + "ch live="
                 + textInputView.getText().length());
         if (target.contentEquals(textInputView.getText())) return;   // already converged
         mAutoCompleteCtrl.setRestoringInput(true);
@@ -1988,7 +1987,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         String text = ShareUtils.getTextStringFromClipboardIfSet(this, true);
         if (text == null) return;
 
-        final EditText editText = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
 
         if (!isTextInputVisible()) {
@@ -2140,9 +2139,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * {@link #loadMessageHistoryPerDirectory()}).
      */
     public void onHistoryDirectoryChanged() {
+        onHistoryDirectoryChanged(getCurrentCwdForHistory());
+    }
+
+    /**
+     * Overload taking an already-resolved cwd (one /proc read per switch serves
+     * both the directory history and the message history).
+     */
+    public void onHistoryDirectoryChanged(@Nullable String resolvedCwd) {
         if (!mMessageHistoryCtrl.isPerDirectoryEnabled()) return;
+        String newCwd = !TextUtils.isEmpty(resolvedCwd) ? resolvedCwd : getCurrentCwdForHistory();
         String oldCwd = mMessageHistoryCtrl.getHistoryCurrentDirectory();
-        String newCwd = getCurrentCwdForHistory();
         mMessageHistoryCtrl.onHistoryDirectoryChanged(
                 oldCwd != null ? oldCwd : newCwd, newCwd);
     }
@@ -2290,7 +2297,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** Bottom "Clear" item: remember the current input text in history, then empty the field. */
     private void clearInputToHistory() {
-        final EditText editText = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
         // "Clear" (save cleared text): a brand-new message goes to the TOP of the
         // history (pre-promote-switch behaviour); a message already in the history
@@ -2317,7 +2324,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * text is first pushed into the history (dedup) so it is not lost.
      */
     private void onHistoryMessagePicked(@NonNull String message) {
-        final EditText editText = findViewById(R.id.terminal_toolbar_text_input);
+        final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
 
         if (!isTextInputVisible()) {
@@ -2386,6 +2393,22 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Nullable
     public String recordCurrentDirectory() {
         return mDirectoryHistoryCtrl.recordCurrentDirectory(getCurrentSession());
+    }
+
+    /** Overload taking an already-resolved cwd (see onSessionPageSelected). */
+    @Nullable
+    public String recordCurrentDirectory(@Nullable String resolvedCwd) {
+        return mDirectoryHistoryCtrl.recordCurrentDirectory(resolvedCwd);
+    }
+
+    /**
+     * Resolve the current session's working directory (a /proc readlink) once per
+     * switch; null when no session or the read fails.
+     */
+    @Nullable
+    public String getCurrentSessionCwd() {
+        TerminalSession session = getCurrentSession();
+        return session == null ? null : session.getCwd();
     }
 
     /** Load the persisted directory history from preferences (JSON array). */
@@ -3090,8 +3113,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     @Nullable public EditText getTerminalToolbarTextInput() {
-        return findViewById(R.id.terminal_toolbar_text_input);
+        // Cached: this is the shared text-input field, inflated once with the
+        // toolbar; the hot paths (session switch bind/save, pause capture) hit it
+        // several times per switch and findViewById is a full view-tree traversal.
+        // A failed lookup (toolbar not inflated yet) is NOT cached — the same
+        // findViewById retry semantics as before, so init order is unaffected.
+        if (mTerminalToolbarTextInput == null) {
+            mTerminalToolbarTextInput = findViewById(R.id.terminal_toolbar_text_input);
+        }
+        return mTerminalToolbarTextInput;
     }
+
+    @Nullable
+    private EditText mTerminalToolbarTextInput;
 
     public MessageHistoryController getMessageHistoryController() {
         return mMessageHistoryCtrl;
@@ -3249,7 +3283,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             View focusedNow = getCurrentFocus();
             boolean systemDrop = !imeVisible
                     && (focusedNow == null || !focusedNow.isAttachedToWindow());
-            com.termux.app.terminal.io.KBTrace.i("imeChange " + (imeVisible ? "SHOW" : "HIDE")
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("imeChange " + (imeVisible ? "SHOW" : "HIDE")
                     + " paused=" + mIsPaused + " justResumed=" + mJustResumed
                     + " restoringKb=" + mRestoringKeyboard + " pendingKb=" + mPendingKeyboardRestore
                     + " switchInProg=" + isTerminalPageSwitchInProgress()
@@ -3356,7 +3390,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * @param visible true to show, false to hide
      */
     public void setTextInputVisible(boolean visible) {
-        {
+        if (com.termux.app.terminal.io.KBTrace.ENABLED) {
+            // getStackTrace() is expensive: the whole capture must stay inside the
+            // compile-time gate so release builds never pay for it.
             StackTraceElement[] st = Thread.currentThread().getStackTrace();
             String caller = st.length > 3 ? st[3].getMethodName() : "?";
             com.termux.app.terminal.io.KBTrace.i("tiVis: " + visible + " session="
@@ -3379,8 +3415,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // the pencil was at ALIGN_PARENT_BOTTOM. After showing the toolbar for text
             // input, it must move to ABOVE the toolbar so it doesn't overlap the input panel.
             updateTextInputToggleButtonAnchor();
-            // Save state to preferences
-            getSharedPreferences("termux_prefs", MODE_PRIVATE).edit().putBoolean(PREF_TEXT_INPUT_VISIBLE, visible).apply();
+            // NOTE: no global-pref write here. The per-session store below is the
+            // single authority for panel visibility; the legacy "text_input_visible"
+            // pref had NO readers left (isTextInputVisible() falls back to hidden),
+            // and this path runs on every programmatic toggle (IME auto-close etc.),
+            // so the write was pure overhead.
 
             // Track per-session panel visibility so each tab remembers its own state.
             final TerminalSession session = getCurrentSession();
@@ -3396,7 +3435,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // the switch path has already bound it below, visible panel or not).
                 restoreTextInputForSession(getCurrentSession());
                 // Focus on text input and show keyboard
-                EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
+                EditText textInput = getTerminalToolbarTextInput();
                 if (textInput != null) {
                     textInput.requestFocus();
                     // Opening the panel is an explicit user intent to type: clear
@@ -3481,7 +3520,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // tab-switch or startup restore (which otherwise left hasVisible()==false
         // and made Back finish the app instead of hiding the panel).
         if (session != null) {
-            com.termux.app.terminal.io.KBTrace.i("tiApply: session="
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tiApply: session="
                     + Integer.toHexString(System.identityHashCode(session))
                     + " visible=" + visible + " hasRecorded=" + hasRecorded + " applyFocus=" + applyFocus);
             mTextInputState.setVisible(session.mHandle, visible);
@@ -3508,12 +3547,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 visible = false;
                 if (session != null) mTextInputState.setVisible(session.mHandle, false);
                 setTextInputSlotVisible(false);
-                com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): panel closed (IME hidden, target wanted it open)");
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): panel closed (IME hidden, target wanted it open)");
             }
             // On switch, restore where focus was last for this session:
             // on the panel (with keyboard) or on the terminal.
             if (visible && isFocusOnInputForSession(session)) {
-                final EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
+                final EditText textInput = getTerminalToolbarTextInput();
                 if (textInput != null) {
                     // Wait for real sizes so requestFocus/showSoftInput hit a served
                     // view instead of a zero-sized (unservable) one.
@@ -3551,7 +3590,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // instead of selecting a word (long-press regression on the input panel). The
             // EditText is a sibling of the pager (not inside a page), so it must keep focus
             // across page switches when the user was typing into it.
-            final EditText currentInput = findViewById(R.id.terminal_toolbar_text_input);
+            final EditText currentInput = getTerminalToolbarTextInput();
             if (currentInput == null || !currentInput.hasFocus()) {
                 if (mTermuxTerminalViewClient != null)
                     mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
@@ -3571,14 +3610,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // the whole reconcile (and the close-rebind re-assert below).
             boolean imeVisibleNow = computeImeVisibility();
             if (!followKbOnSwitch) {
-                com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): keyboard untouched");
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): keyboard untouched");
             } else if (!showKeyboardIfFocused && imeVisibleNow) {
                 if (mTermuxTerminalViewClient != null) {
                     mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
                     mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
                 }
                 KeyboardUtils.hideSoftKeyboard(this, currentInput != null ? currentInput : mTerminalView);
-                com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: hide (target session kbIntent=false)");
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: hide (target session kbIntent=false)");
             } else if (showKeyboardIfFocused && !imeVisibleNow
                     && !KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
                             mPreferences.isSoftKeyboardEnabled(),
@@ -3594,7 +3633,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(showTarget,
                             this::computeImeVisibility);
                 }
-                com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: show (target session kbIntent=true)");
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: show (target session kbIntent=true)");
             } else if (showKeyboardIfFocused && imeVisibleNow) {
                 // The IME is up and the landed session wants it up: fine for now, BUT if this
                 // switch came from closing the current tab, the adapter rebuild detaches the
@@ -3630,7 +3669,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             KeyboardUtils.setSoftInputModeAdjustResize(this);
             com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
                     this::computeImeVisibility);
-            com.termux.app.terminal.io.KBTrace.i("switch reassert: re-show after close-rebind drop");
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("switch reassert: re-show after close-rebind drop");
         }, 300);
     }
 

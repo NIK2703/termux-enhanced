@@ -13,7 +13,10 @@ import com.termux.BuildConfig;
 public final class KBTrace {
 
     private static final String TAG = "KBTrace";
-    private static final boolean ENABLED = BuildConfig.DEBUG;
+    /** Compile-time constant: javac constant-folds this through call sites, so a
+     * guarded `if (ENABLED) KBTrace.i("x" + y)` compiles to NOTHING in release —
+     * including the string concatenation that would otherwise allocate. */
+    public static final boolean ENABLED = BuildConfig.DEBUG;
 
     private KBTrace() {}
 

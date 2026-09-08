@@ -551,12 +551,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         mActivity.applyTextInputVisibilityForSession(session);
 
         // Record the newly-current session's working directory into the
-        // recent-directories history (for the "new tab" button popup).
-        mActivity.recordCurrentDirectory();
-
-        // If per-directory message history is enabled, swap to the new
-        // session's directory history.
-        mActivity.onHistoryDirectoryChanged();
+        // recent-directories history (for the "new tab" button popup) and swap the
+        // per-directory message history. ONE /proc/<pid>/cwd read serves both:
+        // getCwd() is a filesystem readlink on the main thread, so it is resolved
+        // here once and passed down to both consumers.
+        String cwd = mActivity.getCurrentSessionCwd();
+        mActivity.recordCurrentDirectory(cwd);
+        mActivity.onHistoryDirectoryChanged(cwd);
 
         // Session-name based extra-keys profile switching.
         applySessionExtraKeys(session);

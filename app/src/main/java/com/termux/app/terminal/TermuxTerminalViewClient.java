@@ -723,7 +723,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             Logger.logVerbose(LOG_TAG, "Requesting TerminalView focus and showing soft keyboard");
             boolean restoreFromState = !mActivity.isOnResumeAfterOnCreate() || mActivity.isActivityRecreated();
             boolean kbIntent = mActivity.getTextInputState().isSoftKeyboardVisibleIntent();
-            com.termux.app.terminal.io.KBTrace.i("setSoftKeyboardState: requestFocus"
+            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("setSoftKeyboardState: requestFocus"
                     + " startup=" + isStartup + " reload=" + isReloadTermuxProperties
                     + " restoreFromState=" + restoreFromState + " kbIntent=" + kbIntent
                     + " restoringKb=" + mActivity.isRestoringKeyboard()
@@ -754,7 +754,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         terminalView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View view, boolean hasFocus) {
-                com.termux.app.terminal.io.KBTrace.i("focusChange " + (hasFocus ? "GAIN" : "LOSS")
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("focusChange " + (hasFocus ? "GAIN" : "LOSS")
                         + " view=" + (view == mActivity.getTerminalView() ? "activeTerm" : "page")
                         + " restoringKb=" + mActivity.isRestoringKeyboard()
                         + " switchInProg=" + mActivity.isTerminalPageSwitchInProgress()
@@ -811,7 +811,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                     // is no longer the activity's active page.
                     Logger.logVerbose(LOG_TAG, "Skipping soft keyboard hide on focus change: page no longer active (switched)");
                 } else {
-                    com.termux.app.terminal.io.KBTrace.i("focusChange -> setSoftKeyboardVisibility show=" + showKeyboard);
+                    if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("focusChange -> setSoftKeyboardVisibility show=" + showKeyboard);
                     KeyboardUtils.setSoftKeyboardVisibility(getShowSoftKeyboardRunnable(), mActivity, terminalView, showKeyboard);
                 }
             }
@@ -821,7 +821,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private Runnable getShowSoftKeyboardRunnable() {
         if (mShowSoftKeyboardRunnable == null) {
             mShowSoftKeyboardRunnable = () -> {
-                com.termux.app.terminal.io.KBTrace.i("showSoftKeyboardRunnable FIRES");
+                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("showSoftKeyboardRunnable FIRES");
                 TerminalView tv = mActivity.getTerminalView();
                 if (tv != null) KeyboardUtils.showSoftKeyboard(mActivity, tv);
             };

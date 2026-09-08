@@ -66,7 +66,11 @@ public final class DirectoryHistoryController {
     @Nullable
     public String recordCurrentDirectory(@Nullable TerminalSession session) {
         if (session == null) return null;
-        String cwd = session.getCwd();
+        return recordCurrentDirectory(session.getCwd());
+    }
+
+    /** Overload taking an already-resolved cwd so a switch performs ONE /proc read. */
+    public String recordCurrentDirectory(@Nullable String cwd) {
         if (TextUtils.isEmpty(cwd)) return null;
         addToDirectoryHistory(cwd);
         return cwd;
@@ -75,6 +79,9 @@ public final class DirectoryHistoryController {
     /** Add a visited directory. Deduplicated, newest first. */
     private void addToDirectoryHistory(@NonNull String directory) {
         if (TextUtils.isEmpty(directory)) return;
+        // Fast path: already the newest entry — the dedup below would re-insert it at
+        // position 0 unchanged, so skip both the list churn AND the (disk) save.
+        if (!mDirectoryHistory.isEmpty() && directory.equals(mDirectoryHistory.get(0))) return;
         mDirectoryHistory.remove(directory);
         mDirectoryHistory.add(0, directory);
         while (mDirectoryHistory.size() > mDirectoryHistoryMax) {
