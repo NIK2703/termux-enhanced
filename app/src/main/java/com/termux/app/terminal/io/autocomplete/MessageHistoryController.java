@@ -15,7 +15,12 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pure-data controller for the per-directory / global message (command) history.
@@ -71,6 +76,19 @@ public final class MessageHistoryController {
     private final Handler mPersistHandler = new Handler(Looper.getMainLooper());
     @Nullable private Runnable mPersistPending;
 
+    // P2: the (potentially large) JSON serialization + prefs write is moved OFF the
+    // main thread onto a single-threaded executor. A generation counter lets a newer
+    // persist supersede an older one still queued, so the on-disk state always ends
+    // at the latest mutation. flushPersist()/save() block on a synchronous commit so
+    // history is guaranteed on disk before onStop / a mode switch.
+    private final ExecutorService mPersistExecutor =
+            Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "message-history-persist");
+                t.setPriority(Thread.NORM_PRIORITY - 1);
+                return t;
+            });
+    private final AtomicInteger mPersistGeneration = new AtomicInteger();
+
     public MessageHistoryController(@NonNull SharedPreferences prefs) {
         mPrefs = prefs;
     }
@@ -78,23 +96,25 @@ public final class MessageHistoryController {
     /** Schedule (or re-schedule) the store-wide persist on the main looper. */
     private void schedulePersist() {
         if (mPersistPending != null) mPersistHandler.removeCallbacks(mPersistPending);
-        if (mPersistPending == null) {
-            mPersistPending = this::flushPersist;
-        }
+        mPersistPending = () -> {
+            mPersistPending = null;
+            persistAsync(false);
+        };
         mPersistHandler.postDelayed(mPersistPending, PERSIST_DEBOUNCE_MS);
     }
 
     /**
-     * If a debounced persist is pending, run it now. Called by the host from
-     * {@code onPause()} (and before mode switches) so history is always on disk
-     * before the process can be stopped.
+     * If a debounced persist is pending, run it now (synchronously, on disk). Called
+     * by the host from {@code onPause()} / {@code onStop()} (and before mode switches)
+     * so history is always on disk before the process can be stopped.
      */
     public void flushPersist() {
         if (mPersistPending != null) {
             mPersistHandler.removeCallbacks(mPersistPending);
             mPersistPending = null;
-            saveNow();
         }
+        persistAsync(true);
+        drainPersist();
     }
 
     /** Cancel a pending debounced persist without writing (teardown). */
@@ -105,13 +125,67 @@ public final class MessageHistoryController {
         }
     }
 
-    /** Run the store-wide persist synchronously (used by the debounce flush). */
-    private void saveNow() {
+    /**
+     * Serialize + write the current store on the persistence executor. The data is
+     * snapshotted on the calling (main) thread so the background task only reads
+     * immutable copies. {@code syncCommit} makes the final write a synchronous
+     * {@code commit()} (used by flushPersist/save) so the caller can be sure the
+     * bytes are on disk before returning.
+     */
+    private void persistAsync(boolean syncCommit) {
+        final int gen = mPersistGeneration.incrementAndGet();
         if (mPerDirectoryMessageHistory) {
-            savePerDirectory();
+            final String key = mHistoryCurrentDirectory;
+            final ArrayList<String> current = new ArrayList<>(mMessageHistory);
+            final HashMap<String, ArrayList<String>> snapshot =
+                    new HashMap<>(mMessageHistoryPerDirectory.size());
+            for (Map.Entry<String, ArrayList<String>> e : mMessageHistoryPerDirectory.entrySet()) {
+                snapshot.put(e.getKey(), new ArrayList<>(e.getValue()));
+            }
+            if (key != null) snapshot.put(key, current);
+            mPersistExecutor.execute(() -> {
+                if (gen < mPersistGeneration.get()) return; // a newer persist superseded this
+                writePerDirectory(snapshot, syncCommit);
+            });
         } else {
-            saveGlobal();
+            final ArrayList<String> current = new ArrayList<>(mMessageHistory);
+            mPersistExecutor.execute(() -> {
+                if (gen < mPersistGeneration.get()) return; // a newer persist superseded this
+                writeGlobal(current, syncCommit);
+            });
         }
+    }
+
+    /** Block until every queued persistence task has finished (used by sync flushes). */
+    private void drainPersist() {
+        try {
+            mPersistExecutor.submit(() -> {}).get();
+        } catch (InterruptedException | java.util.concurrent.ExecutionException ignored) {
+            // Best-effort: if the drain is interrupted we still return; the host's
+            // lifecycle pause will have triggered its own flush.
+        }
+    }
+
+    private void writeGlobal(@NonNull ArrayList<String> list, boolean syncCommit) {
+        JSONArray arr = new JSONArray();
+        for (String s : list) arr.put(s);
+        SharedPreferences.Editor ed = mPrefs.edit().putString(PREF_MESSAGE_HISTORY, arr.toString());
+        if (syncCommit) ed.commit(); else ed.apply();
+    }
+
+    private void writePerDirectory(@NonNull HashMap<String, ArrayList<String>> map, boolean syncCommit) {
+        JSONObject obj = new JSONObject();
+        try {
+            for (Map.Entry<String, ArrayList<String>> e : map.entrySet()) {
+                JSONArray arr = new JSONArray();
+                for (String s : e.getValue()) arr.put(s);
+                obj.put(e.getKey(), arr);
+            }
+        } catch (JSONException ignored) {
+            return;
+        }
+        SharedPreferences.Editor ed = mPrefs.edit().putString(PREF_MESSAGE_HISTORY_PER_DIR, obj.toString());
+        if (syncCommit) ed.commit(); else ed.apply();
     }
 
     // ── Feature flags ──
@@ -176,6 +250,12 @@ public final class MessageHistoryController {
         if (mPerDirectoryMessageHistory) {
             if (cwd != null) {
                 mMessageHistoryPerDirectory.remove(cwd);
+            } else {
+                // D-2: no resolvable CWD — drop the stale current-directory key so its
+                // (now-cleared) in-memory list cannot "resurrect" after the next
+                // directory switch (onHistoryDirectoryChanged would otherwise save the
+                // empty list back under the old key).
+                mHistoryCurrentDirectory = null;
             }
             mMessageHistory.clear();
             mHistoryVersion++;
@@ -330,11 +410,14 @@ public final class MessageHistoryController {
     private void loadGlobal() {
         String json = mPrefs.getString(PREF_MESSAGE_HISTORY, null);
         if (json == null) return;
+        // P2: O(N) dedup via a HashSet instead of List.contains (O(N²) on the
+        // already-loaded list). Same order, same result.
+        HashSet<String> seen = new HashSet<>(mMessageHistory.size());
         try {
             JSONArray arr = new JSONArray(json);
             for (int i = 0; i < arr.length(); i++) {
                 String s = arr.optString(i, null);
-                if (!TextUtils.isEmpty(s) && !mMessageHistory.contains(s)) {
+                if (!TextUtils.isEmpty(s) && seen.add(s)) {
                     mMessageHistory.add(s);
                 }
             }
@@ -365,9 +448,11 @@ public final class MessageHistoryController {
                     if (arr == null) continue;
                     hadPerDirData = true;
                     ArrayList<String> list = new ArrayList<>();
+                    // P2: O(N) dedup instead of List.contains (O(N²)).
+                    HashSet<String> seen = new HashSet<>(arr.length());
                     for (int i = 0; i < arr.length(); i++) {
                         String s = arr.optString(i, null);
-                        if (!TextUtils.isEmpty(s) && !list.contains(s)) {
+                        if (!TextUtils.isEmpty(s) && seen.add(s)) {
                             list.add(s);
                         }
                     }
@@ -389,9 +474,11 @@ public final class MessageHistoryController {
                 try {
                     JSONArray globalArr = new JSONArray(globalJson);
                     ArrayList<String> migrated = new ArrayList<>();
+                    // P2: O(N) dedup instead of List.contains (O(N²)).
+                    HashSet<String> seen = new HashSet<>(globalArr.length());
                     for (int i = 0; i < globalArr.length(); i++) {
                         String s = globalArr.optString(i, null);
-                        if (!TextUtils.isEmpty(s) && !migrated.contains(s)) {
+                        if (!TextUtils.isEmpty(s) && seen.add(s)) {
                             migrated.add(s);
                         }
                     }
@@ -420,16 +507,24 @@ public final class MessageHistoryController {
 
     public void save() {
         cancelPersist();
-        saveNow();
+        persistAsync(true);
+        drainPersist();
     }
 
     private void saveGlobal() {
+        // Bump the generation so any in-flight background persist (scheduled by a
+        // prior keystroke) is superseded rather than clobbering this synchronous
+        // write — see the generation-counter contract in persistAsync().
+        mPersistGeneration.incrementAndGet();
         JSONArray arr = new JSONArray();
         for (String s : mMessageHistory) arr.put(s);
         mPrefs.edit().putString(PREF_MESSAGE_HISTORY, arr.toString()).apply();
     }
 
     private void savePerDirectory() {
+        // Same generation-supersede guard as saveGlobal(): a clear/migrate on the
+        // main thread must win over a background write still queued from typing.
+        mPersistGeneration.incrementAndGet();
         if (mHistoryCurrentDirectory != null) {
             ArrayList<String> list = new ArrayList<>(mMessageHistory);
             mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, list);

@@ -66,13 +66,49 @@ public class ViewUtils {
     public static Rect[] getWindowAndViewRects(View view, int statusBarHeight) {
         if (view == null || !view.isShown())
             return null;
+        final Rect[] out = new Rect[] { new Rect(), new Rect() };
+        if (!getWindowAndViewRects(view, statusBarHeight, Configuration.ORIENTATION_UNDEFINED,
+                out[0], out[1], new int[2]))
+            return null;
+        return out;
+    }
+
+    /**
+     * Allocation-free variant of {@link #getWindowAndViewRects(View, int)}.
+     * <p>
+     * The original allocated four objects per call ({@code windowRect}, {@code windowAvailableRect},
+     * {@code viewRect}, the {@code int[2]} location scratch) plus a {@code Rect[]}, and it ran from
+     * {@code TermuxActivityRootView}'s global-layout listener — i.e. on EVERY layout pass while the
+     * IME animates (~60/s). Callers on a hot path pass their own buffers instead.
+     *
+     * @param cachedDisplayOrientation {@link Configuration#ORIENTATION_PORTRAIT} or
+     *        {@link Configuration#ORIENTATION_LANDSCAPE} already known by the caller, or
+     *        {@link Configuration#ORIENTATION_UNDEFINED} to resolve it here. Resolving it costs a
+     *        {@code WindowMetricsCalculator} round-trip, so a caller that measures per frame should
+     *        cache it and invalidate on configuration change.
+     * @param windowAvailableRect Filled with the available window rect (visible frame minus the
+     *        action bar). Used as the scratch buffer for the visible display frame as well, since
+     *        the two differ only by {@code actionBarHeight} on top.
+     * @param viewRect Filled with the view rect, in window coordinates.
+     * @param locationScratch A caller-owned {@code int[2]} reused for
+     *        {@link View#getLocationInWindow(int[])}.
+     * @return {@code true} if the view is shown and the rects were filled, {@code false} otherwise.
+     */
+    public static boolean getWindowAndViewRects(@NonNull View view, int statusBarHeight,
+                                                int cachedDisplayOrientation,
+                                                @NonNull Rect windowAvailableRect,
+                                                @NonNull Rect viewRect,
+                                                @NonNull int[] locationScratch) {
+        if (locationScratch.length < 2) throw new IllegalArgumentException("locationScratch must hold 2 ints");
+        if (!view.isShown())
+            return false;
 
         boolean view_utils_logging_enabled = VIEW_UTILS_LOGGING_ENABLED;
 
         // windowRect - will hold available area where content remain visible to users
         // Takes into account screen decorations (e.g. statusbar)
-        Rect windowRect = new Rect();
-        view.getWindowVisibleDisplayFrame(windowRect);
+        // (reused: windowAvailableRect IS the visible frame until actionBarHeight is added below)
+        view.getWindowVisibleDisplayFrame(windowAvailableRect);
 
         // If there is actionbar, get his height
         int actionBarHeight = 0;
@@ -88,24 +124,27 @@ public class ViewUtils {
             isInMultiWindowMode = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) && ((Activity) context).isInMultiWindowMode();
         }
 
-        int displayOrientation = getDisplayOrientation(context);
+        int displayOrientation = cachedDisplayOrientation != Configuration.ORIENTATION_UNDEFINED
+                ? cachedDisplayOrientation
+                : getDisplayOrientation(context);
 
-        // windowAvailableRect - takes into account actionbar and statusbar height
-        Rect windowAvailableRect;
-        windowAvailableRect = new Rect(windowRect.left, windowRect.top + actionBarHeight, windowRect.right, windowRect.bottom);
+        // windowAvailableRect - takes into account actionbar and statusbar height.
+        // Remember the raw visible-frame edges first: the multi-window correction below needs the
+        // UNADJUSTED frame, not the action-bar-shifted one.
+        final int windowFrameTop = windowAvailableRect.top;
+        final int windowFrameLeft = windowAvailableRect.left;
+        windowAvailableRect.top += actionBarHeight;
 
         // viewRect - holds position of the view in window
         // (methods as getGlobalVisibleRect, getHitRect, getDrawingRect can return different result,
         // when partialy visible)
-        Rect viewRect;
-        final int[] viewsLocationInWindow = new int[2];
-        view.getLocationInWindow(viewsLocationInWindow);
-        int viewLeft = viewsLocationInWindow[0];
-        int viewTop = viewsLocationInWindow[1];
+        view.getLocationInWindow(locationScratch);
+        int viewLeft = locationScratch[0];
+        int viewTop = locationScratch[1];
 
         if (view_utils_logging_enabled) {
             Logger.logVerbose(LOG_TAG, "getWindowAndViewRects:");
-            Logger.logVerbose(LOG_TAG, "windowRect: " + toRectString(windowRect) + ", windowAvailableRect: " + toRectString(windowAvailableRect));
+            Logger.logVerbose(LOG_TAG, "windowAvailableRect: " + toRectString(windowAvailableRect));
             Logger.logVerbose(LOG_TAG, "viewsLocationInWindow: " + toPointString(new Point(viewLeft, viewTop)));
             Logger.logVerbose(LOG_TAG, "activitySize: " + toPointString(getDisplaySize(context, true)) +
                 ", displaySize: " + toPointString(getDisplaySize(context, false)) +
@@ -116,10 +155,10 @@ public class ViewUtils {
             if (displayOrientation == Configuration.ORIENTATION_PORTRAIT) {
                 // The windowRect.top of the window at the of split screen mode should start right
                 // below the status bar
-                if (statusBarHeight != windowRect.top) {
+                if (statusBarHeight != windowFrameTop) {
                     if (view_utils_logging_enabled)
-                        Logger.logVerbose(LOG_TAG, "Window top does not equal statusBarHeight " + statusBarHeight + " in multi-window portrait mode. Window is possibly bottom app in split screen mode. Adding windowRect.top " + windowRect.top + " to viewTop.");
-                    viewTop += windowRect.top;
+                        Logger.logVerbose(LOG_TAG, "Window top does not equal statusBarHeight " + statusBarHeight + " in multi-window portrait mode. Window is possibly bottom app in split screen mode. Adding windowRect.top " + windowFrameTop + " to viewTop.");
+                    viewTop += windowFrameTop;
                 } else {
                     if (view_utils_logging_enabled)
                         Logger.logVerbose(LOG_TAG, "windowRect.top equals statusBarHeight " + statusBarHeight + " in multi-window portrait mode. Window is possibly top app in split screen mode.");
@@ -128,13 +167,13 @@ public class ViewUtils {
             } else if (displayOrientation == Configuration.ORIENTATION_LANDSCAPE) {
                 // If window is on the right in landscape mode of split screen, the viewLeft actually
                 // starts at windowRect.left instead of 0 returned by getLocationInWindow
-                viewLeft += windowRect.left;
+                viewLeft += windowFrameLeft;
             }
         }
 
         int viewRight = viewLeft + view.getWidth();
         int viewBottom = viewTop + view.getHeight();
-        viewRect = new Rect(viewLeft, viewTop, viewRight, viewBottom);
+        viewRect.set(viewLeft, viewTop, viewRight, viewBottom);
 
         if (displayOrientation == Configuration.ORIENTATION_LANDSCAPE && viewRight > windowAvailableRect.right) {
             if (view_utils_logging_enabled)
@@ -142,7 +181,7 @@ public class ViewUtils {
             windowAvailableRect.right = viewRight;
         }
 
-        return new Rect[]{windowAvailableRect, viewRect};
+        return true;
     }
 
     /**

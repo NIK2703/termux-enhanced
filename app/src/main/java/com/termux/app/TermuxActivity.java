@@ -177,6 +177,68 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     TermuxSessionSnapshotManager mSessionSnapshotManager;
 
     /**
+     * Main-looper Handler used to debounce the session-snapshot persist (P3-1) so rapid
+     * structural updates (tab add/remove/rename) collapse into a single disk write.
+     */
+    private final Handler mSnapshotHandler = new Handler(Looper.getMainLooper());
+
+    /**
+     * Whether the session list changed since the snapshot last reached the disk.
+     * <p>
+     * Building the snapshot costs one {@code /proc/&lt;pid&gt;/cwd} readlink PER SESSION on the
+     * UI thread ({@code TerminalSession.getCwd()}), and it is requested from several places
+     * (tab add/remove, title refresh, every onStart). The 400 ms debounce already collapses
+     * bursts, but {@link #saveSessionSnapshotNow()} in onStop re-read everything
+     * unconditionally — i.e. the common "backgrounded without touching anything" case paid for
+     * a full re-read right inside the window that {@code QueuedWork.waitToFinish()} blocks.
+     */
+    private boolean mSnapshotDirty = true;
+
+    /** Last {@code ui_state_json} handed to SharedPreferences; see {@link #persistUiState()}. */
+    private String mLastPersistedUiStateJson;
+
+    /**
+     * Main-looper handler shared by every deferred UI task of this activity. Previously each
+     * onStart/onResume allocated a throw-away {@code new Handler(...)} per timer and never
+     * removed a previous instance, so a fast stop/start could let the older runnable clear a
+     * flag the newer one had just raised.
+     */
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+
+    /** Debounced snapshot-persist runnable; see {@link #saveSessionSnapshot()}. */
+    private final Runnable mSaveSnapshotRunnable = () -> {
+        if (!mSnapshotDirty) return;      // nothing moved since the last write
+        mSnapshotDirty = false;
+        mSessionSnapshotManager.saveSessionSnapshot();
+    };
+
+    /** Closes the "just resumed" IME-suppression window; see {@link #mJustResumed}. */
+    private final Runnable mClearJustResumedRunnable = () -> mJustResumed = false;
+
+    /**
+     * Deferred root-view relayout used after a resume. Reused (instead of a fresh lambda per
+     * resume) so {@code removeCallbacks} can collapse repeats and so it can be cancelled in
+     * onStop — otherwise a relayout queued by the previous resume ran while the activity was
+     * already back in the background.
+     */
+    private final Runnable mRootRelayoutRunnable = () -> {
+        final TermuxActivityRootView rootView = getTermuxActivityRootView();
+        if (rootView != null) rootView.forceRelayout();
+    };
+
+    /**
+     * Single-threaded daemon executor that resolves the current session's working directory
+     * (a /proc/&lt;pid&gt;/cwd readlink) off the UI thread during tab switches (P3-2). The result
+     * is posted back to the main thread for its consumers.
+     */
+    private static final java.util.concurrent.ExecutorService sCwdResolver =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "termux-cwd-resolver");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /**
      * The root view of the {@link TermuxActivity}.
      */
     TermuxActivityRootView mTermuxActivityRootView;
@@ -297,6 +359,16 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      * Invariant: the field is always the live buffer of the CURRENT session; every
      * switch transfers ownership through one ordered bind, visible panel or not. */
     private TerminalSession mTiBoundSession;
+
+    /**
+     * Memo of the last text handed to {@link #mTextInputState} by
+     * {@link #saveTextInputForCurrentSession(boolean)}, together with the session it belonged to.
+     * Lets the repeated snapshot (onPause and again onStop) skip re-copying an unchanged buffer.
+     * Purely a cache: a mismatch degrades to the full save, never to a wrong save.
+     */
+    private String mLastSavedInputText = "";
+    private TerminalSession mLastSavedInputSession;
+
     private TermuxActivityPopupController mPopupCtrl;
     private FullScreenWorkAround mFullScreenWorkAround;
     private ImeVisibilityDetector mImeDetector;
@@ -405,11 +477,8 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private static final int CONTEXT_MENU_SETTINGS_ID = 8;
     private static final int CONTEXT_MENU_REPORT_ID = 9;
 
-    private static final String ARG_TERMINAL_TOOLBAR_TEXT_INPUT = "terminal_toolbar_text_input";
-    private static final String ARG_TEXT_INPUT_PER_SESSION = "text_input_per_session";
-    private static final String ARG_TEXT_INPUT_CARET_PER_SESSION = "text_input_caret_per_session";
-    private static final String ARG_TEXT_INPUT_VISIBLE_PER_SESSION = "text_input_visible_per_session";
-    private static final String ARG_FOCUS_ON_INPUT_PER_SESSION = "focus_on_input_per_session";
+    // NOTE: the per-session Bundle keys (text / caret / visible / focus / scroll / kb-intent)
+    // live in SessionUiStateStore, which owns both the L1 store and the L2 Bundle (de)serialisation.
     private static final String ARG_ACTIVITY_RECREATED = "activity_recreated";
     private static final String PREF_MESSAGE_HISTORY = "message_history";
 
@@ -424,6 +493,9 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private boolean mRestoringKeyboard = false;
     /** One-shot flag: keeps reassertPanelLayout()'s GONE→VISIBLE kick from firing more than once. */
     private boolean mPanelRelayoutKickDone = false;
+    /** One-shot per resume: reassertPanelLayout() is requested twice (onResume + runKeyboardRestore);
+     *  the second call can only repeat work the first one already did. Reset in onResume(). */
+    private boolean mPanelRelayoutDone = false;
 
     public boolean isRestoringKeyboard() {
         return mRestoringKeyboard;
@@ -660,7 +732,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // the panel until the transient post-return insets frames have settled.
         // Cleared after a short delay so ordinary keyboard dismissal still works.
         mJustResumed = true;
-        new Handler(Looper.getMainLooper()).postDelayed(() -> mJustResumed = false, 400);
+        // Reuse one handler + one runnable instance: removeCallbacks collapses repeated
+        // start/stops, so a stale timer from a previous onStart can never clear a window
+        // opened by a newer one.
+        mMainHandler.removeCallbacks(mClearJustResumedRunnable);
+        mMainHandler.postDelayed(mClearJustResumedRunnable, 400);
 
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onStart();
@@ -778,6 +854,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // onResume after recreate applies the focus/IME state restored from the
         // saved-instance Bundle even though mIsOnResumeAfterOnCreate is true.
         TerminalSession currentSession = getCurrentSession();
+        // New resume — allow one panel re-assert again (see mPanelRelayoutDone).
+        mPanelRelayoutDone = false;
         mResumeFocusRestore = true;
         try {
             if (willRestoreKeyboard) {
@@ -804,9 +882,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mIsOnResumeAfterOnCreate = false;
         mIsPaused = false;
         if (mPreferences.isTerminalMarginAdjustmentEnabled()) {
-            final TermuxActivityRootView rootView = getTermuxActivityRootView();
-            if (rootView != null)
-                new Handler(Looper.getMainLooper()).postDelayed(rootView::forceRelayout, 300);
+            mMainHandler.removeCallbacks(mRootRelayoutRunnable);
+            mMainHandler.postDelayed(mRootRelayoutRunnable, 300);
         }
     }
 
@@ -836,6 +913,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mIsVisible = false;
 
+        // Drop the resume-scoped timers: nothing they do is meaningful while backgrounded, and
+        // leaving them queued meant a relayout / latch flip firing mid-backgrounding.
+        mMainHandler.removeCallbacks(mClearJustResumedRunnable);
+        mMainHandler.removeCallbacks(mRootRelayoutRunnable);
+
         // Dismiss any history popup still showing, to avoid a leaked window when
         // the activity goes to the background.
         dismissMessageHistoryPopup();
@@ -856,8 +938,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // before the process can be stopped in the background.
         mMessageHistoryCtrl.flushPersist();
 
-        // Snapshot open tabs (cwd/name) so a later cold start can reopen them.
-        saveSessionSnapshot();
+        // Snapshot open tabs (cwd/name) so a later cold start can reopen them. Flush immediately
+        // (not debounced) so the data is on disk before the process can be stopped in the
+        // background.
+        saveSessionSnapshotNow();
 
         // L3 persist of the per-session UI state (text, caret, panel visibility,
         // focus, scroll, keyboard intent) keyed by session index for the
@@ -877,6 +961,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Logger.logDebug(LOG_TAG, "onDestroy");
 
         sInstance = null;
+
+        if (mSessionPagerManager != null) mSessionPagerManager.destroy();
 
         if (mIsInvalidState) return;
 
@@ -917,10 +1003,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Logger.logVerbose(LOG_TAG, "onSaveInstanceState");
 
         super.onSaveInstanceState(savedInstanceState);
-        saveTerminalToolbarTextInput(savedInstanceState);
         savedInstanceState.putBoolean(ARG_ACTIVITY_RECREATED, true);
 
-        // Persist per-session text input state across activity recreation
+        // Persist per-session text input state across activity recreation.
+        // NOTE: the previous saveTerminalToolbarTextInput() write is gone: it stored the raw
+        // field text under "terminal_toolbar_text_input" (one more getText().toString() per
+        // save-instance) and NO code ever read that key back — the per-session bundle below is
+        // the only thing the restore path reads.
         mTextInputState.saveToBundle(savedInstanceState);
     }
 
@@ -983,10 +1072,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         int activeIndex = (current != null) ? service.getIndexOfSession(current) : -1;
         mTextInputState.setActiveSessionIndex(activeIndex);
         String json = mTextInputState.exportToJson(ordered, activeIndex);
-        if (json != null) {
-            getSharedPreferences("termux_prefs", MODE_PRIVATE).edit()
-                    .putString(PREF_UI_STATE_JSON, json).apply();
-        }
+        // SharedPreferences.Editor.apply() serialises the whole termux_prefs file even when the
+        // value is byte-identical, and API 28+ flushes every queued write on the main thread at
+        // the end of onStop. Skip the write (and the disk flush) when nothing moved.
+        if (json == null || json.equals(mLastPersistedUiStateJson)) return;
+        mLastPersistedUiStateJson = json;
+        getSharedPreferences("termux_prefs", MODE_PRIVATE).edit()
+                .putString(PREF_UI_STATE_JSON, json).apply();
     }
 
     /**
@@ -1077,10 +1169,16 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // Probe must use the SAME authoritative signal as the intent capture: a
                 // visible-frame false positive here would make showWithRetry believe the
                 // IME is already up and skip the show entirely.
+                // Release the latch the moment the helper settles (typically 120–240 ms) rather
+                // than parking a blind 800 ms timer. Besides being ~600 ms of needless
+                // suppression, a long latch is actively harmful: while it is up
+                // onImeVisibilityChanged() treats every IME change as "in transition" and refuses
+                // to record the user's own keyboard intent, so hiding the keyboard right after a
+                // restore would not be remembered and it would pop back up on the next resume.
+                target.removeCallbacks(mEndKeyboardRestoreRunnable);
                 com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
-                        this::computeImeVisibility);
-                // showWithRetry is up to 4x120ms; keep the latch until everything settles.
-                target.postDelayed(() -> mRestoringKeyboard = false, 800);
+                        this::computeImeVisibility, mEndKeyboardRestoreRunnable);
+                target.postDelayed(mEndKeyboardRestoreRunnable, 800);   // safety net
             } else {
                 // The user hid the keyboard before backgrounding (or it is disabled): keep it
                 // hidden. Swallow the focus-triggered show AND cancel any stray pending show
@@ -1091,10 +1189,22 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 }
                 target.requestFocus();
                 KeyboardUtils.hideSoftKeyboard(this, target);
-                target.postDelayed(() -> mRestoringKeyboard = false, 300);
+                target.removeCallbacks(mEndKeyboardRestoreRunnable);
+                target.postDelayed(mEndKeyboardRestoreRunnable, 300);
             }
+            // NOTE: attempts intentionally left at 6. They only cost anything while the view is
+            // still unattached/zero-sized, i.e. exactly the slow-layout case where extra patience
+            // is what makes the restore work; trimming them saves nothing in the normal path.
         }, 6);
     }
+
+    /**
+     * Safety net that releases the keyboard-restore latch. The primary release is the
+     * {@code onSettled} callback handed to {@code SoftKeyboardRestore.showWithRetry()}; this one
+     * only fires if that helper never reports back (e.g. the target view was detached mid-retry),
+     * so the latch can never get stuck. Kept as a field so it can be removed from the queue.
+     */
+    private final Runnable mEndKeyboardRestoreRunnable = () -> mRestoringKeyboard = false;
 
     /** Called by SessionPagerManager.onTerminalPageSelected once a page is live. */
     public void consumePendingKeyboardRestoreIfReady() {
@@ -1120,6 +1230,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void reassertPanelLayout() {
         final LinearLayout toolbar = getTerminalToolbarContainer();
         if (toolbar == null) return;
+
+        // Fast path: this method exists solely to recover from a CACHED ZERO height (the toolbar
+        // measured 0 while the IME was being hidden in the background and nobody re-measured it
+        // afterwards). When the toolbar and whichever child owns the shared slot already have real
+        // sizes there is nothing to recover from — skip the forced re-measure entirely. That is
+        // the case on the vast majority of resumes, and it removes a full
+        // measure/layout/invalidate walk over the toolbar subtree (extra keys = dozens of buttons)
+        // from the resume path.
+        if (isPanelLayoutSane(toolbar)) return;
+
+        // Already re-asserted once during this resume — do not walk the tree again.
+        if (mPanelRelayoutDone) return;
+        mPanelRelayoutDone = true;
         mPanelRelayoutKickDone = false;
 
         kickLayoutTree(toolbar);
@@ -1138,7 +1261,30 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         });
     }
 
-    /** Recursive requestLayout()/invalidate() over a view subtree. */
+    /**
+     * Whether the toolbar and whichever child owns the shared slot already have real sizes.
+     * A zero-sized (but VISIBLE) toolbar is the degenerate state {@link #reassertPanelLayout()}
+     * exists to fix; anything else is already fine.
+     */
+    private boolean isPanelLayoutSane(@NonNull LinearLayout toolbar) {
+        if (toolbar.getHeight() <= 0 || toolbar.getMeasuredHeight() <= 0) return false;
+        final View slot = findViewById(R.id.terminal_toolbar_text_input_container);
+        if (slot != null && slot.getVisibility() == View.VISIBLE && slot.getHeight() <= 0)
+            return false;
+        final ExtraKeysView ekv = getExtraKeysView();
+        if (ekv != null && ekv.getVisibility() == View.VISIBLE && ekv.getHeight() <= 0)
+            return false;
+        return true;
+    }
+
+    /**
+     * Recursive {@code requestLayout()} over a view subtree plus ONE invalidate on the root.
+     * <p>
+     * The previous implementation called {@code invalidate()} on every single node: unnecessary,
+     * because one invalidate on the subtree root already marks the whole region dirty and the
+     * children redraw themselves during the following draw pass. With an extra-keys view holding
+     * dozens of buttons that was dozens of needless dirty-rect propagations per resume.
+     */
     private static void kickLayoutTree(@Nullable View v) {
         if (v == null) return;
         v.requestLayout();
@@ -1502,6 +1648,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     // keep working when the panel stays open.
                     editText.getText().clear();
                     mTextInputState.clearInput(session.mHandle);
+                    // The store no longer holds the text we memoised — drop the memo so the next
+                    // save re-reads the (now empty) field instead of trusting a stale copy.
+                    mLastSavedInputText = null;
+                    mLastSavedInputSession = null;
 
                     // What to do after sending depends on the single "Action on send"
                     // preference: do nothing, hide the input panel, or hide the keyboard
@@ -1591,16 +1741,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     }
 
-    private void saveTerminalToolbarTextInput(Bundle savedInstanceState) {
-        if (savedInstanceState == null) return;
-
-        final EditText textInputView = getTerminalToolbarTextInput();
-        if (textInputView != null) {
-            String textInput = textInputView.getText().toString();
-            if (!textInput.isEmpty()) savedInstanceState.putString(ARG_TERMINAL_TOOLBAR_TEXT_INPUT, textInput);
-        }
-    }
-
     /**
      * Save the current text input field content into the per-session map,
      * keyed by the current TerminalSession.mHandle.
@@ -1622,12 +1762,28 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final EditText textInputView = getTerminalToolbarTextInput();
         if (textInputView == null) return;
         if (mTiBoundSession != session) return;   // field shows another session — not ours to save
-        String text = textInputView.getText().toString();
-        mTextInputState.saveInput(session.mHandle, text);
+
         // The EditText keeps its selection even after losing focus, so getSelectionStart()
         // is valid regardless of focus — always record it, otherwise the caret jumps to
         // the end on re-open.
-        mTextInputState.setCaret(session.mHandle, textInputView.getSelectionStart());
+        final int caret = textInputView.getSelectionStart();
+
+        // The save is unconditional, but the COPY is not: onPause + onStop both snapshot the
+        // field, and getText().toString() duplicates the whole buffer (up to 32 K chars).
+        // When the field still holds exactly what we already stored for this session, only the
+        // caret can have moved — compare in place (TextUtils.equals walks charAt, no allocation)
+        // and skip the allocation. Worst case it degrades to the old unconditional save.
+        final CharSequence live = textInputView.getText();
+        if (session == mLastSavedInputSession && TextUtils.equals(mLastSavedInputText, live)) {
+            mTextInputState.setCaret(session.mHandle, caret);
+            return;
+        }
+
+        final String text = live.toString();
+        mTextInputState.saveInput(session.mHandle, text);
+        mTextInputState.setCaret(session.mHandle, caret);
+        mLastSavedInputText = text;
+        mLastSavedInputSession = session;
     }
 
     /**
@@ -1671,6 +1827,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public void clearTextInputForSession(@NonNull TerminalSession session) {
         if (mTiBoundSession == session) restoreTextInputForSession(null);
         mTextInputState.clear(session);
+        if (mLastSavedInputSession == session) {
+            mLastSavedInputText = null;
+            mLastSavedInputSession = null;
+        }
     }
 
     /**
@@ -2340,6 +2500,34 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public String getCurrentSessionCwd() {
         TerminalSession session = getCurrentSession();
         return session == null ? null : session.getCwd();
+    }
+
+    /**
+     * Resolve the current session's working directory OFF the UI thread (it is a filesystem readlink
+     * on /proc/&lt;pid&gt;/cwd) and deliver the result to {@code consumer} on the main thread (P3-2).
+     * Used during tab switches so the readlink never blocks a swipe/fling. The consumers — recent
+     * directories history and the per-directory message-history swap — tolerate the slight async
+     * delivery. If no session is active the consumer receives null on the main thread.
+     */
+    public void getCurrentSessionCwdAsync(java.util.function.Consumer<String> consumer) {
+        final TerminalSession session = getCurrentSession();
+        if (session == null) {
+            mSnapshotHandler.post(() -> consumer.accept(null));
+            return;
+        }
+        sCwdResolver.execute(() -> {
+            String cwd = null;
+            try {
+                cwd = session.getCwd();
+            } catch (Throwable ignored) {
+                // Process may have exited; fall back to null.
+            }
+            final String result = cwd;
+            mSnapshotHandler.post(() -> {
+                if (mIsInvalidState) return;
+                consumer.accept(result);
+            });
+        });
     }
 
     /** Load the persisted directory history from preferences (JSON array). */
@@ -3120,8 +3308,31 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return mSessionSnapshotManager;
     }
 
-    /** Persist the open tabs snapshot; delegates to {@link TermuxSessionSnapshotManager}. */
+    /**
+     * Persist the open tabs snapshot; delegates to {@link TermuxSessionSnapshotManager}.
+     * Debounced (P3-1): rapid structural updates (add/remove/rename) collapse into a single
+     * write ~400ms later, so closing N tabs in a row (e.g. the notification's Exit action, which
+     * kills sessions before onStop runs) costs one persist instead of N. Use
+     * {@link #saveSessionSnapshotNow()} when the process may be stopped immediately.
+     */
     public void saveSessionSnapshot() {
+        mSnapshotDirty = true;
+        mSnapshotHandler.removeCallbacks(mSaveSnapshotRunnable);
+        mSnapshotHandler.postDelayed(mSaveSnapshotRunnable, 400);
+    }
+
+    /**
+     * Persist the snapshot immediately, cancelling any pending debounced write. Used by
+     * onStop()/onPause() so the data is guaranteed on disk before the process can be killed in
+     * the background.
+     */
+    public void saveSessionSnapshotNow() {
+        mSnapshotHandler.removeCallbacks(mSaveSnapshotRunnable);
+        // Nothing changed since the debounced write landed — the on-disk snapshot is already
+        // current, so skip the N /proc readlinks entirely (onStop runs inside the window that
+        // QueuedWork.waitToFinish() blocks on the main thread).
+        if (!mSnapshotDirty) return;
+        mSnapshotDirty = false;
         mSessionSnapshotManager.saveSessionSnapshot();
     }
 

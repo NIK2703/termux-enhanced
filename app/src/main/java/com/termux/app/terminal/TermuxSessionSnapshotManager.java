@@ -38,6 +38,17 @@ public class TermuxSessionSnapshotManager {
     /** Owns the service binding, current session and properties we read from. */
     private final TermuxActivity mActivity;
 
+    /**
+     * Last JSON string this manager actually handed to {@link SharedPreferences}.
+     * <p>
+     * {@code SharedPreferences.Editor.apply()} always serialises the WHOLE preferences file,
+     * even when the value is identical, and on API 28+ {@code QueuedWork.waitToFinish()} blocks
+     * the UI thread in {@code onStop} until every queued write hits the disk. Remembering the
+     * last written value turns the common "background with nothing changed" case into a no-op
+     * (and it also skips the N {@code /proc/<pid>/cwd} readlinks that building the JSON costs).
+     */
+    private String mLastWrittenSnapshotJson;
+
     public TermuxSessionSnapshotManager(final TermuxActivity activity) {
         mActivity = activity;
     }
@@ -64,7 +75,11 @@ public class TermuxSessionSnapshotManager {
     public void saveSessionSnapshot() {
         final SharedPreferences prefs = getPrefs();
         if (!isRestoreSessionsEnabled()) {
-            prefs.edit().remove(PREF_SESSION_SNAPSHOT).apply();
+            // Only clear once: repeated removes would rewrite the file for nothing.
+            if (mLastWrittenSnapshotJson != null || prefs.contains(PREF_SESSION_SNAPSHOT)) {
+                prefs.edit().remove(PREF_SESSION_SNAPSHOT).apply();
+                mLastWrittenSnapshotJson = null;
+            }
             return;
         }
         TermuxService service = mActivity.getTermuxService();
@@ -106,10 +121,24 @@ public class TermuxSessionSnapshotManager {
             JSONObject snapshot = new JSONObject();
             snapshot.put("tabs", tabs);
             snapshot.put("active", activeIndex);
-            prefs.edit().putString(PREF_SESSION_SNAPSHOT, snapshot.toString()).apply();
+            final String json = snapshot.toString();
+            // Skip the write when the snapshot is byte-identical to what is already on disk:
+            // apply() would still serialise the entire termux_prefs file for nothing.
+            if (json.equals(mLastWrittenSnapshotJson)) return;
+            prefs.edit().putString(PREF_SESSION_SNAPSHOT, json).apply();
+            mLastWrittenSnapshotJson = json;
         } catch (JSONException e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to persist session snapshot", e);
         }
+    }
+
+    /**
+     * Forget the "already written" memo so the next {@link #saveSessionSnapshot()} really writes.
+     * Called after a restore, so a rebuilt session list is never skipped as unchanged, and on
+     * activity (re)creation, where the in-memory memo must not outlive the object it describes.
+     */
+    public void invalidateWrittenSnapshotMemo() {
+        mLastWrittenSnapshotJson = null;
     }
 
     /**
@@ -125,6 +154,10 @@ public class TermuxSessionSnapshotManager {
 
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return false;
+
+        // Sessions are about to be rebuilt from the snapshot — the memo now describes a session
+        // list that no longer exists, so the next save must really write.
+        invalidateWrittenSnapshotMemo();
 
         TermuxAppSharedProperties properties = mActivity.getProperties();
         TermuxTerminalSessionActivityClient sessionClient = mActivity.getTermuxTerminalSessionClient();

@@ -45,6 +45,9 @@ public final class TermuxActivityPopupController {
 
         // History / directory sync
         void onHistoryDirectoryChanged();
+        /** Overload taking an already-resolved CWD, so the caller can avoid a
+         *  second /proc readlink when it already resolved one. */
+        void onHistoryDirectoryChanged(@Nullable String resolvedCwd);
 
         // Keep-screen-on preference bridge
         boolean isKeepScreenOn();
@@ -70,6 +73,12 @@ public final class TermuxActivityPopupController {
     /** Reused per-highlight / per-frame location buffer (avoids int[2] churn). */
     private final int[] mTmpLoc = new int[2];
     private int mHistoryHighlightIndex = -1;
+    /** The currently highlighted row view (null when none), so a highlight change
+     *  repaints only the two affected rows instead of the whole list (P1). */
+    @Nullable private View mActiveHighlightView = null;
+    /** Precomputed outline radius (dpToPx once) reused by the rounded-corner
+     *  ViewOutlineProvider (P2 — getOutline runs on every resize). */
+    private final int mOutlineRadiusPx;
 
     // Dependencies injected by the host activity (mirrors TermuxActivity fields).
     @Nullable private MessageHistoryController mMessageHistoryCtrl = null;
@@ -109,6 +118,7 @@ public final class TermuxActivityPopupController {
         mContext = context;
         mHost = host;
         mColorSchemeManager = colorSchemeManager;
+        mOutlineRadiusPx = TermuxActivityUtils.dpToPx(mContext, 12);
     }
 
     public void setMessageHistoryController(@Nullable MessageHistoryController controller) {
@@ -126,9 +136,11 @@ public final class TermuxActivityPopupController {
         // callback was missed). Without this, the popup would show the
         // previous directory's history until the user sends a message.
         if (mMessageHistoryCtrl != null && mMessageHistoryCtrl.isPerDirectoryEnabled()) {
+            // P2: resolve the CWD once and pass it straight through, so the host
+            // does not pay a SECOND /proc readlink inside onHistoryDirectoryChanged().
             String cwd = mHost.getCurrentCwdForHistory();
             if (!cwd.equals(mMessageHistoryCtrl.getHistoryCurrentDirectory())) {
-                mHost.onHistoryDirectoryChanged();
+                mHost.onHistoryDirectoryChanged(cwd);
             }
         }
 
@@ -196,8 +208,18 @@ public final class TermuxActivityPopupController {
                 final String message = mMessageHistoryCtrl.getHistoryList().get(i);
                 TextView tv = new TextView(mContext);
                 // Preview: collapse newlines to spaces, wrap to at most 2 lines and add
-                // an ellipsis when the message is longer than that.
-                tv.setText(message.replace("\n", " ").trim());
+                // an ellipsis when the message is longer than that. P2: only allocate the
+                // replacement strings when the message actually contains a newline or
+                // leading/trailing whitespace (the common case — a single-line command —
+                // needs no allocation).
+                String display = message;
+                if (message.indexOf('\n') >= 0) display = message.replace("\n", " ");
+                if (display.length() == 0
+                        || display.charAt(0) <= ' '
+                        || display.charAt(display.length() - 1) <= ' ') {
+                    display = display.trim();
+                }
+                tv.setText(display);
                 tv.setMaxLines(2);
                 tv.setEllipsize(TextUtils.TruncateAt.END);
                 tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
@@ -268,7 +290,7 @@ public final class TermuxActivityPopupController {
                     int w = view.getWidth();
                     int h = view.getHeight();
                     if (w > 0 && h > 0) {
-                        outline.setRoundRect(0, 0, w, h, TermuxActivityUtils.dpToPx(mContext, 12));
+                        outline.setRoundRect(0, 0, w, h, mOutlineRadiusPx);
                     }
                 }
             });
@@ -313,27 +335,25 @@ public final class TermuxActivityPopupController {
         mHistoryPopup.setTouchable(false);
         mHistoryPopup.setFocusable(false);
 
-        // Anchor above the button, right-aligned to it.
-        mHistoryPopup.showAsDropDown(anchor, 0, 0, Gravity.START);
-        // Reposition to sit ABOVE the anchor instead of below: measure content
-        // then offset upward. showAsDropDown places below, so we shift up here.
+        // Bounded box: min(content, configured max, room above the button).
+        // Gap between the button's top and the popup's bottom edge.
+        int popupGap = mContext.getResources().getDimensionPixelSize(R.dimen.message_history_popup_gap);
+        int[] anchorLoc = new int[2];
+        anchor.getLocationOnScreen(anchorLoc);
+        // P1: measure the content FIRST so we know its height before showing.
+        // That lets us position the popup ABOVE the anchor in a single window
+        // transaction instead of showAsDropDown(below) + update(above), which
+        // flashed one frame in the wrong place and cost a second IPC/re-layout.
         content.measure(
                 View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int contentHeight = content.getMeasuredHeight();
-        // Bounded box: min(content, configured max, room above the button).
-        int[] anchorLoc = new int[2];
-        anchor.getLocationOnScreen(anchorLoc);
-        // Gap between the button's top and the popup's bottom edge.
-        int popupGap = mContext.getResources().getDimensionPixelSize(R.dimen.message_history_popup_gap);
         int roomAbove = Math.max(TermuxActivityUtils.dpToPx(mContext, 48), anchorLoc[1] - TermuxActivityUtils.dpToPx(mContext, 8) - popupGap);
         int maxHeight = Math.min(mContext.getResources().getDimensionPixelSize(R.dimen.message_history_popup_max_height), roomAbove);
         int popupHeight = Math.min(contentHeight, maxHeight);
-        mHistoryPopup.update(anchor,
-                0,
-                -(anchor.getHeight() + popupHeight + popupGap),
-                popupWidth,
-                popupHeight);
+        mHistoryPopup.setHeight(popupHeight);
+        // Anchor above the button (right-aligned), in one transaction.
+        mHistoryPopup.showAsDropDown(anchor, 0, -(anchor.getHeight() + popupHeight + popupGap), Gravity.START);
 
         // Open at the END of the list: newest is at the bottom, so start scrolled
         // fully down so the newest messages (nearest the button) are visible.
@@ -376,29 +396,47 @@ public final class TermuxActivityPopupController {
         // itself. Calling this on every ACTION_MOVE must NOT spawn extra loops.
         startHistoryAutoScroll();
 
+        // P1 hit-test: one getLocationOnScreen for the whole scroll container, then
+        // derive each row's screen rect from its cached getTop()/getLeft() and the
+        // scroll offset — instead of walking the view hierarchy per row (up to
+        // ~12 000 hierarchy traversals/sec at 100 rows × 120 Hz).
         int newIndex = -1;
+        View newView = null;
         int[] loc = mTmpLoc;
-        for (View tv : mHistoryItemViews) {
-            tv.getLocationOnScreen(loc);
-            if (rawX >= loc[0] && rawX <= loc[0] + tv.getWidth()
-                    && rawY >= loc[1] && rawY <= loc[1] + tv.getHeight()) {
-                Object tag = tv.getTag();
-                if (tag instanceof Integer) newIndex = (Integer) tag;
-                break;
+        mHistoryScroll.getLocationOnScreen(loc);
+        final int scrollTop = loc[1] - mHistoryScroll.getScrollY();
+        final int scrollLeft = loc[0] - mHistoryScroll.getScrollX();
+        final int scrollBottom = loc[1] + mHistoryScroll.getHeight();
+        if (rawY >= scrollTop && rawY <= scrollBottom) {
+            for (View tv : mHistoryItemViews) {
+                int tvTop = scrollTop + tv.getTop();
+                int tvBottom = tvTop + tv.getHeight();
+                int tvLeft = scrollLeft + tv.getLeft();
+                int tvRight = tvLeft + tv.getWidth();
+                if (rawX >= tvLeft && rawX <= tvRight
+                        && rawY >= tvTop && rawY <= tvBottom) {
+                    Object tag = tv.getTag();
+                    if (tag instanceof Integer) {
+                        newIndex = (Integer) tag;
+                        newView = tv;
+                    }
+                    break;
+                }
             }
         }
         if (newIndex == mHistoryHighlightIndex) return;
-        mHistoryHighlightIndex = newIndex;
 
-        for (View tv : mHistoryItemViews) {
-            Object tag = tv.getTag();
-            boolean active = tag instanceof Integer && (Integer) tag == mHistoryHighlightIndex;
-            if (active) {
-                tv.setBackgroundColor(mColorSchemeManager.getHistoryHighlightFill());
-            } else {
-                tv.setBackgroundColor(Color.TRANSPARENT);
-            }
+        // P1 repaint: touch only the previously-active and now-active rows, not
+        // the entire list, so a drag repaint is O(1) rather than O(N) invalidates.
+        if (mActiveHighlightView != null) {
+            mActiveHighlightView.setBackgroundColor(Color.TRANSPARENT);
+            mActiveHighlightView = null;
         }
+        if (newView != null) {
+            newView.setBackgroundColor(mColorSchemeManager.getHistoryHighlightFill());
+            mActiveHighlightView = newView;
+        }
+        mHistoryHighlightIndex = newIndex;
     }
 
     /**
@@ -478,6 +516,7 @@ public final class TermuxActivityPopupController {
         mHistoryFingerY = 0f;
         mHistoryLastScrollTimeMs = 0;
         mHistoryHighlightIndex = -1;
+        mActiveHighlightView = null;
     }
 
     /**

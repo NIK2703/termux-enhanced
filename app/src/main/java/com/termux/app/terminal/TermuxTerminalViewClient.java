@@ -689,8 +689,11 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // Set flag to automatically push up TerminalView when keyboard is opened instead of showing over it
             KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
 
-            // Clear any previous flags to disable soft keyboard in case setting updated
-            KeyboardUtils.clearDisableSoftKeyboardFlags(mActivity);
+            // Clear any previous flags to disable soft keyboard in case setting updated.
+            // Guarded: Window.clearFlags() dispatches the window attributes to the window manager
+            // even when the bit is already clear, and this runs on every single resume.
+            if (KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity))
+                KeyboardUtils.clearDisableSoftKeyboardFlags(mActivity);
 
             // If soft keyboard is to be hidden on startup. Applies ONLY to a true cold start
             // (first resume after onCreate, not a recreate): on resume-from-background /

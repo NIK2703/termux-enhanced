@@ -1,6 +1,7 @@
 package com.termux.app.terminal;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.view.View;
@@ -121,6 +122,25 @@ public class TermuxActivityRootView extends LinearLayout implements ViewTreeObse
      */
     private int mPendingMargin = MEASUREMENT_INVALID;
 
+    /**
+     * Reusable measurement buffers. {@link ViewUtils#getWindowAndViewRects} is called from
+     * {@link #onGlobalLayout()}, i.e. on every layout pass while the IME animates, so the four
+     * objects it used to allocate per call (two {@link Rect}s, the {@code int[2]} location scratch
+     * and the returned array) were pure per-frame garbage.
+     */
+    private final Rect mWindowAvailableRect = new Rect();
+    private final Rect mBottomSpaceViewRect = new Rect();
+    private final int[] mLocationScratch = new int[2];
+    /** Scratch for the decor-view location read in {@link #isMeasurementPlausible}. */
+    private final int[] mDecorLocationScratch = new int[2];
+
+    /**
+     * Cached display orientation for {@link ViewUtils#getWindowAndViewRects}. Resolving it costs a
+     * {@code WindowMetricsCalculator} round-trip per call; the orientation only changes on a
+     * configuration change, which resets this to {@link Configuration#ORIENTATION_UNDEFINED}.
+     */
+    private int mDisplayOrientation = Configuration.ORIENTATION_UNDEFINED;
+
     private final Runnable mConfirmPendingMarginRunnable = new Runnable() {
         @Override
         public void run() {
@@ -235,6 +255,24 @@ public class TermuxActivityRootView extends LinearLayout implements ViewTreeObse
     }
 
     /**
+     * Current display orientation, resolved once and cached until a configuration change.
+     * Passed to {@link ViewUtils#getWindowAndViewRects} so the per-frame measurement does not pay
+     * for a {@code WindowMetricsCalculator} query.
+     */
+    private int resolveDisplayOrientation(View view) {
+        if (mDisplayOrientation == Configuration.ORIENTATION_UNDEFINED)
+            mDisplayOrientation = ViewUtils.getDisplayOrientation(view.getContext());
+        return mDisplayOrientation;
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // The cached orientation (and any lazily loaded dimen) may no longer hold.
+        mDisplayOrientation = Configuration.ORIENTATION_UNDEFINED;
+    }
+
+    /**
      * Measure the bottom margin this view should currently have.
      *
      * @param currentMargin The bottom margin that is currently applied.
@@ -246,13 +284,15 @@ public class TermuxActivityRootView extends LinearLayout implements ViewTreeObse
         View bottomSpaceView = mActivity.getTermuxActivityBottomSpaceView();
         if (bottomSpaceView == null) return MEASUREMENT_INVALID;
 
-        // Get the position Rects of the bottom space view and the main window holding it
-        Rect[] windowAndViewRects = ViewUtils.getWindowAndViewRects(bottomSpaceView, mStatusBarHeight);
-        if (windowAndViewRects == null)
+        // Get the position Rects of the bottom space view and the main window holding it,
+        // into reusable buffers (this runs on every layout pass).
+        if (!ViewUtils.getWindowAndViewRects(bottomSpaceView, mStatusBarHeight,
+                resolveDisplayOrientation(bottomSpaceView),
+                mWindowAvailableRect, mBottomSpaceViewRect, mLocationScratch))
             return MEASUREMENT_INVALID;
 
-        Rect windowAvailableRect = windowAndViewRects[0];
-        Rect bottomSpaceViewRect = windowAndViewRects[1];
+        Rect windowAvailableRect = mWindowAvailableRect;
+        Rect bottomSpaceViewRect = mBottomSpaceViewRect;
 
         ensureTolerancesLoaded();
 
@@ -313,9 +353,8 @@ public class TermuxActivityRootView extends LinearLayout implements ViewTreeObse
         View decor = getRootView();
         if (decor == null) return true;
 
-        int[] decorLocation = new int[2];
-        decor.getLocationOnScreen(decorLocation);
-        int decorBottom = decorLocation[1] + decor.getHeight();
+        decor.getLocationOnScreen(mDecorLocationScratch);
+        int decorBottom = mDecorLocationScratch[1] + decor.getHeight();
         if (decorBottom <= 0) return true;
 
         int slack = mLayoutTolerancePx + mCandidatesSlackPx;

@@ -51,8 +51,23 @@ public class TermuxSessionTabsController {
     /** Whether the trailing placeholder page is currently present (for tab-strip blending). */
     private boolean mPlaceholderActive = false;
 
-    /** Animator that smoothly follows the active tab as its label changes. */
-    private android.animation.ValueAnimator mFollowAnim = null;
+    /** Backing preference store for the tab-strip settings (tab height mode). */
+    private final android.content.SharedPreferences mPrefs;
+
+    /**
+     * Cached, resolved metrics + preference values. Read through {@link #ensureDimens()} so a
+     * title refresh no longer hits SharedPreferences twice (and {@code getDimension()} four
+     * times) per tab per frame — with 8 tabs at 10-30 Hz that was ~500 synchronized SP reads
+     * and ~1000 resource lookups per second for values that essentially never change.
+     * Invalidated by {@link #invalidateDimens()} (tab-height mode change / styling reload).
+     */
+    private boolean mDimensCached = false;
+    private boolean mSingleLineMode = true;
+    private int mTabHeightPx = 0;
+    private int mPadStartPx = 0;
+    private int mCloseGapPx = 0;
+    private int mTitleMaxWidthPx = 0;
+    private float mTabCornerRadiusPx = 0f;
 
     /**
      * Cached per-tab render state (stored as the {@link R.id#session_tab_render_state_tag}
@@ -60,8 +75,14 @@ public class TermuxSessionTabsController {
      * only when it actually changed. This is what turns a 10-30 Hz OSC title animation from
      * a full measure/layout/StaticLayout/drawable-allocation storm per frame into a handful
      * of tag reads for the unchanged tabs and one setText for the animated one.
+     *
+     * <p>It also carries the tab's child views and its background drawable so the hot paths
+     * ({@code onPageScrolled}, {@code applySchemeColorsToTabs}) never walk the view tree or
+     * allocate a fresh {@link GradientDrawable} per frame.
      */
     private static final class TabRenderState {
+        final TextView titleView;           // resolved once — never findViewById again
+        final ImageButton closeButton;      // resolved once — never findViewById again
         TerminalSession session;   // session the click listeners are currently bound to
         CharSequence title;        // last title applied to the TextView
         int maxLines = -1;
@@ -75,6 +96,52 @@ public class TermuxSessionTabsController {
         boolean running = true;
         int exitStatus;
         boolean errorColor;
+        int textColorApplied = 0;  // last scheme text colour applied (drives the colour diff)
+        GradientDrawable bgDrawable; // reused background — mutated, never reallocated
+
+        TabRenderState(View tabView) {
+            titleView = tabView.findViewById(R.id.session_tab_title);
+            closeButton = tabView.findViewById(R.id.session_tab_close);
+        }
+    }
+
+    /**
+     * @return the render state for {@code tabView}, creating (and view-resolving) it on first use.
+     */
+    @androidx.annotation.NonNull
+    private TabRenderState getRenderState(@androidx.annotation.NonNull View tabView) {
+        TabRenderState state = (TabRenderState) tabView.getTag(R.id.session_tab_render_state_tag);
+        if (state == null) {
+            state = new TabRenderState(tabView);
+            tabView.setTag(R.id.session_tab_render_state_tag, state);
+        }
+        return state;
+    }
+
+    /** Resolve and cache the strip metrics / preference values. Cheap no-op after the first call. */
+    private void ensureDimens() {
+        if (mDimensCached) return;
+        mDimensCached = true;
+        mSingleLineMode = !"double".equals(mPrefs.getString("tab_height_mode", "single"));
+        android.content.res.Resources r = mActivity.getResources();
+        mTabHeightPx = Math.round(r.getDimension(mSingleLineMode
+                ? R.dimen.terminal_tab_height_single
+                : R.dimen.terminal_tab_height_double));
+        mPadStartPx = Math.round(r.getDimension(mSingleLineMode
+                ? R.dimen.terminal_tab_padding_start_single
+                : R.dimen.terminal_tab_padding_start_double));
+        mCloseGapPx = Math.round(r.getDimension(R.dimen.terminal_tab_close_gap));
+        mTitleMaxWidthPx = Math.round(r.getDimension(R.dimen.terminal_tab_title_max_width));
+        mTabCornerRadiusPx = r.getDimension(R.dimen.terminal_tab_corner_radius);
+    }
+
+    /**
+     * Drop the cached strip metrics so the next {@link #ensureDimens()} re-reads the tab-height
+     * preference and the resources. Call when the tab-height mode changes or the activity
+     * styling is reloaded.
+     */
+    public void invalidateDimens() {
+        mDimensCached = false;
     }
 
     /**
@@ -92,6 +159,7 @@ public class TermuxSessionTabsController {
 
     public TermuxSessionTabsController(TermuxActivity activity) {
         this.mActivity = activity;
+        this.mPrefs = activity.getSharedPreferences("termux_prefs", android.content.Context.MODE_PRIVATE);
         this.mTabsContainer = activity.findViewById(R.id.session_tabs);
         this.mTabsScroll = activity.findViewById(R.id.session_tabs_scroll);
 
@@ -124,44 +192,28 @@ public class TermuxSessionTabsController {
         return mTabsContainer.getChildAt(index);
     }
 
-    /** Returns tab height in pixels based on the user's tab-height preference. */
-    private int getTabHeightPx() {
-        String mode = mActivity.getSharedPreferences("termux_prefs", android.content.Context.MODE_PRIVATE)
-                .getString("tab_height_mode", "single");
-        int dimenId = "double".equals(mode)
-                ? R.dimen.terminal_tab_height_double
-                : R.dimen.terminal_tab_height_single;
-        return Math.round(mActivity.getResources().getDimension(dimenId));
-    }
-
-    /** Whether the tab title should be limited to one line. */
-    private boolean isSingleLineMode() {
-        return !"double".equals(mActivity.getSharedPreferences("termux_prefs",
-                android.content.Context.MODE_PRIVATE).getString("tab_height_mode", "single"));
-    }
-
     /** Re-apply height, max-lines and start padding to all existing tab views. */
     public void applyTabHeightMode() {
         if (mTabsContainer == null) return;
-        int heightPx = getTabHeightPx();
-        boolean singleLine = isSingleLineMode();
-        int padStartDimenId = singleLine
-                ? R.dimen.terminal_tab_padding_start_single
-                : R.dimen.terminal_tab_padding_start_double;
-        int padStartPx = Math.round(mActivity.getResources().getDimension(padStartDimenId));
-        for (int i = 0; i < getTabCount(); i++) {
+        // The tab-height preference just changed — the cached metrics are stale.
+        invalidateDimens();
+        ensureDimens();
+        final int heightPx = mTabHeightPx;
+        final boolean singleLine = mSingleLineMode;
+        final int padStartPx = mPadStartPx;
+        for (int i = 0, n = getTabCount(); i < n; i++) {
             View tabView = getTabAt(i);
+            if (tabView == null) continue;
             ViewGroup.LayoutParams lp = tabView.getLayoutParams();
+            if (lp == null) continue;
             lp.height = heightPx;
             tabView.setLayoutParams(lp);
             tabView.setPadding(padStartPx,
                     tabView.getPaddingTop(),
                     tabView.getPaddingRight(),
                     tabView.getPaddingBottom());
-            TextView title = tabView.findViewById(R.id.session_tab_title);
-            if (title != null) {
-                title.setMaxLines(singleLine ? 1 : 2);
-            }
+            TabRenderState state = getRenderState(tabView);
+            if (state.titleView != null) state.titleView.setMaxLines(singleLine ? 1 : 2);
         }
         // The populateTabView diff cache holds values applied under the previous height/mode;
         // drop it so the next refresh re-applies every attribute with the new settings.
@@ -205,7 +257,8 @@ public class TermuxSessionTabsController {
         // This covers the equal-count case (no structural change) and also syncs the
         // newly-added tabs above. No removeAllViews(), so the HorizontalScrollView keeps
         // its current scrollX. Skips the add button (last child).
-        for (int i = 0; i < mTabsContainer.getChildCount() - 1 && i < newCount; i++) {
+        final int tabChildCount = mTabsContainer.getChildCount() - 1;
+        for (int i = 0; i < tabChildCount && i < newCount; i++) {
             TermuxSession termuxSession = sessions.get(i);
             View tabView = mTabsContainer.getChildAt(i);
             // Never disturb a tab playing its close animation.
@@ -277,7 +330,9 @@ public class TermuxSessionTabsController {
             }
         }
         if (currentSessionIndex >= 0) mCurrentSessionIndex = currentSessionIndex;
-        for (int i = 0; i < getTabCount() && i < sessions.size(); i++) {
+        final int tabCount = getTabCount();
+        final int sessionCount = sessions.size();
+        for (int i = 0; i < tabCount && i < sessionCount; i++) {
             View tabView = getTabAt(i);
             if (tabView == null) continue;
             // Never disturb a tab playing its close animation.
@@ -342,8 +397,9 @@ public class TermuxSessionTabsController {
         View tabView = inflater.inflate(R.layout.item_session_tab, mTabsContainer, false);
 
         // Apply the configured tab height (compact single-line vs tall two-line).
+        ensureDimens();
         ViewGroup.LayoutParams lp = tabView.getLayoutParams();
-        lp.height = getTabHeightPx();
+        lp.height = mTabHeightPx;
         tabView.setLayoutParams(lp);
 
         // Populate text, colors, selection state and (re)bind click listeners.
@@ -369,16 +425,17 @@ public class TermuxSessionTabsController {
      * the (dead) session that was at this position when the view was <em>created</em>.</p>
      */
     private void populateTabView(View tabView, TermuxSession termuxSession, int position, boolean isSelected) {
-        TextView titleView = tabView.findViewById(R.id.session_tab_title);
-        ImageButton closeButton = tabView.findViewById(R.id.session_tab_close);
-        if (titleView == null) return;
-
+        ensureDimens();
         TabRenderState state = (TabRenderState) tabView.getTag(R.id.session_tab_render_state_tag);
         final boolean freshState = (state == null);
         if (freshState) {
-            state = new TabRenderState();
+            state = new TabRenderState(tabView);
             tabView.setTag(R.id.session_tab_render_state_tag, state);
         }
+        // Resolved once, in the TabRenderState constructor — never findViewById again.
+        final TextView titleView = state.titleView;
+        final ImageButton closeButton = state.closeButton;
+        if (titleView == null) return;
 
         TerminalSession terminalSession = termuxSession.getTerminalSession();
 
@@ -414,7 +471,7 @@ public class TermuxSessionTabsController {
         // Max lines (single-line or two-line mode): apply only on change — setMaxLines()
         // requests a relayout unconditionally.
         boolean linesChanged = false;
-        int desiredMaxLines = isSingleLineMode() ? 1 : 2;
+        int desiredMaxLines = mSingleLineMode ? 1 : 2;
         if (state.maxLines != desiredMaxLines) {
             state.maxLines = desiredMaxLines;
             titleView.setMaxLines(desiredMaxLines);
@@ -424,9 +481,7 @@ public class TermuxSessionTabsController {
         // Start padding: apply only on change — View.setPadding() requests a relayout
         // unconditionally. Tighter for single-line (compact) tabs; the XML default (12dp)
         // applies to double-line tabs so the title has room for two lines.
-        int desiredPadStart = Math.round(mActivity.getResources().getDimension(isSingleLineMode()
-                ? R.dimen.terminal_tab_padding_start_single
-                : R.dimen.terminal_tab_padding_start_double));
+        int desiredPadStart = mPadStartPx;
         if (state.padStart != desiredPadStart) {
             state.padStart = desiredPadStart;
             tabView.setPadding(desiredPadStart, tabView.getPaddingTop(),
@@ -453,10 +508,8 @@ public class TermuxSessionTabsController {
             // only when the text (or the line mode) changed; maxWidth/margin are applied only
             // when the truncation DECISION flips.
             if (closeButton != null) {
-                int gapPx = Math.round(mActivity.getResources()
-                        .getDimension(R.dimen.terminal_tab_close_gap));
-                int baseMaxWidthPx = Math.round(mActivity.getResources()
-                        .getDimension(R.dimen.terminal_tab_title_max_width));
+                final int gapPx = mCloseGapPx;
+                final int baseMaxWidthPx = mTitleMaxWidthPx;
                 if (titleChanged || linesChanged || state.maxWidthApplied < 0) {
                     state.truncated = isTitleTruncated(titleView, displayTitle, baseMaxWidthPx);
                 }
@@ -480,11 +533,16 @@ public class TermuxSessionTabsController {
             int exitStatus = terminalSession.getExitStatus();
             boolean isErrorTab = !sessionRunning && exitStatus != 0;
             tabView.setTag(R.id.session_tab_error_tag, isErrorTab);
+            // The colour also depends on the scheme's text colour, so a scheme change must be
+            // part of the diff — otherwise the (no longer invalidated) cache would keep the
+            // previous scheme's colour forever.
             if (freshState || state.running != sessionRunning
-                    || state.exitStatus != exitStatus || state.errorColor != isErrorTab) {
+                    || state.exitStatus != exitStatus || state.errorColor != isErrorTab
+                    || state.textColorApplied != mSchemeTextColor) {
                 state.running = sessionRunning;
                 state.exitStatus = exitStatus;
                 state.errorColor = isErrorTab;
+                state.textColorApplied = mSchemeTextColor;
                 // Red for finished-with-error sessions, otherwise scheme foreground.
                 if (isErrorTab) {
                     int errorColor = androidx.core.content.ContextCompat.getColor(
@@ -540,6 +598,11 @@ public class TermuxSessionTabsController {
     private boolean isTitleTruncated(TextView tv, String text, int maxWidthPx) {
         if (text == null || text.isEmpty()) return false;
         if (maxWidthPx <= 0) return false;
+        // Fast reject: if the whole string already fits on a single line within maxWidth it can
+        // neither wrap nor be ellipsized, so skip the comparatively expensive StaticLayout
+        // measurement. Short titles ("bash", "vim", "~") — the overwhelming majority — take
+        // this path, which is what keeps a 10-30 Hz OSC title animation off the layout path.
+        if (tv.getPaint().measureText(text) <= maxWidthPx) return false;
         int maxLines = tv.getMaxLines();
         if (maxLines <= 0) maxLines = Integer.MAX_VALUE;
         android.text.StaticLayout layout = new android.text.StaticLayout(
@@ -693,7 +756,6 @@ public class TermuxSessionTabsController {
     // (updateTabs with no size change) must NOT recentre the strip, otherwise the shell's OSC
     // title update would yank the strip back from the right end ~200ms after the add.
     private boolean mEndScrollActive = false;
-    private int mPageScrollSuppressed = 0;
 
     // Monotonic sequence guard: an END request always outranks a CENTRE request regardless of the
     // order in which they are posted to the looper. mScrollSeqPending is the sequence of the
@@ -935,55 +997,6 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Smoothly scroll (or jump, if {@code animate} is false) so the active tab is centred in the
-     * strip. This runs whenever the strip width changes (a tab added/removed, or its label grew/
-     * shrank), keeping the active tab centred as the layout settles. The target is clamped to the
-     * live HSV scroll range so it never overshoots; the move is skipped only when the target
-     * already equals the current scroll position (nothing to do).
-     */
-    public void ensureActiveTabVisible(boolean animate) {
-        if (mTabsContainer == null || mTabsScroll == null) return;
-        final int idx = mCurrentSessionIndex;
-        if (idx < 0 || idx >= mTabsContainer.getChildCount() - 1) return;
-        final View tabView = mTabsContainer.getChildAt(idx);
-        if (tabView == null) return;
-
-        final int scrollW = mTabsScroll.getWidth();
-        final int maxScroll = Math.max(0, mTabsContainer.getMeasuredWidth() - scrollW);
-        final int scrollX = mTabsScroll.getScrollX();
-
-        int target = tabView.getLeft() - scrollW / 2 + tabView.getWidth() / 2;
-        if (target < 0) target = 0;
-        if (target > maxScroll) target = maxScroll;
-
-        if (mFollowAnim != null) {
-            mFollowAnim.cancel();
-            mFollowAnim = null;
-        }
-        if (!animate || target == scrollX) {
-            mTabsScroll.scrollTo(target, 0);
-            return;
-        }
-        final int fromX = scrollX;
-        mFollowAnim = android.animation.ValueAnimator.ofInt(fromX, target);
-        mFollowAnim.setDuration(250);
-        mFollowAnim.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
-        mFollowAnim.addUpdateListener(anim ->
-                mTabsScroll.scrollTo((int) anim.getAnimatedValue(), 0));
-        mFollowAnim.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
-                mFollowAnim = null;
-            }
-            @Override
-            public void onAnimationCancel(android.animation.Animator animation) {
-                mFollowAnim = null;
-            }
-        });
-        mFollowAnim.start();
-    }
-
-    /**
      * Re-apply the terminal color scheme to every existing tab view: text/close-icon color and a
      * translucent background matching the signal panel. Called from
      * {@code TermuxTerminalSessionActivityClient.applyPanelColors()} whenever the scheme changes.
@@ -1001,27 +1014,34 @@ public class TermuxSessionTabsController {
 
         if (mTabsContainer == null) return;
         Boolean errorTag = Boolean.TRUE;
-        for (int i = 0; i < getTabCount(); i++) {
+        for (int i = 0, n = getTabCount(); i < n; i++) {
             View tabView = getTabAt(i);
-            TextView title = tabView.findViewById(R.id.session_tab_title);
-            ImageButton close = tabView.findViewById(R.id.session_tab_close);
+            if (tabView == null) continue;
+            TabRenderState state = getRenderState(tabView);
             // Error (finished-with-exit) tabs keep their red color; normal tabs use the scheme fg.
-            if (title != null && !errorTag.equals(tabView.getTag(R.id.session_tab_error_tag))) {
-                title.setTextColor(textColor);
+            if (state.titleView != null && !errorTag.equals(tabView.getTag(R.id.session_tab_error_tag))) {
+                state.titleView.setTextColor(textColor);
             }
-            if (close != null) {
-                close.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_ATOP);
+            if (state.closeButton != null) {
+                state.closeButton.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_ATOP);
             }
-            setTabBackground(tabView, tabView.isSelected() ? bgActive : bg);
+            final boolean selected = tabView.isSelected();
+            final int desiredBg = selected ? bgActive : bg;
+            setTabBackground(tabView, desiredBg);
+            // Keep the diff cache in sync with what we just painted INSTEAD of dropping it.
+            // This method runs on every session switch (via applyPanelColors); invalidating the
+            // cache here used to throw away the whole TabRenderState diff, so the very next
+            // refresh re-applied every attribute (setMaxLines/setPadding/setText/setMaxWidth/
+            // setLayoutParams/setTextColor/... → full relayout of every tab).
+            state.bgColor = desiredBg;
+            state.bgValid = true;
+            state.textColorApplied = textColor;
+            state.selected = selected;
         }
 
         // Give the (+) add button (last child, excluded from the loop above) its scheme
         // background while preserving the press/swipe active-state visual.
         applyAddButtonSchemeBackground();
-
-        // The populateTabView diff cache holds colours applied under the previous scheme;
-        // drop it so the next refresh re-applies every attribute with the new colours.
-        invalidateRenderStateCache();
     }
 
     /** Tell the controller whether the trailing placeholder page is present, so an in-progress
@@ -1050,16 +1070,21 @@ public class TermuxSessionTabsController {
 
     private void applyTabSelectionState(int index) {
         if (mTabsContainer == null) return;
-        for (int i = 0; i < getTabCount(); i++) {
+        for (int i = 0, n = getTabCount(); i < n; i++) {
             View child = getTabAt(i);
+            if (child == null) continue;
+            TabRenderState state = getRenderState(child);
             boolean isSelected = (i == index);
             child.setSelected(isSelected);
             if (mSchemeApplied) {
-                setTabBackground(child, isSelected ? mSchemeBgActive : mSchemeBg);
+                int desiredBg = isSelected ? mSchemeBgActive : mSchemeBg;
+                setTabBackground(child, desiredBg);
+                state.bgColor = desiredBg;
+                state.bgValid = true;
             }
-            ImageButton closeButton = child.findViewById(R.id.session_tab_close);
-            if (closeButton != null) {
-                closeButton.setVisibility(isSelected ? View.VISIBLE : View.INVISIBLE);
+            state.selected = isSelected;
+            if (state.closeButton != null) {
+                state.closeButton.setVisibility(isSelected ? View.VISIBLE : View.INVISIBLE);
             }
         }
         applyAddButtonSchemeBackground();
@@ -1101,12 +1126,8 @@ public class TermuxSessionTabsController {
     public void onPageScrolled(int position, float positionOffset) {
         if (mTabsContainer == null || mTabsScroll == null) return;
         if (!mSchemeApplied) return;
-        if (mEndScrollActive) {
-            // Suppressed while end-scroll owns the strip — log once per active window via counter.
-            mPageScrollSuppressed++;
-            return;
-        }
-        mPageScrollSuppressed = 0;
+        // Suppressed while the end-scroll owns the strip (a freshly added tab).
+        if (mEndScrollActive) return;
 
         int leftIdx = position;
         int rightIdx = position + 1;
@@ -1144,8 +1165,8 @@ public class TermuxSessionTabsController {
         setTabBackground(rightTab, blendedRight);
 
         // 3. Show the close button on whichever tab the user is closer to.
-        ImageButton leftClose = leftTab.findViewById(R.id.session_tab_close);
-        ImageButton rightClose = rightTab.findViewById(R.id.session_tab_close);
+        ImageButton leftClose = getRenderState(leftTab).closeButton;
+        ImageButton rightClose = getRenderState(rightTab).closeButton;
         boolean closerToLeft = positionOffset < 0.5f;
         if (leftClose != null) leftClose.setVisibility(closerToLeft ? View.VISIBLE : View.INVISIBLE);
         if (rightClose != null) rightClose.setVisibility(closerToLeft ? View.INVISIBLE : View.VISIBLE);
@@ -1187,8 +1208,21 @@ public class TermuxSessionTabsController {
      * replacing it with a flat state-less rectangle. No stroke — the idle and active states
      * differ by fill only.
      */
+    /** Cached (+) button drawable: rebuilt only when the scheme colours actually change. */
+    private StateListDrawable mAddButtonDrawable = null;
+    private int mAddButtonBg = 0;
+    private int mAddButtonBgActive = 0;
+    private boolean mAddButtonBgValid = false;
+
     private void setAddButtonBackground(View view) {
-        view.setBackground(buildOvalStateListDrawable());
+        if (!mAddButtonBgValid || mAddButtonDrawable == null
+                || mAddButtonBg != mSchemeBg || mAddButtonBgActive != mSchemeBgActive) {
+            mAddButtonDrawable = buildOvalStateListDrawable();
+            mAddButtonBg = mSchemeBg;
+            mAddButtonBgActive = mSchemeBgActive;
+            mAddButtonBgValid = true;
+        }
+        if (view.getBackground() != mAddButtonDrawable) view.setBackground(mAddButtonDrawable);
     }
 
     private StateListDrawable buildOvalStateListDrawable() {
@@ -1208,11 +1242,20 @@ public class TermuxSessionTabsController {
     }
 
     private void setTabBackground(View view, int color) {
-        GradientDrawable d = new GradientDrawable();
-        d.setShape(GradientDrawable.RECTANGLE);
-        d.setCornerRadius(mActivity.getResources().getDimension(R.dimen.terminal_tab_corner_radius));
+        TabRenderState state = (TabRenderState) view.getTag(R.id.session_tab_render_state_tag);
+        GradientDrawable d = (state != null) ? state.bgDrawable : null;
+        if (d == null) {
+            d = new GradientDrawable();
+            d.setShape(GradientDrawable.RECTANGLE);
+            ensureDimens();
+            d.setCornerRadius(mTabCornerRadiusPx);
+            if (state != null) state.bgDrawable = d;
+        }
+        // Mutate the SAME drawable instead of allocating a fresh one per call: setColor()
+        // invalidates it in place. onPageScrolled() calls this twice per swipe frame, so the
+        // old version allocated two drawables and re-bound two backgrounds 60-120 times a second.
         d.setColor(color);
-        view.setBackground(d);
+        if (view.getBackground() != d) view.setBackground(d);
     }
 
     private static int blendColors(int from, int to, float ratio) {

@@ -334,35 +334,61 @@ public final class SessionUiStateStore {
     }
 
     public void saveToBundle(@NonNull Bundle outState) {
-        Bundle textBundle = new Bundle();
-        Bundle visBundle = new Bundle();
-        Bundle focusBundle = new Bundle();
-        Bundle caretBundle = new Bundle();
-        Bundle scrollRowBundle = new Bundle();
-        Bundle scrollRowsBundle = new Bundle();
-        Bundle kbBundle = new Bundle();
+        // Each per-category Bundle is allocated LAZILY, on the first value that actually needs it.
+        // The previous version created all seven up front even when every one of them stayed empty
+        // (cold start, or a session whose only recorded state is the default) — seven allocations
+        // plus seven isEmpty() checks per recreation for nothing.
+        Bundle textBundle = null;
+        Bundle visBundle = null;
+        Bundle focusBundle = null;
+        Bundle caretBundle = null;
+        Bundle scrollRowBundle = null;
+        Bundle scrollRowsBundle = null;
+        Bundle kbBundle = null;
 
         for (Map.Entry<String, SessionUiState> e : mStates.entrySet()) {
             String key = e.getKey();
             SessionUiState s = e.getValue();
-            if (s.textInput != null) textBundle.putString(key, s.textInput);
-            if (s.hasPanelVisible) visBundle.putBoolean(key, s.panelVisible);
-            focusBundle.putBoolean(key, s.focusOnInput);
-            if (s.caret >= 0) caretBundle.putInt(key, s.caret);
+            if (s.textInput != null) {
+                if (textBundle == null) textBundle = new Bundle();
+                textBundle.putString(key, s.textInput);
+            }
+            if (s.hasPanelVisible) {
+                if (visBundle == null) visBundle = new Bundle();
+                visBundle.putBoolean(key, s.panelVisible);
+            }
+            // Only a TRUE focus is written. {@code SessionUiState.focusOnInput} defaults to false
+            // and restoreFromBundle() reads it with getBoolean(key) — which also yields false for a
+            // missing key — so dropping the false entries is behaviourally identical while keeping
+            // the bundle from carrying one entry per session for the overwhelmingly common
+            // "focus is on the terminal" case.
+            if (s.focusOnInput) {
+                if (focusBundle == null) focusBundle = new Bundle();
+                focusBundle.putBoolean(key, true);
+            }
+            if (s.caret >= 0) {
+                if (caretBundle == null) caretBundle = new Bundle();
+                caretBundle.putInt(key, s.caret);
+            }
             if (s.scrollTopRow != 0 || s.scrollTranscriptRows != 0) {
+                if (scrollRowBundle == null) scrollRowBundle = new Bundle();
+                if (scrollRowsBundle == null) scrollRowsBundle = new Bundle();
                 scrollRowBundle.putInt(key, s.scrollTopRow);
                 scrollRowsBundle.putInt(key, s.scrollTranscriptRows);
             }
-            if (s.hasKeyboardIntent) kbBundle.putBoolean(key, s.keyboardIntent);
+            if (s.hasKeyboardIntent) {
+                if (kbBundle == null) kbBundle = new Bundle();
+                kbBundle.putBoolean(key, s.keyboardIntent);
+            }
         }
 
-        if (!textBundle.isEmpty()) outState.putBundle(ARG_TEXT_INPUT_PER_SESSION, textBundle);
-        if (!visBundle.isEmpty()) outState.putBundle(ARG_TEXT_INPUT_VISIBLE_PER_SESSION, visBundle);
-        if (!focusBundle.isEmpty()) outState.putBundle(ARG_FOCUS_ON_INPUT_PER_SESSION, focusBundle);
-        if (!caretBundle.isEmpty()) outState.putBundle(ARG_TEXT_INPUT_CARET_PER_SESSION, caretBundle);
-        if (!scrollRowBundle.isEmpty()) outState.putBundle(ARG_SCROLL_TOP_PER_SESSION, scrollRowBundle);
-        if (!scrollRowsBundle.isEmpty()) outState.putBundle(ARG_SCROLL_ROWS_PER_SESSION, scrollRowsBundle);
-        if (!kbBundle.isEmpty()) outState.putBundle(ARG_KB_INTENT_PER_SESSION, kbBundle);
+        if (textBundle != null) outState.putBundle(ARG_TEXT_INPUT_PER_SESSION, textBundle);
+        if (visBundle != null) outState.putBundle(ARG_TEXT_INPUT_VISIBLE_PER_SESSION, visBundle);
+        if (focusBundle != null) outState.putBundle(ARG_FOCUS_ON_INPUT_PER_SESSION, focusBundle);
+        if (caretBundle != null) outState.putBundle(ARG_TEXT_INPUT_CARET_PER_SESSION, caretBundle);
+        if (scrollRowBundle != null) outState.putBundle(ARG_SCROLL_TOP_PER_SESSION, scrollRowBundle);
+        if (scrollRowsBundle != null) outState.putBundle(ARG_SCROLL_ROWS_PER_SESSION, scrollRowsBundle);
+        if (kbBundle != null) outState.putBundle(ARG_KB_INTENT_PER_SESSION, kbBundle);
 
         outState.putBoolean(ARG_SOFT_KEYBOARD_VISIBLE, mSoftKeyboardVisibleIntent);
         outState.putInt(ARG_ACTIVE_SESSION_INDEX, mActiveSessionIndex);

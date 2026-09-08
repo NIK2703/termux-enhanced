@@ -64,7 +64,6 @@ final class AutoCompletePopupManager {
     @Nullable private View mLayoutListenerTarget;
 
     private int mLastPopupWidth = 0;
-    private int mLastPopupHeight = 0;
     private int mLastPopupX = 0;
     private int mLastPopupY = 0;
 
@@ -72,7 +71,6 @@ final class AutoCompletePopupManager {
     // (every keystroke) — avoids a new int[2] allocation per call.
     private final int[] mTmpLoc = new int[2];
 
-    private int mLastBuiltHistoryVersion = -1;
     @Nullable private String mLastAppliedPrefix = "";
 
     AutoCompletePopupManager(@NonNull Context context,
@@ -99,12 +97,6 @@ final class AutoCompletePopupManager {
         mPopupMinYPx = popupMinYPx;
         mPopupContentAlpha = popupContentAlpha;
         mPopupShadowAlpha = popupShadowAlpha;
-        // Item padding is read by the host's buildSuggestionTextView, not here.
-        // (kept in the signature for symmetry / future use)
-        //noinspection unused
-        int _padH = popupItemPadHPx; // referenced by host only
-        //noinspection unused
-        int _padV = popupItemPadVPx;
     }
 
     // ── Public surface used by AutoCompleteController ──
@@ -225,7 +217,6 @@ final class AutoCompletePopupManager {
             showPopupAtCaret(mHistoryPopup, inputField);
         }
 
-        mLastBuiltHistoryVersion = mData.getHistoryVersion();
         mLastAppliedPrefix = input;
         applyPopupGeometry(inputField);
 
@@ -380,7 +371,6 @@ final class AutoCompletePopupManager {
             mHistoryPopup.update(historyX, historyY, w, historyH);
             mLastPopupX = historyX;
             mLastPopupY = historyY;
-            mLastPopupHeight = historyH;
         }
     }
 

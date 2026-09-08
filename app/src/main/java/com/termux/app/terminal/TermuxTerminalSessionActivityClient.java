@@ -79,6 +79,55 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /** Last resolved session name handed to the extra-keys controller (hot-path guard). */
     private String mLastExtraKeysSessionName;
 
+    /**
+     * Key describing everything {@link #applyTerminalColorScheme(boolean)} actually depends on:
+     * night mode, the resolved colour-scheme file and the font file. When the key is unchanged the
+     * (expensive) scheme application is skipped — see {@link #checkForFontAndColors()}.
+     */
+    private String mAppliedSchemeKey = null;
+
+    /**
+     * Key of the scheme currently reflected by the global {@link TerminalColors#COLOR_SCHEME}.
+     * Tracked separately from {@link #mAppliedSchemeKey} because the per-page
+     * {@link #checkForFontAndColorsForView} also needs the palette loaded, but must not be
+     * mistaken for a full activity/panel application.
+     */
+    private String mLoadedColorSchemeKey = null;
+
+    /** Cached terminal typeface — parsing the font file is expensive and it rarely changes. */
+    private static Typeface sCachedTypeface = null;
+    private static String sCachedTypefaceKey = null;
+
+    /**
+     * Armed in {@link #onStart()} and consumed by the FIRST
+     * {@link #onSessionPageSelected(TerminalSession)} afterwards. Two one-shot effects ride on it:
+     * a forced full scheme application after an activity recreate, and the single disk re-read of
+     * the extra-keys session map that recovers profiles written while the activity was stopped.
+     */
+    private boolean mPendingPostStartRecovery = false;
+
+    /**
+     * Set only for the duration of the synchronous {@link #setCurrentSession} call made from
+     * {@link #onStart()} when returning from the background. In that situation the stored session
+     * is virtually always the page the pager is already on, so {@code setCurrentSession()} takes its
+     * "same index" shortcut and runs {@link #onSessionPageSelected} INLINE — which would perform a
+     * complete focus + IME reconcile (focus request, {@code computeImeVisibility()}, possible
+     * show/hide) that {@code TermuxActivity.onResume()} then repeats authoritatively a few
+     * milliseconds later via {@code runKeyboardRestore()}.
+     * <p/>
+     * Skipping the focus half here removes one full IME reconcile per foreground return (2
+     * window-attribute dispatches + an InputMethodManager IPC + a 6-attempt layout wait) and, more
+     * importantly, stops the early reconcile from acting on pre-resume insets — its
+     * {@code computeImeVisibility()} runs before the window has settled, so it can show or hide the
+     * keyboard on a stale reading and then fight the resume restore.
+     * <p/>
+     * The flag is deliberately scoped to that one call (not "first page selection after start"):
+     * a cold start connects the service asynchronously, so the startup page selection happens
+     * LATER, long after the flag is cleared, and must keep applying focus — that is the only
+     * restore a cold start gets.
+     */
+    private boolean mDeferFocusApplyToResume = false;
+
     private SoundPool mBellSoundPool;
 
     private int mBellSoundId;
@@ -113,7 +162,14 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // Get the session stored in shared preferences stored by {@link #onStop} if its valid,
         // otherwise get the last session currently running.
         if (mActivity.getTermuxService() != null) {
-            setCurrentSession(getCurrentStoredSessionOrLast());
+            // Scope the suppression to this call only — see mDeferFocusApplyToResume. Any page
+            // selection triggered later (service connect, adapter fill) keeps applying focus.
+            mDeferFocusApplyToResume = true;
+            try {
+                setCurrentSession(getCurrentStoredSessionOrLast());
+            } finally {
+                mDeferFocusApplyToResume = false;
+            }
             termuxSessionListNotifyUpdated();
         }
 
@@ -124,8 +180,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // the persisted terminal keeps its stale palette and only the panel/status-bar repaint.
         // We deliberately guard with isActivityRecreated() so a normal foreground-from-background
         // does NOT reset mColors, which would otherwise wipe shell-set OSC dynamic colors.
-        if (mActivity.isActivityRecreated())
+        if (mActivity.isActivityRecreated()) {
+            // Force a full re-application after a recreate (the palette may be stale) and arm the
+            // one-shot recovery for the first page selection below.
+            mAppliedSchemeKey = null;
             checkForFontAndColors();
+        }
+        // Consumed by the first onSessionPageSelected(): one full scheme apply after a recreate
+        // and one re-read of the extra-keys session map after returning to the foreground.
+        mPendingPostStartRecovery = true;
 
         // The current terminal session may have changed while being away, force
         // a refresh of the displayed terminal.
@@ -140,8 +203,19 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // Just initialize the mBellSoundPool and load the sound, otherwise bell might not run
         // the first time bell key is pressed and play() is called, since sound may not be loaded
         // quickly enough before the call to play(). https://stackoverflow.com/questions/35435625
-        loadBellSoundPool();
+        //
+        // Deferred by one message on purpose. SoundPool MUST be constructed on a Looper thread,
+        // so it cannot move off the main thread, but it does not belong inside onResume(): it is
+        // a warm-up whose only purpose is that the sound is ready before the user presses bell,
+        // and it is rebuilt on every single foreground return. Posting it keeps the cost out of
+        // the resume transaction while still finishing within a frame. The bell path itself still
+        // loads lazily (see onBell), so nothing depends on this having run.
+        mMainHandler.removeCallbacks(mLoadBellRunnable);
+        mMainHandler.post(mLoadBellRunnable);
     }
+
+    /** Warm-up task posted out of onResume(); see {@link #onResume()}. */
+    private final Runnable mLoadBellRunnable = this::loadBellSoundPool;
 
     /**
      * Should be called when mActivity.onStop() is called
@@ -166,6 +240,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * Should be called when mActivity.reloadActivityStyling() is called
      */
     public void onReloadActivityStyling() {
+        // An explicit styling reload must always really re-apply, even if the scheme files are
+        // untouched (e.g. only a preference changed).
+        invalidateAppliedScheme();
         // Set terminal fonts and colors
         checkForFontAndColors();
     }
@@ -173,7 +250,17 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
 
     private void runIfVisible(java.lang.Runnable action) {
-        if (mActivity.isVisible()) action.run();
+        if (!mActivity.isVisible()) return;
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            action.run();
+        } else {
+            // TerminalSession callbacks (onTextChanged / onTitleChanged) are delivered on the
+            // terminal's output thread, not the UI thread. Running them there manipulated the
+            // View hierarchy from a background thread (onTitleChanged → termuxSessionListNotifyUpdated
+            // → updateTabs → addView → requestLayout), which is not thread-safe. Always marshal
+            // onto the main looper.
+            mMainHandler.post(action);
+        }
     }
 
     @Override
@@ -522,6 +609,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // ran earlier (e.g. from onServiceConnected) may have executed before the emulator was
         // bound to the new view, so its repaint would have been silently dropped. Re-applying now
         // guarantees the terminal matches the current night mode.
+        // On the first page selection after (re)start force a real application (recreate case);
+        // every other switch hits the gate in checkForFontAndColors() and is a cheap no-op.
+        if (mPendingPostStartRecovery) invalidateAppliedScheme();
         checkForFontAndColors();
 
         // NOTE: we deliberately do NOT call checkAndScrollToSession() here. That helper ends in
@@ -548,19 +638,32 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // This also restores the saved text input content (single restore site — avoids
         // double restore on tab switch, which previously widened a race with the deferred
         // auto-complete recompute).
-        mActivity.applyTextInputVisibilityForSession(session);
+        // Slot visibility + text are ALWAYS applied. Focus and the IME reconcile are skipped while
+        // returning from the background, because TermuxActivity.onResume() -> runKeyboardRestore()
+        // is the single authority for them and would otherwise repeat this work (P1-5).
+        if (mDeferFocusApplyToResume) {
+            mActivity.applyTextInputVisibilityForSession(session, false);
+        } else {
+            mActivity.applyTextInputVisibilityForSession(session);
+        }
 
         // Record the newly-current session's working directory into the
         // recent-directories history (for the "new tab" button popup) and swap the
-        // per-directory message history. ONE /proc/<pid>/cwd read serves both:
-        // getCwd() is a filesystem readlink on the main thread, so it is resolved
-        // here once and passed down to both consumers.
-        String cwd = mActivity.getCurrentSessionCwd();
-        mActivity.recordCurrentDirectory(cwd);
-        mActivity.onHistoryDirectoryChanged(cwd);
+        // per-directory message history. The cwd is a /proc/<pid>/cwd readlink, so it is
+        // resolved OFF the UI thread (P3-2) and the result posted back to the main thread for
+        // both consumers; a tab switch never blocks on the disk read.
+        mActivity.getCurrentSessionCwdAsync(cwd -> {
+            mActivity.recordCurrentDirectory(cwd);
+            mActivity.onHistoryDirectoryChanged(cwd);
+        });
 
-        // Session-name based extra-keys profile switching.
-        applySessionExtraKeys(session);
+        // Session-name based extra-keys profile switching. The property map is re-read from disk
+        // once per (re)start (that is what recovers profiles saved while the activity was stopped);
+        // every subsequent switch uses the cheap in-memory match, which is a no-op while the
+        // resolved session name stays the same.
+        final boolean reloadExtraKeysMap = mPendingPostStartRecovery;
+        mPendingPostStartRecovery = false;
+        applySessionExtraKeys(session, reloadExtraKeysMap);
     }
 
     void notifyOfSessionChange() {
@@ -1018,8 +1121,87 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * night state that drives the activity/toolbar theme, keeping them in sync after any
      * recreate or direct system {@code uiMode} change.
      */
+    /**
+     * Identity of everything {@link #applyTerminalColorScheme(boolean)} consumes. Cheap to build
+     * (a few stat() calls) compared to the application itself (file read + parse, TTF parse,
+     * drawable allocation, activity restyle, full terminal repaint).
+     */
+    private String buildSchemeKey(boolean isNight) {
+        File colorsFile = ColorSchemeUtils.getColorSchemeFileForTheme(isNight);
+        File fontFile = TermuxConstants.TERMUX_FONT_FILE;
+        return (isNight ? "n1" : "n0")
+                + "|" + (colorsFile == null ? "-" : colorsFile.lastModified() + ":" + colorsFile.length())
+                + "|" + (fontFile == null ? "-" : fontFile.lastModified() + ":" + fontFile.length());
+    }
+
+    /**
+     * Drop the "scheme already applied" gate so the next {@link #checkForFontAndColors()} really
+     * re-applies (used after a recreate and on an explicit styling reload).
+     */
+    public void invalidateAppliedScheme() {
+        mAppliedSchemeKey = null;
+    }
+
+    /**
+     * Resolve the terminal typeface, parsing the font file only when it actually changed
+     * (mtime + size). {@code Typeface.createFromFile()} is a full TTF/OTF parse and used to run on
+     * every page bind.
+     */
+    private static Typeface resolveTerminalTypeface() {
+        final File fontFile = TermuxConstants.TERMUX_FONT_FILE;
+        final String key = (fontFile == null) ? "-"
+                : fontFile.lastModified() + ":" + fontFile.length();
+        if (sCachedTypeface != null && key.equals(sCachedTypefaceKey)) return sCachedTypeface;
+        Typeface tf = (fontFile != null && fontFile.exists() && fontFile.length() > 0)
+                ? Typeface.createFromFile(fontFile) : Typeface.MONOSPACE;
+        sCachedTypeface = tf;
+        sCachedTypefaceKey = key;
+        return tf;
+    }
+
+    /**
+     * Make sure the global {@link TerminalColors#COLOR_SCHEME} reflects {@code key}, reading and
+     * parsing the scheme file only when it does not. Both the activity-level
+     * {@link #applyTerminalColorScheme} and the per-page {@link #checkForFontAndColorsForView}
+     * funnel through here, so binding a page no longer re-reads {@code colors.properties} from
+     * disk — and vice versa.
+     */
+    private void ensureColorSchemeLoaded(boolean isNight, String key) {
+        if (key.equals(mLoadedColorSchemeKey)) return;
+        File colorsFile = ColorSchemeUtils.getColorSchemeFileForTheme(isNight);
+        boolean customApplied = (colorsFile != null) && ColorSchemeUtils.loadTerminalColorScheme(colorsFile);
+        if (!customApplied) {
+            if (!isNight) {
+                // No user colors in light mode: use a built-in light scheme so the
+                // terminal matches the light app theme.
+                TerminalColors.COLOR_SCHEME.updateWith(getLightTerminalColorScheme());
+            } else {
+                // No custom colors in dark mode: updateWith() calls reset() FIRST, which
+                // restores the built-in DEFAULT_COLORSCHEME (black background / white
+                // foreground) — i.e. the correct DARK terminal scheme.
+                TerminalColors.COLOR_SCHEME.updateWith(new Properties());
+            }
+        }
+        mLoadedColorSchemeKey = key;
+    }
+
+    /**
+     * Apply the terminal font and colour scheme — but only when something it depends on actually
+     * changed.
+     *
+     * <p>This method is invoked from {@link #onSessionPageSelected}, i.e. on EVERY tab switch, and
+     * the work it triggers (reading {@code colors.properties} and the font file from disk,
+     * reallocating the panel drawables, resetting the emulator palette, restyling the activity and
+     * repainting the terminal) does not depend on WHICH session is selected — repeating it per
+     * switch was pure waste. The key covers night mode plus both files' size/mtime, so a genuine
+     * scheme/theme/font change is still picked up immediately.
+     */
     public void checkForFontAndColors() {
-        applyTerminalColorScheme(TermuxActivity.isNightModeActive());
+        final boolean isNight = TermuxActivity.isNightModeActive();
+        final String key = buildSchemeKey(isNight);
+        if (key.equals(mAppliedSchemeKey)) return;
+        mAppliedSchemeKey = key;
+        applyTerminalColorScheme(isNight);
     }
 
     /**
@@ -1030,15 +1212,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     public void checkForFontAndColorsForView(@NonNull TerminalView terminalView) {
         final boolean isNight = TermuxActivity.isNightModeActive();
         try {
-            File colorsFile = ColorSchemeUtils.getColorSchemeFileForTheme(isNight);
-            boolean customApplied = (colorsFile != null) && ColorSchemeUtils.loadTerminalColorScheme(colorsFile);
-            if (!customApplied) {
-                if (!isNight) {
-                    TerminalColors.COLOR_SCHEME.updateWith(getLightTerminalColorScheme());
-                } else {
-                    TerminalColors.COLOR_SCHEME.updateWith(new Properties());
-                }
-            }
+            // Only pay for the disk read when the global palette is not already current.
+            ensureColorSchemeLoaded(isNight, buildSchemeKey(isNight));
 
             TerminalEmulator emulator = terminalView.mEmulator;
             if (emulator == null) {
@@ -1053,10 +1228,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 terminalView.onScreenUpdated();
             }
 
-            final Typeface newTypeface = (TermuxConstants.TERMUX_FONT_FILE.exists()
-                    && TermuxConstants.TERMUX_FONT_FILE.length() > 0)
-                    ? Typeface.createFromFile(TermuxConstants.TERMUX_FONT_FILE) : Typeface.MONOSPACE;
-            terminalView.setTypeface(newTypeface);
+            // Cached: a page bind no longer stats + parses the font file.
+            terminalView.setTypeface(resolveTerminalTypeface());
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in checkForFontAndColorsForView()", e);
         }
@@ -1065,28 +1238,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /** Apply terminal fonts and the color scheme (light or dark) for the given night mode. */
     private void applyTerminalColorScheme(boolean isNight) {
         try {
-            // Resolve the scheme file for this theme. Per-theme colors.light/dark.properties take
-            // priority so a light/dark terminal scheme can be assigned independently of the UI
-            // theme; falls back to the shared colors.properties.
-            File colorsFile = ColorSchemeUtils.getColorSchemeFileForTheme(isNight);
-            File fontFile = TermuxConstants.TERMUX_FONT_FILE;
-
-            // Load a user color scheme if one is defined. ColorSchemeUtils.loadTerminalColorScheme
-            // returns false for the "Default" marker file (only a comment, no real color keys) so
-            // the terminal keeps following the app theme instead of being locked to dark.
-            boolean customApplied = (colorsFile != null) && ColorSchemeUtils.loadTerminalColorScheme(colorsFile);
-            if (!customApplied) {
-                if (!isNight) {
-                    // No user colors in light mode: use a built-in light scheme so the
-                    // terminal matches the light app theme.
-                    TerminalColors.COLOR_SCHEME.updateWith(getLightTerminalColorScheme());
-                } else {
-                    // No custom colors in dark mode: updateWith() calls reset() FIRST, which
-                    // restores the built-in DEFAULT_COLORSCHEME (black background / white
-                    // foreground) — i.e. the correct DARK terminal scheme.
-                    TerminalColors.COLOR_SCHEME.updateWith(new Properties());
-                }
-            }
+            // Load a user color scheme if one is defined (and only if the global palette is not
+            // already current — see ensureColorSchemeLoaded).
+            ensureColorSchemeLoaded(isNight, buildSchemeKey(isNight));
 
             // Cache all derived colours from the now-applied COLOR_SCHEME before styling the
             // panel, so applyPanelColors() reads fresh values via the activity's getters.
@@ -1125,7 +1279,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 terminalView.onScreenUpdated();
             }
 
-            final Typeface newTypeface = (fontFile.exists() && fontFile.length() > 0) ? Typeface.createFromFile(fontFile) : Typeface.MONOSPACE;
+            final Typeface newTypeface = resolveTerminalTypeface();
             if (terminalView != null) terminalView.setTypeface(newTypeface);
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in applyTerminalColorScheme()", e);
@@ -1287,13 +1441,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             tv.setTextSelectionActionModeColors(buttonActiveBg, buttonText);
         }
 
-        // Status bar follows the scheme lightness.
-        applyStatusBarTheme(isSchemeLight);
-    }
-
-    private void applyStatusBarTheme(boolean isSchemeLight) {
-        TermuxActivity.applySystemBarColors(mActivity.getWindow(),
-            mActivity.getColorSchemeManager().getSchemeBackground(), isSchemeLight);
+        // NOTE: the status-bar styling is deliberately NOT applied here any more.
+        // applyPanelColors() has exactly one caller — applyTerminalColorScheme() — which invokes
+        // TermuxActivity.applySchemeColors() immediately afterwards, and that already calls
+        // applySystemBarColors() with the same cached scheme background and lightness. Doing it
+        // here too painted the identical values twice per application; the authoritative
+        // (live-emulator) background is applied at the very end of applyTerminalColorScheme()
+        // via updateBackgroundColor().
     }
 
     public void updateBackgroundColor() {

@@ -30,16 +30,63 @@ final class AutoCompleteTextRenderer {
 
     private static final StyleSpan BOLD_SPAN = new StyleSpan(Typeface.BOLD);
 
-    private static final int LAYOUT_CACHE_MAX = 512;
+    /**
+     * StaticLayout cache. Kept small (64 entries): the display-text memoization
+     * below removes almost all truncation work from the per-keystroke path, so a
+     * large StaticLayout pool is no longer needed and would only waste memory
+     * (each entry holds a copy of the text + run arrays). sizeOf is charged by
+     * text length — the real memory cost — instead of line count.
+     */
+    private static final int LAYOUT_CACHE_MAX = 64;
     private static final LruCache<String, StaticLayout> sLayoutCache =
             new LruCache<String, StaticLayout>(LAYOUT_CACHE_MAX) {
                 @Override protected int sizeOf(String key, StaticLayout value) {
-                    return value.getLineCount() + 1;
+                    return key.length();
                 }
             };
     private static String layoutKey(@NonNull String text, int w, int maxLines) {
         return text + "\u0000" + w + "\u0000" + maxLines;
     }
+
+    /**
+     * Memoization of the (expensive) truncation step in {@link #buildSuggestionSpannable}.
+     * The truncated display text for a given suggestion depends only on
+     * (suggestion, wordStart, availWidth, maxLines) — and within a single popup
+     * session availWidth/maxLines are constant while wordStart changes only when
+     * the caret crosses a word boundary. So caching here short-circuits the whole
+     * StaticLayout / cache-key / binary-search pipeline for the steady-state case
+     * (every keystroke on every shown row), leaving only the cheap SpannableString
+     * + setText that the bold-prefix offset genuinely requires.
+     */
+    private static final class DisplayKey {
+        final String suggestion;
+        final int wordStart;
+        final int availWidth;
+        final int maxLines;
+        DisplayKey(@NonNull String suggestion, int wordStart, int availWidth, int maxLines) {
+            this.suggestion = suggestion;
+            this.wordStart = wordStart;
+            this.availWidth = availWidth;
+            this.maxLines = maxLines;
+        }
+        @Override public int hashCode() {
+            int h = suggestion.hashCode();
+            h = 31 * h + wordStart;
+            h = 31 * h + availWidth;
+            h = 31 * h + maxLines;
+            return h;
+        }
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof DisplayKey)) return false;
+            DisplayKey k = (DisplayKey) o;
+            return wordStart == k.wordStart && availWidth == k.availWidth
+                    && maxLines == k.maxLines && suggestion.equals(k.suggestion);
+        }
+    }
+    private static final int DISPLAY_CACHE_MAX = 64;
+    private static final LruCache<DisplayKey, String> sDisplayCache =
+            new LruCache<DisplayKey, String>(DISPLAY_CACHE_MAX);
 
     /**
      * Index of the start of the last whitespace/slash-delimited word in {@code s},
@@ -93,10 +140,23 @@ final class AutoCompleteTextRenderer {
         boolean hasLastWord = boldLen > 0;
         String prefix = (wordStart > 0) ? "... " : "";
         int prefixLen = prefix.length();
-        String displayText = (prefixLen > 0) ? prefix + suggestion.substring(wordStart) : suggestion;
 
+        String displayText;
         if (availWidth > 0) {
-            displayText = truncateToLines(displayText, availWidth, paint, 2);
+            // P0 memoization: the truncated text is a pure function of
+            // (suggestion, wordStart, availWidth, maxLines) — look it up instead
+            // of rebuilding a StaticLayout + running a binary search every time.
+            DisplayKey key = new DisplayKey(suggestion, wordStart, availWidth, 2);
+            String cached = sDisplayCache.get(key);
+            if (cached != null) {
+                displayText = cached;
+            } else {
+                String raw = (prefixLen > 0) ? prefix + suggestion.substring(wordStart) : suggestion;
+                displayText = truncateToLines(raw, availWidth, paint, 2);
+                sDisplayCache.put(key, displayText);
+            }
+        } else {
+            displayText = (prefixLen > 0) ? prefix + suggestion.substring(wordStart) : suggestion;
         }
 
         SpannableString ss = new SpannableString(displayText);
@@ -117,31 +177,17 @@ final class AutoCompleteTextRenderer {
     @NonNull
     static String truncateToLines(@NonNull String text, int availWidth,
             @NonNull TextPaint paint, int maxLines) {
-        if (text.length() == 0 || fitsLines(text, availWidth, paint, maxLines)) {
-            return text;
+        if (text.length() == 0) return text;
+        // P0 cheap necessary-check: the summed glyph widths already exceed
+        // maxLines*availWidth, so the text cannot possibly fit even on maxLines
+        // lines — skip the (wasted) initial full-width layout and go straight to
+        // the binary search. The reverse direction ("definitely fits") cannot be
+        // proven this cheaply, so we still run fitsLines there.
+        if (paint.measureText(text) > (long) maxLines * availWidth) {
+            return binarySearchTruncate(text, availWidth, paint, maxLines);
         }
-        int lo = 0, hi = text.length();
-        while (lo < hi) {
-            int mid = (lo + hi + 1) / 2;
-            if (fitsLines(text, 0, mid, true, availWidth, paint, maxLines)) {
-                lo = mid;
-            } else {
-                hi = mid - 1;
-            }
-        }
-        return text.substring(0, lo) + "…";
-    }
-
-    /** True when {@code text} lays out to at most {@code maxLines} lines of {@code availWidth}. */
-    static boolean fitsLines(@NonNull String text, int availWidth,
-            @NonNull TextPaint paint, int maxLines) {
-        String key = layoutKey(text, availWidth, maxLines);
-        StaticLayout layout = sLayoutCache.get(key);
-        if (layout == null) {
-            layout = buildLayout(text, availWidth, paint, maxLines);
-            sLayoutCache.put(key, layout);
-        }
-        return layout.getLineCount() <= maxLines;
+        if (fitsLines(text, availWidth, paint, maxLines)) return text;
+        return binarySearchTruncate(text, availWidth, paint, maxLines);
     }
 
     /** Slice-aware variant: builds layout only for [start, end) (+ "…" when {@code ellipsis}). */
@@ -157,13 +203,43 @@ final class AutoCompleteTextRenderer {
         return layout.getLineCount() <= maxLines;
     }
 
+    /** True when {@code text} lays out to at most {@code maxLines} lines of {@code availWidth}. */
+    static boolean fitsLines(@NonNull String text, int availWidth,
+            @NonNull TextPaint paint, int maxLines) {
+        String key = layoutKey(text, availWidth, maxLines);
+        StaticLayout layout = sLayoutCache.get(key);
+        if (layout == null) {
+            layout = buildLayout(text, availWidth, paint, maxLines);
+            sLayoutCache.put(key, layout);
+        }
+        return layout.getLineCount() <= maxLines;
+    }
+
+    private static String binarySearchTruncate(@NonNull String text, int availWidth,
+            @NonNull TextPaint paint, int maxLines) {
+        int lo = 0, hi = text.length();
+        while (lo < hi) {
+            int mid = (lo + hi + 1) / 2;
+            if (fitsLines(text, 0, mid, true, availWidth, paint, maxLines)) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return text.substring(0, lo) + "…";
+    }
+
     private static StaticLayout buildLayout(@NonNull String text, int availWidth,
             @NonNull TextPaint paint, int maxLines) {
         StaticLayout layout;
         if (Build.VERSION.SDK_INT >= 23) {
+            // D-1: build with maxLines+1 so a text that needs strictly more than
+            // maxLines lines is detected (getLineCount() would otherwise be capped
+            // at maxLines and report "fits"). fitsLines then keeps the "<= maxLines"
+            // comparison, yielding a guaranteed '…' on every API level.
             layout = StaticLayout.Builder.obtain(
                     text, 0, text.length(), paint, availWidth)
-                    .setMaxLines(maxLines)
+                    .setMaxLines(maxLines + 1)
                     .setEllipsize(null)
                     .build();
         } else {

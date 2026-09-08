@@ -42,7 +42,12 @@ import com.termux.app.terminal.TermuxColorSchemeManager;
  * {@link MessageHistoryController}, the {@link TermuxColorSchemeManager} and a
  * couple of optional callbacks) and may call its public entry points
  * ({@link #onTextChanged()}, {@link #dismiss()}, {@link #isShowing()},
- * {@link #addToMessageHistory(String)}, {@link #loadSuggestions()}, …).
+ * {@link #onCaretMoved()}, …).
+ *
+ * <p>Candidate filtering is a single linear {@code regionMatches} scan over the
+ * (capped) live history — the prefix trie that once served large histories was
+ * removed because {@code message_history_max} can never exceed 100 via the UI, so
+ * the trie could never be built and its linear path was already taken in practice.
  */
 public final class AutoCompleteController implements AutoCompleteDataProvider {
 
@@ -69,26 +74,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Current list of suggestion strings being displayed (message history). */
     private final java.util.ArrayList<String> mCurrentSuggestions = new java.util.ArrayList<>();
 
-    // ── Prefix Trie (avoids O(N) history scan per keystroke) ──
-    // A prefix tree over the lowercased history. Each node stores the full list of
-    // commands that pass through it (i.e. have that node's path as a prefix),
-    // insertion-ordered so the newest-first history order is preserved. A descent
-    // for a prefix of length L costs O(L) and returns the already-filtered list.
-    /**
-     * Prefix-tree node: {@link #words} holds every history command that has this
-     * node's path as a (case-insensitive) prefix; {@link #children} maps the next
-     * lowercased character code to the child node.
-     */
-    static final class TrieNode {
-        /** Commands passing through this node (prefix matches), newest-first (insertion order). */
-        final ArrayList<String> words = new ArrayList<>();
-        /** Next-character → child node. */
-        final android.util.SparseArray<TrieNode> children = new android.util.SparseArray<>();
-    }
-    /** Root of the prefix trie over the current history; null until built. */
-    private TrieNode mPrefixTrie = null;
-    /** History version at which {@link #mPrefixTrie} is valid. */
-    private int mPrefixCacheVersion = -1;
     /**
      * Maximum number of suggestions to RENDER in the popup (the user setting
      * "suggestions_max_count").
@@ -121,29 +106,25 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
     /** Reusable scratch set to avoid per-keystroke HashSet allocations in the hot path. */
     private final HashSet<String> mSeenSet = new HashSet<>();
-    /** Shared immutable empty list returned by getCandidatesForPrefix when there are no matches. */
-    private static final ArrayList<String> EMPTY_LIST = new ArrayList<>();
     /**
-     * History sizes at or below this are served by a linear {@code regionMatches}
-     * scan over the live list (allocation-free, trivially cheap for ≤100 entries
-     * — the default cap). The version-keyed prefix trie is only built for larger
-     * histories, where its O(chars × entries) node graph pays off.
+     * P2: availWidth (popup width minus horizontal padding) is constant within a
+     * single popup rebuild, so cache it across the per-row rebinds instead of
+     * recomputing {@code computePopupWidth} (which reads display metrics) on every
+     * one of up to {@code displayMax} rows. Invalidated when the input field width
+     * changes.
      */
-    private static final int TRIE_MIN_HISTORY = 128;
+    private int mCachedFieldWidth = -1;
+    private int mCachedAvailWidth = -1;
 
     // ── Incremental auto-complete optimization fields ──
     /** Previous text (CharSequence reference, no copy) before a change, for additive detection. */
     private CharSequence mAutoCompletePrevText = "";
     /** Cheap up-front signal: the pending change is an IME composition (after != before). */
     private boolean mComposingChangePending = false;
-    /** Start index of the pending TextWatcher change (from beforeTextChanged). */
-    private int mAutoCompleteChangeStart;
     /** Count of characters being replaced (from onTextChanged). */
     private int mAutoCompleteChangeBefore;
     /** Count of new characters being inserted (from onTextChanged). */
     private int mAutoCompleteChangeCount;
-    /** Last text prefix used to build mCurrentSuggestions. */
-    private String mLastAppliedPrefix = "";
 
     /**
      * History version captured the last time the suggestion set was rebuilt.
@@ -331,8 +312,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Force a history-version mismatch so the next update takes Path A (full rescan). */
     public void invalidateHistoryVersion() {
         mLastBuiltHistoryVersion = -1;
-        mPrefixCacheVersion = -1;
-        mPrefixTrie = null;
     }
 
     // ── Public entry points ───────────────────────────
@@ -386,15 +365,25 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private void attachInputListeners() {
         mInputField.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                // Snapshot the text as an immutable String. The EditText's text is a
-                // live, mutable Editable shared by reference with s; storing s directly
-                // would mean prevText mutates in place to the NEW text by the time
-                // updateAutoCompleteSuggestions() runs, defeating every text comparison
-                // (equals, length-delta, prefix regionMatches) and corrupting the
-                // additive/backspace detection. A toString() copy freezes the pre-edit
-                // value, which is exactly what "prevText" must mean.
-                mAutoCompletePrevText = s == null ? "" : s.toString();
-                mAutoCompleteChangeStart = start;
+                // Snapshot the pre-edit text as an immutable String — but ONLY when the
+                // change can actually reach a recompute. The EditText's text is a live,
+                // mutable Editable shared by reference with s; a toString() copy freezes
+                // the pre-edit value so the later length-delta / prefix regionMatches
+                // comparisons (additive vs backspace detection) stay correct.
+                //
+                // P0: while the popup is suppressed / input is being restored / a swipe
+                // guard is latched, the matching afterTextChanged branch bails out WITHOUT
+                // recomputing, so the snapshot would be wasted work (a full copy of the
+                // entire input string on every keystroke). In those cases we mark prevText
+                // invalid (null) instead; updateAutoCompleteSuggestions then forces a full
+                // Path A rescan for null prevText — the same safe fallback it already uses
+                // for an empty suggestion list. The composing signal below is still always
+                // captured, since it gates the deferred-compose path independently.
+                if (mRestoringInput || mSuppressAutoComplete || mSwipeSuppressed) {
+                    mAutoCompletePrevText = null;
+                } else {
+                    mAutoCompletePrevText = s == null ? "" : s.toString();
+                }
                 // Cheap composing signal, captured in advance. after!=count means a
                 // range replace/insert/delete (composition, paste, autocorrect,
                 // delete) — i.e. NOT a clean committed character (where after==count==1).
@@ -426,6 +415,11 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                     mSwipeHandler.resetIfEngaged();
                 }
                 final EditText f = mInputField;
+                // P2: scan the composing span set ONCE for this input event and reuse
+                // it below (and inside the deferred compose runnable) instead of
+                // allocating a fresh Object[] on every branch. hasComposingSpan()
+                // walks all spans of the editable.
+                final boolean composingAtEvent = f != null && hasComposingSpan(f);
                 // A "composing" change (after != count) is ambiguous: it is true for BOTH
                 // real IME composition AND for plain delete/insert/paste of a range.
                 //
@@ -439,7 +433,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                 // a genuine additive composition (after > before AND a composing span is
                 // present). A pure deletion is always treated as a committed edit.
                 boolean isDeletion = mComposingChangePending && (mAutoCompleteChangeBefore > mAutoCompleteChangeCount);
-                boolean realCompose = f != null && mComposingChangePending && !isDeletion && hasComposingSpan(f);
+                boolean realCompose = f != null && mComposingChangePending && !isDeletion && composingAtEvent;
                 if (realCompose) {
                     if (mComposingCoalesce != null) mImeHandler.removeCallbacks(mComposingCoalesce);
                     final CharSequence snapshotPrev = mAutoCompletePrevText;
@@ -450,7 +444,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                         // caret away from end during the deferred window. Without this check,
                         // a delayed composing update could re-show the popup after onCaretMoved()
                         // already dismissed it (race described as Bug #1 in the analysis).
-                        if (mInputField != null && !hasComposingSpan(mInputField)) {
+                        if (mInputField != null && !composingAtEvent) {
                             int c = mInputField.getSelectionStart();
                             if (c >= 0 && c != mInputField.getText().length()) return;
                         }
@@ -535,8 +529,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
      * Three-way dispatcher for the auto-complete popup:
      *
      * Path A (full rebuild) — called when the user deletes, replaces, pastes, or the
-     * history has changed externally.  Re-scans the full mMessageHistoryCtrl.getHistoryList() and creates a
-     * brand-new PopupWindow (dismiss + showAtLocation).
+     * history has changed externally.  Re-scans the full mMessageHistoryCtrl.getHistoryList() and (re)shows the
+     * suggestion popup, reusing the existing PopupWindow when one is already live.
      *
      * Path B (additive filter) — called when the user only types more characters without
      * deleting any text.  Filters mCurrentSuggestions in place (O(maxCount) instead of
@@ -579,6 +573,11 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             return;
         }
 
+        // P2: scan the composing span set ONCE per update and reuse it below
+        // (caret-bounce guard + full-rescan) instead of re-scanning on every
+        // branch. hasComposingSpan allocates an Object[] each call.
+        final boolean composing = hasComposingSpan(inputField);
+
         final String text = inputField.getText().toString();
 
         if (TextUtils.isEmpty(text)) {
@@ -613,7 +612,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             if (isSwipeActive()) {
                 return;
             }
-            if (hasComposingSpan(inputField)) {
+            if (composing) {
                 if (deletion) {
                     // A backspace during composition: do NOT bounce to bold-only and do
                     // NOT dismiss. Fall through so the deletion handler (below) shortens
@@ -670,13 +669,16 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
         // ── Detect whether this is an additive (append-only) change ──
         // Language/IME-agnostic: the new text must extend prevText by appending
-        // (prevText stays a prefix and text grew). We do NOT require before == 0,
+        // (prevText stays a prefix and text grew). prevText is null when the
+        // pre-edit snapshot was skipped (suppressed / restoring / swipe-guarded);
+        // in that case treat the change as non-additive so the safe Path A full
+        // rescan runs. We do NOT require before == 0,
         // because IME composition (e.g. Gboard Cyrillic) replaces the composing span
         // on every keystroke (before > 0), which made the old check take Path A on
         // each Cyrillic char. The non-empty list guard forces Path A to bootstrap on
         // the first keystroke (Path B on an empty list would wrongly dismiss).
         boolean additive = false;
-        if (text.length() > prevText.length()
+        if (prevText != null && text.length() > prevText.length()
                 && TextUtils.regionMatches(text, 0, prevText, 0, prevText.length())
                 && !mCurrentSuggestions.isEmpty()) {
             additive = true; // clean append of characters at the end
@@ -720,7 +722,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
         // ── Path A (full rebuild): not additive OR history changed externally ──
         if (!additive || mMessageHistoryCtrl.getHistoryVersion() != mLastBuiltHistoryVersion) {
-            fullRescanSuggestions(text, maxCount);
+            fullRescanSuggestions(text, maxCount, composing);
             return;
         }
 
@@ -741,7 +743,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             // here would silently drop a legitimate character. Fall back to a full
             // history rescan: it shows suggestions if any match, otherwise it still
             // dismisses correctly.
-            fullRescanSuggestions(text, maxCount);
+            fullRescanSuggestions(text, maxCount, composing);
             return;
         }
 
@@ -768,64 +770,18 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     }
 
     /**
-     * Rebuild the prefix trie over the entire (live, newest-first) history list.
-     * Called only when the history version changed (so the live list may differ
-     * from the cached snapshot) or the trie is null. Each history command is
-     * inserted char-by-char; every node along its path collects the command in
-     * its {@link TrieNode#words} list, so a descent for any prefix returns the
-     * already-filtered, still-newest-first candidate list in O(L) where L is the
-     * prefix length.
-     */
-    private void buildTrie() {
-        mPrefixTrie = new TrieNode();
-        for (String msg : mMessageHistoryCtrl.getHistoryList()) {
-            if (msg == null || msg.isEmpty()) continue;
-            TrieNode node = mPrefixTrie;
-            node.words.add(msg);
-            for (int i = 0; i < msg.length(); i++) {
-                // Fold per character (NOT String.toLowerCase) so the keys here match
-                // the per-character folding of the descent in getCandidatesForPrefix.
-                int c = Character.toLowerCase(msg.charAt(i));
-                TrieNode child = node.children.get(c);
-                if (child == null) { child = new TrieNode(); node.children.put(c, child); }
-                child.words.add(msg);
-                node = child;
-            }
-        }
-        mPrefixCacheVersion = mMessageHistoryCtrl.getHistoryVersion();
-    }
-
-    /**
-     * Return every history command that has {@code text} as a (case-insensitive)
-     * prefix, latest-first (insertion order). Descends the trie in O(L) and
-     * returns the node's already-filtered word list; an empty list if the prefix
-     * has no matches (or the trie is unbuilt).
-     */
-    @NonNull
-    private ArrayList<String> getCandidatesForPrefix(@NonNull String text) {
-        if (mPrefixTrie == null) return EMPTY_LIST;
-        TrieNode node = mPrefixTrie;
-        // Descend the prefix WITHOUT materializing a lowercase copy of the whole
-        // field (text.toLowerCase() would allocate a string as long as the entire
-        // input on every top-up character). The trie stores keys in lowercase, so
-        // we compare each character via Character.toLowerCase on the fly.
-        for (int i = 0; i < text.length(); i++) {
-            node = node.children.get(Character.toLowerCase(text.charAt(i)));
-            if (node == null) return EMPTY_LIST; // no matches for this prefix
-        }
-        // node.words is already in newest-first order and is used read-only (callers
-        // only iterate it and add elements into mCurrentSuggestions, never mutating
-        // node.words itself) — return it directly without a copy, avoiding an
-        // ArrayList allocation on every character.
-        return node.words;
-    }
-
-    /**
      * Collect at most {@code maxCount} history candidates matching {@code text}
      * (case-insensitive whole-line prefix, excluding the exact typed line) into
      * {@code out}, preserving newest-first order. Serves the backspace re-derive
-     * path and the Path B top-up. Uses the linear scan / trie split of
-     * {@link #fullRescanSuggestions}.
+     * path and the Path B top-up.
+     *
+     * <p>A single linear {@code regionMatches} scan over the live list is used.
+     * The history size is capped at {@code message_history_max} (default 20, UI
+     * slider max 100), so this is at most ~100 short-prefix comparisons —
+     * sub-microsecond and byte-for-byte identical in result to the old
+     * prefix-trie path, which could never be built at those sizes anyway (it
+     * required {@code TRIE_MIN_HISTORY}=128). The trie and all its plumbing were
+     * removed (see analysis P1).
      *
      * <p>{@link #mSeenSet} is consulted (never cleared here) so a top-up caller
      * that preloads it with the surviving suggestions does not re-add them.
@@ -835,30 +791,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             @NonNull ArrayList<String> out) {
         final int tLen = text.length();
         final ArrayList<String> historyList = mMessageHistoryCtrl.getHistoryList();
-        if (historyList.size() <= TRIE_MIN_HISTORY) {
-            mPrefixTrie = null;
-            mPrefixCacheVersion = mMessageHistoryCtrl.getHistoryVersion();
-            for (int i = 0; i < historyList.size(); i++) {
-                String msg = historyList.get(i);
-                if (msg == null || msg.length() <= tLen) continue;
-                if (mSeenSet.add(msg)
-                        && !msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
-                    out.add(msg);
-                    if (out.size() >= maxCount) break;
-                }
-            }
-            return;
-        }
-        if (mPrefixTrie == null
-                || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
-            buildTrie();
-        }
-        for (String msg : getCandidatesForPrefix(text)) {
-            if (out.size() >= maxCount) break;
+        for (int i = 0; i < historyList.size(); i++) {
+            String msg = historyList.get(i);
+            if (msg == null || msg.length() <= tLen) continue;
             if (mSeenSet.add(msg)
-                    && msg.length() > tLen
-                    && !msg.equals(text)) {
+                    && !msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
                 out.add(msg);
+                if (out.size() >= maxCount) break;
             }
         }
     }
@@ -866,45 +805,27 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /**
      * Path A: full re-scan of the message history. History suggestions are gathered
      * immediately and the popup is shown (or dismissed if empty).
+     *
+     * @param composing whether an IME composing span is currently active on the
+     *                  input field (computed once by the caller and passed in to
+     *                  avoid re-scanning the span set on every call).
      */
-    private void fullRescanSuggestions(@NonNull String text, int maxCount) {
+    private void fullRescanSuggestions(@NonNull String text, int maxCount, boolean composing) {
         // The user's max setting governs how many items are RENDERED.
         mDisplayMax = maxCount;
 
         mCurrentSuggestions.clear();
 
-        // Collect from the live history (linear scan or trie depending on size).
+        // Linear scan over the live history (capped at message_history_max, default
+        // 20 / UI max 100 — trivially cheap and allocation-free).
         final ArrayList<String> historyList = mMessageHistoryCtrl.getHistoryList();
         final int tLen = text.length();
-        if (historyList.size() <= TRIE_MIN_HISTORY) {
-            mPrefixTrie = null;
-            mPrefixCacheVersion = mMessageHistoryCtrl.getHistoryVersion();
-            for (int i = 0; i < historyList.size(); i++) {
-                String msg = historyList.get(i);
-                if (msg == null || msg.length() <= tLen) continue;
-                if (!msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
-                    mCurrentSuggestions.add(msg);
-                    if (mCurrentSuggestions.size() >= maxCount) break;
-                }
-            }
-        } else {
-            // Ensure the prefix trie is valid: rebuild if the history version
-            // changed (a single version-keyed rebuild covers every prefix at once).
-            if (mPrefixTrie == null
-                    || mPrefixCacheVersion != mMessageHistoryCtrl.getHistoryVersion()) {
-                buildTrie();
-            }
-
-            // History suggestions: the trie already narrowed history to the typed
-            // prefix, so just exclude the exact-typed line and apply maxCount + dedup.
-            mSeenSet.clear();
-            for (String msg : getCandidatesForPrefix(text)) {
+        for (int i = 0; i < historyList.size(); i++) {
+            String msg = historyList.get(i);
+            if (msg == null || msg.length() <= tLen) continue;
+            if (!msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
+                mCurrentSuggestions.add(msg);
                 if (mCurrentSuggestions.size() >= maxCount) break;
-                if (mSeenSet.add(msg)
-                        && msg.length() > tLen
-                        && !msg.equals(text)) {
-                    mCurrentSuggestions.add(msg);
-                }
             }
         }
 
@@ -918,8 +839,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             // glide/swipe-typed word matching nothing would leave the stale popup
             // stuck until the next edit. If composition is active but the typed
             // text no longer matches the (previously shown) suggestions, dismiss.
-            if (mInputField != null && hasComposingSpan(mInputField)
-                    && suggestionsMatchText(text)) {
+            if (composing && suggestionsMatchText(text)) {
                 return; // genuinely composing a matching prefix — wait for commit
             }
             dismissAutoCompleteSuggestions();
@@ -960,12 +880,15 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     void filterSuggestionsByPrefix(@NonNull String text,
             @NonNull List<String> sugg) {
         int tLen = text.length();
+        // P2: the trailing-slash rule is invariant across the whole list — hoist
+        // the endsWith test out of the per-row loop.
+        boolean textEndsWithSlash = text.endsWith("/");
         for (int i = sugg.size() - 1; i >= 0; i--) {
             String s = sugg.get(i);
             int pLen = tLen;
             boolean matches = (pLen == 0)
                     || (s.regionMatches(true, 0, text, 0, pLen)
-                        || (text.endsWith("/")
+                        || (textEndsWithSlash
                             && s.regionMatches(true, 0, text, 0, pLen - 1)));
             if (s.length() <= pLen || !matches || s.equals(text)) {
                 sugg.remove(i);
@@ -1086,18 +1009,30 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
         int padH = mPopupItemPadHPx;
         // Available text width = popup width minus horizontal padding. Mirrors the
-        // width the popup is sized to in showAutoCompletePopup (sumWidth).
+        // width the popup is sized to in showAutoCompletePopup (sumWidth). It is
+        // constant across the per-row rebinds of one rebuild, so cache it.
         int fieldWidth = mInputField != null ? mInputField.getWidth() : 0;
-        int popupWidth = mPopupManager.computePopupWidth(fieldWidth);
-        int availWidth = Math.max(0, popupWidth - 2 * padH);
+        int availWidth;
+        if (fieldWidth == mCachedFieldWidth && mCachedAvailWidth >= 0) {
+            availWidth = mCachedAvailWidth;
+        } else {
+            int popupWidth = mPopupManager.computePopupWidth(fieldWidth);
+            availWidth = Math.max(0, popupWidth - 2 * padH);
+            mCachedFieldWidth = fieldWidth;
+            mCachedAvailWidth = availWidth;
+        }
 
         // Word-based leading truncation + manual trailing '…' (TextView's
         // setEllipsize(END) is unreliable for maxLines>1 on API 21-28).
         SpannableString ss = AutoCompleteTextRenderer.buildSuggestionSpannable(
                 suggestion, input, availWidth, tv.getPaint());
         tv.setText(ss, TextView.BufferType.SPANNABLE);
-        // Accessibility: describe the history candidate.
-        tv.setContentDescription("History: " + suggestion);
+        // Accessibility: describe the history candidate. Only rewrite it when the
+        // row's suggestion actually changed — the tag already carries the raw
+        // suggestion, so a no-op compare skips the per-keystroke string concat.
+        if (!suggestion.equals(tv.getTag())) {
+            tv.setContentDescription("History: " + suggestion);
+        }
         tv.setTag(suggestion);
     }
 

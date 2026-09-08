@@ -75,6 +75,14 @@ public final class DirectoryHistoryPopupController {
 
     /** Currently highlighted item index while dragging, or -1 for none. */
     private int mHighlightIndex = -1;
+    /** The currently highlighted row view (null when none), so a highlight change
+     *  repaints only the two affected rows instead of the whole list (P1). */
+    @Nullable private TextView mActiveHighlightView = null;
+    /** Reused per-highlight / per-frame location buffer (avoids int[2] churn, P1/P2). */
+    private final int[] mTmpLoc = new int[2];
+    /** Precomputed outline radius (dpToPx once) reused by the rounded-corner
+     *  ViewOutlineProvider (P2 — getOutline runs on every resize). */
+    private final int mOutlineRadiusPx;
 
     /** Last finger Y (screen) while the popup is open, for continuous edge scroll. */
     private float mFingerY = 0f;
@@ -105,6 +113,7 @@ public final class DirectoryHistoryPopupController {
         mCallback = callback;
         mPopupGapDp = popupGapDp;
         mPopupMaxHeightDp = popupMaxHeightDp;
+        mOutlineRadiusPx = TermuxActivityUtils.dpToPx(mContext, 12);
     }
 
     /** @return true if there is at least one entry to show (capturing CWD on demand). */
@@ -242,7 +251,7 @@ public final class DirectoryHistoryPopupController {
                     int w = view.getWidth();
                     int h = view.getHeight();
                     if (w > 0 && h > 0) {
-                        outline.setRoundRect(0, 0, w, h, TermuxActivityUtils.dpToPx(mContext, 12));
+                        outline.setRoundRect(0, 0, w, h, mOutlineRadiusPx);
                     }
                 }
             });
@@ -285,7 +294,10 @@ public final class DirectoryHistoryPopupController {
         mPopup.setTouchable(false);
         mPopup.setFocusable(false);
 
-        mPopup.showAsDropDown(anchor, 0, 0, Gravity.START);
+        // P1: measure the content FIRST (as the message popup does) so we can place
+        // the popup in a single window transaction instead of showAsDropDown(below)
+        // + update(above), which flashed a frame in the wrong spot and paid a second
+        // IPC/re-layout.
         content.measure(
                 View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
@@ -299,9 +311,9 @@ public final class DirectoryHistoryPopupController {
             int roomBelow = screenHeight - (anchorLoc[1] + anchor.getHeight()) - popupGap;
             maxHeight = Math.min(TermuxActivityUtils.dpToPx(mContext, mPopupMaxHeightDp), roomBelow);
             int popupHeight = Math.min(contentHeight, maxHeight);
+            mPopup.setHeight(popupHeight);
             // Position the popup BELOW the anchor, flush to it (no gap).
-            int offsetY = 0;
-            mPopup.update(anchor, 0, offsetY, popupWidth, popupHeight);
+            mPopup.showAsDropDown(anchor, 0, 0, Gravity.START);
 
             // Start scrolled to the TOP — newest entries are at the top in inverted mode.
             final ScrollView scrollRef = scroll;
@@ -310,11 +322,8 @@ public final class DirectoryHistoryPopupController {
             int roomAbove = Math.max(TermuxActivityUtils.dpToPx(mContext, 48), anchorLoc[1] - TermuxActivityUtils.dpToPx(mContext, 8) - popupGap);
             maxHeight = Math.min(TermuxActivityUtils.dpToPx(mContext, mPopupMaxHeightDp), roomAbove);
             int popupHeight = Math.min(contentHeight, maxHeight);
-            mPopup.update(anchor,
-                    0,
-                    -(anchor.getHeight() + popupHeight + popupGap),
-                    popupWidth,
-                    popupHeight);
+            mPopup.setHeight(popupHeight);
+            mPopup.showAsDropDown(anchor, 0, -(anchor.getHeight() + popupHeight + popupGap), Gravity.START);
 
             // jump straight to the bottom — fullScroll(FOCUS_DOWN) animates, which looks
             // like the list is scrolling past entries as the popup appears.
@@ -337,6 +346,7 @@ public final class DirectoryHistoryPopupController {
         mAutoScrolling = false;   // stop any pending edge-scroll loop
         mLastScrollTimeMs = 0;
         mHighlightIndex = -1;
+        mActiveHighlightView = null;
         mAnchor = null;
     }
 
@@ -363,32 +373,46 @@ public final class DirectoryHistoryPopupController {
         mFingerY = rawY;
         autoScrollNearEdge();
 
+        // P1 hit-test: one getLocationOnScreen for the scroll container, then derive
+        // each row's screen rect from getTop()/getLeft() + scroll offset — instead of
+        // walking the view hierarchy per row (up to ~12 000 traversals/sec).
         int newIndex = -1;
-        int[] loc = new int[2];
-        for (TextView tv : mItemViews) {
-            tv.getLocationOnScreen(loc);
-            if (rawX >= loc[0] && rawX <= loc[0] + tv.getWidth()
-                    && rawY >= loc[1] && rawY <= loc[1] + tv.getHeight()) {
-                Object tag = tv.getTag();
-                if (tag instanceof Integer) newIndex = (Integer) tag;
-                break;
+        TextView newView = null;
+        mScroll.getLocationOnScreen(mTmpLoc);
+        final int scrollTop = mTmpLoc[1] - mScroll.getScrollY();
+        final int scrollLeft = mTmpLoc[0] - mScroll.getScrollX();
+        final int scrollBottom = mTmpLoc[1] + mScroll.getHeight();
+        if (rawY >= scrollTop && rawY <= scrollBottom) {
+            for (TextView tv : mItemViews) {
+                int tvTop = scrollTop + tv.getTop();
+                int tvBottom = tvTop + tv.getHeight();
+                int tvLeft = scrollLeft + tv.getLeft();
+                int tvRight = tvLeft + tv.getWidth();
+                if (rawX >= tvLeft && rawX <= tvRight
+                        && rawY >= tvTop && rawY <= tvBottom) {
+                    Object tag = tv.getTag();
+                    if (tag instanceof Integer) {
+                        newIndex = (Integer) tag;
+                        newView = tv;
+                    }
+                    break;
+                }
             }
         }
         if (newIndex == mHighlightIndex) return;
-        mHighlightIndex = newIndex;
 
-        // Sharp (non-pulse) highlight: solid theme accent fill + contrast text on
-        // the item under the finger, plain text otherwise.
-        for (TextView tv : mItemViews) {
-            Object tag = tv.getTag();
-            boolean active = tag instanceof Integer && (Integer) tag == mHighlightIndex;
-            if (active) {
-                tv.setBackgroundColor(mColorScheme.getHistoryHighlightFill());
-            } else {
-                tv.setBackgroundColor(Color.TRANSPARENT);
-            }
-            tv.setTextColor(mColorScheme.getHistoryTextColor());   // default colour in both states
+        // P1 repaint: touch only the previously-active and now-active rows, not the
+        // whole list. The text colour is identical in both states and is already set
+        // when each row is built, so it is NOT re-applied here.
+        if (mActiveHighlightView != null) {
+            mActiveHighlightView.setBackgroundColor(Color.TRANSPARENT);
+            mActiveHighlightView = null;
         }
+        if (newView != null) {
+            newView.setBackgroundColor(mColorScheme.getHistoryHighlightFill());
+            mActiveHighlightView = newView;
+        }
+        mHighlightIndex = newIndex;
     }
 
     /**
@@ -402,10 +426,9 @@ public final class DirectoryHistoryPopupController {
             mAutoScrolling = false;
             return;
         }
-        int[] loc = new int[2];
-        mScroll.getLocationOnScreen(loc);
-        int top = loc[1];
-        int bottom = loc[1] + mScroll.getHeight();
+        mScroll.getLocationOnScreen(mTmpLoc);
+        int top = mTmpLoc[1];
+        int bottom = mTmpLoc[1] + mScroll.getHeight();
         int band = TermuxActivityUtils.dpToPx(mContext, 36);      // edge-sensitive zone
         int maxStep = TermuxActivityUtils.dpToPx(mContext, 24);   // max px scrolled per 16ms reference interval
 

@@ -100,8 +100,7 @@ public class KeyboardUtils {
     }
 
     public static void setSoftKeyboardAlwaysHiddenFlags(final Activity activity) {
-        if (activity != null && activity.getWindow() != null)
-            activity.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        setSoftInputMode(activity, WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
     }
 
     public static void setSoftInputModeAdjustResize(final Activity activity) {
@@ -109,8 +108,23 @@ public class KeyboardUtils {
         // https://developer.android.com/reference/android/view/WindowManager.LayoutParams#SOFT_INPUT_ADJUST_RESIZE
         // https://medium.com/androiddevelopers/animating-your-keyboard-fb776a8fb66d
         // https://stackoverflow.com/a/65194077/14686958
-        if (activity != null && activity.getWindow() != null)
-            activity.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        setSoftInputMode(activity, WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    }
+
+    /**
+     * Set the window's {@code softInputMode}, skipping the call when it already holds that value.
+     * <p>
+     * {@code Window.setSoftInputMode()} unconditionally dispatches the (possibly unchanged)
+     * attributes to the window, which ends in a {@code relayoutWindow()} binder call to the
+     * window manager. The resume path alone asks for the very same mode three to five times
+     * (onResume intent pre-emption, setSoftKeyboardState, runKeyboardRestore, the IME visibility
+     * handler, showing the input panel), so the short-circuit removes several IPCs per cycle.
+     * Reading {@code getAttributes()} is a plain field read — no IPC — so the check is free.
+     */
+    private static void setSoftInputMode(final Activity activity, final int mode) {
+        if (activity == null || activity.getWindow() == null) return;
+        if (activity.getWindow().getAttributes().softInputMode == mode) return;
+        activity.getWindow().setSoftInputMode(mode);
     }
 
     /**

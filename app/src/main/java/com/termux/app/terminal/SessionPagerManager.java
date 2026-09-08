@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.widget.EditText;
 
 import androidx.annotation.NonNull;
@@ -114,6 +116,34 @@ public final class SessionPagerManager {
      */
     private boolean mUserScrollInProgress = false;
 
+    /**
+     * Last scroll position/offset forwarded to the tab strip during a drag (P2-3). Cached in
+     * instance fields so the onPageScrolled forwarder can be a single non-capturing lambda instead
+     * of allocating a fresh Consumer + boxing the float on every swipe frame (60–120/s).
+     */
+    private int mLastScrollPos;
+    private float mLastScrollOffset;
+
+    /** Single non-capturing lambda reused every swipe frame to forward scroll progress. */
+    private final Consumer<TermuxSessionTabsController> mScrollForwarder =
+            tabs -> tabs.onPageScrolled(mLastScrollPos, mLastScrollOffset);
+
+    /**
+     * Cached value of the "swipe rightmost tab for new session" preference (P1). Read once and kept
+     * fresh via a SharedPreferences listener, so onPageSelected() no longer hits disk on every
+     * settle. The separate MAX_SESSIONS check stays live (it depends on the session count).
+     */
+    private boolean mSwipeRightmostNewTabEnabled = true;
+    /** SharedPreferences holding the placeholder preference; registered for change events. */
+    private SharedPreferences mPrefs;
+    /** Keeps {@link #mSwipeRightmostNewTabEnabled} fresh without re-reading disk on every settle. */
+    private final SharedPreferences.OnSharedPreferenceChangeListener mPrefsListener =
+            (sp, key) -> {
+                if ("swipe_rightmost_new_tab".equals(key)) {
+                    mSwipeRightmostNewTabEnabled = sp.getBoolean("swipe_rightmost_new_tab", true);
+                }
+            };
+
     public boolean isColdStartSessionPending() {
         return mColdStartSessionPending;
     }
@@ -216,8 +246,12 @@ public final class SessionPagerManager {
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
                 // Forward the intermediate scroll progress to the tab strip so the
                 // selection highlight and scroll position follow the user's finger
-                // smoothly rather than snapping at the end of the settle.
-                withTabsController(tabs -> tabs.onPageScrolled(position, positionOffset));
+                // smoothly rather than snapping at the end of the settle. The values are
+                // cached in instance fields and the forwarder is a single non-capturing
+                // lambda (P2-3) — no Consumer/Float allocation per swipe frame.
+                mLastScrollPos = position;
+                mLastScrollOffset = positionOffset;
+                withTabsController(mScrollForwarder);
                 // Update floating button margin for intermediate scroll state
                 updateFloatingButtonMarginForScroll(position, positionOffset);
 
@@ -273,6 +307,13 @@ public final class SessionPagerManager {
                 onTerminalPageSelected(position);
             }
         });
+
+        // Cache the "swipe rightmost tab for new session" preference (P1): read it once here and
+        // keep it fresh via a listener so onPageSelected() never reads SharedPreferences on every
+        // settle. Default matches the preference's default (true).
+        mPrefs = mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        mSwipeRightmostNewTabEnabled = mPrefs.getBoolean("swipe_rightmost_new_tab", true);
+        mPrefs.registerOnSharedPreferenceChangeListener(mPrefsListener);
     }
 
     /**
@@ -348,8 +389,7 @@ public final class SessionPagerManager {
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return false;
         if (isAtMaxSessions()) return false;
-        return mActivity.getSharedPreferences("termux_prefs", android.content.Context.MODE_PRIVATE)
-                .getBoolean("swipe_rightmost_new_tab", true);
+        return mSwipeRightmostNewTabEnabled;
     }
 
     /**
@@ -814,5 +854,17 @@ public final class SessionPagerManager {
 
     public ViewPager2 getTerminalPager() {
         return mTerminalPager;
+    }
+
+    /**
+     * Release resources held by the manager. Called from the owning activity's onDestroy so the
+     * SharedPreferences listener registered in {@link #setup()} does not leak the activity across
+     * recreations (each new activity builds a fresh manager).
+     */
+    public void destroy() {
+        if (mPrefs != null) {
+            mPrefs.unregisterOnSharedPreferenceChangeListener(mPrefsListener);
+            mPrefs = null;
+        }
     }
 }

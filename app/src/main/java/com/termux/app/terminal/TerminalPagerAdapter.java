@@ -20,8 +20,6 @@ import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalView;
 
 import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * RecyclerView adapter backing the horizontal session pager (ViewPager2).
@@ -62,8 +60,10 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
      *  active page's view reliably even when RecyclerView.findViewHolderForAdapterPosition()
      *  returns null mid-swipe (ViewHolder not yet laid out). This is what makes the
      *  mTerminalView pointer and extra-keys target track the visible page instead of lagging
-     *  a frame behind and routing input to the wrong session. */
-    private final Map<Integer, TerminalView> mAttachedViews = new HashMap<>();
+     *  a frame behind and routing input to the wrong session. A {@link android.util.SparseArray}
+     *  avoids the {@code int→Integer} boxing of a HashMap and lets {@code onViewRecycled} drop an
+     *  entry in O(1) via the bound position stored on the ViewHolder. */
+    private final android.util.SparseArray<TerminalView> mAttachedViews = new android.util.SparseArray<>();
 
     /** The movable "New tab" hint content inside the placeholder page, or null if the placeholder
      *  is not currently bound. Translated horizontally during a drag so the hint stays centered in
@@ -136,19 +136,20 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                     // recovers, because the stale key is never fixed.  The result: mTerminalView is
                     // never re-pointed after closing a non-last tab, and updateTabs() finds the
                     // dead session (currentSessionIndex = -1), so no tab is highlighted.
-                    if (!mAttachedViews.isEmpty()) {
-                        java.util.Map<Integer, TerminalView> shifted = new java.util.HashMap<>();
+                    if (mAttachedViews.size() > 0) {
+                        android.util.SparseArray<TerminalView> shifted = new android.util.SparseArray<>();
                         int threshold = removeStart + removedCount;
-                        for (java.util.Map.Entry<Integer, TerminalView> e : mAttachedViews.entrySet()) {
-                            int pos = e.getKey();
+                        for (int k = 0; k < mAttachedViews.size(); k++) {
+                            int pos = mAttachedViews.keyAt(k);
                             if (pos >= threshold)
-                                shifted.put(pos - removedCount, e.getValue());
+                                shifted.put(pos - removedCount, mAttachedViews.valueAt(k));
                             else if (pos < removeStart)
-                                shifted.put(pos, e.getValue());
+                                shifted.put(pos, mAttachedViews.valueAt(k));
                             // pos in [removeStart, threshold) was the removed item — dropped.
                         }
                         mAttachedViews.clear();
-                        mAttachedViews.putAll(shifted);
+                        for (int k = 0; k < shifted.size(); k++)
+                            mAttachedViews.put(shifted.keyAt(k), shifted.valueAt(k));
                     }
 
                     notifyItemRangeRemoved(removeStart, removedCount);
@@ -158,12 +159,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             // No mismatch found in the shared portion → last item(s) were removed.
             mSessions = new java.util.ArrayList<>(serviceSessions);
             // Remove the old tail positions from mAttachedViews (they are gone).
-            if (!mAttachedViews.isEmpty()) {
-                java.util.Map.Entry<Integer, TerminalView>[] entries =
-                    mAttachedViews.entrySet().toArray(new java.util.Map.Entry[0]);
-                for (java.util.Map.Entry<Integer, TerminalView> e : entries) {
-                    if (e.getKey() >= newSize)
-                        mAttachedViews.remove(e.getKey());
+            for (int k = mAttachedViews.size() - 1; k >= 0; k--) {
+                if (mAttachedViews.keyAt(k) >= newSize) {
+                    mAttachedViews.removeAt(k);
                 }
             }
             notifyItemRangeRemoved(oldSize - removedCount, removedCount);
@@ -195,8 +193,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         mMarginTopDp = topDp;
         mMarginRightDp = rightDp;
         mMarginBottomDp = bottomDp;
-        for (TerminalView terminalView : mAttachedViews.values()) {
-            applyTerminalMargins(terminalView);
+        for (int i = 0; i < mAttachedViews.size(); i++) {
+            applyTerminalMargins(mAttachedViews.valueAt(i));
         }
     }
 
@@ -239,7 +237,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
         // The placeholder layout carries a "New tab" hint overlay; show it only for the
         // placeholder page and hide it once this slot is rebound to a real session (commit).
-        View hint = holder.itemView.findViewById(R.id.terminal_placeholder_hint_container);
+        View hint = holder.mHintContainer;
         if (hint != null) {
             if (isPlaceholder) {
                 // Match the placeholder page to the live terminal look: paint the container with the
@@ -248,9 +246,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                 int bg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_BACKGROUND);
                 int fg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_FOREGROUND);
                 hint.setBackgroundColor(bg);
-                ImageView plus = holder.itemView.findViewById(R.id.terminal_placeholder_hint_plus);
+                ImageView plus = holder.mHintPlus;
                 if (plus != null) plus.setColorFilter(fg);
-                TextView hintText = holder.itemView.findViewById(R.id.terminal_placeholder_hint_text);
+                TextView hintText = holder.mHintText;
                 if (hintText != null) hintText.setTextColor(fg);
                 hint.setVisibility(View.VISIBLE);
             } else {
@@ -259,7 +257,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             }
         }
 
-        View hintContent = holder.itemView.findViewById(R.id.terminal_placeholder_hint_content);
+        View hintContent = holder.mHintContent;
         if (isPlaceholder) {
             mPlaceholderHintContent = hintContent;
             mPlaceholderHolder = holder;
@@ -318,23 +316,22 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
         // Remember this position->view mapping so the activity can resolve the active page's
         // view even when RecyclerView.findViewHolderForAdapterPosition() is still null mid-swipe.
+        holder.boundPosition = position;
         mAttachedViews.put(position, terminalView);
     }
 
     /**
      * Payload-aware overload. RecyclerView always calls this (never coalesces) when a payload is
      * supplied, so a {@link #PAYLOAD_REBIND} notification reliably re-runs the full bind (and
-     * re-attaches the session to the reused ViewHolder). With no payload we still defer to the
-     * standard 2-arg bind.
+     * re-attaches the session to the reused ViewHolder). Both branches perform the identical full
+     * bind, so the payload branch is simply forwarded — a plain notifyItemChanged() on an already
+     * bound ViewHolder may be skipped by RecyclerView, which is exactly what {@link #commitPlaceholder}
+     * must avoid.
      */
     @Override
     public void onBindViewHolder(@NonNull TerminalPageViewHolder holder, int position,
                                  @NonNull List<Object> payloads) {
-        if (!payloads.isEmpty()) {
-            onBindViewHolder(holder, position);
-        } else {
-            onBindViewHolder(holder, position);
-        }
+        onBindViewHolder(holder, position);
     }
 
     /** @return the TerminalView currently bound to {@code position}, or null if not bound. */
@@ -370,12 +367,21 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             mActivity.unregisterForContextMenu(holder.mTerminalView);
         }
         // Drop any stale position->view entry so getAttachedView() never returns a
-        // recycled (detached) view for a position that has moved on.
-        Integer pos = null;
-        for (Map.Entry<Integer, TerminalView> e : mAttachedViews.entrySet()) {
-            if (e.getValue() == holder.mTerminalView) { pos = e.getKey(); break; }
+        // recycled (detached) view for a position that has moved on. The ViewHolder carries the
+        // last bound position, so a direct removal is O(1); the (rare) case where it drifted is
+        // covered by the linear fallback.
+        final int pos = holder.boundPosition;
+        if (pos >= 0 && mAttachedViews.get(pos) == holder.mTerminalView) {
+            mAttachedViews.remove(pos);
+        } else {
+            for (int k = 0; k < mAttachedViews.size(); k++) {
+                if (mAttachedViews.valueAt(k) == holder.mTerminalView) {
+                    mAttachedViews.removeAt(k);
+                    break;
+                }
+            }
         }
-        if (pos != null) mAttachedViews.remove(pos);
+        holder.boundPosition = -1;
     }
 
     @Override
@@ -464,10 +470,25 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
     public static final class TerminalPageViewHolder extends RecyclerView.ViewHolder {
         public final TerminalView mTerminalView;
+        /** Placeholder "New tab" hint overlay container (the whole-page dim). */
+        public final View mHintContainer;
+        /** The "+" glyph inside the placeholder hint. */
+        public final ImageView mHintPlus;
+        /** The "New tab" label inside the placeholder hint. */
+        public final TextView mHintText;
+        /** The movable hint content group (translated during a drag). */
+        public final View mHintContent;
+        /** The adapter position this ViewHolder was last bound to; lets onViewRecycled()
+         *  drop the mAttachedViews entry in O(1) without a linear scan. -1 when unbound. */
+        public int boundPosition = -1;
 
         TerminalPageViewHolder(@NonNull View itemView) {
             super(itemView);
             mTerminalView = itemView.findViewById(R.id.terminal_view_page);
+            mHintContainer = itemView.findViewById(R.id.terminal_placeholder_hint_container);
+            mHintPlus = itemView.findViewById(R.id.terminal_placeholder_hint_plus);
+            mHintText = itemView.findViewById(R.id.terminal_placeholder_hint_text);
+            mHintContent = itemView.findViewById(R.id.terminal_placeholder_hint_content);
         }
     }
 }
