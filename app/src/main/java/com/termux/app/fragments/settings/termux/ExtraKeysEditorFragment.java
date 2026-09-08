@@ -831,7 +831,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
                     lightScheme.setProperty(keys[i], values[i]);
                 }
             }
-            ColorSchemeUtils.ensureColorSchemeForTheme(isNight, lightScheme);
+            ColorSchemeUtils.ensureColorSchemeForTheme(requireContext(), isNight, lightScheme);
 
             TermuxColorSchemeManager cm = new TermuxColorSchemeManager();
             cm.recompute(mPrefs);

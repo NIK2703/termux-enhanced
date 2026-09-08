@@ -11,7 +11,11 @@ import com.termux.terminal.TerminalColors;
 import com.termux.terminal.TextStyle;
 import com.termux.shared.android.PackageUtils;
 import com.termux.shared.logger.Logger;
+import androidx.annotation.NonNull;
+
 import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.materialyou.MaterialYouSchemeStore;
+import com.termux.shared.termux.materialyou.SchemeVariant;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 
 import java.io.File;
@@ -187,8 +191,62 @@ public final class ColorSchemeUtils {
      *         {@code false} if the built-in default scheme was applied instead.
      */
     public static boolean ensureColorSchemeForTheme(boolean isNight, Properties lightScheme) {
+        return ensureColorSchemeForTheme(null, isNight, lightScheme);
+    }
+
+    /**
+     * Ensure the static {@link TerminalColors#COLOR_SCHEME} reflects the given night mode.
+     * <p>
+     * If a per-theme color file exists ({@code colors.light.properties} /
+     * {@code colors.dark.properties}), it is loaded first. Otherwise, when the selected scheme is
+     * {@link #SCHEME_MATERIAL_YOU}, the wallpaper-derived scheme is generated and applied.
+     * Otherwise the built-in default scheme is applied: the default dark scheme (black background)
+     * for night mode, or the provided {@code lightScheme} for light mode.
+     *
+     * @param context  A context used to read the system palette; may be {@code null}, in which case
+     *                 the Material You path is skipped (it needs a Context).
+     * @param isNight  {@code true} for night (dark) mode.
+     * @param lightScheme A {@link Properties} with light color scheme values (background=white,
+     *                    foreground=black, etc.) to use in light mode when no custom file exists.
+     *                    May be {@code null} — in that case dark scheme is used as fallback.
+     * @return {@code true} if a custom or generated scheme was applied,
+     *         {@code false} if the built-in default scheme was applied instead.
+     */
+    public static boolean ensureColorSchemeForTheme(Context context, boolean isNight,
+                                                    Properties lightScheme) {
+        return applyColorSchemeForTheme(context, isNight, lightScheme);
+    }
+
+    /**
+     * The one and only resolution chain for a theme's terminal colors. Every caller (the activity,
+     * the session client, the extra-keys editor) must funnel through here so that "Default" and
+     * "Material You" cannot disagree between surfaces.
+     *
+     * <p>Priority:
+     * <ol>
+     *   <li>the per-theme Termux:Style file ({@code colors.light/dark.properties}), if present;</li>
+     *   <li>the generated Material You scheme — <b>only</b> when the theme actually selected one
+     *       ({@code MaterialYou} / {@code MaterialYou-&lt;variant&gt;});</li>
+     *   <li>the built-in scheme: {@code lightScheme} in light mode, the default dark scheme
+     *       (black background) otherwise. This is the "Default" behaviour and is deliberately
+     *       <b>not</b> Material-derived.</li>
+     * </ol>
+     *
+     * @param context     Used to read the system palette; may be {@code null}, in which case the
+     *                    Material You step is skipped (it needs a Context).
+     * @param isNight     {@code true} for night (dark) mode.
+     * @param lightScheme Light-mode fallback colors; may be {@code null} (dark mode).
+     * @return {@code true} if a custom or generated scheme was applied,
+     *         {@code false} if the built-in default scheme was applied instead.
+     */
+    public static boolean applyColorSchemeForTheme(Context context, boolean isNight,
+                                                   Properties lightScheme) {
         File colorsFile = getColorSchemeFileForTheme(isNight);
         boolean customApplied = (colorsFile != null) && loadTerminalColorScheme(colorsFile);
+        if (!customApplied) {
+            // Returns false unless this theme selected Material You, so "Default" stays default.
+            customApplied = applyMaterialYouScheme(context, isNight);
+        }
         if (!customApplied) {
             if (!isNight && lightScheme != null) {
                 TerminalColors.COLOR_SCHEME.updateWith(lightScheme);
@@ -197,6 +255,80 @@ public final class ColorSchemeUtils {
             }
         }
         return customApplied;
+    }
+
+    /** Whether the wallpaper-derived scheme is the one selected for the given theme. */
+    public static boolean isMaterialYouSelected(boolean isNight) {
+        return isMaterialYouScheme(getSelectedSchemeName(isNight));
+    }
+
+    /**
+     * Generate and apply the Material You scheme <b>selected for the given theme</b>.
+     *
+     * <p>Returns {@code false} immediately when the theme did not select Material You — this is
+     * what keeps "Default" (and every Termux:Style scheme) on the built-in, non-Material scheme.
+     *
+     * @return {@code true} when the generated scheme was applied; {@code false} when the theme does
+     *         not use Material You, or when the device cannot provide a palette (API &lt; 31 or a
+     *         firmware without dynamic color), in which case the caller falls back to the built-in
+     *         scheme.
+     */
+    public static boolean applyMaterialYouScheme(Context context, boolean isNight) {
+        if (!isMaterialYouSelected(isNight)) return false;
+        return applyMaterialYouScheme(context, isNight,
+                materialYouVariantOf(getSelectedSchemeName(isNight)));
+    }
+
+    /**
+     * Generate and apply the Material You scheme for an explicit {@link SchemeVariant}.
+     *
+     * <p>Each variant is a separate entry in {@link MaterialYouSchemeStore}, so picking
+     * {@code MaterialYou-content} really yields the <i>content</i> theme and
+     * {@code MaterialYou-expressive} the <i>expressive</i> one.
+     *
+     * @return {@code true} when the generated scheme was applied; {@code false} when the device
+     *         cannot provide a palette (API &lt; 31 or a firmware without dynamic color), in which
+     *         case the caller falls back to the built-in scheme.
+     */
+    public static boolean applyMaterialYouScheme(Context context, boolean isNight,
+                                                 @NonNull SchemeVariant variant) {
+        if (context == null || !MaterialYouSchemeStore.isSupported()) return false;
+        Properties props = MaterialYouSchemeStore.get(context, isNight, variant);
+        if (props == null || props.isEmpty()) return false;
+        try {
+            TerminalColors.COLOR_SCHEME.updateWith(props);
+            return true;
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to apply the Material You scheme: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Cache identity of the Material You scheme currently selected for the given theme — {@code 0}
+     * when the theme does not use Material You. Folded into {@code buildSchemeKey()}.
+     */
+    public static long materialYouToken(boolean isNight) {
+        if (!isMaterialYouSelected(isNight)) return 0L;
+        return MaterialYouSchemeStore.token(materialYouVariantOf(getSelectedSchemeName(isNight)));
+    }
+
+    /**
+     * Build the Material You scheme of the given theme up front, so that
+     * {@link #materialYouToken(boolean)} already reports a stable, non-zero value when
+     * {@code buildSchemeKey()} reads it.
+     *
+     * <p>Why this has to happen before the key is built: the token is {@code 0} until the variant
+     * exists in the cache, so a key built first and a key built afterwards disagree — the caller
+     * then sees a "changed" key and re-applies the scheme a second time for nothing. Warming is a
+     * cheap map lookup once the variant exists (the wallpaper is read at most once per process).
+     *
+     * <p>No-op when the theme did not select Material You or the device does not support it.
+     */
+    public static void warmUpMaterialYou(Context context, boolean isNight) {
+        if (context == null || !isMaterialYouSelected(isNight)) return;
+        MaterialYouSchemeStore.warmUp(context,
+                materialYouVariantOf(getSelectedSchemeName(isNight)));
     }
 
     /**
@@ -221,6 +353,75 @@ public final class ColorSchemeUtils {
      */
     public static final String SCHEME_DEFAULT = "Default";
 
+    /**
+     * Sentinel value for {@code color-scheme-light} / {@code color-scheme-dark} selecting the
+     * wallpaper-derived "Material You" scheme in the <b>system</b> flavour — the palette is read
+     * straight from {@code android.R.color.system_*}, so the terminal matches the device theme.
+     *
+     * <p>Unlike the Termux:Style entries this is <b>not</b> an asset file name: the scheme is
+     * generated at runtime and never touches {@code colors.light/dark.properties} (those remain
+     * owned by Termux:Style, and writing a generated scheme there would break the "Default"
+     * semantics).
+     */
+    public static final String SCHEME_MATERIAL_YOU = "MaterialYou";
+
+    /**
+     * Prefix for the per-variant Material You entries: {@code MaterialYou-<variant>}, e.g.
+     * {@code MaterialYou-rainbow}. Each variant is a separate item in the scheme picker, so the
+     * "type of color scheme" is chosen where the scheme itself is chosen.
+     */
+    public static final String MATERIAL_YOU_PREFIX = SCHEME_MATERIAL_YOU + "-";
+
+    /** Human-readable label shared by every Material You entry. */
+    public static final String MATERIAL_YOU_DISPLAY_NAME = "Material You";
+
+    /** Whether {@code schemeName} is any of the Material You entries (bare or {@code -variant}). */
+    public static boolean isMaterialYouScheme(String schemeName) {
+        if (schemeName == null) return false;
+        return SCHEME_MATERIAL_YOU.equals(schemeName) || schemeName.startsWith(MATERIAL_YOU_PREFIX);
+    }
+
+    /** Build the {@code color-scheme-*} value for a Material You variant. */
+    @NonNull
+    public static String materialYouSchemeName(@NonNull SchemeVariant variant) {
+        return variant == SchemeVariant.SYSTEM
+                ? SCHEME_MATERIAL_YOU
+                : MATERIAL_YOU_PREFIX + variant.key;
+    }
+
+    /**
+     * The variant a Material You entry stands for.
+     *
+     * <p>The mapping is <b>purely a function of the entry name</b> — never of
+     * {@code material-you-variant}. That is what keeps the picker honest: a bare {@code MaterialYou}
+     * is the <i>System</i> row and must stay System, and {@code MaterialYou-rainbow} is the
+     * <i>Rainbow</i> row. Resolving the bare name through the property made the first row silently
+     * mutate into a copy of whatever variant was picked last (both its label and its colors).
+     *
+     * <p>Unknown variant names (hand-edited, or a newer build's value) degrade to
+     * {@link SchemeVariant#DEFAULT} rather than throwing.
+     */
+    @NonNull
+    public static SchemeVariant materialYouVariantOf(String schemeName) {
+        if (schemeName == null) return SchemeVariant.DEFAULT;
+        if (schemeName.startsWith(MATERIAL_YOU_PREFIX)) {
+            return SchemeVariant.parse(schemeName.substring(MATERIAL_YOU_PREFIX.length()));
+        }
+        if (SCHEME_MATERIAL_YOU.equals(schemeName)) return SchemeVariant.SYSTEM;
+        return SchemeVariant.DEFAULT;
+    }
+
+    /**
+     * Human-readable label for a Material You entry: {@code "Material You Rainbow"}.
+     *
+     * <p>The variant part reuses Termux:Style's own title-casing so all entries in the picker are
+     * formatted the same way.
+     */
+    @NonNull
+    public static String materialYouDisplayName(@NonNull SchemeVariant variant) {
+        return MATERIAL_YOU_DISPLAY_NAME + " " + titleCaseWords(variant.key.replace('-', ' '));
+    }
+
     /** Termux:Style stores its color schemes as {@code *.properties} files under this asset folder. */
     private static final String STYLING_COLORS_ASSET_DIR = "colors";
 
@@ -233,22 +434,35 @@ public final class ColorSchemeUtils {
      */
     public static String[] listStylingColorSchemes(Context context) {
         Context stylingContext = getStylingContext(context);
-        if (stylingContext == null) return null;
-        try {
-            String[] files = stylingContext.getAssets().list(STYLING_COLORS_ASSET_DIR);
-            if (files == null) return null;
-            List<String> schemes = new ArrayList<>();
-            for (String f : files) {
-                if (f.endsWith(".properties")) schemes.add(f);
+        List<String> schemes = new ArrayList<>();
+        if (stylingContext != null) {
+            try {
+                String[] files = stylingContext.getAssets().list(STYLING_COLORS_ASSET_DIR);
+                if (files != null) {
+                    for (String f : files) {
+                        if (f.endsWith(".properties")) schemes.add(f);
+                    }
+                }
+            } catch (IOException e) {
+                Logger.logError(LOG_TAG, "Failed to list Termux:Style color assets: " + e.getMessage());
             }
-            if (schemes.isEmpty()) return null;
-            Collections.sort(schemes, String.CASE_INSENSITIVE_ORDER);
-            schemes.add(0, SCHEME_DEFAULT);
-            return schemes.toArray(new String[0]);
-        } catch (IOException e) {
-            Logger.logError(LOG_TAG, "Failed to list Termux:Style color assets: " + e.getMessage());
-            return null;
         }
+        // Material You does NOT depend on Termux:Style — it is generated from the system palette,
+        // so it is offered even when the plugin is missing (and it is the only entry then).
+        // One entry per variant: choosing the variant IS choosing the scheme.
+        final boolean materialYou = MaterialYouSchemeStore.isSupported();
+        if (schemes.isEmpty() && !materialYou) return null;
+        Collections.sort(schemes, String.CASE_INSENSITIVE_ORDER);
+        // Order: "Default" first, then the Material You variants (they need no plugin and are the
+        // interesting new option), then the Termux:Style schemes.
+        schemes.add(0, SCHEME_DEFAULT);
+        if (materialYou) {
+            int index = 1;
+            for (SchemeVariant variant : SchemeVariant.values()) {
+                schemes.add(index++, materialYouSchemeName(variant));
+            }
+        }
+        return schemes.toArray(new String[0]);
     }
 
     /**
@@ -280,18 +494,35 @@ public final class ColorSchemeUtils {
         for (int i = 0; i < schemes.length; i++)
             labels[i] = schemeDisplayName(schemes[i]);
 
+        // Pre-select whatever is currently stored for the theme, so the dialog opens on "Default"
+        // (or the previously chosen Material You variant) rather than an arbitrary row.
+        final String current = getSelectedSchemeName(isNight);
+        int checkedItem = 0;
+        for (int i = 0; i < schemes.length; i++) {
+            if (schemes[i].equals(current)) { checkedItem = i; break; }
+        }
+
         AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
             .setTitle(title)
-            .setItems(labels, (dialog, which) -> {
+            .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> {
                 persistSelection(isNight, schemes[which]);
                 applyStylingScheme(context, isNight, schemes[which]);
                 if (onApplied != null) onApplied.run();
+                dialog.dismiss();
             })
             .create();
         d.show();
     }
 
-    /** Persist the selected scheme file name for the given theme into termux.properties. */
+    /**
+     * Persist the selected scheme file name for the given theme into termux.properties.
+     *
+     * <p>The scheme name alone is the source of truth: a Material You entry carries its variant
+     * in the name ({@code MaterialYou} = System, {@code MaterialYou-rainbow} = Rainbow), so
+     * {@code material-you-variant} is deliberately NOT touched here. Writing it used to make the
+     * bare {@code MaterialYou} row resolve to the last picked variant, turning "System" into a
+     * duplicate of it.
+     */
     public static void persistSelection(boolean isNight, String schemeFile) {
         File propsFile = new File(TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE_PATH);
         Properties props = new Properties();
@@ -316,9 +547,19 @@ public final class ColorSchemeUtils {
      */
     public static String schemeDisplayName(String fileName) {
         if (SCHEME_DEFAULT.equals(fileName)) return SCHEME_DEFAULT;
+        if (isMaterialYouScheme(fileName)) return materialYouDisplayName(materialYouVariantOf(fileName));
         String name = fileName.replace('-', ' ');
         int dot = name.lastIndexOf('.');
         if (dot != -1) name = name.substring(0, dot);
+        return titleCaseWords(name);
+    }
+
+    /**
+     * Termux:Style's display formatting: strip the extension, replace '-' with spaces and
+     * title-case every word.
+     */
+    @NonNull
+    private static String titleCaseWords(@NonNull String name) {
         StringBuilder sb = new StringBuilder(name.length());
         boolean lastWhitespace = true;
         for (int i = 0; i < name.length(); i++) {
@@ -348,6 +589,14 @@ public final class ColorSchemeUtils {
 
         if (SCHEME_DEFAULT.equals(fileName)) {
             if (perThemeFile.isFile()) perThemeFile.delete();
+            return true;
+        }
+
+        if (isMaterialYouScheme(fileName)) {
+            // Generated at runtime from the system palette — nothing to copy. We only drop a stale
+            // per-theme file so the generator, not a leftover Termux:Style scheme, owns the theme.
+            if (perThemeFile.isFile()) perThemeFile.delete();
+            MaterialYouSchemeStore.invalidate();
             return true;
         }
 

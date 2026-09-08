@@ -12,7 +12,6 @@
         <item>system</item>
     </string-array>
 
-
     <string-array name="screen_orientation_entries">
         <item>@string/screen_orientation_entry_follow_sensor</item>
         <item>@string/screen_orientation_entry_portrait_follow_sensor</item>

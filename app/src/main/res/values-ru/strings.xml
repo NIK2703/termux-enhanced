@@ -222,7 +222,6 @@
     <string name="color_scheme_dark_title">Цветовая схема терминала (Тёмная тема)</string>
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
-    
     <string name="message_history_title">История сообщений</string>
     <string name="message_history_max_title">Максимум сохранённых сообщений</string>
     <string name="per_directory_message_history_title">История сообщений по директориям</string>

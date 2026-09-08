@@ -340,7 +340,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         pref.setOnPreferenceClickListener(preference -> {
             Context ctx = getContext();
             if (ctx == null) return true;
-            ColorSchemeUtils.showColorSchemeDialog(ctx, isNight, pref.getTitle(),
+                ColorSchemeUtils.showColorSchemeDialog(ctx, isNight, pref.getTitle(),
                 getString(R.string.error_styling_not_installed), () -> {
                     updateColorSchemeSummary(pref, isNight);
                     TermuxActivity.updateTermuxActivityStyling(ctx, false);
