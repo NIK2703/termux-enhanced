@@ -390,16 +390,6 @@ public final class TermuxPropertyConstants {
 
 
 
-    /** Defines the key for extra-keys context-aware layout switching. */
-    public static final String KEY_EXTRA_KEYS_CONTEXT = "extra-keys-context"; // Default: "extra-keys-context"
-    /** Default empty value (context switching disabled). */
-    public static final String DEFAULT_IVALUE_EXTRA_KEYS_CONTEXT = "";
-
-    /** Defines the key for the foreground-process polling interval (ms). */
-    public static final String KEY_EXTRA_KEYS_CONTEXT_POLL_INTERVAL = "extra-keys-context-poll-interval";
-    /** Default polling interval: 800 ms. */
-    public static final long DEFAULT_IVALUE_EXTRA_KEYS_CONTEXT_POLL_INTERVAL = 800L;
-
     /** Defines the key for session-name based extra-keys layout switching. */
     public static final String KEY_EXTRA_KEYS_SESSION = "extra-keys-session"; // Default: "extra-keys-session"
     /** Default empty value (session switching disabled). */
@@ -510,8 +500,6 @@ public final class TermuxPropertyConstants {
         KEY_EXTRA_KEYS,
         KEY_EXTRA_KEYS_STYLE,
         KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE,
-        KEY_EXTRA_KEYS_CONTEXT,
-        KEY_EXTRA_KEYS_CONTEXT_POLL_INTERVAL,
         KEY_EXTRA_KEYS_SESSION,
         KEY_NIGHT_MODE,
         KEY_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR,
@@ -603,8 +591,6 @@ public final class TermuxPropertyConstants {
         KEY_EXTRA_KEYS,
         KEY_EXTRA_KEYS_STYLE,
         KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE,
-        KEY_EXTRA_KEYS_CONTEXT,
-        KEY_EXTRA_KEYS_CONTEXT_POLL_INTERVAL,
         KEY_EXTRA_KEYS_SESSION,
         KEY_NIGHT_MODE,
         KEY_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR,

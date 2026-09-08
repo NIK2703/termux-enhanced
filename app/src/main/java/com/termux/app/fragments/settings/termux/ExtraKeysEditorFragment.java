@@ -102,6 +102,16 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
     private int mCols = 5;
     private ExtraKeysConstants.ExtraKeyDisplayMap mDisplayMap;
 
+    // C5: the derived terminal color scheme is cached for the fragment's lifetime. It depends only
+    // on preferences and night mode — both of which recreate the fragment — so recomputing it on
+    // every slider tick / signal assignment (including the per-call getResources().getStringArray()
+    // reads) is wasted work.
+    private boolean mColorSchemeReady;
+    @Nullable
+    private TermuxColorSchemeManager mColorSchemeManager;
+    private int mCachedSchemeBg, mCachedButtonBg, mCachedButtonActiveBg, mCachedButtonText, mCachedEdgeGray;
+
+
     private ExtraKeysView.EditorMode mCurrentMode = ExtraKeysView.EditorMode.ASSIGN;
     @Nullable
     private TextView mHintTextView;
@@ -144,9 +154,9 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
                 int cols = (Integer) newValue;
                 if (cols < 1) cols = 1;
                 mCols = cols;
-                rebuildPreview();
+                String previewJsonCols = rebuildPreview();
                 if (mPreviewView != null) mPreviewView.requestDynamicFontUpdate();
-                save();
+                save(previewJsonCols);
                 return true;
             });
         }
@@ -157,8 +167,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
                 int rows = (Integer) newValue;
                 if (rows < 1) rows = 1;
                 mRows = rows;
-                rebuildPreview();
-                save();
+                save(rebuildPreview());
                 return true;
             });
         }
@@ -740,12 +749,17 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
 
     private final ExtraKeysView.EditorMoveListener mEditorMoveListener =
         (fromRow, fromCol, toRow, toCol) -> {
-            // Tag coordinates are relative to visible grid (0..mRows-1, 0..mCols-1)
+            // Tag coordinates are relative to visible grid (0..mRows-1, 0..mCols-1). B7: validate
+            // against the backing array bounds before indexing — mGrid is fully populated in
+            // loadLayoutIntoGrid(), so the old `src == null` guard was dead code and never protected
+            // against an out-of-range coordinate.
             int vr = visibleRowStart();
             int vc = visibleColStart();
+            if (fromRow < 0 || fromCol < 0 || toRow < 0 || toCol < 0
+                    || vr + fromRow >= MAX_ROWS || vc + fromCol >= MAX_COLS
+                    || vr + toRow >= MAX_ROWS || vc + toCol >= MAX_COLS) return;
             KeyCell src = mGrid[vr + fromRow][vc + fromCol];
             KeyCell dst = mGrid[vr + toRow][vc + toCol];
-            if (src == null || dst == null) return;
 
             // Swap all 5 fields between source and destination
             List<String> tmpTap = src.tap;
@@ -769,12 +783,11 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             dst.swipeRight = tmpSwipeRight;
             dst.display = tmpDisplay;
 
-            rebuildPreview();
-            save();
+            save(rebuildPreview());
         };
 
-    private void rebuildPreview() {
-        if (mPreviewView == null) return;
+    private String rebuildPreview() {
+        if (mPreviewView == null) return null;
 
         String style = mPrefs.getExtraKeysStyle();
         if (style == null) style = "default";
@@ -785,7 +798,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             json = buildJsonMatrix();
         } catch (JSONException e) {
             Log.e(TAG, "Failed to build extra-keys JSON matrix", e);
-            return;
+            return null;
         }
 
         ExtraKeysInfo info;
@@ -793,7 +806,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             info = new ExtraKeysInfo(json, style, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
         } catch (JSONException e) {
             Log.e(TAG, "Failed to parse extra-keys JSON", e);
-            return;
+            return null;
         }
 
         mPreviewView.setButtonTextAllCaps(mPrefs.shouldExtraKeysTextBeAllCaps());
@@ -804,29 +817,35 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             ? ExtraKeysView.SpecialButtonMode.HOLD
             : ExtraKeysView.SpecialButtonMode.STICKY);
 
-        // Reload the terminal color scheme for the current night mode.
-        // This static singleton is otherwise only updated by TermuxActivity, so
-        // we must set it here to get correct preview colors after a theme switch.
-        boolean isNight = ThemeUtils.isNightModeEnabled(requireContext());
-        Properties lightScheme = null;
-        if (!isNight) {
-            lightScheme = new Properties();
-            String[] keys = getResources().getStringArray(R.array.light_terminal_color_scheme_keys);
-            String[] values = getResources().getStringArray(R.array.light_terminal_color_scheme_values);
-            int len = Math.min(keys.length, values.length);
-            for (int i = 0; i < len; i++) {
-                lightScheme.setProperty(keys[i], values[i]);
+        // C5: derive the terminal color scheme once and cache it (see mColorSchemeReady). Recomputing
+        // on every preview rebuild — including the getResources().getStringArray() reads — is wasted work.
+        if (!mColorSchemeReady) {
+            boolean isNight = ThemeUtils.isNightModeEnabled(requireContext());
+            Properties lightScheme = null;
+            if (!isNight) {
+                lightScheme = new Properties();
+                String[] keys = getResources().getStringArray(R.array.light_terminal_color_scheme_keys);
+                String[] values = getResources().getStringArray(R.array.light_terminal_color_scheme_values);
+                int len = Math.min(keys.length, values.length);
+                for (int i = 0; i < len; i++) {
+                    lightScheme.setProperty(keys[i], values[i]);
+                }
             }
+            ColorSchemeUtils.ensureColorSchemeForTheme(isNight, lightScheme);
+
+            TermuxColorSchemeManager cm = new TermuxColorSchemeManager();
+            cm.recompute(mPrefs);
+            mColorSchemeManager = cm;
+            mCachedEdgeGray = cm.isSchemeLight() ? 0xFF555555 : 0xFFAAAAAA;
+            mCachedSchemeBg = cm.getSchemeBackground();
+            mCachedButtonText = cm.getButtonText();
+            mCachedButtonBg = TermuxColorSchemeManager.compositeColors(mCachedSchemeBg, cm.getButtonBg());
+            mCachedButtonActiveBg = TermuxColorSchemeManager.compositeColors(mCachedSchemeBg, cm.getButtonActiveBg());
+            mColorSchemeReady = true;
         }
-        ColorSchemeUtils.ensureColorSchemeForTheme(isNight, lightScheme);
 
-        TermuxColorSchemeManager cm = new TermuxColorSchemeManager();
-        cm.recompute(mPrefs);
-
-        int edgeGray = cm.isSchemeLight() ? 0xFF555555 : 0xFFAAAAAA;
-        mPreviewView.setEditorEdgeColor(edgeGray);
-
-        mPreviewView.setBackgroundColor(cm.getSchemeBackground());
+        mPreviewView.setEditorEdgeColor(mCachedEdgeGray);
+        mPreviewView.setBackgroundColor(mCachedSchemeBg);
 
         mPreviewView.setRepetitiveKeys(ExtraKeysConstants.PRIMARY_REPETITIVE_KEYS);
 
@@ -835,25 +854,26 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
         float rowHeightPx = 37.5f * getResources().getDisplayMetrics().density * scale;
         mPreviewView.reload(info, rowHeightPx);
 
-        int schemeBg = cm.getSchemeBackground();
-        int buttonBg = TermuxColorSchemeManager.compositeColors(schemeBg, cm.getButtonBg());
-        int buttonActiveBg = TermuxColorSchemeManager.compositeColors(schemeBg, cm.getButtonActiveBg());
-        mPreviewView.setButtonColors(cm.getButtonText(), cm.getButtonText(),
-            buttonBg, buttonActiveBg);
+        mPreviewView.setButtonColors(mCachedButtonText, mCachedButtonText,
+            mCachedButtonBg, mCachedButtonActiveBg);
 
+        // B7: derive row/col from a button counter, NOT the raw child index. The loop above skips
+        // non-MaterialButton children, so using `i` would shift every coordinate once any non-button
+        // child is present, corrupting onCellMove/onKeyTap/onKeySwipe target cells.
         int childCount = mPreviewView.getChildCount();
+        int btnIndex = 0;
         for (int i = 0; i < childCount; i++) {
             View child = mPreviewView.getChildAt(i);
-            if (child instanceof com.google.android.material.button.MaterialButton) {
-                int row = i / mCols;
-                int col = i % mCols;
-                KeyCell cell = mGrid[visibleRowStart() + row][visibleColStart() + col];
-                int flags = (cell.swipeUp.isEmpty() ? 0 : 1)
-                          | (cell.swipeDown.isEmpty() ? 0 : 2)
-                          | (cell.swipeLeft.isEmpty() ? 0 : 4)
-                          | (cell.swipeRight.isEmpty() ? 0 : 8);
-                child.setTag(new int[]{row, col, flags});
-            }
+            if (!(child instanceof com.google.android.material.button.MaterialButton)) continue;
+            int row = btnIndex / mCols;
+            int col = btnIndex % mCols;
+            KeyCell cell = mGrid[visibleRowStart() + row][visibleColStart() + col];
+            int flags = (cell.swipeUp.isEmpty() ? 0 : 1)
+                      | (cell.swipeDown.isEmpty() ? 0 : 2)
+                      | (cell.swipeLeft.isEmpty() ? 0 : 4)
+                      | (cell.swipeRight.isEmpty() ? 0 : 8);
+            child.setTag(new int[]{row, col, flags});
+            btnIndex++;
         }
 
         ViewGroup.LayoutParams lp = mPreviewView.getLayoutParams();
@@ -862,6 +882,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             mPreviewView.setLayoutParams(lp);
         }
         mPreviewView.requestLayout();
+        return json;
     }
 
     private void loadCurrentExtraKeys() {
@@ -1135,8 +1156,7 @@ try {
             .setView(input)
             .setPositiveButton(android.R.string.ok, (d, w) -> {
                 cell.display = input.getText().toString().trim();
-                rebuildPreview();
-                save();
+                save(rebuildPreview());
             })
             .setNegativeButton(android.R.string.cancel, null)
             .show();
@@ -1168,23 +1188,31 @@ try {
             case SWIPE_RIGHT: cell.swipeRight = newSignals; break;
         }
 
-        rebuildPreview();
-        save();
+        save(rebuildPreview());
     }
 
     private void save() {
-        String json;
-        try {
-            json = buildJsonMatrix();
-        } catch (JSONException e) {
-            Log.e(TAG, "Failed to build extra-keys JSON matrix in save", e);
-            return;
-        }
-        try {
-            new JSONArray(json);
-        } catch (JSONException e) {
-            Log.e(TAG, "Failed to validate extra-keys JSON in save", e);
-            return;
+        save(null);
+    }
+
+    /**
+     * Persist the current editor grid.
+     *
+     * @param prebuiltJson a JSON string already produced by {@link #buildJsonMatrix()} (e.g. the
+     *                     value returned by {@link #rebuildPreview()}), or {@code null} to build it
+     *                     here. C6: callers that have just rebuilt the preview reuse that JSON instead
+     *                     of parsing the grid a second time. The redundant re-parse validation is
+     *                     dropped — {@link #buildJsonMatrix()} always emits a valid JSONArray.
+     */
+    private void save(@Nullable String prebuiltJson) {
+        String json = prebuiltJson;
+        if (json == null) {
+            try {
+                json = buildJsonMatrix();
+            } catch (JSONException e) {
+                Log.e(TAG, "Failed to build extra-keys JSON matrix in save", e);
+                return;
+            }
         }
 
         if (mCurrentProfile == null) {
@@ -1201,7 +1229,9 @@ try {
             profiles.put(mCurrentProfile, p);
             saveProfiles(profiles);
         }
-        TermuxActivity.updateTermuxActivityStyling(requireContext(), true);
+        // C7: a layout change does not alter the theme or night mode, so a full Activity recreate is
+        // unnecessary — reloadActivityStyling(false) is enough and avoids losing editor state.
+        TermuxActivity.updateTermuxActivityStyling(requireContext(), false);
     }
 
 }

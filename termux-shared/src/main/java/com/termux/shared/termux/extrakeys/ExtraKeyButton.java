@@ -10,7 +10,6 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class ExtraKeyButton {
 
@@ -181,9 +180,12 @@ public class ExtraKeyButton {
         if (displayFromConfig != null) {
             this.display = displayFromConfig;
         } else {
-            this.display = keys.stream()
-                .map(key -> extraKeyDisplayMap.get(key, key))
-                .collect(Collectors.joining(" "));
+            StringBuilder displayBuilder = new StringBuilder();
+            for (int di = 0; di < keys.size(); di++) {
+                if (di > 0) displayBuilder.append(' ');
+                displayBuilder.append(extraKeyDisplayMap.get(keys.get(di), keys.get(di)));
+            }
+            this.display = displayBuilder.toString();
         }
 
         this.popup = swipeUp;
@@ -194,11 +196,8 @@ public class ExtraKeyButton {
     }
 
     public String getStringFromJson(@NonNull JSONObject config, @NonNull String key) {
-        try {
-            return config.getString(key);
-        } catch (JSONException e) {
-            return null;
-        }
+        Object value = config.opt(key);
+        return value instanceof String ? (String) value : null;
     }
 
     /** Get {@link #key}. */

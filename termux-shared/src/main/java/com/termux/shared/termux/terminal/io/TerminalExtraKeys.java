@@ -124,9 +124,9 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
         // dropped when the cached pointer has not been refreshed yet.
         TerminalView terminalView = getTerminalViewForInput();
         if (terminalView == null) return;
-        if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
-            Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
-            if (keyCode == null) return;
+        // C10: single map lookup with a null check instead of containsKey() + get().
+        Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
+        if (keyCode != null) {
             int metaState = 0;
             if (ctrlDown) metaState |= KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON;
             if (altDown) metaState |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
@@ -154,13 +154,7 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
         return false;
     }
 
-    // ---- Gesture press/release lifecycle ----
-
-    @Override
-    public void onExtraKeyButtonGesturePress(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
-        // Gesture press is identical to a tap — delegate to onClick
-        onExtraKeyButtonClick(view, buttonInfo, button);
-    }
+    // ---- Gesture release lifecycle ----
 
     @Override
     public void onExtraKeyButtonGestureRelease(View view, ExtraKeyButton buttonInfo, MaterialButton button) {

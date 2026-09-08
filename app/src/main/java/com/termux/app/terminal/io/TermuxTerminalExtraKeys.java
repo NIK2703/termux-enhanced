@@ -1,5 +1,6 @@
 package com.termux.app.terminal.io;
 
+import android.util.LruCache;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -34,19 +35,19 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
 
     private static final String LOG_TAG = "TermuxTerminalExtraKeys";
 
-    // ── Context-aware layout switching ──────────────────────────────
-    /** Process name → extra-keys JSON string, from the "extra-keys-context" property. */
-    private Map<String, String> mContextLayouts = new HashMap<>();
-    /** The context name currently active (null = default layout). */
-    @Nullable private String mCurrentContext;
-
-    // ── Session-name based layout switching ─────────────────────────
     /** Session-name prefix → extra-keys JSON string, from the "extra-keys-session" property. */
     private Map<String, String> mSessionLayouts = new HashMap<>();
     /** The session profile currently logically active (null = default layout). */
     @Nullable private String mCurrentSessionContext;
     /** Last known active session name (used to re-assert the profile after a process context ends). */
     @Nullable private String mLastSessionName;
+
+    /** Raw JSON of the layout currently applied to the view (null until first apply). */
+    @Nullable private String mCurrentJson;
+    /** Style string of the layout currently applied to the view. */
+    @Nullable private String mCurrentStyle;
+    /** Memoizes parsed session layouts keyed by "json|style" to avoid re-parsing on tab switches. */
+    private final LruCache<String, ExtraKeysInfo> mLayoutCache = new LruCache<>(8);
 
     public TermuxTerminalExtraKeys(TermuxActivity activity, @NonNull TerminalView terminalView,
                                     TermuxTerminalViewClient termuxTerminalViewClient,
@@ -58,7 +59,6 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         mTermuxTerminalSessionActivityClient = termuxTerminalSessionActivityClient;
 
         setExtraKeys();
-        parseContextMap();
         parseSessionMap();
     }
 
@@ -85,22 +85,22 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
      * {@code reload_style} broadcast) would silently reset the panel to the default layout until
      * the next manual tab switch.</p>
      */
-    public void reloadExtraKeys() {
+    /**
+     * @return {@code true} if a session-specific layout was (re)applied to the view by this call,
+     *         {@code false} if the default layout should be reloaded by the caller.
+     */
+    public boolean reloadExtraKeys() {
         setExtraKeys();
-        parseContextMap();
         parseSessionMap();
-        if (mCurrentContext != null) {
-            // Process-based context has priority — the session profile must not override it.
-            mCurrentSessionContext = null;
-            return;
-        }
         String target = (mCurrentSessionContext != null
             && mSessionLayouts.containsKey(mCurrentSessionContext))
             ? mCurrentSessionContext : resolveSessionForPrefix(mLastSessionName);
         if (target != null) {
             applySessionLayout(target, mLastSessionName);
+            return true;
         } else {
             mCurrentSessionContext = null;
+            return false;
         }
     }
 
@@ -127,11 +127,10 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
      */
     private void setExtraKeys() {
         mExtraKeysInfo = null;
+        String extrakeys = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS, true);
+        String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
 
         try {
-            String extrakeys = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS, true);
-            String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
-
             ExtraKeysConstants.ExtraKeyDisplayMap extraKeyDisplayMap = ExtraKeysInfo.getCharDisplayMapForStyle(extraKeysStyle);
             if (ExtraKeysConstants.EXTRA_KEY_DISPLAY_MAPS.DEFAULT_CHAR_DISPLAY.equals(extraKeyDisplayMap) && !TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE.equals(extraKeysStyle)) {
                 Logger.logError(LOG_TAG, "The style \"" + extraKeysStyle + "\" for the key \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS + "\" is invalid. Using default style instead.");
@@ -145,12 +144,19 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
 
             try {
                 mExtraKeysInfo = new ExtraKeysInfo(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
+                extrakeys = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS;
+                extraKeysStyle = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE;
             } catch (JSONException e2) {
                 Logger.showToast(mActivity, mActivity.getString(com.termux.R.string.msg_extra_keys_create_failed), true);
                 Logger.logStackTraceWithMessage(LOG_TAG, "Could create default extra keys: ", e);
                 mExtraKeysInfo = null;
             }
         }
+
+        // Track the raw JSON + style of the layout we just built so applySessionLayout can skip
+        // re-parsing when the same layout is re-applied (C3).
+        mCurrentJson = (mExtraKeysInfo != null) ? extrakeys : null;
+        mCurrentStyle = extraKeysStyle;
     }
 
     public ExtraKeysInfo getExtraKeysInfo() {
@@ -171,43 +177,6 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
                 terminalView.mEmulator.toggleAutoScrollDisabled();
         } else {
             super.onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
-        }
-    }
-
-    // ── Context-aware layout switching ──────────────────────────────
-
-    /**
-     * Parse the {@code extra-keys-context} property into a process-name → JSON layout map.
-     * Called once at construction and again on {@link #reloadExtraKeys()}.
-     *
-     * <p>Expected property format (JSON object):</p>
-     * <pre>
-     * {
-     *   "vim": "[ [ {key:'ESC', ...}, ... ] ]",
-     *   "python": "[ [ {key:'Ctrl-C', ...}, ... ] ]"
-     * }
-     * </pre>
-     */
-    private void parseContextMap() {
-        mContextLayouts.clear();
-        try {
-            Object raw = mActivity.getProperties().getInternalPropertyValue(
-                    TermuxPropertyConstants.KEY_EXTRA_KEYS_CONTEXT, true);
-            if (raw == null) return;
-
-            JSONObject json = new JSONObject(raw.toString());
-            Iterator<String> keys = json.keys();
-            while (keys.hasNext()) {
-                String processName = keys.next();
-                String layoutJson = json.getString(processName);
-                if (processName != null && !processName.isEmpty() && layoutJson != null) {
-                    mContextLayouts.put(processName.toLowerCase(), layoutJson);
-                }
-            }
-        } catch (JSONException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG,
-                "Failed to parse extra-keys-context property: ", e);
-            mContextLayouts.clear();
         }
     }
 
@@ -264,42 +233,11 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         }
     }
 
-    /**
-     * Called by {@link com.termux.shared.termux.extrakeys.ExtraKeysContextWatcher} when the
-     * foreground process of the active terminal session changes.
-     *
-     * @param processName the comm name of the new foreground process,
-     *                    or {@code null} if the shell itself is foreground
-     */
-    public void onForegroundProcessChanged(@Nullable String processName) {
-        if (!isContextSwitchingEnabled()) return;
-
-        String contextName = resolveContextForProcess(processName);
-        if (contextName == null) {
-            // Process context ended. Priority fallback: re-assert the active session profile
-            // (if any); otherwise revert to the default layout (original behaviour).
-            if (mCurrentSessionContext != null
-                    && mSessionLayouts.containsKey(mCurrentSessionContext)) {
-                mCurrentContext = null; // clear the process override
-                applySessionLayout(mCurrentSessionContext, mLastSessionName);
-                return;
-            }
-            applyDefaultLayout();
-        } else if (!contextName.equals(mCurrentContext)) {
-            applyContextLayout(contextName, processName);
-        }
-        // If contextName equals mCurrentContext, no-op (already showing this layout)
-    }
 
     /**
      * Session-based trigger: called when the active session is switched or renamed.
      * Resolves the session name against the configured prefixes and applies the matching
      * profile, or reverts to the default layout when nothing matches.
-     *
-     * <p><b>Priority:</b> if a process-based context is currently active
-     * ({@link #mCurrentContext} != null) the displayed layout is NOT changed — the process
-     * layout wins. The newly resolved session profile is only remembered so it can be
-     * re-asserted when the process context later ends.
      *
      * @param sessionName the (possibly null) name of the newly active session
      */
@@ -309,12 +247,6 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
 
         String sessionContext = resolveSessionForPrefix(sessionName);
 
-        // Priority: process-based context takes precedence — do not switch by session.
-        if (mCurrentContext != null) {
-            // Remember the pending session profile for when the process context ends.
-            mCurrentSessionContext = sessionContext; // may be null
-            return;
-        }
 
         if (sessionContext == null) {
             // No prefix match — revert to the default layout if a session profile was shown.
@@ -351,70 +283,7 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         return bestMatch;
     }
 
-    /**
-     * Find the context key that matches the given process name.
-     * Supports exact match first, then prefix match (e.g. "python3" → "python").
-     *
-     * @return the context key, or {@code null} if no match
-     */
-    @Nullable
-    private String resolveContextForProcess(@Nullable String processName) {
-        if (processName == null || mContextLayouts.isEmpty()) return null;
 
-        String lower = processName.toLowerCase();
-
-        // Exact match
-        if (mContextLayouts.containsKey(lower)) return lower;
-
-        // Prefix match: "python3" → "python", "vi" → "vim" (longest prefix wins)
-        String bestMatch = null;
-        for (String key : mContextLayouts.keySet()) {
-            if (lower.startsWith(key) || key.startsWith(lower)) {
-                if (bestMatch == null || key.length() > bestMatch.length()) {
-                    bestMatch = key;
-                }
-            }
-        }
-        return bestMatch;
-    }
-
-    /**
-     * Load and apply an ExtraKeys layout for the given context name.
-     */
-    private void applyContextLayout(@NonNull String contextName, @NonNull String processName) {
-        String contextLayoutJson = mContextLayouts.get(contextName);
-        if (contextLayoutJson == null) {
-            Logger.logError(LOG_TAG, "Context layout not found for: " + contextName);
-            return;
-        }
-
-        try {
-            String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(
-                    TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
-
-            ExtraKeysConstants.ExtraKeyDisplayMap displayMap = ExtraKeysInfo.getCharDisplayMapForStyle(extraKeysStyle);
-            ExtraKeysInfo previousInfo = mExtraKeysInfo;
-            ExtraKeysInfo newInfo = new ExtraKeysInfo(contextLayoutJson, extraKeysStyle,
-                    ExtraKeysConstants.CONTROL_CHARS_ALIASES);
-
-            // Avoid redundant reload if the matrix is structurally identical.
-            if (!ExtraKeysInfo.isSameLayout(mExtraKeysInfo, newInfo)) {
-                mExtraKeysInfo = newInfo;
-                // Update the toolbar height for the new layout row count.
-                mActivity.setTerminalToolbarHeight();
-                if (mActivity.getExtraKeysView() != null && mExtraKeysInfo != null) {
-                    mActivity.getExtraKeysView().reload(newInfo,
-                            mActivity.getTerminalToolbarDefaultHeight());
-                }
-                Logger.logDebug(LOG_TAG, "Switched extra-keys to context \""
-                        + contextName + "\" for process: " + processName);
-            }
-            mCurrentContext = contextName;
-        } catch (JSONException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG,
-                    "Failed to create ExtraKeysInfo for context \"" + contextName + "\": ", e);
-        }
-    }
 
     /**
      * Load and apply the ExtraKeys layout for the given session profile name.
@@ -423,23 +292,41 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
     private void applySessionLayout(@NonNull String profileName, @Nullable String sessionName) {
         String sessionLayoutJson = mSessionLayouts.get(profileName);
         if (sessionLayoutJson == null) return;
-        try {
-            String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(
-                    TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
-            ExtraKeysInfo newInfo = new ExtraKeysInfo(sessionLayoutJson, extraKeysStyle,
-                    ExtraKeysConstants.CONTROL_CHARS_ALIASES);
-            // Avoid redundant reload if the matrix is structurally identical.
-            if (mExtraKeysInfo == null || !ExtraKeysInfo.isSameLayout(mExtraKeysInfo, newInfo)) {
-                mExtraKeysInfo = newInfo;
-                mActivity.setTerminalToolbarHeight();
-                if (mActivity.getExtraKeysView() != null) {
-                    mActivity.getExtraKeysView().reload(newInfo,
-                            mActivity.getTerminalToolbarDefaultHeight());
-                }
-            }
+
+        String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(
+                TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
+
+        // Skip entirely if the exact same layout (raw JSON + style) is already applied — this
+        // avoids re-parsing the JSON on every tab switch (C3).
+        if (sessionLayoutJson.equals(mCurrentJson) && extraKeysStyle.equals(mCurrentStyle)
+                && mExtraKeysInfo != null) {
             mCurrentSessionContext = profileName;
-        } catch (JSONException e) {
-            mCurrentSessionContext = null;
+            return;
+        }
+
+        String cacheKey = sessionLayoutJson + "|" + extraKeysStyle;
+        ExtraKeysInfo newInfo = mLayoutCache.get(cacheKey);
+        if (newInfo == null) {
+            try {
+                newInfo = new ExtraKeysInfo(sessionLayoutJson, extraKeysStyle,
+                        ExtraKeysConstants.CONTROL_CHARS_ALIASES);
+            } catch (JSONException e) {
+                Logger.logStackTraceWithMessage(LOG_TAG,
+                        "Failed to create ExtraKeysInfo for session profile \"" + profileName + "\": ", e);
+                mCurrentSessionContext = null;
+                return;
+            }
+            mLayoutCache.put(cacheKey, newInfo);
+        }
+
+        mExtraKeysInfo = newInfo;
+        mCurrentJson = sessionLayoutJson;
+        mCurrentStyle = extraKeysStyle;
+        mCurrentSessionContext = profileName;
+        mActivity.setTerminalToolbarHeight();
+        if (mActivity.getExtraKeysView() != null) {
+            mActivity.getExtraKeysView().reload(newInfo,
+                    mActivity.getTerminalToolbarDefaultHeight());
         }
     }
 
@@ -458,37 +345,11 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         }
     }
 
-    /**
-     * Restore the default extra-keys layout (re-reads the {@code extra-keys} property).
-     */
-    private void applyDefaultLayout() {
-        if (mCurrentContext == null) return; // Already at default
-        reloadDefaultLayout();
-        mCurrentContext = null;
-    }
-
-    /** @return {@code true} if context-aware switching is configured and non-empty. */
-    public boolean isContextSwitchingEnabled() {
-        return !mContextLayouts.isEmpty();
-    }
 
     /** @return {@code true} if session-based switching is configured and non-empty. */
     public boolean isSessionSwitchingEnabled() {
         return !mSessionLayouts.isEmpty();
     }
-
-    /** @return unmodifiable view of the process→layout map (for testing/debugging). */
-    @NonNull
-    public Map<String, String> getContextLayouts() {
-        return mContextLayouts;
-    }
-
-    /** @return the currently active context name, or {@code null} for the default layout. */
-    @Nullable
-    public String getCurrentContext() {
-        return mCurrentContext;
-    }
-
     /** @return unmodifiable view of the prefix→layout map (for testing/debugging). */
     @NonNull
     public Map<String, String> getSessionLayouts() {

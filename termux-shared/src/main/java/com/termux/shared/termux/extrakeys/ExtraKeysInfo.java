@@ -134,23 +134,14 @@ public class ExtraKeysInfo {
     private ExtraKeyButton[][] initExtraKeysInfo(@NonNull String propertiesInfo,
                                                  @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyDisplayMap,
                                                  @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyAliasMap) throws JSONException {
-        // Convert String propertiesInfo to Array of Arrays
+        // Convert String propertiesInfo to a matrix of buttons directly — no intermediate Object[][] allocation.
         JSONArray arr = new JSONArray(propertiesInfo);
-        Object[][] matrix = new Object[arr.length()][];
+        ExtraKeyButton[][] buttons = new ExtraKeyButton[arr.length()][];
         for (int i = 0; i < arr.length(); i++) {
             JSONArray line = arr.getJSONArray(i);
-            matrix[i] = new Object[line.length()];
+            buttons[i] = new ExtraKeyButton[line.length()];
             for (int j = 0; j < line.length(); j++) {
-                matrix[i][j] = line.get(j);
-            }
-        }
-
-        // convert matrix to buttons
-        ExtraKeyButton[][] buttons = new ExtraKeyButton[matrix.length][];
-        for (int i = 0; i < matrix.length; i++) {
-            buttons[i] = new ExtraKeyButton[matrix[i].length];
-            for (int j = 0; j < matrix[i].length; j++) {
-                Object key = matrix[i][j];
+                Object key = line.get(j);
 
                 JSONObject jobject = normalizeKeyConfig(key);
 
@@ -234,8 +225,8 @@ public class ExtraKeysInfo {
      * both infos have the same matrix dimensions and each cell's button
      * properties (key, display, macro, popup) are identical.
      *
-     * <p>Used by {@link ExtraKeysContextWatcher} to avoid redundant
-     * {@link ExtraKeysView#reload} calls.</p>
+     * <p>Used to avoid redundant {@link ExtraKeysView#reload} calls (e.g. when re-applying the
+     * same layout after a session-name or styling change).</p>
      */
     public static boolean isSameLayout(@NonNull ExtraKeysInfo a, @NonNull ExtraKeysInfo b) {
         ExtraKeyButton[][] ma = a.getMatrix();

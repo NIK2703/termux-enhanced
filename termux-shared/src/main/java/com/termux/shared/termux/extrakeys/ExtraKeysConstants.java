@@ -55,11 +55,11 @@ public class ExtraKeysConstants {
      * Default java.util .get(key) is then the same as .get(key, null);
      */
     static class CleverMap<K,V> extends HashMap<K,V> {
+        // C10: single lookup instead of containsKey() + get(); these maps never store null values,
+        // so a null return unambiguously means "absent" and the default applies.
         V get(K key, V defaultValue) {
-            if (containsKey(key))
-                return get(key);
-            else
-                return defaultValue;
+            V value = get(key);
+            return value != null ? value : defaultValue;
         }
     }
 

@@ -1,7 +1,9 @@
 package com.termux.shared.termux.extrakeys;
 
 import android.annotation.SuppressLint;
+import android.content.ContentResolver;
 import android.content.Context;
+import android.database.ContentObserver;
 import android.content.res.ColorStateList;
 import android.os.Build;
 import android.os.Handler;
@@ -27,10 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 
 import java.util.HashSet;
 import java.util.stream.Collectors;
@@ -43,7 +41,6 @@ import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.GridLayout;
-import android.widget.PopupWindow;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -160,22 +157,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
          * @param button The {@link MaterialButton} that was clicked.
          */
         void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, MaterialButton button);
-
-        /**
-         * Called when a swipe gesture is first recognised (ACTION_MOVE crosses the swipe threshold).
-         * Equivalent to ACTION_DOWN on a physical key: modifiers become active, regular keys are
-         * dispatched immediately, and macros begin execution.
-         * <p>
-         * The default implementation falls back to {@link #onExtraKeyButtonClick} for backward
-         * compatibility.
-         *
-         * @param view The source view that was swiped.
-         * @param buttonInfo The {@link ExtraKeyButton} for the swipe target button.
-         * @param button The {@link MaterialButton} that was swiped.
-         */
-        default void onExtraKeyButtonGesturePress(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
-            onExtraKeyButtonClick(view, buttonInfo, button);
-        }
 
         /**
          * Called when the finger is lifted after a swipe gesture (ACTION_UP).
@@ -390,10 +371,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
 
-    /** The popup window shown if {@link ExtraKeyButton#getPopup()} returns a {@code non-null} value
-     * and a swipe up action is done on an extra key. */
-    protected PopupWindow mPopupWindow;
-
     /** Editor gesture listener. When non-null, the view is in editor mode. */
     @Nullable
     private EditorGestureListener mEditorListener;
@@ -432,11 +409,20 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     @Nullable
     private View mGestureActiveView;
 
-    protected final ScheduledExecutorService mScheduledExecutor = Executors.newSingleThreadScheduledExecutor();
-    protected ScheduledFuture<?> mRepetitiveFuture;
     protected Handler mHandler;
     protected SpecialButtonsLongHoldRunnable mSpecialButtonsLongHoldRunnable;
+    /** Recursive main-thread runnable that drives auto-repeat after a long-press. Null when inactive. */
+    protected Runnable mRepetitiveRunnable;
     protected int mLongPressCount;
+
+    // C8: haptic state is cached here so that performExtraKeyButtonHapticFeedback() never has to
+    // perform a per-press Binder IPC to the SettingsProvider. Refreshed on attach,
+    // on every reloadActivityStyling(), and via a ContentObserver when the system toggles change.
+    private int mHapticMode = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_HAPTIC;
+    private boolean mHapticFeedbackEnabled;
+    private boolean mZenModeAllowsSound = true;
+    @Nullable
+    private ContentObserver mHapticObserver;
 
     private ColorStateList mButtonBgTint;
     private ColorStateList mButtonActiveBgTint;
@@ -750,7 +736,7 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
 
     /** Set {@link #mLongPressRepeatDelay}. */
     public void setLongPressRepeatDelay(int longPressRepeatDelay) {
-        if (mLongPressRepeatDelay >= MIN_LONG_PRESS__REPEAT_DELAY && mLongPressRepeatDelay <= MAX_LONG_PRESS__REPEAT_DELAY) {
+        if (longPressRepeatDelay >= MIN_LONG_PRESS__REPEAT_DELAY && longPressRepeatDelay <= MAX_LONG_PRESS__REPEAT_DELAY) {
             mLongPressRepeatDelay = longPressRepeatDelay;
         } else {
             mLongPressRepeatDelay = DEFAULT_LONG_PRESS_REPEAT_DELAY;
@@ -948,10 +934,7 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
                                 // Start repeat for swipe target if it's a repetitive key (UP/DOWN/LEFT/RIGHT/etc)
                                 if (mRepetitiveKeys.contains(swipeBtn.getKey())) {
                                     mLongPressCount = 0;
-                                    mRepetitiveFuture = mScheduledExecutor.scheduleWithFixedDelay(() -> {
-                                        mLongPressCount++;
-                                        onExtraKeyButtonClick(view, swipeBtn, button);
-                                    }, mLongPressTimeout, mLongPressRepeatDelay, TimeUnit.MILLISECONDS);
+                                    startRepetitiveRepeat(view, swipeBtn, button);
                                 }
                                 return true;
                             }
@@ -1088,15 +1071,10 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     public void performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button, boolean isGesture) {
-        // Check the haptic mode setting
-        int hapticMode = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_HAPTIC;
-        TermuxAppSharedProperties props = TermuxAppSharedProperties.getProperties();
-        if (props != null) {
-            hapticMode = props.getExtraKeysHaptic();
-        }
-
-        if (hapticMode == TermuxPropertyConstants.IVALUE_EXTRA_KEYS_HAPTIC_OFF) return;
-        if (!isGesture && hapticMode == TermuxPropertyConstants.IVALUE_EXTRA_KEYS_HAPTIC_GESTURES) return;
+        // All haptic settings are read from the cached fields (see refreshHapticState()) so that
+        // no Binder IPC to SettingsProvider happens on the per-press hot path.
+        if (mHapticMode == TermuxPropertyConstants.IVALUE_EXTRA_KEYS_HAPTIC_OFF) return;
+        if (!isGesture && mHapticMode == TermuxPropertyConstants.IVALUE_EXTRA_KEYS_HAPTIC_GESTURES) return;
 
         if (mExtraKeysViewClient != null) {
             // If client handled the feedback, then just return
@@ -1104,17 +1082,56 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
                 return;
         }
 
-        if (Settings.System.getInt(getContext().getContentResolver(),
-            Settings.System.HAPTIC_FEEDBACK_ENABLED, 0) != 0) {
-
-            if (Build.VERSION.SDK_INT >= 28) {
+        if (mHapticFeedbackEnabled) {
+            // On API < 28 suppress feedback only in total-silence (zen_mode == 2) mode.
+            if (Build.VERSION.SDK_INT >= 28 || mZenModeAllowsSound) {
                 button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            } else {
-                // Perform haptic feedback only if no total silence mode enabled.
-                if (Settings.Global.getInt(getContext().getContentResolver(), "zen_mode", 0) != 2) {
-                    button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                }
             }
+        }
+    }
+
+    /**
+     * Refresh the cached haptic state from {@link TermuxAppSharedProperties} and the system
+     * {@link Settings}. Called on attach and on every {@code reloadActivityStyling} so that the
+     * per-press {@link #performExtraKeyButtonHapticFeedback} never performs Binder IPC itself.
+     */
+    public void refreshHapticState() {
+        TermuxAppSharedProperties props = TermuxAppSharedProperties.getProperties();
+        mHapticMode = props != null ? props.getExtraKeysHaptic()
+            : TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_HAPTIC;
+        ContentResolver resolver = getContext().getContentResolver();
+        mHapticFeedbackEnabled = Settings.System.getInt(resolver,
+            Settings.System.HAPTIC_FEEDBACK_ENABLED, 0) != 0;
+        if (Build.VERSION.SDK_INT < 28) {
+            // Use the literal setting name: Settings.Global.ZEN_MODE is not exposed by the SDK stub
+            // this project compiles against, whereas the "zen_mode" key is stable across versions.
+            mZenModeAllowsSound = Settings.Global.getInt(resolver, "zen_mode", 0) != 2;
+        }
+    }
+
+    /** Register a ContentObserver that refreshes the haptic cache when system haptic/zen settings change. */
+    private void registerHapticObserver() {
+        if (mHapticObserver != null) return;
+        mHapticObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+                refreshHapticState();
+            }
+        };
+        ContentResolver resolver = getContext().getContentResolver();
+        resolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.HAPTIC_FEEDBACK_ENABLED), false, mHapticObserver);
+        if (Build.VERSION.SDK_INT < 28) {
+            resolver.registerContentObserver(
+                Settings.Global.getUriFor("zen_mode"), false, mHapticObserver);
+        }
+    }
+
+    /** Unregister the haptic ContentObserver. */
+    private void unregisterHapticObserver() {
+        if (mHapticObserver != null) {
+            getContext().getContentResolver().unregisterContentObserver(mHapticObserver);
+            mHapticObserver = null;
         }
     }
 
@@ -1145,14 +1162,7 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         if (mRepetitiveKeys.contains(buttonInfo.getKey())) {
             // Auto repeat key if long pressed until ACTION_UP stops it by calling stopScheduledExecutors.
             // Currently, only one (last) repeat key can run at a time. Old ones are stopped.
-            if (mRepetitiveFuture != null) {
-                mRepetitiveFuture.cancel(false);
-                mRepetitiveFuture = null;
-            }
-            mRepetitiveFuture = mScheduledExecutor.scheduleWithFixedDelay(() -> {
-                mLongPressCount++;
-                onExtraKeyButtonClick(view, buttonInfo, button);
-            }, mLongPressTimeout, mLongPressRepeatDelay, TimeUnit.MILLISECONDS);
+            startRepetitiveRepeat(view, buttonInfo, button);
         } else if (isSpecialButton(buttonInfo)) {
             // Lock the key if long pressed by running mSpecialButtonsLongHoldRunnable after
             // waiting for mLongPressTimeout milliseconds. If user does not long press, then the
@@ -1167,10 +1177,31 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
+    /**
+     * Schedule the auto-repeat runnable on the main thread. The first fire happens after
+     * {@link #mLongPressTimeout}; every subsequent fire repeats every {@link #mLongPressRepeatDelay}.
+     * Because everything runs on the UI thread, repeated terminal input goes through the normal
+     * UI path instead of being written from a background pool thread.
+     */
+    private void startRepetitiveRepeat(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
+        if (mHandler == null)
+            mHandler = new Handler(Looper.getMainLooper());
+        mRepetitiveRunnable = new Runnable() {
+            @Override
+            public void run() {
+                mLongPressCount++;
+                onExtraKeyButtonClick(view, buttonInfo, button);
+                if (mHandler != null)
+                    mHandler.postDelayed(this, mLongPressRepeatDelay);
+            }
+        };
+        mHandler.postDelayed(mRepetitiveRunnable, mLongPressTimeout);
+    }
+
     public void stopScheduledExecutors() {
-        if (mRepetitiveFuture != null) {
-            mRepetitiveFuture.cancel(false);
-            mRepetitiveFuture = null;
+        if (mRepetitiveRunnable != null && mHandler != null) {
+            mHandler.removeCallbacks(mRepetitiveRunnable);
+            mRepetitiveRunnable = null;
         }
 
         if (mSpecialButtonsLongHoldRunnable != null && mHandler != null) {
@@ -1195,16 +1226,20 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        refreshHapticState();
+        registerHapticObserver();
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         stopScheduledExecutors();
+        unregisterHapticObserver();
         if (mHandler != null) {
             mHandler.removeCallbacksAndMessages(null);
             mHandler = null;
-        }
-        if (mPopupWindow != null && mPopupWindow.isShowing()) {
-            mPopupWindow.dismiss();
-            mPopupWindow = null;
         }
     }
 
@@ -1224,38 +1259,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
 
-
-    void showPopup(View view, ExtraKeyButton extraButton) {
-        int width = view.getMeasuredWidth();
-        int height = view.getMeasuredHeight();
-        MaterialButton button;
-        if (isSpecialButton(extraButton)) {
-            button = createSpecialButton(extraButton.getKey(), false);
-            if (button == null) return;
-        } else {
-            button = createDefaultMaterialButton(getContext());
-            button.setTextColor(mButtonTextColor);
-        }
-        button.setText(getDisplayTextForCurrentCapsMode(extraButton.getDisplay()));
-        button.setAllCaps(false);
-        button.setWidth(width);
-        button.setHeight(height);
-        button.setBackgroundTintList(mButtonActiveBgTint);
-        mPopupWindow = new PopupWindow(this);
-        mPopupWindow.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(mButtonBackgroundColor));
-        mPopupWindow.setWidth(LayoutParams.WRAP_CONTENT);
-        mPopupWindow.setHeight(LayoutParams.WRAP_CONTENT);
-        mPopupWindow.setContentView(button);
-        mPopupWindow.setOutsideTouchable(true);
-        mPopupWindow.setFocusable(false);
-        mPopupWindow.showAsDropDown(view, 0, -2 * height);
-    }
-
-    public void dismissPopup() {
-        mPopupWindow.setContentView(null);
-        mPopupWindow.dismiss();
-        mPopupWindow = null;
-    }
 
 
 

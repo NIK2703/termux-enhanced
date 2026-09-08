@@ -3869,8 +3869,16 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mColorSchemeManager.recompute(getPreferences());
 
             if (mExtraKeysView != null) {
-                if (mTermuxTerminalExtraKeys != null)
-                    mTermuxTerminalExtraKeys.reloadExtraKeys();
+                // C8: refresh the cached haptic settings once per styling reload instead of doing a
+                // Binder IPC to SettingsProvider on every key press.
+                mExtraKeysView.refreshHapticState();
+
+                // C4: reloadExtraKeys() returns true if it already rebuilt the grid (a session
+                // layout was applied). Only rebuild with the default layout when it returns false,
+                // avoiding a second full grid rebuild + height recalculation per styling reload.
+                boolean layoutReloaded = (mTermuxTerminalExtraKeys != null)
+                    && mTermuxTerminalExtraKeys.reloadExtraKeys();
+
                 mExtraKeysView.setButtonTextAllCaps(mProperties.shouldExtraKeysTextBeAllCaps());
                 mExtraKeysView.setDynamicFontSize(getPreferences().isExtraKeysDynamicFontSizeEnabled(this));
                 mExtraKeysView.setRuntimeEdgeIndicatorsEnabled(getPreferences().isExtraKeysEdgeIndicatorsEnabled());
@@ -3881,7 +3889,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     mColorSchemeManager.getButtonBg(),
                     mColorSchemeManager.getButtonActiveBg()
                 );
-                mExtraKeysView.reload(mTermuxTerminalExtraKeys.getExtraKeysInfo(), mTerminalToolbarDefaultHeight);
+
+                if (!layoutReloaded) {
+                    mExtraKeysView.reload(mTermuxTerminalExtraKeys.getExtraKeysInfo(), mTerminalToolbarDefaultHeight);
+                }
             }
 
 // Update NightMode.APP_NIGHT_MODE
