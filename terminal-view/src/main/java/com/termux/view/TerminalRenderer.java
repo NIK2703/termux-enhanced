@@ -563,23 +563,46 @@ public final class TerminalRenderer {
         // or the default foreground under reverse video) — a swapped cell carrying it is the
         // default background and needs no fill here. Painted colours get the same alpha as the
         // base fill so all backgrounds share the configured transparency.
+        //
+        // The fill must go through mBgPaint in SRC mode, exactly like pass A — NOT through
+        // mTextPaint: mTextPaint has no xfermode, so a translucent cell colour laid down in
+        // SRC_OVER over the translucent base fill composes to 2A-A^2 (0x80 over 0x80 = 0xC0)
+        // and picks up a (1-A)/(2-A) share of the base colour. That is exactly what made
+        // box-drawing / block / braille glyphs (which come from a fallback font and therefore
+        // always take the mismatch path) render as denser cells with the wallpaper barely
+        // showing through. Never set SRC on mTextPaint itself: text is drawn with partial
+        // glyph coverage, and SRC would erase the background behind the anti-aliased edges.
         if (fontWidthMismatch && backColor != baseBgColor) {
-            mTextPaint.setColor(mBackgroundAlpha >= 255
-                ? backColor
-                : (backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
-            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, mTextPaint);
-            // Paint color was changed for the bg fill; force the text color to be re-applied below.
-            mLastPaintForeColor = -1;
+            if (mBackgroundAlpha >= 255) {
+                // Fast path: opaque painted background, default SRC_OVER compositing.
+                mBgPaint.setColor(backColor);
+            } else {
+                mBgPaint.setXfermode(SRC_XFERMODE);
+                mBgPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+            }
+            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, mBgPaint);
+            if (mBackgroundAlpha < 255) mBgPaint.setXfermode(null);
         }
 
         if (cursor != 0) {
-            mTextPaint.setColor(cursor);
             float cursorHeight = mFontLineSpacingAndAscent - mFontAscent;
             if (cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_UNDERLINE) cursorHeight /= 4.;
             else if (cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_BAR) right -= ((right - left) * 3) / 4.;
-            canvas.drawRect(left, y - cursorHeight, right, y, mTextPaint);
-            // Paint color was changed for the cursor fill; force the text color to be re-applied below.
-            mLastPaintForeColor = -1;
+            // The cursor is a background fill too, so it honours the configured transparency
+            // exactly like pass A and the mismatch-run fill: same alpha, laid down in SRC.
+            // An opaque cursor rect was the last remaining "solid" patch on a translucent
+            // screen — it punched a dense hole through the wallpaper wherever it blinked.
+            // Only the *glyph* on top of a block cursor stays opaque (it is text, and it is
+            // drawn below by the normal text path with the reverse-video swap applied).
+            if (mBackgroundAlpha >= 255) {
+                // Fast path: opaque cursor, default SRC_OVER compositing.
+                mBgPaint.setColor(cursor);
+            } else {
+                mBgPaint.setXfermode(SRC_XFERMODE);
+                mBgPaint.setColor((cursor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+            }
+            canvas.drawRect(left, y - cursorHeight, right, y, mBgPaint);
+            if (mBackgroundAlpha < 255) mBgPaint.setXfermode(null);
         }
 
         if ((effect & TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE) == 0) {
