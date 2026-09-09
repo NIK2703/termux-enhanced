@@ -13,4 +13,17 @@
     <style name="TermuxActivity.Drawer.ButtonBarStyle.Dark" parent="@style/Widget.MaterialComponents.Button.TextButton">
         <item name="android:textColor">?attr/colorControlNormal</item>
     </style>
+
+    <!-- Message-history context popup: an EXACT replica of the framework's standard
+         "above the anchor" dropdown pair — anim/grow_fade_in_from_bottom +
+         shrink_fade_out_from_bottom (Animation.DropDownUp), which is what the
+         directory-history popup plays — same scale/alpha, same interpolators and the
+         same 220 ms / 150 ms durations, so both popups are timed identically.
+         pivotY=100% pins the bottom edge (the pencil button) so the window grows
+         upward out of it; without this style PopupWindow picks the animation before it
+         resolves mAboveAnchor and plays the "grow from the TOP" variant instead. -->
+    <style name="MessageHistoryPopupAnimation" parent="@android:style/Animation">
+        <item name="android:windowEnterAnimation">@anim/message_history_enter</item>
+        <item name="android:windowExitAnimation">@anim/message_history_exit</item>
+    </style>
 </resources>

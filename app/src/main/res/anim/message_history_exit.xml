@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Byte-for-byte replica of the framework's standard dropdown "shrink to bottom"
+     animation: Animation.DropDownUp -> @android:anim/shrink_fade_out_from_bottom
+     (verified against /system/framework/framework-res.apk of the target device).
+
+     Mirror of message_history_enter: scale 1.0 -> 0.9 collapsing back into the bottom
+     edge (pivotY=100%), decelerate_quint, 220 ms (config_activityDefaultDur);
+     alpha 1.0 -> 0.0, decelerate_cubic, 150 ms (config_activityShortDur) — i.e. the
+     exact same timing the directory-history popup uses. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shareInterpolator="false">
+    <scale
+        android:interpolator="@android:interpolator/decelerate_quint"
+        android:fromXScale="1.0" android:toXScale="0.9"
+        android:fromYScale="1.0" android:toYScale="0.9"
+        android:pivotX="50%" android:pivotY="100%"
+        android:duration="220" />
+    <alpha
+        android:interpolator="@android:interpolator/decelerate_cubic"
+        android:fromAlpha="1.0" android:toAlpha="0.0"
+        android:duration="150" />
+</set>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Byte-for-byte replica of the framework's standard dropdown "grow from bottom"
+     animation: Animation.DropDownUp -> @android:anim/grow_fade_in_from_bottom
+     (verified against /system/framework/framework-res.apk of the target device).
+
+     Values, exactly as the framework defines them:
+       scale : 0.9 -> 1.0, pivotX=50%, pivotY=100% (bottom edge = the pencil button),
+               interpolator @android:interpolator/decelerate_quint (0x010c0005),
+               duration @integer/config_activityDefaultDur (0x010e000a) = 220 ms
+       alpha : 0.0 -> 1.0,
+               interpolator @android:interpolator/decelerate_cubic (0x010c0003),
+               duration @integer/config_activityShortDur (0x010e000b) = 150 ms
+
+     Those two framework integers are NOT public, so 220/150 are inlined as literals.
+     This is the very same window animation the directory-history popup plays (it uses
+     the PopupWindow default), so both popups now have identical duration and feel;
+     the explicit style is only needed because PopupWindow resolves its window
+     animation BEFORE it computes mAboveAnchor, and this popup is placed above the
+     pencil button with a negative showAsDropDown() y-offset. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shareInterpolator="false">
+    <scale
+        android:interpolator="@android:interpolator/decelerate_quint"
+        android:fromXScale="0.9" android:toXScale="1.0"
+        android:fromYScale="0.9" android:toYScale="1.0"
+        android:pivotX="50%" android:pivotY="100%"
+        android:duration="220" />
+    <alpha
+        android:interpolator="@android:interpolator/decelerate_cubic"
+        android:fromAlpha="0.0" android:toAlpha="1.0"
+        android:duration="150" />
+</set>

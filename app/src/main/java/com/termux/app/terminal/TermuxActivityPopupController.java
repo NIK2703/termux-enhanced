@@ -299,6 +299,15 @@ public final class TermuxActivityPopupController {
 
         mHistoryPopup = new PopupWindow(scroll, popupWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT, false);
+        // Force the "grow from the BOTTOM" dropdown animation (pivotY=100%), i.e. what
+        // the popup ABOVE its anchor gets — the same window the directory-history popup
+        // plays. Without an explicit style PopupWindow resolves its window animation
+        // BEFORE it computes mAboveAnchor, so this anchor (placed above the pencil button
+        // with a negative y-offset) falls back to the "grow from the TOP" variant and the
+        // window visibly unfolds downward instead of growing out of the pencil button.
+        // The style is a byte-for-byte replica of the framework's
+        // anim/grow_fade_in_from_bottom + shrink_fade_out_from_bottom.
+        mHistoryPopup.setAnimationStyle(R.style.MessageHistoryPopupAnimation);
         // Smooth elevation shadow — background drawable must be fully opaque for the
         // WindowManager to derive a valid Outline (GradientDrawable.getOutline bails
         // when alpha < 255).  The 10% visual transparency is applied to the ScrollView
