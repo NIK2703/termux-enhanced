@@ -2049,6 +2049,12 @@ public final class TerminalView extends View {
             // render a few extra rows, never produce artifacts.
             boolean hasClip = canvas.getClipBounds(mClipBounds);
             Rect dirtyRect = (!hasClip || isFullRepaint(mClipBounds)) ? null : mClipBounds;
+            // C1: keep mTopRow inside the live buffer before drawing — the emulator may have
+            // switched to the alternate screen or cleared the transcript since the last
+            // onScreenUpdated(), and render() would otherwise read rows below the history
+            // (IllegalArgumentException from externalToInternalRow).
+            final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
+            if (mTopRow < minTopRow) mTopRow = minTopRow;
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
                 mGridOffsetX, mGridOffsetY, dirtyRect);
 

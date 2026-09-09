@@ -245,6 +245,14 @@ public final class TerminalRenderer {
         mLastPaintForeColor = -1;
 
         final boolean reverseVideo = mEmulator.isReverseVideo();
+        // C1: the view's scroll position can transiently point deeper than the buffer's real
+        // history: the emulator switches to/from the alternate screen or clears the transcript
+        // during input processing, and a draw can run before the next onScreenUpdated() clamp
+        // catches up. getLineOrBlank() throws for external rows < -activeTranscriptRows (crash:
+        // "extRow=-243, mScreenRows=48, mActiveTranscriptRows=0"), so clamp the requested scroll
+        // offset to the live buffer before deriving the row window from it.
+        final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
+        if (topRow < minTopRow) topRow = minTopRow;
         final int endRow = topRow + mEmulator.mRows;
         final int columns = mEmulator.mColumns;
         final int cursorCol = mEmulator.getCursorCol();
@@ -276,10 +284,10 @@ public final class TerminalRenderer {
             ? palette[TextStyle.COLOR_INDEX_FOREGROUND]
             : palette[TextStyle.COLOR_INDEX_BACKGROUND];
         // Only the *default* background is made translucent. Cells that explicitly set a
-        // background colour (ls --color, htop, syntax highlighting) keep their own opaque
-        // colour — that colour is part of the program's layout and must stay readable. Pass A
-        // below already skips those runs (backColor == palette[COLOR_INDEX_BACKGROUND]), so
-        // nothing else has to change to keep them solid.
+        // background colour (ls --color, htop, syntax highlighting) keep their own colour —
+        // it is part of the program's layout and must stay readable — but it is drawn with
+        // the same alpha as the default fill so that every kind of background honours the
+        // configured transparency uniformly.
         final int bgColor = (mBackgroundAlpha >= 255)
             ? rawBgColor
             : ((rawBgColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
@@ -416,7 +424,13 @@ public final class TerminalRenderer {
             for (int i = 0; i < mRunCount; i++) {
                 if (mRunFontWidthMismatch[i]) continue;
                 final int backColor = mRunBackColor[i];
-                if (backColor == palette[TextStyle.COLOR_INDEX_BACKGROUND]) continue;
+                // Skip runs whose background equals the base fill — it is already on the canvas.
+                // The comparison must use rawBgColor, the *effective* base colour: reverse video
+                // swaps fore/back in resolveRunColors, so there the default cells carry the
+                // foreground palette entry as their background (comparing against
+                // COLOR_INDEX_BACKGROUND would repaint the whole screen opaque and kill the
+                // transparency in reverse-video mode).
+                if (backColor == rawBgColor) continue;
 
                 // Extend the group to the right while the background color stays the same.
                 int endRun = i + 1;
@@ -427,17 +441,31 @@ public final class TerminalRenderer {
 
                 final float left = mRunStartColumn[i] * mFontWidth;
                 final float right = (mRunStartColumn[endRun - 1] + mRunWidthColumns[endRun - 1]) * mFontWidth;
-                mBgPaint.setColor(backColor);
+                if (mBackgroundAlpha >= 255) {
+                    // Fast path: opaque painted background, default SRC_OVER compositing.
+                    mBgPaint.setColor(backColor);
+                } else {
+                    // Painted backgrounds (explicit SGR/truecolor colours, inverse video,
+                    // selection) get the same alpha as the default fill so the wallpaper shows
+                    // through them at the same rate as through the default background. The fill
+                    // must use SRC: it replaces the base fill instead of stacking on it — an
+                    // SRC_OVER translucent layer over the translucent base would compose to a
+                    // higher alpha (2A−A²), leaving painted cells more opaque than (and tinted
+                    // by) their neighbours.
+                    mBgPaint.setXfermode(SRC_XFERMODE);
+                    mBgPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+                }
                 canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, mBgPaint);
+                if (mBackgroundAlpha < 255) mBgPaint.setXfermode(null);
 
                 i = endRun - 1;  // skip the runs already covered by this rectangle
             }
 
             // Pass B: text (and cursor, and any scaled background) drawn on top of the backgrounds.
             for (int i = 0; i < mRunCount; i++) {
-                drawRunText(canvas, line, palette, heightOffset, mRunStartColumn[i], mRunWidthColumns[i], mRunStartChar[i],
+                drawRunText(canvas, line, heightOffset, mRunStartColumn[i], mRunWidthColumns[i], mRunStartChar[i],
                     mRunCharCount[i], mRunMeasuredWidth[i], mRunCursorColor[i], mRunCursorStyle[i], mRunStyle[i],
-                    mRunForeColor[i], mRunBackColor[i], mRunFontWidthMismatch[i]);
+                    mRunForeColor[i], mRunBackColor[i], mRunFontWidthMismatch[i], rawBgColor);
             }
         }
 
@@ -504,9 +532,10 @@ public final class TerminalRenderer {
         out[1] = backColor;
     }
 
-    private void drawRunText(Canvas canvas, char[] text, int[] palette, float y, int startColumn, int runWidthColumns,
+    private void drawRunText(Canvas canvas, char[] text, float y, int startColumn, int runWidthColumns,
                              int startCharIndex, int runWidthChars, float mes, int cursor, int cursorStyle,
-                             long textStyle, int foreColor, int backColor, boolean fontWidthMismatch) {
+                             long textStyle, int foreColor, int backColor, boolean fontWidthMismatch,
+                             int baseBgColor) {
         // foreColor/backColor are pre-resolved ARGB colors (palette lookup + reverse-video swap done
         // once per run in render()); only the effect bits and the dim adjustment are handled here.
         final int effect = TextStyle.decodeEffect(textStyle);
@@ -530,8 +559,14 @@ public final class TerminalRenderer {
         }
 
         // Background for mismatch (scaled) runs only; non-mismatch backgrounds are batched in pass A.
-        if (fontWidthMismatch && backColor != palette[TextStyle.COLOR_INDEX_BACKGROUND]) {
-            mTextPaint.setColor(backColor);
+        // baseBgColor is the effective base fill colour (palette entry of the default background,
+        // or the default foreground under reverse video) — a swapped cell carrying it is the
+        // default background and needs no fill here. Painted colours get the same alpha as the
+        // base fill so all backgrounds share the configured transparency.
+        if (fontWidthMismatch && backColor != baseBgColor) {
+            mTextPaint.setColor(mBackgroundAlpha >= 255
+                ? backColor
+                : (backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
             canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, mTextPaint);
             // Paint color was changed for the bg fill; force the text color to be re-applied below.
             mLastPaintForeColor = -1;
