@@ -270,12 +270,19 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         View hint = holder.mHintContainer;
         if (hint != null) {
             if (isPlaceholder) {
-                // Match the placeholder page to the live terminal look: paint the container with the
-                // current terminal background colour and tint the hint with the terminal foreground,
-                // so an unbound (blank) terminal page reads exactly like a real one.
-                int bg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_BACKGROUND);
+                // Tint the hint with the terminal foreground so an unbound (blank) terminal page
+                // reads like a real one.
+                //
+                // The *background* is deliberately NOT painted here. The unbound TerminalView below
+                // already fills the whole page with the scheme background in onDraw() (the
+                // mEmulator == null placeholder branch), and that fill honours the configured
+                // transparency: scheme colour at alpha A in SRC mode. This container is
+                // match_parent, so a second full-page layer would either be opaque (wallpaper
+                // hidden on this page) or, at the same alpha A, compose over that fill to
+                // 2A-A^2 — i.e. double the transparency and tint it with the fill underneath.
+                // One layer only: transparent container on top of the TerminalView's own fill.
                 int fg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_FOREGROUND);
-                hint.setBackgroundColor(bg);
+                hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
                 ImageView plus = holder.mHintPlus;
                 if (plus != null) plus.setColorFilter(fg);
                 TextView hintText = holder.mHintText;

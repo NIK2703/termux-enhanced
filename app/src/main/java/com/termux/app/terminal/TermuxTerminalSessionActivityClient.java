@@ -425,9 +425,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (mActivity.getCurrentSession() == changedSession) {
             updateBackgroundColor();
             // The palette changed: every cell may resolve to a different color even though no cell
-            // content changed, which dirty-row tracking cannot see. Force a full repaint.
-            TerminalView tv = mActivity.getTerminalView();
-            if (tv != null) tv.invalidate();
+            // content changed, which dirty-row tracking cannot see. Force a full repaint — on every
+            // bound page, not just the active one: a background session can emit OSC 4/11 as well,
+            // and its page would otherwise keep the old palette (and the old alpha blend) until
+            // some unrelated repaint happens to cover it. resyncScreen = false, see above.
+            invalidateAllTerminalViews(null, false);
         }
     }
 
@@ -1333,10 +1335,21 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * @param typeface The (cached) terminal typeface to apply to each view.
      */
     private void invalidateAllTerminalViews(@Nullable Typeface typeface) {
+        invalidateAllTerminalViews(typeface, true);
+    }
+
+    /**
+     * @param resyncScreen whether to also run {@link TerminalView#onScreenUpdated()} on each page.
+     *                     Must be {@code false} when the repaint is not caused by screen content
+     *                     (e.g. an OSC 4/11 palette change): onScreenUpdated() snaps a scrolled
+     *                     view back to the bottom ({@code mTopRow = 0}), which would silently
+     *                     throw away the user's scroll position in a background tab.
+     */
+    private void invalidateAllTerminalViews(@Nullable Typeface typeface, boolean resyncScreen) {
         final TerminalView active = mActivity.getTerminalView();
         if (active != null) {
             active.invalidate();
-            active.onScreenUpdated();
+            if (resyncScreen) active.onScreenUpdated();
             if (typeface != null) active.setTypeface(typeface);
         }
 
@@ -1354,7 +1367,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 TerminalView tv = (TerminalView) v;
                 if (tv == active) continue; // already handled above
                 tv.invalidate();
-                tv.onScreenUpdated();
+                if (resyncScreen) tv.onScreenUpdated();
                 if (typeface != null) tv.setTypeface(typeface);
             }
         }
