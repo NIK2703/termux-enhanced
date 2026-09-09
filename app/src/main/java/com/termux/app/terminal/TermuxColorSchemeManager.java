@@ -29,6 +29,7 @@ public final class TermuxColorSchemeManager {
     private int mSchemeBackground = 0;
     private int mSchemeForeground = 0;
 
+
     // --- Derived surfaces ---
     private int mHeaderBackground = 0;   // scheme bg + inactive overlay
     private int mDividerColor = 0;       // scheme fg @ ~20%
@@ -68,7 +69,8 @@ public final class TermuxColorSchemeManager {
         mSchemeBackground = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
         mSchemeForeground = ColorSchemeUtils.getSchemeForeground();
 
-        // Raw (translucent) panel button tints, as designed for an opaque terminal backdrop.
+        // Raw (translucent) panel button tints: dark for a light scheme, light for a dark one,
+        // decided by the scheme background colour alone.
         int inactiveTint = ColorSchemeUtils.getButtonBackground(mIsSchemeLight, inactivePct);
         int activeTint = ColorSchemeUtils.getButtonActiveBackground(mIsSchemeLight, activePct);
 

@@ -474,6 +474,7 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
 
 
 
+
     /** Default max number of remembered messages (overridable in Settings). */
     private static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
 

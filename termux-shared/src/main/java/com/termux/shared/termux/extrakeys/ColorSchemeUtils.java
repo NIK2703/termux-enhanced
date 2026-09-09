@@ -12,10 +12,13 @@ import com.termux.terminal.TextStyle;
 import com.termux.shared.android.PackageUtils;
 import com.termux.shared.logger.Logger;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.monet.MonetSchemeStore;
 import com.termux.shared.termux.monet.SchemeVariant;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 
 import java.io.File;
@@ -28,15 +31,27 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
-/** Termux app preference keys for per-theme color scheme selection (stored in termux.properties). */
+/**
+ * Per-theme terminal color scheme selection.
+ *
+ * <p>The selected scheme is stored in the app {@link android.content.SharedPreferences}, not in
+ * {@code ~/.termux/termux.properties}: that file is renamed away by the preferences migration, so
+ * a selection kept there was lost on every restart.
+ */
 public final class ColorSchemeUtils {
 
     private static final String LOG_TAG = "ColorSchemeUtils";
 
-    /** Key in termux.properties selecting the color scheme for the light app theme. */
+    /** Key selecting the color scheme for the light app theme. */
     public static final String KEY_COLOR_SCHEME_LIGHT = TermuxPropertyConstants.KEY_COLOR_SCHEME_LIGHT;
-    /** Key in termux.properties selecting the color scheme for the dark app theme. */
+    /** Key selecting the color scheme for the dark app theme. */
     public static final String KEY_COLOR_SCHEME_DARK = TermuxPropertyConstants.KEY_COLOR_SCHEME_DARK;
+
+    /**
+     * Prefix of the scheme names written by pre-Monet builds ({@code Material-You-Light} /
+     * {@code Material-You-Dark}); they mean today's {@link #SCHEME_MONET}.
+     */
+    private static final String LEGACY_MATERIAL_YOU_PREFIX = "Material-You";
 
     /** Perceived-brightness threshold (0-255) above which a color is treated as "light". */
     public static final int LIGHTNESS_THRESHOLD = 130;
@@ -48,6 +63,33 @@ public final class ColorSchemeUtils {
     public static final int BUTTON_BG_ACTIVE_DARK_SCHEME = 0x1FFFFFFF; // ~12% white
 
     private ColorSchemeUtils() {}
+
+    /**
+     * Cached handle on the app {@link android.content.SharedPreferences}.
+     *
+     * <p>Read on every tab switch (through {@code buildSchemeKey()}), so it is resolved once and
+     * then reused: {@link TermuxAppSharedProperties#getPreferences()} is a plain field read, and
+     * building a new instance would redo a package-context lookup plus the font-variable setup.
+     */
+    @Nullable
+    private static volatile TermuxAppSharedPreferences sPreferences;
+
+    /**
+     * The app preferences, or {@code null} when they are not reachable yet (which must not happen
+     * inside the app: {@code TermuxApplication} initializes them before any activity runs).
+     *
+     * @param context An optional context used as a fallback source; may be {@code null}.
+     */
+    @Nullable
+    private static TermuxAppSharedPreferences preferences(@Nullable Context context) {
+        TermuxAppSharedPreferences prefs = sPreferences;
+        if (prefs != null) return prefs;
+
+        prefs = TermuxAppSharedProperties.getPreferences();
+        if (prefs == null && context != null) prefs = TermuxAppSharedPreferences.build(context);
+        sPreferences = prefs;
+        return prefs;
+    }
 
     /**
      * Convert an integer percentage (0‑100) to an alpha byte (0‑255).
@@ -515,7 +557,8 @@ public final class ColorSchemeUtils {
     }
 
     /**
-     * Persist the selected scheme file name for the given theme into termux.properties.
+     * Persist the selected scheme file name for the given theme into the app
+     * {@link android.content.SharedPreferences}.
      *
      * <p>The scheme name alone is the source of truth: a Monet entry carries its variant
      * in the name ({@code Monet} = System, {@code Monet-rainbow} = Rainbow), so
@@ -524,21 +567,12 @@ public final class ColorSchemeUtils {
      * duplicate of it.
      */
     public static void persistSelection(boolean isNight, String schemeFile) {
-        File propsFile = new File(TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE_PATH);
-        Properties props = new Properties();
-        if (propsFile.isFile()) {
-            try (FileInputStream in = new FileInputStream(propsFile)) {
-                props.load(in);
-            } catch (IOException e) {
-                Logger.logError(LOG_TAG, "Failed to read termux.properties: " + e.getMessage());
-            }
+        TermuxAppSharedPreferences prefs = preferences(null);
+        if (prefs == null) {
+            Logger.logError(LOG_TAG, "Failed to persist the color scheme: preferences are not available.");
+            return;
         }
-        props.setProperty(isNight ? KEY_COLOR_SCHEME_DARK : KEY_COLOR_SCHEME_LIGHT, schemeFile);
-        try (FileOutputStream out = new FileOutputStream(propsFile)) {
-            props.store(out, null);
-        } catch (IOException e) {
-            Logger.logError(LOG_TAG, "Failed to write termux.properties: " + e.getMessage());
-        }
+        prefs.setGenericString(isNight ? KEY_COLOR_SCHEME_DARK : KEY_COLOR_SCHEME_LIGHT, schemeFile);
     }
 
     /**
@@ -621,23 +655,38 @@ public final class ColorSchemeUtils {
     }
 
     /**
-     * Resolve the scheme asset file name currently selected for the given theme, stored in
-     * {@code termux.properties} under {@code color-scheme-light} / {@code color-scheme-dark}.
+     * Resolve the scheme asset file name currently selected for the given theme, stored in the app
+     * {@link android.content.SharedPreferences} under {@code color-scheme-light} /
+     * {@code color-scheme-dark}.
      *
      * @return The selected scheme file name, or {@link #SCHEME_DEFAULT} if none.
      */
+    @NonNull
+    public static String getSelectedSchemeName(@Nullable Context context, boolean isNight) {
+        TermuxAppSharedPreferences prefs = preferences(context);
+        if (prefs == null) return SCHEME_DEFAULT;
+
+        String value = prefs.getStringByKey(isNight ? KEY_COLOR_SCHEME_DARK : KEY_COLOR_SCHEME_LIGHT);
+        if (value == null) return SCHEME_DEFAULT;
+        value = value.trim();
+        if (value.isEmpty()) return SCHEME_DEFAULT;
+
+        // Very old builds stored the wallpaper-derived scheme as "Material-You-Light" /
+        // "Material-You-Dark"; that is today's Monet entry.
+        if (value.startsWith(LEGACY_MATERIAL_YOU_PREFIX)) return SCHEME_MONET;
+
+        return value;
+    }
+
+    /**
+     * {@link #getSelectedSchemeName(Context, boolean)} using the cached preferences.
+     *
+     * @return The selected scheme file name, or {@link #SCHEME_DEFAULT} if none or if the
+     *         preferences are not available yet.
+     */
+    @NonNull
     public static String getSelectedSchemeName(boolean isNight) {
-        Properties props = new Properties();
-        File propsFile = new File(TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE_PATH);
-        if (propsFile.isFile()) {
-            try (FileInputStream in = new FileInputStream(propsFile)) {
-                props.load(in);
-            } catch (IOException e) {
-                Logger.logError(LOG_TAG, "Failed to read termux.properties: " + e.getMessage());
-            }
-        }
-        String value = props.getProperty(isNight ? KEY_COLOR_SCHEME_DARK : KEY_COLOR_SCHEME_LIGHT);
-        return (value == null || value.isEmpty()) ? SCHEME_DEFAULT : value;
+        return getSelectedSchemeName(null, isNight);
     }
 
 }

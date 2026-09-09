@@ -266,9 +266,9 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     /**
-     * Enable/disable the blur switch (and its radius slider) and explain why they are off:
-     * unsupported OS version, an opaque terminal background (nothing behind it to blur), or the
-     * blur switch is itself off.
+     * Enable/disable the blur switch (and its radius slider). The switch is only usable on
+     * Android 12+ with a non-zero background transparency; the radius slider additionally needs
+     * the blur switch to be on. No explanatory summary is shown for these options.
      */
     private void updateBackgroundBlurPrefState(TermuxAppSharedPreferences prefs) {
         final boolean blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
@@ -278,13 +278,6 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
         if (mBlurPref != null) {
             mBlurPref.setEnabled(blurSupported && hasWallpaper);
-            if (!blurSupported) {
-                mBlurPref.setSummary(R.string.terminal_background_blur_unsupported);
-            } else if (!hasWallpaper) {
-                mBlurPref.setSummary(R.string.terminal_background_blur_needs_transparency);
-            } else {
-                mBlurPref.setSummary(R.string.terminal_background_blur_summary);
-            }
         }
 
         if (mBlurRadiusPref != null) {

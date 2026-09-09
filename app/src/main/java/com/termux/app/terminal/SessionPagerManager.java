@@ -2,6 +2,7 @@ package com.termux.app.terminal;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.view.View;
 import android.widget.EditText;
 
 import androidx.annotation.NonNull;
@@ -195,7 +196,18 @@ public final class SessionPagerManager {
         // as the user lands on / leaves the last tab) appears and disappears instantly rather than
         // sliding in with a default animation — it must read as a normal tab page, not a popup.
         final RecyclerView pagerRv = getPagerRecyclerView();
-        if (pagerRv != null) pagerRv.setItemAnimator(null);
+        if (pagerRv != null) {
+            pagerRv.setItemAnimator(null);
+            // Kill the horizontal edge effect completely (Android 12+ "stretch", the old glow
+            // below that). With background transparency enabled the stretch animation adds a
+            // second composite pass over the translucent terminal surface, so the terminal
+            // visibly loses about half of its transparency for the duration of the animation.
+            // OVER_SCROLL_NEVER is the right switch: RecyclerView only pulls/releases/absorbs
+            // an EdgeEffect when getOverScrollMode() != OVER_SCROLL_NEVER (scrollByInternal),
+            // and every stretch path keys off a non-zero EdgeEffect distance, so no edge
+            // animation is produced at the first/last page at all.
+            pagerRv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        }
 
         // Apply the user-configured terminal margins to the pages. TermuxActivity.setMargins()
         // cannot do this on first launch — it runs in onCreate() before this manager exists — so

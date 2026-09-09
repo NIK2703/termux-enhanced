@@ -302,9 +302,8 @@ public boolean isWallpaperBlurLive() {
 <SeekBarPreference
     app:key="terminal-background-transparency"
     app:title="@string/terminal_background_transparency_title"
-    app:summary="@string/terminal_background_transparency_summary"
     app:min="0"
-    android:max="50"
+    android:max="40"
     app:defaultValue="0"
     app:showSeekBarValue="true"
     app:iconSpaceReserved="false" />
@@ -338,7 +337,6 @@ public boolean isWallpaperBlurLive() {
 
 ```xml
 <string name="terminal_background_transparency_title">Прозрачность фона</string>
-<string name="terminal_background_transparency_summary">0% — обои отключены, 50% — максимум</string>
 
 <string name="wallpaper_blur_mode_title">Размытие обоев</string>
 <string name="wallpaper_blur_mode_summary">Как размывать подложку под терминалом</string>

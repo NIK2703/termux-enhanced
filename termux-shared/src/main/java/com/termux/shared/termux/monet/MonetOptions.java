@@ -3,21 +3,20 @@ package com.termux.shared.termux.monet;
 import androidx.annotation.NonNull;
 
 import com.termux.shared.logger.Logger;
-import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.Properties;
 
 /**
- * The {@code monet-*} tunables from {@code ~/.termux/termux.properties}.
+ * The {@code monet-*} tunables, read from the app {@link android.content.SharedPreferences}.
  *
  * <p>Every key is optional; missing or unparseable values fall back to the kde defaults so that a
  * bare install behaves exactly like {@code kde-material-you-colors}.
  *
- * <p>The file is only re-read when its mtime changes, so the (relatively expensive)
- * {@code Properties} parse does not happen on every resume.
+ * <p>The keys used to live in {@code ~/.termux/termux.properties}, but that file is renamed away
+ * by the preferences migration, so every tunable was lost on restart. The preferences are the
+ * single source of truth now - the same store the rest of the settings use.
  *
  * <pre>
  * monet-variant=system            # system|content|...|fruit-salad | kde index 0..8
@@ -173,10 +172,6 @@ public final class MonetOptions {
 
     // ------------------------------------------------------------------ Loading ---
 
-    private static final Object LOCK = new Object();
-    private static volatile MonetOptions sCached;
-    private static long sCachedMtime = -1;
-
     /** Options with every field at its default. */
     @NonNull
     public static MonetOptions defaults() {
@@ -185,39 +180,46 @@ public final class MonetOptions {
     }
 
     /**
-     * Read the options from {@code ~/.termux/termux.properties}, re-parsing only when the file
-     * actually changed. Never throws - a broken file yields the defaults.
+     * Read the {@code monet-*} options from the app {@link android.content.SharedPreferences}.
+     *
+     * <p>They used to live in {@code ~/.termux/termux.properties}, but that file was renamed away
+     * by the preferences migration on every launch, so every tunable was lost on restart. The
+     * preferences are the single source of truth now - the same place the rest of the settings
+     * live.
+     *
+     * <p>Never throws: unreachable or unset values yield the defaults.
      */
     @NonNull
     public static MonetOptions load() {
-        File file = TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE;
-        long mtime = (file == null) ? 0 : file.lastModified();
-        MonetOptions cached = sCached;
-        if (cached != null && mtime == sCachedMtime) return cached;
-
-        synchronized (LOCK) {
-            if (sCached != null && mtime == sCachedMtime) return sCached;
-            Properties props = new Properties();
-            if (file != null && file.isFile()) {
-                try (InputStream in = new FileInputStream(file)) {
-                    props.load(in);
-                } catch (Exception e) {
-                    Logger.logError(LOG_TAG, "Failed to read termux.properties: " + e.getMessage());
-                }
-            }
-            MonetOptions options = fromProperties(props);
-            sCached = options;
-            sCachedMtime = mtime;
-            return options;
+        Properties props = new Properties();
+        TermuxAppSharedPreferences prefs = TermuxAppSharedProperties.getPreferences();
+        if (prefs == null) {
+            Logger.logDebug(LOG_TAG, "Preferences are not available yet, using the default options.");
+        } else {
+            copyProperty(props, prefs, KEY_VARIANT);
+            copyProperty(props, prefs, KEY_BACKGROUND);
+            copyProperty(props, prefs, KEY_ACCENT_SOURCE);
+            copyProperty(props, prefs, KEY_ACCENT_CONTRAST);
+            copyProperty(props, prefs, KEY_CHROMA);
+            copyProperty(props, prefs, KEY_TONE);
+            copyProperty(props, prefs, KEY_COLOR0);
         }
+        return fromProperties(props);
     }
 
-    /** Drop the cached parse; the next {@link #load()} re-reads the file. */
+    /** Copy one {@code monet-*} value out of the preferences, when it is set. */
+    private static void copyProperty(@NonNull Properties props,
+                                     @NonNull TermuxAppSharedPreferences prefs,
+                                     @NonNull String key) {
+        String value = prefs.getStringByKey(key);
+        if (value != null && !value.trim().isEmpty()) props.setProperty(key, value.trim());
+    }
+
+    /**
+     * No-op kept for API compatibility: the options are no longer cached in memory, they are read
+     * from the preferences on every {@link #load()}, so there is nothing to drop.
+     */
     public static void invalidate() {
-        synchronized (LOCK) {
-            sCached = null;
-            sCachedMtime = -1;
-        }
     }
 
     @NonNull
@@ -244,37 +246,17 @@ public final class MonetOptions {
     }
 
     /**
-     * Write one {@code monet-*} key into {@code termux.properties}, preserving every other
-     * key, and drop the cached parse.
+     * Write one {@code monet-*} key into the app {@link android.content.SharedPreferences}.
      *
-     * <p>{@code null} removes the key, which restores the default.
+     * <p>{@code null} clears the key, which restores the default.
      */
     public static void persist(@NonNull String key, String value) {
-        File file = TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE;
-        synchronized (LOCK) {
-            Properties props = new Properties();
-            if (file != null && file.isFile()) {
-                try (InputStream in = new FileInputStream(file)) {
-                    props.load(in);
-                } catch (Exception e) {
-                    Logger.logError(LOG_TAG, "Failed to read termux.properties: " + e.getMessage());
-                }
-            }
-            if (value == null) props.remove(key);
-            else props.setProperty(key, value);
-            if (file != null) {
-                try {
-                    File parent = file.getParentFile();
-                    if (parent != null && !parent.isDirectory()) parent.mkdirs();
-                    try (java.io.OutputStream out = new java.io.FileOutputStream(file)) {
-                        props.store(out, null);
-                    }
-                } catch (Exception e) {
-                    Logger.logError(LOG_TAG, "Failed to write termux.properties: " + e.getMessage());
-                }
-            }
-            invalidate();
+        TermuxAppSharedPreferences prefs = TermuxAppSharedProperties.getPreferences();
+        if (prefs == null) {
+            Logger.logError(LOG_TAG, "Failed to persist \"" + key + "\": preferences are not available.");
+            return;
         }
+        prefs.setGenericString(key, value);
     }
 
     /** Persist the chosen scheme variant. */

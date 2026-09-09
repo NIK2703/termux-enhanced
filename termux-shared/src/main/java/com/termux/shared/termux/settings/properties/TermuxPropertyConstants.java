@@ -420,6 +420,12 @@ public final class TermuxPropertyConstants {
     public static final String KEY_COLOR_SCHEME_DARK = "color-scheme-dark"; // Default: "color-scheme-dark"
 
     /**
+     * Default value for {@link #KEY_COLOR_SCHEME_LIGHT} / {@link #KEY_COLOR_SCHEME_DARK}: no
+     * scheme selected, i.e. the built-in (non-Material) light/dark terminal scheme.
+     */
+    public static final String DEFAULT_IVALUE_COLOR_SCHEME = "Default";
+
+    /**
      * Defines the key for the "color scheme type" of the wallpaper-derived (Monet) terminal
      * scheme. Accepts {@code system} plus the nine kde-material-you-colors variant names and their
      * indices (0..8). Only meaningful on Android 12+ and only while

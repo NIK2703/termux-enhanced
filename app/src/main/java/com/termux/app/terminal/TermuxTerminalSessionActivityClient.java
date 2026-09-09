@@ -38,6 +38,7 @@ import com.termux.terminal.TerminalSessionClient;
 import com.termux.terminal.TextStyle;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
+import com.termux.shared.termux.monet.MonetOptions;
 import com.termux.app.terminal.io.TermuxTerminalExtraKeys;
 
 import java.io.File;
@@ -1131,11 +1132,16 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     private String buildSchemeKey(boolean isNight) {
         File colorsFile = ColorSchemeUtils.getColorSchemeFileForTheme(isNight);
         File fontFile = TermuxConstants.TERMUX_FONT_FILE;
-        // WHICH scheme is selected lives in termux.properties, not in a scheme file: switching
+        // WHICH scheme is selected lives in the SharedPreferences, not in a scheme file: switching
         // Default <-> Monet <-> Monet-<variant> touches neither colors.*.properties
         // nor the Monet palette, so without this the key would be identical before and
         // after the switch and the new selection would silently never be applied.
-        File propsFile = TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE;
+        // (It used to be derived from the mtime of ~/.termux/termux.properties, which no longer
+        // holds the selection.)
+        String selectedScheme = ColorSchemeUtils.getSelectedSchemeName(mActivity, isNight);
+        // Same for the monet-* tunables: they feed the generated palette but have no file of
+        // their own, so their signature is folded in explicitly.
+        int monetOptions = MonetOptions.load().revision();
         // Monet has no file on disk, so mtime/size cannot detect a wallpaper change. Its
         // token is a plain volatile read, which is why it is safe to include here even though this
         // runs on every tab switch.
@@ -1143,7 +1149,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         return (isNight ? "n1" : "n0")
                 + "|" + (colorsFile == null ? "-" : colorsFile.lastModified() + ":" + colorsFile.length())
                 + "|" + (fontFile == null ? "-" : fontFile.lastModified() + ":" + fontFile.length())
-                + "|p" + (propsFile == null ? "-" : propsFile.lastModified() + ":" + propsFile.length())
+                + "|s" + selectedScheme
+                + "|o" + monetOptions
                 + "|monet" + monetToken;
     }
 
@@ -1407,31 +1414,21 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             extraKeys.setButtonColors(buttonText, deriveActiveTextColor(buttonText), buttonBg, buttonActiveBg);
         }
 
-        // Session tabs panel buttons (new session / toggle text input): the fill is the
-        // terminal background overlaid with the inactive-element overlay (buttonBg) and the
-        // stroke is the terminal background overlaid with the active-element overlay
-        // (buttonActiveBg) — both composed by TermuxColorSchemeManager using the alpha
-        // percentages from settings. On top of those opaque colours the button itself is
-        // drawn at a fixed 50% opacity so it reads as a translucent control over the terminal.
+        // Toggle text-input button (pencil) and the scrollbar thumb float over the terminal.
+        // They use the SAME translucent tints as the extra-keys buttons — black on a light scheme,
+        // white on a dark one, decided from the scheme background colour alone (isSchemeLight).
+        // Keeping the tints translucent (instead of pre-compositing them into an opaque colour and
+        // drawing that at a flat 50%) is what makes the decision hold at any background transparency:
+        // a translucent black tint always darkens and a translucent white tint always lightens,
+        // regardless of the wallpaper showing through. At 0% transparency the result is identical
+        // to the old rendering (scheme bg +/- the same alpha).
         int buttonStrokePx = Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke));
-        // Compose an OPAQUE colour = terminal background overlaid with the inactive/active
-        // element tint at the SETTINGS overlay alpha (so moving the transparency sliders changes
-        // the element tint strength), then apply a flat 50% opacity on top of that opaque colour.
-        // NOTE: getButtonBg()/getButtonActiveBg() already carry the SETTINGS alpha baked in as
-        // transparency and are NOT composited onto the terminal background, so they cannot be
-        // re-alpha'd here. Instead rebuild the overlay at the settings alpha and composite it.
-        int buttonFillAlpha = 128; // 50%
         TermuxAppSharedPreferences prefs = mActivity.getPreferences();
-        // Double the settings overlay alpha so that, after the flat 50% opacity is applied on
-        // top below, the resulting visible strength matches the original (no-50%-overlay) look.
-        int overlayInactive = ColorSchemeUtils.getButtonBackground(isSchemeLight, Math.min(100, prefs.getButtonBgInactiveAlpha() * 2));
-        int overlayActive = ColorSchemeUtils.getButtonActiveBackground(isSchemeLight, Math.min(100, prefs.getButtonBgActiveAlpha() * 2));
-        int toggleButtonBg = withAlpha(
-                TermuxColorSchemeManager.compositeColors(mActivity.getColorSchemeManager().getSchemeBackground(), overlayInactive),
-                buttonFillAlpha);
-        int toggleButtonStroke = withAlpha(
-                TermuxColorSchemeManager.compositeColors(mActivity.getColorSchemeManager().getSchemeBackground(), overlayActive),
-                buttonFillAlpha);
+        int toggleButtonBg = ColorSchemeUtils.getButtonBackground(isSchemeLight, prefs.getButtonBgInactiveAlpha());
+        int toggleButtonStroke = ColorSchemeUtils.getButtonActiveBackground(isSchemeLight, prefs.getButtonBgActiveAlpha());
+        // Pressed fill: a stronger fill of the same tint (same direction) so the tap is visible.
+        int toggleButtonPressed = ColorSchemeUtils.getButtonActiveBackground(isSchemeLight,
+                Math.min(100, prefs.getButtonBgActiveAlpha() * 2));
         // Plain tab button (new session): no stroke — fill only, with an active
         // (pressed/swiped) background so the press/swipe gesture gives visible feedback.
         // Use the same scheme-derived colours as the extra-keys buttons so the contrast
@@ -1481,7 +1478,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             android.graphics.drawable.GradientDrawable pressedState =
                     new android.graphics.drawable.GradientDrawable();
             pressedState.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            pressedState.setColor(toggleButtonStroke);
+            pressedState.setColor(toggleButtonPressed);
             pressedState.setStroke(buttonStrokePx, toggleButtonStroke);
 
             android.graphics.drawable.StateListDrawable states =

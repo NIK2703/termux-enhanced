@@ -495,16 +495,10 @@
     <string name="terminal_margin_bottom_title">Нижний отступ</string>
 
     <string name="terminal_background_transparency_title">Прозрачность фона</string>
-    <string name="terminal_background_transparency_summary">0% — обои устройства отключены, 50% — максимум.</string>
 
     <string name="terminal_background_blur_title">Размытие обоев</string>
-    <string name="terminal_background_blur_summary">Размывать обои под терминалом системным блюром. Требуется прозрачность фона больше 0%.</string>
-    <string name="terminal_background_blur_unsupported">Требуется Android 12 или новее</string>
-    <string name="terminal_background_blur_needs_transparency">Сначала задайте прозрачность фона больше 0%</string>
-    <string name="terminal_background_blur_unavailable">Размытие сейчас недоступно (энергосбережение или ограничение GPU)</string>
 
     <string name="terminal_background_blur_radius_title">Радиус размытия</string>
-    <string name="terminal_background_blur_radius_summary">Сила размытия в пикселях: 0 — резко, до 150. Большие значения дороже на полноэкранном блюре.</string>
 
     <string name="terminal_toolbar_height_title">Масштаб панели инструментов</string>
     <string name="terminal_toolbar_height_summary">Коэффициент масштаба панели дополнительных кнопок / терминала.</string>

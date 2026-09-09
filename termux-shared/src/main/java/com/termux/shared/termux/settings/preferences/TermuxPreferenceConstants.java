@@ -89,6 +89,18 @@ public final class TermuxPreferenceConstants {
     public static final class TERMUX_APP {
 
         /**
+         * Defines the key for whether the legacy {@code ~/.termux/termux.properties} file has
+         * already been imported into the SharedPreferences.
+         *
+         * <p>The migration is a one time operation and this flag is how "already done" is
+         * recorded. The legacy file is deliberately left untouched - older builds renamed it to
+         * {@code termux.properties.migrated}, which threw away the only copy of settings that
+         * were still being written to that file (notably the colour scheme).
+         */
+        public static final String KEY_TERMUX_PROPERTIES_MIGRATED = "termux_properties_migrated";
+        public static final boolean DEFAULT_VALUE_TERMUX_PROPERTIES_MIGRATED = false;
+
+        /**
          * Defines the key for whether terminal view margin adjustment that is done to prevent soft
          * keyboard from covering bottom part of terminal view on some devices is enabled or not.
          * Margin adjustment may cause screen flickering on some devices and so should be disabled.

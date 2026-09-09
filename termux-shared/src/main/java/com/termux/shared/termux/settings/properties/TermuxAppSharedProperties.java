@@ -3,15 +3,20 @@ package com.termux.shared.termux.settings.properties;
 import android.content.Context;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.termux.shared.logger.Logger;
 import com.termux.shared.data.DataUtils;
 import com.termux.shared.settings.properties.SharedProperties;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 
 import java.io.File;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * A facade over {@link TermuxAppSharedPreferences} that exposes the settings that used to be
@@ -57,6 +62,20 @@ public class TermuxAppSharedProperties {
         return properties;
     }
 
+    /**
+     * The process-wide {@link TermuxAppSharedPreferences} this facade reads its values from, or
+     * {@code null} when {@link #init(Context)} has not run in this process yet.
+     *
+     * <p>Used by the settings that are not exposed through this facade (the per-theme colour
+     * scheme and the {@code monet-*} tunables) so that everything lives in the same
+     * {@link android.content.SharedPreferences} file.
+     */
+    @Nullable
+    public static TermuxAppSharedPreferences getPreferences() {
+        TermuxAppSharedProperties instance = properties;
+        return instance == null ? null : instance.mPreferences;
+    }
+
     private TermuxAppSharedPreferences prefs() {
         return mPreferences;
     }
@@ -70,13 +89,42 @@ public class TermuxAppSharedProperties {
     }
 
     /**
-     * Migrate an existing {@code ~/.termux/termux.properties} file (and the secondary
-     * {@code ~/.config/termux/termux.properties}) into the app {@link android.content.SharedPreferences}.
+     * Keys whose legacy file value always wins over the stored SharedPreferences value.
      *
-     * This is a one time operation: it only copies values for keys that are not already present in
-     * the SharedPreferences, then renames the migrated file to {@code termux.properties.migrated}
-     * so it is not processed again. The legacy file based configuration has been removed, so this
-     * keeps existing user configuration working after an upgrade.
+     * <p>These are the settings that older builds kept writing to
+     * {@code ~/.termux/termux.properties} while everything else had already moved to the
+     * SharedPreferences. Their preference entry is therefore a stale snapshot taken by an earlier
+     * migration run (typically {@code Default}), whereas the file still holds what the user
+     * actually picked last. Importing them unconditionally is what restores a Monet selection
+     * that the buggy migration used to throw away.
+     */
+    private static final Set<String> FORCE_MIGRATED_KEYS = new HashSet<>(Arrays.asList(
+            TermuxPropertyConstants.KEY_COLOR_SCHEME_LIGHT,
+            TermuxPropertyConstants.KEY_COLOR_SCHEME_DARK,
+            TermuxPropertyConstants.KEY_MONET_VARIANT,
+            TermuxPropertyConstants.KEY_MONET_BACKGROUND,
+            TermuxPropertyConstants.KEY_MONET_ACCENT_SOURCE,
+            TermuxPropertyConstants.KEY_MONET_ACCENT_CONTRAST,
+            TermuxPropertyConstants.KEY_MONET_CHROMA,
+            TermuxPropertyConstants.KEY_MONET_TONE,
+            TermuxPropertyConstants.KEY_MONET_COLOR0));
+
+    /**
+     * Import an existing {@code ~/.termux/termux.properties} file (or the secondary
+     * {@code ~/.config/termux/termux.properties}) into the app
+     * {@link android.content.SharedPreferences}.
+     *
+     * <p>This is a one time operation, guarded by the
+     * {@link TermuxPreferenceConstants.TERMUX_APP#KEY_TERMUX_PROPERTIES_MIGRATED} flag: values are
+     * only copied for keys that are not already present in the SharedPreferences, except for
+     * {@link #FORCE_MIGRATED_KEYS} which always win.
+     *
+     * <p>The file is <b>never</b> renamed and <b>never</b> deleted. It used to be renamed to
+     * {@code termux.properties.migrated}, which threw away the only copy of the settings that were
+     * still being kept in that file - the per-theme colour scheme and the {@code monet-*} tunables
+     * - so the selection was silently reset on every restart. A file left behind as
+     * {@code termux.properties.migrated} by an older build is picked up here as a fallback, so
+     * that damage is repaired rather than permanent.
      *
      * @param context The {@link Context} for operations.
      */
@@ -84,13 +132,22 @@ public class TermuxAppSharedProperties {
         TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context, false);
         if (prefs == null) return;
 
-        File file = SharedProperties.getPropertiesFileFromList(TermuxConstants.TERMUX_PROPERTIES_FILE_PATHS_LIST, LOG_TAG);
-        if (file == null) return;
+        if (prefs.getBooleanByKey(TermuxPreferenceConstants.TERMUX_APP.KEY_TERMUX_PROPERTIES_MIGRATED,
+                TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_TERMUX_PROPERTIES_MIGRATED)) {
+            return;
+        }
+
+        File file = getLegacyPropertiesFile();
+        if (file == null) {
+            // No legacy file at all - remember that so we never look again.
+            setPropertiesMigrated(prefs);
+            return;
+        }
 
         Properties properties = SharedProperties.getPropertiesFromFile(context, file, null);
         if (properties == null || properties.isEmpty()) {
             // Nothing to migrate, just mark the (empty) file as processed.
-            renameMigratedFile(file);
+            setPropertiesMigrated(prefs);
             return;
         }
 
@@ -98,7 +155,7 @@ public class TermuxAppSharedProperties {
 
         for (String key : TermuxPropertyConstants.TERMUX_APP_PROPERTIES_LIST) {
             if (!properties.containsKey(key)) continue;
-            if (prefs.isKeyPresentByKey(key)) continue;
+            if (!FORCE_MIGRATED_KEYS.contains(key) && prefs.isKeyPresentByKey(key)) continue;
 
             String value = properties.getProperty(key);
             if (value == null) continue;
@@ -126,16 +183,37 @@ public class TermuxAppSharedProperties {
             }
         }
 
-        renameMigratedFile(file);
+        // The file itself is left exactly where it is: it is the user's, and older builds still
+        // read from it. The flag below is what makes this a one time operation.
+        setPropertiesMigrated(prefs);
     }
 
-    private static void renameMigratedFile(@NonNull File file) {
-        File migrated = new File(file.getAbsolutePath() + ".migrated");
-        if (!file.renameTo(migrated)) {
-            // Best effort: try to delete so it is not reprocessed on next launch.
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
+    /** Remember that the legacy file has been imported, so it is not processed again. */
+    private static void setPropertiesMigrated(@NonNull TermuxAppSharedPreferences prefs) {
+        prefs.setGenericBoolean(TermuxPreferenceConstants.TERMUX_APP.KEY_TERMUX_PROPERTIES_MIGRATED, true);
+    }
+
+    /**
+     * The legacy {@code termux.properties} file, or {@code null} when the user never had one.
+     *
+     * <p>Looks for {@code termux.properties.migrated} as a fallback so configuration that an older
+     * build renamed away is imported instead of lost.
+     */
+    @Nullable
+    private static File getLegacyPropertiesFile() {
+        File file = SharedProperties.getPropertiesFileFromList(
+                TermuxConstants.TERMUX_PROPERTIES_FILE_PATHS_LIST, LOG_TAG);
+        if (file != null) return file;
+
+        for (String path : TermuxConstants.TERMUX_PROPERTIES_FILE_PATHS_LIST) {
+            File renamed = new File(path + ".migrated");
+            if (renamed.isFile() && renamed.canRead()) {
+                Logger.logInfo(LOG_TAG, "Recovering the settings from the renamed file " + renamed.getAbsolutePath());
+                return renamed;
+            }
         }
+
+        return null;
     }
 
 
