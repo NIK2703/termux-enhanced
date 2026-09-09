@@ -32,6 +32,8 @@ import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.RequiresApi;
+import androidx.core.content.ContextCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.termux.R;
@@ -54,6 +56,7 @@ import com.termux.app.activities.HelpActivity;
 import com.termux.app.activities.SettingsActivity;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 import com.termux.app.terminal.TermuxSessionsListViewController;
 import com.termux.app.terminal.TermuxSessionTabsController;
 import com.termux.app.terminal.TermuxTerminalViewClient;
@@ -93,6 +96,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 
 /**
@@ -182,6 +186,15 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      * {@link #reloadActivityStyling(boolean)}.
      */
     private boolean mWallpaperThemeApplied = false;
+
+    /**
+     * Registered {@code WindowManager#addCrossWindowBlurEnabledListener} callback (API 31+),
+     * {@code null} when not registered. The system disables cross-window blur at runtime —
+     * battery saver, an unsupported GPU, multimedia tunneling — and this is the only way to
+     * hear about it, so the blur flag can be dropped (and later restored) without a restart.
+     */
+    @Nullable
+    private Consumer<Boolean> mCrossWindowBlurListener;
 
     /**
      * Persists/restores the open terminal tabs (working directory, name, failsafe
@@ -829,6 +842,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onStart();
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Blur availability can change while we are backgrounded (battery saver toggled), so
+            // re-subscribe on every start: the listener is invoked immediately with the current
+            // value, which also re-applies the right flag/radius state right away.
+            registerCrossWindowBlurListener();
+        }
+
         if (mPreferences.isTerminalMarginAdjustmentEnabled())
             addTermuxActivityRootViewGlobalLayoutListener();
         if (mPreferences.isTerminalMarginAdjustmentEnabled()) {
@@ -1040,6 +1060,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mTermuxTerminalViewClient.onStop();
 
         removeTermuxActivityRootViewGlobalLayoutListener();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            unregisterCrossWindowBlurListener();
+        }
     }
 
     @Override
@@ -1052,6 +1076,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         MonetSchemeStore.removeListener(mMonetChangedListener);
         MonetSchemeStore.WallpaperObserver.unregister(this);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Safety net: onStop() returns early when the activity is in an invalid state, so a
+            // registered blur listener would otherwise outlive it.
+            unregisterCrossWindowBlurListener();
+        }
 
         if (mSessionPagerManager != null) mSessionPagerManager.destroy();
 
@@ -1473,6 +1503,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     //                                   + PixelFormat.TRANSLUCENT    (applyWallpaperWindowFlags)
     //    [2] decor view background .... Color.TRANSPARENT            (applySystemBarColors)
     //    [3] TerminalView fill ........ alpha < 255                  (applyTerminalTransparency)
+    //
+    //  On top of that, the wallpaper itself can be blurred by the compositor (Android 12+
+    //  FLAG_BLUR_BEHIND, applyBackgroundBlur) — a filter on layer [0], not an extra layer.
     // -----------------------------------------------------------------------------------------
 
     /**
@@ -1529,14 +1562,139 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             attrs.setWallpaperTouchEventsEnabled(!showWallpaper);
             window.setAttributes(attrs);
         }
+
+        // Android 12+ system blur of the wallpaper composited below us. Only ever enabled when
+        // the wallpaper is actually showing and the user asked for it — at 0% transparency there
+        // is nothing behind the window to blur, and keeping the flag would make SurfaceFlinger
+        // run a blur pass for every frame of an opaque terminal.
+        applyBackgroundBlur(isWallpaperBlurRequested());
     }
 
     /** Push the configured background transparency to every terminal page. Mirrors setMargins(). */
     private void applyTerminalTransparency() {
         if (mSessionPagerManager == null) return;
         if (mProperties == null) return;
-        mSessionPagerManager.setTerminalBackgroundTransparency(
-            mProperties.getTerminalBackgroundTransparency());
+        mSessionPagerManager.setTerminalBackgroundTransparency(getEffectiveBackgroundTransparency());
+    }
+
+    // -----------------------------------------------------------------------------------------
+    //  Wallpaper blur — Android 12+ system blur (FLAG_BLUR_BEHIND)
+    //
+    //  Blur-behind is a *cross-window* effect: SurfaceFlinger blurs whatever is behind our
+    //  window (the wallpaper surface) and composites it below us. Our own layer is never an
+    //  input to it, so terminal output cannot change the blurred picture — but every composed
+    //  frame does re-run the blur pass. Hence: the radius stays at the cheapest recommended
+    //  value, and the flag is dropped entirely at 0% transparency.
+    //
+    //  Below API 31 the feature simply does not exist. There is deliberately no custom blur
+    //  fallback (no RenderScript / RenderEffect / downscaled wallpaper snapshot — a snapshot of
+    //  the real wallpaper is not obtainable by a third-party app in the first place), so the
+    //  wallpaper just stays sharp there.
+    // -----------------------------------------------------------------------------------------
+
+    /** Blur radius in pixels for {@code FLAG_BLUR_BEHIND}: clamped to the user setting. */
+    private int getBlurRadiusPx() {
+        if (mProperties == null)
+            return TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_TERMINAL_BACKGROUND_BLUR_RADIUS;
+        final int r = mProperties.getTerminalBackgroundBlurRadius();
+        if (r < TermuxPreferenceConstants.TERMUX_APP.MIN_TERMINAL_BACKGROUND_BLUR_RADIUS)
+            return TermuxPreferenceConstants.TERMUX_APP.MIN_TERMINAL_BACKGROUND_BLUR_RADIUS;
+        if (r > TermuxPreferenceConstants.TERMUX_APP.MAX_TERMINAL_BACKGROUND_BLUR_RADIUS)
+            return TermuxPreferenceConstants.TERMUX_APP.MAX_TERMINAL_BACKGROUND_BLUR_RADIUS;
+        return r;
+    }
+
+    /**
+     * Whether the system can currently blur content behind a window at all. This flips at
+     * runtime: battery saver, an unsupported GPU, multimedia tunneling and minimal-post-
+     * processing all turn it off.
+     */
+    private boolean isCrossWindowBlurEnabledCompat() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false;
+        WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        return wm != null && wm.isCrossWindowBlurEnabled();
+    }
+
+    /** Whether the user asked for the wallpaper behind the terminal to be blurred. */
+    private boolean isWallpaperBlurRequested() {
+        return mProperties != null
+            && mProperties.getTerminalBackgroundTransparency() > 0
+            && mProperties.isTerminalBackgroundBlurEnabled();
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private static void setBlurBehind(@NonNull Window window, boolean enabled, int radiusPx) {
+        WindowManager.LayoutParams attrs = window.getAttributes();
+        if (enabled) {
+            attrs.flags |= WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+            attrs.setBlurBehindRadius(radiusPx);
+        } else {
+            attrs.flags &= ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+            attrs.setBlurBehindRadius(0);
+        }
+        window.setAttributes(attrs);
+    }
+
+    /**
+     * Turn the Android 12+ system blur of whatever is behind this window on or off.
+     *
+     * A no-op below API 31. When blur is requested but the system refuses to provide it, the
+     * flag is cleared instead — the wallpaper stays visible, just unblurred.
+     */
+    private void applyBackgroundBlur(boolean enabled) {
+        final Window window = getWindow();
+        if (window == null) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
+
+        if (enabled && !isCrossWindowBlurEnabledCompat()) {
+            // Battery saver / GPU limitation / multimedia tunneling: the compositor would drop
+            // the blur anyway. Keep the wallpaper, just unblurred.
+            Logger.logDebug(LOG_TAG, "Wallpaper blur requested but cross-window blur is disabled by the system");
+            setBlurBehind(window, false, getBlurRadiusPx());
+            return;
+        }
+        setBlurBehind(window, enabled, getBlurRadiusPx());
+    }
+
+    /**
+     * Transparency actually handed to the terminal, in percent.
+     *
+     * Equals the configured value except when the user asked for blur and the system cannot
+     * provide it: AOSP explicitly recommends making the layer more opaque in that case,
+     * otherwise text over a busy, unblurred wallpaper becomes unreadable. The decor view
+     * (status/nav bar areas) uses the same value via {@link #applySchemeColors()} so the whole
+     * window stays uniform.
+     */
+    public int getEffectiveBackgroundTransparency() {
+        if (mProperties == null) return 0;
+        final int percent = mProperties.getTerminalBackgroundTransparency();
+        if (percent <= 0) return 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && mProperties.isTerminalBackgroundBlurEnabled()
+                && !isCrossWindowBlurEnabledCompat()) {
+            return percent / 2;
+        }
+        return percent;
+    }
+
+    /** Register the cross-window-blur availability listener (API 31+). */
+    @RequiresApi(Build.VERSION_CODES.S)
+    private void registerCrossWindowBlurListener() {
+        if (mCrossWindowBlurListener != null) return;   // already registered
+        WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        if (wm == null) return;
+        mCrossWindowBlurListener = enabled -> applyBackgroundBlur(isWallpaperBlurRequested());
+        // Delivers the current value immediately, so this also applies the right state on start.
+        wm.addCrossWindowBlurEnabledListener(ContextCompat.getMainExecutor(this), mCrossWindowBlurListener);
+    }
+
+    /** Unregister the listener; it holds a reference to this activity. */
+    @RequiresApi(Build.VERSION_CODES.S)
+    private void unregisterCrossWindowBlurListener() {
+        if (mCrossWindowBlurListener == null) return;
+        WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        if (wm != null) wm.removeCrossWindowBlurEnabledListener(mCrossWindowBlurListener);
+        mCrossWindowBlurListener = null;
     }
 
     /**
@@ -2762,8 +2920,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // scheme, light on a dark one) — the bars never stand out from or darken the terminal.
         Window window = getWindow();
         if (window != null) {
-            applySystemBarColors(window, schemeBg, isLight,
-                mProperties == null ? 0 : mProperties.getTerminalBackgroundTransparency());
+            // Effective, not configured: when blur is requested but unavailable the terminal is
+            // made more opaque, and the decor view must follow it or the bars would show a
+            // different blend than the terminal area.
+            applySystemBarColors(window, schemeBg, isLight, getEffectiveBackgroundTransparency());
         }
     }
 

@@ -1552,7 +1552,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // onServiceConnected() once the session is attached after a recreate()).
             int bg = session.getEmulator().mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND];
             TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight(),
-                mActivity.getProperties().getTerminalBackgroundTransparency());
+                mActivity.getEffectiveBackgroundTransparency());
         }
     }
 

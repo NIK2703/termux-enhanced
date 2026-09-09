@@ -676,6 +676,38 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_BACKGROUND_TRANSPARENCY, value, false);
     }
 
+    /**
+     * Whether the device wallpaper behind the terminal should be blurred with the Android 12+
+     * system blur ({@code FLAG_BLUR_BEHIND}).
+     *
+     * The stored value is returned as-is: the setting is inert below API 31 and whenever the
+     * background transparency is 0, because then there is nothing behind the terminal to blur.
+     */
+    public boolean isTerminalBackgroundBlurEnabled() {
+        return SharedPreferenceUtils.getBoolean(mSharedPreferences,
+            TERMUX_APP.KEY_TERMINAL_BACKGROUND_BLUR, TERMUX_APP.DEFAULT_VALUE_TERMINAL_BACKGROUND_BLUR);
+    }
+
+    public void setTerminalBackgroundBlurEnabled(boolean value) {
+        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_BACKGROUND_BLUR, value, false);
+    }
+
+    /**
+     * The wallpaper blur radius behind the terminal, in pixels. Larger values blur more; 0 is
+     * a sharp wallpaper. Clamped to the documented range so a stale or out-of-range value from
+     * an older build can never reach {@code WindowManager.LayoutParams#setBlurBehindRadius}.
+     */
+    public int getTerminalBackgroundBlurRadius() {
+        return SharedPreferenceUtils.getInt(mSharedPreferences,
+            TERMUX_APP.KEY_TERMINAL_BACKGROUND_BLUR_RADIUS, TERMUX_APP.DEFAULT_VALUE_TERMINAL_BACKGROUND_BLUR_RADIUS);
+    }
+
+    public void setTerminalBackgroundBlurRadius(int value) {
+        if (value < TERMUX_APP.MIN_TERMINAL_BACKGROUND_BLUR_RADIUS) value = TERMUX_APP.MIN_TERMINAL_BACKGROUND_BLUR_RADIUS;
+        if (value > TERMUX_APP.MAX_TERMINAL_BACKGROUND_BLUR_RADIUS) value = TERMUX_APP.MAX_TERMINAL_BACKGROUND_BLUR_RADIUS;
+        SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_BACKGROUND_BLUR_RADIUS, value, false);
+    }
+
     public int getTerminalTranscriptRows() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_TRANSCRIPT_ROWS, TERMUX_APP.DEFAULT_VALUE_TERMINAL_TRANSCRIPT_ROWS);
     }

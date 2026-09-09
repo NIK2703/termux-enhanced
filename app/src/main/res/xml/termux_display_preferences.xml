@@ -52,6 +52,26 @@
             app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
 
+        <!-- Android 12+ system blur (FLAG_BLUR_BEHIND) of the wallpaper above. Disabled by the
+             fragment below API 31 and whenever the transparency is 0%. -->
+        <SwitchPreferenceCompat
+            app:key="terminal-background-blur"
+            app:title="@string/terminal_background_blur_title"
+            app:summary="@string/terminal_background_blur_summary"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
+        <!-- Android 12+ blur strength; meaningful only when the switch above is on. -->
+        <SeekBarPreference
+            app:key="terminal-background-blur-radius"
+            app:title="@string/terminal_background_blur_radius_title"
+            app:summary="@string/terminal_background_blur_radius_summary"
+            app:min="0"
+            android:max="150"
+            app:defaultValue="20"
+            app:showSeekBarValue="true"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory app:key="tabs" app:title="@string/tabs_category_title" app:iconSpaceReserved="false">

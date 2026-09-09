@@ -575,6 +575,15 @@
     <string name="terminal_background_transparency_title">Background transparency</string>
     <string name="terminal_background_transparency_summary">0% disables the device wallpaper behind the terminal, 50% is the maximum.</string>
 
+    <string name="terminal_background_blur_title">Blur wallpaper</string>
+    <string name="terminal_background_blur_summary">Blur the wallpaper behind the terminal with the system blur. Requires background transparency above 0%.</string>
+    <string name="terminal_background_blur_unsupported">Requires Android 12 or newer</string>
+    <string name="terminal_background_blur_needs_transparency">Set a background transparency above 0% first</string>
+    <string name="terminal_background_blur_unavailable">Blur is unavailable right now (battery saver or GPU limitation)</string>
+
+    <string name="terminal_background_blur_radius_title">Blur radius</string>
+    <string name="terminal_background_blur_radius_summary">Blur strength in pixels: 0 = sharp wallpaper, up to 150. Higher values cost more on a full-screen blur.</string>
+
     <string name="terminal_toolbar_height_title">Toolbar height scale</string>
     <string name="terminal_toolbar_height_summary">Extra keys / terminal toolbar height scale factor.</string>
 

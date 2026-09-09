@@ -311,6 +311,18 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_RUN_TERMUX_AM_SOCKET_SERVER = "run-termux-am-socket-server";
         public static final boolean DEFAULT_VALUE_RUN_TERMUX_AM_SOCKET_SERVER = true;
 
+        /**
+         * Whether the device wallpaper shown behind the terminal is blurred with the Android 12+
+         * system blur ({@code WindowManager.LayoutParams.FLAG_BLUR_BEHIND}).
+         * <p>
+         * Only meaningful together with
+         * {@link #KEY_TERMINAL_BACKGROUND_TRANSPARENCY} &gt; 0: with an opaque background there is
+         * nothing behind the terminal to blur. Below API 31 the setting is inert — there is
+         * deliberately no custom blur fallback, the wallpaper simply stays sharp.
+         */
+        public static final String KEY_TERMINAL_BACKGROUND_BLUR = "terminal-background-blur";
+        public static final boolean DEFAULT_VALUE_TERMINAL_BACKGROUND_BLUR = false;
+
         public static final String KEY_TERMINAL_ONCLICK_URL_OPEN = "terminal-onclick-url-open";
         public static final boolean DEFAULT_VALUE_TERMINAL_ONCLICK_URL_OPEN = false;
 
@@ -390,6 +402,17 @@ public final class TermuxPreferenceConstants {
         public static final int DEFAULT_VALUE_TERMINAL_BACKGROUND_TRANSPARENCY = 0;
         public static final int MIN_TERMINAL_BACKGROUND_TRANSPARENCY = 0;
         public static final int MAX_TERMINAL_BACKGROUND_TRANSPARENCY = 50;
+
+        /**
+         * Blur radius in pixels for the wallpaper behind-the-terminal system blur
+         * ({@code FLAG_BLUR_BEHIND}). 0 disables the blur (sharp wallpaper); larger values blur
+         * more. AOSP discourages values above 150px for a full-screen blur-behind on cost grounds.
+         * Persisted in SharedPreferences only (no termux.properties counterpart), so MIN/MAX live here.
+         */
+        public static final String KEY_TERMINAL_BACKGROUND_BLUR_RADIUS = "terminal-background-blur-radius";
+        public static final int DEFAULT_VALUE_TERMINAL_BACKGROUND_BLUR_RADIUS = 20;
+        public static final int MIN_TERMINAL_BACKGROUND_BLUR_RADIUS = 0;
+        public static final int MAX_TERMINAL_BACKGROUND_BLUR_RADIUS = 150;
 
 
         /* float */
