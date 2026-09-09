@@ -83,6 +83,13 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     private int mMarginRightDp = 0;
     private int mMarginBottomDp = 0;
 
+    /**
+     * User-configured terminal background transparency in percent (setting
+     * "terminal-background-transparency"): 0 = opaque, 50 = maximum. Applied to the TerminalView
+     * of every page so a page created mid-swipe never appears opaque while the wallpaper is on.
+     */
+    private int mBackgroundTransparencyPercent = 0;
+
     public TerminalPagerAdapter(@NonNull TermuxActivity activity,
                                  @NonNull TermuxTerminalViewClient viewClient,
                                  @NonNull List<TermuxSession> sessions) {
@@ -205,6 +212,26 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                 mMarginLeftDp, mMarginTopDp, mMarginRightDp, mMarginBottomDp);
     }
 
+    /**
+     * Push the configured background transparency to every attached page. Mirrors
+     * {@link #setTerminalMargins(int, int, int, int)}: the value is owned here (not in the
+     * individual views) so pages created later pick it up automatically.
+     *
+     * @param percent 0 (opaque, wallpaper disabled) .. 50 (maximum transparency).
+     */
+    public void setTerminalBackgroundTransparency(int percent) {
+        mBackgroundTransparencyPercent = percent;
+        for (int i = 0; i < mAttachedViews.size(); i++) {
+            applyTerminalTransparency(mAttachedViews.valueAt(i));
+        }
+    }
+
+    /** Apply the configured background transparency to one page (safe when null). */
+    private void applyTerminalTransparency(@androidx.annotation.Nullable TerminalView terminalView) {
+        if (terminalView != null)
+            terminalView.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
+    }
+
     // NOTE: the placeholder page uses the SAME view type (and layout) as a normal terminal page.
     // This is deliberate — committing the placeholder is an in-place rebind of the same ViewHolder
     // (notifyItemChanged reuses it), so there is no ViewHolder recreation / flash and the activity's
@@ -227,6 +254,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             // placeholder page carries the configured inset (the pager container itself
             // stays full-bleed, so a swipe is never clipped at the container boundary).
             applyTerminalMargins(holder.mTerminalView);
+            // Carry the configured background transparency to every newly created page, the same
+            // way the margins are carried — a page created mid-swipe must not appear opaque.
+            applyTerminalTransparency(holder.mTerminalView);
         }
         return holder;
     }
@@ -281,6 +311,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // whose margins were last set for a different configuration, and the pager
         // container itself stays full-bleed so swipes are never clipped.
         applyTerminalMargins(terminalView);
+        // Re-apply the transparency too: the view may be a recycled holder whose renderer was
+        // created (in setTextSize/setTypeface) after the last push.
+        applyTerminalTransparency(terminalView);
 
         // Attach the focus-change listener that drives the soft keyboard to THIS page's view.
         // Done here (not in TermuxTerminalViewClient.setSoftKeyboardState) because the shared

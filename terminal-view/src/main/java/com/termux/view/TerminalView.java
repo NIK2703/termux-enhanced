@@ -8,6 +8,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -63,6 +64,16 @@ public final class TerminalView extends View {
     public TerminalEmulator mEmulator;
 
     public TerminalRenderer mRenderer;
+
+    /**
+     * Terminal background transparency in percent: 0 = opaque (the device wallpaper is not
+     * shown behind the terminal), 50 = maximum transparency.
+     *
+     * The value lives here rather than only in {@link TerminalRenderer} because both
+     * {@link #setTextSize(int)} and {@link #setTypeface(Typeface)} construct a brand new
+     * renderer — a pinch-zoom or a font change would otherwise silently drop the setting.
+     */
+    private int mBackgroundTransparencyPercent = 0;
 
     /**
      * Horizontal pixel offset of the glyph grid, computed so that the leftover space
@@ -953,13 +964,39 @@ public final class TerminalView extends View {
      */
     public void setTextSize(int textSize) {
         mRenderer = new TerminalRenderer(textSize, mRenderer == null ? Typeface.MONOSPACE : mRenderer.mTypeface);
+        mRenderer.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
         updateSize();
     }
 
     public void setTypeface(Typeface newTypeface) {
         mRenderer = new TerminalRenderer(mRenderer.mTextSize, newTypeface);
+        mRenderer.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
         updateSize();
         invalidate();
+    }
+
+    /**
+     * Show the real device wallpaper through the terminal background.
+     *
+     * <p>Only the terminal's <em>own</em> alpha changes here; making the wallpaper actually
+     * visible also requires the hosting window to be a wallpaper target
+     * ({@code FLAG_SHOW_WALLPAPER}) with a translucent surface, which is the activity's job.
+     *
+     * @param percent 0 = opaque (wallpaper disabled), 50 = maximum transparency.
+     */
+    public void setBackgroundTransparencyPercent(int percent) {
+        if (percent < 0) percent = 0;
+        if (percent > 100) percent = 100;
+        if (mBackgroundTransparencyPercent == percent) return;
+        mBackgroundTransparencyPercent = percent;
+        if (mRenderer != null) mRenderer.setBackgroundTransparencyPercent(percent);
+        // Full invalidate: the alpha of the whole surface changes, and a partial repaint would
+        // leave the previous frame's pixels around the dirty rect.
+        invalidate();
+    }
+
+    public int getBackgroundTransparencyPercent() {
+        return mBackgroundTransparencyPercent;
     }
 
     @Override
@@ -969,7 +1006,11 @@ public final class TerminalView extends View {
 
     @Override
     public boolean isOpaque() {
-        return true;
+        // With an opaque background the renderer really does fill every pixel of the view, so
+        // the view is a full occluder. With wallpaper transparency it is not, and claiming
+        // otherwise lets the framework's overdraw / transparent-region logic treat translucent
+        // pixels as solid.
+        return mBackgroundTransparencyPercent == 0;
     }
 
     /**
@@ -1988,7 +2029,13 @@ public final class TerminalView extends View {
             // is attached. This avoids a hardcoded 0XFF000000 being shown during the gap between
             // activity recreation (recreate / system day-night swap) and session reattachment,
             // which would otherwise flash black independent of the current night mode.
-            canvas.drawColor(TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND]);
+            //
+            // The placeholder matches the configured transparency too, so enabling the wallpaper
+            // never flashes a solid colour over it on every recreate.
+            final int placeholderBg = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
+            final int alpha = Math.round(255f * (100 - mBackgroundTransparencyPercent) / 100f);
+            canvas.drawColor(alpha >= 255 ? placeholderBg : ((placeholderBg & 0x00FFFFFF) | (alpha << 24)),
+                PorterDuff.Mode.SRC);
         } else {
             // render the terminal view and highlight any selected text
             int[] sel = mDefaultSelectors;

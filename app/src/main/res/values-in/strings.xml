@@ -178,35 +178,35 @@
 <string name="termux_button_bg_active_alpha_title" formatted="false">Transparansi Latar Belakang Elemen Aktif</string>
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparansi Latar Belakang Elemen Tidak Aktif</string>
 <string name="termux_crash_report_notifications_enabled_off">Nonaktifkan notifikasi untuk laporan kerusakan.</string>
-<string name="termux_crash_report_notifications_enabled_on">Tampilkan notifikasi untuk laporan kerusakan. (Default)</string>
+<string name="termux_crash_report_notifications_enabled_on">Tampilkan notifikasi untuk laporan kerusakan.</string>
 <string name="termux_crash_report_notifications_enabled_title">Notifikasi Laporan Kerusakan</string>
 <string name="termux_debugging_preferences_summary">Preferensi terkait debugging Termux</string>
 <string name="termux_float_preferences_summary">Preferensi untuk aplikasi Termux:Float</string>
 <string name="termux_log_level_title">Level Log</string>
 <string name="termux_logging_header">Pencatatan Log</string>
 <string name="termux_plugin_error_notifications_enabled_off">Nonaktifkan pop-up toast dan notifikasi untuk error plugin.</string>
-<string name="termux_plugin_error_notifications_enabled_on">Tampilkan pop-up toast dan notifikasi untuk error plugin. (Default)</string>
+<string name="termux_plugin_error_notifications_enabled_on">Tampilkan pop-up toast dan notifikasi untuk error plugin.</string>
 <string name="termux_plugin_error_notifications_enabled_title">Notifikasi Error Plugin</string>
 <string name="termux_preferences_summary">Preferensi aplikasi Termux</string>
 <string name="termux_settings_button_enabled_off">Tombol pengaturan disembunyikan. Buka Pengaturan dengan tekan lama pada terminal → Lainnya… → Pengaturan.</string>
-<string name="termux_settings_button_enabled_on">Tombol pengaturan ditampilkan di panel tab. (Default)</string>
+<string name="termux_settings_button_enabled_on">Tombol pengaturan ditampilkan di panel tab.</string>
 <string name="termux_settings_button_enabled_title">Tampilkan Tombol Pengaturan</string>
 <string name="termux_soft_keyboard_enabled_off">Keyboard lunak akan dinonaktifkan.</string>
-<string name="termux_soft_keyboard_enabled_on">Keyboard lunak akan diaktifkan. (Default)</string>
-<string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Keyboard lunak akan diaktifkan meskipun keyboard fisik terhubung. (Default)</string>
+<string name="termux_soft_keyboard_enabled_on">Keyboard lunak akan diaktifkan.</string>
+<string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Keyboard lunak akan diaktifkan meskipun keyboard fisik terhubung.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Keyboard lunak akan diaktifkan hanya jika tidak ada keyboard fisik yang terhubung.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Keyboard Lunak Hanya Tanpa Keyboard Fisik</string>
 <string name="termux_soft_keyboard_enabled_title">Keyboard Lunak Diaktifkan</string>
 <string name="termux_tasker_preferences_summary">Preferensi untuk aplikasi Termux:Tasker</string>
 <string name="termux_terminal_io_preferences_summary">Preferensi I/O terminal</string>
 <string name="termux_terminal_io_preferences_title">I/O Terminal</string>
-<string name="termux_terminal_view_key_logging_enabled_off">Log tidak akan memiliki entri untuk tombol tampilan terminal. (Default)</string>
+<string name="termux_terminal_view_key_logging_enabled_off">Log tidak akan memiliki entri untuk tombol tampilan terminal.</string>
 <string name="termux_terminal_view_key_logging_enabled_on">Log logcat akan memiliki entri untuk tombol tampilan terminal. Ini sangat verbose dan harus dinonaktifkan dalam keadaan normal atau akan menyebabkan masalah kinerja.</string>
 <string name="termux_terminal_view_key_logging_enabled_title">Pencatatan Log Tombol Tampilan Terminal</string>
 <string name="termux_terminal_view_preferences_summary">Preferensi tampilan terminal</string>
 <string name="termux_terminal_view_preferences_title">Tampilan Terminal</string>
 <string name="termux_terminal_view_terminal_margin_adjustment_off">Penyesuaian margin terminal akan dinonaktifkan.</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_on">Penyesuaian margin terminal akan diaktifkan. Harus diaktifkan untuk mencoba memperbaiki masalah dimana keyboard lunak menutupi sebagian tombol ekstra/tampilan terminal. Jika menyebabkan kedipan layar pada perangkat Anda, nonaktifkan. (Default)</string>
+<string name="termux_terminal_view_terminal_margin_adjustment_on">Penyesuaian margin terminal akan diaktifkan. Harus diaktifkan untuk mencoba memperbaiki masalah dimana keyboard lunak menutupi sebagian tombol ekstra/tampilan terminal. Jika menyebabkan kedipan layar pada perangkat Anda, nonaktifkan.</string>
 <string name="termux_terminal_view_terminal_margin_adjustment_title">Penyesuaian Margin Terminal</string>
 <string name="termux_terminal_view_view_header">Tampilan</string>
 <string name="termux_widget_preferences_summary">Preferensi untuk aplikasi Termux:Widget</string>
@@ -594,7 +594,7 @@
 
     
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
-    <string name="extra_keys_editor_delay_hint">Tunda (1–1000 ms)</string>
+    <string name="extra_keys_editor_delay_hint">Tunda</string>
     <string name="extra_keys_editor_delay_presets">Pilihan cepat:</string>
 
     <!-- Basic app strings -->

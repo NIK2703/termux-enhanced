@@ -658,6 +658,24 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     }
 
 
+    /**
+     * Get the terminal background transparency in percent.
+     *
+     * @return 0 when the wallpaper feature is off (opaque background — the default and the
+     * historical behaviour), up to {@link TermuxPreferenceConstants.TERMUX_APP#MAX_TERMINAL_BACKGROUND_TRANSPARENCY}.
+     */
+    public int getTerminalBackgroundTransparency() {
+        return SharedPreferenceUtils.getInt(mSharedPreferences,
+            TERMUX_APP.KEY_TERMINAL_BACKGROUND_TRANSPARENCY,
+            TERMUX_APP.DEFAULT_VALUE_TERMINAL_BACKGROUND_TRANSPARENCY);
+    }
+
+    public void setTerminalBackgroundTransparency(int value) {
+        if (value < TERMUX_APP.MIN_TERMINAL_BACKGROUND_TRANSPARENCY) value = TERMUX_APP.MIN_TERMINAL_BACKGROUND_TRANSPARENCY;
+        if (value > TERMUX_APP.MAX_TERMINAL_BACKGROUND_TRANSPARENCY) value = TERMUX_APP.MAX_TERMINAL_BACKGROUND_TRANSPARENCY;
+        SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_BACKGROUND_TRANSPARENCY, value, false);
+    }
+
     public int getTerminalTranscriptRows() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_TRANSCRIPT_ROWS, TERMUX_APP.DEFAULT_VALUE_TERMINAL_TRANSCRIPT_ROWS);
     }

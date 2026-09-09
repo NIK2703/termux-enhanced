@@ -60,7 +60,7 @@
     <string name="msg_disabling_launcher_icon">Deshabilitando icono del iniciador de la aplicación %1$s</string>
     <string name="setting_launcher_icon_title">Icono del iniciador habilitado</string>
     <string name="setting_launcher_icon_enabled_off">El icono del iniciador estará deshabilitado.</string>
-    <string name="setting_launcher_icon_enabled_on">El icono del iniciador estará habilitado. (Predeterminado)</string>
+    <string name="setting_launcher_icon_enabled_on">El icono del iniciador estará habilitado.</string>
     <string name="log_level_title">Nivel de registro</string>
     <string name="log_level_off">Desactivado</string>
     <string name="log_level_normal">Normal</string>

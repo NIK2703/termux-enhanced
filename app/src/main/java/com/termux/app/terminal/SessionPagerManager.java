@@ -102,6 +102,16 @@ public final class SessionPagerManager {
     }
 
     /**
+     * Push the terminal background transparency (0 = opaque, 50 = maximum) to every page.
+     *
+     * @param percent transparency percentage.
+     */
+    public void setTerminalBackgroundTransparency(int percent) {
+        if (mTerminalPagerAdapter != null)
+            mTerminalPagerAdapter.setTerminalBackgroundTransparency(percent);
+    }
+
+    /**
      * True while the pager is being dragged by the user (a real swipe gesture), as opposed to a
      * programmatic {@code setCurrentItem()} triggered by the "+" button, an (instant) tab click or a
      * keyboard shortcut. Neither a programmatic smooth scroll nor an instant tab-click jump ever
@@ -195,6 +205,11 @@ public final class SessionPagerManager {
                 mActivity.getProperties().getTerminalMarginTop(),
                 mActivity.getProperties().getTerminalMarginRight(),
                 mActivity.getProperties().getTerminalMarginBottom());
+
+        // Same reason as the margins above: on a cold start TermuxActivity.setMargins() ran
+        // before this manager existed, so the transparency is (re)applied here from the live
+        // properties. Later changes arrive via TermuxActivity.applyTerminalTransparency().
+        setTerminalBackgroundTransparency(mActivity.getProperties().getTerminalBackgroundTransparency());
 
         mTerminalPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override

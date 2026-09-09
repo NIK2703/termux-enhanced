@@ -1381,7 +1381,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         final int buttonText = mActivity.getButtonText();
         final int selectionHighlight = mActivity.getTextSelectionHighlightColor();
 
-        // Bottom panel + extra keys backgrounds -> transparent.
+        // Panel containers stay transparent: the decor view is painted with the scheme
+        // background at the terminal's transparency alpha (see
+        // TermuxActivity.applySystemBarColors()), so panels inherit exactly the same
+        // "scheme bg at alpha A over the wallpaper" as the terminal itself. Painting opaque
+        // panel bars on top would punch hard holes into the translucent look.
         View toolbar = mActivity.findViewById(R.id.terminal_toolbar_container);
         if (toolbar != null) toolbar.setBackgroundColor(Color.TRANSPARENT);
         ExtraKeysView extraKeys = mActivity.getExtraKeysView();
@@ -1534,7 +1538,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // applyTerminalColorScheme() (invoked from checkForFontAndColors(), which runs again in
             // onServiceConnected() once the session is attached after a recreate()).
             int bg = session.getEmulator().mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND];
-            TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight());
+            TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight(),
+                mActivity.getProperties().getTerminalBackgroundTransparency());
         }
     }
 

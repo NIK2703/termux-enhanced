@@ -103,26 +103,26 @@
     <string name="termux_logging_header">日志记录</string>
     <string name="termux_log_level_title">日志级别</string>
     <string name="termux_terminal_view_key_logging_enabled_title">终端视图按键日志记录</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">日志将不包含终端视图按键的记录。（默认）</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">日志将不包含终端视图按键的记录。</string>
     <string name="termux_terminal_view_key_logging_enabled_on">Logcat 日志将包含终端视图按键的记录。这些记录非常冗长，正常情况下应禁用，否则会导致性能问题。</string>
     <string name="termux_plugin_error_notifications_enabled_title">插件错误通知</string>
     <string name="termux_plugin_error_notifications_enabled_off">禁用插件错误的闪烁和通知。</string>
-    <string name="termux_plugin_error_notifications_enabled_on">显示插件错误的闪烁和通知。（默认）</string>
+    <string name="termux_plugin_error_notifications_enabled_on">显示插件错误的闪烁和通知。</string>
     <string name="termux_crash_report_notifications_enabled_title">崩溃报告通知</string>
     <string name="termux_crash_report_notifications_enabled_off">禁用崩溃报告的通知。</string>
-    <string name="termux_crash_report_notifications_enabled_on">显示崩溃报告的通知。（默认）</string>
+    <string name="termux_crash_report_notifications_enabled_on">显示崩溃报告的通知。</string>
 
     <string name="termux_terminal_io_preferences_title">终端输入/输出</string>
     <string name="termux_terminal_io_preferences_summary">终端输入/输出偏好设置</string>
     <string name="termux_keyboard_header">键盘</string>
     <string name="termux_soft_keyboard_enabled_title">启用软键盘</string>
     <string name="termux_soft_keyboard_enabled_off">软键盘将被禁用。</string>
-    <string name="termux_soft_keyboard_enabled_on">软键盘将启用。（默认）</string>
+    <string name="termux_soft_keyboard_enabled_on">软键盘将启用。</string>
     <string name="termux_settings_button_enabled_title">显示设置按钮</string>
-    <string name="termux_settings_button_enabled_on">设置按钮显示在标签面板中。（默认）</string>
+    <string name="termux_settings_button_enabled_on">设置按钮显示在标签面板中。</string>
     <string name="termux_settings_button_enabled_off">设置按钮已隐藏。长按终端 → 更多… → 设置 打开设置。</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">仅无硬件键盘时启用软键盘</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">即使连接了硬件键盘，软键盘也将启用。（默认）</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">即使连接了硬件键盘，软键盘也将启用。</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">仅当未连接硬件键盘时，软键盘才启用。</string>
     <string name="termux_terminal_view_preferences_title">终端视图</string>
     <string name="termux_terminal_view_preferences_summary">终端视图偏好设置</string>
@@ -133,7 +133,7 @@
     <string name="termux_terminal_view_terminal_margin_adjustment_off">终端边距调整将被禁用。</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_on">终端边距调整将启用。
         应启用此项以尝试修复软键盘遮挡部分扩展键/终端视图的问题。
-        如果在您的设备上导致屏幕闪烁，请禁用它。（默认）</string>
+        如果在您的设备上导致屏幕闪烁，请禁用它。</string>
     <string name="termux_api_preferences_title">Termux:API 偏好设置</string>
     <string name="termux_api_preferences_summary">Termux:API 应用的偏好设置</string>
     <string name="termux_float_preferences_title">Termux:Float 偏好设置</string>
@@ -290,10 +290,10 @@
 
     
     <string name="termux_tab_height_mode_title">标签高度</string>
-    <string name="termux_tab_height_mode_single">单行（默认）</string>
+    <string name="termux_tab_height_mode_single">单行</string>
     <string name="termux_tab_height_mode_double">两行</string>
     <string name="termux_tab_panel_position_title">标签面板位置</string>
-    <string name="termux_tab_panel_position_top">顶部（默认）</string>
+    <string name="termux_tab_panel_position_top">顶部</string>
     <string name="termux_tab_panel_position_bottom">底部</string>
 
     
@@ -607,7 +607,7 @@
     <string name="bootstrap_install_progress_done">完成</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d 毫秒</string>
-    <string name="extra_keys_editor_delay_hint">延迟 (1–1000 毫秒)</string>
+    <string name="extra_keys_editor_delay_hint">延迟</string>
     <string name="extra_keys_editor_delay_presets">快速选择:</string>
 
     <!-- Termux App Preferences -->

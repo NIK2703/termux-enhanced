@@ -198,6 +198,8 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSeekBarInt("terminal-margin-bottom", prefs.getTerminalMarginBottom(),
             value -> prefs.setTerminalMarginBottom(value));
 
+        configureBackgroundTransparencySeekBar(prefs);
+
         configureSwitch("scroll-on-new-output", prefs.isScrollOnNewOutputEnabled(),
             value -> prefs.setScrollOnNewOutputEnabled(value));
     }
@@ -219,6 +221,39 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
             setter.set((Integer) newValue);
             updateStyling();
+            return true;
+        });
+    }
+
+    /**
+     * Background-transparency slider (real device wallpaper behind the terminal).
+     *
+     * Deliberately <em>not</em> {@link #configureSeekBarInt(String, int, PreferenceValueSetter)}:
+     * that helper asks for an activity recreate on every value, and recreating on every frame of
+     * a drag is unusable. Instead the value is written straight away and a styling reload
+     * <em>without</em> recreate is broadcast, so the transparency changes live.
+     * {@code TermuxActivity} still recreates itself on its own when the value crosses the 0%
+     * boundary, because {@code android:windowIsTranslucent} is a static theme attribute.
+     */
+    private void configureBackgroundTransparencySeekBar(TermuxAppSharedPreferences prefs) {
+        final SeekBarPreference pref =
+            findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_TERMINAL_BACKGROUND_TRANSPARENCY);
+        if (pref == null) return;
+
+        pref.setPersistent(false);
+        int current = prefs.getTerminalBackgroundTransparency();
+        final int max = pref.getMax();
+        if (current > max) {
+            // Older build with a higher max — clamp so the terminal never keeps an out-of-range value.
+            current = max;
+            prefs.setTerminalBackgroundTransparency(current);
+        }
+        pref.setValue(current);
+
+        pref.setOnPreferenceChangeListener((preference, newValue) -> {
+            prefs.setTerminalBackgroundTransparency((Integer) newValue);
+            Context ctx = getContext();
+            if (ctx != null) TermuxActivity.updateTermuxActivityStyling(ctx, false);
             return true;
         });
     }

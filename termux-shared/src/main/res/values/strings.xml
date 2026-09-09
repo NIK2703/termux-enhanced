@@ -122,7 +122,7 @@
     <string name="msg_disabling_launcher_icon">Disabling %1$s app launcher icon</string>
     <string name="setting_launcher_icon_title">Launcher Icon Enabled</string>
     <string name="setting_launcher_icon_enabled_off">Launcher Icon will be disabled.</string>
-    <string name="setting_launcher_icon_enabled_on">Launcher Icon will be enabled. (Default)</string>
+    <string name="setting_launcher_icon_enabled_on">Launcher Icon will be enabled.</string>
 
 
 

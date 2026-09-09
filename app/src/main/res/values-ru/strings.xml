@@ -143,19 +143,19 @@
 
                 
                 <string name="termux_terminal_view_key_logging_enabled_title">Журнал клавиш терминала</string>
-                <string name="termux_terminal_view_key_logging_enabled_off">Журнал не будет содержать записи о клавишах терминала. (По умолчанию)</string>
+                <string name="termux_terminal_view_key_logging_enabled_off">Журнал не будет содержать записи о клавишах терминала.</string>
                 <string name="termux_terminal_view_key_logging_enabled_on">Журнал logcat будет содержать записи о клавишах терминала.
                     Они очень подробные и должны быть отключены при обычном использовании, иначе это вызовет проблемы с производительностью.</string>
 
                 
                 <string name="termux_plugin_error_notifications_enabled_title">Уведомления об ошибках плагинов</string>
                 <string name="termux_plugin_error_notifications_enabled_off">Отключить всплывающие уведомления об ошибках плагинов.</string>
-                <string name="termux_plugin_error_notifications_enabled_on">Показывать всплывающие уведомления об ошибках плагинов. (По умолчанию)</string>
+                <string name="termux_plugin_error_notifications_enabled_on">Показывать всплывающие уведомления об ошибках плагинов.</string>
 
                 
                 <string name="termux_crash_report_notifications_enabled_title">Уведомления об отчётах о сбоях</string>
                 <string name="termux_crash_report_notifications_enabled_off">Отключить уведомления об отчётах о сбоях.</string>
-                <string name="termux_crash_report_notifications_enabled_on">Показывать уведомления об отчётах о сбоях. (По умолчанию)</string>
+                <string name="termux_crash_report_notifications_enabled_on">Показывать уведомления об отчётах о сбоях.</string>
 
         
         <string name="termux_terminal_io_preferences_title">Ввод-вывод терминала</string>
@@ -167,12 +167,12 @@
                 
                 <string name="termux_soft_keyboard_enabled_title">Экранная клавиатура включена</string>
                 <string name="termux_soft_keyboard_enabled_off">Экранная клавиатура будет отключена.</string>
-                <string name="termux_soft_keyboard_enabled_on">Экранная клавиатура будет включена. (По умолчанию)</string>
+                <string name="termux_soft_keyboard_enabled_on">Экранная клавиатура будет включена.</string>
 
                 
                 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Экранная клавиатура: только при отсутствии аппаратной</string>
                 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Экранная клавиатура будет включена, даже если
-                    подключена аппаратная клавиатура. (По умолчанию)</string>
+                    подключена аппаратная клавиатура.</string>
                 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Экранная клавиатура будет включена, только если
                     не подключена аппаратная клавиатура.</string>
 
@@ -194,7 +194,7 @@
                 <string name="termux_terminal_view_terminal_margin_adjustment_off">Корректировка отступов терминала будет отключена.</string>
                 <string name="termux_terminal_view_terminal_margin_adjustment_on">Корректировка отступов терминала будет включена.
                     Следует включить, чтобы исправить проблему, когда экранная клавиатура перекрывает часть дополнительных кнопок/терминала.
-                    Если это вызывает мерцание экрана на вашем устройстве, отключите. (По умолчанию)</string>
+                    Если это вызывает мерцание экрана на вашем устройстве, отключите.</string>
 
     
     <string name="termux_api_preferences_summary">Настройки приложения Termux:API</string>
@@ -494,6 +494,9 @@
     <string name="terminal_margin_right_title">Правый отступ</string>
     <string name="terminal_margin_bottom_title">Нижний отступ</string>
 
+    <string name="terminal_background_transparency_title">Прозрачность фона</string>
+    <string name="terminal_background_transparency_summary">0% — обои устройства отключены, 50% — максимум.</string>
+
     <string name="terminal_toolbar_height_title">Масштаб панели инструментов</string>
     <string name="terminal_toolbar_height_summary">Коэффициент масштаба панели дополнительных кнопок / терминала.</string>
 
@@ -664,7 +667,7 @@
     <string name="extra_keys_editor_delay_dialog_title">Задержка</string>
     <string name="extra_keys_editor_delay_format">⏱ %d мс</string>
     <string name="extra_keys_editor_delay_presets">Быстрый выбор:</string>
-    <string name="extra_keys_editor_delay_hint">Задержка (1–1000 мс)</string>
+    <string name="extra_keys_editor_delay_hint">Задержка</string>
 
     
     <string name="report_issue_title">Termux — Сообщить о проблеме</string>

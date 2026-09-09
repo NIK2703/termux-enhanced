@@ -61,7 +61,7 @@
     <string name="notification_channel_plugin_errors">Kesalahan Perintah Plugin Termux</string>
     <string name="notification_channel_run_command">Termux RunCommandService</string>
     <string name="setting_launcher_icon_enabled_off">Ikon Peluncur akan dinonaktifkan.</string>
-    <string name="setting_launcher_icon_enabled_on">Ikon Peluncur akan diaktifkan. (Default)</string>
+    <string name="setting_launcher_icon_enabled_on">Ikon Peluncur akan diaktifkan.</string>
     <string name="setting_launcher_icon_title">Ikon Peluncur Diaktifkan</string>
     <string name="title_open_url_with">Buka URL Dengan</string>
     <string name="title_report_text">Teks Laporan</string>

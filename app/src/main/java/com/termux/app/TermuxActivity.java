@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -171,6 +172,16 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      * Termux app SharedProperties loaded from termux.properties
      */
     private TermuxAppSharedProperties mProperties;
+
+    /**
+     * Whether the translucent "wallpaper" theme variant
+     * ({@code R.style.Theme_TermuxActivity_DayNight_NoActionBar_Wallpaper}) was applied to
+     * <em>this</em> activity instance. {@code android:windowIsTranslucent} is a static theme
+     * attribute and therefore cannot be toggled at runtime, so crossing the 0% boundary
+     * (0 -> >0 or >0 -> 0) is the one change that genuinely needs an activity recreate; see
+     * {@link #reloadActivityStyling(boolean)}.
+     */
+    private boolean mWallpaperThemeApplied = false;
 
     /**
      * Persists/restores the open terminal tabs (working directory, name, failsafe
@@ -597,7 +608,8 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
                 }, (int) (getResources().getDimension(R.dimen.message_history_popup_gap) / getResources().getDisplayMetrics().density),
                         (int) (getResources().getDimension(R.dimen.message_history_popup_max_height) / getResources().getDisplayMetrics().density));
 
-        applyTermuxTheme();
+        applyTermuxTheme();     // existing: scheme/night-mode
+        applyWallpaperTheme();  // translucent theme variant when the wallpaper must show through
 
         super.onCreate(savedInstanceState);
 
@@ -669,6 +681,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mImeDetector.attach();
 
         setFullScreenFlags();
+
+        // FLAG_SHOW_WALLPAPER + translucent surface format: without these the wallpaper is not
+        // composited below the window even if the renderer draws a translucent background.
+        applyWallpaperWindowFlags();
 
 
         setTermuxTerminalViewAndClients();
@@ -1445,6 +1461,82 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     public void applyTermuxTheme() {
         if (mViewHelper != null) mViewHelper.applyTheme();
+    }
+
+    // -----------------------------------------------------------------------------------------
+    //  Wallpaper behind the terminal (background transparency)
+    //
+    //  Four independent layers each fully hide the wallpaper on their own, so all four have to be
+    //  punched through:
+    //    [0] wallpaper surface ........ FLAG_SHOW_WALLPAPER          (applyWallpaperWindowFlags)
+    //    [1] window surface format .... windowIsTranslucent (theme)  (applyWallpaperTheme)
+    //                                   + PixelFormat.TRANSLUCENT    (applyWallpaperWindowFlags)
+    //    [2] decor view background .... Color.TRANSPARENT            (applySystemBarColors)
+    //    [3] TerminalView fill ........ alpha < 255                  (applyTerminalTransparency)
+    // -----------------------------------------------------------------------------------------
+
+    /**
+     * True when the real device wallpaper should be visible behind the terminal, i.e. the
+     * background transparency setting is above 0%.
+     */
+    public boolean isWallpaperVisibleBehindTerminal() {
+        return mProperties != null && mProperties.getTerminalBackgroundTransparency() > 0;
+    }
+
+    /**
+     * Switch to the translucent theme variant <em>before</em> {@code super.onCreate()} /
+     * {@code PhoneWindow} read the theme. No-op when the wallpaper feature is off (0%): the
+     * opaque theme, the OPAQUE surface format and today's zero-cost path are kept untouched.
+     */
+    private void applyWallpaperTheme() {
+        final boolean showWallpaper = isWallpaperVisibleBehindTerminal();
+        mWallpaperThemeApplied = showWallpaper;
+        if (showWallpaper) {
+            setTheme(R.style.Theme_TermuxActivity_DayNight_NoActionBar_Wallpaper);
+        }
+    }
+
+    /**
+     * Make this window a wallpaper target so SurfaceFlinger keeps the real wallpaper surface
+     * alive and composites it below us, and give the window a translucent surface format.
+     *
+     * Called from {@code onCreate()} and from every {@link #reloadActivityStyling(boolean)}.
+     * The theme half ({@code android:windowIsTranslucent}) cannot be toggled at runtime — it is
+     * applied in {@link #applyWallpaperTheme()} before {@code super.onCreate()} — which is why
+     * crossing the 0% boundary requires an activity recreate.
+     */
+    private void applyWallpaperWindowFlags() {
+        final boolean showWallpaper = isWallpaperVisibleBehindTerminal();
+
+        final Window window = getWindow();
+        if (window == null) return;
+
+        if (showWallpaper) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER);
+            // Belt-and-braces in case an OEM theme/policy did not upgrade the surface format.
+            window.setFormat(PixelFormat.TRANSLUCENT);
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER);
+            window.setFormat(PixelFormat.OPAQUE);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // With FLAG_SHOW_WALLPAPER every touch is *also* delivered to the wallpaper (that is
+            // how live wallpapers are interacted with). A terminal must not leak tap coordinates
+            // to a third-party wallpaper. API 31-33 has no way to opt out — a known platform
+            // limitation, harmless with a static wallpaper.
+            WindowManager.LayoutParams attrs = window.getAttributes();
+            attrs.setWallpaperTouchEventsEnabled(!showWallpaper);
+            window.setAttributes(attrs);
+        }
+    }
+
+    /** Push the configured background transparency to every terminal page. Mirrors setMargins(). */
+    private void applyTerminalTransparency() {
+        if (mSessionPagerManager == null) return;
+        if (mProperties == null) return;
+        mSessionPagerManager.setTerminalBackgroundTransparency(
+            mProperties.getTerminalBackgroundTransparency());
     }
 
     /**
@@ -2670,7 +2762,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // scheme, light on a dark one) — the bars never stand out from or darken the terminal.
         Window window = getWindow();
         if (window != null) {
-            applySystemBarColors(window, schemeBg, isLight);
+            applySystemBarColors(window, schemeBg, isLight,
+                mProperties == null ? 0 : mProperties.getTerminalBackgroundTransparency());
         }
     }
 
@@ -2687,14 +2780,31 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * terminal size does not change. On Android 10+ the system would additionally draw a contrast
      * scrim over the bars with gesture navigation, so that is disabled too — the transparent bars
      * then always show exactly what is behind them: the terminal background.
+     *
+     * @param transparencyPercent 0 = opaque terminal (feature disabled — the historic
+     *                            behaviour), up to 50. Drives the alpha of the decor-view
+     *                            background so the entire window is uniformly translucent: the
+     *                            status/nav-bar areas, every panel container and the terminal
+     *                            itself all show the wallpaper at the same rate.
      */
-    public static void applySystemBarColors(Window window, int surfaceBackground, boolean isLight) {
+    public static void applySystemBarColors(Window window, int surfaceBackground, boolean isLight,
+                                            int transparencyPercent) {
         if (window == null) return;
         View decorView = window.getDecorView();
 
-        // Colour the window surface (visible through the transparent bars) with the scheme
-        // background, so the bar areas always match the terminal colours exactly.
-        decorView.setBackgroundColor(surfaceBackground);
+        if (transparencyPercent > 0) {
+            // Paint the decor view with the scheme background at the terminal's transparency
+            // alpha. Every region of the window that the content does not paint opaquely (status
+            // bar, navigation bar, gaps between buttons) therefore shows EXACTLY the same
+            // "scheme bg at alpha A over the wallpaper" blend as the terminal — there is no
+            // visual seam between the terminal area and the chrome.
+            int alpha = Math.round(255f * (100 - transparencyPercent) / 100f);
+            decorView.setBackgroundColor((surfaceBackground & 0x00FFFFFF) | (alpha << 24));
+        } else {
+            // Feature off: the terminal is opaque, so colour the decor with the scheme
+            // background so the status/nav bar areas still match the terminal exactly.
+            decorView.setBackgroundColor(surfaceBackground);
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
@@ -3936,6 +4046,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     public void reloadActivityStyling(boolean recreateActivity) {
+        // Crossing the 0% boundary switches android:windowIsTranslucent, which is a static theme
+        // attribute — the only transparency change that genuinely requires a recreate. Dragging
+        // the slider between two non-zero values is applied live instead.
+        boolean wallpaperThemeNeedsRecreate = false;
+
         if (mProperties != null) {
             reloadProperties();
 
@@ -3972,11 +4087,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
 // Update NightMode.APP_NIGHT_MODE
             TermuxThemeUtils.setAppNightMode(mProperties.getNightMode());
+
+            wallpaperThemeNeedsRecreate = isWallpaperVisibleBehindTerminal() != mWallpaperThemeApplied;
         }
 
         setMargins();
         setTerminalToolbarHeight();
         setFullScreenFlags();
+
+        // Wallpaper behind the terminal: window flags + per-page renderer alpha. Both are
+        // cheap and safe to re-apply on every styling reload.
+        applyWallpaperWindowFlags();
+        applyTerminalTransparency();
 
         FileReceiverActivity.updateFileReceiverActivityComponentsState(this);
 
@@ -3993,7 +4115,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // To change the activity and drawer theme, activity needs to be recreated.
         // It will destroy the activity, including all stored variables and views, and onCreate()
         // will be called again. Extra keys input text, terminal sessions and transcripts will be preserved.
-        if (recreateActivity) {
+        if (recreateActivity || wallpaperThemeNeedsRecreate) {
             Logger.logDebug(LOG_TAG, "Recreating activity");
             TermuxActivity.this.recreate();
         }

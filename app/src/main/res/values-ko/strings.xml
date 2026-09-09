@@ -194,16 +194,16 @@ $HOME/bin/termux-url-opener
     <string name="shared_user_label">Termux의 공유 사용자</string>
     <string name="tab_close_description">탭 닫기</string>
     <string name="termux_tab_height_mode_title">탭 높이</string>
-    <string name="termux_tab_height_mode_single">한 줄 (기본값)</string>
+    <string name="termux_tab_height_mode_single">한 줄</string>
     <string name="termux_tab_height_mode_double">두 줄</string>
     <string name="termux_tab_panel_position_title">탭 패널 위치</string>
-    <string name="termux_tab_panel_position_top">위 (기본값)</string>
+    <string name="termux_tab_panel_position_top">위</string>
     <string name="termux_tab_panel_position_bottom">아래</string>
     <string name="termux_api_preferences_summary">Termux:API 앱 설정</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">활성 요소 투명도</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">비활성 요소 투명도</string>
     <string name="termux_crash_report_notifications_enabled_off">충돌 보고서에 대한 알림을 비활성화합니다.</string>
-    <string name="termux_crash_report_notifications_enabled_on">충돌 보고서에 대한 알림을 표시합니다. (기본값)</string>
+    <string name="termux_crash_report_notifications_enabled_on">충돌 보고서에 대한 알림을 표시합니다.</string>
     <string name="termux_crash_report_notifications_enabled_title">충돌 보고서 알림</string>
     <string name="termux_debugging_preferences_summary">디버깅 설정</string>
     <string name="termux_debugging_preferences_title">디버깅</string>
@@ -211,15 +211,15 @@ $HOME/bin/termux-url-opener
     <string name="termux_log_level_title">로그 수준</string>
     <string name="termux_logging_header">로깅</string>
     <string name="termux_plugin_error_notifications_enabled_off">플러그인 오류에 대한 플래시 및 알림을 비활성화합니다.</string>
-    <string name="termux_plugin_error_notifications_enabled_on">플러그인 오류에 대한 플래시 및 알림을 표시합니다. (기본값)</string>
+    <string name="termux_plugin_error_notifications_enabled_on">플러그인 오류에 대한 플래시 및 알림을 표시합니다.</string>
     <string name="termux_plugin_error_notifications_enabled_title">플러그인 오류 알림</string>
     <string name="termux_preferences_summary">Termux 앱 설정</string>
     <string name="termux_settings_button_enabled_off">설정 버튼이 숨겨집니다. 터미널을 길게 누른 뒤 → 더 보기… → 설정에서 열 수 있습니다.</string>
-    <string name="termux_settings_button_enabled_on">설정 버튼이 탭 패널에 표시됩니다. (기본값)</string>
+    <string name="termux_settings_button_enabled_on">설정 버튼이 탭 패널에 표시됩니다.</string>
     <string name="termux_settings_button_enabled_title">설정 버튼 표시</string>
     <string name="termux_soft_keyboard_enabled_off">소프트 키보드가 비활성화됩니다.</string>
-    <string name="termux_soft_keyboard_enabled_on">소프트 키보드가 활성화됩니다. (기본값)</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">하드웨어 키보드가 연결되어 있어도 소프트 키보드가 사용됩니다. (기본값)</string>
+    <string name="termux_soft_keyboard_enabled_on">소프트 키보드가 활성화됩니다.</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">하드웨어 키보드가 연결되어 있어도 소프트 키보드가 사용됩니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">하드웨어 키보드가 연결되지 않은 경우에만 소프트 키보드가 사용됩니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">하드웨어 키보드가 없을 때만 소프트 키보드 사용</string>
     <string name="termux_soft_keyboard_enabled_title">소프트 키보드 사용</string>
@@ -229,13 +229,13 @@ $HOME/bin/termux-url-opener
 
         
         <string name="termux_keyboard_header">키보드</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">터미널 뷰 키에 대한 로그 항목이 기록되지 않습니다. (기본값)</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">터미널 뷰 키에 대한 로그 항목이 기록되지 않습니다.</string>
     <string name="termux_terminal_view_key_logging_enabled_on">Logcat 로그에 터미널 뷰 키 항목이 기록됩니다.\n                    매우 상세하므로 일반적인 상황에서는 비활성화해야 하며, 그렇지 않으면 성능 문제가 발생할 수 있습니다.</string>
     <string name="termux_terminal_view_key_logging_enabled_title">터미널 뷰 키 로깅</string>
     <string name="termux_terminal_view_preferences_summary">터미널 화면 표시 관련 설정을 관리합니다</string>
     <string name="termux_terminal_view_preferences_title">터미널 보기 설정</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_off">터미널 여백 조정이 비활성화됩니다.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">터미널 여백 조정이 활성화됩니다. 소프트 키보드가 추가 키/터미널 화면의 일부를 가리는 문제를 해결하려면 활성화해야 합니다. 기기에서 화면 깜빡임이 발생하면 비활성화하세요. (기본값)</string>
+    <string name="termux_terminal_view_terminal_margin_adjustment_on">터미널 여백 조정이 활성화됩니다. 소프트 키보드가 추가 키/터미널 화면의 일부를 가리는 문제를 해결하려면 활성화해야 합니다. 기기에서 화면 깜빡임이 발생하면 비활성화하세요.</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_title">터미널 여백 조정</string>
     <string name="termux_terminal_view_view_header">터미널 보기</string>
     <string name="termux_widget_preferences_summary">Termux:Widget 앱 설정</string>
@@ -628,7 +628,7 @@ $HOME/bin/termux-url-opener
     <string name="bootstrap_install_progress_done">완료</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d밀리초</string>
-    <string name="extra_keys_editor_delay_hint">지연 (1–1000밀리초)</string>
+    <string name="extra_keys_editor_delay_hint">지연</string>
     <string name="extra_keys_editor_delay_presets">빠른 선택:</string>
 
     

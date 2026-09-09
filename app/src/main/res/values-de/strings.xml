@@ -168,10 +168,10 @@
     <string name="swipe_rightmost_new_tab_title">Am rechten Tab wischen für neue Sitzung</string>
     <string name="swipe_rightmost_new_tab_summary">Beim letzten Tab nach rechts wischen, um eine neue Terminalsitzung einzublenden und zu öffnen</string>
     <string name="termux_tab_height_mode_title">Tab-Höhe</string>
-    <string name="termux_tab_height_mode_single">Eine Zeile (Standard)</string>
+    <string name="termux_tab_height_mode_single">Eine Zeile</string>
     <string name="termux_tab_height_mode_double">Zwei Zeilen</string>
     <string name="termux_tab_panel_position_title">Tab-Panel-Position</string>
-    <string name="termux_tab_panel_position_top">Oben (Standard)</string>
+    <string name="termux_tab_panel_position_top">Oben</string>
     <string name="termux_tab_panel_position_bottom">Unten</string>
     <string name="shared_user_label">Termux-Benutzer</string>
     <string name="tab_close_description">Tab schließen</string>
@@ -179,31 +179,31 @@
     <string name="termux_button_bg_active_alpha_title" formatted="false">Hintergrundtransparenz des aktiven Elements</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Hintergrundtransparenz des inaktiven Elements</string>
     <string name="termux_crash_report_notifications_enabled_off">Benachrichtigungen für Absturzberichte deaktivieren.</string>
-    <string name="termux_crash_report_notifications_enabled_on">Benachrichtigungen für Absturzberichte anzeigen. (Standard)</string>
+    <string name="termux_crash_report_notifications_enabled_on">Benachrichtigungen für Absturzberichte anzeigen.</string>
     <string name="termux_crash_report_notifications_enabled_title">Absturzbericht-Benachrichtigungen</string>
     <string name="termux_debugging_preferences_summary">Debugging-Einstellungen</string>
     <string name="termux_float_preferences_summary">Einstellungen für die Termux:Float-App</string>
     <string name="termux_log_level_title">Protokollebene</string>
     <string name="termux_logging_header">Protokollierung</string>
     <string name="termux_plugin_error_notifications_enabled_off">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler deaktivieren.</string>
-    <string name="termux_plugin_error_notifications_enabled_on">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler anzeigen. (Standard)</string>
+    <string name="termux_plugin_error_notifications_enabled_on">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler anzeigen.</string>
     <string name="termux_plugin_error_notifications_enabled_title">Plugin-Fehlerbenachrichtigungen</string>
     <string name="termux_preferences_summary">Termux-App-Einstellungen</string>
     <string name="termux_soft_keyboard_enabled_off">Die Soft-Tastatur wird deaktiviert.</string>
-    <string name="termux_soft_keyboard_enabled_on">Die Soft-Tastatur wird aktiviert. (Standard)</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Die Soft-Tastatur wird auch bei angeschlossener Hardware-Tastatur aktiviert. (Standard)</string>
+    <string name="termux_soft_keyboard_enabled_on">Die Soft-Tastatur wird aktiviert.</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Die Soft-Tastatur wird auch bei angeschlossener Hardware-Tastatur aktiviert.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Die Soft-Tastatur wird nur aktiviert, wenn keine Hardware-Tastatur angeschlossen ist.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Soft-Tastatur nur ohne Hardware-Tastatur</string>
     <string name="termux_soft_keyboard_enabled_title">Soft-Tastatur aktiviert</string>
     <string name="termux_tasker_preferences_summary">Einstellungen für die Termux:Tasker-App</string>
     <string name="termux_terminal_io_preferences_summary">Terminal I/O-Einstellungen</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">Protokolle enthalten keine Terminal-View-Key-Einträge. (Standard)</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">Protokolle enthalten keine Terminal-View-Key-Einträge.</string>
     <string name="termux_terminal_view_key_logging_enabled_on">Logcat-Protokolle enthalten Terminal-View-Key-Einträge. Diese sind sehr ausführlich und sollten unter normalen Umständen deaktiviert sein, da sie sonst Leistungsprobleme verursachen.</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Terminal-View-Key-Protokollierung</string>
     <string name="termux_terminal_view_preferences_summary">Einstellungen für die Terminalansicht</string>
     <string name="termux_terminal_view_preferences_title">Terminalansicht</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_off">Die Terminalrand-Anpassung wird deaktiviert.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">Die Terminalrand-Anpassung wird aktiviert. Muss aktiviert sein, um zu versuchen, das Problem zu beheben, bei dem die Soft-Tastatur einen Teil der Zusatztasten/Terminalansicht verdeckt. Falls sie auf Ihrem Gerät zu Bildschirmflackern führt, deaktivieren Sie sie. (Standard)</string>
+    <string name="termux_terminal_view_terminal_margin_adjustment_on">Die Terminalrand-Anpassung wird aktiviert. Muss aktiviert sein, um zu versuchen, das Problem zu beheben, bei dem die Soft-Tastatur einen Teil der Zusatztasten/Terminalansicht verdeckt. Falls sie auf Ihrem Gerät zu Bildschirmflackern führt, deaktivieren Sie sie.</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_title">Terminalrand-Anpassung</string>
     <string name="termux_terminal_view_view_header">Ansicht</string>
     <string name="termux_widget_preferences_summary">Einstellungen für die Termux:Widget-App</string>
@@ -601,7 +601,7 @@
     <string name="bootstrap_install_progress_done">Fertig</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
-    <string name="extra_keys_editor_delay_hint">Verzögerung (1–1000 ms)</string>
+    <string name="extra_keys_editor_delay_hint">Verzögerung</string>
     <string name="extra_keys_editor_delay_presets">Schnellauswahl:</string>
 
     <!-- App name -->

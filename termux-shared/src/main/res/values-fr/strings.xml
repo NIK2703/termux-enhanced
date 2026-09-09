@@ -57,7 +57,7 @@
     <string name="msg_disabling_launcher_icon">Désactivation de l\'icône du lanceur de l\'application %1$s</string>
     <string name="setting_launcher_icon_title">Icône du lanceur activée</string>
     <string name="setting_launcher_icon_enabled_off">L\'icône du lanceur sera désactivée.</string>
-    <string name="setting_launcher_icon_enabled_on">L\'icône du lanceur sera activée. (Par défaut)</string>
+    <string name="setting_launcher_icon_enabled_on">L\'icône du lanceur sera activée.</string>
     <string name="log_level_title">Niveau de journalisation</string>
     <string name="log_level_off">Désactivé</string>
     <string name="log_level_normal">Normal</string>

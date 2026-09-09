@@ -103,7 +103,7 @@
     <string name="msg_disabling_launcher_icon">正在禁用 %1$s 应用的启动器图标</string>
     <string name="setting_launcher_icon_title">启动器图标</string>
     <string name="setting_launcher_icon_enabled_off">启动器图标将被禁用。</string>
-    <string name="setting_launcher_icon_enabled_on">启动器图标将启用。（默认）</string>
+    <string name="setting_launcher_icon_enabled_on">启动器图标将启用。</string>
 
     <!-- Log Level -->
     <string name="log_level_title">日志级别</string>

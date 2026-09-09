@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.util.SparseArray;
@@ -107,6 +108,22 @@ public final class TerminalRenderer {
     private final int[] mColorOut = new int[2];
 
     /**
+     * Alpha used for the *default* background fill: 255 = fully opaque, which is also the
+     * "wallpaper behind the terminal" feature being off. Anything below 255 lets the real
+     * device wallpaper (drawn by SurfaceFlinger below our translucent window) show through.
+     */
+    private int mBackgroundAlpha = 255;
+
+    /**
+     * Reusable {@link PorterDuff.Mode#SRC} xfermode for the base background fill. The canvas
+     * retains the previous frame's pixels (both with Surface.lockCanvas() and with HWUI), so a
+     * partially repainted region filled with a translucent colour in SRC_OVER would accumulate
+     * alpha frame after frame and creep towards opaque. SRC ignores the destination and resets
+     * the region to exactly (colour, alpha) instead.
+     */
+    private static final PorterDuffXfermode SRC_XFERMODE = new PorterDuffXfermode(PorterDuff.Mode.SRC);
+
+    /**
      * B4: last {@link Paint} text-style state applied, so {@link #drawRunText} only touches the
      * native paint setters when something actually changed. With colored output (ls --color,
      * htop, syntax highlighting) a frame has hundreds-to-thousands of runs; most adjacent runs
@@ -154,6 +171,19 @@ public final class TerminalRenderer {
             }
         }
         bmpMeasures = shared;
+    }
+
+    /**
+     * Set how transparent the terminal background is, so the real device wallpaper shows
+     * through it.
+     *
+     * @param percent 0 = opaque (feature disabled, the default and the historical behaviour),
+     *                50 = maximum transparency (background alpha 128).
+     */
+    public void setBackgroundTransparencyPercent(int percent) {
+        if (percent < 0) percent = 0;
+        if (percent > 100) percent = 100;
+        mBackgroundAlpha = Math.round(255f * (100 - percent) / 100f);
     }
 
     /** Measure the on-screen width of a code point, using the per-code-point cache. */
@@ -242,14 +272,32 @@ public final class TerminalRenderer {
         // OSC color-scheme swaps correct (see the original comment). A partial repaint clears
         // only the dirty region; the framework has already clipped the canvas to it, and we
         // bound the fill explicitly so clean rows are never erased.
-        final int bgColor = reverseVideo
+        final int rawBgColor = reverseVideo
             ? palette[TextStyle.COLOR_INDEX_FOREGROUND]
             : palette[TextStyle.COLOR_INDEX_BACKGROUND];
+        // Only the *default* background is made translucent. Cells that explicitly set a
+        // background colour (ls --color, htop, syntax highlighting) keep their own opaque
+        // colour — that colour is part of the program's layout and must stay readable. Pass A
+        // below already skips those runs (backColor == palette[COLOR_INDEX_BACKGROUND]), so
+        // nothing else has to change to keep them solid.
+        final int bgColor = (mBackgroundAlpha >= 255)
+            ? rawBgColor
+            : ((rawBgColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
         if (dirtyRect == null) {
             canvas.drawColor(bgColor, PorterDuff.Mode.SRC);
         } else {
-            mBgPaint.setColor(bgColor);
-            canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgPaint);
+            if (mBackgroundAlpha >= 255) {
+                // Fast path: identical to the pre-transparency behaviour, no xfermode churn.
+                mBgPaint.setColor(bgColor);
+                canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgPaint);
+            } else {
+                mBgPaint.setXfermode(SRC_XFERMODE);
+                mBgPaint.setColor(bgColor);
+                canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgPaint);
+                // mBgPaint is reused for the per-run background fills in pass A, which need
+                // the default SRC_OVER — always restore it.
+                mBgPaint.setXfermode(null);
+            }
         }
 
         // Translate the whole grid so the leftover space (from glyphs that do not fit the

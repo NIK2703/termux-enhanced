@@ -41,6 +41,16 @@
             app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
 
+        <!-- 0% = wallpaper disabled (the default, and today's behaviour); 50% = maximum. -->
+        <SeekBarPreference
+            app:key="terminal-background-transparency"
+            app:title="@string/terminal_background_transparency_title"
+            app:summary="@string/terminal_background_transparency_summary"
+            app:min="0"
+            android:max="50"
+            app:defaultValue="0"
+            app:showSeekBarValue="true"
+            app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
 

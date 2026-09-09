@@ -63,7 +63,7 @@
     <string name="notification_channel_plugin_errors">टर्मक्स प्लगइन कमांड त्रुटियाँ</string>
     <string name="notification_channel_run_command">टर्मक्स RunCommandService</string>
     <string name="setting_launcher_icon_enabled_off">लॉन्चर आइकन अक्षम हो जाएगा।</string>
-    <string name="setting_launcher_icon_enabled_on">लॉन्चर आइकन सक्षम हो जाएगा। (डिफ़ॉल्ट)</string>
+    <string name="setting_launcher_icon_enabled_on">लॉन्चर आइकन सक्षम हो जाएगा।</string>
     <string name="setting_launcher_icon_title">लॉन्चर आइकन सक्षम</string>
     <string name="title_open_url_with">URL इसके साथ खोलें</string>
     <string name="title_report_text">रिपोर्ट टेक्स्ट</string>

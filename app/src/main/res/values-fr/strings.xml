@@ -93,14 +93,14 @@
     <string name="termux_logging_header">Journalisation</string>
     <string name="termux_log_level_title">Niveau de journal</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Journalisation des touches de la vue terminal</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">Les journaux n\'auront pas d\'entrées pour les touches de la vue terminal. (Par défaut)</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">Les journaux n\'auront pas d\'entrées pour les touches de la vue terminal.</string>
     <string name="termux_terminal_view_key_logging_enabled_on">Les journaux logcat auront des entrées pour les touches de la vue terminal. Elles sont très verbeuses et devraient être désactivées en temps normal, sinon elles provoqueront des problèmes de performance.</string>
     <string name="termux_plugin_error_notifications_enabled_title">Notifications d\'erreur de plugin</string>
     <string name="termux_plugin_error_notifications_enabled_off">Désactiver les flashs et notifications pour les erreurs de plugin.</string>
-    <string name="termux_plugin_error_notifications_enabled_on">Afficher les flashs et notifications pour les erreurs de plugin. (Par défaut)</string>
+    <string name="termux_plugin_error_notifications_enabled_on">Afficher les flashs et notifications pour les erreurs de plugin.</string>
     <string name="termux_crash_report_notifications_enabled_title">Notifications de rapport de crash</string>
     <string name="termux_crash_report_notifications_enabled_off">Désactiver les notifications pour les rapports de crash.</string>
-    <string name="termux_crash_report_notifications_enabled_on">Afficher les notifications pour les rapports de crash. (Par défaut)</string>
+    <string name="termux_crash_report_notifications_enabled_on">Afficher les notifications pour les rapports de crash.</string>
     <string name="termux_terminal_io_preferences_title">E/S du terminal</string>
     <string name="termux_terminal_io_preferences_summary">Préférences pour les E/S du terminal</string>
 
@@ -110,12 +110,12 @@
     
     <string name="termux_soft_keyboard_enabled_title">Clavier virtuel activé</string>
     <string name="termux_soft_keyboard_enabled_off">Le clavier virtuel sera désactivé.</string>
-    <string name="termux_soft_keyboard_enabled_on">Le clavier virtuel sera activé. (Par défaut)</string>
+    <string name="termux_soft_keyboard_enabled_on">Le clavier virtuel sera activé.</string>
     <string name="termux_settings_button_enabled_title">Afficher le bouton Paramètres</string>
-    <string name="termux_settings_button_enabled_on">Le bouton Paramètres est affiché dans le panneau des onglets. (Par défaut)</string>
+    <string name="termux_settings_button_enabled_on">Le bouton Paramètres est affiché dans le panneau des onglets.</string>
     <string name="termux_settings_button_enabled_off">Le bouton Paramètres est masqué. Ouvrez Paramètres par appui long sur le terminal → Plus… → Paramètres.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Clavier virtuel uniquement sans clavier physique</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Le clavier virtuel sera activé même si un clavier physique est connecté. (Par défaut)</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Le clavier virtuel sera activé même si un clavier physique est connecté.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Le clavier virtuel sera activé uniquement si aucun clavier physique n\'est connecté.</string>
     <string name="termux_terminal_view_preferences_title">Vue du terminal</string>
     <string name="termux_terminal_view_preferences_summary">Préférences pour la vue du terminal</string>
@@ -124,7 +124,7 @@
     <string name="termux_button_bg_active_alpha_title" formatted="false">Transparence des éléments actifs</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_title">Ajustement de la marge du terminal</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_off">L\'ajustement de la marge du terminal sera désactivé.</string>
-        <string name="termux_terminal_view_terminal_margin_adjustment_on">L\'ajustement de la marge du terminal sera activé. Il doit être activé pour tenter de corriger le problème où le clavier virtuel cache une partie des touches supplémentaires/de la vue du terminal. S\'il provoque un scintillement de l\'écran sur vos appareils, désactivez-le. (Par défaut)</string>
+        <string name="termux_terminal_view_terminal_margin_adjustment_on">L\'ajustement de la marge du terminal sera activé. Il doit être activé pour tenter de corriger le problème où le clavier virtuel cache une partie des touches supplémentaires/de la vue du terminal. S\'il provoque un scintillement de l\'écran sur vos appareils, désactivez-le.</string>
     <string name="termux_api_preferences_summary">Préférences pour l\'application Termux:API</string>
     <string name="termux_float_preferences_summary">Préférences pour l\'application Termux:Float</string>
     <string name="termux_tasker_preferences_summary">Préférences pour l\'application Termux:Tasker</string>
@@ -266,10 +266,10 @@
     <string name="locale_override_entry_system">Langue du système (traduction automatique, inexactitudes possibles)</string>
     <string name="locale_override_entry_english">Anglais</string>
     <string name="termux_tab_height_mode_title">Hauteur de l\'onglet</string>
-    <string name="termux_tab_height_mode_single">Ligne unique (par défaut)</string>
+    <string name="termux_tab_height_mode_single">Ligne unique</string>
     <string name="termux_tab_height_mode_double">Deux lignes</string>
     <string name="termux_tab_panel_position_title">Position du panneau d\'onglets</string>
-    <string name="termux_tab_panel_position_top">Haut (par défaut)</string>
+    <string name="termux_tab_panel_position_top">Haut</string>
     <string name="termux_tab_panel_position_bottom">Bas</string>
 
     
@@ -614,7 +614,7 @@
     <string name="bootstrap_install_progress_done">Terminé</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
-    <string name="extra_keys_editor_delay_hint">Délai (1–1000 ms)</string>
+    <string name="extra_keys_editor_delay_hint">Délai</string>
     <string name="extra_keys_editor_delay_presets">Sélection rapide :</string>
 
     <!-- App name -->

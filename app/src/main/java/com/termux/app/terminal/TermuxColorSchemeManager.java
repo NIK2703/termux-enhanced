@@ -68,23 +68,31 @@ public final class TermuxColorSchemeManager {
         mSchemeBackground = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
         mSchemeForeground = ColorSchemeUtils.getSchemeForeground();
 
-        // Panel button colours
-        mButtonBg = ColorSchemeUtils.getButtonBackground(mIsSchemeLight, inactivePct);
-        mButtonActiveBg = ColorSchemeUtils.getButtonActiveBackground(mIsSchemeLight, activePct);
+        // Raw (translucent) panel button tints, as designed for an opaque terminal backdrop.
+        int inactiveTint = ColorSchemeUtils.getButtonBackground(mIsSchemeLight, inactivePct);
+        int activeTint = ColorSchemeUtils.getButtonActiveBackground(mIsSchemeLight, activePct);
+
+        // Panel button colours: the translucent tints are kept as-is. The wallpaper is not hidden
+        // by opaque panels — it is shown through the WHOLE window, because the decor view is
+        // painted with the scheme background at the terminal's alpha (see
+        // TermuxActivity.applySystemBarColors()). Panels stay transparent and therefore inherit
+        // exactly the same "scheme bg at alpha A over the wallpaper" as the terminal itself,
+        // so the entire window is uniformly translucent instead of patchy.
+        mButtonBg = inactiveTint;
+        mButtonActiveBg = activeTint;
         mButtonText = mSchemeForeground;
         // Text-selection highlight: scheme foreground tinted to ~15% alpha (scheme-consistent,
         // not a hardcoded black/white).
         mTextSelectionHighlightColor = withAlpha(mSchemeForeground, 38);
 
         // Derived surfaces.
-        int inactiveOverlay = ColorSchemeUtils.getButtonBackground(mIsSchemeLight, inactivePct);
-        mHeaderBackground = compositeColors(mSchemeBackground, inactiveOverlay);
+        mHeaderBackground = compositeColors(mSchemeBackground, inactiveTint);
         mDividerColor = withAlpha(mSchemeForeground, 0x33);
         mDialogBackground = mSchemeBackground;
         mDialogTextColor = mSchemeForeground;
 
         // Context-popup colours
-        mHistoryPopupBg = compositeColors(mSchemeBackground, inactiveOverlay);
+        mHistoryPopupBg = compositeColors(mSchemeBackground, inactiveTint);
         mHistoryTextColor = mButtonText;
         mHistoryPopupSepColor = withAlpha(mHistoryTextColor, 0x3C);
         // Highlight of the history popup item under the finger: scheme foreground @ ~15%.

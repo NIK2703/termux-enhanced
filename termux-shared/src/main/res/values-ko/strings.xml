@@ -66,7 +66,7 @@
     <string name="notification_channel_plugin_errors">Termux 플러그인 명령 오류</string>
     <string name="notification_channel_run_command">Termux RunCommandService</string>
     <string name="setting_launcher_icon_enabled_off">런처 아이콘이 비활성화됩니다.</string>
-    <string name="setting_launcher_icon_enabled_on">런처 아이콘이 활성화됩니다. (기본값)</string>
+    <string name="setting_launcher_icon_enabled_on">런처 아이콘이 활성화됩니다.</string>
     <string name="setting_launcher_icon_title">런처 아이콘 활성화됨</string>
     <string name="title_open_url_with">URL 열기</string>
     <string name="title_report_text">보고서 텍스트</string>

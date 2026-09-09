@@ -209,7 +209,7 @@
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">شفافية العنصر غير النشط</string>
     <string name="extra_keys_corner_radius_title">نصف قطر زاوية الأزرار</string>
     <string name="termux_crash_report_notifications_enabled_off">تعطيل الإشعارات لتقارير الأعطال.</string>
-    <string name="termux_crash_report_notifications_enabled_on">عرض الإشعارات لتقارير الأعطال. (افتراضي)</string>
+    <string name="termux_crash_report_notifications_enabled_on">عرض الإشعارات لتقارير الأعطال.</string>
     <string name="termux_crash_report_notifications_enabled_title">إشعارات تقارير الأعطال</string>
     <string name="termux_debugging_preferences_summary">تفضيلات التصحيح</string>
     <string name="termux_debugging_preferences_title">التصحيح</string>
@@ -218,22 +218,22 @@
     <string name="termux_log_level_title">مستوى السجل</string>
     <string name="termux_logging_header">التسجيل</string>
     <string name="termux_plugin_error_notifications_enabled_off">تعطيل الوميض والإشعارات لأخطاء الإضافات.</string>
-    <string name="termux_plugin_error_notifications_enabled_on">عرض الوميض والإشعارات لأخطاء الإضافات. (افتراضي)</string>
+    <string name="termux_plugin_error_notifications_enabled_on">عرض الوميض والإشعارات لأخطاء الإضافات.</string>
     <string name="termux_plugin_error_notifications_enabled_title">إشعارات أخطاء الإضافات</string>
     <string name="termux_preferences_summary">تفضيلات تطبيق Termux</string>
     <string name="termux_settings_button_enabled_off">زر الإعدادات مخفي. افتح الإعدادات بالضغط المطول على الطرفية → المزيد… → الإعدادات.</string>
-    <string name="termux_settings_button_enabled_on">زر الإعدادات ظاهر في لوحة علامات التبويب. (افتراضي)</string>
+    <string name="termux_settings_button_enabled_on">زر الإعدادات ظاهر في لوحة علامات التبويب.</string>
     <string name="termux_settings_button_enabled_title">إظهار زر الإعدادات</string>
     <string name="termux_soft_keyboard_enabled_off">سيتم تعطيل لوحة المفاتيح البرمجية.</string>
-    <string name="termux_soft_keyboard_enabled_on">سيتم تمكين لوحة المفاتيح البرمجية. (افتراضي)</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">سيتم تمكين لوحة المفاتيح البرمجية حتى في حالة\nاتصال لوحة مفاتيح فعلية. (افتراضي)</string>
+    <string name="termux_soft_keyboard_enabled_on">سيتم تمكين لوحة المفاتيح البرمجية.</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">سيتم تمكين لوحة المفاتيح البرمجية حتى في حالة\nاتصال لوحة مفاتيح فعلية.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">سيتم تمكين لوحة المفاتيح البرمجية فقط في حالة\nعدم اتصال لوحة مفاتيح فعلية.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">لوحة مفاتيح برمجية فقط عند عدم وجود لوحة مفاتيح فعلية</string>
     <string name="termux_soft_keyboard_enabled_title">تمكين لوحة المفاتيح البرمجية</string>
     <string name="termux_tasker_preferences_summary">تفضيلات تطبيق Termux:Tasker</string>
     <string name="termux_terminal_io_preferences_summary">تفضيلات الإدخال/الإخراج للطرفية</string>
     <string name="termux_terminal_io_preferences_title">إدخال/إخراج الطرفية</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">لن تحتوي السجلات على مدخلات لمفاتيح عرض الطرفية. (افتراضي)</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">لن تحتوي السجلات على مدخلات لمفاتيح عرض الطرفية.</string>
     <string name="termux_terminal_view_key_logging_enabled_on">ستحتوي سجلات Logcat على مدخلات لمفاتيح عرض الطرفية.\nهذه مُطوّلة جداً ويجب تعطيلها في الظروف العادية وإلا ستسبب مشاكل في الأداء.</string>
     <string name="termux_terminal_view_key_logging_enabled_title">تسجيل مفاتيح عرض الطرفية</string>
     <string name="termux_terminal_view_preferences_summary">تفضيلات عرض الطرفية</string>
@@ -241,7 +241,7 @@
     <string name="termux_terminal_view_terminal_margin_adjustment_off">سيتم تعطيل ضبط هامش الطرفية.</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_on">سيتم تمكين ضبط هامش الطرفية.
                     يجب تمكينه لمحاولة إصلاح مشكلة تغطية لوحة المفاتيح الناعمة لجزء من المفاتيح الإضافية/عرض الطرفية.
-                    إذا تسبب في وميض الشاشة على جهازك، فقم بتعطيله. (افتراضي)</string>
+                    إذا تسبب في وميض الشاشة على جهازك، فقم بتعطيله.</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_title">ضبط هامش الطرفية</string>
     <string name="termux_terminal_view_view_header">عرض</string>
     <string name="termux_widget_preferences_summary">تفضيلات تطبيق Termux:Widget</string>
@@ -569,7 +569,7 @@
     <string name="bootstrap_install_progress_done">تم</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d مللي</string>
-    <string name="extra_keys_editor_delay_hint">تأخير (1–1000 مللي)</string>
+    <string name="extra_keys_editor_delay_hint">تأخير</string>
     <string name="extra_keys_editor_delay_presets">تحديد سريع:</string>
 
     <string name="application_name">TermuxEnhanced</string>

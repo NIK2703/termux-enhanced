@@ -378,6 +378,19 @@ public final class TermuxPreferenceConstants {
         public static final int MIN_TERMINAL_TRANSCRIPT_ROWS = TermuxPropertyConstants.IVALUE_TERMINAL_TRANSCRIPT_ROWS_MIN;
         public static final int MAX_TERMINAL_TRANSCRIPT_ROWS = TermuxPropertyConstants.IVALUE_TERMINAL_TRANSCRIPT_ROWS_MAX;
 
+        /**
+         * How transparent the terminal background is, in percent. 0 disables the feature
+         * entirely (opaque background, no wallpaper behind the terminal — the historical
+         * behaviour); 50 is the maximum, i.e. a background alpha of 128.
+         *
+         * The value lives only in SharedPreferences (there is no termux.properties
+         * counterpart), so MIN/MAX are declared right here.
+         */
+        public static final String KEY_TERMINAL_BACKGROUND_TRANSPARENCY = "terminal-background-transparency";
+        public static final int DEFAULT_VALUE_TERMINAL_BACKGROUND_TRANSPARENCY = 0;
+        public static final int MIN_TERMINAL_BACKGROUND_TRANSPARENCY = 0;
+        public static final int MAX_TERMINAL_BACKGROUND_TRANSPARENCY = 50;
+
 
         /* float */
 

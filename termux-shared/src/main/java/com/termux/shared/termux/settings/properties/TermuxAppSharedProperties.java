@@ -241,6 +241,14 @@ public class TermuxAppSharedProperties {
         return prefs().getTerminalTranscriptRows();
     }
 
+    /**
+     * Terminal background transparency in percent: 0 = opaque (the device wallpaper is not
+     * shown behind the terminal at all), 50 = maximum transparency (background alpha 128).
+     */
+    public int getTerminalBackgroundTransparency() {
+        return prefs().getTerminalBackgroundTransparency();
+    }
+
 
     /* float */
 

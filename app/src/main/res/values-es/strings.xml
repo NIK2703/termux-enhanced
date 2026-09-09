@@ -91,25 +91,25 @@
     <string name="termux_logging_header">Registro</string>
     <string name="termux_log_level_title">Nivel de registro</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Registro de teclas de vista de terminal</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">Los registros no tendrán entradas para teclas de vista de terminal. (Predeterminado)</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">Los registros no tendrán entradas para teclas de vista de terminal.</string>
     <string name="termux_terminal_view_key_logging_enabled_on">Los registros de Logcat tendrán entradas para teclas de vista de terminal. Son muy verbosos y deberían estar deshabilitados en circunstancias normales o causarán problemas de rendimiento.</string>
     <string name="termux_plugin_error_notifications_enabled_title">Notificaciones de error de plugin</string>
     <string name="termux_plugin_error_notifications_enabled_off">Deshabilitar destellos y notificaciones para errores de plugin.</string>
-    <string name="termux_plugin_error_notifications_enabled_on">Mostrar destellos y notificaciones para errores de plugin. (Predeterminado)</string>
+    <string name="termux_plugin_error_notifications_enabled_on">Mostrar destellos y notificaciones para errores de plugin.</string>
     <string name="termux_crash_report_notifications_enabled_title">Notificaciones de informe de fallo</string>
     <string name="termux_crash_report_notifications_enabled_off">Deshabilitar notificaciones para informes de fallo.</string>
-    <string name="termux_crash_report_notifications_enabled_on">Mostrar notificaciones para informes de fallo. (Predeterminado)</string>
+    <string name="termux_crash_report_notifications_enabled_on">Mostrar notificaciones para informes de fallo.</string>
     <string name="termux_terminal_io_preferences_title">Terminal E/S</string>
     <string name="termux_terminal_io_preferences_summary">Preferencias para la terminal de E/S</string>
     <string name="termux_keyboard_header">Teclado</string>
     <string name="termux_soft_keyboard_enabled_title">Teclado virtual habilitado</string>
     <string name="termux_soft_keyboard_enabled_off">El teclado virtual estará deshabilitado.</string>
-    <string name="termux_soft_keyboard_enabled_on">El teclado virtual estará habilitado. (Predeterminado)</string>
+    <string name="termux_soft_keyboard_enabled_on">El teclado virtual estará habilitado.</string>
     <string name="termux_settings_button_enabled_title">Mostrar botón de Ajustes</string>
-    <string name="termux_settings_button_enabled_on">El botón de Ajustes se muestra en el panel de pestañas. (Predeterminado)</string>
+    <string name="termux_settings_button_enabled_on">El botón de Ajustes se muestra en el panel de pestañas.</string>
     <string name="termux_settings_button_enabled_off">El botón de Ajustes está oculto. Abra Ajustes mediante una pulsación larga en la terminal → Más… → Ajustes.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Teclado virtual solo si no hay teclado físico</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">El teclado virtual estará habilitado incluso si hay un teclado físico conectado. (Predeterminado)</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">El teclado virtual estará habilitado incluso si hay un teclado físico conectado.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">El teclado virtual se habilitará solo si no hay un teclado físico conectado.</string>
     <string name="termux_terminal_view_preferences_title">Vista de terminal</string>
     <string name="termux_terminal_view_preferences_summary">Preferencias para la vista de terminal</string>
@@ -119,7 +119,7 @@
     <string name="extra_keys_corner_radius_title">Radio de esquinas de botones</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_title">Ajuste de margen de terminal</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_off">El ajuste de margen de terminal estará deshabilitado.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">El ajuste de margen de terminal estará habilitado. Debe estar habilitado para intentar solucionar el problema donde el teclado virtual cubre parte de las teclas adicionales/vista de terminal. Si causa parpadeo de pantalla en su dispositivo, desactívelo. (Predeterminado)</string>
+    <string name="termux_terminal_view_terminal_margin_adjustment_on">El ajuste de margen de terminal estará habilitado. Debe estar habilitado para intentar solucionar el problema donde el teclado virtual cubre parte de las teclas adicionales/vista de terminal. Si causa parpadeo de pantalla en su dispositivo, desactívelo.</string>
     <string name="termux_api_preferences_summary">Preferencias para la aplicación Termux:API</string>
     <string name="termux_float_preferences_summary">Preferencias para la aplicación Termux:Float</string>
     <string name="termux_tasker_preferences_summary">Preferencias para la aplicación Termux:Tasker</string>
@@ -201,10 +201,10 @@
     <string name="swipe_rightmost_new_tab_title">Deslizar la pestaña más a la derecha para nueva sesión</string>
     <string name="swipe_rightmost_new_tab_summary">En la última pestaña, deslice a la derecha para revelar y abrir una nueva sesión de terminal</string>
     <string name="termux_tab_height_mode_title">Altura de la pestaña</string>
-    <string name="termux_tab_height_mode_single">Una línea (predeterminado)</string>
+    <string name="termux_tab_height_mode_single">Una línea</string>
     <string name="termux_tab_height_mode_double">Dos líneas</string>
     <string name="termux_tab_panel_position_title">Posición del panel de pestañas</string>
-    <string name="termux_tab_panel_position_top">Arriba (predeterminado)</string>
+    <string name="termux_tab_panel_position_top">Arriba</string>
     <string name="termux_tab_panel_position_bottom">Abajo</string>
     <string name="text_input_show_title">Mostrar campo de entrada de texto</string>
     <string name="text_input_show_summary_on">El campo de entrada de texto está visible sobre las teclas adicionales</string>
@@ -556,7 +556,7 @@
     <string name="bootstrap_install_progress_done">Completado</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
-    <string name="extra_keys_editor_delay_hint">Retardo (1–1000 ms)</string>
+    <string name="extra_keys_editor_delay_hint">Retardo</string>
     <string name="extra_keys_editor_delay_presets">Selección rápida:</string>
 
     <!-- Extra keys editor signal entries -->

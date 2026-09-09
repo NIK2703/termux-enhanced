@@ -101,27 +101,27 @@
 <string name="termux_logging_header">Günlük Kaydı</string>
 <string name="termux_log_level_title">Günlük Seviyesi</string>
 <string name="termux_terminal_view_key_logging_enabled_title">Terminal Görünümü Tuş Günlük Kaydı</string>
-<string name="termux_terminal_view_key_logging_enabled_off">Günlüklerde terminal görünümü tuşları için kayıt olmayacaktır. (Varsayılan)</string>
+<string name="termux_terminal_view_key_logging_enabled_off">Günlüklerde terminal görünümü tuşları için kayıt olmayacaktır.</string>
 <string name="termux_terminal_view_key_logging_enabled_on">Logcat günlüklerinde terminal görünümü tuşları için kayıtlar olacaktır.
                     Bunlar çok ayrıntılıdır ve normal koşullarda devre dışı bırakılmalıdır, aksi takdirde performans sorunlarına neden olur.</string>
 <string name="termux_plugin_error_notifications_enabled_title">Eklenti Hata Bildirimleri</string>
 <string name="termux_plugin_error_notifications_enabled_off">Eklenti hataları için flaşları ve bildirimleri devre dışı bırak.</string>
-<string name="termux_plugin_error_notifications_enabled_on">Eklenti hataları için flaşları ve bildirimleri göster. (Varsayılan)</string>
+<string name="termux_plugin_error_notifications_enabled_on">Eklenti hataları için flaşları ve bildirimleri göster.</string>
 <string name="termux_crash_report_notifications_enabled_title">Çökme Raporu Bildirimleri</string>
 <string name="termux_crash_report_notifications_enabled_off">Çökme raporları için bildirimleri devre dışı bırak.</string>
-<string name="termux_crash_report_notifications_enabled_on">Çökme raporları için bildirimleri göster. (Varsayılan)</string>
+<string name="termux_crash_report_notifications_enabled_on">Çökme raporları için bildirimleri göster.</string>
 <string name="termux_terminal_io_preferences_title">Terminal G/Ç</string>
 <string name="termux_terminal_io_preferences_summary">Terminal G/Ç tercihleri</string>
 <string name="termux_keyboard_header">Klavye</string>
 <string name="termux_soft_keyboard_enabled_title">Yazılımsal Klavye Etkin</string>
 <string name="termux_soft_keyboard_enabled_off">Yazılımsal klavye devre dışı bırakılacaktır.</string>
-<string name="termux_soft_keyboard_enabled_on">Yazılımsal klavye etkinleştirilecektir. (Varsayılan)</string>
+<string name="termux_soft_keyboard_enabled_on">Yazılımsal klavye etkinleştirilecektir.</string>
 <string name="termux_settings_button_enabled_title">Ayarlar düğmesini göster</string>
-<string name="termux_settings_button_enabled_on">Ayarlar düğmesi sekmeler panelinde gösterilir. (Varsayılan)</string>
+<string name="termux_settings_button_enabled_on">Ayarlar düğmesi sekmeler panelinde gösterilir.</string>
 <string name="termux_settings_button_enabled_off">Ayarlar düğmesi gizlidir. Terminalde uzun basarak → Daha Fazlası… → Ayarlar yolunu izleyerek ayarları açın.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Yazılımsal Klavye Yalnızca Donanım Klavyesi Yoksa</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Yazılımsal klavye donanım klavyesi bağlı olsa bile
-                    etkinleştirilecektir. (Varsayılan)</string>
+                    etkinleştirilecektir.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Yazılımsal klavye yalnızca donanım klavyesi bağlı değilse
                     etkinleştirilecektir.</string>
 <string name="termux_terminal_view_preferences_title">Terminal Görünümü</string>
@@ -134,7 +134,7 @@
 <string name="termux_terminal_view_terminal_margin_adjustment_off">Terminal kenar boşluğu ayarı devre dışı bırakılacak.</string>
 <string name="termux_terminal_view_terminal_margin_adjustment_on">Terminal kenar boşluğu ayarı etkinleştirilecek.
                     Yumuşak klavyenin ek tuşları/terminal görünümünün bir kısmını kapladığı sorunu çözmek için etkinleştirilmelidir.
-                    Cihazlarınızda ekran titremesine neden oluyorsa devre dışı bırakın. (Varsayılan)</string>
+                    Cihazlarınızda ekran titremesine neden oluyorsa devre dışı bırakın.</string>
 <string name="termux_api_preferences_summary">Termux:API uygulaması için tercihler</string>
 <string name="termux_float_preferences_summary">Termux:Float uygulaması için tercihler</string>
 <string name="termux_tasker_preferences_summary">Termux:Tasker uygulaması için tercihler</string>
@@ -214,10 +214,10 @@
     <string name="swipe_rightmost_new_tab_title">Yeni oturum için en sağdaki sekmeyi kaydırın</string>
     <string name="swipe_rightmost_new_tab_summary">Son sekmede, yeni bir terminal oturumu açmak için sağa kaydırın</string>
     <string name="termux_tab_height_mode_title">Sekme yüksekliği</string>
-    <string name="termux_tab_height_mode_single">Tek satır (varsayılan)</string>
+    <string name="termux_tab_height_mode_single">Tek satır</string>
     <string name="termux_tab_height_mode_double">İki satır</string>
     <string name="termux_tab_panel_position_title">Sekme paneli konumu</string>
-    <string name="termux_tab_panel_position_top">Üst (varsayılan)</string>
+    <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
     <string name="text_input_show_title">Metin giriş alanını göster</string>
 <string name="text_input_show_summary_on">Metin giriş alanı ek tuşlarının üzerinde görünür</string>
@@ -628,7 +628,7 @@
 
     
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
-    <string name="extra_keys_editor_delay_hint">Gecikme (1–1000 ms)</string>
+    <string name="extra_keys_editor_delay_hint">Gecikme</string>
     <string name="extra_keys_editor_delay_presets">Hızlı seç:</string>
 
     <!-- Termux App Name -->

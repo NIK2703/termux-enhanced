@@ -85,6 +85,28 @@
     </style>
 
     <!--
+      TermuxActivity theme variant used when the terminal background is transparent and the real
+      device wallpaper must show through it.
+
+      android:windowIsTranslucent is what ultimately forces PixelFormat.TRANSLUCENT onto the
+      window surface (ViewRootImpl.relayoutWindow() only upgrades the format when
+      PFLAG_REQUEST_TRANSPARENT_REGIONS is set, and that flag comes from this theme attribute),
+      so it is a *static* theme attribute: switching it requires an activity recreate. The
+      companion window flag FLAG_SHOW_WALLPAPER (set at runtime by TermuxActivity) is what
+      actually keeps the system wallpaper surface alive below this window.
+    -->
+    <style name="Theme.TermuxActivity.DayNight.NoActionBar.Wallpaper"
+           parent="Theme.TermuxActivity.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- Required: AppCompat themes with windowIsTranslucent can inherit floating behaviour,
+             which changes the window layout (wrap_content, insets, dim) and must not happen for
+             a full-screen terminal. -->
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+
+    <!--
       Dialog theme overlay for TermuxActivity dialogs on MIUI/HyperOS.
       The system overlay can force dialog button text to near-black even in
       night mode; override materialAlertDialogButtonStyle with an explicit

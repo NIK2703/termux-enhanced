@@ -85,7 +85,7 @@
 <string name="msg_disabling_launcher_icon">%1$s uygulama başlatıcı simgesi devre dışı bırakılıyor</string>
 <string name="setting_launcher_icon_title">Başlatıcı Simgesi Etkin</string>
 <string name="setting_launcher_icon_enabled_off">Başlatıcı Simgesi devre dışı bırakılacak.</string>
-<string name="setting_launcher_icon_enabled_on">Başlatıcı Simgesi etkinleştirilecek. (Varsayılan)</string>
+<string name="setting_launcher_icon_enabled_on">Başlatıcı Simgesi etkinleştirilecek.</string>
 <string name="log_level_title">Kayıt Düzeyi</string>
 <string name="log_level_off">Kapalı</string>
 <string name="log_level_normal">Normal</string>

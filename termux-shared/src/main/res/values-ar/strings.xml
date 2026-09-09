@@ -89,7 +89,7 @@
     <string name="notification_channel_plugin_errors">أخطاء أوامر إضافات Termux</string>
     <string name="notification_channel_run_command">خدمة RunCommand لـ Termux</string>
     <string name="setting_launcher_icon_enabled_off">سيتم تعطيل أيقونة المشغل.</string>
-    <string name="setting_launcher_icon_enabled_on">سيتم تمكين أيقونة المشغل. (افتراضي)</string>
+    <string name="setting_launcher_icon_enabled_on">سيتم تمكين أيقونة المشغل.</string>
     <string name="setting_launcher_icon_title">أيقونة المشغل مفعلة</string>
     <string name="title_open_url_with">فتح الرابط باستخدام</string>
     <string name="title_report_text">نص التقرير</string>

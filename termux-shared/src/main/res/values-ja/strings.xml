@@ -60,7 +60,7 @@
 <string name="msg_disabling_launcher_icon">%1$s アプリのランチャーアイコンを無効にしています</string>
 <string name="setting_launcher_icon_title">ランチャーアイコン有効</string>
 <string name="setting_launcher_icon_enabled_off">ランチャーアイコンは無効になります。</string>
-<string name="setting_launcher_icon_enabled_on">ランチャーアイコンは有効になります。（デフォルト）</string>
+<string name="setting_launcher_icon_enabled_on">ランチャーアイコンは有効になります。</string>
 <string name="log_level_title">ログレベル</string>
 <string name="log_level_off">オフ</string>
 <string name="log_level_normal">通常</string>

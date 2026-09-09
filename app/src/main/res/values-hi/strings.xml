@@ -178,7 +178,7 @@
     <string name="termux_button_bg_active_alpha_title" formatted="false">सक्रिय तत्व पारदर्शिता</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">निष्क्रिय तत्व पारदर्शिता</string>
     <string name="termux_crash_report_notifications_enabled_off">क्रैश रिपोर्ट के लिए सूचनाएँ अक्षम करें।</string>
-    <string name="termux_crash_report_notifications_enabled_on">क्रैश रिपोर्ट के लिए सूचनाएँ दिखाएँ। (डिफ़ॉल्ट)</string>
+    <string name="termux_crash_report_notifications_enabled_on">क्रैश रिपोर्ट के लिए सूचनाएँ दिखाएँ।</string>
     <string name="termux_crash_report_notifications_enabled_title">क्रैश रिपोर्ट सूचनाएँ</string>
     <string name="termux_debugging_preferences_summary">डीबगिंग के लिए प्राथमिकताएँ</string>
     <string name="termux_debugging_preferences_title">डीबगिंग</string>
@@ -186,15 +186,15 @@
     <string name="termux_log_level_title">लॉग स्तर</string>
     <string name="termux_logging_header">लॉगिंग</string>
     <string name="termux_plugin_error_notifications_enabled_off">प्लगिन त्रुटियों के लिए फ्लैश और सूचनाएँ अक्षम करें।</string>
-    <string name="termux_plugin_error_notifications_enabled_on">प्लगिन त्रुटियों के लिए फ्लैश और सूचनाएँ दिखाएँ। (डिफ़ॉल्ट)</string>
+    <string name="termux_plugin_error_notifications_enabled_on">प्लगिन त्रुटियों के लिए फ्लैश और सूचनाएँ दिखाएँ।</string>
     <string name="termux_plugin_error_notifications_enabled_title">प्लगिन त्रुटि सूचनाएँ</string>
     <string name="termux_preferences_summary">Termux ऐप के लिए प्राथमिकताएँ</string>
     <string name="termux_settings_button_enabled_off">सेटिंग्स बटन छिपा हुआ है। सेटिंग्स खोलने के लिए टर्मिनल पर लंबे समय तक दबाएँ → अधिक… → सेटिंग्स।</string>
-    <string name="termux_settings_button_enabled_on">सेटिंग्स बटन टैब पैनल में दिखाया जाता है। (डिफ़ॉल्ट)</string>
+    <string name="termux_settings_button_enabled_on">सेटिंग्स बटन टैब पैनल में दिखाया जाता है।</string>
     <string name="termux_settings_button_enabled_title">सेटिंग्स बटन दिखाएँ</string>
     <string name="termux_soft_keyboard_enabled_off">सॉफ्ट कीबोर्ड अक्षम किया जाएगा।</string>
-    <string name="termux_soft_keyboard_enabled_on">सॉफ्ट कीबोर्ड सक्षम किया जाएगा। (डिफ़ॉल्ट)</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">सॉफ्ट कीबोर्ड हार्डवेयर कीबोर्ड कनेक्ट होने पर भी सक्षम रहेगा। (डिफ़ॉल्ट)</string>
+    <string name="termux_soft_keyboard_enabled_on">सॉफ्ट कीबोर्ड सक्षम किया जाएगा।</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">सॉफ्ट कीबोर्ड हार्डवेयर कीबोर्ड कनेक्ट होने पर भी सक्षम रहेगा।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">सॉफ्ट कीबोर्ड केवल तभी सक्षम होगा जब कोई हार्डवेयर कीबोर्ड कनेक्ट न हो।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">सॉफ्ट कीबोर्ड केवल यदि कोई हार्डवेयर न हो</string>
     <string name="termux_keyboard_header">कीबोर्ड</string>
@@ -202,20 +202,20 @@
     <string name="termux_tasker_preferences_summary">Termux:Tasker ऐप के लिए प्राथमिकताएँ</string>
     <string name="termux_terminal_io_preferences_summary">टर्मिनल I/O के लिए प्राथमिकताएँ</string>
     <string name="termux_terminal_io_preferences_title">टर्मिनल I/O</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">लॉग में टर्मिनल व्यू कुंजियों की प्रविष्टियाँ नहीं होंगी। (डिफ़ॉल्ट)</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">लॉग में टर्मिनल व्यू कुंजियों की प्रविष्टियाँ नहीं होंगी।</string>
     <string name="termux_terminal_view_key_logging_enabled_on">लॉगकैट लॉग में टर्मिनल व्यू कुंजियों की प्रविष्टियाँ होंगी। ये बहुत विस्तृत हैं और सामान्य परिस्थितियों में अक्षम होनी चाहिए, नहीं तो प्रदर्शन संबंधी समस्याएँ हो सकती हैं।</string>
     <string name="termux_terminal_view_key_logging_enabled_title">टर्मिनल व्यू कुंजी लॉगिंग</string>
     <string name="termux_terminal_view_preferences_summary">टर्मिनल दृश्य के लिए प्राथमिकताएँ</string>
     <string name="termux_terminal_view_preferences_title">टर्मिनल दृश्य</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_off">टर्मिनल मार्जिन समायोजन अक्षम किया जाएगा।</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">टर्मिनल मार्जिन समायोजन सक्षम किया जाएगा। इसे उस समस्या को ठीक करने के लिए सक्षम किया जाना चाहिए जहाँ सॉफ्ट कीबोर्ड अतिरिक्त कीज़/टर्मिनल दृश्य का एक हिस्सा ढक देता है। यदि यह आपके डिवाइसों पर स्क्रीन फ्लिकरिंग का कारण बनता है, तो इसे अक्षम करें। (डिफ़ॉल्ट)</string>
+    <string name="termux_terminal_view_terminal_margin_adjustment_on">टर्मिनल मार्जिन समायोजन सक्षम किया जाएगा। इसे उस समस्या को ठीक करने के लिए सक्षम किया जाना चाहिए जहाँ सॉफ्ट कीबोर्ड अतिरिक्त कीज़/टर्मिनल दृश्य का एक हिस्सा ढक देता है। यदि यह आपके डिवाइसों पर स्क्रीन फ्लिकरिंग का कारण बनता है, तो इसे अक्षम करें।</string>
     <string name="termux_terminal_view_terminal_margin_adjustment_title">टर्मिनल मार्जिन समायोजन</string>
     <string name="termux_terminal_view_view_header">दृश्य</string>
     <string name="termux_tab_height_mode_title">टैब ऊँचाई</string>
-    <string name="termux_tab_height_mode_single">एक लाइन (डिफ़ॉल्ट)</string>
+    <string name="termux_tab_height_mode_single">एक लाइन</string>
     <string name="termux_tab_height_mode_double">दो लाइनें</string>
     <string name="termux_tab_panel_position_title">टैब पैनल स्थिति</string>
-    <string name="termux_tab_panel_position_top">शीर्ष (डिफ़ॉल्ट)</string>
+    <string name="termux_tab_panel_position_top">शीर्ष</string>
     <string name="termux_tab_panel_position_bottom">नीचे</string>
     <string name="termux_widget_preferences_summary">Termux:Widget ऐप के लिए प्राथमिकताएँ</string>
     <string name="text_input_append_enter_summary">इनपुट फ़ील्ड से भेजते समय, पंक्ति को भी सबमिट करें (Enter दबाएँ)। बिना ट्रेलिंग न्यूलाइन के कच्चा पाठ भेजने के लिए अक्षम करें।</string>
@@ -554,7 +554,7 @@
     <string name="bootstrap_install_progress_write_variant">वैरिएंट मार्कर लिखा जा रहा है</string>
     <string name="bootstrap_install_progress_done">पूर्ण</string>
     <string name="extra_keys_editor_delay_format">⏱ %d मि.से.</string>
-    <string name="extra_keys_editor_delay_hint">विलंब (1–1000 मि.से.)</string>
+    <string name="extra_keys_editor_delay_hint">विलंब</string>
     <string name="extra_keys_editor_delay_presets">त्वरित चयन:</string>
 
     <string name="application_name">TermuxEnhanced</string>

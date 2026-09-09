@@ -91,24 +91,24 @@
 <string name="termux_logging_header">ログ記録</string>
 <string name="termux_log_level_title">ログレベル</string>
 <string name="termux_terminal_view_key_logging_enabled_title">ターミナルビューのキーログ記録</string>
-<string name="termux_terminal_view_key_logging_enabled_off">ログにターミナルビューのキーエントリは含まれません。(デフォルト)</string>
+<string name="termux_terminal_view_key_logging_enabled_off">ログにターミナルビューのキーエントリは含まれません。</string>
 <string name="termux_terminal_view_key_logging_enabled_on">ログキャットログにターミナルビューのキーエントリが含まれます。これらは非常に詳細であり、通常は無効にする必要があります。有効にするとパフォーマンスの問題が発生する可能性があります。</string>
 <string name="termux_plugin_error_notifications_enabled_title">プラグインエラー通知</string>
 <string name="termux_plugin_error_notifications_enabled_off">プラグインエラーのトーストと通知を無効にします。</string>
-<string name="termux_plugin_error_notifications_enabled_on">プラグインエラーのトーストと通知を表示します。(デフォルト)</string>
+<string name="termux_plugin_error_notifications_enabled_on">プラグインエラーのトーストと通知を表示します。</string>
 <string name="termux_crash_report_notifications_enabled_title">クラッシュレポート通知</string>
 <string name="termux_crash_report_notifications_enabled_off">クラッシュレポートの通知を無効にします。</string>
-<string name="termux_crash_report_notifications_enabled_on">クラッシュレポートの通知を表示します。(デフォルト)</string>
+<string name="termux_crash_report_notifications_enabled_on">クラッシュレポートの通知を表示します。</string>
     <string name="termux_terminal_io_preferences_title">ターミナル I/O</string>
 <string name="termux_terminal_io_preferences_summary">ターミナルの入出力設定</string>
 <string name="termux_soft_keyboard_enabled_title">ソフトウェアキーボードを有効にする</string>
 <string name="termux_soft_keyboard_enabled_off">ソフトウェアキーボードを無効にします。</string>
-<string name="termux_soft_keyboard_enabled_on">ソフトウェアキーボードを有効にします。(デフォルト)</string>
+<string name="termux_soft_keyboard_enabled_on">ソフトウェアキーボードを有効にします。</string>
 <string name="termux_settings_button_enabled_title">設定ボタンを表示</string>
-<string name="termux_settings_button_enabled_on">設定ボタンがタブパネルに表示されます。(デフォルト)</string>
+<string name="termux_settings_button_enabled_on">設定ボタンがタブパネルに表示されます。</string>
 <string name="termux_settings_button_enabled_off">設定ボタンは非表示です。ターミナルを長押し → その他… → 設定から設定を開きます。</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">ハードウェアキーボードがない場合のみソフトウェアキーボード</string>
-<string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">ハードウェアキーボードが接続されている場合でもソフトウェアキーボードを有効にします。(デフォルト)</string>
+<string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">ハードウェアキーボードが接続されている場合でもソフトウェアキーボードを有効にします。</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">ハードウェアキーボードが接続されていない場合のみソフトウェアキーボードを有効にします。</string>
 <string name="termux_terminal_view_preferences_title">ターミナル表示</string>
 <string name="termux_terminal_view_preferences_summary">ターミナル表示の設定</string>
@@ -118,7 +118,7 @@
 <string name="extra_keys_corner_radius_title">ボタンの角の丸み</string>
 <string name="termux_terminal_view_terminal_margin_adjustment_title">ターミナルマージン調整</string>
 <string name="termux_terminal_view_terminal_margin_adjustment_off">ターミナルのマージン調整を無効にします。</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_on">ターミナルのマージン調整を有効にします。ソフトウェアキーボードが追加キーやターミナル表示の一部を覆う問題を修正するには有効にする必要があります。デバイスで画面のちらつきが発生する場合は無効にしてください。(デフォルト)</string>
+<string name="termux_terminal_view_terminal_margin_adjustment_on">ターミナルのマージン調整を有効にします。ソフトウェアキーボードが追加キーやターミナル表示の一部を覆う問題を修正するには有効にする必要があります。デバイスで画面のちらつきが発生する場合は無効にしてください。</string>
 <string name="termux_api_preferences_summary">Termux:API アプリの設定</string>
 <string name="termux_float_preferences_summary">Termux:Float アプリの設定</string>
 <string name="termux_tasker_preferences_summary">Termux:Tasker アプリの設定</string>
@@ -197,10 +197,10 @@
 <string name="swipe_rightmost_new_tab_title">最右端のタブを右にスワイプして新規セッション</string>
 <string name="swipe_rightmost_new_tab_summary">最後のタブで右にスワイプすると、新しいターミナルセッションが表示されて開きます</string>
 <string name="termux_tab_height_mode_title">タブの高さ</string>
-<string name="termux_tab_height_mode_single">1行（デフォルト）</string>
+<string name="termux_tab_height_mode_single">1行</string>
 <string name="termux_tab_height_mode_double">2行</string>
 <string name="termux_tab_panel_position_title">タブパネルの位置</string>
-<string name="termux_tab_panel_position_top">上（デフォルト）</string>
+<string name="termux_tab_panel_position_top">上</string>
 <string name="termux_tab_panel_position_bottom">下</string>
 <string name="text_input_show_title">テキスト入力欄を表示</string>
 <string name="text_input_show_summary_on">テキスト入力欄が追加キーの上に表示されています</string>
@@ -342,9 +342,9 @@
     <string name="extra_keys_editor_title">拡張キーエディター</string>
     <string name="extra_keys_editor_summary">拡張キーパネルを視覚的に構築: 行と列を設定し、キーをタップしてシグナルを割り当てます。</string>
     <string name="extra_keys_editor_columns_title">列数</string>
-    <string name="extra_keys_editor_columns_summary">行あたりのボタン数（1〜10）</string>
+    <string name="extra_keys_editor_columns_summary">行あたりのボタン数</string>
     <string name="extra_keys_editor_rows_title">行数</string>
-    <string name="extra_keys_editor_rows_summary">ボタンの行数（1〜4）</string>
+    <string name="extra_keys_editor_rows_summary">ボタンの行数</string>
     <string name="extra_keys_editor_preview_title">プレビュー</string>
     <string name="extra_keys_editor_preview_summary">ライブパネル — キーをタップしてシグナルを変更</string>
     <string name="extra_keys_editor_signal_dialog_title">シグナルを割り当て</string>
@@ -606,7 +606,7 @@
     <string name="bootstrap_install_progress_done">完了</string>
 
     <string name="extra_keys_editor_delay_format">⏱ %d ミリ秒</string>
-    <string name="extra_keys_editor_delay_hint">遅延 (1～1000 ミリ秒)</string>
+    <string name="extra_keys_editor_delay_hint">遅延</string>
     <string name="extra_keys_editor_delay_presets">クイック選択:</string>
 
     <!-- Application name -->
