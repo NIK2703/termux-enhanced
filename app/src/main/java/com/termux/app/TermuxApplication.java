@@ -81,7 +81,10 @@ public class TermuxApplication extends Application {
             // Setup termux-am-socket server
             TermuxAmSocketServer.setupTermuxAmSocketServer(context);
 
-            TermuxShellEnvironment.writeEnvironmentToFile(this);
+            // Off the main thread: several PackageManager/ActivityManager Binder calls plus two
+            // file writes that need not block cold start. The first run (no env file yet) stays
+            // synchronous inside writeEnvironmentToFileAsync so a plugin cannot see a missing env.
+            TermuxShellEnvironment.writeEnvironmentToFileAsync(this);
         } else {
             Logger.logErrorExtended(LOG_TAG, "Termux files directory is not accessible\n" + error);
         }

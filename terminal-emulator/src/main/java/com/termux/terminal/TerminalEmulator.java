@@ -3,10 +3,11 @@ package com.termux.terminal;
 import android.util.Base64;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Stack;
+import java.util.regex.Pattern;
 
 /**
  * Renders text into a screen. Contains all the terminal-specific knowledge and state. Emulates a subset of the X Window
@@ -29,6 +30,38 @@ public final class TerminalEmulator {
 
     /** Log unknown or unimplemented escape sequences received from the shell process. */
     private static final boolean LOG_ESCAPE_SEQUENCES = false;
+
+    /**
+     * A5: lazy BMP cache of {@link Character#getType(int)} results, so the per-code-point
+     * {@code Character.getType} call in the UTF-8 decode path (which is a native table lookup and
+     * was being done for every non-ASCII character) is only paid once per BMP code point. Supplementary
+     * code points (>= 0x10000) are rare and fall back to the direct call. Values: 0 = unknown,
+     * 1 = assigned, 2 = unassigned. Surrogates (0xD800..0xDFFF) are rejected arithmetically up front.
+     */
+    private static final byte BMP_TYPE_UNKNOWN = 0;
+    private static final byte BMP_TYPE_ASSIGNED = 1;
+    private static final byte BMP_TYPE_UNASSIGNED = 2;
+    private static volatile byte[] sBmpTypeCache;
+
+    private static boolean isUnassignedCodePoint(int codePoint) {
+        if (codePoint >= 0xD800 && codePoint <= 0xDFFF) return true; // surrogate (shouldn't occur post-UTF8-decode)
+        if (codePoint >= 0x10000) {
+            return Character.getType(codePoint) == Character.UNASSIGNED;
+        }
+        byte[] cache = sBmpTypeCache;
+        if (cache == null) {
+            synchronized (TerminalEmulator.class) {
+                cache = sBmpTypeCache;
+                if (cache == null) sBmpTypeCache = cache = new byte[0x10000];
+            }
+        }
+        int v = cache[codePoint];
+        if (v == BMP_TYPE_UNKNOWN) {
+            v = (Character.getType(codePoint) == Character.UNASSIGNED) ? BMP_TYPE_UNASSIGNED : BMP_TYPE_ASSIGNED;
+            cache[codePoint] = (byte) v;
+        }
+        return v == BMP_TYPE_UNASSIGNED;
+    }
 
     public static final int MOUSE_LEFT_BUTTON = 0;
 
@@ -131,7 +164,7 @@ public final class TerminalEmulator {
 
 
     private String mTitle;
-    private final Stack<String> mTitleStack = new Stack<>();
+    private final ArrayDeque<String> mTitleStack = new ArrayDeque<>();
 
     /** The cursor position. Between (0,0) and (mRows-1, mColumns-1). */
     private int mCursorRow, mCursorCol;
@@ -440,10 +473,19 @@ public final class TerminalEmulator {
         if (mClient != null)
             cursorStyle = mClient.getTerminalCursorStyle();
 
-        if (cursorStyle == null || !Arrays.asList(TERMINAL_CURSOR_STYLES_LIST).contains(cursorStyle))
+        if (cursorStyle == null) {
             mCursorStyle = DEFAULT_TERMINAL_CURSOR_STYLE;
-        else
-            mCursorStyle = cursorStyle;
+        } else {
+            // A5: avoid Arrays.asList(...) + autoboxing on every call; just walk the static list.
+            boolean valid = false;
+            for (int s : TERMINAL_CURSOR_STYLES_LIST) {
+                if (s == cursorStyle) {
+                    valid = true;
+                    break;
+                }
+            }
+            mCursorStyle = valid ? cursorStyle : DEFAULT_TERMINAL_CURSOR_STYLE;
+        }
     }
 
     public boolean isReverseVideo() {
@@ -464,6 +506,10 @@ public final class TerminalEmulator {
 
     public void setCursorBlinkingEnabled(boolean cursorBlinkingEnabled) {
         this.mCursorBlinkingEnabled = cursorBlinkingEnabled;
+    }
+
+    public boolean isCursorBlinkingEnabled() {
+        return mCursorBlinkingEnabled;
     }
 
     public void setCursorBlinkState(boolean cursorBlinkState) {
@@ -526,10 +572,11 @@ public final class TerminalEmulator {
                         // "It is not possible to use a C1 control obtained from decoding the
                         // UTF-8 text" - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
                     } else {
-                        switch (Character.getType(codePoint)) {
-                            case Character.UNASSIGNED:
-                            case Character.SURROGATE:
-                                codePoint = UNICODE_REPLACEMENT_CHAR;
+                        // A5: only non-ASCII needs the unassigned/surrogate check; ASCII and C1 are
+                        // never replaced here. The check uses a cached BMP lookup instead of a native
+                        // Character.getType() on every code point.
+                        if (codePoint > 0x9F && isUnassignedCodePoint(codePoint)) {
+                            codePoint = UNICODE_REPLACEMENT_CHAR;
                         }
                         processCodePoint(codePoint);
                     }
@@ -1835,8 +1882,8 @@ public final class TerminalEmulator {
                         // 22;2 -> Save xterm window title on stack.
                         mTitleStack.push(mTitle);
                         if (mTitleStack.size() > 20) {
-                            // Limit size
-                            mTitleStack.remove(0);
+                            // Limit size — drop the oldest entry (last in the deque; push adds at the front).
+                            mTitleStack.removeLast();
                         }
                         break;
                     case 23: // Like 22 above but restore from stack.
@@ -1876,114 +1923,141 @@ public final class TerminalEmulator {
                     code = 0;
                 }
             }
-            if (code == 0) { // reset
-                mForeColor = TextStyle.COLOR_INDEX_FOREGROUND;
-                mBackColor = TextStyle.COLOR_INDEX_BACKGROUND;
-                mEffect = 0;
-            } else if (code == 1) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_BOLD;
-            } else if (code == 2) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_DIM;
-            } else if (code == 3) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_ITALIC;
-            } else if (code == 4) {
-                if (i + 1 <= mArgIndex && ((mArgsSubParamsBitSet & (1 << (i + 1))) != 0)) {
-                    // Sub parameter, see https://sw.kovidgoyal.net/kitty/underlines/
-                    i++;
-                    if (mArgs[i] == 0) {
-                        // No underline.
-                        mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
+            // A5: dispatch on the SGR code with a switch (compiles to a compact lookupswitch/tableswitch
+            // instead of a long if-else chain of integer comparisons, with identical behavior).
+            switch (code) {
+                case 0: // reset
+                    mForeColor = TextStyle.COLOR_INDEX_FOREGROUND;
+                    mBackColor = TextStyle.COLOR_INDEX_BACKGROUND;
+                    mEffect = 0;
+                    break;
+                case 1:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_BOLD;
+                    break;
+                case 2:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_DIM;
+                    break;
+                case 3:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_ITALIC;
+                    break;
+                case 4:
+                    if (i + 1 <= mArgIndex && ((mArgsSubParamsBitSet & (1 << (i + 1))) != 0)) {
+                        // Sub parameter, see https://sw.kovidgoyal.net/kitty/underlines/
+                        i++;
+                        if (mArgs[i] == 0) {
+                            // No underline.
+                            mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
+                        } else {
+                            // Different variations of underlines: https://sw.kovidgoyal.net/kitty/underlines/
+                            mEffect |= TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
+                        }
                     } else {
-                        // Different variations of underlines: https://sw.kovidgoyal.net/kitty/underlines/
                         mEffect |= TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
                     }
-                } else {
-                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
-                }
-            } else if (code == 5) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_BLINK;
-            } else if (code == 7) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_INVERSE;
-            } else if (code == 8) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE;
-            } else if (code == 9) {
-                mEffect |= TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH;
-            } else if (code == 10) {
-                // Exit alt charset (TERM=linux) - ignore.
-            } else if (code == 11) {
-                // Enter alt charset (TERM=linux) - ignore.
-            } else if (code == 22) { // Normal color or intensity, neither bright, bold nor faint.
-                mEffect &= ~(TextStyle.CHARACTER_ATTRIBUTE_BOLD | TextStyle.CHARACTER_ATTRIBUTE_DIM);
-            } else if (code == 23) { // not italic, but rarely used as such; clears standout with TERM=screen
-                mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_ITALIC;
-            } else if (code == 24) { // underline: none
-                mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
-            } else if (code == 25) { // blink: none
-                mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_BLINK;
-            } else if (code == 27) { // image: positive
-                mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_INVERSE;
-            } else if (code == 28) {
-                mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE;
-            } else if (code == 29) {
-                mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH;
-            } else if (code >= 30 && code <= 37) {
-                mForeColor = code - 30;
-            } else if (code == 38 || code == 48 || code == 58) {
-                // Extended set foreground(38)/background(48)/underline(58) color.
-                // This is followed by either "2;$R;$G;$B" to set a 24-bit color or
-                // "5;$INDEX" to set an indexed color.
-                if (i + 2 > mArgIndex) continue;
-                int firstArg = mArgs[i + 1];
-                if (firstArg == 2) {
-                    if (i + 4 > mArgIndex) {
-                        Logger.logWarn(mClient, LOG_TAG, "Too few CSI" + code + ";2 RGB arguments");
-                    } else {
-                        int red = getArg(i + 2, 0, false);
-                        int green = getArg(i + 3, 0, false);
-                        int blue = getArg(i + 4, 0, false);
-
-                        if (red < 0 || green < 0 || blue < 0 || red > 255 || green > 255 || blue > 255) {
-                            finishSequenceAndLogError("Invalid RGB: " + red + "," + green + "," + blue);
+                    break;
+                case 5:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_BLINK;
+                    break;
+                case 7:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_INVERSE;
+                    break;
+                case 8:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE;
+                    break;
+                case 9:
+                    mEffect |= TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH;
+                    break;
+                case 10: // Exit alt charset (TERM=linux) - ignore.
+                case 11: // Enter alt charset (TERM=linux) - ignore.
+                    break;
+                case 22: // Normal color or intensity, neither bright, bold nor faint.
+                    mEffect &= ~(TextStyle.CHARACTER_ATTRIBUTE_BOLD | TextStyle.CHARACTER_ATTRIBUTE_DIM);
+                    break;
+                case 23: // not italic, but rarely used as such; clears standout with TERM=screen
+                    mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_ITALIC;
+                    break;
+                case 24: // underline: none
+                    mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE;
+                    break;
+                case 25: // blink: none
+                    mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_BLINK;
+                    break;
+                case 27: // image: positive
+                    mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_INVERSE;
+                    break;
+                case 28:
+                    mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE;
+                    break;
+                case 29:
+                    mEffect &= ~TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH;
+                    break;
+                case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
+                    mForeColor = code - 30;
+                    break;
+                case 38: case 48: case 58: {
+                    // Extended set foreground(38)/background(48)/underline(58) color.
+                    // This is followed by either "2;$R;$G;$B" to set a 24-bit color or
+                    // "5;$INDEX" to set an indexed color.
+                    if (i + 2 > mArgIndex) break;
+                    int firstArg = mArgs[i + 1];
+                    if (firstArg == 2) {
+                        if (i + 4 > mArgIndex) {
+                            Logger.logWarn(mClient, LOG_TAG, "Too few CSI" + code + ";2 RGB arguments");
                         } else {
-                            int argbColor = 0xff_00_00_00 | (red << 16) | (green << 8) | blue;
-                            switch (code) {
-                                case 38: mForeColor = argbColor; break;
-                                case 48: mBackColor = argbColor; break;
-                                case 58: mUnderlineColor = argbColor; break;
+                            int red = getArg(i + 2, 0, false);
+                            int green = getArg(i + 3, 0, false);
+                            int blue = getArg(i + 4, 0, false);
+
+                            if (red < 0 || green < 0 || blue < 0 || red > 255 || green > 255 || blue > 255) {
+                                finishSequenceAndLogError("Invalid RGB: " + red + "," + green + "," + blue);
+                            } else {
+                                int argbColor = 0xff_00_00_00 | (red << 16) | (green << 8) | blue;
+                                switch (code) {
+                                    case 38: mForeColor = argbColor; break;
+                                    case 48: mBackColor = argbColor; break;
+                                    case 58: mUnderlineColor = argbColor; break;
+                                }
                             }
+                            i += 4; // "2;P_r;P_g;P_r"
                         }
-                        i += 4; // "2;P_r;P_g;P_r"
-                    }
-                } else if (firstArg == 5) {
-                    int color = getArg(i + 2, 0, false);
-                    i += 2; // "5;P_s"
-                    if (color >= 0 && color < TextStyle.NUM_INDEXED_COLORS) {
-                        switch (code) {
-                            case 38: mForeColor = color; break;
-                            case 48: mBackColor = color; break;
-                            case 58: mUnderlineColor = color; break;
+                    } else if (firstArg == 5) {
+                        int color = getArg(i + 2, 0, false);
+                        i += 2; // "5;P_s"
+                        if (color >= 0 && color < TextStyle.NUM_INDEXED_COLORS) {
+                            switch (code) {
+                                case 38: mForeColor = color; break;
+                                case 48: mBackColor = color; break;
+                                case 58: mUnderlineColor = color; break;
+                            }
+                        } else {
+                            if (LOG_ESCAPE_SEQUENCES) Logger.logWarn(mClient, LOG_TAG, "Invalid color index: " + color);
                         }
                     } else {
-                        if (LOG_ESCAPE_SEQUENCES) Logger.logWarn(mClient, LOG_TAG, "Invalid color index: " + color);
+                        finishSequenceAndLogError("Invalid ISO-8613-3 SGR first argument: " + firstArg);
                     }
-                } else {
-                    finishSequenceAndLogError("Invalid ISO-8613-3 SGR first argument: " + firstArg);
+                    break;
                 }
-            } else if (code == 39) { // Set default foreground color.
-                mForeColor = TextStyle.COLOR_INDEX_FOREGROUND;
-            } else if (code >= 40 && code <= 47) { // Set background color.
-                mBackColor = code - 40;
-            } else if (code == 49) { // Set default background color.
-                mBackColor = TextStyle.COLOR_INDEX_BACKGROUND;
-            } else if (code == 59) { // Set default underline color.
-                mUnderlineColor = TextStyle.COLOR_INDEX_FOREGROUND;
-            } else if (code >= 90 && code <= 97) { // Bright foreground colors (aixterm codes).
-                mForeColor = code - 90 + 8;
-            } else if (code >= 100 && code <= 107) { // Bright background color (aixterm codes).
-                mBackColor = code - 100 + 8;
-            } else {
-                if (LOG_ESCAPE_SEQUENCES)
-                    Logger.logWarn(mClient, LOG_TAG, String.format("SGR unknown code %d", code));
+                case 39: // Set default foreground color.
+                    mForeColor = TextStyle.COLOR_INDEX_FOREGROUND;
+                    break;
+                case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47: // Set background color.
+                    mBackColor = code - 40;
+                    break;
+                case 49: // Set default background color.
+                    mBackColor = TextStyle.COLOR_INDEX_BACKGROUND;
+                    break;
+                case 59: // Set default underline color.
+                    mUnderlineColor = TextStyle.COLOR_INDEX_FOREGROUND;
+                    break;
+                case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97: // Bright foreground colors (aixterm codes).
+                    mForeColor = code - 90 + 8;
+                    break;
+                case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107: // Bright background color (aixterm codes).
+                    mBackColor = code - 100 + 8;
+                    break;
+                default:
+                    if (LOG_ESCAPE_SEQUENCES)
+                        Logger.logWarn(mClient, LOG_TAG, String.format("SGR unknown code %d", code));
             }
         }
     }
@@ -2264,7 +2338,8 @@ public final class TerminalEmulator {
                     mArgsSubParamsBitSet |= 1 << mArgIndex;
                 }
             } else {
-                logError("Too many parameters when in state: " + mEscapeState);
+                // #13: only build the diagnostic string when escape-sequence logging is enabled.
+                if (LOG_ESCAPE_SEQUENCES) logError("Too many parameters when in state: " + mEscapeState);
             }
             continueSequence(mEscapeState);
         } else {
@@ -2298,17 +2373,22 @@ public final class TerminalEmulator {
     }
 
     private void unimplementedSequence(int b) {
-        logError("Unimplemented sequence char '" + (char) b + "' (U+" + String.format("%04x", b) + ")");
+        // #13: only build the diagnostic string (incl. String.format) when logging is enabled.
+        if (LOG_ESCAPE_SEQUENCES)
+            logError("Unimplemented sequence char '" + (char) b + "' (U+" + String.format("%04x", b) + ")");
         finishSequence();
     }
 
     private void unknownSequence(int b) {
-        logError("Unknown sequence char '" + (char) b + "' (numeric value=" + b + ")");
+        // #13: only build the diagnostic string when logging is enabled.
+        if (LOG_ESCAPE_SEQUENCES)
+            logError("Unknown sequence char '" + (char) b + "' (numeric value=" + b + ")");
         finishSequence();
     }
 
     private void unknownParameter(int parameter) {
-        logError("Unknown parameter: " + parameter);
+        // #13: only build the diagnostic string when logging is enabled.
+        if (LOG_ESCAPE_SEQUENCES) logError("Unknown parameter: " + parameter);
         finishSequence();
     }
 
@@ -2596,12 +2676,16 @@ public final class TerminalEmulator {
         }
     }
 
+    /** A5: pre-compiled paste-rewrite regexes (used to avoid recompiling on every paste). */
+    private static final Pattern PASTE_STRIP_PATTERN = Pattern.compile("(\u001B|[\u0080-\u009F])");
+    private static final Pattern PASTE_NEWLINE_PATTERN = Pattern.compile("\r?\n");
+
     /** If DECSET 2004 is set, prefix paste with "\033[200~" and suffix with "\033[201~". */
     public void paste(String text) {
         // First: Always remove escape key and C1 control characters [0x80,0x9F]:
-        text = text.replaceAll("(\u001B|[\u0080-\u009F])", "");
+        text = PASTE_STRIP_PATTERN.matcher(text).replaceAll("");
         // Second: Replace all newlines (\n) or CRLF (\r\n) with carriage returns (\r).
-        text = text.replaceAll("\r?\n", "\r");
+        text = PASTE_NEWLINE_PATTERN.matcher(text).replaceAll("\r");
 
         // Then: Implement bracketed paste mode if enabled:
         boolean bracketed = isDecsetInternalBitSet(DECSET_BIT_BRACKETED_PASTE_MODE);

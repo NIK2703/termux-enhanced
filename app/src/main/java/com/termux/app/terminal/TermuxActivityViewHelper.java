@@ -16,7 +16,7 @@ import com.termux.app.terminal.io.autocomplete.DirectoryHistoryPopupController;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.android.PackageUtils;
 import com.termux.shared.termux.TermuxConstants;
-import com.termux.shared.termux.materialyou.MaterialYouSchemeStore;
+import com.termux.shared.termux.monet.MonetSchemeStore;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
 import com.termux.shared.theme.NightMode;
 import com.termux.terminal.TerminalSession;
@@ -170,8 +170,8 @@ public class TermuxActivityViewHelper {
         boolean stylingInstalled = PackageUtils.getContextForPackage(context,
             TermuxConstants.TERMUX_STYLING_PACKAGE_NAME) != null;
         // The "Style" item opens our own color-scheme picker, which on Android 12+ also offers the
-        // wallpaper-derived Material You schemes — so it is useful even without Termux:Style.
-        if (stylingInstalled || MaterialYouSchemeStore.isSupported()) {
+        // wallpaper-derived Monet schemes — so it is useful even without Termux:Style.
+        if (stylingInstalled || MonetSchemeStore.isSupported()) {
             menu.add(Menu.NONE, CONTEXT_MENU_STYLING_ID, Menu.NONE, R.string.action_style_terminal);
         }
         if (stylingInstalled) {

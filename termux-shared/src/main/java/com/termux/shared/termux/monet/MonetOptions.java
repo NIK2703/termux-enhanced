@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import androidx.annotation.NonNull;
 
@@ -11,7 +11,7 @@ import java.io.InputStream;
 import java.util.Properties;
 
 /**
- * The {@code material-you-*} tunables from {@code ~/.termux/termux.properties}.
+ * The {@code monet-*} tunables from {@code ~/.termux/termux.properties}.
  *
  * <p>Every key is optional; missing or unparseable values fall back to the kde defaults so that a
  * bare install behaves exactly like {@code kde-material-you-colors}.
@@ -20,28 +20,28 @@ import java.util.Properties;
  * {@code Properties} parse does not happen on every resume.
  *
  * <pre>
- * material-you-variant=system            # system|content|...|fruit-salad | kde index 0..8
- * material-you-background=surface        # surface|container-low|container-lowest
- * material-you-accent-source=wallpaper   # wallpaper|palette|rotational
- * material-you-accent-contrast=0         # 0 = kde defaults (2.5 dark / 2.0 light)
- * material-you-chroma=1.0                # 0.5 .. 2.0
- * material-you-tone=1.0                  # 0.5 .. 1.5
- * material-you-color0=bg                 # bg|dim
+ * monet-variant=system            # system|content|...|fruit-salad | kde index 0..8
+ * monet-background=surface        # surface|container-low|container-lowest
+ * monet-accent-source=wallpaper   # wallpaper|palette|rotational
+ * monet-accent-contrast=0         # 0 = kde defaults (2.5 dark / 2.0 light)
+ * monet-chroma=1.0                # 0.5 .. 2.0
+ * monet-tone=1.0                  # 0.5 .. 1.5
+ * monet-color0=bg                 # bg|dim
  * </pre>
  */
-public final class MaterialYouOptions {
+public final class MonetOptions {
 
-    private static final String LOG_TAG = "MaterialYouOptions";
+    private static final String LOG_TAG = "MonetOptions";
 
-    public static final String KEY_VARIANT = "material-you-variant";
-    public static final String KEY_BACKGROUND = "material-you-background";
-    public static final String KEY_ACCENT_SOURCE = "material-you-accent-source";
-    public static final String KEY_ACCENT_CONTRAST = "material-you-accent-contrast";
-    public static final String KEY_CHROMA = "material-you-chroma";
-    public static final String KEY_TONE = "material-you-tone";
-    public static final String KEY_COLOR0 = "material-you-color0";
+    public static final String KEY_VARIANT = "monet-variant";
+    public static final String KEY_BACKGROUND = "monet-background";
+    public static final String KEY_ACCENT_SOURCE = "monet-accent-source";
+    public static final String KEY_ACCENT_CONTRAST = "monet-accent-contrast";
+    public static final String KEY_CHROMA = "monet-chroma";
+    public static final String KEY_TONE = "monet-tone";
+    public static final String KEY_COLOR0 = "monet-color0";
 
-    /** kde's thresholds, used whenever {@code material-you-accent-contrast} is 0 or absent. */
+    /** kde's thresholds, used whenever {@code monet-accent-contrast} is 0 or absent. */
     public static final double DEFAULT_ACCENT_CONTRAST_DARK = 2.5;
     public static final double DEFAULT_ACCENT_CONTRAST_LIGHT = 2.0;
 
@@ -127,7 +127,7 @@ public final class MaterialYouOptions {
     /** A raw copy of the six parsed values, used for change detection and logging. */
     @NonNull private final String mSignature;
 
-    public MaterialYouOptions(@NonNull SchemeVariant variant, @NonNull Background background,
+    public MonetOptions(@NonNull SchemeVariant variant, @NonNull Background background,
                               @NonNull AccentSource accentSource, double accentContrast,
                               double chroma, double tone, @NonNull Color0 color0) {
         this.variant = variant;
@@ -144,13 +144,13 @@ public final class MaterialYouOptions {
     /**
      * A copy of these options that produces the given scheme variant.
      *
-     * <p>Used when the variant comes from the selected scheme name ({@code MaterialYou-rainbow})
-     * rather than from the {@code material-you-variant} property.
+     * <p>Used when the variant comes from the selected scheme name ({@code Monet-rainbow})
+     * rather than from the {@code monet-variant} property.
      */
     @NonNull
-    public MaterialYouOptions withVariant(@NonNull SchemeVariant newVariant) {
+    public MonetOptions withVariant(@NonNull SchemeVariant newVariant) {
         if (newVariant == variant) return this;
-        return new MaterialYouOptions(newVariant, background, accentSource, accentContrast,
+        return new MonetOptions(newVariant, background, accentSource, accentContrast,
                 chroma, tone, color0);
     }
 
@@ -174,13 +174,13 @@ public final class MaterialYouOptions {
     // ------------------------------------------------------------------ Loading ---
 
     private static final Object LOCK = new Object();
-    private static volatile MaterialYouOptions sCached;
+    private static volatile MonetOptions sCached;
     private static long sCachedMtime = -1;
 
     /** Options with every field at its default. */
     @NonNull
-    public static MaterialYouOptions defaults() {
-        return new MaterialYouOptions(SchemeVariant.DEFAULT, Background.SURFACE,
+    public static MonetOptions defaults() {
+        return new MonetOptions(SchemeVariant.DEFAULT, Background.SURFACE,
                 AccentSource.WALLPAPER, 0, 1.0, 1.0, Color0.BG);
     }
 
@@ -189,10 +189,10 @@ public final class MaterialYouOptions {
      * actually changed. Never throws - a broken file yields the defaults.
      */
     @NonNull
-    public static MaterialYouOptions load() {
+    public static MonetOptions load() {
         File file = TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE;
         long mtime = (file == null) ? 0 : file.lastModified();
-        MaterialYouOptions cached = sCached;
+        MonetOptions cached = sCached;
         if (cached != null && mtime == sCachedMtime) return cached;
 
         synchronized (LOCK) {
@@ -205,7 +205,7 @@ public final class MaterialYouOptions {
                     Logger.logError(LOG_TAG, "Failed to read termux.properties: " + e.getMessage());
                 }
             }
-            MaterialYouOptions options = fromProperties(props);
+            MonetOptions options = fromProperties(props);
             sCached = options;
             sCachedMtime = mtime;
             return options;
@@ -221,7 +221,7 @@ public final class MaterialYouOptions {
     }
 
     @NonNull
-    static MaterialYouOptions fromProperties(@NonNull Properties props) {
+    static MonetOptions fromProperties(@NonNull Properties props) {
         String rawVariant = trim(props.getProperty(KEY_VARIANT));
         SchemeVariant variant = null;
         if (!rawVariant.isEmpty()) {
@@ -233,7 +233,7 @@ public final class MaterialYouOptions {
             }
         }
 
-        return new MaterialYouOptions(
+        return new MonetOptions(
                 variant == null ? SchemeVariant.DEFAULT : variant,
                 Background.parse(trim(props.getProperty(KEY_BACKGROUND))),
                 AccentSource.parse(trim(props.getProperty(KEY_ACCENT_SOURCE))),
@@ -244,7 +244,7 @@ public final class MaterialYouOptions {
     }
 
     /**
-     * Write one {@code material-you-*} key into {@code termux.properties}, preserving every other
+     * Write one {@code monet-*} key into {@code termux.properties}, preserving every other
      * key, and drop the cached parse.
      *
      * <p>{@code null} removes the key, which restores the default.

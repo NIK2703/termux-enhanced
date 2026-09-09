@@ -40,9 +40,46 @@ public final class TerminalRenderer {
      * planes (rare). This avoids calling the native Skia/FreeType measureText on every non-ASCII
      * character on every frame — previously the single hottest call in the renderer.
      * A value of 0.0f in {@code bmpMeasures} means "not yet measured" except for code point 0.
+     *
+     * B3: {@code bmpMeasures} is shared across {@link TerminalRenderer} instances via the static
+     * {@link #sBmpMeasuresCache}, keyed by (typeface, textSize). A new renderer is created on
+     * every pinch-zoom step and per ViewPager page, so without sharing each one would allocate a
+     * fresh 256 KB array and re-run 128 native {@code measureText} calls — a guaranteed GC on
+     * every zoom step. The metrics depend only on the typeface and text size (anti-alias is always
+     * on), so the array is safe to reuse across instances.
      */
-    private final float[] bmpMeasures = new float[0x10000];
+    private float[] bmpMeasures;
     private final SparseArray<Float> supplementaryMeasures = new SparseArray<>();
+
+    /** B3: per-(typeface,textSize) cache of the BMP measure table, bounded via LRU eviction. */
+    private static final java.util.LinkedHashMap<RenderKey, float[]> sBmpMeasuresCache =
+        new java.util.LinkedHashMap<RenderKey, float[]>(4, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<RenderKey, float[]> eldest) {
+                return size() > 4;
+            }
+        };
+
+    /** B3 cache key — identity of the typeface plus the font size (both determine glyph metrics). */
+    private static final class RenderKey {
+        final Typeface typeface;
+        final int textSize;
+        RenderKey(Typeface typeface, int textSize) {
+            this.typeface = typeface;
+            this.textSize = textSize;
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof RenderKey)) return false;
+            RenderKey r = (RenderKey) o;
+            return textSize == r.textSize && typeface == r.typeface;
+        }
+        @Override
+        public int hashCode() {
+            return 31 * textSize + (typeface == null ? 0 : System.identityHashCode(typeface));
+        }
+    }
 
     /**
      * Reusable per-frame run list. The renderer splits each row into "runs" of equal style; instead
@@ -69,6 +106,19 @@ public final class TerminalRenderer {
     private final Paint mBgPaint = new Paint();
     private final int[] mColorOut = new int[2];
 
+    /**
+     * B4: last {@link Paint} text-style state applied, so {@link #drawRunText} only touches the
+     * native paint setters when something actually changed. With colored output (ls --color,
+     * htop, syntax highlighting) a frame has hundreds-to-thousands of runs; most adjacent runs
+     * share the same color/bold/underline/italic/strike state, so the setter churn is almost
+     * entirely redundant. Reset to "unknown" at the start of each {@link #render}.
+     */
+    private int mLastPaintForeColor = -1;
+    private boolean mLastPaintBold = false;
+    private boolean mLastPaintUnderline = false;
+    private boolean mLastPaintItalic = false;
+    private boolean mLastPaintStrike = false;
+
     public TerminalRenderer(int textSize, Typeface typeface) {
         mTextSize = textSize;
         mTypeface = typeface;
@@ -84,12 +134,26 @@ public final class TerminalRenderer {
         mFontLineSpacingAndAscent = mFontLineSpacing + mFontAscent;
         mFontWidth = mTextPaint.measureText("X");
 
-        // Pre-measure ASCII so the first paint does not pay for it; the rest is filled lazily.
-        StringBuilder sb = new StringBuilder(" ");
-        for (int i = 0; i < 0x80; i++) {
-            sb.setCharAt(0, (char) i);
-            bmpMeasures[i] = mTextPaint.measureText(sb, 0, 1);
+        // B3: reuse a cached BMP measure table for this (typeface, textSize) if one exists,
+        // otherwise create and pre-measure it, then store it for later renderers to share.
+        final RenderKey key = new RenderKey(typeface, textSize);
+        float[] shared;
+        synchronized (sBmpMeasuresCache) {
+            shared = sBmpMeasuresCache.get(key);
         }
+        if (shared == null) {
+            shared = new float[0x10000];
+            // Pre-measure ASCII so the first paint does not pay for it; the rest is filled lazily.
+            StringBuilder sb = new StringBuilder(" ");
+            for (int i = 0; i < 0x80; i++) {
+                sb.setCharAt(0, (char) i);
+                shared[i] = mTextPaint.measureText(sb, 0, 1);
+            }
+            synchronized (sBmpMeasuresCache) {
+                sBmpMeasuresCache.put(key, shared);
+            }
+        }
+        bmpMeasures = shared;
     }
 
     /** Measure the on-screen width of a code point, using the per-code-point cache. */
@@ -133,6 +197,23 @@ public final class TerminalRenderer {
     public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
                              int selectionY1, int selectionY2, int selectionX1, int selectionX2,
                              float xOffset, float yOffset, Rect dirtyRect) {
+        // B4: bring the Paint back to the baseline style *and* record that in the cache. The Paint is
+        // a field shared by every frame, so a frame whose last drawn run was italic/bold/underline/
+        // struck-through leaves the Paint in that state. Only resetting the cache to "clean" here
+        // (without touching the Paint) would make drawRunText() believe the style is already applied
+        // and skip the setter, leaking that style into every run of every following frame — visible
+        // as a whole screen of italic text once the styled row scrolls out of view. The color is
+        // tracked separately below because drawRunText() also sets it for cursor/background fills.
+        mTextPaint.setFakeBoldText(false);
+        mTextPaint.setUnderlineText(false);
+        mTextPaint.setTextSkewX(0.f);
+        mTextPaint.setStrikeThruText(false);
+        mLastPaintBold = false;
+        mLastPaintUnderline = false;
+        mLastPaintItalic = false;
+        mLastPaintStrike = false;
+        mLastPaintForeColor = -1;
+
         final boolean reverseVideo = mEmulator.isReverseVideo();
         final int endRow = topRow + mEmulator.mRows;
         final int columns = mEmulator.mColumns;
@@ -404,6 +485,8 @@ public final class TerminalRenderer {
         if (fontWidthMismatch && backColor != palette[TextStyle.COLOR_INDEX_BACKGROUND]) {
             mTextPaint.setColor(backColor);
             canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, mTextPaint);
+            // Paint color was changed for the bg fill; force the text color to be re-applied below.
+            mLastPaintForeColor = -1;
         }
 
         if (cursor != 0) {
@@ -412,6 +495,8 @@ public final class TerminalRenderer {
             if (cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_UNDERLINE) cursorHeight /= 4.;
             else if (cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_BAR) right -= ((right - left) * 3) / 4.;
             canvas.drawRect(left, y - cursorHeight, right, y, mTextPaint);
+            // Paint color was changed for the cursor fill; force the text color to be re-applied below.
+            mLastPaintForeColor = -1;
         }
 
         if ((effect & TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE) == 0) {
@@ -427,11 +512,29 @@ public final class TerminalRenderer {
                 foreColor = 0xFF000000 + (red << 16) + (green << 8) + blue;
             }
 
-            mTextPaint.setFakeBoldText(bold);
-            mTextPaint.setUnderlineText(underline);
-            mTextPaint.setTextSkewX(italic ? -0.35f : 0.f);
-            mTextPaint.setStrikeThruText(strikeThrough);
-            mTextPaint.setColor(foreColor);
+            // B4: only touch the native paint setters when the value actually changed. The style
+            // setters are the expensive ones (they recompute the Skia font state), and the vast
+            // majority of adjacent runs share the same state, so this eliminates most of their calls.
+            if (foreColor != mLastPaintForeColor) {
+                mTextPaint.setColor(foreColor);
+                mLastPaintForeColor = foreColor;
+            }
+            if (bold != mLastPaintBold) {
+                mTextPaint.setFakeBoldText(bold);
+                mLastPaintBold = bold;
+            }
+            if (underline != mLastPaintUnderline) {
+                mTextPaint.setUnderlineText(underline);
+                mLastPaintUnderline = underline;
+            }
+            if (italic != mLastPaintItalic) {
+                mTextPaint.setTextSkewX(italic ? -0.35f : 0.f);
+                mLastPaintItalic = italic;
+            }
+            if (strikeThrough != mLastPaintStrike) {
+                mTextPaint.setStrikeThruText(strikeThrough);
+                mLastPaintStrike = strikeThrough;
+            }
 
             // The text alignment is the default Paint.Align.LEFT.
             canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars, left, y - mFontLineSpacingAndAscent, false, mTextPaint);

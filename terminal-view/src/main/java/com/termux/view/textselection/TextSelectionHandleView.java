@@ -221,7 +221,7 @@ public class TextSelectionHandleView extends View {
         if (!mIsDragging && !force) {
             return;
         }
-        long millis = SystemClock.currentThreadTimeMillis();
+        long millis = SystemClock.uptimeMillis();
         if (millis - mLastTime < 50 && !force) {
             return;
         }

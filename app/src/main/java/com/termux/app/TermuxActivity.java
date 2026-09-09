@@ -71,7 +71,7 @@ import com.termux.app.terminal.io.autocomplete.MessageHistoryController;
 import com.termux.app.terminal.io.FullScreenWorkAround;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
-import com.termux.shared.termux.materialyou.MaterialYouSchemeStore;
+import com.termux.shared.termux.monet.MonetSchemeStore;
 import com.termux.shared.termux.interact.TextInputDialogUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxUtils;
@@ -710,63 +710,63 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // app has been opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
 
-        // Material You: build the selected variants up front so the token is stable before the
+        // Monet: build the selected variants up front so the token is stable before the
         // first buildSchemeKey() runs, and subscribe to wallpaper changes.
-        setupMaterialYou();
+        setupMonet();
     }
 
     /**
      * Wire the wallpaper-derived terminal scheme.
      *
-     * <p>The scheme itself is generated lazily by {@link MaterialYouSchemeStore}; here we only
+     * <p>The scheme itself is generated lazily by {@link MonetSchemeStore}; here we only
      * (a) warm the cache so {@code buildSchemeKey()} sees a stable token, and (b) subscribe to
      * {@code WallpaperManager.OnColorsChangedListener} so an already-open terminal repaints when
      * the user changes the wallpaper. Both are no-ops below API 31.
      */
-    private void setupMaterialYou() {
-        if (!MaterialYouSchemeStore.isSupported()) return;
+    private void setupMonet() {
+        if (!MonetSchemeStore.isSupported()) return;
         try {
-            MaterialYouSchemeStore.WallpaperObserver.register(this);
-            MaterialYouSchemeStore.addListener(mMaterialYouChangedListener);
+            MonetSchemeStore.WallpaperObserver.register(this);
+            MonetSchemeStore.addListener(mMonetChangedListener);
             // warmUp() takes the variants to build — with none given it built nothing, so
             // buildSchemeKey() saw token 0 on the first run and re-applied the scheme again on the
             // very next tab switch. Warm exactly what the two themes selected.
-            warmSelectedMaterialYouVariant(false);
-            warmSelectedMaterialYouVariant(true);
+            warmSelectedMonetVariant(false);
+            warmSelectedMonetVariant(true);
         } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Failed to set up Material You: " + e.getMessage());
+            Logger.logError(LOG_TAG, "Failed to set up Monet: " + e.getMessage());
         }
     }
 
-    /** Pre-build the Material You scheme of one theme, if that theme selected one. */
-    private void warmSelectedMaterialYouVariant(boolean isNight) {
-        if (!ColorSchemeUtils.isMaterialYouSelected(isNight)) return;
-        MaterialYouSchemeStore.warmUp(getApplicationContext(),
-                ColorSchemeUtils.materialYouVariantOf(ColorSchemeUtils.getSelectedSchemeName(isNight)));
+    /** Pre-build the Monet scheme of one theme, if that theme selected one. */
+    private void warmSelectedMonetVariant(boolean isNight) {
+        if (!ColorSchemeUtils.isMonetSelected(isNight)) return;
+        MonetSchemeStore.warmUp(getApplicationContext(),
+                ColorSchemeUtils.monetVariantOf(ColorSchemeUtils.getSelectedSchemeName(isNight)));
     }
 
     /** Whether any theme currently uses the wallpaper-derived scheme. */
-    private boolean isMaterialYouInUse() {
-        return MaterialYouSchemeStore.isSupported()
-                && (ColorSchemeUtils.isMaterialYouSelected(false)
-                || ColorSchemeUtils.isMaterialYouSelected(true));
+    private boolean isMonetInUse() {
+        return MonetSchemeStore.isSupported()
+                && (ColorSchemeUtils.isMonetSelected(false)
+                || ColorSchemeUtils.isMonetSelected(true));
     }
 
     /**
-     * Re-generate the scheme when the wallpaper or the {@code material-you-*} options changed while
+     * Re-generate the scheme when the wallpaper or the {@code monet-*} options changed while
      * we were in the background, and repaint the open terminals.
      *
      * <p>The refresh itself runs on a background thread; when it produces a different token the
      * scheme cache is already updated, so dropping the "already applied" gate is enough for the
      * next paint to pick up the new colors.
      */
-    private void refreshMaterialYouOnResume() {
-        if (!isMaterialYouInUse()) return;
-        MaterialYouSchemeStore.refreshAsync(this);
+    private void refreshMonetOnResume() {
+        if (!isMonetInUse()) return;
+        MonetSchemeStore.refreshAsync(this);
     }
 
     /** Repaint once the regenerated scheme is in the cache. */
-    private final Runnable mMaterialYouChangedListener = new Runnable() {
+    private final Runnable mMonetChangedListener = new Runnable() {
         @Override
         public void run() {
             if (isFinishing() || isDestroyed()) return;
@@ -956,7 +956,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
 
         // Wallpaper / options may have changed while we were backgrounded.
-        refreshMaterialYouOnResume();
+        refreshMonetOnResume();
     }
 
     @Override
@@ -1034,8 +1034,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         sInstance = null;
 
-        MaterialYouSchemeStore.removeListener(mMaterialYouChangedListener);
-        MaterialYouSchemeStore.WallpaperObserver.unregister(this);
+        MonetSchemeStore.removeListener(mMonetChangedListener);
+        MonetSchemeStore.WallpaperObserver.unregister(this);
 
         if (mSessionPagerManager != null) mSessionPagerManager.destroy();
 

@@ -4,7 +4,6 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.Build;
-import android.text.TextUtils;
 import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -15,6 +14,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 
 import com.termux.terminal.TerminalBuffer;
+import com.termux.terminal.TerminalRow;
 import com.termux.terminal.WcWidth;
 import com.termux.view.R;
 import com.termux.view.TerminalView;
@@ -29,6 +29,18 @@ public class TextSelectionCursorController implements CursorController {
 
     private final int mHandleHeight;
     private int mSelX1 = -1, mSelX2 = -1, mSelY1 = -1, mSelY2 = -1;
+
+    /**
+     * B1 optimization: cache of the last selection geometry that {@link #render()} actually
+     * painted. Repositioning the two drag handles (View.getLocationInWindow +
+     * PopupWindow.update through WindowManager) and rebuilding the CAB via
+     * ActionMode.invalidate() are synchronous, order-of-magnitude more expensive than the
+     * actual terminal render — yet they were re-done on every full repaint (selection forces a
+     * full repaint, so this happened on every frame while output streamed under an active
+     * selection). When nothing changed we skip all of that work.
+     */
+    private int mLastRenderX1 = -2, mLastRenderY1 = -2, mLastRenderX2 = -2, mLastRenderY2 = -2;
+    private int mLastRenderTopRow = -2;
 
     // Scheme colours for the ActionMode (text-selection CAB) bar, pushed in from the host app
     // so this module stays decoupled from com.termux.app.
@@ -87,6 +99,19 @@ public class TextSelectionCursorController implements CursorController {
     @Override
     public void render() {
         if (!isActive()) return;
+
+        // B1: short-circuit when neither the selection nor the scroll offset moved.
+        final int topRow = terminalView.getTopRow();
+        if (mSelX1 == mLastRenderX1 && mSelY1 == mLastRenderY1
+                && mSelX2 == mLastRenderX2 && mSelY2 == mLastRenderY2
+                && topRow == mLastRenderTopRow) {
+            return;
+        }
+        mLastRenderX1 = mSelX1;
+        mLastRenderY1 = mSelY1;
+        mLastRenderX2 = mSelX2;
+        mLastRenderY2 = mSelY2;
+        mLastRenderTopRow = topRow;
 
         mStartHandle.positionAtCursor(mSelX1, mSelY1, false);
         mEndHandle.positionAtCursor(mSelX2 + 1, mSelY2, false);
@@ -335,32 +360,53 @@ public class TextSelectionCursorController implements CursorController {
     }
 
     private int getValidCurX(TerminalBuffer screen, int cy, int cx) {
-        String line = screen.getSelectedText(0, cy, cx, cy);
-        if (!TextUtils.isEmpty(line)) {
-            int col = 0;
-            for (int i = 0, len = line.length(); i < len; i++) {
-                char ch1 = line.charAt(i);
-                if (ch1 == 0) {
-                    break;
-                }
+        // B5: walk the row's char[] directly instead of building a String via getSelectedText(),
+        // which allocated a StringBuilder plus a new String on every ACTION_MOVE during a drag.
+        // The column range and trailing-space trim mirror getSelectedText(0, cy, cx, cy) exactly,
+        // and the width loop below is the original snap logic (unchanged semantics, wide + combining).
+        final int columns = terminalView.mEmulator.mColumns;
+        final TerminalRow lineObject = screen.getLineOrBlank(cy);
+        final char[] line = lineObject.mText;
+        final int charsUsed = lineObject.getSpaceUsed();
 
-                int wc;
-                if (Character.isHighSurrogate(ch1) && i + 1 < len) {
-                    char ch2 = line.charAt(++i);
-                    wc = WcWidth.width(Character.toCodePoint(ch1, ch2));
-                } else {
-                    wc = WcWidth.width(ch1);
-                }
+        final int x1Index = lineObject.findStartOfColumn(0);
+        int x2 = cx + 1;
+        if (x2 > columns) x2 = columns;
+        int x2Index = (x2 < columns) ? lineObject.findStartOfColumn(x2) : charsUsed;
+        if (x2Index == x1Index) x2Index = lineObject.findStartOfColumn(x2 + 1);
 
-                final int cend = col + wc;
-                if (cx > col && cx < cend) {
-                    return cend;
-                }
-                if (cend == col) {
-                    return col;
-                }
-                col = cend;
+        int lastPrinting = -1;
+        for (int i = x1Index; i < x2Index; i++) {
+            if (line[i] != ' ') lastPrinting = i;
+        }
+        if (lastPrinting == -1) return cx;
+        final int end = lastPrinting + 1;
+
+        int col = 0;
+        for (int i = x1Index; i < end; ) {
+            char ch1 = line[i];
+            if (ch1 == 0) break;
+
+            int wc;
+            int step;
+            if (Character.isHighSurrogate(ch1) && i + 1 < end) {
+                char ch2 = line[i + 1];
+                wc = WcWidth.width(Character.toCodePoint(ch1, ch2));
+                step = 2;
+            } else {
+                wc = WcWidth.width(ch1);
+                step = 1;
             }
+
+            final int cend = col + wc;
+            if (cx > col && cx < cend) {
+                return cend;
+            }
+            if (cend == col) {
+                return col;
+            }
+            col = cend;
+            i += step;
         }
         return cx;
     }

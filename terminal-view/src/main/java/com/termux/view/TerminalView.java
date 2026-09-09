@@ -109,6 +109,11 @@ public final class TerminalView extends View {
     private int mLastCursorCol = -1;
     int[] mDefaultSelectors = new int[]{-1,-1,-1,-1};
 
+    /** B6: reusable output buffer for {@link #getColumnAndRow(MotionEvent, boolean, int[])} so the
+     * frequent touch paths (mouse-wheel tracking, text-selection start) don't allocate an int[2]
+     * on every call. Single-threaded (main/UI thread) use only. */
+    private final int[] mScratchColumnAndRow = new int[2];
+
     float mScaleFactor = 1.f;
     final GestureAndScaleRecognizer mGestureRecognizer;
 
@@ -291,6 +296,9 @@ public final class TerminalView extends View {
     private final Paint mScrollbarThumbActivePaint;
     /** Paint for the thumb outline in resting state (coloured with the active colour). */
     private final Paint mScrollbarThumbStrokePaint;
+    /** B7: reusable scrollbar-thumb rectangle — avoids allocating a new {@link RectF} every frame
+     * (drawScrollbar + isOnThumb both used to construct one per call). */
+    private final RectF mThumbRect = new RectF();
     /**
      * Pre-computed scrollbar thumb colours, applied once when the alpha preference changes
      * (or the colour scheme changes) rather than recomputed on every frame. Initialized with
@@ -343,6 +351,10 @@ public final class TerminalView extends View {
     private String[] mAutoFillHints = new String[0];
 
     private final boolean mAccessibilityEnabled;
+
+    /** Throttle {@link #setContentDescription(CharSequence)} to once per this interval. */
+    private static final long A11Y_DESCRIPTION_INTERVAL_MS = 1000L;
+    private long mLastA11yDescriptionMs = -1;
 
     /** The {@link KeyEvent} is generated from a virtual keyboard, like manually with the {@link KeyEvent#KeyEvent(int, int)} constructor. */
     public final static int KEY_EVENT_SOURCE_VIRTUAL_KEYBOARD = KeyCharacterMap.VIRTUAL_KEYBOARD; // -1
@@ -790,9 +802,20 @@ public final class TerminalView extends View {
         mEmulator.clearScrollCounter();
 
         repaintAfterUpdate(oldTopRow);
-        if (mAccessibilityEnabled) setContentDescription(getText());
+        // setContentDescription() materializes the whole visible screen as a String on every frame,
+        // which is >1 MB/s of garbage during streaming output. Throttle it: TalkBack reading 4 times
+        // a second is more than enough.
+        if (mAccessibilityEnabled) updateContentDescriptionIfNeeded();
 
         if (mOnScreenUpdateListener != null) mOnScreenUpdateListener.onScreenUpdated();
+    }
+
+    /** Build and set the accessibility content description at most once per {@link #A11Y_DESCRIPTION_INTERVAL_MS}. */
+    private void updateContentDescriptionIfNeeded() {
+        long now = SystemClock.uptimeMillis();
+        if (now - mLastA11yDescriptionMs < A11Y_DESCRIPTION_INTERVAL_MS) return;
+        mLastA11yDescriptionMs = now;
+        setContentDescription(getText());
     }
 
     /**
@@ -896,7 +919,10 @@ public final class TerminalView extends View {
     /** Invalidate only the cell(s) holding the cursor (used by the cursor blinker). */
     private void invalidateCursorCell() {
         if (mEmulator == null || mRenderer == null) { invalidate(); return; }
-        if (isSelectingText() || mScrollbarDragging) { invalidate(); return; }
+        // A selection drag or scrollbar drag already repaints the whole affected region, so
+        // forcing a full invalidate() here would thrash the dirty-rect optimization on every
+        // blink tick. The blinker cannot reliably stop during those gestures anyway, so skip it.
+        if (isSelectingText() || mScrollbarDragging) { return; }
         int col = mEmulator.getCursorCol();
         int extRow = mEmulator.getCursorRow();
         int left = (int) Math.floor(col * mRenderer.mFontWidth + mGridOffsetX);
@@ -958,19 +984,28 @@ public final class TerminalView extends View {
      * @return Array with the column and row.
      */
     public int[] getColumnAndRow(MotionEvent event, boolean relativeToScroll) {
-        int column = (int) ((event.getX() - mGridOffsetX) / mRenderer.mFontWidth);
-        int row = (int) ((event.getY() - mGridOffsetY - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
+        final int[] out = new int[2];
+        getColumnAndRow(event, relativeToScroll, out);
+        return out;
+    }
+
+    /** B6: allocation-free variant of {@link #getColumnAndRow(MotionEvent, boolean)} — writes the
+     * result into {@code out} (length >= 2) instead of allocating a new array. Preferred on hot
+     * touch paths (mouse-wheel tracking, text-selection start) via the reusable {@link #mScratchColumnAndRow}. */
+    public void getColumnAndRow(MotionEvent event, boolean relativeToScroll, int[] out) {
+        out[0] = (int) ((event.getX() - mGridOffsetX) / mRenderer.mFontWidth);
+        out[1] = (int) ((event.getY() - mGridOffsetY - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
         if (relativeToScroll) {
-            row += mTopRow;
+            out[1] += mTopRow;
         }
-        return new int[] { column, row };
     }
 
     /** Send a single mouse event code to the terminal. */
     void sendMouseEventCode(MotionEvent e, int button, boolean pressed) {
-        int[] columnAndRow = getColumnAndRow(e, false);
-        int x = columnAndRow[0] + 1;
-        int y = columnAndRow[1] + 1;
+        // B6: reuse the scratch buffer instead of allocating an int[2] on every mouse event.
+        getColumnAndRow(e, false, mScratchColumnAndRow);
+        int x = mScratchColumnAndRow[0] + 1;
+        int y = mScratchColumnAndRow[1] + 1;
         if (pressed && (button == TerminalEmulator.MOUSE_WHEELDOWN_BUTTON || button == TerminalEmulator.MOUSE_WHEELUP_BUTTON)) {
             if (mMouseStartDownTime == e.getDownTime()) {
                 x = mMouseScrollStartX;
@@ -1302,6 +1337,7 @@ public final class TerminalView extends View {
     void doScroll(MotionEvent event, int rowsDown) {
         boolean up = rowsDown < 0;
         int amount = Math.abs(rowsDown);
+        boolean scrolled = false;
         for (int i = 0; i < amount; i++) {
             if (mEmulator.isMouseTrackingActive()) {
                 sendMouseEventCode(event, up ? TerminalEmulator.MOUSE_WHEELUP_BUTTON : TerminalEmulator.MOUSE_WHEELDOWN_BUTTON, true);
@@ -1316,8 +1352,14 @@ public final class TerminalView extends View {
                 // shifted out of the transcript when it grows past the limit.
                 // Re-enable auto-scrolling once the user reaches the bottom.
                 mEmulator.setAutoScrollDisabled(mTopRow != 0);
-                if (!awakenScrollBars()) invalidate();
+                scrolled = true;
             }
+        }
+        // B6: a single invalidate (and a single awakenScrollBars) for the whole batch — previously
+        // each of the ~mRows iterations (PageUp/PageDown, wheel macro) called invalidate() separately.
+        if (scrolled) {
+            awakenScrollBars();
+            invalidate();
         }
     }
 
@@ -1386,7 +1428,10 @@ public final class TerminalView extends View {
      */
     private RectF computeThumbRect() {
         int range = getScrollbarRange();
-        if (range <= 0) return new RectF(); // no history → zero-size thumb
+        if (range <= 0) {
+            mThumbRect.setEmpty(); // no history → zero-size thumb
+            return mThumbRect;
+        }
 
         float viewW = getWidth();
         float viewH = getHeight();
@@ -1404,7 +1449,8 @@ public final class TerminalView extends View {
         float maxOffset = viewH - thumbH;
         float thumbTop = scrollFraction * maxOffset;
 
-        return new RectF(trackLeft + 2, thumbTop, trackLeft + 2 + thumbW, thumbTop + thumbH);
+        mThumbRect.set(trackLeft + 2, thumbTop, trackLeft + 2 + thumbW, thumbTop + thumbH);
+        return mThumbRect;
     }
 
     /**
@@ -2087,7 +2133,7 @@ public final class TerminalView extends View {
     }
 
     public int getCursorY(float y) {
-        return (int) (((y - mGridOffsetY - 40) / mRenderer.mFontLineSpacing) + mTopRow);
+        return (int) (((y - mGridOffsetY) / mRenderer.mFontLineSpacing) + mTopRow);
     }
 
     public int getPointX(int cx) {
@@ -2461,8 +2507,12 @@ public final class TerminalView extends View {
                     invalidateCursorCell();
                 }
             } finally {
-                // Recall the Runnable after mBlinkRate milliseconds to toggle the blink state
-                mTerminalCursorBlinkerHandler.postDelayed(this, mBlinkRate);
+                // Reschedule only while blinking is still meant to be active. Previously this
+                // re-posted unconditionally, so stopTerminalCursorBlinker() (which only removes
+                // pending callbacks) could not stop an already-running iteration — the runnable
+                // would re-arm itself forever, even after onDetachedFromWindow().
+                if (mEmulator != null && mEmulator.isCursorBlinkingEnabled())
+                    mTerminalCursorBlinkerHandler.postDelayed(this, mBlinkRate);
             }
         }
     }
@@ -2587,6 +2637,10 @@ public final class TerminalView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+
+        // Stop the cursor blinker so it does not keep rescheduling itself via its runnable's
+        // finally block after the view has been torn down.
+        stopTerminalCursorBlinker();
 
         removeCallbacks(mWheelImpulseRunnable);
         mWheelImpulse.clear();

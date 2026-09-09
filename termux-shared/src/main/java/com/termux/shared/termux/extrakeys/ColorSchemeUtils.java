@@ -14,8 +14,8 @@ import com.termux.shared.logger.Logger;
 import androidx.annotation.NonNull;
 
 import com.termux.shared.termux.TermuxConstants;
-import com.termux.shared.termux.materialyou.MaterialYouSchemeStore;
-import com.termux.shared.termux.materialyou.SchemeVariant;
+import com.termux.shared.termux.monet.MonetSchemeStore;
+import com.termux.shared.termux.monet.SchemeVariant;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 
 import java.io.File;
@@ -199,12 +199,12 @@ public final class ColorSchemeUtils {
      * <p>
      * If a per-theme color file exists ({@code colors.light.properties} /
      * {@code colors.dark.properties}), it is loaded first. Otherwise, when the selected scheme is
-     * {@link #SCHEME_MATERIAL_YOU}, the wallpaper-derived scheme is generated and applied.
+     * {@link #SCHEME_MONET}, the wallpaper-derived scheme is generated and applied.
      * Otherwise the built-in default scheme is applied: the default dark scheme (black background)
      * for night mode, or the provided {@code lightScheme} for light mode.
      *
      * @param context  A context used to read the system palette; may be {@code null}, in which case
-     *                 the Material You path is skipped (it needs a Context).
+     *                 the Monet path is skipped (it needs a Context).
      * @param isNight  {@code true} for night (dark) mode.
      * @param lightScheme A {@link Properties} with light color scheme values (background=white,
      *                    foreground=black, etc.) to use in light mode when no custom file exists.
@@ -220,20 +220,20 @@ public final class ColorSchemeUtils {
     /**
      * The one and only resolution chain for a theme's terminal colors. Every caller (the activity,
      * the session client, the extra-keys editor) must funnel through here so that "Default" and
-     * "Material You" cannot disagree between surfaces.
+     * "Monet" cannot disagree between surfaces.
      *
      * <p>Priority:
      * <ol>
      *   <li>the per-theme Termux:Style file ({@code colors.light/dark.properties}), if present;</li>
-     *   <li>the generated Material You scheme — <b>only</b> when the theme actually selected one
-     *       ({@code MaterialYou} / {@code MaterialYou-&lt;variant&gt;});</li>
+     *   <li>the generated Monet scheme — <b>only</b> when the theme actually selected one
+     *       ({@code Monet} / {@code Monet-&lt;variant&gt;});</li>
      *   <li>the built-in scheme: {@code lightScheme} in light mode, the default dark scheme
      *       (black background) otherwise. This is the "Default" behaviour and is deliberately
      *       <b>not</b> Material-derived.</li>
      * </ol>
      *
      * @param context     Used to read the system palette; may be {@code null}, in which case the
-     *                    Material You step is skipped (it needs a Context).
+     *                    Monet step is skipped (it needs a Context).
      * @param isNight     {@code true} for night (dark) mode.
      * @param lightScheme Light-mode fallback colors; may be {@code null} (dark mode).
      * @return {@code true} if a custom or generated scheme was applied,
@@ -244,8 +244,8 @@ public final class ColorSchemeUtils {
         File colorsFile = getColorSchemeFileForTheme(isNight);
         boolean customApplied = (colorsFile != null) && loadTerminalColorScheme(colorsFile);
         if (!customApplied) {
-            // Returns false unless this theme selected Material You, so "Default" stays default.
-            customApplied = applyMaterialYouScheme(context, isNight);
+            // Returns false unless this theme selected Monet, so "Default" stays default.
+            customApplied = applyMonetScheme(context, isNight);
         }
         if (!customApplied) {
             if (!isNight && lightScheme != null) {
@@ -258,64 +258,64 @@ public final class ColorSchemeUtils {
     }
 
     /** Whether the wallpaper-derived scheme is the one selected for the given theme. */
-    public static boolean isMaterialYouSelected(boolean isNight) {
-        return isMaterialYouScheme(getSelectedSchemeName(isNight));
+    public static boolean isMonetSelected(boolean isNight) {
+        return isMonetScheme(getSelectedSchemeName(isNight));
     }
 
     /**
-     * Generate and apply the Material You scheme <b>selected for the given theme</b>.
+     * Generate and apply the Monet scheme <b>selected for the given theme</b>.
      *
-     * <p>Returns {@code false} immediately when the theme did not select Material You — this is
+     * <p>Returns {@code false} immediately when the theme did not select Monet — this is
      * what keeps "Default" (and every Termux:Style scheme) on the built-in, non-Material scheme.
      *
      * @return {@code true} when the generated scheme was applied; {@code false} when the theme does
-     *         not use Material You, or when the device cannot provide a palette (API &lt; 31 or a
+     *         not use Monet, or when the device cannot provide a palette (API &lt; 31 or a
      *         firmware without dynamic color), in which case the caller falls back to the built-in
      *         scheme.
      */
-    public static boolean applyMaterialYouScheme(Context context, boolean isNight) {
-        if (!isMaterialYouSelected(isNight)) return false;
-        return applyMaterialYouScheme(context, isNight,
-                materialYouVariantOf(getSelectedSchemeName(isNight)));
+    public static boolean applyMonetScheme(Context context, boolean isNight) {
+        if (!isMonetSelected(isNight)) return false;
+        return applyMonetScheme(context, isNight,
+                monetVariantOf(getSelectedSchemeName(isNight)));
     }
 
     /**
-     * Generate and apply the Material You scheme for an explicit {@link SchemeVariant}.
+     * Generate and apply the Monet scheme for an explicit {@link SchemeVariant}.
      *
-     * <p>Each variant is a separate entry in {@link MaterialYouSchemeStore}, so picking
-     * {@code MaterialYou-content} really yields the <i>content</i> theme and
-     * {@code MaterialYou-expressive} the <i>expressive</i> one.
+     * <p>Each variant is a separate entry in {@link MonetSchemeStore}, so picking
+     * {@code Monet-content} really yields the <i>content</i> theme and
+     * {@code Monet-expressive} the <i>expressive</i> one.
      *
      * @return {@code true} when the generated scheme was applied; {@code false} when the device
      *         cannot provide a palette (API &lt; 31 or a firmware without dynamic color), in which
      *         case the caller falls back to the built-in scheme.
      */
-    public static boolean applyMaterialYouScheme(Context context, boolean isNight,
+    public static boolean applyMonetScheme(Context context, boolean isNight,
                                                  @NonNull SchemeVariant variant) {
-        if (context == null || !MaterialYouSchemeStore.isSupported()) return false;
-        Properties props = MaterialYouSchemeStore.get(context, isNight, variant);
+        if (context == null || !MonetSchemeStore.isSupported()) return false;
+        Properties props = MonetSchemeStore.get(context, isNight, variant);
         if (props == null || props.isEmpty()) return false;
         try {
             TerminalColors.COLOR_SCHEME.updateWith(props);
             return true;
         } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Failed to apply the Material You scheme: " + e.getMessage());
+            Logger.logError(LOG_TAG, "Failed to apply the Monet scheme: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Cache identity of the Material You scheme currently selected for the given theme — {@code 0}
-     * when the theme does not use Material You. Folded into {@code buildSchemeKey()}.
+     * Cache identity of the Monet scheme currently selected for the given theme — {@code 0}
+     * when the theme does not use Monet. Folded into {@code buildSchemeKey()}.
      */
-    public static long materialYouToken(boolean isNight) {
-        if (!isMaterialYouSelected(isNight)) return 0L;
-        return MaterialYouSchemeStore.token(materialYouVariantOf(getSelectedSchemeName(isNight)));
+    public static long monetToken(boolean isNight) {
+        if (!isMonetSelected(isNight)) return 0L;
+        return MonetSchemeStore.token(monetVariantOf(getSelectedSchemeName(isNight)));
     }
 
     /**
-     * Build the Material You scheme of the given theme up front, so that
-     * {@link #materialYouToken(boolean)} already reports a stable, non-zero value when
+     * Build the Monet scheme of the given theme up front, so that
+     * {@link #monetToken(boolean)} already reports a stable, non-zero value when
      * {@code buildSchemeKey()} reads it.
      *
      * <p>Why this has to happen before the key is built: the token is {@code 0} until the variant
@@ -323,12 +323,12 @@ public final class ColorSchemeUtils {
      * then sees a "changed" key and re-applies the scheme a second time for nothing. Warming is a
      * cheap map lookup once the variant exists (the wallpaper is read at most once per process).
      *
-     * <p>No-op when the theme did not select Material You or the device does not support it.
+     * <p>No-op when the theme did not select Monet or the device does not support it.
      */
-    public static void warmUpMaterialYou(Context context, boolean isNight) {
-        if (context == null || !isMaterialYouSelected(isNight)) return;
-        MaterialYouSchemeStore.warmUp(context,
-                materialYouVariantOf(getSelectedSchemeName(isNight)));
+    public static void warmUpMonet(Context context, boolean isNight) {
+        if (context == null || !isMonetSelected(isNight)) return;
+        MonetSchemeStore.warmUp(context,
+                monetVariantOf(getSelectedSchemeName(isNight)));
     }
 
     /**
@@ -355,7 +355,7 @@ public final class ColorSchemeUtils {
 
     /**
      * Sentinel value for {@code color-scheme-light} / {@code color-scheme-dark} selecting the
-     * wallpaper-derived "Material You" scheme in the <b>system</b> flavour — the palette is read
+     * wallpaper-derived "Monet" scheme in the <b>system</b> flavour — the palette is read
      * straight from {@code android.R.color.system_*}, so the terminal matches the device theme.
      *
      * <p>Unlike the Termux:Style entries this is <b>not</b> an asset file name: the scheme is
@@ -363,38 +363,38 @@ public final class ColorSchemeUtils {
      * owned by Termux:Style, and writing a generated scheme there would break the "Default"
      * semantics).
      */
-    public static final String SCHEME_MATERIAL_YOU = "MaterialYou";
+    public static final String SCHEME_MONET = "Monet";
 
     /**
-     * Prefix for the per-variant Material You entries: {@code MaterialYou-<variant>}, e.g.
-     * {@code MaterialYou-rainbow}. Each variant is a separate item in the scheme picker, so the
+     * Prefix for the per-variant Monet entries: {@code Monet-<variant>}, e.g.
+     * {@code Monet-rainbow}. Each variant is a separate item in the scheme picker, so the
      * "type of color scheme" is chosen where the scheme itself is chosen.
      */
-    public static final String MATERIAL_YOU_PREFIX = SCHEME_MATERIAL_YOU + "-";
+    public static final String MONET_PREFIX = SCHEME_MONET + "-";
 
-    /** Human-readable label shared by every Material You entry. */
-    public static final String MATERIAL_YOU_DISPLAY_NAME = "Material You";
+    /** Human-readable label shared by every Monet entry. */
+    public static final String MONET_DISPLAY_NAME = "Monet";
 
-    /** Whether {@code schemeName} is any of the Material You entries (bare or {@code -variant}). */
-    public static boolean isMaterialYouScheme(String schemeName) {
+    /** Whether {@code schemeName} is any of the Monet entries (bare or {@code -variant}). */
+    public static boolean isMonetScheme(String schemeName) {
         if (schemeName == null) return false;
-        return SCHEME_MATERIAL_YOU.equals(schemeName) || schemeName.startsWith(MATERIAL_YOU_PREFIX);
+        return SCHEME_MONET.equals(schemeName) || schemeName.startsWith(MONET_PREFIX);
     }
 
-    /** Build the {@code color-scheme-*} value for a Material You variant. */
+    /** Build the {@code color-scheme-*} value for a Monet variant. */
     @NonNull
-    public static String materialYouSchemeName(@NonNull SchemeVariant variant) {
+    public static String monetSchemeName(@NonNull SchemeVariant variant) {
         return variant == SchemeVariant.SYSTEM
-                ? SCHEME_MATERIAL_YOU
-                : MATERIAL_YOU_PREFIX + variant.key;
+                ? SCHEME_MONET
+                : MONET_PREFIX + variant.key;
     }
 
     /**
-     * The variant a Material You entry stands for.
+     * The variant a Monet entry stands for.
      *
      * <p>The mapping is <b>purely a function of the entry name</b> — never of
-     * {@code material-you-variant}. That is what keeps the picker honest: a bare {@code MaterialYou}
-     * is the <i>System</i> row and must stay System, and {@code MaterialYou-rainbow} is the
+     * {@code monet-variant}. That is what keeps the picker honest: a bare {@code Monet}
+     * is the <i>System</i> row and must stay System, and {@code Monet-rainbow} is the
      * <i>Rainbow</i> row. Resolving the bare name through the property made the first row silently
      * mutate into a copy of whatever variant was picked last (both its label and its colors).
      *
@@ -402,24 +402,24 @@ public final class ColorSchemeUtils {
      * {@link SchemeVariant#DEFAULT} rather than throwing.
      */
     @NonNull
-    public static SchemeVariant materialYouVariantOf(String schemeName) {
+    public static SchemeVariant monetVariantOf(String schemeName) {
         if (schemeName == null) return SchemeVariant.DEFAULT;
-        if (schemeName.startsWith(MATERIAL_YOU_PREFIX)) {
-            return SchemeVariant.parse(schemeName.substring(MATERIAL_YOU_PREFIX.length()));
+        if (schemeName.startsWith(MONET_PREFIX)) {
+            return SchemeVariant.parse(schemeName.substring(MONET_PREFIX.length()));
         }
-        if (SCHEME_MATERIAL_YOU.equals(schemeName)) return SchemeVariant.SYSTEM;
+        if (SCHEME_MONET.equals(schemeName)) return SchemeVariant.SYSTEM;
         return SchemeVariant.DEFAULT;
     }
 
     /**
-     * Human-readable label for a Material You entry: {@code "Material You Rainbow"}.
+     * Human-readable label for a Monet entry: {@code "Monet Rainbow"}.
      *
      * <p>The variant part reuses Termux:Style's own title-casing so all entries in the picker are
      * formatted the same way.
      */
     @NonNull
-    public static String materialYouDisplayName(@NonNull SchemeVariant variant) {
-        return MATERIAL_YOU_DISPLAY_NAME + " " + titleCaseWords(variant.key.replace('-', ' '));
+    public static String monetDisplayName(@NonNull SchemeVariant variant) {
+        return MONET_DISPLAY_NAME + " " + titleCaseWords(variant.key.replace('-', ' '));
     }
 
     /** Termux:Style stores its color schemes as {@code *.properties} files under this asset folder. */
@@ -447,19 +447,19 @@ public final class ColorSchemeUtils {
                 Logger.logError(LOG_TAG, "Failed to list Termux:Style color assets: " + e.getMessage());
             }
         }
-        // Material You does NOT depend on Termux:Style — it is generated from the system palette,
+        // Monet does NOT depend on Termux:Style — it is generated from the system palette,
         // so it is offered even when the plugin is missing (and it is the only entry then).
         // One entry per variant: choosing the variant IS choosing the scheme.
-        final boolean materialYou = MaterialYouSchemeStore.isSupported();
-        if (schemes.isEmpty() && !materialYou) return null;
+        final boolean monet = MonetSchemeStore.isSupported();
+        if (schemes.isEmpty() && !monet) return null;
         Collections.sort(schemes, String.CASE_INSENSITIVE_ORDER);
-        // Order: "Default" first, then the Material You variants (they need no plugin and are the
+        // Order: "Default" first, then the Monet variants (they need no plugin and are the
         // interesting new option), then the Termux:Style schemes.
         schemes.add(0, SCHEME_DEFAULT);
-        if (materialYou) {
+        if (monet) {
             int index = 1;
             for (SchemeVariant variant : SchemeVariant.values()) {
-                schemes.add(index++, materialYouSchemeName(variant));
+                schemes.add(index++, monetSchemeName(variant));
             }
         }
         return schemes.toArray(new String[0]);
@@ -495,7 +495,7 @@ public final class ColorSchemeUtils {
             labels[i] = schemeDisplayName(schemes[i]);
 
         // Pre-select whatever is currently stored for the theme, so the dialog opens on "Default"
-        // (or the previously chosen Material You variant) rather than an arbitrary row.
+        // (or the previously chosen Monet variant) rather than an arbitrary row.
         final String current = getSelectedSchemeName(isNight);
         int checkedItem = 0;
         for (int i = 0; i < schemes.length; i++) {
@@ -517,10 +517,10 @@ public final class ColorSchemeUtils {
     /**
      * Persist the selected scheme file name for the given theme into termux.properties.
      *
-     * <p>The scheme name alone is the source of truth: a Material You entry carries its variant
-     * in the name ({@code MaterialYou} = System, {@code MaterialYou-rainbow} = Rainbow), so
-     * {@code material-you-variant} is deliberately NOT touched here. Writing it used to make the
-     * bare {@code MaterialYou} row resolve to the last picked variant, turning "System" into a
+     * <p>The scheme name alone is the source of truth: a Monet entry carries its variant
+     * in the name ({@code Monet} = System, {@code Monet-rainbow} = Rainbow), so
+     * {@code monet-variant} is deliberately NOT touched here. Writing it used to make the
+     * bare {@code Monet} row resolve to the last picked variant, turning "System" into a
      * duplicate of it.
      */
     public static void persistSelection(boolean isNight, String schemeFile) {
@@ -547,7 +547,7 @@ public final class ColorSchemeUtils {
      */
     public static String schemeDisplayName(String fileName) {
         if (SCHEME_DEFAULT.equals(fileName)) return SCHEME_DEFAULT;
-        if (isMaterialYouScheme(fileName)) return materialYouDisplayName(materialYouVariantOf(fileName));
+        if (isMonetScheme(fileName)) return monetDisplayName(monetVariantOf(fileName));
         String name = fileName.replace('-', ' ');
         int dot = name.lastIndexOf('.');
         if (dot != -1) name = name.substring(0, dot);
@@ -592,11 +592,11 @@ public final class ColorSchemeUtils {
             return true;
         }
 
-        if (isMaterialYouScheme(fileName)) {
+        if (isMonetScheme(fileName)) {
             // Generated at runtime from the system palette — nothing to copy. We only drop a stale
             // per-theme file so the generator, not a leftover Termux:Style scheme, owns the theme.
             if (perThemeFile.isFile()) perThemeFile.delete();
-            MaterialYouSchemeStore.invalidate();
+            MonetSchemeStore.invalidate();
             return true;
         }
 

@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import android.app.WallpaperColors;
 import android.app.WallpaperManager;
@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reads the Material You palettes out of the system - no wallpaper file access, no Python, no
+ * Reads the Monet palettes out of the system - no wallpaper file access, no Python, no
  * private API, no Termux:Style.
  *
  * <p>Android 12 already runs the whole Monet pipeline for us and publishes the result as the public
@@ -57,7 +57,7 @@ public final class SystemPaletteSource {
      * in which case we degrade to Google Blue and let the caller fall back to the default scheme.
      */
     @NonNull
-    public static MaterialYouSource read(@NonNull Context context, @NonNull MaterialYouOptions options) {
+    public static MonetSource read(@NonNull Context context, @NonNull MonetOptions options) {
         Context ctx = context.getApplicationContext();
 
         WallpaperColors wallpaperColors = null;
@@ -74,7 +74,7 @@ public final class SystemPaletteSource {
         Palettes palettes = palettes(ctx, options, seedArgb);
         int[] accents = accents(options, palettes, wallpaperColors);
 
-        return new MaterialYouSource(seedArgb, options.variant,
+        return new MonetSource(seedArgb, options.variant,
                 palettes.primary, palettes.secondary, palettes.tertiary,
                 palettes.neutral, palettes.neutralVariant, accents, wallpaperId);
     }
@@ -101,7 +101,7 @@ public final class SystemPaletteSource {
     }
 
     @NonNull
-    static Palettes palettes(@NonNull Context ctx, @NonNull MaterialYouOptions options, int seedArgb) {
+    static Palettes palettes(@NonNull Context ctx, @NonNull MonetOptions options, int seedArgb) {
         if (!options.variant.isDerived()) {
             try {
                 return new Palettes(
@@ -138,7 +138,7 @@ public final class SystemPaletteSource {
     // ----------------------------------------------------------------- Seed ---
 
     static int seedFrom(@Nullable WallpaperColors colors, @NonNull Context ctx,
-                        @NonNull MaterialYouOptions options) {
+                        @NonNull MonetOptions options) {
         if (colors != null) {
             android.graphics.Color primary = colors.getPrimaryColor();
             if (primary != null) return primary.toArgb();
@@ -161,7 +161,7 @@ public final class SystemPaletteSource {
      * use the real wallpaper colors when they exist, then fill up from the tonal palettes.
      */
     @NonNull
-    static int[] accents(@NonNull MaterialYouOptions options, @NonNull Palettes p,
+    static int[] accents(@NonNull MonetOptions options, @NonNull Palettes p,
                          @Nullable WallpaperColors colors) {
         switch (options.accentSource) {
             case ROTATIONAL:

@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import android.content.Context;
 import android.os.Build;
@@ -22,7 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Process-wide cache of the generated Material You terminal schemes.
+ * Process-wide cache of the generated Monet terminal schemes.
  *
  * <p>There is one entry per {@link SchemeVariant}: the light and the dark scheme of a variant are
  * built together from a single palette snapshot, so flipping night mode is free, and switching
@@ -34,21 +34,21 @@ import java.util.concurrent.Executors;
  *       every tab switch and must not do IPC;</li>
  *   <li>re-read the system palette when the wallpaper changes
  *       ({@code WallpaperManager.OnColorsChangedListener}), on resume, or when the
- *       {@code material-you-*} options change.</li>
+ *       {@code monet-*} options change.</li>
  * </ul>
  *
  * <p>Everything expensive is done here and only here; callers just ask for
  * {@link #get(Context, boolean, SchemeVariant)} or {@link #token(SchemeVariant)}.
  */
-public final class MaterialYouSchemeStore {
+public final class MonetSchemeStore {
 
-    private static final String LOG_TAG = "MaterialYouSchemeStore";
+    private static final String LOG_TAG = "MonetSchemeStore";
 
     private static final Object LOCK = new Object();
 
     /** One generated variant: the snapshot it came from plus both night modes. */
     private static final class Entry {
-        MaterialYouSource source;
+        MonetSource source;
         int optionsRevision;
         Properties light;
         Properties dark;
@@ -69,7 +69,7 @@ public final class MaterialYouSchemeStore {
     /** Listeners notified (on the main thread) whenever a generated scheme changes. */
     private static final CopyOnWriteArrayList<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
 
-    private MaterialYouSchemeStore() {}
+    private MonetSchemeStore() {}
 
     /** Dynamic color is an Android 12 (API 31) feature; below that the scheme is not offered. */
     public static boolean isSupported() {
@@ -100,7 +100,7 @@ public final class MaterialYouSchemeStore {
     /**
      * The generated scheme for the given night mode and variant, building it on demand.
      *
-     * @return the scheme, or {@code null} when Material You is unsupported or the system refused to
+     * @return the scheme, or {@code null} when Monet is unsupported or the system refused to
      *         give us a palette - the caller must then fall back to the default scheme.
      */
     @Nullable
@@ -148,7 +148,7 @@ public final class MaterialYouSchemeStore {
             final List<SchemeVariant> built = new ArrayList<>(ENTRIES.keySet());
 
             sWallpaperRead = false;
-            MaterialYouOptions.invalidate();
+            MonetOptions.invalidate();
             readWallpaperLocked(appContext);
 
             final boolean wallpaperChanged = sWallpaperId != oldWallpaperId
@@ -181,7 +181,7 @@ public final class MaterialYouSchemeStore {
             try {
                 changed = refresh(context.getApplicationContext());
             } catch (Exception e) {
-                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to refresh Material You scheme", e);
+                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to refresh Monet scheme", e);
                 return;
             }
             if (changed) notifyListeners();
@@ -204,7 +204,7 @@ public final class MaterialYouSchemeStore {
                 try {
                     listener.run();
                 } catch (Exception e) {
-                    Logger.logStackTraceWithMessage(LOG_TAG, "Material You listener failed", e);
+                    Logger.logStackTraceWithMessage(LOG_TAG, "Monet listener failed", e);
                 }
             }
         });
@@ -219,16 +219,16 @@ public final class MaterialYouSchemeStore {
         synchronized (LOCK) {
             if (!sWallpaperRead) readWallpaperLocked(appContext);
 
-            MaterialYouOptions options = MaterialYouOptions.load().withVariant(variant);
+            MonetOptions options = MonetOptions.load().withVariant(variant);
             Entry entry = ENTRIES.get(variant);
             if (entry != null && entry.optionsRevision == options.revision()) return entry;
 
-            MaterialYouSource source;
+            MonetSource source;
             try {
                 source = SystemPaletteSource.read(appContext, options);
             } catch (Throwable t) {
                 // OEM firmware may not implement dynamic color at all - degrade, never crash.
-                Logger.logError(LOG_TAG, "Failed to read the Material You palette: " + t.getMessage());
+                Logger.logError(LOG_TAG, "Failed to read the Monet palette: " + t.getMessage());
                 return null;
             }
 
@@ -238,7 +238,7 @@ public final class MaterialYouSchemeStore {
                 light = TerminalPaletteBuilder.build(source, false, options);
                 dark = TerminalPaletteBuilder.build(source, true, options);
             } catch (Throwable t) {
-                Logger.logError(LOG_TAG, "Failed to build the Material You palette: " + t.getMessage());
+                Logger.logError(LOG_TAG, "Failed to build the Monet palette: " + t.getMessage());
                 return null;
             }
 
@@ -277,7 +277,7 @@ public final class MaterialYouSchemeStore {
     private static synchronized ExecutorService executor() {
         if (sExecutor == null || sExecutor.isShutdown()) {
             sExecutor = Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "material-you");
+                Thread t = new Thread(r, "monet");
                 t.setDaemon(true);
                 return t;
             });
@@ -293,12 +293,12 @@ public final class MaterialYouSchemeStore {
             sWallpaperId = -1;
             sWallpaperRead = false;
         }
-        MaterialYouOptions.invalidate();
+        MonetOptions.invalidate();
     }
 
     /** The last snapshot for a variant, for diagnostics. */
     @Nullable
-    public static MaterialYouSource peekSource(@NonNull SchemeVariant variant) {
+    public static MonetSource peekSource(@NonNull SchemeVariant variant) {
         synchronized (LOCK) {
             Entry e = ENTRIES.get(variant);
             return e == null ? null : e.source;

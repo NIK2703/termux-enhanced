@@ -70,10 +70,26 @@ public enum TermuxBootstrapType {
     /**
      * Read the installed bootstrap type from a files directory.
      * Falls back to TERMUX if the marker is absent or unreadable.
+     *
+     * Cached by the marker's lastModified: this is read several times per session start
+     * (env build, bootstrap check, DocumentsProvider) and on every UI path that depends on it.
      */
+    private static volatile long sTypeMarkerMtime = Long.MIN_VALUE;
+    private static volatile TermuxBootstrapType sCachedType;
+
     @NonNull
     public static TermuxBootstrapType getInstalledType(@NonNull java.io.File filesDir) {
         java.io.File marker = new java.io.File(filesDir, ".termux-bootstrap-type");
+        long mtime = marker.exists() ? marker.lastModified() : Long.MIN_VALUE + 1;
+        if (mtime == sTypeMarkerMtime && sCachedType != null) return sCachedType;
+        TermuxBootstrapType type = readInstalledType(filesDir, marker);
+        sTypeMarkerMtime = mtime;
+        sCachedType = type;
+        return type;
+    }
+
+    @NonNull
+    private static TermuxBootstrapType readInstalledType(@NonNull java.io.File filesDir, @NonNull java.io.File marker) {
         if (!marker.exists()) return TERMUX;
         try {
             byte[] buf = new byte[64];

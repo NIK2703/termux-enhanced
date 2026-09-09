@@ -31,6 +31,19 @@ public final class TerminalBuffer {
     /** Shared read-only blank row returned by {@link #getLineOrBlank(int)} for never-written lines. */
     private TerminalRow mBlankRow;
     private int mBlankRowColumns = -1;
+    private long mBlankRowStyle = -1;
+
+    /**
+     * Style used to fill rows that are materialized lazily (see
+     * {@link #allocateFullLineIfNecessary(int)}) and the shared blank row. It follows the
+     * emulator's current style as of the last {@link #resize(int, int, int, int[], long, boolean)} —
+     * the same style that the pre-lazy-allocation code gave to every row it allocated eagerly.
+     * <p>
+     * It must never be left at 0: style 0 decodes to palette index 0 for <em>both</em> the
+     * foreground and the background, so freshly allocated rows would render as black glyphs on black
+     * background rectangles instead of the scheme's default colors.
+     */
+    private long mDefaultStyle = TextStyle.NORMAL;
 
     /** Mark a single external row as needing a repaint. */
     public void markRowDirty(int externalRow) {
@@ -122,7 +135,7 @@ public final class TerminalBuffer {
             } else {
                 x2 = columns;
             }
-            TerminalRow lineObject = mLines[externalToInternalRow(row)];
+            TerminalRow lineObject = getLineOrBlank(row);
             int x1Index = lineObject.findStartOfColumn(x1);
             int x2Index = (x2 < mColumns) ? lineObject.findStartOfColumn(x2) : lineObject.getSpaceUsed();
             if (x2Index == x1Index) {
@@ -237,15 +250,20 @@ public final class TerminalBuffer {
      * these methods must start calling {@link #markRowDirty(int)}.
      */
     public void setLineWrap(int row) {
-        mLines[externalToInternalRow(row)].mLineWrap = true;
+        // A3: allocate-if-necessary so lazy (null) transcript rows never NPE.
+        allocateFullLineIfNecessary(externalToInternalRow(row)).mLineWrap = true;
     }
 
     public boolean getLineWrap(int row) {
-        return mLines[externalToInternalRow(row)].mLineWrap;
+        // A3: a never-written (null) row has no wrap.
+        final TerminalRow line = mLines[externalToInternalRow(row)];
+        return line != null && line.mLineWrap;
     }
 
     public void clearLineWrap(int row) {
-        mLines[externalToInternalRow(row)].mLineWrap = false;
+        // A3: a never-written (null) row has no wrap to clear.
+        final TerminalRow line = mLines[externalToInternalRow(row)];
+        if (line != null) line.mLineWrap = false;
     }
 
     /**
@@ -257,6 +275,10 @@ public final class TerminalBuffer {
      * @param cursor     An int[2] containing the (column, row) cursor location.
      */
     public void resize(int newColumns, int newRows, int newTotalRows, int[] cursor, long currentStyle, boolean altScreen) {
+        // Rows created after this point (lazily) must be filled with the same style that the
+        // eager allocation used to give them, not with 0 (see {@link #mDefaultStyle}).
+        mDefaultStyle = currentStyle;
+
         // newRows > mTotalRows should not normally happen since mTotalRows is TRANSCRIPT_ROWS (10000):
         if (newColumns == mColumns && newRows <= mTotalRows) {
             // Fast resize where just the rows changed.
@@ -289,9 +311,12 @@ public final class TerminalBuffer {
         } else {
             // Copy away old state and update new:
             TerminalRow[] oldLines = mLines;
+            // A3: do NOT eagerly allocate every transcript row (up to 50000). Leave the array slots
+            // null and let setChar/allocateFullLineIfNecessary/getLineOrBlank materialize only the
+            // rows that are actually written — the same lazy pattern the constructor already uses via
+            // blockSet→setChar. This avoids ~1.8–45 MB of garbage (and a GC pause) on every
+            // orientation change / font switch, while all direct mLines readers above are null-safe.
             mLines = new TerminalRow[newTotalRows];
-            for (int i = 0; i < newTotalRows; i++)
-                mLines[i] = new TerminalRow(newColumns, currentStyle);
 
             final int oldActiveTranscriptRows = mActiveTranscriptRows;
             final int oldScreenFirstRow = mScreenFirstRow;
@@ -507,7 +532,9 @@ public final class TerminalBuffer {
     }
 
     public TerminalRow allocateFullLineIfNecessary(int row) {
-        return (mLines[row] == null) ? (mLines[row] = new TerminalRow(mColumns, 0)) : mLines[row];
+        TerminalRow line = mLines[row];
+        if (line == null) line = mLines[row] = new TerminalRow(mColumns, mDefaultStyle);
+        return line;
     }
 
     /**
@@ -518,9 +545,10 @@ public final class TerminalBuffer {
      * read, never modified.
      */
     public TerminalRow getLineOrBlank(int externalRow) {
-        if (mBlankRow == null || mBlankRowColumns != mColumns) {
-            mBlankRow = new TerminalRow(mColumns, 0);
+        if (mBlankRow == null || mBlankRowColumns != mColumns || mBlankRowStyle != mDefaultStyle) {
+            mBlankRow = new TerminalRow(mColumns, mDefaultStyle);
             mBlankRowColumns = mColumns;
+            mBlankRowStyle = mDefaultStyle;
         }
         TerminalRow line = mLines[externalToInternalRow(externalRow)];
         return line != null ? line : mBlankRow;
@@ -543,7 +571,8 @@ public final class TerminalBuffer {
                                  int bottom, int right) {
         for (int y = top; y < bottom; y++) {
             markRowDirty(y);
-            TerminalRow line = mLines[externalToInternalRow(y)];
+            // A3: allocate-if-necessary so lazy (null) transcript rows never NPE.
+            TerminalRow line = allocateFullLineIfNecessary(externalToInternalRow(y));
             int startOfLine = (rectangular || y == top) ? left : leftMargin;
             int endOfLine = (rectangular || y + 1 == bottom) ? right : rightMargin;
             for (int x = startOfLine; x < endOfLine; x++) {

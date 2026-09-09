@@ -98,15 +98,21 @@ public class FileUtils {
      * @param path The {@code path} to convert.
      * @return Returns the {@code normalized path}.
      */
+    /** Precompiled — {@code String.replaceAll} compiles the pattern on every call, and this
+     * method runs once per candidate path inside {@code isPathInDirPaths}. */
+    private static final Pattern PATTERN_MULTIPLE_SLASHES = Pattern.compile("/+");
+    private static final Pattern PATTERN_DOT_SLASH = Pattern.compile("\\./");
+    private static final Pattern PATTERN_TRAILING_SLASHES = Pattern.compile("/+$");
+
     @Nullable
     public static String normalizePath(String path) {
         if (path == null) return null;
 
-        path = path.replaceAll("/+", "/");
-        path = path.replaceAll("\\./", "");
+        path = PATTERN_MULTIPLE_SLASHES.matcher(path).replaceAll("/");
+        path = PATTERN_DOT_SLASH.matcher(path).replaceAll("");
 
         if (path.endsWith("/")) {
-            path = path.replaceAll("/+$", "");
+            path = PATTERN_TRAILING_SLASHES.matcher(path).replaceAll("");
         }
 
         return path;
@@ -267,11 +273,15 @@ public class FileUtils {
     public static boolean nonIgnoredSubFileExists(File[] subFiles, @NonNull List<String> ignoredSubFilePaths) {
         if (subFiles == null || subFiles.length == 0) return false;
 
+        // HashSet instead of List.contains(): the old lookup was O(m) per file, making the whole
+        // walk O(n*m) over a directory tree.
+        final java.util.Set<String> ignoredSet = new java.util.HashSet<>(ignoredSubFilePaths);
+
         String subFilePath;
         for (File subFile : subFiles) {
             subFilePath = subFile.getAbsolutePath();
             // If sub file does not exist in ignored sub file paths
-            if (!ignoredSubFilePaths.contains(subFilePath)) {
+            if (!ignoredSet.contains(subFilePath)) {
                 boolean isParentPath = false;
                 for (String ignoredSubFilePath : ignoredSubFilePaths) {
                     if (ignoredSubFilePath.startsWith(subFilePath + "/") && fileExists(ignoredSubFilePath, false)) {
@@ -1977,7 +1987,11 @@ public class FileUtils {
      */
     public static boolean isValidPermissionString(final String string) {
         if (string == null || string.isEmpty()) return false;
-        return Pattern.compile("^([r-])[w-][x-]$", 0).matcher(string).matches();
+        // Hand-rolled instead of Pattern.compile: this is called from every
+        // validate*ExistenceAndPermissions path, and the regex was recompiled per call.
+        if (string.length() != 3) return false;
+        char c0 = string.charAt(0), c1 = string.charAt(1), c2 = string.charAt(2);
+        return (c0 == 'r' || c0 == '-') && (c1 == 'w' || c1 == '-') && (c2 == 'x' || c2 == '-');
     }
 
 

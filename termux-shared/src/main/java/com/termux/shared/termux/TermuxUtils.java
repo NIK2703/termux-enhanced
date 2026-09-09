@@ -58,8 +58,16 @@ public class TermuxUtils {
      * @param context The {@link Context} to use to get the {@link Context} of the package.
      * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
      */
+    /** Cache for {@link #getTermuxPackageContext}: createPackageContext is a Binder call that builds
+     * a LoadedApk, and it was being hit on every onResume (via crash-report check) plus per command. */
+    private static volatile Context sTermuxPackageContext;
+
     public static Context getTermuxPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_PACKAGE_NAME);
+        Context cached = sTermuxPackageContext;
+        if (cached != null) return cached;
+        Context ctx = PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_PACKAGE_NAME);
+        if (ctx != null) sTermuxPackageContext = ctx; // never cache a failure
+        return ctx;
     }
 
     /**
@@ -69,8 +77,14 @@ public class TermuxUtils {
      * @param context The {@link Context} to use to get the {@link Context} of the package.
      * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
      */
+    private static volatile Context sTermuxPackageContextWithCode;
+
     public static Context getTermuxPackageContextWithCode(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_PACKAGE_NAME, Context.CONTEXT_INCLUDE_CODE);
+        Context cached = sTermuxPackageContextWithCode;
+        if (cached != null) return cached;
+        Context ctx = PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_PACKAGE_NAME, Context.CONTEXT_INCLUDE_CODE);
+        if (ctx != null) sTermuxPackageContextWithCode = ctx;
+        return ctx;
     }
 
     /**

@@ -11,6 +11,8 @@ import java.security.NoSuchAlgorithmException;
 
 public final class Sha256 {
 
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
+
     private Sha256() {}
 
     public static String hexOfFile(Context context, File file) throws IOException {
@@ -32,7 +34,8 @@ public final class Sha256 {
     public static String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) {
-            sb.append(String.format("%02x", b & 0xff));
+            int v = b & 0xff;
+            sb.append(HEX_CHARS[v >>> 4]).append(HEX_CHARS[v & 0xf]);
         }
         return sb.toString();
     }

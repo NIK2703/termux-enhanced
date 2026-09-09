@@ -16,6 +16,25 @@ public class ScreenBufferTest extends TerminalTestCase {
 		screen.blockSet(0, 0, 2, 2, 'X', 0);
 	}
 
+	/**
+	 * Rows that are materialized lazily — and the shared blank row handed out for rows that were
+	 * never written — must be filled with the buffer's default style, never with 0. Style 0 decodes
+	 * to palette index 0 for both the foreground and the background, which renders as black glyphs
+	 * on black background rectangles instead of the color scheme's default colors.
+	 */
+	public void testLazilyAllocatedRowsUseDefaultStyle() {
+		TerminalBuffer screen = new TerminalBuffer(5, 3, 3);
+		screen.setChar(0, 0, 'a', TextStyle.NORMAL);
+		// Changing the column count takes the copy path of resize(), which leaves every row unallocated.
+		screen.resize(8, 3, 6, new int[]{1, 0}, TextStyle.NORMAL, false);
+
+		for (int row = 0; row < 3; row++) {
+			long style = screen.getLineOrBlank(row).getStyle(7); // never written on this row
+			assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, TextStyle.decodeForeColor(style));
+			assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, TextStyle.decodeBackColor(style));
+		}
+	}
+
 	public void testBlockSet() {
 		TerminalBuffer screen = new TerminalBuffer(5, 3, 3);
 		screen.blockSet(0, 0, 2, 2, 'X', 0);

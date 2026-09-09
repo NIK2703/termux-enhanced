@@ -6,6 +6,9 @@ import android.database.MatrixCursor;
 import android.graphics.Point;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
+import android.system.Os;
+import android.system.OsConstants;
+import android.system.StructStat;
 import android.provider.DocumentsContract.Document;
 import android.provider.DocumentsContract.Root;
 import android.provider.DocumentsProvider;
@@ -90,8 +93,13 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
     public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) throws FileNotFoundException {
         final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
         final File parent = getFileForDocId(parentDocumentId);
-        for (File file : parent.listFiles()) {
-            includeFile(result, null, file);
+        final File[] children = parent.listFiles();
+        if (children != null) {
+            // Hoisted out of the loop: it is the same directory for every row.
+            final Boolean parentWritable = parent.canWrite();
+            for (File file : children) {
+                includeFile(result, null, file, parentWritable);
+            }
         }
         return result;
     }
@@ -177,7 +185,8 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
             }
             if (isInsideHome) {
                 if (file.isDirectory()) {
-                    Collections.addAll(pending, file.listFiles());
+                    final File[] children = file.listFiles();
+                    if (children != null) Collections.addAll(pending, children);
                 } else {
                     if (file.getName().toLowerCase().contains(query)) {
                         includeFile(result, null, file);
@@ -237,30 +246,63 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
      */
     private void includeFile(MatrixCursor result, String docId, File file)
         throws FileNotFoundException {
+        includeFile(result, docId, file, null);
+    }
+
+    private void includeFile(MatrixCursor result, String docId, File file, Boolean parentWritable)
+        throws FileNotFoundException {
         if (docId == null) {
             docId = getDocIdForFile(file);
         } else {
             file = getFileForDocId(docId);
         }
 
+        // One stat() supplies type, size and mtime. The old version issued ~6 syscalls per row
+        // (isDirectory, canWrite x2, isDirectory again inside getMimeType, length, lastModified),
+        // which is what made browsing $HOME in a file manager slow.
+        // stat() (not lstat()) is required: File.isDirectory()/length()/lastModified() all follow
+        // symlinks, and $HOME is full of them (~/storage/shared, ~/storage/downloads, ...). With
+        // lstat() a symlink to a directory would be reported as a plain file with the length of its
+        // target path, so a file manager could no longer open or write into it.
+        boolean isDir;
+        long size;
+        long lastModified;
+        StructStat st = null;
+        try {
+            st = Os.stat(file.getAbsolutePath());
+        } catch (Exception ignored) { }
+        if (st != null) {
+            isDir = OsConstants.S_ISDIR(st.st_mode);
+            size = st.st_size;
+            lastModified = st.st_mtime * 1000L;
+        } else {
+            isDir = file.isDirectory();
+            size = file.length();
+            lastModified = file.lastModified();
+        }
+
         int flags = 0;
-        if (file.isDirectory()) {
+        if (isDir) {
             if (file.canWrite()) flags |= Document.FLAG_DIR_SUPPORTS_CREATE;
         } else if (file.canWrite()) {
             flags |= Document.FLAG_SUPPORTS_WRITE;
         }
-        if (file.getParentFile().canWrite()) flags |= Document.FLAG_SUPPORTS_DELETE;
+        if (parentWritable == null) {
+            File parent = file.getParentFile();
+            parentWritable = parent != null && parent.canWrite();
+        }
+        if (parentWritable) flags |= Document.FLAG_SUPPORTS_DELETE;
 
         final String displayName = file.getName();
-        final String mimeType = getMimeType(file);
+        final String mimeType = isDir ? Document.MIME_TYPE_DIR : getMimeType(file);
         if (mimeType.startsWith("image/")) flags |= Document.FLAG_SUPPORTS_THUMBNAIL;
 
         final MatrixCursor.RowBuilder row = result.newRow();
         row.add(Document.COLUMN_DOCUMENT_ID, docId);
         row.add(Document.COLUMN_DISPLAY_NAME, displayName);
-        row.add(Document.COLUMN_SIZE, file.length());
+        row.add(Document.COLUMN_SIZE, size);
         row.add(Document.COLUMN_MIME_TYPE, mimeType);
-        row.add(Document.COLUMN_LAST_MODIFIED, file.lastModified());
+        row.add(Document.COLUMN_LAST_MODIFIED, lastModified);
         row.add(Document.COLUMN_FLAGS, flags);
         row.add(Document.COLUMN_ICON, R.mipmap.ic_launcher);
     }

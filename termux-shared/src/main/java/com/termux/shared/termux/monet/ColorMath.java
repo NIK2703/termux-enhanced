@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import android.graphics.Color;
 

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -32,7 +33,10 @@ public class SystemEventReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(@NonNull Context context, @Nullable Intent intent) {
         if (intent == null) return;
-        Logger.logDebug(LOG_TAG, "Intent Received:\n" + IntentUtils.getIntentString(intent));
+        // Building the full intent string is only worth it when debug logging is actually on;
+        // previously it was materialized on every broadcast and then discarded at the normal level.
+        if (Logger.isLoggable(Log.DEBUG))
+            Logger.logDebug(LOG_TAG, "Intent Received:\n" + IntentUtils.getIntentString(intent));
 
         String action = intent.getAction();
         if (action == null) return;
@@ -60,8 +64,11 @@ public class SystemEventReceiver extends BroadcastReceiver {
         if (data != null && TermuxUtils.isUriDataForTermuxPluginPackage(data)) {
             Logger.logDebug(LOG_TAG, intent.getAction().replaceAll("^android.intent.action.", "") +
                 " event received for \"" + data.toString().replaceAll("^package:", "") + "\"");
-            if (TermuxFileUtils.isTermuxFilesDirectoryAccessible(context, false, false) == null)
-                TermuxShellEnvironment.writeEnvironmentToFile(context);
+            if (TermuxFileUtils.isTermuxFilesDirectoryAccessible(context, false, false) == null) {
+                // Rebuilding the environment touches PackageManager (Binder) and writes two files;
+                // the receiver runs on the main thread, so defer it.
+                TermuxShellEnvironment.writeEnvironmentToFileAsync(context.getApplicationContext());
+            }
         }
     }
 

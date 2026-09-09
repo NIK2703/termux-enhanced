@@ -2,6 +2,7 @@ package com.termux.app;
 
 import android.content.Context;
 import android.os.Build;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -33,6 +34,9 @@ public final class TermuxBackupUtils {
 
     /** Sentinel error returned when the operation is cancelled by the user. */
     public static final Error CANCELLED_ERROR = new Error("__CANCELLED__");
+
+    /** Upper bound on retained tar stderr (chars). Only the first chunk is kept for error reporting. */
+    private static final int MAX_STDERR_CHARS = 64 * 1024;
 
     public interface ResultListener {
         void onResult(@Nullable Error error);
@@ -247,11 +251,24 @@ public final class TermuxBackupUtils {
     // -----------------------------------------------------------------------
 
     @Nullable
+    /** Cached result of the {@code tar --version} probe: it forks a process and blocks, and was
+     * being run 2-3 times per backup/restore operation. Keyed by the resolved binary path. */
+    private static volatile String sTarHealthBinary;
+    private static volatile Error sTarHealthError;
+
     private static Error checkTarHealth(@NonNull Context context) {
         String tarBinary = resolveTarBinary(context);
         if (tarBinary == null) {
             return new Error(context.getString(R.string.backup_restore_need_termux));
         }
+        if (tarBinary.equals(sTarHealthBinary)) return sTarHealthError;
+        Error result = runTarHealthCheck(context, tarBinary);
+        sTarHealthBinary = tarBinary;
+        sTarHealthError = result;
+        return result;
+    }
+
+    private static Error runTarHealthCheck(@NonNull Context context, @NonNull String tarBinary) {
         String[] argv = wrapTarCommand(context, tarBinary,
             new String[]{tarBinary, "--version"});
         try {
@@ -319,6 +336,9 @@ public final class TermuxBackupUtils {
 
     /** Log the on-disk state of a path: existence, type, perms and (for dirs) entry count + size. */
     private static void logDirState(String stage, String path) {
+        // The recursive sizeOf() below costs ~2 syscalls per file in $PREFIX and used to run
+        // unconditionally — up to 4 full tree walks per restore even at the default log level.
+        if (!Logger.isLoggable(Log.INFO)) return;
         File f = new File(path);
         if (!f.exists()) {
             Logger.logInfo(LOG_TAG, "[restore-state] " + stage + ": " + path
@@ -434,8 +454,13 @@ public final class TermuxBackupUtils {
                 try (InputStream e = process.getErrorStream()) {
                     byte[] buf = new byte[4096];
                     int n;
-                    while ((n = e.read(buf)) > 0)
-                        stderr.append(new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8));
+                    // Cap the retained stderr: extracting tens of thousands of files can emit
+                    // megabytes of warnings, which previously accumulated in memory for the
+                    // whole operation.
+                    while ((n = e.read(buf)) > 0) {
+                        if (stderr.length() < MAX_STDERR_CHARS)
+                            stderr.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+                    }
                 } catch (IOException ignored) {
                 }
             });
@@ -556,8 +581,13 @@ public final class TermuxBackupUtils {
                 try (InputStream e = process.getErrorStream()) {
                     byte[] buf = new byte[4096];
                     int n;
-                    while ((n = e.read(buf)) > 0)
-                        stderr.append(new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8));
+                    // Cap the retained stderr: extracting tens of thousands of files can emit
+                    // megabytes of warnings, which previously accumulated in memory for the
+                    // whole operation.
+                    while ((n = e.read(buf)) > 0) {
+                        if (stderr.length() < MAX_STDERR_CHARS)
+                            stderr.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+                    }
                 } catch (IOException ignored) {
                 }
             });
@@ -570,7 +600,12 @@ public final class TermuxBackupUtils {
                 dataPump = new Thread(() -> {
                     long bytesCopied = 0;
                     long lastReport = 0;
-                    try (OutputStream gz = new java.util.zip.GZIPOutputStream(finalOut);
+                    // GZIPOutputStream's internal DeflaterOutputStream buffer is only 512 bytes:
+                    // unbuffered it issued a write() (Binder/SAF transaction) every ~512 bytes.
+                    // Wrapping in a 64 KiB BufferedOutputStream cuts syscalls by ~2 orders of
+                    // magnitude on a multi-GB backup.
+                    try (OutputStream gz = new java.util.zip.GZIPOutputStream(
+                             new java.io.BufferedOutputStream(finalOut, 1 << 16));
                          OutputStream o = gz;
                          InputStream p = process.getInputStream()) {
                         byte[] buf = new byte[32768];

@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,9 +69,17 @@ public final class TermuxInstaller {
 
     // ── File-based debug logger ──
 
+    /** Reused formatter — {@code DateFormat.getDateTimeInstance} allocated (and locale-resolved)
+     * a brand new instance on every call, and this runs every 200 entries during extraction. */
+    private static final java.text.DateFormat DEBUG_DATE_FORMAT =
+        java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.MEDIUM);
+
     private static void debugLog(String msg) {
-        String line = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.MEDIUM)
-            .format(new java.util.Date()) + " [" + LOG_TAG + "] " + msg + "\n";
+        String stamp;
+        synchronized (DEBUG_DATE_FORMAT) {
+            stamp = DEBUG_DATE_FORMAT.format(new java.util.Date());
+        }
+        String line = stamp + " [" + LOG_TAG + "] " + msg + "\n";
         try (java.io.FileWriter fw = new java.io.FileWriter(DEBUG_LOG_PATH, true)) {
             fw.write(line);
         } catch (Exception ignored) {}
@@ -250,6 +259,11 @@ public final class TermuxInstaller {
      * .new and restore the known-good bootstrap binary (backed up at install
      * time) whenever bin/proot-static is missing or differs from the backup.
      */
+    /** Last verified proot-static identity: {@code path:mtime:size}. */
+    private static volatile String sProotVerifiedKey;
+
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
+
     static void enforceWorkingProotStatic(File nixRoot, File filesDir) {
         try {
             File proot = new File(nixRoot, NIX_PROOT_REL_PATH);
@@ -260,10 +274,26 @@ public final class TermuxInstaller {
             }
             File backup = new File(filesDir, NIX_PROOT_BACKUP_NAME);
             if (!backup.isFile()) return;
+
+            // Hashing proot-static (several MB) on every session start — while the caller holds
+            // the service lock — is pointless when the binary has not changed since the last
+            // successful check. Key the cache on (mtime, size).
+            if (proot.isFile()) {
+                String prootKey = proot.getAbsolutePath() + ":" + proot.lastModified() + ":" + proot.length();
+                if (prootKey.equals(sProotVerifiedKey)) return;
+                String expectedSha1 = readTrimmed(new File(filesDir, NIX_PROOT_BACKUP_SHA1_NAME));
+                String currentSha1 = sha1Hex(proot);
+                if (expectedSha1 != null && currentSha1 != null && expectedSha1.equals(currentSha1)) {
+                    sProotVerifiedKey = prootKey;
+                    return;
+                }
+            }
+
             String expectedSha1 = readTrimmed(new File(filesDir, NIX_PROOT_BACKUP_SHA1_NAME));
             String currentSha1 = proot.isFile() ? sha1Hex(proot) : null;
             if (proot.isFile() && expectedSha1 != null && currentSha1 != null
                     && expectedSha1.equals(currentSha1)) {
+                sProotVerifiedKey = proot.getAbsolutePath() + ":" + proot.lastModified() + ":" + proot.length();
                 return;
             }
             copyFile(backup, proot);
@@ -310,8 +340,10 @@ public final class TermuxInstaller {
             int n;
             while ((n = in.read(buf)) > 0) md.update(buf, 0, n);
         }
-        StringBuilder sb = new StringBuilder();
-        for (byte b : md.digest()) sb.append(String.format("%02x", b));
+        StringBuilder sb = new StringBuilder(40);
+        for (byte b : md.digest()) {
+            sb.append(HEX_CHARS[(b >> 4) & 0xf]).append(HEX_CHARS[b & 0xf]);
+        }
         return sb.toString();
     }
 
@@ -638,11 +670,19 @@ public final class TermuxInstaller {
             return;
         }
         for (File f : children) {
-            if (isSymlink(f)) continue;
-            if (f.isDirectory()) {
+            // One lstat instead of isSymlink() + isDirectory() + isFile() (3 syscalls per node)
+            // — this walk covers the whole $PREFIX, so the saving is ~2 syscalls x file count.
+            StructStat st;
+            try {
+                st = Os.lstat(f.getAbsolutePath());
+            } catch (Exception e) {
+                continue;
+            }
+            if (OsConstants.S_ISLNK(st.st_mode)) continue;
+            if (OsConstants.S_ISDIR(st.st_mode)) {
                 patchPrefixInDirectory(f, textOldFilesDir, textNewFilesDir,
                     textOldDataDir, textNewDataDir, elfOldFilesDir, elfNewFilesDir, depth + 1);
-            } else if (f.isFile()) {
+            } else if (OsConstants.S_ISREG(st.st_mode)) {
                 sPatchFileCount++;
                 patchFile(f, textOldFilesDir, textNewFilesDir,
                     textOldDataDir, textNewDataDir, elfOldFilesDir, elfNewFilesDir);
@@ -653,12 +693,28 @@ public final class TermuxInstaller {
         }
     }
 
+    /** Naive byte-array search. Used to reject files that do not contain the prefix at all
+     * before paying for a String decode plus three full-content copies in {@link #patchFile}. */
+    private static int indexOfBytes(byte[] data, byte[] pattern) {
+        if (pattern == null || pattern.length == 0 || data.length < pattern.length) return -1;
+        byte first = pattern[0];
+        int max = data.length - pattern.length;
+        for (int i = 0; i <= max; i++) {
+            if (data[i] != first) continue;
+            int j = 1;
+            while (j < pattern.length && data[i + j] == pattern[j]) j++;
+            if (j == pattern.length) return i;
+        }
+        return -1;
+    }
+
     private static void patchFile(File file,
                                   String textOldFilesDir, String textNewFilesDir,
                                   String textOldDataDir, String textNewDataDir,
                                   byte[] elfOldFilesDir, byte[] elfNewFilesDir) throws IOException {
         long fileLen = file.length();
-        Logger.logDebug(LOG_TAG, "patchFile: " + file.getAbsolutePath() + " (" + fileLen + " bytes)");
+        if (Logger.isLoggable(Log.DEBUG))
+            Logger.logDebug(LOG_TAG, "patchFile: " + file.getAbsolutePath() + " (" + fileLen + " bytes)");
         if (fileLen == 0) return;
 
         byte[] content;
@@ -671,7 +727,8 @@ public final class TermuxInstaller {
                 bout.write(buf, 0, n);
                 totalRead += n;
             }
-            Logger.logDebug(LOG_TAG, "patchFile: read " + totalRead + " bytes from " + file.getAbsolutePath());
+            if (Logger.isLoggable(Log.DEBUG))
+                Logger.logDebug(LOG_TAG, "patchFile: read " + totalRead + " bytes from " + file.getAbsolutePath());
             content = bout.toByteArray();
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "patchFile: failed to read " + file.getAbsolutePath() + ": " + e.getMessage());
@@ -682,6 +739,17 @@ public final class TermuxInstaller {
         byte[] patched;
 
         if (isText) {
+            // Fast reject: the vast majority of files do not reference the old prefix. Without
+            // this each of them paid for a UTF-8 decode plus three full-content String copies.
+            byte[] oldFilesBytes = textOldFilesDir == null ? null : textOldFilesDir.getBytes(StandardCharsets.UTF_8);
+            byte[] oldDataBytes = textOldDataDir == null ? null : textOldDataDir.getBytes(StandardCharsets.UTF_8);
+            boolean hasPattern = (oldFilesBytes != null && oldFilesBytes.length > 0)
+                || (oldDataBytes != null && oldDataBytes.length > 0);
+            if (hasPattern
+                    && indexOfBytes(content, oldFilesBytes) < 0
+                    && indexOfBytes(content, oldDataBytes) < 0) {
+                return;
+            }
             // Text files: use real runtime paths (any length)
             String text = new String(content, StandardCharsets.UTF_8);
             text = replacePathPrefix(text, textOldFilesDir + "/usr", textNewFilesDir + "/usr");
@@ -830,9 +898,35 @@ public final class TermuxInstaller {
      * Does NOT fall back to the compile-time prefix — that would be wrong on fork builds
      * when the original com.termux is installed on the device.
      */
+    /** Cache for {@link #isBootstrapInstalled(Context)}: the check lists $PREFIX/bin (a full
+     * readdir of hundreds of entries) plus a file read, and was being run several times per
+     * start on the main thread. Invalidated explicitly when an install finishes. */
+    private static volatile Boolean sBootstrapInstalled;
+    private static volatile long sBootstrapInstalledCheckedAt;
+    private static final long BOOTSTRAP_CHECK_TTL_MS = 5000L;
+
+    /** Drop the cached bootstrap-installed result (call after an install/removal). */
+    public static void invalidateBootstrapInstalledCache() {
+        sBootstrapInstalled = null;
+        sBootstrapInstalledCheckedAt = 0L;
+    }
+
     public static boolean isBootstrapInstalled(Context context) {
         if (context == null) return false;
 
+        long now = android.os.SystemClock.elapsedRealtime();
+        Boolean cached = sBootstrapInstalled;
+        if (cached != null && (now - sBootstrapInstalledCheckedAt) < BOOTSTRAP_CHECK_TTL_MS) {
+            return cached;
+        }
+
+        boolean result = isBootstrapInstalledUncached(context);
+        sBootstrapInstalled = result;
+        sBootstrapInstalledCheckedAt = now;
+        return result;
+    }
+
+    private static boolean isBootstrapInstalledUncached(Context context) {
         TermuxBootstrapType type = getInstalledBootstrapType(context);
         if (type == TermuxBootstrapType.NIX) {
             File nixRoot = new File(context.getFilesDir(), "nix-root");
@@ -1164,6 +1258,7 @@ public final class TermuxInstaller {
                 }
             }
             writeBootstrapTypeMarker(context, bootstrapType);
+            invalidateBootstrapInstalledCache();
 
             if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_done), 100);
 
@@ -1196,6 +1291,10 @@ public final class TermuxInstaller {
             zip = new ZipFile(zipFile);
             int totalEntries = zip.size();
             int doneEntries = 0;
+            // Only publish when the whole percent changes: the listener posts to the main thread
+            // and rebuilds a Notification, so for a 15-20k entry zip this used to mean as many
+            // Binder round-trips, starving the main thread for the whole install.
+            final int[] lastPercent = {-1};
             long totalUncompressed = 0;
             List<Pair<String, String>> symlinks = new ArrayList<>();
             Set<String> seenNames = new HashSet<>();
@@ -1342,9 +1441,7 @@ public final class TermuxInstaller {
                 applyPermissions(outFile, entry, name);
 
                 doneEntries++;
-                if (listener != null && totalEntries > 0) {
-                    listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_extract), 10 + (int) (80L * doneEntries / totalEntries));
-                }
+                reportExtractProgress(context, listener, totalEntries, doneEntries, lastPercent);
             }
 
             debugLog("extractZipFile: done, creating " + symlinks.size() + " SYMLINKS.txt symlinks");
@@ -1384,6 +1481,8 @@ public final class TermuxInstaller {
 
             debugLog("extractNixBootstrapZipOfficial: " + zipFile.getName() + " -> "
                 + destDir.getAbsolutePath() + " | " + totalEntries + " entries");
+
+            final int[] lastPercent = {-1};
 
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
@@ -1453,10 +1552,7 @@ public final class TermuxInstaller {
                 }
                 doneEntries++;
 
-                if (listener != null && totalEntries > 0) {
-                    listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_extract),
-                        10 + (int) (80L * doneEntries / totalEntries));
-                }
+                reportExtractProgress(context, listener, totalEntries, doneEntries, lastPercent);
             }
             debugLog("extractNixBootstrapZipOfficial: done, total entries=" + doneEntries);
         } finally {
@@ -1661,9 +1757,22 @@ public final class TermuxInstaller {
         }
     }
 
+    /** Last {@code base -> canonical path} pair resolved by {@link #safeChildFile}. Install passes
+     * the same destination directory for every entry, so this turns 2 realpath() calls per entry
+     * (each an lstat of every path component) into a single lookup after the first one. */
+    private static volatile File sSafeChildBase;
+    private static volatile String sSafeChildBasePath;
+
     private static File safeChildFile(Context context, File base, String name) throws IOException {
         File child = new File(base, name);
-        String basePath = base.getCanonicalPath() + File.separator;
+        String basePath;
+        if (sSafeChildBase == base && sSafeChildBasePath != null) {
+            basePath = sSafeChildBasePath;
+        } else {
+            basePath = base.getCanonicalPath() + File.separator;
+            sSafeChildBase = base;
+            sSafeChildBasePath = basePath;
+        }
         String childPath = child.getCanonicalPath();
         if (!childPath.startsWith(basePath)) {
             throw new IOException(context.getString(com.termux.R.string.error_bootstrap_path_traversal, name));
@@ -1704,12 +1813,39 @@ public final class TermuxInstaller {
         } catch (Exception ignored) {}
     }
 
+    /** {@code ZipEntry.getUnixMode} is a hidden/removed Android API. Resolving the {@link Method}
+     * once matters: the old code called getMethod() per entry, and when the method does not exist
+     * (always on modern Android) each call also built a NoSuchMethodException with a stack trace —
+     * two per zip entry, ~30k throwaways per install. */
+    private static Method sGetUnixModeMethod;
+    private static volatile boolean sGetUnixModeResolved;
+
     private static int getUnixModeReflective(ZipEntry entry) {
+        if (!sGetUnixModeResolved) {
+            try {
+                sGetUnixModeMethod = ZipEntry.class.getMethod("getUnixMode");
+            } catch (Throwable ignored) {
+                sGetUnixModeMethod = null;
+            }
+            sGetUnixModeResolved = true;
+        }
+        Method method = sGetUnixModeMethod;
+        if (method == null) return 0;
         try {
-            return (int) ZipEntry.class.getMethod("getUnixMode").invoke(entry);
-        } catch (Exception e) {
+            return (int) method.invoke(entry);
+        } catch (Throwable ignored) {
             return 0;
         }
+    }
+
+    /** Publish extraction progress only when the whole percent changes. */
+    private static void reportExtractProgress(Context context, InstallProgressListener listener,
+                                              int totalEntries, int doneEntries, int[] lastPercent) {
+        if (listener == null || totalEntries <= 0) return;
+        int percent = 10 + (int) (80L * doneEntries / totalEntries);
+        if (percent == lastPercent[0]) return;
+        lastPercent[0] = percent;
+        listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_extract), percent);
     }
 
     public static class BootstrapException extends Exception {

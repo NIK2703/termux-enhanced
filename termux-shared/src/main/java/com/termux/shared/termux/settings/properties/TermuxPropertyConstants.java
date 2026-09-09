@@ -420,30 +420,30 @@ public final class TermuxPropertyConstants {
     public static final String KEY_COLOR_SCHEME_DARK = "color-scheme-dark"; // Default: "color-scheme-dark"
 
     /**
-     * Defines the key for the "color scheme type" of the wallpaper-derived (Material You) terminal
+     * Defines the key for the "color scheme type" of the wallpaper-derived (Monet) terminal
      * scheme. Accepts {@code system} plus the nine kde-material-you-colors variant names and their
      * indices (0..8). Only meaningful on Android 12+ and only while
-     * {@link #KEY_COLOR_SCHEME_LIGHT} / {@link #KEY_COLOR_SCHEME_DARK} is set to {@code MaterialYou}.
+     * {@link #KEY_COLOR_SCHEME_LIGHT} / {@link #KEY_COLOR_SCHEME_DARK} is set to {@code Monet}.
      */
-    public static final String KEY_MATERIAL_YOU_VARIANT = "material-you-variant"; // Default: "material-you-variant"
+    public static final String KEY_MONET_VARIANT = "monet-variant"; // Default: "monet-variant"
 
-    /** Defines the key for how deep in the surface stack the Material You background sits. */
-    public static final String KEY_MATERIAL_YOU_BACKGROUND = "material-you-background"; // Default: "material-you-background"
+    /** Defines the key for how deep in the surface stack the Monet background sits. */
+    public static final String KEY_MONET_BACKGROUND = "monet-background"; // Default: "monet-background"
 
     /** Defines the key for where the seven ANSI accent candidates come from. */
-    public static final String KEY_MATERIAL_YOU_ACCENT_SOURCE = "material-you-accent-source"; // Default: "material-you-accent-source"
+    public static final String KEY_MONET_ACCENT_SOURCE = "monet-accent-source"; // Default: "monet-accent-source"
 
     /** Defines the key for the minimum contrast of every ANSI accent against the background. */
-    public static final String KEY_MATERIAL_YOU_ACCENT_CONTRAST = "material-you-accent-contrast"; // Default: "material-you-accent-contrast"
+    public static final String KEY_MONET_ACCENT_CONTRAST = "monet-accent-contrast"; // Default: "monet-accent-contrast"
 
     /** Defines the key for the chroma multiplier applied to the ANSI accents. */
-    public static final String KEY_MATERIAL_YOU_CHROMA = "material-you-chroma"; // Default: "material-you-chroma"
+    public static final String KEY_MONET_CHROMA = "monet-chroma"; // Default: "monet-chroma"
 
     /** Defines the key for the tone multiplier applied to background roles. */
-    public static final String KEY_MATERIAL_YOU_TONE = "material-you-tone"; // Default: "material-you-tone"
+    public static final String KEY_MONET_TONE = "monet-tone"; // Default: "monet-tone"
 
     /** Defines the key for what goes into ANSI slot 0 ({@code bg} or a dimmed {@code dim}). */
-    public static final String KEY_MATERIAL_YOU_COLOR0 = "material-you-color0"; // Default: "material-you-color0"
+    public static final String KEY_MONET_COLOR0 = "monet-color0"; // Default: "monet-color0"
 
     /** Defines the key for whether toggle soft keyboard request will show/hide or enable/disable keyboard */
     public static final String KEY_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR =  "soft-keyboard-toggle-behaviour"; // Default: "soft-keyboard-toggle-behaviour"
@@ -522,13 +522,13 @@ public final class TermuxPropertyConstants {
         KEY_SHORTCUT_RENAME_SESSION,
         KEY_COLOR_SCHEME_DARK,
         KEY_COLOR_SCHEME_LIGHT,
-        KEY_MATERIAL_YOU_VARIANT,
-        KEY_MATERIAL_YOU_BACKGROUND,
-        KEY_MATERIAL_YOU_ACCENT_SOURCE,
-        KEY_MATERIAL_YOU_ACCENT_CONTRAST,
-        KEY_MATERIAL_YOU_CHROMA,
-        KEY_MATERIAL_YOU_TONE,
-        KEY_MATERIAL_YOU_COLOR0,
+        KEY_MONET_VARIANT,
+        KEY_MONET_BACKGROUND,
+        KEY_MONET_ACCENT_SOURCE,
+        KEY_MONET_ACCENT_CONTRAST,
+        KEY_MONET_CHROMA,
+        KEY_MONET_TONE,
+        KEY_MONET_COLOR0,
         KEY_DEFAULT_WORKING_DIRECTORY,
         KEY_EXTRA_KEYS,
         KEY_EXTRA_KEYS_STYLE,
@@ -620,13 +620,13 @@ public final class TermuxPropertyConstants {
         KEY_SHORTCUT_RENAME_SESSION,
         KEY_COLOR_SCHEME_DARK,
         KEY_COLOR_SCHEME_LIGHT,
-        KEY_MATERIAL_YOU_VARIANT,
-        KEY_MATERIAL_YOU_BACKGROUND,
-        KEY_MATERIAL_YOU_ACCENT_SOURCE,
-        KEY_MATERIAL_YOU_ACCENT_CONTRAST,
-        KEY_MATERIAL_YOU_CHROMA,
-        KEY_MATERIAL_YOU_TONE,
-        KEY_MATERIAL_YOU_COLOR0,
+        KEY_MONET_VARIANT,
+        KEY_MONET_BACKGROUND,
+        KEY_MONET_ACCENT_SOURCE,
+        KEY_MONET_ACCENT_CONTRAST,
+        KEY_MONET_CHROMA,
+        KEY_MONET_TONE,
+        KEY_MONET_COLOR0,
         KEY_DEFAULT_WORKING_DIRECTORY,
         KEY_EXTRA_KEYS,
         KEY_EXTRA_KEYS_STYLE,

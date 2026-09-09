@@ -59,6 +59,25 @@ public class TerminalRowTest extends TestCase {
 		assertLineStartsWith(' ', DIARESIS_CODEPOINT, DIARESIS_CODEPOINT, ' ');
 	}
 
+	/**
+	 * A memoized column scan must stay consistent after a query that lands inside a wide character.
+	 * That branch returns the index of the wide char itself, which is not the first char of the
+	 * requested column, so it must not be memoized — otherwise the next scan for a greater column
+	 * resumes one column off and returns the wrong char index.
+	 */
+	public void testFindStartOfColumnInsideWideChar() {
+		row.setChar(0, 'a', 0);
+		row.setChar(1, ONE_JAVA_CHAR_DISPLAY_WIDTH_TWO_1, 0); // occupies columns 1 and 2
+		row.setChar(3, 'b', 0);
+
+		assertEquals(0, row.findStartOfColumn(0));
+		assertEquals(1, row.findStartOfColumn(1));
+		assertEquals(1, row.findStartOfColumn(2)); // second half of the wide char
+		assertEquals(2, row.findStartOfColumn(3)); // 'b'
+		assertEquals(1, row.findStartOfColumn(2)); // repeated: must not drift
+		assertEquals(2, row.findStartOfColumn(3));
+	}
+
 	public void testStaticConstants() {
 		assertEquals(1, Character.charCount(ONE_JAVA_CHAR_DISPLAY_WIDTH_TWO_1));
 		assertEquals(1, Character.charCount(ONE_JAVA_CHAR_DISPLAY_WIDTH_TWO_2));

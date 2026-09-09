@@ -177,7 +177,7 @@ JNIEXPORT jint JNICALL Java_com_termux_terminal_JNI_createSubprocess(
     char const* cmd_utf8 = (*env)->GetStringUTFChars(env, cmd, NULL);
     int ptm = create_subprocess(env, cmd_utf8, cmd_cwd, argv, envp, &procId, rows, columns, cell_width, cell_height);
     (*env)->ReleaseStringUTFChars(env, cmd, cmd_utf8);
-    (*env)->ReleaseStringUTFChars(env, cmd, cmd_cwd);
+    (*env)->ReleaseStringUTFChars(env, cwd, cmd_cwd);
 
     free_string_array(argv);
     free_string_array(envp);

@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import androidx.annotation.NonNull;
 
@@ -12,9 +12,9 @@ import java.util.Arrays;
  * <p>One snapshot serves <b>both</b> the light and the dark scheme: the palettes themselves do not
  * depend on the night mode, only the roles derived from them do. Building both variants up front
  * from a single snapshot is what makes switching night mode free (see
- * {@link MaterialYouSchemeStore}).
+ * {@link MonetSchemeStore}).
  */
-public final class MaterialYouSource {
+public final class MonetSource {
 
     /** The seed the palettes were derived from (or the system's primary wallpaper color). */
     public final int seedArgb;
@@ -42,7 +42,7 @@ public final class MaterialYouSource {
     /** Changes whenever the wallpaper, the system palette or the variant changes. */
     public final long token;
 
-    public MaterialYouSource(int seedArgb, @NonNull SchemeVariant variant,
+    public MonetSource(int seedArgb, @NonNull SchemeVariant variant,
                              @NonNull TonalPalette primary, @NonNull TonalPalette secondary,
                              @NonNull TonalPalette tertiary, @NonNull TonalPalette neutral,
                              @NonNull TonalPalette neutralVariant, @NonNull int[] accents,
@@ -81,7 +81,7 @@ public final class MaterialYouSource {
     @NonNull
     @Override
     public String toString() {
-        return "MaterialYouSource{variant=" + variant.key
+        return "MonetSource{variant=" + variant.key
                 + ", seed=#" + Integer.toHexString(seedArgb & 0xFFFFFF)
                 + ", accents=" + accents.length
                 + ", wallpaperId=" + wallpaperId
@@ -92,8 +92,8 @@ public final class MaterialYouSource {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof MaterialYouSource)) return false;
-        MaterialYouSource other = (MaterialYouSource) o;
+        if (!(o instanceof MonetSource)) return false;
+        MonetSource other = (MonetSource) o;
         return token == other.token
                 && seedArgb == other.seedArgb
                 && variant == other.variant

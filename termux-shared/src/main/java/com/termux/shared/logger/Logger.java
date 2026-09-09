@@ -51,7 +51,28 @@ public class Logger {
      */
     public static final int LOGGER_ENTRY_MAX_SAFE_PAYLOAD = 4000; // 4000 bytes
 
+    /** Current log level. Callers that build an expensive message should check
+     * {@link #isLoggable(int)} first instead of relying on the check inside
+     * {@link #logMessage(int, String, String)} — by then the string has already been built. */
+    public static int getLogLevel() {
+        return CURRENT_LOG_LEVEL;
+    }
 
+    /** Whether a message with the given {@link Log} priority would actually reach logcat. */
+    public static boolean isLoggable(int logPriority) {
+        switch (logPriority) {
+            case Log.ERROR:
+            case Log.WARN:
+            case Log.INFO:
+                return CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL;
+            case Log.DEBUG:
+                return CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG;
+            case Log.VERBOSE:
+                return CURRENT_LOG_LEVEL >= LOG_LEVEL_VERBOSE;
+            default:
+                return CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL;
+        }
+    }
 
     public static void logMessage(int logPriority, String tag, String message) {
         if (logPriority == Log.ERROR && CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL)
@@ -68,6 +89,9 @@ public class Logger {
 
     public static void logExtendedMessage(int logLevel, String tag, String message) {
         if (message == null) return;
+        // Check the level BEFORE splitting: the loop below allocates an ArrayList and a
+        // substring per chunk, which was wasted work whenever the level filtered it out.
+        if (!isLoggable(logLevel)) return;
 
         int cutOffIndex;
         int nextNewlineIndex;
@@ -395,10 +419,13 @@ public class Logger {
 
 
 
+    /** Main-thread handler reused by {@link #showToast} — creating one per call was pure garbage. */
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+
     public static void showToast(final Context context, final String toastText, boolean longDuration) {
         if (context == null || DataUtils.isNullOrEmpty(toastText)) return;
 
-        new Handler(Looper.getMainLooper()).post(() -> Toast.makeText(context, toastText, longDuration ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show());
+        MAIN_HANDLER.post(() -> Toast.makeText(context, toastText, longDuration ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show());
     }
 
 
@@ -455,10 +482,6 @@ public class Logger {
     }
 
 
-
-    public static int getLogLevel() {
-        return CURRENT_LOG_LEVEL;
-    }
 
     public static int setLogLevel(Context context, int logLevel) {
         if (isLogLevelValid(logLevel))

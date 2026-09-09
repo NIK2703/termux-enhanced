@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -50,7 +50,7 @@ public enum SchemeVariant {
     /** The same number kde uses for {@code --scheme-variant}; {@code -1} for {@link #SYSTEM}. */
     public final int kdeIndex;
 
-    /** The value accepted by {@code material-you-variant} in termux.properties. */
+    /** The value accepted by {@code monet-variant} in termux.properties. */
     @NonNull
     public final String key;
 
@@ -111,7 +111,7 @@ public enum SchemeVariant {
     }
 
     /**
-     * Parse a {@code material-you-variant} value.
+     * Parse a {@code monet-variant} value.
      *
      * <p>Accepts the key name ({@code rainbow}), the kde index ({@code 7}) and the enum constant
      * name ({@code RAINBOW}), case-insensitively; surrounding quotes are stripped, which keeps

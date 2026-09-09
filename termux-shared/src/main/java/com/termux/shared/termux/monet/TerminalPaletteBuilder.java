@@ -1,4 +1,4 @@
-package com.termux.shared.termux.materialyou;
+package com.termux.shared.termux.monet;
 
 import androidx.annotation.NonNull;
 
@@ -11,14 +11,19 @@ import com.google.android.material.color.utilities.TonalPalette;
 import java.util.Properties;
 
 /**
- * Turns a {@link MaterialYouSource} snapshot into a terminal color scheme.
+ * Turns a {@link MonetSource} snapshot into a terminal color scheme.
  *
  * <p>The output is a plain {@link Properties} in exactly the shape of
  * {@code ~/.termux/colors.properties} ({@code background}, {@code foreground}, {@code cursor},
- * {@code color0..color23}), so it can be fed straight into
+ * {@code color0..color15}), so it can be fed straight into
  * {@code TerminalColors.COLOR_SCHEME.updateWith(props)}. Nothing below that call - the emulator
  * palette, the renderer, {@code TermuxColorSchemeManager}, the extra-keys panel - needs to know
  * that the colors came from the wallpaper.
+ *
+ * <p>Only the sixteen ANSI slots are written. {@code color16..color23} are <b>not</b> a "faint"
+ * row: {@code TerminalColorScheme.updateWith()} stores {@code colorN} at index {@code N}, and
+ * indices 16..231 are the xterm 6&times;6&times;6 cube, so those keys used to overwrite the first
+ * eight cube entries.
  *
  * <p>The algorithm mirrors kde-material-you-colors:
  * <ol>
@@ -27,9 +32,14 @@ import java.util.Properties;
  *   <li><b>every accent must clear a hard contrast threshold against that background</b>, plus a
  *       constant 12 % pull towards the neutral ramp. This is what separates a readable scheme from
  *       a pretty unreadable one.</li>
- *   <li><b>the same seven accents appear at three intensities</b> (normal / intense / faint) so the
- *       palette is a coherent ramp rather than sixteen unrelated colors.</li>
+ *   <li><b>the same seven accents appear at two intensities</b> (normal / intense) so the palette
+ *       is a coherent ramp rather than sixteen unrelated colors.</li>
  * </ol>
+ *
+ * <p><b>Both night modes read the same way:</b> slot 0 is the darkest swatch, slot 7 the lightest,
+ * and row 8..15 is the lighter, more intense twin of row 0..7. That is the one property every
+ * classic 16-colour ramp has, and it is why the light scheme needs two extra steps - see
+ * {@link #build(MonetSource, boolean, MonetOptions)}.
  */
 public final class TerminalPaletteBuilder {
 
@@ -50,12 +60,12 @@ public final class TerminalPaletteBuilder {
      *
      * @param source The palette snapshot (shared by the light and the dark build).
      * @param isDark Whether to build the night variant.
-     * @param options The {@code material-you-*} tunables.
+     * @param options The {@code monet-*} tunables.
      * @return Properties containing only keys {@code TerminalColorScheme} understands.
      */
     @NonNull
-    public static Properties build(@NonNull MaterialYouSource source, boolean isDark,
-                                   @NonNull MaterialYouOptions options) {
+    public static Properties build(@NonNull MonetSource source, boolean isDark,
+                                   @NonNull MonetOptions options) {
         DynamicScheme scheme = new DynamicScheme(
                 Hct.fromInt(source.seedArgb),
                 options.variant.variant,
@@ -70,15 +80,21 @@ public final class TerminalPaletteBuilder {
         // ---- background / foreground / cursor --------------------------------------------
         // Tone multiplier only applies to backgrounds - same rule kde uses (is_background).
         final int bg = role(scheme, mdc, options.background, isDark, options.tone);
-        final int bgTone = (int) Math.round(ColorMath.toneOf(bg));
+        final double bgTone = ColorMath.toneOf(bg);
 
         final int onSurface = ColorMath.copy(mdc.onSurface().getHct(scheme)).toInt();
         final int cursorRole = onSurface;
 
         // secondary[90] on dark / secondary[25] on light - kde's "bright reference".
         final int brightRef = ColorMath.tone(source.secondary, isDark ? 90 : 25);
-        // "paper" the normal and intense slots are blended against.
+        // "paper" the normal row is blended against.
         final int ref = ColorMath.tone(source.neutral, isDark ? 99 : 1);
+        // Paper for the "intense" row. It has to be the LIGHT end in both night modes: the
+        // intense row being lighter than the normal row is the one property every classic
+        // 16-colour ramp shares. Blending it towards the near-black paper instead (what the
+        // light scheme used to do) produced a row 8..15 that was darker than row 0..7, i.e. a
+        // ramp running backwards.
+        final int intensePaper = ColorMath.tone(source.neutral, isDark ? 99 : 92);
         // neutral used by the constant 12 % pull of blend2contrast().
         final int contrastRef = ColorMath.tone(source.neutral, isDark ? 99 : 10);
 
@@ -113,26 +129,57 @@ public final class TerminalPaletteBuilder {
         }
         sortByLuminance(accents);
 
+        // ---- re-space the ramp (light scheme only) -------------------------------------------
+        // On a light background maximizeSaturation() plus the contrast floor squash all seven
+        // accents into a narrow dark band (measured: L* 25.6..36.8 for a Google-Blue seed), and
+        // what is left of the ramp then runs *towards* the background instead of away from it.
+        // Re-space them over the band the background actually allows, so slot 1 is the dark end
+        // and slot 7 the light end - the same direction as the classic palette and as the dark
+        // scheme. The dark scheme is deliberately left alone: there the accents already land on
+        // a wide, monotonic ramp.
+        double rampLo = 0.0;
+        if (!isDark) {
+            // The end that faces the background: the closest an accent may get to it while still
+            // clearing the contrast floor (this is the *lightest* readable tone on light).
+            double near = ColorMath.darkerTone(bgTone, minAccent);
+            if (Double.isNaN(near) || near < 0.0 || near > 100.0) near = 70.0;
+            // The far end: as dark as the foreground goes, so the ramp uses the whole range.
+            double far = Math.max(20.0, ColorMath.toneOf(foreground));
+            rampLo = Math.min(near, far);
+            final double rampHi = Math.max(near, far);
+            for (int i = 0; i < accents.length; i++) {
+                double t = accents.length == 1
+                        ? rampHi
+                        : rampLo + (rampHi - rampLo) * i / (accents.length - 1);
+                Hct h = ColorMath.hct(accents[i]);
+                h.setTone(t);
+                accents[i] = enforceContrast(h.toInt(), bg, minAccent, isDark);
+            }
+        }
+
         // ---- slot layout: three tiers of eight ----------------------------------------------
         final Properties props = new Properties();
         props.setProperty("background", ColorMath.hex(bg));
         props.setProperty("foreground", ColorMath.hex(foreground));
         props.setProperty("cursor", ColorMath.hex(cursor));
 
+        // On a light background slot 0 must be the darkest swatch, not the background: with
+        // color0 = background the row read "brightest first", which is the inversion the
+        // 16-colour test makes obvious.
         props.setProperty("color0", ColorMath.hex(
-                options.color0 == MaterialYouOptions.Color0.DIM
-                        ? ColorMath.blend(bg, foreground, 0.15)
-                        : bg));
-        props.setProperty("color8", ColorMath.hex(ColorMath.blend(bg, brightRef, 0.80)));
-        // color16 is the "faint" twin of color0 - a muted secondary, not an accent.
-        props.setProperty("color16", ColorMath.hex(ColorMath.blend(bg, brightRef, 0.70)));
+                options.color0 == MonetOptions.Color0.DIM
+                        ? ColorMath.blend(bg, foreground, isDark ? 0.15 : 0.60)
+                        : (isDark ? bg : ColorMath.tone(source.neutral, Math.max(4.0, rampLo - 14)))));
+        props.setProperty("color8", ColorMath.hex(
+                isDark
+                        ? ColorMath.blend(bg, brightRef, 0.80)
+                        : ColorMath.tone(source.neutral, Math.max(8.0, rampLo - 6))));
 
         for (int i = 0; i < accents.length; i++) {
             int accent = enforceContrast(accents[i], bg, minAccent, isDark);
             accents[i] = accent;
             props.setProperty("color" + (i + 1), ColorMath.hex(ColorMath.blend(ref, accent, 0.95)));
-            props.setProperty("color" + (i + 9), ColorMath.hex(ColorMath.blend(ref, accent, 0.82)));
-            props.setProperty("color" + (i + 17), ColorMath.hex(ColorMath.blend(bg, accent, 0.70)));
+            props.setProperty("color" + (i + 9), ColorMath.hex(ColorMath.blend(intensePaper, accent, 0.82)));
         }
 
         return props;
@@ -147,7 +194,7 @@ public final class TerminalPaletteBuilder {
      * so a light scheme can never be pushed to pure black.
      */
     private static int role(@NonNull DynamicScheme scheme, @NonNull MaterialDynamicColors mdc,
-                            @NonNull MaterialYouOptions.Background background, boolean isDark,
+                            @NonNull MonetOptions.Background background, boolean isDark,
                             double toneMultiplier) {
         DynamicColor role;
         switch (background) {
@@ -205,6 +252,11 @@ public final class TerminalPaletteBuilder {
     /**
      * kde's {@code sort_colors_luminance}: order the accents dark → light so the ANSI ramp is
      * monotonic in brightness instead of jumping around.
+     *
+     * <p>Ascending is the direction for <b>both</b> night modes: a classic 16-colour ramp always
+     * runs dark → light. What differs is which end sits next to the background, and that is the
+     * job of the re-spacing step in {@link #build(MonetSource, boolean, MonetOptions)}, not of
+     * this sort.
      */
     private static void sortByLuminance(@NonNull int[] colors) {
         final double[] tones = new double[colors.length];
@@ -226,7 +278,7 @@ public final class TerminalPaletteBuilder {
 
     /** Exposed for diagnostics: the palette a snapshot resolves to, without slot layout. */
     @NonNull
-    static TonalPalette[] palettesOf(@NonNull MaterialYouSource source) {
+    static TonalPalette[] palettesOf(@NonNull MonetSource source) {
         return new TonalPalette[]{
                 source.primary, source.secondary, source.tertiary,
                 source.neutral, source.neutralVariant};

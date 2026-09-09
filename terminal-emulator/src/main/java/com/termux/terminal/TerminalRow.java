@@ -49,6 +49,17 @@ public final class TerminalRow {
     final long[] mStyle;
     /** If this row might contain chars with width != 1, used for deactivating fast path */
     boolean mHasNonOneWidthOrSurrogateChars;
+    /**
+     * A1 optimization: memoized result of the last {@link #findStartOfColumn(int)} call. Terminal
+     * output is almost always written left-to-right, so the next column to set is >= the cached one
+     * and the scan can resume from {@code mCachedCharIndex} instead of walking {@code mText} from 0
+     * every time. Without this, once a wide/surrogate/combining char lands in a row every subsequent
+     * {@code setChar} does three O(columns) scans (see the slow path in {@link #setChar}), making row
+     * filling O(columns²) on CJK/emoji output. The cache is invalidated whenever the row's char
+     * indices shift (any arraycopy in setChar), so reads are always correct.
+     */
+    private int mCachedColumn = -1;
+    private int mCachedCharIndex = -1;
 
     /** Construct a blank row (containing only whitespace, ' ') with a specified style. */
     public TerminalRow(int columns, long style) {
@@ -92,8 +103,18 @@ public final class TerminalRow {
     public int findStartOfColumn(int column) {
         if (column == mColumns) return getSpaceUsed();
 
-        int currentColumn = 0;
-        int currentCharIndex = 0;
+        // A1: resume the scan from the memoized position when the requested column is at or after it,
+        // which is the common case for left-to-right output. Otherwise scan from the start.
+        int currentColumn;
+        int currentCharIndex;
+        if (column >= mCachedColumn && mCachedColumn >= 0 && mCachedCharIndex >= 0 && mCachedCharIndex <= mSpaceUsed) {
+            currentColumn = mCachedColumn;
+            currentCharIndex = mCachedCharIndex;
+        } else {
+            currentColumn = 0;
+            currentCharIndex = 0;
+        }
+
         while (true) { // 0<2 1 < 2
             int newCharIndex = currentCharIndex;
             char c = mText[newCharIndex++]; // cci=1, cci=2
@@ -117,9 +138,17 @@ public final class TerminalRow {
                             break;
                         }
                     }
+                    mCachedColumn = column;
+                    mCachedCharIndex = newCharIndex;
                     return newCharIndex;
                 } else if (currentColumn > column) {
                     // Wide column going past end.
+                    // A1: the requested column falls *inside* a wide char, so (column,
+                    // currentCharIndex) is not a consistent "column → index of its first char" pair.
+                    // Memoizing it would make every later scan for a greater column resume one
+                    // column off and return the wrong char index. Drop the memo instead.
+                    mCachedColumn = -1;
+                    mCachedCharIndex = -1;
                     return currentCharIndex;
                 }
             }
@@ -146,6 +175,8 @@ public final class TerminalRow {
         Arrays.fill(mStyle, style);
         mSpaceUsed = (short) mColumns;
         mHasNonOneWidthOrSurrogateChars = false;
+        mCachedColumn = -1;
+        mCachedCharIndex = -1;
     }
 
     // https://github.com/steven676/Android-Terminal-Emulator/commit/9a47042620bec87617f0b4f5d50568535668fe26
@@ -228,9 +259,13 @@ public final class TerminalRow {
             } else {
                 System.arraycopy(text, oldNextColumnIndex, text, newNextColumnIndex, oldCharactersAfterColumn);
             }
+            // A1: char indices shifted → the memoized column→index map is no longer valid.
+            mCachedColumn = -1;
         } else if (javaCharDifference < 0) {
             // Shift the rest of the line left.
             System.arraycopy(text, oldNextColumnIndex, text, newNextColumnIndex, mSpaceUsed - oldNextColumnIndex);
+            // A1: char indices shifted → invalidate the memoized column→index map.
+            mCachedColumn = -1;
         }
         mSpaceUsed += javaCharDifference;
 
@@ -249,6 +284,8 @@ public final class TerminalRow {
                 System.arraycopy(text, newNextColumnIndex, text, newNextColumnIndex + 1, mSpaceUsed - newNextColumnIndex);
             }
             text[newNextColumnIndex] = ' ';
+            // A1: char indices shifted → invalidate the memoized column→index map.
+            mCachedColumn = -1;
 
             ++mSpaceUsed;
         } else if (oldCodePointDisplayWidth == 1 && newCodePointDisplayWidth == 2) {
@@ -265,6 +302,8 @@ public final class TerminalRow {
 
                 // Shift the array leftwards.
                 System.arraycopy(text, newNextNextColumnIndex, text, newNextColumnIndex, mSpaceUsed - newNextNextColumnIndex);
+                // A1: char indices shifted → invalidate the memoized column→index map.
+                mCachedColumn = -1;
                 mSpaceUsed -= nextLen;
             }
         }

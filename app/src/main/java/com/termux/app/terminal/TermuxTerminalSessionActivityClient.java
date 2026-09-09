@@ -1130,27 +1130,27 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         File colorsFile = ColorSchemeUtils.getColorSchemeFileForTheme(isNight);
         File fontFile = TermuxConstants.TERMUX_FONT_FILE;
         // WHICH scheme is selected lives in termux.properties, not in a scheme file: switching
-        // Default <-> MaterialYou <-> MaterialYou-<variant> touches neither colors.*.properties
-        // nor the Material You palette, so without this the key would be identical before and
+        // Default <-> Monet <-> Monet-<variant> touches neither colors.*.properties
+        // nor the Monet palette, so without this the key would be identical before and
         // after the switch and the new selection would silently never be applied.
         File propsFile = TermuxConstants.TERMUX_PROPERTIES_PRIMARY_FILE;
-        // Material You has no file on disk, so mtime/size cannot detect a wallpaper change. Its
+        // Monet has no file on disk, so mtime/size cannot detect a wallpaper change. Its
         // token is a plain volatile read, which is why it is safe to include here even though this
         // runs on every tab switch.
-        long materialYouToken = ColorSchemeUtils.materialYouToken(isNight);
+        long monetToken = ColorSchemeUtils.monetToken(isNight);
         return (isNight ? "n1" : "n0")
                 + "|" + (colorsFile == null ? "-" : colorsFile.lastModified() + ":" + colorsFile.length())
                 + "|" + (fontFile == null ? "-" : fontFile.lastModified() + ":" + fontFile.length())
                 + "|p" + (propsFile == null ? "-" : propsFile.lastModified() + ":" + propsFile.length())
-                + "|my" + materialYouToken;
+                + "|monet" + monetToken;
     }
 
     /**
-     * {@link #buildSchemeKey(boolean)} with the Material You scheme generated first, so the token
+     * {@link #buildSchemeKey(boolean)} with the Monet scheme generated first, so the token
      * in the key is the final one and does not change again right after the scheme was applied.
      */
     private String resolveSchemeKey(boolean isNight) {
-        ColorSchemeUtils.warmUpMaterialYou(mActivity, isNight);
+        ColorSchemeUtils.warmUpMonet(mActivity, isNight);
         return buildSchemeKey(isNight);
     }
 
@@ -1162,7 +1162,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         mAppliedSchemeKey = null;
         // The "palette already loaded" gate has to go as well. It survived reloads before, so an
         // explicit re-apply repainted the panel and the terminals but never re-read the newly
-        // selected scheme — picking a different Material You variant (or going back to Default)
+        // selected scheme — picking a different Monet variant (or going back to Default)
         // looked like a no-op even though the selection had been persisted correctly.
         mLoadedColorSchemeKey = null;
     }
@@ -1193,10 +1193,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      */
     private void ensureColorSchemeLoaded(boolean isNight, String key) {
         if (key.equals(mLoadedColorSchemeKey)) return;
-        // One shared resolution chain: Termux:Style file -> Material You, but ONLY when this theme
-        // actually selected one of the MaterialYou entries -> the built-in light/dark scheme.
+        // One shared resolution chain: Termux:Style file -> Monet, but ONLY when this theme
+        // actually selected one of the Monet entries -> the built-in light/dark scheme.
         // Routing through ColorSchemeUtils is what stops "Default" from being silently replaced by
-        // the Material You scheme, and it keeps every surface (activity, per-page bind, extra-keys
+        // the Monet scheme, and it keeps every surface (activity, per-page bind, extra-keys
         // editor) in agreement.
         ColorSchemeUtils.applyColorSchemeForTheme(mActivity, isNight,
                 isNight ? null : getLightTerminalColorScheme());
@@ -1220,7 +1220,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (key.equals(mAppliedSchemeKey)) return;
         mAppliedSchemeKey = key;
         // Hand the very same key down: recomputing it inside would produce a different string
-        // once the Material You palette exists, which would look like "changed again" on the next
+        // once the Monet palette exists, which would look like "changed again" on the next
         // call and cost a second full restyle.
         applyTerminalColorScheme(isNight, key);
     }

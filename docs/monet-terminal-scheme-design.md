@@ -1,4 +1,4 @@
-# Material You — цветовая схема терминала по обоям
+# Monet — цветовая схема терминала по обоям
 
 **Статус:** проектное предложение (design doc), код не написан.
 **Target:** Android 12+ (API 31). Android 11 и ниже — функция не предлагается.
@@ -11,7 +11,7 @@
 
 Нужна схема терминала (16 ANSI-цветов + `background` / `foreground` / `cursor`), которая:
 
-1. выводится из обоев пользователя в духе Material You;
+1. выводится из обоев пользователя в духе Monet;
 2. имеет **свою light- и свою dark-версию**, выбираемые по текущему ночному режиму Termux
    (так же, как сейчас выбираются `colors.light.properties` / `colors.dark.properties`);
 3. строится **только на системных библиотеках** — без чтения файла обоев, без Python,
@@ -325,7 +325,7 @@ cursor            = colors_dark["onSurface"]                # см. примеч
                  │ D. OnColorsChangedListener                           │  ← нотификация о смене
                  └───────────────┬──────────────────────────────────────┘
                                  │
-                    MaterialYouSource (immutable snapshot)
+                    MonetSource (immutable snapshot)
                     { P, S, T, N, NV : TonalPalette ; accents[≤7] ; token }
                                  │
                     TerminalPaletteBuilder.build(source, isDark, opts)
@@ -344,7 +344,7 @@ cursor            = colors_dark["onSurface"]                # см. примеч
 **Ключевое решение:** генератор выдаёт `Properties` того же вида, что и
 `~/.termux/colors.properties`. Тогда не меняется вообще ничего ниже по стеку —
 ни `TerminalColorScheme`, ни рендерер, ни `TermuxColorSchemeManager`, ни панель
-клавиш. Схема Material You — просто ещё один источник `Properties`.
+клавиш. Схема Monet — просто ещё один источник `Properties`.
 
 **Второе решение:** схема **не пишется на диск**. `colors.light.properties` /
 `colors.dark.properties` остаются владением Termux:Style; запись туда сгенерированной
@@ -415,7 +415,7 @@ static Palettes fromVariant(int seedArgb, SchemeVariant v, boolean isDark, doubl
 ```
 
 Поле `Variant` нужно только для режима `system` (см. «Роли» ниже); KDE-номера
-(`0..8`) и имена взаимозаменяемы при разборе `material-you-variant`.
+(`0..8`) и имена взаимозаменяемы при разборе `monet-variant`.
 
 `v.create(...)` — единственный `switch` на весь проект:
 
@@ -499,7 +499,7 @@ h.setChroma(h.getChroma() * chromaMult);
 ### 5.2 Вход
 
 ```java
-public final class MaterialYouSource {
+public final class MonetSource {
     public final TonalPalette primary, secondary, tertiary, neutral, neutralVariant;
     public final int[] accents;      // до 7 ARGB — кандидаты в ANSI 1..7
     public final long token;         // версия снапшота для инвалидации кеша
@@ -509,7 +509,7 @@ public final class MaterialYouSource {
 Сборка (`SystemPaletteSource`) — режим `system` (§5.1):
 
 ```java
-static MaterialYouSource read(Context ctx) {
+static MonetSource read(Context ctx) {
     // палитры: либо system_* (режим SYSTEM), либо SchemeVariant.fromVariant(...)
     Palettes pal = (opts.variant == SYSTEM)
             ? Palettes.fromSystem(ctx)
@@ -526,7 +526,7 @@ static MaterialYouSource read(Context ctx) {
         addNonNull(acc, wc.getTertiaryColor());    // API 31+
     }
     accentsFromPalette(acc, P);   // добиваем до 7 (см. ниже)
-    return new MaterialYouSource(P, S, T, N, NV, acc, tokenOf(wc, N));
+    return new MonetSource(P, S, T, N, NV, acc, tokenOf(wc, N));
 }
 
 static TonalPalette paletteFrom(Context ctx, @ColorRes int resId) {
@@ -570,14 +570,14 @@ for (int x = 0; x < 7 && acc.size() < 7; x++) {
 > `SchemeRainbow` / `SchemeFruitSalad` (`DynamicScheme.getRotatedHue`):
 > `rot = {0, 60, -60, 120, -120, 180, 30, -30, 90, -90}` при `C_ACC = 48`,
 > `T_ACC = isDark ? 80 : 40`, с отсечением близких оттенков (<15°).
-> Вынести в `material-you-accent-source=wallpaper|palette|rotational`.
+> Вынести в `monet-accent-source=wallpaper|palette|rotational`.
 
 > Альтернатива, если захочется буквальной точности к kde: `WallpaperManager.getDrawable()`
 > → `Bitmap` 128 px → `QuantizerCelebi.quantize(pixels, 128)` → `Score.score(map, 7, 0xFF4285F4, true)`
 > (оба класса уже в material 1.12). Не рекомендую как путь по умолчанию: нужен доступ к
 > bitmap'у обоев (на части прошивок возвращает null/nothing), дороже по CPU и может
 > разойтись с тем, что реально сгенерировала система. Оставить как опцию
-> `material-you-accent-source=wallpaper`.
+> `monet-accent-source=wallpaper`.
 
 ### 5.4 Фон, текст, курсор
 
@@ -611,7 +611,7 @@ int cursor = mdc.onSurface().getArgb(scheme);              // не colors_dark!
 Резервный путь (если `DynamicScheme` по какой-то причине недоступен) — те же числа
 напрямую: `bgTone = isDark ? 6 : 98`, `fgTone = isDark ? 90 : 10`.
 
-Дополнительно — настройка глубины фона (`material-you-background`):
+Дополнительно — настройка глубины фона (`monet-background`):
 `surface | container-low | container-lowest`, по умолчанию `surface`
 (в точности как у kde).
 
@@ -709,13 +709,13 @@ for (i = 0..6) {
 и Termux:Float):
 
 ```
-termux-shared/src/main/java/com/termux/shared/termux/materialyou/
+termux-shared/src/main/java/com/termux/shared/termux/monet/
 ├── SchemeVariant.java               // enum: 9 вариантов kde + SYSTEM; create(Hct,Z,D)
-├── MaterialYouSource.java           // неизменяемый снапшот: Palettes + accents + token
+├── MonetSource.java           // неизменяемый снапшот: Palettes + accents + token
 ├── SystemPaletteSource.java         // чтение android.R.color.system_* + WallpaperColors (@RequiresApi 31)
 ├── TerminalPaletteBuilder.java      // §5 — source + isDark + options → Properties
-├── MaterialYouSchemeStore.java      // кеш light/dark + фоновый executor + слушатели
-├── MaterialYouOptions.java          // разбор termux.properties-настроек
+├── MonetSchemeStore.java      // кеш light/dark + фоновый executor + слушатели
+├── MonetOptions.java          // разбор termux.properties-настроек
 └── ColorMath.java                   // тонкая обёртка над Hct/Contrast/Blend/TonalPalette
 ```
 
@@ -728,10 +728,10 @@ termux-shared/src/main/java/com/termux/shared/termux/materialyou/
 
 | файл | изменение |
 |---|---|
-| `ColorSchemeUtils` | новая константа-сентинел `SCHEME_MATERIAL_YOU = "MaterialYou"`; `listStylingColorSchemes()` добавляет её **второй** после `Default` и только при `SDK_INT >= 31`; `applyStylingScheme()` для неё не пишет файл, а только сохраняет выбор; `schemeDisplayName()` → «Material You» |
-| `ColorSchemeUtils.ensureColorSchemeForTheme()` | если выбор == `MaterialYou` → `MaterialYouSchemeStore.get(isNight)` вместо чтения файла |
-| `TermuxTerminalSessionActivityClient.buildSchemeKey()` | добавить в ключ `MaterialYouSchemeStore.token()` — иначе смена обоев не перекрасит уже открытые сессии (ключ сейчас = ночной режим + mtime/size файлов) |
-| `TermuxTerminalSessionActivityClient.ensureColorSchemeLoaded()` | ветка для `MaterialYou` |
+| `ColorSchemeUtils` | новая константа-сентинел `SCHEME_MONET = "Monet"`; `listStylingColorSchemes()` добавляет её **второй** после `Default` и только при `SDK_INT >= 31`; `applyStylingScheme()` для неё не пишет файл, а только сохраняет выбор; `schemeDisplayName()` → «Monet» |
+| `ColorSchemeUtils.ensureColorSchemeForTheme()` | если выбор == `Monet` → `MonetSchemeStore.get(isNight)` вместо чтения файла |
+| `TermuxTerminalSessionActivityClient.buildSchemeKey()` | добавить в ключ `MonetSchemeStore.token()` — иначе смена обоев не перекрасит уже открытые сессии (ключ сейчас = ночной режим + mtime/size файлов) |
+| `TermuxTerminalSessionActivityClient.ensureColorSchemeLoaded()` | ветка для `Monet` |
 | `TermuxActivity` | `onCreate`: регистрация `WallpaperManager.addOnColorsChangedListener` (API 31+); `onResume`: сверка `token`, при расхождении — `invalidateAppliedScheme()` + `updateTermuxActivityStyling()` |
 | `termux_display_preferences.xml` | новый `ListPreference app:key="material_you_variant"` сразу после `color_scheme_dark`; `entries` = «Системная / Content / Expressive / …», `entryValues` = `system,content,…`; `defaultValue="system"` |
 | `DisplayPreferencesFragment` | показать/скрыть `material_you_variant` через `setVisible(...)` в зависимости от выбранной схемы; при `SDK_INT < 31` скрыть обе |
@@ -743,25 +743,25 @@ termux-shared/src/main/java/com/termux/shared/termux/materialyou/
 идти через `ColorSchemeUtils.applyColorSchemeForTheme(context, isNight, lightScheme)`:
 
 1. персональный файл Termux:Style (`colors.light/dark.properties`), если есть;
-2. сгенерированная Material You — **только если тема выбрала** `MaterialYou` /
-   `MaterialYou-<variant>`;
+2. сгенерированная Monet — **только если тема выбрала** `Monet` /
+   `Monet-<variant>`;
 3. встроенная схема: `lightScheme` в светлой теме, «чёрный фон» в тёмной. Это поведение
    пункта **Default**, и оно намеренно **не** Material.
 
-Раньше `applyMaterialYouScheme()` не проверял выбор темы, из-за чего Material You подменяла
+Раньше `applyMonetScheme()` не проверял выбор темы, из-за чего Monet подменяла
 собой Default везде, где не было файла схемы, а выбор варианта ни на что не влиял. Теперь
-`applyMaterialYouScheme(context, isNight)` сама возвращает `false`, если тема не выбрала
-Material You, а явная перегрузка `applyMaterialYouScheme(context, isNight, variant)` даёт
+`applyMonetScheme(context, isNight)` сама возвращает `false`, если тема не выбрала
+Monet, а явная перегрузка `applyMonetScheme(context, isNight, variant)` даёт
 тему ровно того варианта, который выбран в списке.
 
-**Вариант определяется только именем пункта**, никогда свойством `material-you-variant`:
-`MaterialYou` — это всегда System, `MaterialYou-rainbow` — всегда Rainbow. Раньше «голое»
-значение `MaterialYou` разрешалось через свойство, из-за чего первый пункт списка после
+**Вариант определяется только именем пункта**, никогда свойством `monet-variant`:
+`Monet` — это всегда System, `Monet-rainbow` — всегда Rainbow. Раньше «голое»
+значение `Monet` разрешалось через свойство, из-за чего первый пункт списка после
 выбора любого варианта превращался в его копию (и подпись, и цвета). Свойство оставлено
 как запасной вход для рукописных конфигов, но на пункты списка оно больше не влияет.
 
-Порядок в списке выбора: **Default → Material You (system, content, expressive, …) →
-схемы Termux:Style**. Material You идёт сразу после Default: плагин ей не нужен, это
+Порядок в списке выбора: **Default → Monet (system, content, expressive, …) →
+схемы Termux:Style**. Monet идёт сразу после Default: плагин ей не нужен, это
 основной новый вариант, а схемы плагина остаются после неё.
 
 ### 6.3 Настройки (`termux.properties`, все необязательные)
@@ -770,20 +770,20 @@ Material You, а явная перегрузка `applyMaterialYouScheme(context
 # system | content | expressive | fidelity | monochrome | neutral | tonal-spot |
 # vibrant | rainbow | fruit-salad          (по умолчанию system)
 # принимаются и номера kde: 0..8
-material-you-variant=system
+monet-variant=system
 # surface | container-low | container-lowest   (по умолчанию surface)
-material-you-background=surface
+monet-background=surface
 # wallpaper | palette — источник акцентов (по умолчанию wallpaper = WallpaperColors)
-material-you-accent-source=wallpaper
+monet-accent-source=wallpaper
 # порог контраста акцентов; 0 = значения kde (2.5 тёмная / 2.0 светлая)
-material-you-accent-contrast=0
+monet-accent-contrast=0
 # множитель хромы акцентов, 0.5..2.0
-material-you-chroma=1.0
+monet-chroma=1.0
 # множитель тона фонов (аналог tone_mult у kde), 0.5..1.5
-material-you-tone=1.0
+monet-tone=1.0
 ```
 
-`material-you-variant` меняет все пять палитр сразу; это и есть «тип цветовой схемы»
+`monet-variant` меняет все пять палитр сразу; это и есть «тип цветовой схемы»
 из kde-material-you-colors (§3.2). Значение `system` — десятый, «андроидный» режим:
 палитры читаются прямо из `android.R.color.system_*`, без пересборки.
 
@@ -793,7 +793,7 @@ material-you-tone=1.0
 ### 6.4 Поведение на Android 11 и ниже
 
 Функция не предлагается: `listStylingColorSchemes()` не добавляет пункт;
-если `termux.properties` содержит `MaterialYou` (например, перенесён с другого
+если `termux.properties` содержит `Monet` (например, перенесён с другого
 устройства), `getSelectedSchemeName()` возвращает его, но резолвер схемы
 падает обратно на `Default`. Никаких `@RequiresApi`-веток, никаких чтений
 `WallpaperColors` на старых API.
@@ -812,10 +812,10 @@ material-you-tone=1.0
 | (опция) Celebi по bitmap 128² | 50–200 мс | только фоновый поток, только opt-in |
 
 `buildSchemeKey()` вызывается **на каждом переключении вкладки**, поэтому всё дорогое
-уже закэшировано в `MaterialYouSchemeStore`: ключ читает готовый `token` из статики.
+уже закэшировано в `MonetSchemeStore`: ключ читает готовый `token` из статики.
 Обновление снапшота — только по `OnColorsChanged`, `onResume` и смене ночного режима.
 
-light и dark версии считаются **сразу обе** из одного снапшота (один `MaterialYouSource`
+light и dark версии считаются **сразу обе** из одного снапшота (один `MonetSource`
 → два `Properties`). Переключение ночного режима тогда бесплатное: просто берётся
 другой закэшированный `Properties`.
 
@@ -840,7 +840,7 @@ light и dark версии считаются **сразу обе** из одн�
 
 4. **`color0 == background`** (конвенция pywal/kde). Часть TUI рисует «чёрным» по фону
    и становится невидимой. Оставить как есть (совместимость с эталоном), но вынести
-   в настройку `material-you-color0=bg|dim`.
+   в настройку `monet-color0=bg|dim`.
 
 5. **Android 12/13 vs 14+:** Monet в 12/13 считает палитры по spec 2021, в 14+ — по 2025.
    Мы генерируем тона сами (§5.4), поэтому вид схемы одинаков на всех версиях — это плюс,
@@ -868,9 +868,9 @@ light и dark версии считаются **сразу обе** из одн�
 ## 9. План внедрения
 
 **Фаза 1 — ядро (режим `system`, без UI-настроек).**
-`ColorMath` + `SystemPaletteSource` + `TerminalPaletteBuilder` + `MaterialYouSchemeStore`;
-сентинел `MaterialYou` в `ColorSchemeUtils`; инвалидация через `buildSchemeKey`.
-Результат: пункт «Material You» в picker'е, работает light/dark, перекрашивается при
+`ColorMath` + `SystemPaletteSource` + `TerminalPaletteBuilder` + `MonetSchemeStore`;
+сентинел `Monet` в `ColorSchemeUtils`; инвалидация через `buildSchemeKey`.
+Результат: пункт «Monet» в picker'е, работает light/dark, перекрашивается при
 смене обоев.
 
 **Фаза 2 — нотификации.**
@@ -878,12 +878,12 @@ light и dark версии считаются **сразу обе** из одн�
 обе версии (light+dark) считаются заранее.
 
 **Фаза 3 — варианты схем.**
-`SchemeVariant` + `ListPreference material_you_variant` + разбор `material-you-variant`
-в `MaterialYouOptions`; в `MaterialYouSchemeStore` — выбор между `fromSystem()` и
+`SchemeVariant` + `ListPreference material_you_variant` + разбор `monet-variant`
+в `MonetOptions`; в `MonetSchemeStore` — выбор между `fromSystem()` и
 `fromVariant(seed, ...)`. Seed = `WallpaperColors.getPrimaryColor()`.
 
 **Фаза 4 — остальные настройки.** Глубина фона, множители хромы/тона, порог контраста,
-`material-you-color0`.
+`monet-color0`.
 
 **Фаза 5 (опционально) — хром терминала.** Те же разрешённые тона отдать в
 `TermuxColorSchemeManager`, чтобы панель/диалоги/табы красились из
@@ -895,7 +895,7 @@ light и dark версии считаются **сразу обе** из одн�
   читаема: контраст fg/bg ≥ 7:1, каждого акцента ≥ 2.5:1 (dark) / 2.0:1 (light);
 - переключение ночного режима мгновенно перекрашивает терминал;
 - смена обоев перекрашивает открытые сессии без перезапуска;
-- выбор «Default» или любой схемы Termux:Style полностью отключает Material You;
+- выбор «Default» или любой схемы Termux:Style полностью отключает Monet;
 - на Android 11 пункта нет, на 12+ — есть.
 
 **Критерии приёмки Фазы 3:**
@@ -904,4 +904,4 @@ light и dark версии считаются **сразу обе** из одн�
 - `monochrome` и `neutral` дают нулевую/почти нулевую хрому акцентов — контраст
   при этом держится за счёт тона;
 - номер варианта из kde (`0..8`) и его имя взаимозаменяемы;
-- неизвестное значение в `material-you-variant` = `system`, в логи — предупреждение.
+- неизвестное значение в `monet-variant` = `system`, в логи — предупреждение.

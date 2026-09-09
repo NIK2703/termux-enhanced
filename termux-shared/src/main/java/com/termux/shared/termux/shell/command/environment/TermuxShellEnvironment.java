@@ -128,6 +128,34 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         return resolvePrefixDirPath(context) + "/etc/termux/termux.env.tmp";
     }
 
+    /** Background writer handle for {@link #writeEnvironmentToFileAsync}. */
+    private static volatile Thread sEnvWriteThread;
+
+    /**
+     * Same as {@link #writeEnvironmentToFile(Context)}, but off the calling thread.
+     *
+     * Building the environment costs four PackageManager/ActivityManager Binder calls plus two
+     * file writes, and was running synchronously inside {@code TermuxApplication.onCreate} on
+     * every cold start.
+     *
+     * The very first run (no env file on disk) still writes synchronously: a plugin firing a
+     * command right after boot must not be able to observe a missing environment file.
+     */
+    public static void writeEnvironmentToFileAsync(@NonNull Context currentPackageContext) {
+        String envFilePath = resolveEnvFilePath(currentPackageContext);
+        if (envFilePath == null || !new File(envFilePath).isFile()) {
+            writeEnvironmentToFile(currentPackageContext);
+            return;
+        }
+        Thread existing = sEnvWriteThread;
+        if (existing != null && existing.isAlive()) return;
+        Thread thread = new Thread(() -> writeEnvironmentToFile(currentPackageContext),
+            "writeEnvironmentToFile");
+        thread.setDaemon(true);
+        sEnvWriteThread = thread;
+        thread.start();
+    }
+
     /** Init {@link TermuxShellEnvironment} constants and caches. */
     public synchronized static void writeEnvironmentToFile(@NonNull Context currentPackageContext) {
         HashMap<String, String> environmentMap = new TermuxShellEnvironment().getEnvironment(currentPackageContext, false);
