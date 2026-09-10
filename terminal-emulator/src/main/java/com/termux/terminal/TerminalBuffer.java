@@ -434,9 +434,22 @@ public final class TerminalBuffer {
                             lastNonSpaceIndex = i + 1;
                 }
 
+                // B2/F6: a plain row (one char per column) that fits the new width without
+                // wrapping is two arraycopies instead of one setChar() per cell. Cursor rows are
+                // excluded: the loop below also has to place the cursor and to wrap it.
                 int currentOldCol = 0;
                 long styleAtCol = 0;
-                for (int i = 0; i < lastNonSpaceIndex; i++) {
+                boolean copiedInBulk = false;
+                if (!cursorAtThisRow && !oldLine.mHasNonOneWidthOrSurrogateChars
+                        && currentOutputExternalColumn + lastNonSpaceIndex <= mColumns) {
+                    TerminalRow newLine = allocateFullLineIfNecessary(externalToInternalRow(currentOutputExternalRow));
+                    if (newLine.copyPlainInterval(oldLine, 0, currentOutputExternalColumn, lastNonSpaceIndex)) {
+                        currentOutputExternalColumn += lastNonSpaceIndex;
+                        copiedInBulk = true;
+                    }
+                }
+
+                for (int i = 0; !copiedInBulk && i < lastNonSpaceIndex; i++) {
                     // Note that looping over java character, not cells.
                     char c = oldLine.mText[i];
                     int codePoint = (Character.isHighSurrogate(c)) ? Character.toCodePoint(c, oldLine.mText[++i]) : c;
@@ -594,6 +607,16 @@ public final class TerminalBuffer {
         if (sx < 0 || sx + w > mColumns || sy < 0 || sy + h > mScreenRows) {
             throw new IllegalArgumentException(
                 "Illegal arguments! blockSet(" + sx + ", " + sy + ", " + w + ", " + h + ", " + val + ", " + mColumns + ", " + mScreenRows + ")");
+        }
+        // B2/F6: erasing whole rows is an Arrays.fill per row, not one setChar() per cell — the
+        // constructor alone used to run screenRows*columns of them to blank a buffer whose rows
+        // are already blank on allocation.
+        if (val == ' ' && sx == 0 && w == mColumns) {
+            for (int y = 0; y < h; y++) {
+                markRowDirty(sy + y);
+                allocateFullLineIfNecessary(externalToInternalRow(sy + y)).clear(style);
+            }
+            return;
         }
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)

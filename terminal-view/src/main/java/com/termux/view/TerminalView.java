@@ -1061,6 +1061,9 @@ public final class TerminalView extends View {
         // E2: walk the visible rows and collect the ones that really changed. The old code kept a
         // single [first,last] *range*, which turns "the program touched row 0 and row 47" (every
         // full-screen TUI: htop, top, progress bars) into 48 rows of work.
+        //
+        // F2: the range is only used to size the *damage rectangle*. The rows are passed to
+        // invalidateRowRange() with markRows=false so the sparse dirty set survives — see there.
         int visTop = Math.max(mTopRow, -activeTranscript);
         int visBottom = Math.min(mTopRow + mEmulator.mRows - 1, mEmulator.mRows - 1);
         int first = Integer.MAX_VALUE;
@@ -1083,7 +1086,14 @@ public final class TerminalView extends View {
             invalidateScrollbarBand();
             return;
         }
-        invalidateRowRange(first, last);
+        // F2: the thumb is an overlay, and the rows it covers are the one kind of damage that is
+        // not a content change — a row the renderer skips as "clean" keeps whatever was painted on
+        // top of it, i.e. the thumb's *previous* pixels. Now that invalidateRowRange() no longer
+        // re-marks every row of the band (which used to hide this), a moved thumb has to mark its
+        // own rows. invalidateScrollbarBand() is self-guarding: when the thumb has not moved it
+        // returns without touching anything, so this costs one rect comparison per frame.
+        invalidateScrollbarBand();
+        invalidateRowRange(first, last, false);
     }
 
     /**
@@ -1192,20 +1202,33 @@ public final class TerminalView extends View {
             + (externalRow - mTopRow) * (float) mRenderer.mFontLineSpacing);
     }
 
-    /** Invalidate the full-width pixel band covering external rows [first, last], clamped to visible rows. */
-    private void invalidateRowRange(int first, int last) {
+    /**
+     * Invalidate the full-width pixel band covering external rows [first, last], clamped to
+     * visible rows.
+     *
+     * @param markRows F2: when true every row of the band is (re-)marked dirty. That collapses
+     *                 the sparse dirty set E2 maintains into its bounding box — the rows *between*
+     *                 two changed rows would be repainted although nothing in them changed, which
+     *                 is exactly what E2 exists to prevent. The single caller
+     *                 ({@link #repaintAfterUpdate()}) passes false: it only needs the band as a
+     *                 damage rectangle and has already established which rows are dirty. Anything
+     *                 that genuinely needs rows repainted marks them itself
+     *                 ({@link #invalidateScrollbarBand()}, {@link #invalidateCursorCell()},
+     *                 {@link #markRowsIntersectingDirty(int, int)}) or forces a full repaint; and
+     *                 the renderer's {@code forceDraw} fallback covers the residual case of a clip
+     *                 in which no row is dirty at all.
+     */
+    private void invalidateRowRange(int first, int last, boolean markRows) {
         if (mEmulator == null || mRenderer == null) { invalidate(); return; }
         int visTop = mTopRow;
         int visBottom = mTopRow + mEmulator.mRows - 1;
         if (last < visTop || first > visBottom) return;
         first = Math.max(first, visTop);
         last = Math.min(last, visBottom);
-        // E2: keep the invariant local — every partial invalidate must leave the rows it covers
-        // marked dirty, or render() would skip them as "content unchanged" and the damage that
-        // asked for this repaint (cursor move, blink) would never be painted. Callers that already
-        // know their rows are dirty just re-set the same bits.
-        TerminalBuffer screen = mEmulator.getScreen();
-        for (int row = first; row <= last; row++) screen.markRowDirty(row);
+        if (markRows) {
+            TerminalBuffer screen = mEmulator.getScreen();
+            for (int row = first; row <= last; row++) screen.markRowDirty(row);
+        }
         int top = rowToPixelTop(first);
         int bottom = rowToPixelTop(last + 1);
         if (top < 0) top = 0;
@@ -2794,6 +2817,16 @@ public final class TerminalView extends View {
             mLastThumbBottom = NO_THUMB;
             return;
         }
+        // F3: on a partial frame the canvas is clipped, and a clip that does not reach the thumb
+        // means nothing was painted here — yet the position used to be recorded anyway. The next
+        // invalidateScrollbarBand() then saw "same top/bottom" and returned early, leaving the
+        // pixels of the *older* position on screen with nothing scheduled to replace them: a
+        // ghost thumb that survived until the next full frame (i.e. indefinitely in follow-text
+        // mode, where E1 draws no full frames at all).
+        //
+        // quickReject() is the exact test: true when the shape cannot intersect the clip.
+        if (canvas.quickReject(thumbRect, Canvas.EdgeType.AA)) return;
+
         // E3: remember where the thumb landed. Rounded *outward* so the saved band never cuts
         // into a row the anti-aliased edge of the thumb touched.
         mLastThumbTop = (int) Math.floor(thumbRect.top);

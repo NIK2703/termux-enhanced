@@ -81,8 +81,53 @@ public final class TerminalRow {
         clear(style);
     }
 
+    /**
+     * B2/F6: copy {@code length} plain cells from column {@code sourceX} of {@code line} to column
+     * {@code destinationX} of this row with two {@link System#arraycopy} calls.
+     *
+     * <p>Applies only while neither row can hold anything but exactly one {@code char} per column
+     * (no wide CJK, no surrogate pairs, no combining marks): then char index == column for
+     * {@link #mText} <em>and</em> for {@link #mStyle}, so the whole interval is a pair of bulk
+     * copies. The general path instead calls {@link #setChar} once per cell, and each of those
+     * re-derives column offsets, re-checks wcwidth and re-validates the A1 memo — a reflow of a
+     * 10&nbsp;000-row transcript at 200 columns is two million such calls.</p>
+     *
+     * <p>Overlap is fine: {@code System.arraycopy} has memmove semantics when source and
+     * destination are the same array, so a row copying onto itself needs no snapshot.</p>
+     *
+     * @return true when the fast path was taken; false when the caller must fall back to the
+     *         per-cell path.
+     */
+    boolean copyPlainInterval(TerminalRow line, int sourceX, int destinationX, int length) {
+        if (length <= 0) return true;
+        if (sourceX < 0 || destinationX < 0) return false;
+        if (mHasNonOneWidthOrSurrogateChars || line.mHasNonOneWidthOrSurrogateChars) return false;
+        // Both rows are one char per column, but their column counts may differ (reflow), so bound
+        // against both. mStyle.length == mColumns; mText is over-allocated.
+        if (sourceX + length > line.mStyle.length || destinationX + length > mStyle.length) return false;
+        if (sourceX + length > line.mText.length || destinationX + length > mText.length) return false;
+
+        // E4: the copy keeps the row blank & uniform only when both rows already were, under the
+        // same style — otherwise the destination ends up with two different styles in it.
+        final boolean staysUniform = line.mBlankAndUniform && mBlankAndUniform && line.mStyle[0] == mStyle[0];
+
+        System.arraycopy(line.mText, sourceX, mText, destinationX, length);
+        System.arraycopy(line.mStyle, sourceX, mStyle, destinationX, length);
+        if (!staysUniform) mBlankAndUniform = false;
+        // A1: the memoised column -> index map is unchanged (index == column in both rows, and
+        // nothing shifted), but it was derived by scanning: drop it so it is rebuilt afresh.
+        mCachedColumn = -1;
+        mCachedCharIndex = -1;
+        // Defensive: a plain row always has mSpaceUsed == mColumns, so this is a no-op in practice.
+        // It keeps the "mSpaceUsed covers everything written" invariant true if that ever changes.
+        if (mSpaceUsed < destinationX + length) mSpaceUsed = (short) (destinationX + length);
+        return true;
+    }
+
     /** NOTE: The sourceX2 is exclusive. */
     public void copyInterval(TerminalRow line, int sourceX1, int sourceX2, int destinationX) {
+        // B2/F6: plain rows are two arraycopies instead of one setChar() per cell.
+        if (copyPlainInterval(line, sourceX1, destinationX, sourceX2 - sourceX1)) return;
         mHasNonOneWidthOrSurrogateChars |= line.mHasNonOneWidthOrSurrogateChars;
         // E4: a bulk copy can leave the row blank, but proving that costs a scan. Just drop the
         // flag — blockCopy() is rare (scroll regions, insert/delete line) and correctness first.

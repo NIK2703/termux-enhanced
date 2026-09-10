@@ -357,9 +357,10 @@ public final class TerminalRenderer {
 
         ensureRunCapacity(columns);
 
-        // E2: horizontal extent of the base fill, in post-translate coordinates.
-        final float fillLeft = (dirtyRect == null) ? 0f : (dirtyRect.left - xOffset);
-        final float fillRight = (dirtyRect == null) ? (columns * mFontWidth) : (dirtyRect.right - xOffset);
+        // Right edge of the glyph grid in post-translate coordinates. F4: the per-row base fill
+        // always spans the whole grid (0 .. gridRight) instead of the horizontal extent of
+        // dirtyRect — see the fill itself below.
+        final float gridRight = columns * mFontWidth;
         // Base-fill paints are dedicated: no other code path (pass A, cursor, mismatch, A2 fast
         // path) ever sets a colour on them, so the colour we set here is the colour every row
         // draws with.
@@ -411,7 +412,21 @@ public final class TerminalRenderer {
             // and we draw every visible row (clipped to dirtyRect) to be safe.
             if (dirtyRect != null && pixelsValid && !forceDraw && !screen.isRowDirty(row)) continue;
             final float rowTop = heightOffset - mFontLineSpacing;
-            canvas.drawRect(fillLeft, rowTop, fillRight, heightOffset, baseFillPaint);
+            // F1: on a full repaint drawColor() above has already covered the whole canvas with
+            // bgColor, so filling every row again with that same colour over that same area is a
+            // second full-screen pass per frame for nothing — and this is the hottest path there
+            // is (live bottom, fling).
+            //
+            // F4: on a partial repaint the fill spans the *whole* grid, not dirtyRect's horizontal
+            // extent. dirtyRect is canvas.getClipBounds(), i.e. the bounding box of the damage:
+            // when two differently-sized rects coalesce into one frame (a narrow scrollbar strip
+            // plus a row band, or a clip imposed by a parent) the bbox is wider than either, and
+            // deriving the fill from it erases part of a row without repainting it. The canvas
+            // clips the rect to the real damage anyway, so the painted area is unchanged — the
+            // same clipped quad, just no longer able to out-run the text.
+            if (dirtyRect != null) {
+                canvas.drawRect(0f, rowTop, gridRight, heightOffset, baseFillPaint);
+            }
             if (dirtyRect != null) screen.clearRowDirty(row);
 
             final int cursorX = (row == cursorRow && cursorVisible) ? cursorCol : -1;
@@ -424,6 +439,33 @@ public final class TerminalRenderer {
             TerminalRow lineObject = screen.getLineOrBlank(row);
             final char[] line = lineObject.mText;
             final int charsUsedInLine = lineObject.getSpaceUsed();
+
+            // T8 ("tail-run"): for plain rows, find the first column of the blank tail before the
+            // main column loop, then run the loop in a cheaper "tail mode" from that column on.
+            // Every cell in the tail is ' ' with WcWidth 1, so we can skip the WcWidth table
+            // lookup, the isHighSurrogate branch, the code-point decode and the per-cell
+            // measureText — the four biggest per-cell costs in the hot loop. The run-merge and F0
+            // logic are identical to the content path, so runs of styled blanks (TUI status
+            // bars), cursor and selection cells and underline / strike-through decoration all
+            // still split and draw exactly as before. The pre-scan is a true char compare only
+            // when one char == one column (no wide, no surrogate, no combining), so the fast
+            // path is gated on `!mHasNonOneWidthOrSurrogateChars`; other rows walk all `columns`
+            // cells the same as today.
+            int tailStartCol = columns;
+            boolean spaceMismatch = false;
+            if (!lineObject.hasNonOneWidthOrSurrogateChars()) {
+                int c = columns - 1;
+                while (c >= 0 && line[c] == ' ') c--;
+                tailStartCol = c + 1;
+                if (tailStartCol < columns) {
+                    // The tail-mode assumption "measured(' ') == mFontWidth" must hold, otherwise
+                    // the tail run's measured width would be wrong. Measure once (line/index/count
+                    // are only consulted for supplementary code points; ' ' is BMP so they're
+                    // effectively ignored).
+                    spaceMismatch = Math.abs(measureCodePoint(' ', line, 0, 1) - mFontWidth) > 0.01f * mFontWidth;
+                    if (spaceMismatch) tailStartCol = columns; // disable tail mode this row
+                }
+            }
 
             // A2 fast path: a row that is nothing but spaces under a single uniform style, with no
             // cursor and no selection, has no glyph to draw — the only thing it can contribute to
@@ -469,13 +511,38 @@ public final class TerminalRenderer {
             float lastRunMismatchRatio = -1.f;
             int currentCharIndex = 0;
             float measuredWidthForRun = 0.f;
+            // F0: char index just past the last non-space code point seen in the current run, and
+            // the two reasons a run must keep its trailing blanks. See the trim at the run closes.
+            int runContentEnd = 0;
+            boolean runHasCombining = false;
+            boolean lastRunNoTrim = false;
 
             for (int column = 0; column < columns; ) {
-                final char charAtIndex = line[currentCharIndex];
-                final boolean charIsHighsurrogate = Character.isHighSurrogate(charAtIndex);
-                final int charsForCodePoint = charIsHighsurrogate ? 2 : 1;
-                final int codePoint = charIsHighsurrogate ? Character.toCodePoint(charAtIndex, line[currentCharIndex + 1]) : charAtIndex;
-                final int codePointWcWidth = WcWidth.width(codePoint);
+                // T8: in the blank tail the cell is provably ' ' with WcWidth 1, so all the
+                // per-cell decode + measure work is unnecessary. The run-merge and F0 logic that
+                // follows is the same code in both modes.
+                final boolean inTail = column >= tailStartCol;
+                final char charAtIndex;
+                final boolean charIsHighsurrogate;
+                final int charsForCodePoint;
+                final int codePoint;
+                final int codePointWcWidth;
+                final float measuredCodePointWidth;
+                if (inTail) {
+                    charAtIndex = ' ';
+                    charIsHighsurrogate = false;
+                    charsForCodePoint = 1;
+                    codePoint = ' ';
+                    codePointWcWidth = 1;
+                    measuredCodePointWidth = mFontWidth;
+                } else {
+                    charAtIndex = line[currentCharIndex];
+                    charIsHighsurrogate = Character.isHighSurrogate(charAtIndex);
+                    charsForCodePoint = charIsHighsurrogate ? 2 : 1;
+                    codePoint = charIsHighsurrogate ? Character.toCodePoint(charAtIndex, line[currentCharIndex + 1]) : charAtIndex;
+                    codePointWcWidth = WcWidth.width(codePoint);
+                    measuredCodePointWidth = measureCodePoint(codePoint, line, currentCharIndex, charsForCodePoint);
+                }
                 final boolean insideCursor = (cursorX == column || (codePointWcWidth == 2 && cursorX == column + 1));
                 final boolean insideSelection = column >= selx1 && column <= selx2;
                 final long style = lineObject.getStyle(column);
@@ -484,8 +551,12 @@ public final class TerminalRenderer {
                 // This could happen for some fonts which are not truly monospace, or for more exotic characters such as
                 // smileys which android font renders as wide.
                 // If this is detected, we draw this code point scaled to match what wcwidth() expects.
-                final float measuredCodePointWidth = measureCodePoint(codePoint, line, currentCharIndex, charsForCodePoint);
-                final boolean fontWidthMismatch = Math.abs(measuredCodePointWidth / mFontWidth - codePointWcWidth) > 0.01;
+                // F5: same test as before, expressed as a multiply — one float division per code
+                // point of every frame removed from the hottest loop in the renderer.
+                // T8: the tail's ' ' is already known to match (the row was disqualified above when
+                // it didn't), so this collapses to false with no multiply.
+                final boolean fontWidthMismatch = inTail ? false
+                    : Math.abs(measuredCodePointWidth - codePointWcWidth * mFontWidth) > 0.01f * mFontWidth;
 
                 // A3: how much this code point's measured width deviates from the cell width it is
                 // supposed to occupy. A run is drawn with a single canvas scale derived from its
@@ -507,7 +578,13 @@ public final class TerminalRenderer {
                 if (style != lastRunStyle || insideCursor != lastRunInsideCursor || insideSelection != lastRunInsideSelection || fontWidthMismatch != lastRunFontWidthMismatch || scaleChanged) {
                     if (column != 0) {
                         final int columnWidthSinceLastRun = column - lastRunStartColumn;
-                        final int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
+                        int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
+                        // F0: hand drawTextRun() only up to the last non-blank code point of the
+                        // run. See the comment on the final addRun() below for why and when this
+                        // is safe.
+                        if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
+                            charsSinceLastRun = runContentEnd - lastRunStartIndex;
+                        }
                         int cursorColor = lastRunInsideCursor ? mEmulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
                         boolean invertCursorTextColor = false;
                         if (lastRunInsideCursor && cursorShape == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK) {
@@ -524,19 +601,50 @@ public final class TerminalRenderer {
                     lastRunStartIndex = currentCharIndex;
                     lastRunFontWidthMismatch = fontWidthMismatch;
                     lastRunMismatchRatio = mismatchRatio;
+                    // F0: a new run starts here, so its content boundary starts here too. Whether
+                    // it may be trimmed is decided by what the run *is*:
+                    //  · underline / strike-through are text decorations that drawTextRun() paints
+                    //    across blank cells as well, so trimming would shorten the line;
+                    //  · a mismatched run is drawn with a single canvas scale derived from the
+                    //    measured width of all its code points, so dropping some would rescale it.
+                    lastRunNoTrim = fontWidthMismatch
+                        || (TextStyle.decodeEffect(style) & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) != 0;
+                    runContentEnd = currentCharIndex;
+                    runHasCombining = false;
                 }
                 measuredWidthForRun += measuredCodePointWidth;
                 column += codePointWcWidth;
                 currentCharIndex += charsForCodePoint;
+                // F0: remember how far the run's real content reaches. A trailing blank is a
+                // genuine ' ' that has gone through clear(): `mSpaceUsed` is the column count (not
+                // the content length), so the loop above walks all `columns` cells of every row
+                // and every one of those blanks used to be shaped and drawn.
+                if (codePoint != ' ') runContentEnd = currentCharIndex;
                 while (currentCharIndex < charsUsedInLine && WcWidth.width(line, currentCharIndex) <= 0) {
                     // Eat combining chars so that they are treated as part of the last non-combining code point,
                     // instead of e.g. being considered inside the cursor in the next run.
                     currentCharIndex += Character.isHighSurrogate(line[currentCharIndex]) ? 2 : 1;
+                    // F0: a combining mark over a *space* is visible, and a mark belongs to the
+                    // code point before it, so a run that swallowed any must keep its full text.
+                    runHasCombining = true;
                 }
             }
 
             final int columnWidthSinceLastRun = columns - lastRunStartColumn;
-            final int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
+            int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
+            // F0: trim the final run too — it is the one that holds the whole tail of the row,
+            // which is where essentially all the wasted blanks live.
+            //
+            // Safe because everything that is visible on a blank cell is drawn from *columns*,
+            // never from the run's char count: the base fill, pass A (background / selection),
+            // the cursor rectangle and the scale of a mismatch run are all derived from
+            // startColumn/runWidthColumns. Only drawTextRun() itself consumes the char count, and
+            // a trailing space contributes no glyph. Underlined and mismatched runs are excluded
+            // above (decorations and scale), runs with combining marks just above (a mark over a
+            // space is visible).
+            if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
+                charsSinceLastRun = runContentEnd - lastRunStartIndex;
+            }
             int cursorColor = lastRunInsideCursor ? mEmulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
             boolean invertCursorTextColor = false;
             if (lastRunInsideCursor && cursorShape == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK) {
@@ -757,7 +865,10 @@ public final class TerminalRenderer {
             canvas.drawRect(left, y - cursorHeight, right, y, cursorPaint);
         }
 
-        if ((effect & TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE) == 0) {
+        // F0: runWidthChars == 0 after trimming means the run holds nothing but trailing blanks —
+        // there is no glyph to shape or draw. The cursor/background rectangles above are still
+        // drawn, which is the whole point of keeping the run around.
+        if (runWidthChars > 0 && (effect & TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE) == 0) {
             if (dim) {
                 int red = (0xFF & (foreColor >> 16));
                 int green = (0xFF & (foreColor >> 8));

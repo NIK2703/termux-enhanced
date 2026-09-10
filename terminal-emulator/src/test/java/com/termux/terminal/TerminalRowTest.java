@@ -435,6 +435,57 @@ public class TerminalRowTest extends TestCase {
 		assertLineStartsWith(0x006E, 0x0303, ' ');
 	}
 
+	/**
+	 * B2/F6: {@link TerminalRow#copyInterval} has two implementations — two arraycopies for rows
+	 * that hold exactly one char per column, one {@link #setChar} per cell otherwise. They must
+	 * agree, and the fast path is the one that is new, so compare it against the old behaviour on
+	 * plain content.
+	 */
+	public void testCopyIntervalBulkPathMatchesPerCellPath() {
+		final int cols = 20;
+		Random random = new Random(4711);
+		for (int attempt = 0; attempt < 200; attempt++) {
+			TerminalRow source = new TerminalRow(cols, 0);
+			for (int i = 0; i < cols; i++) source.setChar(i, 'a' + random.nextInt(26), random.nextInt(4));
+			assertFalse(source.hasNonOneWidthOrSurrogateChars());
+
+			final int sx = random.nextInt(cols / 2);
+			final int dx = random.nextInt(cols / 2);
+			final int w = 1 + random.nextInt(cols / 2);
+
+			TerminalRow fast = new TerminalRow(cols, 0);
+			fast.copyInterval(source, sx, sx + w, dx);
+
+			// Force the fallback: mHasNonOneWidthOrSurrogateChars only means "might contain", so
+			// setting it by hand makes copyInterval take the per-cell path without changing what
+			// that path computes for plain content.
+			TerminalRow slow = new TerminalRow(cols, 0);
+			slow.mHasNonOneWidthOrSurrogateChars = true;
+			source.mHasNonOneWidthOrSurrogateChars = true;
+			slow.copyInterval(source, sx, sx + w, dx);
+
+			for (int i = 0; i < cols; i++) {
+				assertEquals("text at column " + i, String.valueOf(slow.mText[i]), String.valueOf(fast.mText[i]));
+				assertEquals("style at column " + i, slow.getStyle(i), fast.getStyle(i));
+			}
+			assertEquals(slow.getSpaceUsed(), fast.getSpaceUsed());
+		}
+	}
+
+	/** B2/F6: a row that can hold wide chars must not take the arraycopy path. */
+	public void testCopyIntervalFallsBackWithWideChars() {
+		TerminalRow source = new TerminalRow(COLUMNS, 0);
+		source.setChar(0, ONE_JAVA_CHAR_DISPLAY_WIDTH_TWO_1, 0); // occupies columns 0 and 1
+		source.setChar(2, 'b', 0);
+		assertTrue(source.hasNonOneWidthOrSurrogateChars());
+
+		TerminalRow destination = new TerminalRow(COLUMNS, 0);
+		// Starts in the second half of the wide char, which copies as whitespace.
+		destination.copyInterval(source, 1, 3, 4);
+		assertEquals(' ', destination.mText[destination.findStartOfColumn(4)]);
+		assertEquals('b', destination.mText[destination.findStartOfColumn(5)]);
+	}
+
 	public void testInsertWideAtLastColumn() {
 		row.setChar(COLUMNS - 2, 'Z', 0);
 		row.setChar(COLUMNS - 1, 'a', 0);
