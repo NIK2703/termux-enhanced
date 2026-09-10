@@ -496,9 +496,8 @@
 
     <string name="terminal_background_transparency_title">Прозрачность фона</string>
 
-    <string name="terminal_background_blur_title">Размытие обоев</string>
-
-    <string name="terminal_background_blur_radius_title">Радиус размытия</string>
+    <string name="terminal_background_blur_radius_title">Радиус размытия фона</string>
+    <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамических фонах с высоким радиусом размытия. На статических фонах энергопотребление несущественно</string>
 
     <string name="terminal_toolbar_height_title">Масштаб панели инструментов</string>
     <string name="terminal_toolbar_height_summary">Коэффициент масштаба панели дополнительных кнопок / терминала.</string>

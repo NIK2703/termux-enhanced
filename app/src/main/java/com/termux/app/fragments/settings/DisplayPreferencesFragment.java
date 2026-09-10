@@ -41,13 +41,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Keep
 public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
-    /**
-     * The wallpaper-blur switch. Kept as a field so the transparency slider can enable or
-     * disable it (blur is meaningless behind an opaque terminal background).
-     */
-    private SwitchPreferenceCompat mBlurPref;
-
-    /** The blur-radius slider. Kept as a field so the blur switch can enable or disable it. */
+    /** The blur-radius slider. A radius of 0 disables the wallpaper blur; any positive value
+     *  enables it. Kept as a field so the transparency slider can enable or disable it (blur is
+     *  meaningless behind an opaque terminal background). */
     private SeekBarPreference mBlurRadiusPref;
 
     @Override
@@ -209,7 +205,6 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
             value -> prefs.setTerminalMarginBottom(value));
 
         configureBackgroundTransparencySeekBar(prefs);
-        configureBackgroundBlurSwitch(prefs);
         configureBackgroundBlurRadiusSeekBar(prefs);
         updateBackgroundBlurPrefState(prefs);
 
@@ -239,46 +234,15 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     /**
-     * Wallpaper-blur switch (Android 12+ {@code FLAG_BLUR_BEHIND}).
-     *
-     * The system blur is only ever applied to the wallpaper that shows through a translucent
-     * terminal background, so the switch is meaningless at 0% transparency and below API 31
-     * ({@code FLAG_BLUR_BEHIND} / {@code RenderEffect} are both API 31, and there is
-     * deliberately no custom blur fallback) — in both cases the preference is disabled and its
-     * summary says why.
-     *
-     * Toggling it only changes {@code WindowManager.LayoutParams} flags, so no activity
-     * recreate is needed; the reload is broadcast with {@code recreate=false}.
-     */
-    private void configureBackgroundBlurSwitch(TermuxAppSharedPreferences prefs) {
-        mBlurPref = findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_TERMINAL_BACKGROUND_BLUR);
-        if (mBlurPref == null) return;
-
-        mBlurPref.setPersistent(false);
-        mBlurPref.setChecked(prefs.isTerminalBackgroundBlurEnabled());
-        mBlurPref.setOnPreferenceChangeListener((preference, newValue) -> {
-            prefs.setTerminalBackgroundBlurEnabled((Boolean) newValue);
-            updateBackgroundBlurPrefState(prefs);
-            Context ctx = getContext();
-            if (ctx != null) TermuxActivity.updateTermuxActivityStyling(ctx, false);
-            return true;
-        });
-    }
-
-    /**
-     * Enable/disable the blur switch (and its radius slider). The switch is only usable on
-     * Android 12+ with a non-zero background transparency; the radius slider additionally needs
-     * the blur switch to be on. No explanatory summary is shown for these options.
+     * Enable/disable the blur-radius slider. The slider is only usable on Android 12+ with a
+     * non-zero background transparency (there is nothing behind the terminal to blur at 0%).
+     * The radius value itself decides whether blur is on ({@code radius > 0}) or off
+     * ({@code radius == 0}), so no separate switch is needed.
      */
     private void updateBackgroundBlurPrefState(TermuxAppSharedPreferences prefs) {
         final boolean blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
         final boolean hasWallpaper = prefs.getTerminalBackgroundTransparency() > 0;
-        final boolean blurOn = prefs.isTerminalBackgroundBlurEnabled();
-        final boolean blurUsable = blurSupported && hasWallpaper && blurOn;
-
-        if (mBlurPref != null) {
-            mBlurPref.setEnabled(blurSupported && hasWallpaper);
-        }
+        final boolean blurUsable = blurSupported && hasWallpaper;
 
         if (mBlurRadiusPref != null) {
             mBlurRadiusPref.setEnabled(blurUsable);

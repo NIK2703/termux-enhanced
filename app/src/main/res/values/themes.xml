@@ -18,6 +18,9 @@
          background as the header so they do not blend into the content. -->
     <style name="Theme.TermuxApp.Settings" parent="Theme.TermuxApp.DayNight.NoActionBar">
         <item name="preferenceCategoryStyle">@style/Preference.Category.Settings</item>
+        <!-- Inactive (disabled) preferences show dark-grey text instead of pure black:
+             @color/preference_text_primary grays the text out via its disabled state. -->
+        <item name="android:textColorPrimary">@color/preference_text_primary</item>
         <!-- Status bar is transparent (see SettingsActivity) so the header colour shows through;
              keep its icons/text dark (black) on the light header background. -->
         <item name="android:windowLightStatusBar">true</item>

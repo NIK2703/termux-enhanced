@@ -37,6 +37,14 @@ public final class SessionPagerManager {
     /** The horizontal session pager (ViewPager2). */
     private final ViewPager2 mTerminalPager;
 
+    /**
+     * iOS-like elastic over-drag at the first/last page ("rubber band"): the edge terminal screen
+     * follows the finger past the boundary with damped resistance and springs back on release.
+     * Null only if the pager had no inner RecyclerView when {@link #setup()} ran.
+     */
+    @Nullable
+    private PagerOverscrollController mOverscroll;
+
     /** Adapter backing {@link #mTerminalPager}. */
     private TerminalPagerAdapter mTerminalPagerAdapter;
 
@@ -198,15 +206,17 @@ public final class SessionPagerManager {
         final RecyclerView pagerRv = getPagerRecyclerView();
         if (pagerRv != null) {
             pagerRv.setItemAnimator(null);
-            // Kill the horizontal edge effect completely (Android 12+ "stretch", the old glow
-            // below that). With background transparency enabled the stretch animation adds a
-            // second composite pass over the translucent terminal surface, so the terminal
-            // visibly loses about half of its transparency for the duration of the animation.
-            // OVER_SCROLL_NEVER is the right switch: RecyclerView only pulls/releases/absorbs
-            // an EdgeEffect when getOverScrollMode() != OVER_SCROLL_NEVER (scrollByInternal),
-            // and every stretch path keys off a non-zero EdgeEffect distance, so no edge
-            // animation is produced at the first/last page at all.
-            pagerRv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            // Elastic (iOS-style) over-drag on the first/last page. NOTE: this REPLACES the old
+            // setOverScrollMode(OVER_SCROLL_NEVER) — that switch also disabled the plumbing the
+            // rubber band is measured with (RecyclerView#scrollByInternal skips pullGlows() and
+            // ViewFlinger skips absorbGlows() when the mode is NEVER).
+            //
+            // The stock edge animation it used to suppress cannot come back: the controller
+            // installs an EdgeEffect spy that never calls super.onPull(), so the edge-effect
+            // distance stays 0 — and every stock visual (the pre-12 glow, the 12+ stretch and the
+            // extra composite pass the stretch added over the translucent terminal surface, which
+            // visibly halved the transparency) keys off a non-zero distance or off draw().
+            mOverscroll = PagerOverscrollController.install(mTerminalPager);
         }
 
         // Apply the user-configured terminal margins to the pages. TermuxActivity.setMargins()
@@ -832,6 +842,10 @@ public final class SessionPagerManager {
                 final RecyclerView pagerRv = getPagerRecyclerView();
                 if (pagerRv != null) pagerRv.stopScroll();
                 mTerminalPager.setUserInputEnabled(false);
+                // stopScroll() does not release the edge effects, so an over-drag held at this
+                // moment would survive the rebuild with the pager still displaced. The session
+                // list is about to change shape anyway — drop the displacement.
+                if (mOverscroll != null) mOverscroll.reset();
 
                 mTerminalPagerAdapter.syncWithServiceList(service.getTermuxSessions());
 
@@ -892,6 +906,12 @@ public final class SessionPagerManager {
         if (mPrefs != null) {
             mPrefs.unregisterOnSharedPreferenceChangeListener(mPrefsListener);
             mPrefs = null;
+        }
+        // Cancel any in-flight spring-back so it cannot outlive the activity (it holds the pager's
+        // RecyclerView through the animator's update listener).
+        if (mOverscroll != null) {
+            mOverscroll.destroy();
+            mOverscroll = null;
         }
     }
 }

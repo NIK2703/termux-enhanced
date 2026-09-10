@@ -782,7 +782,7 @@ private void applyWallpaperAndBlur() {
         window.setAttributes(attrs);
     }
 
-    applyBackgroundBlur(showWallpaper && mProperties.isTerminalBackgroundBlurEnabled());
+    applyBackgroundBlur(showWallpaper && mProperties.getTerminalBackgroundBlurRadius() > 0);
 }
 ```
 
@@ -953,7 +953,7 @@ private void registerCrossWindowBlurListener() {
     mCrossWindowBlurListener = enabled -> {
         if (mProperties == null) return;
         applyBackgroundBlur(mProperties.getTerminalBackgroundTransparency() > 0
-                            && mProperties.isTerminalBackgroundBlurEnabled());
+                            && mProperties.getTerminalBackgroundBlurRadius() > 0);
     };
     wm.addCrossWindowBlurEnabledListener(
         ContextCompat.getMainExecutor(this), mCrossWindowBlurListener);
@@ -1161,7 +1161,7 @@ private void applyBakedBackdrop(@Nullable Bitmap source) {
 private int getEffectiveBackgroundTransparency() {
     final int percent = mProperties.getTerminalBackgroundTransparency();
     if (percent <= 0) return 0;
-    if (mProperties.isTerminalBackgroundBlurEnabled() && !isCrossWindowBlurEnabledCompat()) {
+    if (mProperties.getTerminalBackgroundBlurRadius() > 0 && !isCrossWindowBlurEnabledCompat()) {
         return percent / 2;
     }
     return percent;

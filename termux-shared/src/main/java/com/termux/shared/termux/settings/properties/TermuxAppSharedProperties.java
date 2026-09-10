@@ -328,15 +328,6 @@ public class TermuxAppSharedProperties {
     }
 
     /**
-     * Whether the device wallpaper behind the terminal should be blurred with the Android 12+
-     * system blur. Inert below API 31 and whenever {@link #getTerminalBackgroundTransparency()}
-     * is 0 — see {@link TermuxAppSharedPreferences#isTerminalBackgroundBlurEnabled()}.
-     */
-    public boolean isTerminalBackgroundBlurEnabled() {
-        return prefs().isTerminalBackgroundBlurEnabled();
-    }
-
-    /**
      * Wallpaper blur radius behind the terminal, in pixels (0 = sharp). See
      * {@link TermuxAppSharedPreferences#getTerminalBackgroundBlurRadius()}.
      */

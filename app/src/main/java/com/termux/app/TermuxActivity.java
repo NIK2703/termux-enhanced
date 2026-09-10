@@ -746,9 +746,96 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // app has been opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
 
+        // TEMP DEBUG PROBE (com.termux.BuildConfig.DEBUG only): log the resolved popup
+        // window-animation durations for both history popups.
+        if (com.termux.BuildConfig.DEBUG) debugProbePopupAnimDurations();
+
         // Monet: build the selected variants up front so the token is stable before the
         // first buildSchemeKey() runs, and subscribe to wallpaper changes.
         setupMonet();
+    }
+
+    /**
+     * TEMPORARY DEBUG PROBE. Resolves the *real* window animation of both history popups
+     * at runtime and logs the durations of every child animation, so the directory-history
+     * popup (framework default) and the message-history popup (explicit style) can be
+     * compared on the device instead of only in the sources.
+     */
+    private void debugProbePopupAnimDurations() {
+        final View content = findViewById(android.R.id.content);
+        if (content == null) return;
+        content.post(() -> {
+            float scale = android.provider.Settings.Global.getFloat(getContentResolver(),
+                    android.provider.Settings.Global.WINDOW_ANIMATION_SCALE, -1f);
+            Log.d("AnimProbe", "window_animation_scale=" + scale);
+
+            // (1) FRAMEWORK DEFAULT — exactly what DirectoryHistoryPopupController gets:
+            // a plain PopupWindow(scroll, w, WRAP_CONTENT, false) with no setAnimationStyle().
+            // No background, so the content view is added straight into PopupDecorView and
+            // its LayoutParams are the real WindowManager.LayoutParams of the popup window.
+            View dummy = new View(this);
+            final PopupWindow probe = new PopupWindow(dummy, 1, 1, false);
+            int defaultStyle = 0;
+            try {
+                probe.showAsDropDown(content, 0, 0, Gravity.START);
+                ViewParent parent = dummy.getParent();
+                if (parent instanceof View) {
+                    ViewGroup.LayoutParams lp = ((View) parent).getLayoutParams();
+                    if (lp instanceof WindowManager.LayoutParams)
+                        defaultStyle = ((WindowManager.LayoutParams) lp).windowAnimations;
+                }
+                probe.dismiss();
+            } catch (Throwable t) {
+                Log.d("AnimProbe", "probe popup failed: " + t);
+            }
+            Log.d("AnimProbe", "DIRECTORY (framework default): windowAnimations=0x"
+                    + Integer.toHexString(defaultStyle)
+                    + (defaultStyle == 0x010302f5 ? " = Animation.DropDownUp"
+                       : defaultStyle == 0x010302f4 ? " = Animation.DropDownDown" : ""));
+            logPopupAnim("DIRECTORY", defaultStyle);
+
+            // (2) MESSAGE-HISTORY popup — explicit R.style.MessageHistoryPopupAnimation.
+            logPopupAnim("MESSAGE", R.style.MessageHistoryPopupAnimation);
+        });
+    }
+
+    /** Resolve a window-animation style into its enter/exit anims and log both. */
+    private void logPopupAnim(String who, int styleRes) {
+        if (styleRes == 0) {
+            Log.d("AnimProbe", who + ": style=0 -> no window animation at all");
+            return;
+        }
+        TypedArray a = obtainStyledAttributes(styleRes, new int[]{
+                android.R.attr.windowEnterAnimation, android.R.attr.windowExitAnimation});
+        int enterRes = a.getResourceId(0, 0);
+        int exitRes = a.getResourceId(1, 0);
+        a.recycle();
+        Log.d("AnimProbe", who + ": enterRes=0x" + Integer.toHexString(enterRes)
+                + " exitRes=0x" + Integer.toHexString(exitRes));
+        dumpAnim(who + "/ENTER", enterRes);
+        dumpAnim(who + "/EXIT", exitRes);
+    }
+
+    /** Log every child animation of an <set> with its duration and interpolator. */
+    private void dumpAnim(String label, int res) {
+        if (res == 0) {
+            Log.d("AnimProbe", label + ": <none>");
+            return;
+        }
+        Animation anim = AnimationUtils.loadAnimation(this, res);
+        if (anim instanceof AnimationSet) {
+            Log.d("AnimProbe", label + ": AnimationSet{");
+            for (Animation child : ((AnimationSet) anim).getAnimations()) {
+                Log.d("AnimProbe", "    " + label + " " + child.getClass().getSimpleName()
+                        + " duration=" + child.getDuration()
+                        + " startOffset=" + child.getStartOffset()
+                        + " interpolator=" + child.getInterpolator());
+            }
+        } else {
+            Log.d("AnimProbe", label + ": " + anim.getClass().getSimpleName()
+                    + " duration=" + anim.getDuration()
+                    + " interpolator=" + anim.getInterpolator());
+        }
     }
 
     /**
@@ -1626,7 +1713,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private boolean isWallpaperBlurRequested() {
         return mProperties != null
             && mProperties.getTerminalBackgroundTransparency() > 0
-            && mProperties.isTerminalBackgroundBlurEnabled();
+            && mProperties.getTerminalBackgroundBlurRadius() > 0;
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
@@ -1677,7 +1764,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final int percent = mProperties.getTerminalBackgroundTransparency();
         if (percent <= 0) return 0;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && mProperties.isTerminalBackgroundBlurEnabled()
+                && mProperties.getTerminalBackgroundBlurRadius() > 0
                 && !isCrossWindowBlurEnabledCompat()) {
             return percent / 2;
         }

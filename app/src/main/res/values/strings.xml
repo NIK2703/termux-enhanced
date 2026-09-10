@@ -574,9 +574,8 @@
 
     <string name="terminal_background_transparency_title">Background transparency</string>
 
-    <string name="terminal_background_blur_title">Blur wallpaper</string>
-
-    <string name="terminal_background_blur_radius_title">Blur radius</string>
+    <string name="terminal_background_blur_radius_title">Background blur radius</string>
+    <string name="terminal_background_blur_radius_summary">May increase power consumption with dynamic wallpapers at a high blur radius. On static wallpapers the power impact is negligible.</string>
 
     <string name="terminal_toolbar_height_title">Toolbar height scale</string>
     <string name="terminal_toolbar_height_summary">Extra keys / terminal toolbar height scale factor.</string>

@@ -42,6 +42,9 @@
 
     <style name="Theme.TermuxApp.Settings" parent="Theme.TermuxApp.DayNight.NoActionBar">
         <item name="preferenceCategoryStyle">@style/Preference.Category.Settings</item>
+        <!-- Inactive (disabled) preferences show light-grey text instead of pure white:
+             @color/preference_text_primary grays the text out via its disabled state. -->
+        <item name="android:textColorPrimary">@color/preference_text_primary</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowBackground">@color/black</item>
         <item name="colorSurface">@color/black</item>
