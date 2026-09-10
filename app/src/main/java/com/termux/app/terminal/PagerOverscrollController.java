@@ -6,7 +6,6 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.view.View;
-import android.view.animation.LinearInterpolator;
 import android.widget.EdgeEffect;
 
 import androidx.annotation.NonNull;
@@ -104,12 +103,12 @@ import com.termux.view.ElasticOverdrag;
  */
 public final class PagerOverscrollController {
 
-    /**
-     * Sanity cap on an absorbed fling velocity (px/s) before it is converted to pull. With the
-     * rubber band saturating, the extra pull is bounded anyway — this only guarantees bounded
-     * arithmetic for an absurd velocity.
-     */
-    private static final int MAX_ABSORB_VELOCITY = 6000;
+    // The absorbed-velocity cap used to be a literal 6000 px/s here, and the fling threshold the
+    // transcript subtracted was not subtracted at all. Both are now part of the shared model
+    // (ElasticOverdrag.MAX_ABSORB_VELOCITY_DP / MIN_ABSORB_VELOCITY_DP, in dp/s), because a px/s
+    // cap silently retunes the bounce per device: the same gesture reports `density` times more
+    // px/s on a denser screen. The transcript's value (8000 dp/s) is the one that survived, and it
+    // is applied to both surfaces now, on every device.
 
     private static final int DIRECTION_LEFT = RecyclerView.EdgeEffectFactory.DIRECTION_LEFT;
     private static final int DIRECTION_RIGHT = RecyclerView.EdgeEffectFactory.DIRECTION_RIGHT;
@@ -278,11 +277,12 @@ public final class PagerOverscrollController {
             return;
         }
         cancelAnimators();
-        // Same conversion as the terminal's, and it is played out in TIME: the impulse stretches
-        // the band sample by sample at the speed it actually arrived with, instead of the page
-        // being teleported to the peak and only the return being animated.
-        final ElasticOverdrag.Impact impact = ElasticOverdrag.impact(
-                Math.min(velocity, MAX_ABSORB_VELOCITY), extentPx(), 0f);
+        // Same conversion as the terminal's — literally the same call, so both surfaces threshold
+        // and cap a given gesture identically on any density — and it is played out in TIME: the
+        // impulse stretches the band sample by sample at the speed it actually arrived with,
+        // instead of the page being teleported to the peak and only the return being animated.
+        final ElasticOverdrag.Impact impact =
+                ElasticOverdrag.impact(velocity, extentPx(), 0f, density());
         final float base = (direction == DIRECTION_LEFT) ? mLeftRawPx : mRightRawPx;
         startImpact(direction, base, impact);
     }
@@ -303,8 +303,9 @@ public final class PagerOverscrollController {
         }
         ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(impact.durationMs);
-        // Linear: the samples ARE the timing.
-        animator.setInterpolator(new LinearInterpolator());
+        // Linear: the samples ARE the timing. Shared instance — allocating one per fling for an
+        // interpolator that is, by definition, stateless is pointless.
+        animator.setInterpolator(ElasticOverdrag.LINEAR);
         animator.addUpdateListener(animation -> {
             float progress = (Float) animation.getAnimatedValue();
             if (!isFinite(progress)) return;
@@ -351,7 +352,15 @@ public final class PagerOverscrollController {
     // ── displacement ───────────────────────────────────────────────────────────────────────
 
     private void apply() {
-        setTranslation(damp(mLeftRawPx) - damp(mRightRawPx));
+        // One width read for the whole frame: damp() would otherwise call extentPx() twice and
+        // setTranslation() a third time.
+        final float w = extentPx();
+        setTranslation(damp(mLeftRawPx, w) - damp(mRightRawPx, w), w);
+    }
+
+    /** {@link #setTranslation(float, float)} with the width read fresh. */
+    private void setTranslation(float px) {
+        setTranslation(px, extentPx());
     }
 
     /**
@@ -359,10 +368,14 @@ public final class PagerOverscrollController {
      * property of the view hosting every page, so it must always be a finite, bounded number —
      * anything else is coerced to 0 rather than allowed to poison the view's transform.
      */
-    private void setTranslation(float px) {
+    private void setTranslation(float px, float widthPx) {
         if (!isFinite(px)) px = 0f;
-        float max = maxPullPx();
+        float max = ElasticOverdrag.maxPull(widthPx);
         px = Math.max(-max, Math.min(max, px));
+        // Same guard TerminalView.setOverdragRaw() has always had: an unchanged displacement must
+        // not dirty the RenderNode. Every settle/reset ends here, and most of them are writing a
+        // 0 that is already there.
+        if (px == mTranslationPx) return;
         mTranslationPx = px;
         mRecyclerView.setTranslationX(px);
     }
@@ -385,10 +398,19 @@ public final class PagerOverscrollController {
     }
 
     /**
+     * The display density, read on demand so a move to another display is picked up. Only the
+     * impulse needs it ({@code ElasticOverdrag} §0b): the band itself is scale-free, so nothing
+     * else in the effect is density-dependent.
+     */
+    private float density() {
+        return mRecyclerView.getResources().getDisplayMetrics().density;
+    }
+
+    /**
      * The rubber-band curve, straight from the shared model: {@code f(x) = M·sin((π/2)·x/L)} with
      * {@code M} = 20 % of the width (the cap) and {@code L} derived from it. {@code f(0)=0},
-     * {@code f'(0) = BOUNDARY_SLOPE = 0.14} — the page follows the finger at 14 % right at the
-     * boundary, i.e. the band resists hard from the first pixel — and {@code f(L)=M} with
+     * {@code f'(0) = BOUNDARY_SLOPE = 0.42} — the page follows the finger at 42 % right at the
+     * boundary, a firm band — and {@code f(L)=M} with
      * {@code f'(L)=0}, so the cap is arrived at rather than chased: no knee, no wall, and the
      * pull can never exceed it.
      *
@@ -396,9 +418,20 @@ public final class PagerOverscrollController {
      * material; see {@link ElasticOverdrag}.</p>
      */
     private float damp(float rawPx) {
+        return damp(rawPx, extentPx());
+    }
+
+    /**
+     * {@link #damp(float)} against an extent the caller already has. {@link #apply()} damps both
+     * edges and then clamps, i.e. it needs the width three times per frame — reading it once here
+     * keeps {@link #extentPx()} (and the {@code getWidth()} behind it) off the hot path.
+     *
+     * @param widthPx the pager's extent, read once per frame by {@link #apply()}.
+     */
+    private float damp(float rawPx, float widthPx) {
         // Rejects NaN as well.
         if (!(rawPx > 0f)) return 0f;
-        return ElasticOverdrag.damp(rawPx, extentPx());
+        return ElasticOverdrag.damp(rawPx, widthPx);
     }
 
     /** Inverse of {@link #damp(float)}: the raw travel that produces {@code dampedPx}. */

@@ -1,8 +1,7 @@
 package com.termux.view;
 
 import android.view.animation.Interpolator;
-
-import java.util.Arrays;
+import android.view.animation.LinearInterpolator;
 
 /**
  * The one and only definition of the elastic ("rubber band") over-drag physics.
@@ -16,12 +15,40 @@ import java.util.Arrays;
  * both places, which is the whole point — a pull must feel like the same material whether it is
  * the transcript or a session page.</p>
  *
+ * <h2>0. Where the numbers live</h2>
+ * Every physics number in the system is written exactly once, in the <b>TUNING</b> block below.
+ * Nothing downstream is hand-written: the saturation travel, the boundary slope, the spring
+ * residual, the band frequency, the integrator step and the loop bound are all <em>derived</em>
+ * from those knobs, so retuning one of them can never leave a stale constant behind. (The bound
+ * on the fly-out loop used to be a literal {@code 128} with a comment asking whoever changed the
+ * spring duration to remember to update it by hand — it is now computed from that duration.)
+ *
+ * <h2>0b. Units: the band is scale-free, the finger is not</h2>
+ * The band has no intrinsic length: the cap is a fraction of the surface, the finger travel that
+ * reaches it is a multiple of that cap, and the return is a function of time only. Feed
+ * {@link #damp(float, float, float)} millimetres and it answers in millimetres. So the
+ * displacement channel needs <em>no</em> density handling — converting px to dp and back cancels
+ * exactly, and pretending otherwise would only add rounding.
+ *
+ * <p>The one quantity that is <em>not</em> scale-free is the finger's <b>speed</b>. A flick is a
+ * physical event: the same gesture reports {@code v_px = v_dp · density} px/s, so a px/s constant
+ * means something different on every screen. That is exactly the bug this layout fixes — the
+ * pager clamped the impulse at a literal {@code 6000 px/s} (≈2286 dp/s on a 420 dpi phone,
+ * ≈3000 dp/s on a 320 dpi one) while the transcript clamped it at {@code 8000 dp/s}, so the two
+ * surfaces answered the same gesture differently and the pager's answer drifted with the device.
+ *
+ * <p>So the single unit convention is: <b>geometry in whatever unit the surface is measured in,
+ * velocity in dp/s</b>. {@link #absorbVelocity(float, float)} is the one place that crosses that
+ * boundary, and {@link #impact(float, float, float, float)} takes the density so it can bring the
+ * impulse back into the surface's own unit before simulating. Nothing else in the system mentions
+ * density.</p>
+ *
  * <h2>1. The cap: 20 % of the surface, measured in its own units</h2>
  * Everything scales with the surface's own extent along the drag axis ({@code extentPx} — the
  * view height for the transcript, the pager width for the sessions), not with a dp constant:
  * <pre>
  *   M = maxPull(E)          = 0.2 · E   ← the cap, i.e. how far it can ever be pulled
- *   L = saturationTravel(E) ≈ 2.24 · E  ← the finger travel that reaches the cap
+ *   L = saturationTravel(E) ≈ 0.75 · E  ← the finger travel that reaches the cap
  * </pre>
  * A proportional cap is what makes the gesture read as "this surface is elastic" rather than
  * "there is a 56 dp spring somewhere": a tablet and a phone pull by the same fraction of their
@@ -47,10 +74,10 @@ import java.util.Arrays;
  * <ul>
  *   <li><b>It starts straight.</b> {@code f''(0) = 0}, so right at the boundary the response is
  *       <em>exactly</em> linear — no mush, no dead millimetre at the start of the gesture. The
- *       slope there is {@link #BOUNDARY_SLOPE} = 0.14: the content follows the finger at 14 %,
- *       three times less than the 0.42 it used to be and four times less than the 0.55 iOS uses.
- *       That is deliberate — the band should resist from the very first pixel, so the gesture
- *       reads as "pulling against something" rather than as "the content simply continues".</li>
+ *       slope there is {@link #BOUNDARY_SLOPE} = 0.42: the content follows the finger at 42 %.
+ *       It is a middle course — enough that the band is felt from the very first pixel, so the
+ *       gesture reads as "pulling against something" rather than as "the content simply
+ *       continues", but not so much that the cap becomes unreachable in practice.</li>
  *   <li><b>It arrives at the cap instead of chasing it.</b> {@code f'(L) = 0}: the curve is
  *       already flat where it meets the cap, so a finger that keeps going simply stops being
  *       answered — there is no knee, no wall, no sudden firming up. (A hyperbola only ever
@@ -62,10 +89,8 @@ import java.util.Arrays;
  *
  * <p>{@code M} is the requirement and {@code BOUNDARY_SLOPE} is the taste; {@code L} is
  * <em>derived</em> from both ({@code L = π·M / (2·BOUNDARY_SLOPE)}) so the two can never drift
- * apart. Note the consequence of the tighter resistance: {@code L} is now ~2.24 surfaces of
- * finger travel, so the cap is in practice only reached by a long, deliberate drag. That is the
- * trade the request asked for, and it is why the <em>flick</em> path (§4) — which does not care
- * about {@code L} at all — is where the reachable bounce now comes from.</p>
+ * apart. At this slope {@code L} comes out at ~0.75 of a surface of finger travel: the cap is a
+ * firm but genuinely reachable stop, about three quarters of a screen of dragging away.</p>
  *
  * <p>The raw accumulator is clamped to {@code L} ({@link #clampRaw(float, float, float)}), not to
  * some large safety constant. That is both the arithmetic guard (everything is bounded by
@@ -105,19 +130,23 @@ import java.util.Arrays;
  * as one. Two things decide what the bounce looks like, and both of them were wrong:
  *
  * <ul>
- *   <li><b>The speed is the incoming speed.</b> The content is already moving at {@code v} px/s
- *       when it reaches the boundary, so that is the speed it enters the band with:
- *       {@code ẏ(0) = v}, with no factor in front of it. A flick twice as fast therefore flies
- *       out twice as fast. The old model fed the impulse through the <em>pull</em> curve instead,
- *       so the content entered at {@code BOUNDARY_SLOPE · v} — 14 % of the flick — and then had to
- *       cover the same distance at an eighth of the speed, which is exactly the "animation got
- *       three times slower" the stiffer band was supposed to prevent.</li>
+ *   <li><b>The speed is the incoming speed, damped by the boundary.</b> The content is already
+ *       moving at {@code v} px/s when it reaches the boundary, and it enters the band at
+ *       {@code ẏ(0) = INITIAL_SLOPE · v} — the impulse scaled by exactly the resistance a finger
+ *       meets at that same boundary (§2), so the two channels of over-drag answer in the same
+ *       proportion. What matters is that the factor is a <em>constant</em>: a flick twice as fast
+ *       still flies out twice as fast, just as a finger dragged twice as far pulls twice as far.
+ *       (The old model also multiplied by {@code BOUNDARY_SLOPE}, but then integrated in
+ *       raw-travel space, where the effective stiffness is {@code ∝ 1/L²}; the amplitude came
+ *       from elsewhere, so the same distance took ~460 ms — the "animation got three times
+ *       slower". Timing and reach are independent here, see below.)</li>
  *   <li><b>The distance is the band's business.</b> How far {@code v} gets before the band has
- *       absorbed it is decided by the band's stiffness alone, and that stiffness went up with the
- *       resistance: three times the resistance is three times the stiffness, so a flick now flies
- *       out three times less far <em>and</em> three times quicker. Under the old model the peak
- *       was anchored to a fraction of the cap, so tripling the resistance left the distance
- *       untouched and only stretched the time — the worst of both worlds.</li>
+ *       absorbed it is decided by the band's stiffness alone — and by the resistance at the
+ *       boundary, since the same slope that damps the entry speed also sizes the cap's reach. A
+ *       flick therefore flies out roughly as far as a finger would have to drag to load the band
+ *       the same amount. Under the old model the peak was anchored to a fraction of the cap
+ *       regardless of the resistance, so stiffening the band left the distance untouched and only
+ *       stretched the time — the worst of both worlds.</li>
  * </ul>
  *
  * <p>Concretely the band is a pendulum <b>in the displacement</b> — in the space the eye actually
@@ -141,14 +170,19 @@ import java.util.Arrays;
  * <pre>
  *   y_peak = acos(1 − (v·κ/ω)² / 2) / κ      clamped to M
  * </pre>
- * which is {@code v/ω} for every ordinary flick and saturates at the cap for an absurd one. So,
- * to within the last few per cent, <b>the fly-out covers one time-constant's worth of travel at
- * the speed the flick arrived with</b>. At {@code ω = 30.4 rad/s} a 3000 px/s flick reaches ~100 px
- * in ~52 ms on a 1080 px surface, and by ~8000 px/s it runs into the cap — against the ~200 px
- * over ~460 ms this class used to produce, that is both closer to home and an order of magnitude
- * quicker, which is what was asked for.</p>
+     * which is {@code INITIAL_SLOPE·v/ω} for every ordinary flick and saturates at the cap for a
+     * hard one. So, to within the last few per cent, <b>the fly-out covers one time-constant's worth
+     * of travel at the speed the boundary let through</b>. At {@code ω = 30.4 rad/s} on a 1080 dp
+     * surface (cap 216 dp — a 2835 px wide view at 420 dpi): a 3000 dp/s flick arrives, enters at
+     * ~1260 dp/s and reaches ~42 dp; a hard 8000 dp/s one enters at ~3360 dp/s and reaches
+     * ~114 dp; past ~14 000 dp/s the band simply bottoms out at the cap. It takes ~52 ms, up to
+     * ~61 ms at full amplitude, because a pendulum's quarter period barely depends on amplitude.
+     * Against the ~200 px over ~460 ms this class used to produce, that is both closer to home
+     * and an order of magnitude quicker. (The band is scale-free, so these hold unchanged in px;
+     * only the impulse needed to reach them is density-dependent.)</p>
  *
- * <p>The shape is integrated with symplectic Euler at 1 ms ({@code ω·dt ≈ 0.03}, so the energy
+ * <p>The shape is integrated with symplectic Euler at {@link #flyoutStepMs()}
+ * ({@code ω·dt ≈ 0.03}, so the energy
  * error stays far below a pixel and the step is unconditionally stable), and the last sample is
  * pinned to the closed form above — the integrator owns the timing, the algebra owns the
  * amplitude. Because the result is a <em>displacement</em> while the callers animate the raw
@@ -157,6 +191,15 @@ import java.util.Arrays;
  * "raw is the single source of truth" invariant of both call sites is untouched.</p>
  */
 public final class ElasticOverdrag {
+
+    // ══ TUNING ═══════════════════════════════════════════════════════════════════════════════
+    //
+    // Every physics number in the system is written here and nowhere else. Everything below the
+    // matching DERIVED banner is computed from these, so retuning a knob cannot leave a stale
+    // constant behind.
+    //
+    // Units: dimensionless where the quantity is a ratio, ms for time, dp/s for speed. Nothing
+    // here is in px — see §0b.
 
     /**
      * The cap, as a fraction of the dragged surface's extent: the content can be pulled 20 % of
@@ -168,13 +211,12 @@ public final class ElasticOverdrag {
     /**
      * How much of the finger's movement the content follows right at the boundary, i.e.
      * {@code f'(0)}. This is the one figure that is actually chosen by taste — everything else
-     * follows from it. 0.14 is three times the resistance of the earlier 0.42: the band fights
-     * from the first pixel, so an over-drag reads as pulling against something very stiff rather
-     * than as the content simply going on. The cost is that the cap (20 % of the surface) is
-     * reached only after the finger has travelled ~2.2 surfaces of drag — a deliberate trade for a
-     * much tauter feel.
+     * follows from it. 0.42 is a firm band: from the very first pixel the content gives at
+     * appreciably less than half the finger's rate, so an over-drag reads as pulling against
+     * something that is genuinely resisting, while the cap (20 % of the surface) stays within
+     * reach — it is met after ~0.75 of a surface of drag.
      */
-    public static final float BOUNDARY_SLOPE = 0.14f;
+    public static final float BOUNDARY_SLOPE = 0.42f;
 
     /** {@code L / M = π / (2·f'(0))} — follows from {@code f(x) = M·sin((π/2)·x/L)}, see §2. */
     private static final float SATURATION_RATIO = (float) (Math.PI / (2d * BOUNDARY_SLOPE));
@@ -182,7 +224,7 @@ public final class ElasticOverdrag {
     /**
      * Finger travel that reaches the cap, as a fraction of the same extent — <em>derived</em>
      * from the two numbers above rather than picked by hand:
-     * {@code L = M · π/(2·BOUNDARY_SLOPE) ≈ 2.244 · E}.
+     * {@code L = M · π/(2·BOUNDARY_SLOPE) ≈ 0.748 · E}.
      */
     public static final float SATURATION_FRACTION = MAX_FRACTION * SATURATION_RATIO;
 
@@ -199,10 +241,13 @@ public final class ElasticOverdrag {
      * {@link #bandOmega()}: the return takes this long, and the fly-out of §4 is a quarter swing
      * of the same oscillator, so it scales with it.
      *
-     * <p>History: the band got three times stiffer ({@link #BOUNDARY_SLOPE} 0.42 → 0.14), so the
-     * 420 ms return was cut to 140 — three times quicker, exactly as asked. On a real screen that
-     * turned out to be a twitch: 140 ms is short enough that the eye fuses the stretch and its
-     * release into a single flinch. 280 ms separates the two halves again.</p>
+     * <p>History: at the original slope (0.42) the return took 420 ms and read as sluggish, so it
+     * was cut to 140 when the band was stiffened — but on a real screen 140 ms turned out to be a
+     * twitch: short enough that the eye fuses the stretch and its release into a single flinch.
+     * 280 ms separates the two halves again. Note that the slope has since been brought back to
+     * 0.42 (see {@link #BOUNDARY_SLOPE}) while this stayed at 280: the two are independent knobs
+     * — the slope decides how far an impulse gets, the duration how long the unload takes — so
+     * the old 420 ms pairing does not return with it.</p>
      */
     public static final long SPRING_DURATION_MS = 280L;
 
@@ -214,6 +259,52 @@ public final class ElasticOverdrag {
      * boundary already at rest.
      */
     public static final float SPRING_OMEGA = 8.5f;
+
+    /**
+     * Sanity cap on an absorbed fling velocity, <b>in dp/s</b> — the only place the finger's speed
+     * is bounded, and it is dp/s rather than px/s because a flick is a physical event: the same
+     * gesture reports {@code density} times more px/s on a denser screen, so a px/s cap silently
+     * retunes the bounce per device. With the band saturating (see
+     * {@link #saturationVelocityDp(float)}) the extra is bounded anyway — this only guarantees
+     * bounded arithmetic for an absurd velocity.
+     *
+     * <p>It used to be two different numbers: 8000 dp/s in the transcript and a literal
+     * 6000 px/s in the pager, i.e. several times apart on any real phone.</p>
+     */
+    public static final float MAX_ABSORB_VELOCITY_DP = 8000f;
+
+    /**
+     * Velocity, <b>in dp/s</b>, that is spent before the band sees anything: a flick that only
+     * just qualifies produces a pull of ~0 instead of stepping straight to a visible bounce, so
+     * the response is continuous at the fling threshold. This is the platform's own threshold
+     * ({@code ViewConfiguration#getScaledMinimumFlingVelocity()} is 50 dp/s scaled by density),
+     * expressed in dp so that it is one number everywhere.
+     *
+     * <p>It lives here rather than at the call sites because only the transcript used to subtract
+     * it: the same flick produced a bounce at the pager's edge and nothing at the transcript's.</p>
+     */
+    public static final float MIN_ABSORB_VELOCITY_DP = 50f;
+
+    /**
+     * Integrator accuracy target: {@code ω·dt}. 0.03 keeps the symplectic Euler energy error far
+     * below a pixel and is unconditionally stable for this pendulum, while landing the step at
+     * ~1 ms for the current {@link #SPRING_DURATION_MS}. The step is <em>derived</em> from this
+     * and {@link #bandOmega()} rather than written as "1 ms", so it keeps its accuracy guarantee
+     * if the spring is ever retuned.
+     */
+    private static final float FLYOUT_OMEGA_DT = 0.03f;
+
+    /**
+     * How much rope the fly-out loop gets, as a multiple of the longest possible quarter swing.
+     * The pendulum's quarter period grows with amplitude, but only up to {@code K(1/√2)/(π/2)}
+     * ≈ 1.18 small-amplitude ones at full stretch; this margin is pure insurance so the loop can
+     * never run away if the constants above are retuned. Hitting it would truncate nothing but
+     * the timing — the last sample is pinned to the closed-form peak regardless.
+     */
+    private static final float FLYOUT_STEP_MARGIN = 2f;
+
+    // ══ DERIVED ══════════════════════════════════════════════════════════════════════════════
+    // Nothing below this banner may be hand-edited: every value follows from the TUNING block.
 
     /**
      * The band's natural frequency, in rad/s: the {@code ω} behind both halves of a bounce.
@@ -231,15 +322,32 @@ public final class ElasticOverdrag {
             (1f + SPRING_OMEGA) * (float) Math.exp(-SPRING_OMEGA);
 
     /**
-     * Hard bound on the fly-out simulation, in ms. The longest possible quarter swing of the
-     * pendulum in §4 is {@code K(sin(π/4))/ω ≈ 1.18} small-amplitude ones, i.e. ~61 ms at
-     * {@code ω = 30.4}; 128 ms covers it twice over and exists only so the loop can never run
-     * away if the constants are ever retuned. Hitting it would truncate nothing but the timing —
-     * the last sample is pinned to the closed-form peak regardless. (This must be revisited if
-     * {@link #SPRING_DURATION_MS} is lengthened again: the bound is in wall-clock ms, so it does
-     * not follow the frequency on its own.)
+     * The integrator step, in ms: {@code ω·dt = FLYOUT_OMEGA_DT}. Derived, so it follows
+     * {@link #SPRING_DURATION_MS} instead of being a literal that has to be revisited by hand.
      */
-    private static final int FLYOUT_MAX_STEPS = 128;
+    public static float flyoutStepMs() {
+        return FLYOUT_OMEGA_DT * 1000f / bandOmega();
+    }
+
+    /**
+     * The worst-case quarter swing, as a multiple of the small-amplitude one:
+     * {@code K(1/√2)/(π/2) ≈ 1.18}. A property of the pendulum's shape (which is fixed by
+     * {@code M} and {@code ω}), not a knob.
+     */
+    private static final float QUARTER_PERIOD_STRETCH = 1.1804f;
+
+    /**
+     * Hard bound on the number of fly-out steps: the longest quarter swing the pendulum can
+     * produce, in steps of {@link #flyoutStepMs()}, times {@link #FLYOUT_STEP_MARGIN}. With the
+     * current constants it lands at ~124 for a ~61 ms worst case. It used to be a literal 128
+     * that had to be corrected by hand whenever {@link #SPRING_DURATION_MS} changed; now it
+     * cannot go stale.
+     */
+    private static int flyoutMaxSteps() {
+        final float quarterPeriodMs = 1000f * (float) (Math.PI / 2d) / bandOmega();
+        return (int) Math.ceil(FLYOUT_STEP_MARGIN * QUARTER_PERIOD_STRETCH * quarterPeriodMs
+                / flyoutStepMs());
+    }
 
     private static final float HALF_PI = (float) (Math.PI / 2d);
 
@@ -309,9 +417,11 @@ public final class ElasticOverdrag {
         if (!isFinite(rawPx)) return 0f;
         float a = Math.abs(rawPx);
         if (!(a > 0f)) return 0f;              // also rejects ±0 and NaN
-        final float l = saturationTravel(extentPx, unitPx);
+        // One maxPull(): saturationTravel() would evaluate it a second time.
+        final float m = maxPull(extentPx, unitPx);
+        final float l = m * SATURATION_RATIO;
         a = Math.min(a, l);
-        final float d = maxPull(extentPx, unitPx) * (float) Math.sin(HALF_PI * (a / l));
+        final float d = m * (float) Math.sin(HALF_PI * (a / l));
         return rawPx < 0f ? -d : d;
     }
 
@@ -333,7 +443,8 @@ public final class ElasticOverdrag {
         if (!(a > 0f)) return 0f;
         final float m = maxPull(extentPx, unitPx);
         a = Math.min(a, m);
-        final float raw = (2f * saturationTravel(extentPx, unitPx) / (float) Math.PI)
+        // One maxPull(): saturationTravel() would evaluate it a second time.
+        final float raw = (2f * (m * SATURATION_RATIO) / (float) Math.PI)
                 * (float) Math.asin(Math.min(1f, a / m));
         return dampedPx < 0f ? -raw : raw;
     }
@@ -350,8 +461,51 @@ public final class ElasticOverdrag {
      */
     public static float clampRaw(float rawPx, float extentPx, float unitPx) {
         if (!isFinite(rawPx)) return 0f;
-        final float l = saturationTravel(extentPx, unitPx);
+        final float l = maxPull(extentPx, unitPx) * SATURATION_RATIO;
         return Math.max(-l, Math.min(l, rawPx));
+    }
+
+    /**
+     * The impact speed, <b>in dp/s</b>, that just bottoms the band out — i.e. the flick that
+     * reaches the full cap. Anything slower reaches {@code INITIAL_SLOPE·v/ω}; anything faster is
+     * clamped to the cap anyway.
+     *
+     * <p>Useful as the scale for reasoning about {@link #MAX_ABSORB_VELOCITY_DP}: it is
+     * {@code √2·ω·M/(BOUNDARY_SLOPE·π/2)} ≈ 13.0 · extent_dp at the current slope, so a 411 dp
+     * wide pager bottoms out at ~5350 dp/s while a 762 dp tall transcript — the taller surface,
+     * hence the softer band — needs ~9920 dp/s. The 8000 dp/s cap therefore loads the pager all
+     * the way to its cap and the transcript to ~77 % of its own: a hard flick ends up deep in the
+     * band on both, which is what "the same material" actually requires.</p>
+     *
+     * @param extentDp the surface's extent along the drag axis, <b>in dp</b>.
+     */
+    public static float saturationVelocityDp(float extentDp) {
+        final float m = Math.max(1f, extentDp) * MAX_FRACTION;
+        return (float) (Math.sqrt(2d) * bandOmega() * m / (BOUNDARY_SLOPE * Math.PI / 2d));
+    }
+
+    // ── the impulse: the only density-dependent step in the system ──────────────────────────
+
+    /**
+     * Turn a raw fling velocity into the impulse the band actually receives, <b>in dp/s</b>.
+     *
+     * <p>This is the single crossing point between the two unit systems of §0b: velocity arrives
+     * in px/s because that is what {@code VelocityTracker} and {@code RecyclerView} report, and
+     * it leaves in dp/s because that is what makes a physical gesture mean the same thing on
+     * every screen. Both surfaces call it, so both thresholds and both caps are the same number
+     * — and the fling-threshold subtraction ({@link #MIN_ABSORB_VELOCITY_DP}) that only the
+     * transcript used to apply is now part of the shared model.</p>
+     *
+     * @param velocityPxPerSecond raw fling speed from the platform (magnitude; sign irrelevant).
+     * @param density             the display's {@code DisplayMetrics#density}.
+     * @return the impulse speed in dp/s, already clamped to {@code [0, MAX_ABSORB_VELOCITY_DP]}.
+     */
+    public static float absorbVelocity(float velocityPxPerSecond, float density) {
+        if (!isFinite(velocityPxPerSecond) || !isFinite(density) || !(density > 0f)) return 0f;
+        float v = Math.abs(velocityPxPerSecond) / density;
+        v = Math.min(v, MAX_ABSORB_VELOCITY_DP);
+        v = Math.max(0f, v - MIN_ABSORB_VELOCITY_DP);
+        return v;
     }
 
     // ── the fly-out: the band being stretched, in time ─────────────────────────────────────
@@ -370,29 +524,35 @@ public final class ElasticOverdrag {
      */
     public static final class Impact {
 
-        /** Raw travel per sample; {@code travelPx[0] == 0}, and the last entry is the peak. */
+        /**
+         * Raw travel per sample; {@code travelPx[0] == 0}, and the last of the {@code count}
+         * entries is the peak. The backing array is allocated once at the step bound and never
+         * copied — {@code count} is the length that matters.
+         */
         private final float[] travelPx;
+        private final int count;
 
         /** How long the fly-out takes, in ms. */
         public final long durationMs;
 
-        private Impact(float[] travelPx, long durationMs) {
+        private Impact(float[] travelPx, int count, long durationMs) {
             this.travelPx = travelPx;
+            this.count = count;
             this.durationMs = durationMs;
         }
 
         /** The peak raw travel — the displacement at the turning point, converted back. */
         public float peakTravelPx() {
-            return travelPx[travelPx.length - 1];
+            return travelPx[count - 1];
         }
 
         /** Raw travel at {@code progress ∈ [0,1]}, linearly interpolated between samples. */
         public float travelAt(float progress) {
             if (!isFinite(progress) || progress <= 0f) return 0f;
-            if (progress >= 1f) return travelPx[travelPx.length - 1];
-            final float pos = progress * (travelPx.length - 1);
+            if (progress >= 1f) return travelPx[count - 1];
+            final float pos = progress * (count - 1);
             final int i = (int) pos;
-            final int j = Math.min(travelPx.length - 1, i + 1);
+            final int j = Math.min(count - 1, i + 1);
             return travelPx[i] + (travelPx[j] - travelPx[i]) * (pos - i);
         }
     }
@@ -410,14 +570,39 @@ public final class ElasticOverdrag {
      * is a property of the band's stiffness rather than of the content, so it has no business
      * being measured in rows.</p>
      *
-     * @param velocityPxPerSecond impact speed along the drag axis (magnitude; sign is irrelevant).
+     * @param velocityPxPerSecond impact speed along the drag axis as reported by the platform
+     *                            (magnitude; sign is irrelevant). It is converted to dp/s by
+     *                            {@link #absorbVelocity(float, float)} first, so the same physical
+     *                            gesture loads the band identically on every screen.
      * @param extentPx            the surface's extent along the drag axis.
      * @param unitPx              the surface's quantum (glyph row height), or 0 for none.
+     * @param density             the display's {@code DisplayMetrics#density}.
      */
-    public static Impact impact(float velocityPxPerSecond, float extentPx, float unitPx) {
-        final float v = Math.abs(velocityPxPerSecond);
+    public static Impact impact(float velocityPxPerSecond, float extentPx, float unitPx,
+                                float density) {
+        // The impulse is the only density-dependent quantity in the model (§0b): it is measured in
+        // dp/s so a physical flick means the same thing everywhere, and it is brought back into
+        // the surface's own unit here so the integration below stays in one unit system. Every
+        // other quantity — extent, quantum, output — is unit-agnostic: the band is scale-free, so
+        // converting those to dp and back would cancel exactly.
+        final float v = absorbVelocity(velocityPxPerSecond, density) * density;
         final float m = maxPull(extentPx, unitPx);
-        if (!isFinite(v) || !(v > 0f)) return new Impact(new float[] {0f}, 0L);
+        if (!(v > 0f)) return new Impact(new float[] {0f}, 1, 0L);
+
+        // The boundary resists an arriving impulse exactly as hard as it resists a finger: right
+        // at it the pull curve has slope INITIAL_SLOPE (§2), i.e. INITIAL_SLOPE px of content per
+        // px of input. So the content does not enter the band at the fling's speed — it enters at
+        // INITIAL_SLOPE·v, and the remaining 58 % of the impulse is spent against the boundary.
+        // A flick twice as fast therefore still flies out twice as fast; it is the *proportion*
+        // that is fixed, by the same number that governs the drag.
+        //
+        // This is NOT the old "impulse through the pull curve" bug. That one fed the impulse
+        // through the whole curve *and* integrated in raw-travel space, where the effective
+        // stiffness is ∝ 1/L², so the fly-out stretched to ~460 ms. Here only the entry speed is
+        // scaled; the integration is a quarter swing of the real pendulum in displacement, whose
+        // period is amplitude-independent — so attenuating the impulse shortens the throw and
+        // leaves the timing at ~52 ms. Slowing down and shrinking are separate knobs again.
+        final float v0 = INITIAL_SLOPE * v;
 
         final float omega = bandOmega();
         final float kappa = HALF_PI / m;                 // rad per px of displacement
@@ -425,29 +610,38 @@ public final class ElasticOverdrag {
         // frequency is exactly the one the return spring runs at.
         final float a = (omega / kappa) * (omega / kappa);
 
-        // Turning point, closed form: ½v² = U(y_peak) ⇒ 1 − cos(κ·y_peak) = (v·κ/ω)²/2.
-        final float sigma = v * kappa / omega;
+        // Turning point, closed form: ½v0² = U(y_peak) ⇒ 1 − cos(κ·y_peak) = (v0·κ/ω)²/2.
+        final float sigma = v0 * kappa / omega;
         final float peak = Math.min(m, (float) Math.acos(Math.max(-1f, 1f - sigma * sigma / 2f))
                 / kappa);
 
-        final float dt = 0.001f;                         // 1 ms
-        final float[] samples = new float[FLYOUT_MAX_STEPS + 2];   // + the pinned peak
+        // The scales the loop needs, computed once. undamp() would re-evaluate maxPull() twice per
+        // sample (once directly, once through saturationTravel()) — up to ~250 redundant calls per
+        // impact, each carrying a Math.round.
+        final float invScale = 2f * (m * SATURATION_RATIO) / (float) Math.PI;
+
+        final float stepMs = flyoutStepMs();
+        final float dt = stepMs / 1000f;
+        final int maxSteps = flyoutMaxSteps();
+        final float[] samples = new float[maxSteps + 2];   // + the pinned peak
         int n = 0;
         samples[n++] = 0f;
         float y = 0f;
-        float vy = v;
-        for (int i = 0; i < FLYOUT_MAX_STEPS; i++) {
+        float vy = v0;
+        for (int i = 0; i < maxSteps; i++) {
             // Symplectic Euler: velocity first, then position. Energy-conserving to O(dt) and
             // unconditionally stable for this step size, so the bounce cannot gain energy.
             vy -= a * kappa * (float) Math.sin(kappa * y) * dt;
             y += vy * dt;
             if (y >= m || vy <= 0f) break;               // band full, or turning point
-            samples[n++] = undamp(y, extentPx, unitPx);
+            samples[n++] = invScale * (float) Math.asin(Math.min(1f, y / m));
         }
         // Pin the last sample to the closed-form peak: the integrator decides *when*, the algebra
         // decides *how far*. The two agree to well under a pixel.
-        samples[n++] = undamp(peak, extentPx, unitPx);
-        return new Impact(Arrays.copyOf(samples, n), (n - 1) * (long) (dt * 1000f));
+        samples[n++] = invScale * (float) Math.asin(Math.min(1f, peak / m));
+        // The duration is the time actually simulated, not an assumed "1 ms per step": the step is
+        // derived from ω, so it is only coincidentally a whole millisecond.
+        return new Impact(samples, n, Math.round((n - 1) * stepMs));
     }
 
     // ── the return ─────────────────────────────────────────────────────────────────────────
@@ -467,6 +661,13 @@ public final class ElasticOverdrag {
         final float settled = y - SPRING_RESIDUAL * input;
         return 1f - settled;
     };
+
+    /**
+     * Shared linear interpolator for the fly-out — the samples <em>are</em> the timing, so any
+     * easing would re-shape the motion the integration just produced. Stateless, hence safe to
+     * share; both surfaces used to allocate a fresh one per impact.
+     */
+    public static final Interpolator LINEAR = new LinearInterpolator();
 
     private static boolean isFinite(float v) {
         return !Float.isNaN(v) && !Float.isInfinite(v);

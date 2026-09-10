@@ -237,6 +237,22 @@ public final class TerminalView extends View {
     /** True while the finger is holding a pull (set on the first pull, cleared on release). */
     private boolean mOverdragDragging;
 
+    /**
+     * True when the band is actually stretched at the moment the finger lets go.
+     *
+     * <p>Used to swallow the fling {@code onFling()} would otherwise launch: a finger released
+     * while the rubber band is pulled must not hand its velocity to the scroller as well. The
+     * band is already holding that energy and is about to give it back as the return, so a
+     * scroller started here would be a <em>second, independent</em> motion layered on top of the
+     * spring — the content would shoot off and then glide back, which is precisely the unwanted
+     * impulse. Ordinary scrolling (raw == 0 at release) is untouched and keeps its fling.</p>
+     *
+     * <p>Set by {@link #applyOverdrag(float)} on every scroll event and cleared on the next
+     * {@code onDown()}, deliberately <em>not</em> by {@code releaseOverdrag()}: the fling can be
+     * dispatched after the up event.</p>
+     */
+    private boolean mOverdragEngaged;
+
     @Nullable
     private ValueAnimator mOverdragSpring;
     /** The fly-out of a fling impact (the band being stretched); null unless one is running. */
@@ -309,9 +325,9 @@ public final class TerminalView extends View {
     /** Master switch for the elastic over-drag. */
     private static final boolean ELASTIC_OVERDRAG_ENABLED = true;
 
-    /** Sanity cap on an absorbed velocity (dp/s) before it is converted into travel. With the
-     *  rubber band saturating, this is unreachable — it only guarantees bounded arithmetic. */
-    private static final float OVERDRAG_MAX_ABSORB_VELOCITY_DP = 8000f;
+    // The absorbed-velocity cap and the fling threshold used to live here (in dp/s, scaled by
+    // density). They are now part of the shared model — ElasticOverdrag.MAX_ABSORB_VELOCITY_DP and
+    // MIN_ABSORB_VELOCITY_DP — so the pager and the transcript cannot drift apart again.
 
     /**
      * Turn a wheel gesture into a fling once it settles (Chromebook-style inertia). Ticks are
@@ -552,6 +568,13 @@ public final class TerminalView extends View {
             public boolean onFling(final MotionEvent e2, float velocityX, float velocityY) {
                 if (mEmulator == null) return true;
                 scrolledWithFinger = true;
+                // Released while the band was stretched: no fling. The gesture's motion is
+                // already stored in the band and is about to come back as the return, so
+                // starting a scroller here would add a second motion on top of it. The content
+                // simply goes back from wherever the finger left it. A release at raw == 0 (i.e.
+                // ordinary scrolling, including a flick that merely *ends* at the boundary) is
+                // unaffected and keeps its momentum exactly as before.
+                if (ELASTIC_OVERDRAG_ENABLED && mOverdragEngaged) return true;
                 return startFling(e2, velocityX, velocityY);
             }
 
@@ -559,6 +582,7 @@ public final class TerminalView extends View {
             public boolean onDown(float x, float y) {
                 interruptFlingForNewTouch();
                 scrolledWithFinger = false;
+                mOverdragEngaged = false;
                 mScrollAxis = SCROLL_AXIS_UNDECIDED;
                 mScrollDownX = x;
                 mScrollDownY = y;
@@ -1686,6 +1710,10 @@ public final class TerminalView extends View {
         cancelOverdragAnimators();
         mOverdragDragging = true;
         setOverdragRaw(target);
+        // "Engaged" means stretched *right now*, not merely touched: a finger that pulled out and
+        // came back to the boundary ends with raw == 0 and keeps its fling, which is the
+        // ordinary-scroll case.
+        mOverdragEngaged = (mOverdragRawPx != 0f);
         return rest;
     }
 
@@ -1700,11 +1728,10 @@ public final class TerminalView extends View {
      */
     private void absorbIntoOverdrag(int edgeSign, float velocity) {
         if (!canOverdrag() || !isFinite(velocity)) return;
-        float v = Math.min(Math.abs(velocity), OVERDRAG_MAX_ABSORB_VELOCITY_DP * mDensity);
-        // Subtracting the fling threshold keeps the response continuous at it: a flick that only
-        // just qualifies produces a pull of ~0 instead of stepping straight to a visible bounce.
-        v = Math.max(0f, v - mMinFlingVelocity);
-        if (!(v > 0f)) {
+        // Thresholding, capping and the px/s -> dp/s conversion all happen inside the shared
+        // model, so this surface answers a given gesture exactly as the session pager does, on
+        // any screen density. This call is only to bail out before starting an empty animation.
+        if (!(ElasticOverdrag.absorbVelocity(velocity, mDensity) > 0f)) {
             releaseOverdrag();
             return;
         }
@@ -1714,7 +1741,7 @@ public final class TerminalView extends View {
         // one-frame jump to the peak. Identical model to the pager's: same feel on both surfaces,
         // one definition.
         final ElasticOverdrag.Impact impact =
-                ElasticOverdrag.impact(v, getHeight(), overdragUnitPx());
+                ElasticOverdrag.impact(velocity, getHeight(), overdragUnitPx(), mDensity);
         startOverdragImpact(mOverdragRawPx, edgeSign, impact);
     }
 
@@ -1738,7 +1765,7 @@ public final class TerminalView extends View {
         animator.setDuration(impact.durationMs);
         // Linear: the samples ARE the timing. Any easing here would re-shape the motion the
         // integration just produced, i.e. undo the very thing this exists for.
-        animator.setInterpolator(new LinearInterpolator());
+        animator.setInterpolator(ElasticOverdrag.LINEAR);
         animator.addUpdateListener(animation -> {
             float progress = (Float) animation.getAnimatedValue();
             if (isFinite(progress)) setOverdragRaw(baseRaw + edgeSign * impact.travelAt(progress));
@@ -1775,6 +1802,7 @@ public final class TerminalView extends View {
     private void resetOverdrag() {
         cancelOverdragAnimators();
         mOverdragDragging = false;
+        mOverdragEngaged = false;
         removeCallbacks(mOverdragSettleRunnable);
         setOverdragRaw(0f);
     }
