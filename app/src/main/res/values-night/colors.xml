@@ -5,6 +5,7 @@
     <color name="signal_picker_underlay_fill">#0DFFFFFF</color>
     <color name="signal_picker_underlay_stroke">#1AFFFFFF</color>
 
-    <!-- Disabled preference text (dark theme): light grey, offset 89 from pure white (255,255,255). -->
-    <color name="preference_text_disabled_dark">#A6A6A6</color>
+    <!-- Disabled preference text (dark theme): muted grey, dimmer than the active white title
+         so an inactive item reads as disabled. -->
+    <color name="preference_text_disabled_dark">#808080</color>
 </resources>

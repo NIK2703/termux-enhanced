@@ -2,9 +2,10 @@
 <resources>
 
     <!-- Night variant of BaseActivity.Scheme.PopupMenu.ItemText (see values/styles.xml):
-         white popup menu item text so it contrasts with the dark popup background. -->
+         resolve through ?android:attr/textColorPrimary so the item text always matches the
+         popup background, which is also resolved from the theme (?attr/colorSurface). -->
     <style name="BaseActivity.Scheme.PopupMenu.ItemText" parent="TextAppearance.MaterialComponents.Subtitle1">
-        <item name="android:textColor">@color/white</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
     </style>
 
 </resources>

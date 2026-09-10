@@ -117,6 +117,11 @@
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Clavier virtuel uniquement sans clavier physique</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Le clavier virtuel sera activé même si un clavier physique est connecté.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Le clavier virtuel sera activé uniquement si aucun clavier physique n\'est connecté.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">État du clavier lors du changement d\'onglet</string>
+    <string name="keyboard_state_follow_tab_switch_on">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était lorsque vous l\'avez quitté.</string>
+    <string name="keyboard_state_follow_tab_switch_off">Lors du changement d\'onglet, l\'état du clavier ne change pas. Si vous passez d\'un onglet avec clavier masqué à un onglet avec le panneau de saisie ouvert, le panneau sera masqué.</string>
     <string name="termux_terminal_view_preferences_title">Vue du terminal</string>
     <string name="termux_terminal_view_preferences_summary">Préférences pour la vue du terminal</string>
     <string name="termux_terminal_view_view_header">Vue</string>
@@ -209,6 +214,9 @@
     <string name="text_input_show_summary_off">Le champ de saisie de texte est masqué</string>
     <string name="text_input_hide_on_send_title">Masquer le panneau de saisie après l\'envoi</string>
     <string name="text_input_hide_on_send_summary">Lorsque activé, le panneau de saisie se ferme et le focus revient au terminal après l\'envoi. Désactivez pour garder le panneau ouvert afin d\'enchaîner les commandes.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Masquer le clavier virtuel après l\'envoi</string>
+    <string name="text_input_hide_keyboard_on_send_summary">Lorsque cette option est activée, le clavier virtuel est masqué après l\'envoi du texte depuis le champ de saisie (par ex. avec la touche Entrée). Le panneau de saisie et le clavier sont contrôlés indépendamment.</string>
     <string name="text_input_action_on_send_title">Action après l\'envoi</string>
     <string name="text_input_action_on_send_summary">Ce qui se passe après l\'envoi de texte depuis le champ de saisie : ne rien faire, masquer le panneau de saisie, ou masquer le panneau de saisie et le clavier.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -533,6 +541,11 @@
     <string name="terminal_margin_top_title">Marge supérieure</string>
     <string name="terminal_margin_right_title">Marge droite</string>
     <string name="terminal_margin_bottom_title">Marge inférieure</string>
+
+    <string name="terminal_background_transparency_title">Transparence de l\'arrière-plan</string>
+
+    <string name="terminal_background_blur_radius_title">Rayon de flou de l\'arrière-plan</string>
+    <string name="terminal_background_blur_radius_summary">Peut augmenter la consommation d\'énergie avec des fonds d\'écran dynamiques et un rayon de flou élevé. Avec des fonds statiques, l\'impact sur la consommation est négligeable.</string>
 
     
     <string name="terminal_toolbar_height_title">Échelle de hauteur de la barre d\'outils</string>

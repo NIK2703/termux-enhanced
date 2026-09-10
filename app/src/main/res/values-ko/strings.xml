@@ -221,6 +221,11 @@ $HOME/bin/termux-url-opener
     <string name="termux_soft_keyboard_enabled_on">소프트 키보드가 활성화됩니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">하드웨어 키보드가 연결되어 있어도 소프트 키보드가 사용됩니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">하드웨어 키보드가 연결되지 않은 경우에만 소프트 키보드가 사용됩니다.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">탭 전환 시 키보드 상태</string>
+    <string name="keyboard_state_follow_tab_switch_on">탭을 전환할 때 각 탭의 키보드 상태를 떠났을 때의 상태로 복원합니다.</string>
+    <string name="keyboard_state_follow_tab_switch_off">탭을 전환해도 키보드 상태는 바뀌지 않습니다. 키보드가 숨겨진 탭에서 입력 패널이 열린 탭으로 전환하면 패널이 숨겨집니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">하드웨어 키보드가 없을 때만 소프트 키보드 사용</string>
     <string name="termux_soft_keyboard_enabled_title">소프트 키보드 사용</string>
     <string name="termux_tasker_preferences_summary">Termux:Tasker 앱 설정</string>
@@ -247,6 +252,9 @@ $HOME/bin/termux-url-opener
     <string name="text_input_title">텍스트 입력</string>
     <string name="text_input_hide_on_send_title">전송 후 입력 패널 숨기기</string>
     <string name="text_input_hide_on_send_summary">활성화하면 전송 후 입력 패널이 닫히고 포커스가 터미널로 이동합니다. 연속된 명령을 위해 패널을 열어 두려면 비활성화하세요.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">전송 후 소프트 키보드 숨기기</string>
+    <string name="text_input_hide_keyboard_on_send_summary">활성화하면 입력 필드에서 텍스트를 전송한 후(예: Enter 입력 시) 소프트 키보드가 닫힙니다. 입력 패널과 소프트 키보드는 각각 독립적으로 제어됩니다.</string>
     <string name="text_input_action_on_send_title">전송 동작</string>
     <string name="text_input_action_on_send_summary">입력 필드에서 텍스트를 전송한 후 수행할 동작: 아무 작업 안 함, 입력 패널 숨기기, 또는 입력 패널과 키보드 숨기기.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -456,6 +464,11 @@ $HOME/bin/termux-url-opener
     <string name="terminal_margin_top_title">위쪽 여백</string>
     <string name="terminal_margin_right_title">오른쪽 여백</string>
     <string name="terminal_margin_bottom_title">아래쪽 여백</string>
+
+    <string name="terminal_background_transparency_title">배경 투명도</string>
+
+    <string name="terminal_background_blur_radius_title">배경 블러 반경</string>
+    <string name="terminal_background_blur_radius_summary">동적 배경화면에서 블러 반경이 크면 전력 소모가 증가할 수 있습니다. 정적 배경화면에서는 전력에 미치는 영향이 미미합니다.</string>
 
     
     <string name="terminal_toolbar_height_summary">추가 키 / 터미널 도구 모음 높이 배율입니다.</string>

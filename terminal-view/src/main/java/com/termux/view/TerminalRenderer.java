@@ -105,6 +105,15 @@ public final class TerminalRenderer {
     private int mRunCount;
     /** Paint for the background rectangles - never carries text attributes. */
     private final Paint mBgPaint = new Paint();
+    /**
+     * C2: identical to {@link #mBgPaint} but with {@link PorterDuff.Mode#SRC} permanently attached.
+     * Every translucent background fill (base fill, pass A, mismatch runs, cursor) needs SRC, and
+     * every opaque one needs the default SRC_OVER, so the renderer used to call
+     * {@code setXfermode(SRC)} / {@code setXfermode(null)} twice per rectangle — two native paint
+     * mutations for every run on every frame. Keeping two paints with a fixed mode makes the
+     * choice a field selection, and neither paint's mode is ever mutated at draw time.
+     */
+    private final Paint mBgSrcPaint = new Paint();
     private final int[] mColorOut = new int[2];
 
     /**
@@ -145,6 +154,9 @@ public final class TerminalRenderer {
         mTextPaint.setTextSize(textSize);
 
         mBgPaint.setStyle(Paint.Style.FILL);
+        // C2: the SRC twin is set up once here and never touched again.
+        mBgSrcPaint.setStyle(Paint.Style.FILL);
+        mBgSrcPaint.setXfermode(SRC_XFERMODE);
 
         mFontLineSpacing = (int) Math.ceil(mTextPaint.getFontSpacing());
         mFontAscent = (int) Math.ceil(mTextPaint.ascent());
@@ -299,12 +311,9 @@ public final class TerminalRenderer {
                 mBgPaint.setColor(bgColor);
                 canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgPaint);
             } else {
-                mBgPaint.setXfermode(SRC_XFERMODE);
-                mBgPaint.setColor(bgColor);
-                canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgPaint);
-                // mBgPaint is reused for the per-run background fills in pass A, which need
-                // the default SRC_OVER — always restore it.
-                mBgPaint.setXfermode(null);
+                // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
+                mBgSrcPaint.setColor(bgColor);
+                canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgSrcPaint);
             }
         }
 
@@ -335,6 +344,46 @@ public final class TerminalRenderer {
             final char[] line = lineObject.mText;
             final int charsUsedInLine = lineObject.getSpaceUsed();
 
+            // A2 fast path: a row that is nothing but spaces under a single uniform style, with no
+            // cursor and no selection, has no glyph to draw — the only thing it can contribute to
+            // the frame is a background rectangle when that style paints a non-default background.
+            // Skipping the run split here saves the per-column wcwidth + measure work and the
+            // drawTextRun() of `columns` blanks. This is the common case for the empty rows below
+            // the prompt, for cleared regions and for the tail of the alternate screen.
+            if (cursorX < 0 && selx1 < 0 && selx2 < 0 && !lineObject.hasNonOneWidthOrSurrogateChars()) {
+                final long uniformStyle = lineObject.getStyle(0);
+                boolean blankAndUniform = true;
+                for (int column = 0; column < columns; column++) {
+                    if (line[column] != ' ' || lineObject.getStyle(column) != uniformStyle) {
+                        blankAndUniform = false;
+                        break;
+                    }
+                }
+                if (blankAndUniform) {
+                    // Underline and strike-through are text decorations: drawTextRun() paints them
+                    // across blank cells too, so a decorated row of spaces is *not* blank on screen
+                    // and must go through the normal path.
+                    final int effect = TextStyle.decodeEffect(uniformStyle);
+                    if ((effect & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) == 0) {
+                        resolveRunColors(uniformStyle, reverseVideo, palette, mColorOut);
+                        final int backColor = mColorOut[1];
+                        if (backColor != rawBgColor) {
+                            final Paint fillPaint;
+                            if (mBackgroundAlpha >= 255) {
+                                fillPaint = mBgPaint;
+                                fillPaint.setColor(backColor);
+                            } else {
+                                fillPaint = mBgSrcPaint;
+                                fillPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+                            }
+                            canvas.drawRect(0f, heightOffset - mFontLineSpacingAndAscent + mFontAscent,
+                                columns * mFontWidth, heightOffset, fillPaint);
+                        }
+                        continue;
+                    }
+                }
+            }
+
             mRunCount = 0;
             long lastRunStyle = 0;
             boolean lastRunInsideCursor = false;
@@ -342,6 +391,8 @@ public final class TerminalRenderer {
             int lastRunStartColumn = -1;
             int lastRunStartIndex = 0;
             boolean lastRunFontWidthMismatch = false;
+            // A3: scale factor (measured / expected) of the current run's mismatched glyphs, -1 = none.
+            float lastRunMismatchRatio = -1.f;
             int currentCharIndex = 0;
             float measuredWidthForRun = 0.f;
 
@@ -362,12 +413,24 @@ public final class TerminalRenderer {
                 final float measuredCodePointWidth = measureCodePoint(codePoint, line, currentCharIndex, charsForCodePoint);
                 final boolean fontWidthMismatch = Math.abs(measuredCodePointWidth / mFontWidth - codePointWcWidth) > 0.01;
 
-                // Break the run whenever the font-width-mismatch flag changes, AND additionally
-                // break on every mismatched code point so each such glyph is scaled individually
-                // rather than averaged with its neighbours. Averaging across a run is what makes
-                // some emoji get clipped (glyph wider than its cell) or squeezed (glyph narrower
-                // than its cell).
-                if (style != lastRunStyle || insideCursor != lastRunInsideCursor || insideSelection != lastRunInsideSelection || fontWidthMismatch || lastRunFontWidthMismatch) {
+                // A3: how much this code point's measured width deviates from the cell width it is
+                // supposed to occupy. A run is drawn with a single canvas scale derived from its
+                // totals (see drawRunText), so a run may only hold mismatched code points that need
+                // the *same* scale — mixing different factors is what makes an emoji get clipped
+                // (glyph wider than its cell) or squeezed (glyph narrower than its cell).
+                //
+                // Adjacent mismatched glyphs with a bit-identical factor (a row of box-drawing
+                // characters, a run of the same emoji, braille) are therefore merged into one run:
+                // one save/scale/restore + one drawTextRun + one background rect instead of one of
+                // each per glyph. The result is pixel-identical — every glyph in the run is scaled
+                // by exactly the factor it would have had on its own. Anything less than exact
+                // equality goes back to the old one-run-per-glyph behaviour.
+                final float mismatchRatio = (fontWidthMismatch && codePointWcWidth > 0)
+                    ? measuredCodePointWidth / (codePointWcWidth * mFontWidth) : -1.f;
+                final boolean scaleChanged = fontWidthMismatch && lastRunFontWidthMismatch
+                    && (mismatchRatio < 0.f || lastRunMismatchRatio < 0.f || mismatchRatio != lastRunMismatchRatio);
+
+                if (style != lastRunStyle || insideCursor != lastRunInsideCursor || insideSelection != lastRunInsideSelection || fontWidthMismatch != lastRunFontWidthMismatch || scaleChanged) {
                     if (column != 0) {
                         final int columnWidthSinceLastRun = column - lastRunStartColumn;
                         final int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
@@ -386,6 +449,7 @@ public final class TerminalRenderer {
                     lastRunStartColumn = column;
                     lastRunStartIndex = currentCharIndex;
                     lastRunFontWidthMismatch = fontWidthMismatch;
+                    lastRunMismatchRatio = mismatchRatio;
                 }
                 measuredWidthForRun += measuredCodePointWidth;
                 column += codePointWcWidth;
@@ -441,9 +505,11 @@ public final class TerminalRenderer {
 
                 final float left = mRunStartColumn[i] * mFontWidth;
                 final float right = (mRunStartColumn[endRun - 1] + mRunWidthColumns[endRun - 1]) * mFontWidth;
+                final Paint fillPaint;
                 if (mBackgroundAlpha >= 255) {
                     // Fast path: opaque painted background, default SRC_OVER compositing.
-                    mBgPaint.setColor(backColor);
+                    fillPaint = mBgPaint;
+                    fillPaint.setColor(backColor);
                 } else {
                     // Painted backgrounds (explicit SGR/truecolor colours, inverse video,
                     // selection) get the same alpha as the default fill so the wallpaper shows
@@ -452,11 +518,11 @@ public final class TerminalRenderer {
                     // SRC_OVER translucent layer over the translucent base would compose to a
                     // higher alpha (2A−A²), leaving painted cells more opaque than (and tinted
                     // by) their neighbours.
-                    mBgPaint.setXfermode(SRC_XFERMODE);
-                    mBgPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+                    // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
+                    fillPaint = mBgSrcPaint;
+                    fillPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
                 }
-                canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, mBgPaint);
-                if (mBackgroundAlpha < 255) mBgPaint.setXfermode(null);
+                canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, fillPaint);
 
                 i = endRun - 1;  // skip the runs already covered by this rectangle
             }
@@ -573,15 +639,17 @@ public final class TerminalRenderer {
         // showing through. Never set SRC on mTextPaint itself: text is drawn with partial
         // glyph coverage, and SRC would erase the background behind the anti-aliased edges.
         if (fontWidthMismatch && backColor != baseBgColor) {
+            final Paint fillPaint;
             if (mBackgroundAlpha >= 255) {
                 // Fast path: opaque painted background, default SRC_OVER compositing.
-                mBgPaint.setColor(backColor);
+                fillPaint = mBgPaint;
+                fillPaint.setColor(backColor);
             } else {
-                mBgPaint.setXfermode(SRC_XFERMODE);
-                mBgPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+                // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
+                fillPaint = mBgSrcPaint;
+                fillPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
             }
-            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, mBgPaint);
-            if (mBackgroundAlpha < 255) mBgPaint.setXfermode(null);
+            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, fillPaint);
         }
 
         if (cursor != 0) {
@@ -594,15 +662,17 @@ public final class TerminalRenderer {
             // screen — it punched a dense hole through the wallpaper wherever it blinked.
             // Only the *glyph* on top of a block cursor stays opaque (it is text, and it is
             // drawn below by the normal text path with the reverse-video swap applied).
+            final Paint cursorPaint;
             if (mBackgroundAlpha >= 255) {
                 // Fast path: opaque cursor, default SRC_OVER compositing.
-                mBgPaint.setColor(cursor);
+                cursorPaint = mBgPaint;
+                cursorPaint.setColor(cursor);
             } else {
-                mBgPaint.setXfermode(SRC_XFERMODE);
-                mBgPaint.setColor((cursor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+                // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
+                cursorPaint = mBgSrcPaint;
+                cursorPaint.setColor((cursor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
             }
-            canvas.drawRect(left, y - cursorHeight, right, y, mBgPaint);
-            if (mBackgroundAlpha < 255) mBgPaint.setXfermode(null);
+            canvas.drawRect(left, y - cursorHeight, right, y, cursorPaint);
         }
 
         if ((effect & TextStyle.CHARACTER_ATTRIBUTE_INVISIBLE) == 0) {

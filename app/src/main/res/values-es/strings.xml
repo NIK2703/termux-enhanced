@@ -12,6 +12,8 @@
     ]>
 
 <resources>
+
+    <string name="application_name">TermuxEnhanced</string>
     <string name="shared_user_label">usuario de Termux</string>
     <string name="permission_run_command_label">Ejecutar comandos en el entorno de Termux</string>
     <string name="permission_run_command_description">ejecutar comandos arbitrarios en el entorno de Termux y acceder a archivos</string>
@@ -111,6 +113,11 @@
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Teclado virtual solo si no hay teclado físico</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">El teclado virtual estará habilitado incluso si hay un teclado físico conectado.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">El teclado virtual se habilitará solo si no hay un teclado físico conectado.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">Estado del teclado al cambiar de pestaña</string>
+    <string name="keyboard_state_follow_tab_switch_on">Al cambiar de pestaña se restaura el estado del teclado de cada pestaña tal como estaba al salir de ella.</string>
+    <string name="keyboard_state_follow_tab_switch_off">Al cambiar de pestaña el estado del teclado no cambia. Si pasas de una pestaña con el teclado oculto a otra con el panel de entrada abierto, el panel se ocultará.</string>
     <string name="termux_terminal_view_preferences_title">Vista de terminal</string>
     <string name="termux_terminal_view_preferences_summary">Preferencias para la vista de terminal</string>
     <string name="termux_terminal_view_view_header">Vista</string>
@@ -211,6 +218,9 @@
     <string name="text_input_show_summary_off">El campo de entrada de texto está oculto</string>
     <string name="text_input_hide_on_send_title">Ocultar panel de entrada tras enviar</string>
     <string name="text_input_hide_on_send_summary">Cuando está activado, el panel de entrada se cierra y el foco pasa a la terminal después de enviar. Desactívelo para mantener el panel abierto para comandos consecutivos.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Ocultar el teclado virtual después de enviar</string>
+    <string name="text_input_hide_keyboard_on_send_summary">Cuando está activado, el teclado virtual se oculta después de enviar texto desde el campo de entrada (por ejemplo, al pulsar Enter). El panel de entrada y el teclado se controlan de forma independiente.</string>
     <string name="text_input_action_on_send_title">Acción al enviar</string>
     <string name="text_input_action_on_send_summary">Qué sucede después de enviar texto desde el campo de entrada: no hacer nada, ocultar el panel de entrada, u ocultar el panel de entrada y el teclado.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -487,6 +497,11 @@
     <string name="terminal_margin_top_title">Margen superior</string>
     <string name="terminal_margin_right_title">Margen derecho</string>
     <string name="terminal_margin_bottom_title">Margen inferior</string>
+
+    <string name="terminal_background_transparency_title">Transparencia del fondo</string>
+
+    <string name="terminal_background_blur_radius_title">Radio de desenfoque del fondo</string>
+    <string name="terminal_background_blur_radius_summary">Puede aumentar el consumo de energía con fondos de pantalla dinámicos y un radio de desenfoque alto. Con fondos estáticos el impacto en el consumo es insignificante.</string>
     <string name="terminal_onclick_url_open_summary">Abrir URLs en la transcripción del terminal al pulsarlas.</string>
     <string name="terminal_onclick_url_open_title">Abrir URL al hacer clic</string>
     <string name="terminal_toolbar_height_summary">Factor de escala de altura de la barra de herramientas / teclas adicionales.</string>

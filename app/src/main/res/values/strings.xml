@@ -248,12 +248,8 @@
 
                 <!-- Keyboard State On Tab Switch -->
                 <string name="keyboard_state_follow_tab_switch_title">Keyboard state when switching tabs</string>
-                <string name="keyboard_state_follow_tab_switch_on">On tab switch the keyboard changes to the
-                    remembered state of the selected session. An input panel open on it re-opens with the
-                    keyboard; a session with a hidden keyboard hides it.</string>
-                <string name="keyboard_state_follow_tab_switch_off">On tab switch the keyboard state does not
-                    change. If you switch from a tab with a hidden keyboard to a tab with an open input
-                    panel, the panel will be hidden.</string>
+                <string name="keyboard_state_follow_tab_switch_on">When switching tabs, restore the keyboard state for each tab as it was when you switched away from it.</string>
+                <string name="keyboard_state_follow_tab_switch_off">On tab switch the keyboard state does not change. If you switch from a tab with a hidden keyboard to a tab with an open input panel, the panel will be hidden.</string>
 
         <!-- Terminal View Preferences -->
         <string name="termux_terminal_view_preferences_title">Terminal View</string>

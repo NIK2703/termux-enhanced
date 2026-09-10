@@ -207,6 +207,11 @@
     <string name="termux_soft_keyboard_enabled_on">O teclado virtual será ativado.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">O teclado virtual será ativado mesmo se um teclado físico estiver conectado.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">O teclado virtual será ativado apenas se nenhum teclado físico estiver conectado.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">Estado do teclado ao alternar abas</string>
+    <string name="keyboard_state_follow_tab_switch_on">Ao alternar abas, o estado do teclado de cada aba é restaurado como estava quando você saiu dela.</string>
+    <string name="keyboard_state_follow_tab_switch_off">Ao alternar abas, o estado do teclado não muda. Se você alternar de uma aba com o teclado oculto para uma aba com o painel de entrada aberto, o painel será ocultado.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Teclado Virtual Apenas Sem Teclado Físico</string>
     <string name="termux_soft_keyboard_enabled_title">Teclado Virtual Ativado</string>
     <string name="termux_tasker_preferences_title">Termux:Tasker</string>
@@ -228,6 +233,9 @@
     <string name="text_input_append_enter_summary">Ao enviar do campo de entrada, também submeter a linha (pressionar Enter). Desative para enviar texto sem uma nova linha no final.</string>
     <string name="text_input_append_enter_title">Adicionar Enter ao Enviar</string>
     <string name="text_input_hide_on_send_summary">Quando ativado, o painel de entrada fecha e o foco vai para o terminal após o envio. Desative para manter o painel aberto para comandos consecutivos.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Ocultar o teclado virtual após enviar</string>
+    <string name="text_input_hide_keyboard_on_send_summary">Quando ativado, o teclado virtual é ocultado após enviar o texto do campo de entrada (por exemplo, ao pressionar Enter). O painel de entrada e o teclado virtual são controlados de forma independente.</string>
     <string name="text_input_action_on_send_title">Ação ao enviar</string>
     <string name="text_input_action_on_send_summary">O que acontece após enviar texto do campo de entrada: não fazer nada, ocultar o painel de entrada ou ocultar o painel de entrada e o teclado.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -497,6 +505,11 @@
     <string name="terminal_margin_top_title">Margem superior</string>
     <string name="terminal_margin_right_title">Margem direita</string>
     <string name="terminal_margin_bottom_title">Margem inferior</string>
+
+    <string name="terminal_background_transparency_title">Transparência do fundo</string>
+
+    <string name="terminal_background_blur_radius_title">Raio de desfoque do fundo</string>
+    <string name="terminal_background_blur_radius_summary">Pode aumentar o consumo de energia com papéis de parede dinâmicos e um raio de desfoque elevado. Com papéis de parede estáticos, o impacto no consumo é insignificante.</string>
     <string name="terminal_toolbar_height_title">Escala da altura da barra de ferramentas</string>
     <string name="terminal_toolbar_height_summary">Fator de escala da altura da barra de teclas extras / barra de ferramentas do terminal.</string>
     <string name="default_working_directory_title">Diretório de trabalho padrão</string>

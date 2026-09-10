@@ -1,15 +1,13 @@
 package com.termux.shared.logger;
 
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 
 import com.termux.shared.R;
 import com.termux.shared.data.DataUtils;
+import com.termux.shared.interact.ToastUtils;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -419,13 +417,13 @@ public class Logger {
 
 
 
-    /** Main-thread handler reused by {@link #showToast} — creating one per call was pure garbage. */
-    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
-
     public static void showToast(final Context context, final String toastText, boolean longDuration) {
         if (context == null || DataUtils.isNullOrEmpty(toastText)) return;
 
-        MAIN_HANDLER.post(() -> Toast.makeText(context, toastText, longDuration ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show());
+        // ToastUtils paints the toast with the terminal colour scheme so its text can never
+        // blend into its own background (a plain Toast inherited half of the scheme theme and
+        // came out white-on-white whenever the app theme and the scheme disagreed).
+        ToastUtils.showToast(context, toastText, longDuration);
     }
 
 

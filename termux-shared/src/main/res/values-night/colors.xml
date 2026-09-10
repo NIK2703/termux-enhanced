@@ -34,4 +34,9 @@
 
     <!-- Settings screen/section header background in dark theme: 95% black + 5% white = #0D0D0D. -->
     <color name="settings_header_background">#0D0D0D</color>
+
+    <!-- Markdown code-block background in dark theme. The base value is a translucent black
+         tint, which disappears on a dark surface; activities that are NOT wrapped in the
+         colour-scheme context (report/About) fall back to this, so tint white instead. -->
+    <color name="scheme_dialog_code_block">#14FFFFFF</color>
 </resources>

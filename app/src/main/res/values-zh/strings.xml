@@ -124,6 +124,11 @@
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">仅无硬件键盘时启用软键盘</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">即使连接了硬件键盘，软键盘也将启用。</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">仅当未连接硬件键盘时，软键盘才启用。</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">切换标签页时的键盘状态</string>
+    <string name="keyboard_state_follow_tab_switch_on">切换标签页时，会恢复每个标签页离开时的键盘状态。</string>
+    <string name="keyboard_state_follow_tab_switch_off">切换标签页时键盘状态不会改变。如果从隐藏键盘的标签页切换到输入面板已打开的标签页，面板将被隐藏。</string>
     <string name="termux_terminal_view_preferences_title">终端视图</string>
     <string name="termux_terminal_view_preferences_summary">终端视图偏好设置</string>
     <string name="termux_terminal_view_view_header">视图</string>
@@ -222,6 +227,9 @@
     <string name="text_input_show_summary_off">文本输入框已隐藏</string>
     <string name="text_input_hide_on_send_title">发送后隐藏输入面板</string>
     <string name="text_input_hide_on_send_summary">启用后，发送后输入面板会关闭并将焦点移到终端。禁用可保持面板打开以便连续输入命令。</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">发送后隐藏软键盘</string>
+    <string name="text_input_hide_keyboard_on_send_summary">启用后，从输入框发送文本（例如按回车键）后会关闭软键盘。输入面板与软键盘相互独立控制。</string>
     <string name="text_input_action_on_send_title">发送操作</string>
     <string name="text_input_action_on_send_summary">从输入框发送文本后发生的行为：不执行操作、隐藏输入面板，或隐藏输入面板和键盘。</string>
     <string-array name="text_input_action_on_send_entries">
@@ -475,6 +483,11 @@
     <string name="terminal_margin_top_title">上边距</string>
     <string name="terminal_margin_right_title">右边距</string>
     <string name="terminal_margin_bottom_title">下边距</string>
+
+    <string name="terminal_background_transparency_title">背景透明度</string>
+
+    <string name="terminal_background_blur_radius_title">背景模糊半径</string>
+    <string name="terminal_background_blur_radius_summary">在高模糊半径下使用动态壁纸可能会增加耗电量。使用静态壁纸时，对耗电的影响可以忽略不计。</string>
 
     <string name="terminal_toolbar_height_title">工具栏高度比例</string>
     <string name="terminal_toolbar_height_summary">额外按键/终端工具栏高度比例因子。</string>

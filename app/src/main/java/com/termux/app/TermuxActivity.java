@@ -56,6 +56,7 @@ import com.termux.shared.data.IntentUtils;
 import com.termux.shared.android.PermissionUtils;
 import com.termux.shared.data.DataUtils;
 import com.termux.shared.interact.ShareUtils;
+import com.termux.shared.interact.ToastUtils;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY;
 import com.termux.app.activities.HelpActivity;
@@ -3191,11 +3192,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         TermuxActivityUtils.finishActivityIfNotFinishing(this);
     }
 
-    /** Show a toast and dismiss the last one if still visible. */
+    /**
+     * Show a toast and dismiss the last one if still visible.
+     *
+     * The toast is built by {@link com.termux.shared.interact.ToastUtils} so that both its
+     * background and its text colour come from the active colour scheme: a plain
+     * {@link Toast} only inherited half of the scheme theme (text from the scheme, background
+     * from the platform) and came out white-on-white whenever the two disagreed.
+     */
     public void showToast(String text, boolean longDuration) {
         if (text == null || text.isEmpty()) return;
         if (mLastToast != null) mLastToast.cancel();
-        mLastToast = Toast.makeText(TermuxActivity.this, text, longDuration ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT);
+        mLastToast = ToastUtils.makeStyledToast(TermuxActivity.this, text, longDuration);
+        if (mLastToast == null) return;
         mLastToast.setGravity(Gravity.TOP, 0, 0);
         mLastToast.show();
     }

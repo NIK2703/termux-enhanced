@@ -4,6 +4,9 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.DrawableCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -11,23 +14,28 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.Window;
+import android.view.WindowManager;
 
 import com.termux.shared.R;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.data.DataUtils;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.file.filesystem.FileType;
-import com.termux.shared.interact.SchemeDialogTheme;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.errors.Error;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.markdown.MarkdownUtils;
 import com.termux.shared.interact.ShareUtils;
 import com.termux.shared.models.ReportInfo;
+import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.theme.NightMode;
 
 import org.commonmark.node.FencedCodeBlock;
@@ -70,11 +78,13 @@ public class ReportActivity extends AppCompatActivity {
 
     private static final String LOG_TAG = "ReportActivity";
 
-    @Override
-    protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(SchemeDialogTheme.wrapActivityTheme(newBase));
-    }
-
+    /**
+     * The report/About screen deliberately does <b>not</b> wrap its context with the
+     * Termux:Style colour scheme ({@code SchemeDialogTheme.wrapActivityTheme}): this is an app
+     * screen, not a terminal surface, so it must follow the app day/night theme. Scheming it
+     * made the window (and the overflow popup menu) unreadable whenever the app theme and the
+     * terminal colour scheme disagreed — e.g. black window + black text in light mode.
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -89,8 +99,9 @@ public class ReportActivity extends AppCompatActivity {
             setSupportActionBar(toolbar);
         }
 
-        // Colour the toolbar + status bar with the active Termux:Style scheme (no red leak).
-        SchemeDialogTheme.applyToToolbar(this);
+        // Chrome follows the app day/night theme (not the terminal colour scheme) so the report
+        // stays readable in light mode: surface background + on-surface text/icons.
+        applyAppThemeToChrome();
 
         mBundle = null;
         Intent intent = getIntent();
@@ -101,6 +112,67 @@ public class ReportActivity extends AppCompatActivity {
 
         updateUI();
 
+    }
+
+    /**
+     * Paint the window, toolbar and status bar with the app day/night theme colours.
+     *
+     * <p>Every colour is resolved from the same theme the content is inflated with
+     * ({@code ?attr/colorSurface} / {@code ?android:attr/textColorPrimary}), so background and
+     * text can never be taken from two different sources and end up unreadable. This also keeps
+     * the red {@code colorPrimary} of the base theme out of the toolbar.
+     */
+    private void applyAppThemeToChrome() {
+        // Fallbacks follow the actual night mode so even an unresolved attribute cannot produce
+        // an unreadable (black-on-black / white-on-white) screen.
+        final boolean night = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+
+        final int surface = getThemeColor(com.google.android.material.R.attr.colorSurface,
+                night ? 0xFF000000 : 0xFFFFFFFF);
+        final int onSurface = getThemeColor(android.R.attr.textColorPrimary,
+                night ? 0xFFFFFFFF : 0xFF000000);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            toolbar.setBackgroundColor(surface);
+            toolbar.setTitleTextColor(onSurface);
+            tintDrawable(toolbar.getNavigationIcon(), onSurface);
+            tintDrawable(toolbar.getOverflowIcon(), onSurface);
+        }
+
+        Window window = getWindow();
+        if (window == null) return;
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.setBackgroundDrawable(new ColorDrawable(surface));
+        window.setStatusBarColor(surface);
+        // Icons must contrast with the (now themed) status bar background.
+        new WindowInsetsControllerCompat(window, window.getDecorView())
+                .setAppearanceLightStatusBars(ColorSchemeUtils.isColorLight(surface));
+    }
+
+    /** Tint {@code drawable} with {@code color}, if present. */
+    private static void tintDrawable(android.graphics.drawable.Drawable drawable, int color) {
+        if (drawable == null) return;
+        DrawableCompat.setTintList(drawable, ColorStateList.valueOf(color));
+    }
+
+    /** Resolve a colour attribute of this activity's theme, with a fallback. */
+    private int getThemeColor(int attr, int fallback) {
+        TypedValue value = new TypedValue();
+        if (getTheme().resolveAttribute(attr, value, true)) {
+            if (value.type >= TypedValue.TYPE_FIRST_COLOR_INT && value.type <= TypedValue.TYPE_LAST_COLOR_INT)
+                return value.data;
+            if (value.resourceId != 0) {
+                try {
+                    return ContextCompat.getColor(this, value.resourceId);
+                } catch (Exception e) {
+                    Logger.logError(LOG_TAG, "Failed to resolve theme colour: " + e.getMessage());
+                }
+            }
+        }
+        return fallback;
     }
 
     @Override

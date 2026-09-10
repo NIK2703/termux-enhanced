@@ -124,6 +124,11 @@
                     etkinleştirilecektir.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Yazılımsal klavye yalnızca donanım klavyesi bağlı değilse
                     etkinleştirilecektir.</string>
+
+                    <!-- Keyboard State On Tab Switch -->
+                    <string name="keyboard_state_follow_tab_switch_title">Sekme değiştirirken klavye durumu</string>
+                    <string name="keyboard_state_follow_tab_switch_on">Sekmeler arasında geçiş yaparken, her sekmenin klavye durumu o sekmeden ayrıldığınızdaki hâliyle geri yüklenir.</string>
+                    <string name="keyboard_state_follow_tab_switch_off">Sekme değiştirirken klavye durumu değişmez. Klavyenin gizli olduğu bir sekmeden giriş paneli açık olan bir sekmeye geçerseniz, panel gizlenir.</string>
 <string name="termux_terminal_view_preferences_title">Terminal Görünümü</string>
 <string name="termux_terminal_view_preferences_summary">Terminal görünümü için tercihler</string>
 <string name="termux_terminal_view_view_header">Görünüm</string>
@@ -224,6 +229,9 @@
     <string name="text_input_show_summary_off">Metin giriş alanı gizli</string>
     <string name="text_input_hide_on_send_title">Gönderdikten sonra giriş panelini gizle</string>
     <string name="text_input_hide_on_send_summary">Etkinleştirildiğinde, giriş paneli kapanır ve gönderdikten sonra odak terminale geçer. Ardışık komutlar için paneli açık tutmak üzere devre dışı bırakın.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Gönderdikten sonra yazılımsal klavyeyi gizle</string>
+    <string name="text_input_hide_keyboard_on_send_summary">Etkinleştirildiğinde, giriş alanından metin gönderildikten sonra (örneğin Enter\'a basıldığında) yazılımsal klavye kapatılır. Giriş paneli ve klavye birbirinden bağımsız olarak yönetilir.</string>
     <string name="text_input_action_on_send_title">Gönderim eylemi</string>
     <string name="text_input_action_on_send_summary">Giriş alanından metin gönderdikten sonra ne olacağı: hiçbir şey yapma, giriş panelini gizle veya giriş panelini ve klavyeyi gizle.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -468,6 +476,11 @@
     <string name="terminal_margin_top_title">Üst kenar boşluğu</string>
     <string name="terminal_margin_right_title">Sağ kenar boşluğu</string>
     <string name="terminal_margin_bottom_title">Alt kenar boşluğu</string>
+
+    <string name="terminal_background_transparency_title">Arka plan saydamlığı</string>
+
+    <string name="terminal_background_blur_radius_title">Arka plan bulanıklık yarıçapı</string>
+    <string name="terminal_background_blur_radius_summary">Dinamik duvar kağıtlarında yüksek bulanıklık yarıçapı güç tüketimini artırabilir. Statik duvar kağıtlarında güç tüketimine etkisi ihmal edilebilir düzeydedir.</string>
 
     
     <string name="terminal_toolbar_height_title">Araç çubuğu yükseklik ölçeği</string>

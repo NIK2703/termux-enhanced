@@ -193,6 +193,11 @@
     <string name="termux_soft_keyboard_enabled_on">Die Soft-Tastatur wird aktiviert.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Die Soft-Tastatur wird auch bei angeschlossener Hardware-Tastatur aktiviert.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Die Soft-Tastatur wird nur aktiviert, wenn keine Hardware-Tastatur angeschlossen ist.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">Tastaturzustand beim Wechseln der Tabs</string>
+    <string name="keyboard_state_follow_tab_switch_on">Beim Wechseln der Tabs wird der Tastaturzustand jedes Tabs so wiederhergestellt, wie er beim Verlassen war.</string>
+    <string name="keyboard_state_follow_tab_switch_off">Beim Wechseln der Tabs ändert sich der Tastaturzustand nicht. Wenn Sie von einem Tab mit ausgeblendeter Tastatur zu einem Tab mit geöffnetem Eingabepanel wechseln, wird das Panel ausgeblendet.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Soft-Tastatur nur ohne Hardware-Tastatur</string>
     <string name="termux_soft_keyboard_enabled_title">Soft-Tastatur aktiviert</string>
     <string name="termux_tasker_preferences_summary">Einstellungen für die Termux:Tasker-App</string>
@@ -214,6 +219,9 @@
     <string name="text_input_show_title">Texteingabefeld anzeigen</string>
     <string name="text_input_hide_on_send_title">Eingabepanel nach Senden ausblenden</string>
     <string name="text_input_hide_on_send_summary">Wenn aktiviert, schließt sich das Eingabepanel und der Fokus wechselt nach dem Senden zum Terminal. Deaktivieren, um das Panel für aufeinanderfolgende Befehle geöffnet zu lassen.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Soft-Tastatur nach dem Senden ausblenden</string>
+    <string name="text_input_hide_keyboard_on_send_summary">Wenn aktiviert, wird die Soft-Tastatur nach dem Senden von Text aus dem Eingabefeld (z. B. mit der Eingabetaste) ausgeblendet. Eingabepanel und Tastatur werden unabhängig voneinander gesteuert.</string>
     <string name="text_input_action_on_send_title">Aktion beim Senden</string>
     <string name="text_input_action_on_send_summary">Was nach dem Senden von Text aus dem Eingabefeld passiert: nichts tun, das Eingabepanel ausblenden oder das Eingabepanel und die Tastatur ausblenden.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -443,6 +451,11 @@
     <string name="terminal_margin_top_title">Oberer Rand</string>
     <string name="terminal_margin_right_title">Rechter Rand</string>
     <string name="terminal_margin_bottom_title">Unterer Rand</string>
+
+    <string name="terminal_background_transparency_title">Hintergrundtransparenz</string>
+
+    <string name="terminal_background_blur_radius_title">Hintergrund-Unschärferadius</string>
+    <string name="terminal_background_blur_radius_summary">Kann bei dynamischen Hintergründen mit hohem Unschärferadius den Energieverbrauch erhöhen. Bei statischen Hintergründen ist der Energiebedarf vernachlässigbar.</string>
 
     <string name="terminal_toolbar_height_title">Symbolleisten-Höhenskalierung</string>
     <string name="terminal_toolbar_height_summary">Skalierungsfaktor für die Höhe der Zusatztasten-/Terminal-Symbolleiste.</string>

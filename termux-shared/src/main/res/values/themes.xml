@@ -199,23 +199,26 @@
     </style>
 
     <style name="BaseActivity.Scheme.PopupMenu" parent="Widget.MaterialComponents.PopupMenu">
-        <item name="android:popupBackground">@color/scheme_dialog_background</item>
-        <item name="android:textColorPrimary">@color/scheme_dialog_on_surface</item>
-        <item name="android:textColor">@color/scheme_dialog_on_surface</item>
-        <item name="android:listSelector">@color/scheme_dialog_selector</item>
+        <!--
+         Every colour below is an ATTRIBUTE, not a hardcoded scheme colour: a popupTheme is
+         applied on top of the activity theme, so each one resolves to whatever that theme says —
+         the live Termux:Style scheme when the scheme overlay is in effect (terminal activity),
+         or the app day/night theme when it is not (report/About, settings). Pinning scheme
+         colours here instead is what produced unreadable popups (white text on a white popup)
+         on the screens that are not scheme-themed at all.
+        -->
+        <item name="android:popupBackground">?attr/colorSurface</item>
+        <item name="android:listSelector">?attr/colorControlHighlight</item>
         <!-- Popup item views do not read android:textColorPrimary/textColor — they resolve the
-             textAppearance attrs below, whose colour chains through ?attr/colorOnSurface (the
-             scheme overlay's white placeholder) and can come out white-on-white in light mode.
-             Pin them per light/dark mode like the dialog title styles. -->
+             textAppearance attrs below, so their colour must be pinned here as well. -->
         <item name="textAppearanceLargePopupMenu">@style/BaseActivity.Scheme.PopupMenu.ItemText</item>
         <item name="textAppearanceSmallPopupMenu">@style/BaseActivity.Scheme.PopupMenu.ItemText</item>
     </style>
 
-    <!-- Pinned popup-menu item text: black in day mode; overridden to white in values-night.
-         Mirrors BaseDialog.Title.Text Light/Dark so items never inherit the scheme overlay's
-         white on-surface placeholder and vanish on a light popup background. -->
+    <!-- Popup menu item text: follows the theme's primary text colour, which is black in day
+         mode and white in night mode (or the live scheme when the overlay is applied). -->
     <style name="BaseActivity.Scheme.PopupMenu.ItemText" parent="TextAppearance.MaterialComponents.Subtitle1">
-        <item name="android:textColor">@color/black</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
     </style>
 
     <style name="BaseActivity.Scheme.ListPopup" parent="Widget.MaterialComponents.PopupMenu.ListPopupWindow">

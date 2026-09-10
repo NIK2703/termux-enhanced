@@ -195,6 +195,11 @@
 <string name="termux_soft_keyboard_enabled_on">Keyboard lunak akan diaktifkan.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Keyboard lunak akan diaktifkan meskipun keyboard fisik terhubung.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Keyboard lunak akan diaktifkan hanya jika tidak ada keyboard fisik yang terhubung.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">Status keyboard saat berganti tab</string>
+    <string name="keyboard_state_follow_tab_switch_on">Saat berganti tab, status keyboard setiap tab dipulihkan seperti saat Anda meninggalkannya.</string>
+    <string name="keyboard_state_follow_tab_switch_off">Saat berganti tab, status keyboard tidak berubah. Jika Anda berpindah dari tab dengan keyboard tersembunyi ke tab dengan panel input terbuka, panel akan disembunyikan.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Keyboard Lunak Hanya Tanpa Keyboard Fisik</string>
 <string name="termux_soft_keyboard_enabled_title">Keyboard Lunak Diaktifkan</string>
 <string name="termux_tasker_preferences_summary">Preferensi untuk aplikasi Termux:Tasker</string>
@@ -217,6 +222,9 @@
 <string name="text_input_show_title">Tampilkan Input Teks</string>
 <string name="text_input_hide_on_send_title">Sembunyikan panel input setelah kirim</string>
     <string name="text_input_hide_on_send_summary">Jika diaktifkan, panel input tertutup dan fokus beralih ke terminal setelah mengirim. Nonaktifkan untuk membiarkan panel tetap terbuka guna perintah berturut-turut.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Sembunyikan keyboard lunak setelah mengirim</string>
+    <string name="text_input_hide_keyboard_on_send_summary">Jika diaktifkan, keyboard lunak disembunyikan setelah mengirim teks dari kolom input (misalnya saat menekan Enter). Panel input dan keyboard dikendalikan secara terpisah.</string>
     <string name="text_input_action_on_send_title">Tindakan saat kirim</string>
     <string name="text_input_action_on_send_summary">Apa yang terjadi setelah mengirim teks dari kolom input: tidak melakukan apa pun, sembunyikan panel input, atau sembunyikan panel input dan keyboard.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -442,6 +450,11 @@
     <string name="terminal_margin_top_title">Margin atas</string>
     <string name="terminal_margin_right_title">Margin kanan</string>
     <string name="terminal_margin_bottom_title">Margin bawah</string>
+
+    <string name="terminal_background_transparency_title">Transparansi Latar Belakang</string>
+
+    <string name="terminal_background_blur_radius_title">Radius blur latar belakang</string>
+    <string name="terminal_background_blur_radius_summary">Dapat meningkatkan konsumsi daya pada wallpaper dinamis dengan radius blur yang besar. Pada wallpaper statis, dampak dayanya dapat diabaikan.</string>
 
     
     <string name="terminal_toolbar_height_title">Skala tinggi bilah alat</string>
@@ -769,4 +782,14 @@
 <string name="extra_keys_editor_swipe_down_suffix"> (↓)</string>
 <string name="extra_keys_editor_swipe_left_suffix"> (←)</string>
 <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
+
+<!-- Human-readable size formatting -->
+<string name="human_size_format" formatted="false">%.1f %s</string>
+<string name="human_size_progress_format">%1$s / %2$s</string>
+<string-array name="human_size_units">
+    <item>B</item>
+    <item>KB</item>
+    <item>MB</item>
+    <item>GB</item>
+</string-array>
 </resources>

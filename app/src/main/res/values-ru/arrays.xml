@@ -48,4 +48,102 @@
         <item>virtual</item>
         <item>volume</item>
     </string-array>
+    <string-array name="theme_mode_entries">
+        <item>@string/theme_mode_entry_dark</item>
+        <item>@string/theme_mode_entry_light</item>
+        <item>@string/theme_mode_entry_system</item>
+    </string-array>
+
+    <string-array name="screen_orientation_entries">
+        <item>@string/screen_orientation_entry_follow_sensor</item>
+        <item>@string/screen_orientation_entry_portrait_follow_sensor</item>
+        <item>@string/screen_orientation_entry_landscape_follow_sensor</item>
+        <item>@string/screen_orientation_entry_portrait</item>
+        <item>@string/screen_orientation_entry_landscape</item>
+    </string-array>
+
+    <string-array name="locale_override_entries">
+        <item>@string/locale_override_entry_system</item>
+        <item>@string/locale_override_entry_english</item>
+    </string-array>
+
+    <string-array name="tab_panel_position_entries">
+        <item>@string/termux_tab_panel_position_top</item>
+        <item>@string/termux_tab_panel_position_bottom</item>
+    </string-array>
+
+    <string-array name="tab_height_mode_entries">
+        <item>@string/termux_tab_height_mode_single</item>
+        <item>@string/termux_tab_height_mode_double</item>
+    </string-array>
+
+    <string-array name="extra_keys_special_button_mode_entries">
+        <item>@string/extra_keys_special_button_mode_sticky</item>
+        <item>@string/extra_keys_special_button_mode_hold</item>
+    </string-array>
+
+    <string-array name="extra_keys_style_entries">
+        <item>@string/extra_keys_style_default</item>
+        <item>@string/extra_keys_style_arrows_only</item>
+        <item>@string/extra_keys_style_arrows_all</item>
+        <item>@string/extra_keys_style_all</item>
+        <item>@string/extra_keys_style_none</item>
+    </string-array>
+
+    <string-array name="night_mode_entries">
+        <item>@string/night_mode_true</item>
+        <item>@string/night_mode_false</item>
+        <item>@string/night_mode_system</item>
+    </string-array>
+
+    <string-array name="extra_keys_editor_signal_entries">
+        <item>@string/extra_keys_editor_signal_custom</item>
+        <item>@string/extra_keys_editor_signal_add_delay</item>
+        <item>@string/extra_keys_editor_signal_ctrl</item>
+        <item>@string/extra_keys_editor_signal_alt</item>
+        <item>@string/extra_keys_editor_signal_shift</item>
+        <item>@string/extra_keys_editor_signal_fn</item>
+        <item>@string/extra_keys_editor_signal_keyboard</item>
+        <item>@string/extra_keys_editor_signal_paste</item>
+        <item>@string/extra_keys_editor_signal_scroll</item>
+        <item>@string/extra_keys_editor_signal_esc</item>
+        <item>@string/extra_keys_editor_signal_tab</item>
+        <item>@string/extra_keys_editor_signal_home</item>
+        <item>@string/extra_keys_editor_signal_end</item>
+        <item>@string/extra_keys_editor_signal_page_up</item>
+        <item>@string/extra_keys_editor_signal_page_down</item>
+        <item>@string/extra_keys_editor_signal_insert</item>
+        <item>@string/extra_keys_editor_signal_delete</item>
+        <item>@string/extra_keys_editor_signal_backspace</item>
+        <item>@string/extra_keys_editor_signal_up</item>
+        <item>@string/extra_keys_editor_signal_left</item>
+        <item>@string/extra_keys_editor_signal_right</item>
+        <item>@string/extra_keys_editor_signal_down</item>
+        <item>@string/extra_keys_editor_signal_enter</item>
+        <item>@string/extra_keys_editor_signal_f1</item>
+        <item>@string/extra_keys_editor_signal_f2</item>
+        <item>@string/extra_keys_editor_signal_f3</item>
+        <item>@string/extra_keys_editor_signal_f4</item>
+        <item>@string/extra_keys_editor_signal_f5</item>
+        <item>@string/extra_keys_editor_signal_f6</item>
+        <item>@string/extra_keys_editor_signal_f7</item>
+        <item>@string/extra_keys_editor_signal_f8</item>
+        <item>@string/extra_keys_editor_signal_f9</item>
+        <item>@string/extra_keys_editor_signal_f10</item>
+        <item>@string/extra_keys_editor_signal_f11</item>
+        <item>@string/extra_keys_editor_signal_f12</item>
+    </string-array>
+
+    <string-array name="extra_keys_visibility_entries">
+        <item>@string/extra_keys_visibility_always</item>
+        <item>@string/extra_keys_visibility_keyboard</item>
+        <item>@string/extra_keys_visibility_never</item>
+    </string-array>
+
+    <string-array name="extra_keys_haptic_entries">
+        <item>@string/extra_keys_haptic_all</item>
+        <item>@string/extra_keys_haptic_gestures</item>
+        <item>@string/extra_keys_haptic_off</item>
+    </string-array>
+
 </resources>

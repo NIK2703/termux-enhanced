@@ -176,6 +176,10 @@
                 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Экранная клавиатура будет включена, только если
                     не подключена аппаратная клавиатура.</string>
 
+                <string name="keyboard_state_follow_tab_switch_title">Состояние клавиатуры при смене вкладок</string>
+                <string name="keyboard_state_follow_tab_switch_on">При смене вкладок восстанавливать состояние клавиатуры для каждой вкладки, запомненное на момент переключения с неё</string>
+                <string name="keyboard_state_follow_tab_switch_off">При смене вкладок состояние клавиатуры не меняется. Если перейти с вкладки со скрытой клавиатурой на вкладку с открытой панелью ввода, панель будет скрыта.</string>
+
         
         <string name="termux_terminal_view_preferences_title">Вид терминала</string>
         <string name="termux_terminal_view_preferences_summary">Настройки вида терминала</string>
@@ -236,6 +240,9 @@
 
     <string name="text_input_hide_on_send_title">Скрывать панель ввода после отправки</string>
     <string name="text_input_hide_on_send_summary">При включении панель ввода закрывается и фокус переходит в терминал после отправки. Отключите, чтобы панель оставалась открытой для последовательных команд.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">Скрывать экранную клавиатуру после отправки</string>
+    <string name="text_input_hide_keyboard_on_send_summary">При включении экранная клавиатура скрывается после отправки текста из поля ввода (например, по Enter). Панель ввода и клавиатура управляются независимо.</string>
     <string name="text_input_action_on_send_title">Действие при отправке</string>
     <string name="text_input_action_on_send_summary">Что происходит после отправки текста из поля ввода: ничего не делать, скрыть панель ввода или скрыть панель ввода и клавиатуру.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -497,7 +504,7 @@
     <string name="terminal_background_transparency_title">Прозрачность фона терминала</string>
 
     <string name="terminal_background_blur_radius_title">Радиус размытия фона</string>
-    <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамических фонах с высоким радиусом размытия. На статических фонах энергопотребление несущественно</string>
+    <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамическом фоне с высоким радиусом размытия. На статическом фоне энергопотребление несущественно</string>
 
     <string name="terminal_toolbar_height_title">Масштаб панели инструментов</string>
     <string name="terminal_toolbar_height_summary">Коэффициент масштаба панели дополнительных кнопок / терминала.</string>
@@ -859,6 +866,27 @@
     <string name="error_abi_arch_mismatch">Архитектура bootstrap \'%1$s\' не соответствует архитектуре устройства \'%2$s\'. Доступные ABI: %3$s</string>
     <string name="error_bootstrap_manifest_missing_variant">Отсутствует \'variant\' в BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_manifest_missing_arch">Отсутствует \'arch\' в BOOTSTRAP_INFO</string>
+
+    <string name="error_abi_no_supported_abis">На устройстве нет поддерживаемых ABI</string>
+    <string name="error_abi_unknown">Неизвестный ABI: %1$s</string>
+    <string name="error_bootstrap_manifest_missing_info">В bootstrap-zip отсутствует BOOTSTRAP_INFO</string>
+    <string name="error_bootstrap_zip_not_found">Bootstrap-zip не найден: %1$s</string>
+    <string name="error_bootstrap_create_temp_dir">Не удалось создать временный каталог: %1$s</string>
+    <string name="error_bootstrap_rename_prefix">Не удалось переименовать существующий префикс в резервную копию</string>
+    <string name="error_bootstrap_rename_temp">Не удалось переименовать временный каталог в префикс</string>
+    <string name="error_bootstrap_invalid_zip_entry">Недопустимое имя записи в zip: %1$s</string>
+    <string name="error_bootstrap_duplicate_zip_entry">Дублирующаяся запись в zip: %1$s</string>
+    <string name="error_bootstrap_directory_metadata_entry">Запись каталога с именем метаданных: %1$s</string>
+    <string name="error_bootstrap_failed_mkdir">Не удалось создать каталог: %1$s</string>
+    <string name="error_bootstrap_entry_too_large">Запись слишком велика: %1$s (%2$s байт)</string>
+    <string name="error_bootstrap_compression_ratio">Превышен коэффициент сжатия для: %1$s</string>
+    <string name="error_bootstrap_total_size_exceeded">Общий размер после распаковки превышает лимит</string>
+    <string name="error_bootstrap_too_many_entries">Слишком много записей в zip</string>
+    <string name="error_bootstrap_symlink_parent_dir">Не удалось создать родительский каталог для симлинка: %1$s</string>
+    <string name="error_bootstrap_symlink_create">Не удалось создать симлинк: %1$s -&gt; %2$s</string>
+    <string name="error_bootstrap_symlink_line">Некорректная строка симлинка: %1$s</string>
+    <string name="error_bootstrap_unsupported_file_type">Неподдерживаемый тип файла для: %1$s</string>
+    <string name="error_bootstrap_symlink_target_empty">Пустая цель симлинка: %1$s</string>
 
     <!-- Human-readable size formatting -->
     <string name="human_size_format" formatted="false">%.1f %s</string>

@@ -110,6 +110,11 @@
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">ハードウェアキーボードがない場合のみソフトウェアキーボード</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">ハードウェアキーボードが接続されている場合でもソフトウェアキーボードを有効にします。</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">ハードウェアキーボードが接続されていない場合のみソフトウェアキーボードを有効にします。</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">タブ切り替え時のキーボード状態</string>
+    <string name="keyboard_state_follow_tab_switch_on">タブを切り替えるとき、各タブのキーボード状態を、そのタブから離れたときの状態に復元します。</string>
+    <string name="keyboard_state_follow_tab_switch_off">タブを切り替えてもキーボードの状態は変わりません。キーボードが非表示のタブから入力パネルが開いているタブに切り替えると、パネルは非表示になります。</string>
 <string name="termux_terminal_view_preferences_title">ターミナル表示</string>
 <string name="termux_terminal_view_preferences_summary">ターミナル表示の設定</string>
 <string name="termux_terminal_view_view_header">表示</string>
@@ -207,6 +212,9 @@
 <string name="text_input_show_summary_off">テキスト入力欄は非表示です</string>
 <string name="text_input_hide_on_send_title">送信後に入力パネルを隠す</string>
     <string name="text_input_hide_on_send_summary">有効にすると、送信後に入力パネルが閉じてフォーカスがターミナルに移ります。連続したコマンド入力のためにパネルを開いたままにするには無効にしてください。</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">送信後にソフトウェアキーボードを隠す</string>
+    <string name="text_input_hide_keyboard_on_send_summary">有効にすると、入力欄からテキストを送信した後（例：Enter キー）にソフトウェアキーボードが閉じます。入力パネルとキーボードは個別に制御されます。</string>
     <string name="text_input_action_on_send_title">送信時の動作</string>
     <string name="text_input_action_on_send_summary">入力フィールドからテキストを送信した後の動作: 何もしない、入力パネルを隠す、または入力パネルとキーボードを隠します。</string>
     <string-array name="text_input_action_on_send_entries">
@@ -463,6 +471,11 @@
     <string name="terminal_margin_top_title">上余白</string>
     <string name="terminal_margin_right_title">右余白</string>
     <string name="terminal_margin_bottom_title">下余白</string>
+
+    <string name="terminal_background_transparency_title">背景の透明度</string>
+
+    <string name="terminal_background_blur_radius_title">背景のぼかし半径</string>
+    <string name="terminal_background_blur_radius_summary">動く壁紙でぼかし半径を大きくすると消費電力が増える場合があります。静止画の壁紙では電力への影響はほとんどありません。</string>
 
     
     <string name="terminal_toolbar_height_title">ツールバーの高さ倍率</string>

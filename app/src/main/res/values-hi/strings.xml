@@ -196,6 +196,11 @@
     <string name="termux_soft_keyboard_enabled_on">सॉफ्ट कीबोर्ड सक्षम किया जाएगा।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">सॉफ्ट कीबोर्ड हार्डवेयर कीबोर्ड कनेक्ट होने पर भी सक्षम रहेगा।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">सॉफ्ट कीबोर्ड केवल तभी सक्षम होगा जब कोई हार्डवेयर कीबोर्ड कनेक्ट न हो।</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">टैब बदलते समय कीबोर्ड की स्थिति</string>
+    <string name="keyboard_state_follow_tab_switch_on">टैब बदलते समय, प्रत्येक टैब के लिए कीबोर्ड की स्थिति वैसी ही बहाल की जाती है जैसी उससे हटते समय थी।</string>
+    <string name="keyboard_state_follow_tab_switch_off">टैब बदलने पर कीबोर्ड की स्थिति नहीं बदलती। यदि आप छिपे हुए कीबोर्ड वाले टैब से खुले इनपुट पैनल वाले टैब पर जाते हैं, तो पैनल छिप जाएगा।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">सॉफ्ट कीबोर्ड केवल यदि कोई हार्डवेयर न हो</string>
     <string name="termux_keyboard_header">कीबोर्ड</string>
     <string name="termux_soft_keyboard_enabled_title">सॉफ्ट कीबोर्ड सक्षम</string>
@@ -226,6 +231,9 @@
     <string name="text_input_title">पाठ इनपुट</string>
     <string name="text_input_hide_on_send_title">भेजने के बाद इनपुट पैनल छिपाएँ</string>
     <string name="text_input_hide_on_send_summary">सक्षम होने पर, भेजने के बाद इनपुट पैनल बंद हो जाता है और फ़ोकस टर्मिनल पर चला जाता है। लगातार कमांड के लिए पैनल खुला रखने हेतु इसे अक्षम करें।</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">भेजने के बाद सॉफ्ट कीबोर्ड छिपाएँ</string>
+    <string name="text_input_hide_keyboard_on_send_summary">सक्षम होने पर, इनपुट फ़ील्ड से टेक्स्ट भेजने के बाद (जैसे Enter दबाने पर) सॉफ्ट कीबोर्ड छिप जाता है। इनपुट पैनल और कीबोर्ड स्वतंत्र रूप से नियंत्रित होते हैं।</string>
     <string name="text_input_action_on_send_title">भेजने पर क्रिया</string>
     <string name="text_input_action_on_send_summary">इनपुट फ़ील्ड से पाठ भेजने के बाद क्या होता है: कुछ न करें, इनपुट पैनल छिपाएँ, या इनपुट पैनल और कीबोर्ड छिपाएँ।</string>
     <string-array name="text_input_action_on_send_entries">
@@ -439,6 +447,11 @@
     <string name="terminal_margin_top_title">ऊपरी मार्जिन</string>
     <string name="terminal_margin_right_title">दायाँ मार्जिन</string>
     <string name="terminal_margin_bottom_title">निचला मार्जिन</string>
+
+    <string name="terminal_background_transparency_title">पृष्ठभूमि पारदर्शिता</string>
+
+    <string name="terminal_background_blur_radius_title">पृष्ठभूमि ब्लर त्रिज्या</string>
+    <string name="terminal_background_blur_radius_summary">डायनामिक वॉलपेपर पर अधिक ब्लर त्रिज्या होने से बिजली की खपत बढ़ सकती है। स्थिर वॉलपेपर पर बिजली पर प्रभाव नगण्य होता है।</string>
     <string name="terminal_toolbar_height_title">टूलबार ऊँचाई स्केल</string>
     <string name="terminal_toolbar_height_summary">एक्स्ट्रा कीज़ / टर्मिनल टूलबार ऊँचाई स्केल कारक।</string>
     <string name="default_working_directory_title">डिफ़ॉल्ट कार्य निर्देशिका</string>

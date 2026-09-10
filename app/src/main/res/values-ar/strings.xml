@@ -228,6 +228,11 @@
     <string name="termux_soft_keyboard_enabled_on">سيتم تمكين لوحة المفاتيح البرمجية.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">سيتم تمكين لوحة المفاتيح البرمجية حتى في حالة\nاتصال لوحة مفاتيح فعلية.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">سيتم تمكين لوحة المفاتيح البرمجية فقط في حالة\nعدم اتصال لوحة مفاتيح فعلية.</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">حالة لوحة المفاتيح عند التبديل بين علامات التبويب</string>
+    <string name="keyboard_state_follow_tab_switch_on">عند التبديل بين علامات التبويب، تُستعاد حالة لوحة المفاتيح لكل علامة تبويب كما كانت عند مغادرتها.</string>
+    <string name="keyboard_state_follow_tab_switch_off">عند التبديل بين علامات التبويب لا تتغير حالة لوحة المفاتيح. إذا انتقلت من علامة تبويب لوحة المفاتيح فيها مخفية إلى أخرى لوحة الإدخال فيها مفتوحة، فستُخفى اللوحة.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">لوحة مفاتيح برمجية فقط عند عدم وجود لوحة مفاتيح فعلية</string>
     <string name="termux_soft_keyboard_enabled_title">تمكين لوحة المفاتيح البرمجية</string>
     <string name="termux_tasker_preferences_summary">تفضيلات تطبيق Termux:Tasker</string>
@@ -253,6 +258,9 @@
     <string name="text_input_title">إدخال النص</string>
     <string name="text_input_hide_on_send_title">إخفاء لوحة الإدخال بعد الإرسال</string>
     <string name="text_input_hide_on_send_summary">عند التفعيل، تُغلق لوحة الإدخال وينتقل التركيز إلى الطرفية بعد الإرسال. عطّل ذلك لإبقاء اللوحة مفتوحة لإدخال أوامر متتابعة.</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">إخفاء لوحة المفاتيح البرمجية بعد الإرسال</string>
+    <string name="text_input_hide_keyboard_on_send_summary">عند التفعيل، تُخفى لوحة المفاتيح البرمجية بعد إرسال النص من حقل الإدخال (مثلاً عند الضغط على Enter). تُتحكَّم في لوحة الإدخال ولوحة المفاتيح بشكل مستقل.</string>
     <string name="text_input_action_on_send_title">الإجراء عند الإرسال</string>
     <string name="text_input_action_on_send_summary">ماذا يحدث بعد إرسال النص من حقل الإدخال: لا شيء، إخفاء لوحة الإدخال، أو إخفاء لوحة الإدخال ولوحة المفاتيح.</string>
     <string-array name="text_input_action_on_send_entries">
@@ -463,6 +471,11 @@
     <string name="terminal_margin_top_title">الهامش العلوي</string>
     <string name="terminal_margin_right_title">الهامش الأيمن</string>
     <string name="terminal_margin_bottom_title">الهامش السفلي</string>
+
+    <string name="terminal_background_transparency_title">شفافية الخلفية</string>
+
+    <string name="terminal_background_blur_radius_title">نصف قطر تمويه الخلفية</string>
+    <string name="terminal_background_blur_radius_summary">قد يزيد من استهلاك الطاقة مع الخلفيات المتحركة عند نصف قطر تمويه كبير. أما مع الخلفيات الثابتة فتأثير استهلاك الطاقة ضئيل.</string>
     <string name="terminal_toolbar_height_title">تحجيم ارتفاع شريط الأدوات</string>
     <string name="terminal_toolbar_height_summary">عامل تحجيم ارتفاع شريط أدوات الطرفية/المفاتيح الإضافية.</string>
     <string name="default_working_directory_title">مجلد العمل الافتراضي</string>
