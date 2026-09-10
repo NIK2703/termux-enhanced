@@ -60,6 +60,18 @@ public final class TerminalRow {
      */
     private int mCachedColumn = -1;
     private int mCachedCharIndex = -1;
+    /**
+     * E4: "every cell is a plain space under one single style", maintained incrementally.
+     *
+     * <p>{@code TerminalRenderer}'s blank-row fast path (A2) used to prove this by scanning all
+     * {@code columns} cells of the row on every frame — on an idle screen that is 48&times;80 array
+     * loads per frame to reach the same conclusion. The flag makes the test O(1): {@link #clear(long)}
+     * establishes it (it fills text with spaces and style uniformly), and any write that is not a
+     * space or carries a different style breaks it. A space with a foreign style is deliberately
+     * treated as "not blank" — it still paints its own background, and underline/strike-through are
+     * drawn across blank cells too.</p>
+     */
+    boolean mBlankAndUniform = true;
 
     /** Construct a blank row (containing only whitespace, ' ') with a specified style. */
     public TerminalRow(int columns, long style) {
@@ -72,6 +84,9 @@ public final class TerminalRow {
     /** NOTE: The sourceX2 is exclusive. */
     public void copyInterval(TerminalRow line, int sourceX1, int sourceX2, int destinationX) {
         mHasNonOneWidthOrSurrogateChars |= line.mHasNonOneWidthOrSurrogateChars;
+        // E4: a bulk copy can leave the row blank, but proving that costs a scan. Just drop the
+        // flag — blockCopy() is rare (scroll regions, insert/delete line) and correctness first.
+        mBlankAndUniform = false;
         final int x1 = line.findStartOfColumn(sourceX1);
         final int x2 = line.findStartOfColumn(sourceX2);
         boolean startingFromSecondHalfOfWideChar = (sourceX1 > 0 && line.wideDisplayCharacterStartingAt(sourceX1 - 1));
@@ -205,6 +220,18 @@ public final class TerminalRow {
         mHasNonOneWidthOrSurrogateChars = false;
         mCachedColumn = -1;
         mCachedCharIndex = -1;
+        // E4: a cleared row is exactly the shape the renderer's blank fast path looks for.
+        mBlankAndUniform = true;
+    }
+
+    /**
+     * E4: true when every cell of the row is a space under one single style.
+     *
+     * <p>When this holds, {@code getStyle(0)} is that style for every column, so the renderer can
+     * skip the per-column scan and go straight to the single background rectangle.</p>
+     */
+    public boolean isBlankAndUniform() {
+        return mBlankAndUniform;
     }
 
     // https://github.com/steven676/Android-Terminal-Emulator/commit/9a47042620bec87617f0b4f5d50568535668fe26
@@ -212,7 +239,12 @@ public final class TerminalRow {
         if (columnToSet  < 0 || columnToSet >= mStyle.length)
             throw new IllegalArgumentException("TerminalRow.setChar(): columnToSet=" + columnToSet + ", codePoint=" + codePoint + ", style=" + style);
 
+        // E4: read the reference style *before* overwriting it, otherwise a space written with a
+        // foreign style at column 0 would compare equal to itself and leave the flag wrongly set.
+        final boolean wasBlankAndUniform = mBlankAndUniform;
+        final long uniformStyle = mStyle[0];
         mStyle[columnToSet] = style;
+        if (wasBlankAndUniform && (codePoint != ' ' || style != uniformStyle)) mBlankAndUniform = false;
 
         final int newCodePointDisplayWidth = WcWidth.width(codePoint);
 

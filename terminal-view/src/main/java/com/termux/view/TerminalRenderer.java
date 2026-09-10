@@ -114,6 +114,18 @@ public final class TerminalRenderer {
      * choice a field selection, and neither paint's mode is ever mutated at draw time.
      */
     private final Paint mBgSrcPaint = new Paint();
+    /**
+     * Dedicated base-fill paints, one per xfermode. The base fill used to share
+     * {@link #mBgPaint}/{@link #mBgSrcPaint} with pass A, the cursor fill, the mismatch-run
+     * fill and the A2 fast path, all of which mutate the paint's colour on every run. With the
+     * E2 hoist of the per-row base fill, that meant the colour set in pass A (or by the cursor
+     * rect) leaked into the base fill of the *next* row — a coloured block visually continued
+     * downward through the following rows' backgrounds until the next block rebased the colour.
+     * Splitting the base fill into its own paints, which no other code touches, is the only way
+     * to make the colour set here (once before the loop) hold for every row.
+     */
+    private final Paint mBaseFillPaint = new Paint();
+    private final Paint mBaseFillSrcPaint = new Paint();
     private final int[] mColorOut = new int[2];
 
     /**
@@ -157,6 +169,11 @@ public final class TerminalRenderer {
         // C2: the SRC twin is set up once here and never touched again.
         mBgSrcPaint.setStyle(Paint.Style.FILL);
         mBgSrcPaint.setXfermode(SRC_XFERMODE);
+        // Base-fill paints: never mutated anywhere except in render() (setColor only), so the colour
+        // they hold when the row loop starts is exactly the colour every base fill uses.
+        mBaseFillPaint.setStyle(Paint.Style.FILL);
+        mBaseFillSrcPaint.setStyle(Paint.Style.FILL);
+        mBaseFillSrcPaint.setXfermode(SRC_XFERMODE);
 
         mFontLineSpacing = (int) Math.ceil(mTextPaint.getFontSpacing());
         mFontAscent = (int) Math.ceil(mTextPaint.ascent());
@@ -239,6 +256,24 @@ public final class TerminalRenderer {
     public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
                              int selectionY1, int selectionY2, int selectionX1, int selectionX2,
                              float xOffset, float yOffset, Rect dirtyRect) {
+        render(mEmulator, canvas, topRow, selectionY1, selectionY2, selectionX1, selectionX2,
+            xOffset, yOffset, dirtyRect, false);
+    }
+
+    /**
+     * Render the terminal to a canvas, with an explicit "pixels valid" flag.
+     *
+     * <p>{@code pixelsValid} tells the renderer whether the surface region outside {@code dirtyRect}
+     * already holds the correct terminal content. The E2 optimisation skips non-dirty rows on a
+     * partial repaint because the canvas supposedly still shows their previous-frame pixels; that
+     * invariant is broken whenever the canvas may have lost pixels (first frame after a surface
+     * recreate, a view attach/resize, a transparent scheme change, the first frame on a newly
+     * paged-in pager page, etc.). In that case the view passes {@code false} so the renderer draws
+     * every visible row instead of trusting stale or absent pixels.</p>
+     */
+    public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
+                             int selectionY1, int selectionY2, int selectionX1, int selectionX2,
+                             float xOffset, float yOffset, Rect dirtyRect, boolean pixelsValid) {
         // B4: bring the Paint back to the baseline style *and* record that in the cache. The Paint is
         // a field shared by every frame, so a frame whose last drawn run was italic/bold/underline/
         // struck-through leaves the Paint in that state. Only resetting the cache to "clean" here
@@ -303,18 +338,14 @@ public final class TerminalRenderer {
         final int bgColor = (mBackgroundAlpha >= 255)
             ? rawBgColor
             : ((rawBgColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+        // E2: on a partial repaint the base fill moves into the row loop, so that only the rows
+        // whose content actually changed are cleared and redrawn. Filling the whole band here would
+        // erase the untouched rows in it — the canvas keeps the previous frame's pixels (the same
+        // invariant the translucent SRC fill relies on), so leaving them alone is both correct and
+        // cheaper. dirtyRect.left/right are in view coordinates; the row loop draws after the
+        // canvas.translate(xOffset, yOffset) below, so they are shifted back there.
         if (dirtyRect == null) {
             canvas.drawColor(bgColor, PorterDuff.Mode.SRC);
-        } else {
-            if (mBackgroundAlpha >= 255) {
-                // Fast path: identical to the pre-transparency behaviour, no xfermode churn.
-                mBgPaint.setColor(bgColor);
-                canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgPaint);
-            } else {
-                // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
-                mBgSrcPaint.setColor(bgColor);
-                canvas.drawRect(dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom, mBgSrcPaint);
-            }
         }
 
         // Translate the whole grid so the leftover space (from glyphs that do not fit the
@@ -326,12 +357,62 @@ public final class TerminalRenderer {
 
         ensureRunCapacity(columns);
 
+        // E2: horizontal extent of the base fill, in post-translate coordinates.
+        final float fillLeft = (dirtyRect == null) ? 0f : (dirtyRect.left - xOffset);
+        final float fillRight = (dirtyRect == null) ? (columns * mFontWidth) : (dirtyRect.right - xOffset);
+        // Base-fill paints are dedicated: no other code path (pass A, cursor, mismatch, A2 fast
+        // path) ever sets a colour on them, so the colour we set here is the colour every row
+        // draws with.
+        final Paint baseFillPaint;
+        if (mBackgroundAlpha >= 255) {
+            // Fast path: identical to the pre-transparency behaviour, no xfermode churn.
+            baseFillPaint = mBaseFillPaint;
+            baseFillPaint.setColor(bgColor);
+        } else {
+            // mBaseFillSrcPaint already carries SRC.
+            baseFillPaint = mBaseFillSrcPaint;
+            baseFillPaint.setColor(bgColor);
+        }
+        // E3: a partial repaint in which *no* row of the clip is dirty cannot be a content change
+        // — it is the scrollbar thumb having moved (or the framework clipping a full invalidate
+        // below the view bounds). Skipping every row would leave whatever was painted on top of
+        // them last frame (the old thumb) on the canvas, and covering the band with the background
+        // colour instead would erase the glyphs that live under the thumb — the grid spans the
+        // full view width. The only correct answer is to re-render the rows, so detect the case
+        // up-front and draw them.
+        boolean forceDraw = false;
+        if (dirtyRect != null && pixelsValid) {
+            boolean anyDirty = false;
+            for (int row = renderStartRow; row < renderEndRow; row++) {
+                if (screen.isRowDirty(row)) { anyDirty = true; break; }
+            }
+            forceDraw = !anyDirty;
+        }
+
         float heightOffset = mFontLineSpacingAndAscent;
         for (int row = topRow; row < endRow; row++) {
             heightOffset += mFontLineSpacing;
             // Partial repaint: skip rows that do not intersect the dirty region. heightOffset is
             // advanced above for every row, so the y-coordinate stays correct for rendered rows.
             if (row < renderStartRow || row >= renderEndRow) continue;
+
+            // E2: skip rows whose content did not change. The pixels they show are still the ones
+            // from the previous frame, so neither the base fill nor any glyph is needed. This is
+            // what turns "the program touched 2 rows out of 48" into 2 rows of work instead of 48
+            // (and, together with the view's content anchor, into no work at all while the user is
+            // scrolled into history). The cursor is not part of the row's content, so the view
+            // marks the old and new cursor rows dirty itself when the cursor moves.
+            //
+            // Safety: the "previous frame still shows this row" invariant only holds once the view
+            // has done a true full-frame repaint since the last structural event. Until then the
+            // surface may not hold the row's pixels at all (first frame on a newly paged-in pager
+            // page, transparent-scheme change, etc.) and skipping would leave the row transparent
+            // — the black-row regression. The view passes {@code pixelsValid=false} in that case,
+            // and we draw every visible row (clipped to dirtyRect) to be safe.
+            if (dirtyRect != null && pixelsValid && !forceDraw && !screen.isRowDirty(row)) continue;
+            final float rowTop = heightOffset - mFontLineSpacing;
+            canvas.drawRect(fillLeft, rowTop, fillRight, heightOffset, baseFillPaint);
+            if (dirtyRect != null) screen.clearRowDirty(row);
 
             final int cursorX = (row == cursorRow && cursorVisible) ? cursorCol : -1;
             int selx1 = -1, selx2 = -1;
@@ -350,16 +431,9 @@ public final class TerminalRenderer {
             // Skipping the run split here saves the per-column wcwidth + measure work and the
             // drawTextRun() of `columns` blanks. This is the common case for the empty rows below
             // the prompt, for cleared regions and for the tail of the alternate screen.
-            if (cursorX < 0 && selx1 < 0 && selx2 < 0 && !lineObject.hasNonOneWidthOrSurrogateChars()) {
+            if (cursorX < 0 && selx1 < 0 && selx2 < 0 && lineObject.isBlankAndUniform()) {
                 final long uniformStyle = lineObject.getStyle(0);
-                boolean blankAndUniform = true;
-                for (int column = 0; column < columns; column++) {
-                    if (line[column] != ' ' || lineObject.getStyle(column) != uniformStyle) {
-                        blankAndUniform = false;
-                        break;
-                    }
-                }
-                if (blankAndUniform) {
+                {
                     // Underline and strike-through are text decorations: drawTextRun() paints them
                     // across blank cells too, so a decorated row of spaces is *not* blank on screen
                     // and must go through the normal path.
@@ -536,6 +610,14 @@ public final class TerminalRenderer {
         }
 
         canvas.restore();
+
+        // E2: the per-row dirty set is dropped incrementally as each visible row is drawn (see
+        // clearRowDirty() above). Rows that were dirty but outside the clip keep their bit and
+        // are redrawn when they scroll back into view. Dropping the whole pending set up-front
+        // (the old behaviour) would lose those bits if the view forced a full draw into a
+        // partial clip while the surface was still "unknown" (see TerminalView.onDraw's
+        // mPixelsValid handling), so the global clearDirtyState() lives in the view now, called
+        // only after a real full-frame draw.
     }
 
     private void ensureRunCapacity(int columns) {

@@ -21,11 +21,22 @@ public final class TerminalBuffer {
     private int mScreenFirstRow = 0;
 
     // ── Dirty-row tracking for partial redraws ────────────────────────────────────────────
-    // External-coordinate range [mFirstDirtyRow, mLastDirtyRow] of rows whose contents changed
-    // since the last repaint. mAllDirty forces a complete repaint and is set after scrolls,
-    // resizes, transcript clears, buffer switches and on construction (first paint is full).
-    private int mFirstDirtyRow = Integer.MAX_VALUE;
-    private int mLastDirtyRow = Integer.MIN_VALUE;
+    // E2: one bit per *internal* (ring) row instead of an external-coordinate range.
+    //
+    // Why internal: `scrollDownOneLine()` does not rewrite the rows in the screen window, it only
+    // advances `mScreenFirstRow`, i.e. it changes which internal row a given external coordinate
+    // points at. Tracking external rows therefore forces every scroll to declare the whole buffer
+    // dirty (or to shift the entire pending set), which is what made each output line cost a full
+    // frame. An internal row keeps its identity across a scroll, so "this row was written to"
+    // stays both true and precise, and `scrollDownOneLine()` only has to mark the single row it
+    // actually rewrites — the newly revealed one.
+    //
+    // The dirty set alone does not decide full-vs-partial: when the visible window moves (live
+    // bottom, wheel, fling, snap) every pixel changes although no row is dirty. That is the
+    // view's "content anchor" check, see TerminalView.repaintAfterUpdate().
+    private long[] mDirtyRows;
+    private boolean mAnyRowDirty;
+    /** Forces a complete repaint: set on construction, resize, partial scrolls, buffer switches. */
     private boolean mAllDirty = true;
 
     /** Shared read-only blank row returned by {@link #getLineOrBlank(int)} for never-written lines. */
@@ -48,15 +59,57 @@ public final class TerminalBuffer {
     /** Mark a single external row as needing a repaint. */
     public void markRowDirty(int externalRow) {
         if (mAllDirty) return;
-        if (externalRow < mFirstDirtyRow) mFirstDirtyRow = externalRow;
-        if (externalRow > mLastDirtyRow) mLastDirtyRow = externalRow;
+        // Defensive: callers may hold a row index from before the last resize — the view's
+        // "previous cursor row" is the realistic one (mLastCursorRow can still be 47 when a
+        // rotation cut the screen to 24 rows). externalToInternalRow() *throws* out of range,
+        // and a stale index denotes a row that no longer exists, i.e. nothing to repaint — so
+        // ignore it instead of turning a rotation into a crash.
+        if (externalRow < -mActiveTranscriptRows || externalRow > mScreenRows) return;
+        markInternalRowDirty(externalToInternalRow(externalRow));
+    }
+
+    /**
+     * E1/E2: mark a ring slot dirty. This is the only mark {@link #scrollDownOneLine(int, int, long)}
+     * needs for a full-screen scroll — the one row it clears. Everything else in the window merely
+     * moved, and movement is handled by the view's content anchor, not by the dirty set.
+     */
+    public void markInternalRowDirty(int internalRow) {
+        if (mAllDirty || mDirtyRows == null) return;
+        if (internalRow < 0 || internalRow >= mTotalRows) return;
+        mDirtyRows[internalRow >>> 6] |= (1L << (internalRow & 63));
+        mAnyRowDirty = true;
+    }
+
+    /** E2: has the content of this external row changed since it was last drawn? */
+    public boolean isRowDirty(int externalRow) {
+        if (mAllDirty) return true;
+        if (!mAnyRowDirty) return false;
+        final int internalRow = externalToInternalRow(externalRow);
+        if (internalRow < 0 || internalRow >= mTotalRows) return false;
+        return (mDirtyRows[internalRow >>> 6] & (1L << (internalRow & 63))) != 0L;
+    }
+
+    /**
+     * E2: drop the dirty bit of one external row, once it has actually been drawn.
+     *
+     * <p>Rows that were dirty but not visible keep their bit: the emulator can write to a screen
+     * row while the user is scrolled away, and that row must still be repainted when it scrolls
+     * back into view. Clearing per drawn row (instead of dropping the whole state up-front, as
+     * the view used to do) is what makes that work.</p>
+     */
+    public void clearRowDirty(int externalRow) {
+        if (mAllDirty || mDirtyRows == null) return;
+        final int internalRow = externalToInternalRow(externalRow);
+        if (internalRow < 0 || internalRow >= mTotalRows) return;
+        mDirtyRows[internalRow >>> 6] &= ~(1L << (internalRow & 63));
     }
 
     /** Force a complete repaint of this buffer on the next frame. */
     public void markAllDirty() {
+        if (mAllDirty) return;
         mAllDirty = true;
-        mFirstDirtyRow = Integer.MAX_VALUE;
-        mLastDirtyRow = Integer.MIN_VALUE;
+        mAnyRowDirty = false;
+        if (mDirtyRows != null) java.util.Arrays.fill(mDirtyRows, 0L);
     }
 
     public boolean isAllDirty() {
@@ -64,22 +117,20 @@ public final class TerminalBuffer {
     }
 
     public boolean hasDirtyRows() {
-        return mAllDirty || mFirstDirtyRow <= mLastDirtyRow;
+        return mAllDirty || mAnyRowDirty;
     }
 
-    public int getFirstDirtyRow() {
-        return mFirstDirtyRow;
-    }
-
-    public int getLastDirtyRow() {
-        return mLastDirtyRow;
-    }
-
-    /** Reset dirty tracking once the pending repaint has been issued. */
+    /**
+     * Reset dirty tracking once the pending repaint has been drawn.
+     *
+     * <p>Callers: only {@code TerminalRenderer.render()}, after the pixels are on the canvas. The
+     * dirty set is read *during* {@code onDraw()}, so it must not be cleared when the repaint is
+     * scheduled — only when it has happened.</p>
+     */
     public void clearDirtyState() {
         mAllDirty = false;
-        mFirstDirtyRow = Integer.MAX_VALUE;
-        mLastDirtyRow = Integer.MIN_VALUE;
+        mAnyRowDirty = false;
+        if (mDirtyRows != null) java.util.Arrays.fill(mDirtyRows, 0L);
     }
 
     /**
@@ -95,6 +146,7 @@ public final class TerminalBuffer {
         mTotalRows = totalRows;
         mScreenRows = screenRows;
         mLines = new TerminalRow[totalRows];
+        mDirtyRows = new long[(totalRows + 63) >>> 6];
 
         blockSet(0, 0, columns, screenRows, ' ', TextStyle.NORMAL);
     }
@@ -278,6 +330,11 @@ public final class TerminalBuffer {
         // Rows created after this point (lazily) must be filled with the same style that the
         // eager allocation used to give them, not with 0 (see {@link #mDefaultStyle}).
         mDefaultStyle = currentStyle;
+
+        // E2: the dirty set is indexed by internal (ring) row, so it has to be resized together
+        // with the ring — and before the re-flow below, which calls scrollDownOneLine().
+        mDirtyRows = new long[(newTotalRows + 63) >>> 6];
+        mAnyRowDirty = false;
 
         // newRows > mTotalRows should not normally happen since mTotalRows is TRANSCRIPT_ROWS (10000):
         if (newColumns == mColumns && newRows <= mTotalRows) {
@@ -466,7 +523,17 @@ public final class TerminalBuffer {
     public void scrollDownOneLine(int topMargin, int bottomMargin, long style) {
         if (topMargin > bottomMargin - 1 || topMargin < 0 || bottomMargin > mScreenRows)
             throw new IllegalArgumentException("topMargin=" + topMargin + ", bottomMargin=" + bottomMargin + ", mScreenRows=" + mScreenRows);
-        markAllDirty();
+
+        // E1: what a scroll changes is the *mapping* external row -> internal row, not the rows
+        // themselves. With a full-screen scroll every row in the window keeps its TerminalRow; only
+        // mScreenFirstRow advances. Marking everything dirty here (the previous behaviour) is what
+        // forced a full frame per output line, including while the user is scrolled into history and
+        // the view compensates with `mTopRow -= rowShift` so that not a single pixel moves.
+        //
+        // A partial scroll (scroll region, as used by htop/vi) is different: blockCopyLinesDown()
+        // physically moves TerminalRow references between ring slots, so those slots really do
+        // change content and the simple "nothing moved" argument does not hold. Full repaint there.
+        if (!(topMargin == 0 && bottomMargin == mScreenRows)) markAllDirty();
 
         // Copy the fixed topMargin lines one line down so that they remain on screen in same position:
         blockCopyLinesDown(mScreenFirstRow, topMargin);
@@ -486,6 +553,8 @@ public final class TerminalBuffer {
         } else {
             mLines[blankRow].clear(style);
         }
+        // E1: the only row whose content actually changed in this scroll.
+        markInternalRowDirty(blankRow);
     }
 
     /**
@@ -573,6 +642,10 @@ public final class TerminalBuffer {
             markRowDirty(y);
             // A3: allocate-if-necessary so lazy (null) transcript rows never NPE.
             TerminalRow line = allocateFullLineIfNecessary(externalToInternalRow(y));
+            // E4: setOrClearEffect writes line.mStyle[x] directly, bypassing setChar(), so the
+            // "every cell has the same style" invariant the A2 fast path relies on is no longer
+            // something we know — drop the flag rather than try to prove uniformity.
+            line.mBlankAndUniform = false;
             int startOfLine = (rectangular || y == top) ? left : leftMargin;
             int endOfLine = (rectangular || y + 1 == bottom) ? right : rightMargin;
             for (int x = startOfLine; x < endOfLine; x++) {

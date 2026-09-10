@@ -7,7 +7,9 @@
 
 Связанные документы: `docs/android-like-terminal-scrolling.md` (жест/физика),
 `docs/android-like-terminal-acceleration.md` (импульсы колеса),
-`docs/elastic-terminal-overdrag-design.md` (овердраг).
+`docs/elastic-terminal-overdrag-design.md` (овердраг),
+`docs/glyph-scroll-optimization-2.md` (**второй аудит**: E1 — полный кадр в режиме
+«пользователь в истории» не нужен; E2 — dirty-диапазон как bounding box; E3 — скроллбар).
 
 ---
 
@@ -37,7 +39,8 @@
 
 Аудит был статическим; затем часть находок реализована и проверена. Изменения лежат в рабочем
 дереве (не закоммичены), сборка `:terminal-emulator` + `:terminal-view` зелёная,
-**152 юнит-теста `terminal-emulator` проходят**.
+**155 юнит-тестов `terminal-emulator` проходят** (152 из первого аудита + 3 новых `DirtyStateTest`
+из второго).
 
 | # | Что сделано | Как именно | Результат |
 |---|---|---|---|
@@ -47,6 +50,10 @@
 | **C2** | ✅ Два `Paint` вместо мутации xfermode | `mBgSrcPaint` с SRC, выставленным один раз в конструкторе | 2 нативных вызова на прямоугольник → 0 |
 | **C1** | ⏭ Пропущено | `Arrays.fill` — векторизованный memset, экономия ~⅓ заливки `char[1.5·cols]` находится в шуме; правка не стоит риска ревью | — |
 | **C3** | ⏭ Отложено | Сужение полосы инвалидации требует аккуратного разбора пересечения со скроллбаром (§C3), выигрыш — «мелко» | — |
+| **E1** | ✅ Нет полного кадра в истории | Якорь содержимого (`externalToInternalRow(mTopRow)`) вместо `mTopRow != oldTopRow`; полноэкранный скролл не зовёт `markAllDirty()` | в истории при потоковом выводе — 0–3 строки вместо всего экрана (см. `glyph-scroll-optimization-2.md` §8.1) |
+| **E2** | ✅ Битовое множество грязных строк | `long[] mDirtyRows` + построчная заливка фона в `render()` | разреженный TUI-вывод больше не раздувает dirty до всего экрана |
+| **E3** | ✅ Узкая инвалидация скроллбара | `invalidateScrollbarBand()` — обязательное дополнение к E1 | бегунок не застывает |
+| **E4** | ✅ O(1) флаг пустой строки | `TerminalRow.mBlankAndUniform` | A2-путь без прохода по колонкам |
 | **A4, B2, D1** | ⏭ Не начиналось | Требуют замеров на устройстве (§8) | — |
 
 **Урок измерения (важно):** первый вариант B1 — выразить метод через два вызова
@@ -457,4 +464,5 @@ private final Paint mBgPaintSrc;   // с xfermode SRC, выставленным 
 Изменённые файлы: `TerminalRow.java` (публичный геттер
 `hasNonOneWidthOrSurrogateChars()`, B1), `TerminalRenderer.java` (A2, A3, C2, `mBgSrcPaint`).
 Проверено: `./gradlew :terminal-emulator:testDebugUnitTest :terminal-emulator:compileDebugJavaWithJavac
-:terminal-view:compileDebugJavaWithJavac` — BUILD SUCCESSFUL, 152 теста, 0 падений.*
+:terminal-view:compileDebugJavaWithJavac` — BUILD SUCCESSFUL, 155 тестов, 0 падений
+(152 из первого аудита + 3 новых `DirtyStateTest` из второго).*

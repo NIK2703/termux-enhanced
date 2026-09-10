@@ -122,7 +122,55 @@ public final class TerminalView extends View {
     /** Last rendered cursor position (external row / column) for cursor-move dirty expansion. */
     private int mLastCursorRow = Integer.MIN_VALUE;
     private int mLastCursorCol = -1;
+
+    /**
+     * E1a: internal (ring) row index of the top visible line as of the last repaint.
+     *
+     * <p>{@link #mTopRow} is an <em>address</em>, not content: while the user is scrolled into
+     * history {@link #onScreenUpdated} compensates incoming output with {@code mTopRow -= rowShift}
+     * at the exact moment the ring advances by {@code rowShift}, so the internal row under every
+     * pixel is unchanged and nothing needs redrawing. Comparing {@code mTopRow} directly (the old
+     * full-repaint condition) reported "scrolled" and forced a full frame per output chunk. The
+     * anchor is stable under that compensation and moves for every other kind of scroll: output at
+     * the live bottom, snap-to-bottom, wheel, fling, scrollbar drag, buffer switch.</p>
+     */
+    private int mLastAnchorRow = Integer.MIN_VALUE;
+
+    /**
+     * Whether the surface region outside the current invalidation rect can be trusted to already
+     * hold the correct terminal pixels. The renderer's per-row skip relies on this to avoid
+     * re-drawing every visible row on every frame.
+     *
+     * <p>Set to {@code false} on every event that may make the canvas forget the previous frame
+     * (session attach/detach, size change, view attach, window visibility becoming visible,
+     * text-size/typeface change, transparency change, and any explicit {@code invalidate()}
+     * outside the row-anchor path). Set to {@code true} only after a frame that demonstrably
+     * covered the entire view, i.e. a full-repaint draw — partial draws don't validate the
+     * rows outside the clip, so the flag stays {@code false} until a real full-frame draw
+     * happens.</p>
+     */
+    private boolean mPixelsValid = false;
+
+    /**
+     * E2: whether {@link #onDraw} has already asked for the full frame that is supposed to
+     * validate {@link #mPixelsValid}, and that request has not been fulfilled yet. Bounds the
+     * recovery to a single retry so a permanently clipped parent cannot turn it into a
+     * per-frame invalidate loop. Reset by {@link #invalidate()} (a fresh request starts over) and
+     * by any frame that actually arrives with a full clip.
+     */
+    private boolean mFullFramePending = false;
+
     int[] mDefaultSelectors = new int[]{-1,-1,-1,-1};
+
+    @Override
+    public void invalidate() {
+        // Every full invalidate is the framework's promise to repaint the whole view, so the
+        // previous-frame content is no longer trustworthy. (Partial invalidates — invalidate(l,t,r,b)
+        // — leave the rest of the surface intact and do not affect this flag.)
+        mPixelsValid = false;
+        mFullFramePending = false;
+        super.invalidate();
+    }
 
     /** B6: reusable output buffer for {@link #getColumnAndRow(MotionEvent, boolean, int[])} so the
      * frequent touch paths (mouse-wheel tracking, text-selection start) don't allocate an int[2]
@@ -372,6 +420,8 @@ public final class TerminalView extends View {
     private static final int SCROLLBAR_CORNER_RADIUS = 12;
     /** Extra touch tolerance (px) around the thumb on each side for finger targeting. */
     private final int mScrollbarThumbTouchSlop;
+    /** Sentinel for "no scrollbar thumb was painted", used by {@link #mLastThumbTop}. */
+    private static final int NO_THUMB = Integer.MIN_VALUE;
 
     /** Whether the user is currently dragging the scrollbar thumb. */
     private boolean mScrollbarDragging;
@@ -389,6 +439,14 @@ public final class TerminalView extends View {
     /** B7: reusable scrollbar-thumb rectangle — avoids allocating a new {@link RectF} every frame
      * (drawScrollbar + isOnThumb both used to construct one per call). */
     private final RectF mThumbRect = new RectF();
+    /**
+     * E3: vertical extent of the thumb as it was last painted, in view coordinates
+     * ({@link #NO_THUMB} when the last frame had no thumb). A thumb-only repaint has to restore
+     * the terminal content the *old* thumb covered, not just paint the new one — the thumb is an
+     * overlay drawn on top of glyphs, so without this the previous thumb leaves a smear.
+     */
+    private int mLastThumbTop = NO_THUMB;
+    private int mLastThumbBottom = NO_THUMB;
     /**
      * Pre-computed scrollbar thumb colours, applied once when the alpha preference changes
      * (or the colour scheme changes) rather than recomputed on every frame. Initialized with
@@ -688,6 +746,13 @@ public final class TerminalView extends View {
         mCombiningAccent = 0;
         mLastCursorRow = Integer.MIN_VALUE;
         mLastCursorCol = -1;
+        // E1a: the anchor belongs to a specific buffer — a value carried over from the previous
+        // session would compare against a different ring and could mask a needed repaint.
+        mLastAnchorRow = Integer.MIN_VALUE;
+        // E3: same reasoning for the scrollbar thumb — an extent from the previous session would
+        // make the first thumb-only repaint of this one restore the wrong rows.
+        mLastThumbTop = NO_THUMB;
+        mLastThumbBottom = NO_THUMB;
 
         updateSize();
 
@@ -853,7 +918,6 @@ public final class TerminalView extends View {
 
     public void onScreenUpdated(boolean skipScrolling) {
         if (mEmulator == null) return;
-        final int oldTopRow = mTopRow;
 
         int rowsInHistory = mEmulator.getScreen().getActiveTranscriptRows();
         if (mTopRow < -rowsInHistory) mTopRow = -rowsInHistory;
@@ -914,7 +978,7 @@ public final class TerminalView extends View {
         // session switch) the screen is no longer against the edge it was pulled from.
         if (mOverdragPx != 0 && !isAtLiveBottom() && !isAtHistoryTop()) resetOverdrag();
 
-        repaintAfterUpdate(oldTopRow);
+        repaintAfterUpdate();
         // setContentDescription() materializes the whole visible screen as a String on every frame,
         // which is >1 MB/s of garbage during streaming output. Throttle it: TalkBack reading 4 times
         // a second is more than enough.
@@ -933,26 +997,31 @@ public final class TerminalView extends View {
 
     /**
      * Choose between a full and a partial (dirty-rows) repaint after the emulator changed, and
-     * invalidate accordingly. A full repaint is required when the view scrolled, a selection or
-     * scrollbar drag is in progress, or the buffer flagged everything dirty (scroll, resize,
-     * buffer switch, color reset). Otherwise only the rows the buffer marked dirty — plus the
-     * old/new cursor rows if the cursor moved — are invalidated.
+     * invalidate accordingly.
+     *
+     * <p>A full repaint is required when the <em>content anchor</em> moved (E1a: the internal row
+     * under the top visible line — which happens for output at the live bottom, wheel, fling, snap
+     * and buffer switch, but deliberately NOT for the follow-text compensation that keeps the view
+     * glued to the same text while the user is scrolled into history), when a selection or
+     * scrollbar drag is in progress, or when the buffer flagged everything dirty (resize, buffer
+     * switch, color reset). Otherwise only the rows the buffer marked dirty — plus the old/new
+     * cursor rows if the cursor moved — are invalidated.</p>
      */
-    private void repaintAfterUpdate(int oldTopRow) {
+    private void repaintAfterUpdate() {
         TerminalBuffer screen = mEmulator.getScreen();
 
         // Thread-safety note: the dirty-state writer (mEmulator.append(), invoked only from
-        // TerminalSession.MainThreadHandler.handleMessage()) and the reader (this method, invoked
-        // from onScreenUpdated() on the main thread) execute on the same (main) thread: TerminalSession
-        // is always constructed on the main thread, so its mMainThreadHandler binds to the main
-        // Looper, and no other code path calls append(). first/last therefore can never be read torn
-        // (first > last) and no synchronization is needed. The only off-main dirty write is the
-        // one-shot cold-start emulator init (initSessionEmulatorOnBackgroundThread → updateSize →
-        // initializeEmulator → TerminalEmulator.<init> → reset → markAllDirty; at that point
-        // mEmulator == null so the resize() branch is unreachable off-main), which happens-before any
-        // rendering via the runOnUiThread pager sync. If append() ever moves off the main thread, the
-        // dirty range must be read atomically (or fall back to a full invalidate on inconsistency)
-        // before the optimistic clearDirtyState() below can drop a pending repaint.
+        // TerminalSession.MainThreadHandler.handleMessage()) and the reader (this method plus
+        // TerminalRenderer.render(), both on the main thread) execute on the same (main) thread:
+        // TerminalSession is always constructed on the main thread, so its mMainThreadHandler binds
+        // to the main Looper, and no other code path calls append(). No synchronization is needed.
+        // The only off-main dirty write is the one-shot cold-start emulator init
+        // (initSessionEmulatorOnBackgroundThread → updateSize → initializeEmulator →
+        // TerminalEmulator.<init> → reset → markAllDirty; at that point mEmulator == null so the
+        // resize() branch is unreachable off-main), which happens-before any rendering via the
+        // runOnUiThread pager sync. If append() ever moves off the main thread, the dirty set must
+        // be read atomically (or fall back to a full invalidate) — note that E2 no longer clears it
+        // here: it is cleared by render() once the pixels are actually on the canvas.
 
         // Cursor external row equals the screen-relative row (screen rows map to external 0..mRows-1).
         int cursorExtRow = mEmulator.getCursorRow();
@@ -962,39 +1031,132 @@ public final class TerminalView extends View {
         mLastCursorRow = cursorExtRow;
         mLastCursorCol = cursorCol;
 
-        boolean fullRepaint =
-            mTopRow != oldTopRow
-            || isSelectingText()
-            || mScrollbarDragging
-            || screen.isAllDirty();
+        // E1a: compare content, not addresses — see the field doc on mLastAnchorRow.
+        final int activeTranscript = screen.getActiveTranscriptRows();
+        boolean anchorChanged;
+        if (mTopRow < -activeTranscript) {
+            // onScreenUpdated() clamps, but a buffer switch can outrun it; onDraw() clamps again.
+            anchorChanged = true;
+        } else {
+            final int anchor = screen.externalToInternalRow(Math.max(mTopRow, -activeTranscript));
+            anchorChanged = (anchor != mLastAnchorRow);
+            mLastAnchorRow = anchor;
+        }
 
-        if (fullRepaint) {
-            screen.clearDirtyState();
+        if (anchorChanged || isSelectingText() || mScrollbarDragging || screen.isAllDirty()) {
+            // Full repaint. render() drops the dirty state itself (including mAllDirty) once the
+            // frame is on the canvas.
             invalidate();
             return;
         }
 
+        // A cursor move with no cell change (e.g. arrow keys) still needs the old cursor cell
+        // erased and the new one drawn. E2: the cursor is not part of a row's *content*, so it is
+        // not covered by the buffer's dirty bits — mark the two rows here instead.
+        if (cursorMoved) {
+            if (prevCursorExtRow != Integer.MIN_VALUE) screen.markRowDirty(prevCursorExtRow);
+            screen.markRowDirty(cursorExtRow);
+        }
+
+        // E2: walk the visible rows and collect the ones that really changed. The old code kept a
+        // single [first,last] *range*, which turns "the program touched row 0 and row 47" (every
+        // full-screen TUI: htop, top, progress bars) into 48 rows of work.
+        int visTop = Math.max(mTopRow, -activeTranscript);
+        int visBottom = Math.min(mTopRow + mEmulator.mRows - 1, mEmulator.mRows - 1);
         int first = Integer.MAX_VALUE;
         int last = Integer.MIN_VALUE;
-        if (screen.hasDirtyRows()) {
-            first = screen.getFirstDirtyRow();
-            last = screen.getLastDirtyRow();
-        }
-        screen.clearDirtyState();
-
-        // A cursor move with no cell change (e.g. arrow keys) still needs the old cursor cell
-        // erased and the new one drawn.
-        if (cursorMoved) {
-            if (prevCursorExtRow != Integer.MIN_VALUE) {
-                first = Math.min(first, prevCursorExtRow);
-                last = Math.max(last, prevCursorExtRow);
+        for (int row = visTop; row <= visBottom; row++) {
+            if (screen.isRowDirty(row)) {
+                if (row < first) first = row;
+                last = row;
             }
-            first = Math.min(first, cursorExtRow);
-            last = Math.max(last, cursorExtRow);
         }
 
-        if (first > last) return; // nothing needs pixels
+        if (first > last) {
+            // E1: nothing visible changed — this is the ordinary case while the user is scrolled
+            // into history and output keeps arriving (follow-text keeps every pixel in place).
+            //
+            // E3: the transcript still grew, so the scrollbar thumb moved. It is the only thing on
+            // screen that did, and no row invalidation would reach it, so damage its strip
+            // explicitly. render() draws no rows here and returns that strip to the background
+            // colour; drawScrollbar() then repaints the thumb on top.
+            invalidateScrollbarBand();
+            return;
+        }
         invalidateRowRange(first, last);
+    }
+
+    /**
+     * E3: invalidate only the rows the scrollbar thumb actually occupies.
+     *
+     * <p>Used when the visible rows are all unchanged but the scroll position or the transcript
+     * length moved the thumb. {@link #invalidateRowRange(int, int)} uses a full-width band, which
+     * would drag the whole width of the screen into the damage region for a sliver of thumb.</p>
+     *
+     * <p>The damaged rect is the union of the thumb's previous and its new position, and the rows
+     * it covers are marked dirty so {@code render()} redraws them. That marking is what makes the
+     * repaint safe: the thumb is an <em>overlay</em> — the glyph grid spans the full view width
+     * ({@code columns = width / fontWidth}), so the rightmost characters sit underneath it. A
+     * "clear the strip and repaint the thumb" shortcut would therefore shave those characters off
+     * every row; only re-rendering the rows puts them back.</p>
+     */
+    private void invalidateScrollbarBand() {
+        // No history → drawScrollbar() draws nothing, so there is no thumb to keep alive.
+        if (mEmulator == null || getWidth() <= 0 || getScrollbarRange() <= 0) { return; }
+        final int left = Math.max(0, getWidth() - mScrollbarWidth);
+        if (left >= getWidth()) return;
+
+        RectF now = computeThumbRect();
+        int top = (int) Math.floor(now.top);
+        int bottom = (int) Math.ceil(now.bottom);
+        if (mLastThumbTop != NO_THUMB) {
+            // E3: if the thumb has not moved since the last frame there is nothing to restore — the
+            // band is exactly where it was and the content under it is still correct. Without this
+            // guard we would mark-and-repaint the thumb's rows on *every* output chunk while the
+            // user is scrolled into history and the transcript is already full, churning partial
+            // frames for a thumb that is sitting still.
+            if (mLastThumbTop == top && mLastThumbBottom == bottom) return;
+            // The old thumb's pixels are still on the canvas and have to be replaced by content.
+            top = Math.min(top, mLastThumbTop);
+            bottom = Math.max(bottom, mLastThumbBottom);
+        } else {
+            // First frame with a thumb: it appeared out of nowhere, so nothing to restore — but
+            // the strip it lands on must still be repainted, and there is no old position to
+            // bound that with, so take the whole track.
+            top = 0;
+            bottom = getHeight();
+        }
+        top = Math.max(0, Math.min(top, getHeight()));
+        bottom = Math.max(0, Math.min(bottom, getHeight()));
+        if (top >= bottom) return;
+
+        markRowsIntersectingDirty(top, bottom);
+        invalidate(left, top, getWidth(), bottom);
+    }
+
+    /**
+     * E2/E3: mark every visible row whose pixel band intersects {@code [yTop, yBottom)} (view
+     * coordinates) dirty, so the next partial repaint re-renders them instead of skipping them as
+     * "content unchanged".
+     *
+     * <p>Needed for damage that is not caused by a content change: the scrollbar thumb moving,
+     * the cursor blinking ({@link #invalidateRowRange(int, int)}). The rows themselves did not
+     * change, but the pixels on top of them did.</p>
+     */
+    private void markRowsIntersectingDirty(int yTop, int yBottom) {
+        if (mEmulator == null || mRenderer == null) return;
+        final float lineSpacing = mRenderer.mFontLineSpacing;
+        if (lineSpacing <= 0) return;
+        final TerminalBuffer screen = mEmulator.getScreen();
+        final int rows = mEmulator.mRows;
+        final double offset = glyphYOffset() + mRenderer.mFontLineSpacingAndAscent;
+        int first = mTopRow + (int) Math.floor((yTop - offset) / lineSpacing);
+        int last = mTopRow + (int) Math.ceil((yBottom - offset) / lineSpacing);
+        final int minRow = Math.max(mTopRow, -screen.getActiveTranscriptRows());
+        final int maxRow = mTopRow + rows - 1;
+        if (first < minRow) first = minRow;
+        if (last > maxRow) last = maxRow;
+        for (int row = first; row <= last; row++) screen.markRowDirty(row);
     }
 
     /**
@@ -1038,6 +1200,12 @@ public final class TerminalView extends View {
         if (last < visTop || first > visBottom) return;
         first = Math.max(first, visTop);
         last = Math.min(last, visBottom);
+        // E2: keep the invariant local — every partial invalidate must leave the rows it covers
+        // marked dirty, or render() would skip them as "content unchanged" and the damage that
+        // asked for this repaint (cursor move, blink) would never be painted. Callers that already
+        // know their rows are dirty just re-set the same bits.
+        TerminalBuffer screen = mEmulator.getScreen();
+        for (int row = first; row <= last; row++) screen.markRowDirty(row);
         int top = rowToPixelTop(first);
         int bottom = rowToPixelTop(last + 1);
         if (top < 0) top = 0;
@@ -1065,6 +1233,9 @@ public final class TerminalView extends View {
         if (right > getWidth()) right = getWidth();
         if (bottom > getHeight()) bottom = getHeight();
         if (left >= right || top >= bottom) return;
+        // E2: the cursor is not part of the row's content, so the buffer does not consider it
+        // dirty. Without this mark render() would skip the row and the cursor would never blink.
+        mEmulator.getScreen().markRowDirty(extRow);
         invalidate(left, top, right, bottom);
     }
 
@@ -2484,8 +2655,24 @@ public final class TerminalView extends View {
             // whole view this is a full repaint; otherwise a partial (dirty-rows) repaint. Using the
             // clip as the source of truth is safe: if the clip is looser than expected we simply
             // render a few extra rows, never produce artifacts.
+            //
+            // The renderer's per-row skip additionally needs to know that the surface outside the
+            // clip already holds the correct terminal content (mPixelsValid). Until the view has
+            // done a true full-frame repaint at least once since the last structural event, the
+            // outside rows may not hold valid pixels at all (e.g. first frame on a newly paged-in
+            // pager page, transparent-scheme change, post-attach before a full draw) and skipping
+            // them would leave them transparent/black. In that case we ask the renderer to draw
+            // every visible row and schedule a full invalidate so the next frame is a true
+            // full-clip draw that validates the rest.
             boolean hasClip = canvas.getClipBounds(mClipBounds);
-            Rect dirtyRect = (!hasClip || isFullRepaint(mClipBounds)) ? null : mClipBounds;
+            boolean isFullClip = !hasClip || isFullRepaint(mClipBounds);
+            Rect dirtyRect = (isFullClip || !mPixelsValid) ? null : mClipBounds;
+            // Ask for one full frame only. If a parent keeps clipping us below the full view
+            // bounds the follow-up would never produce a full clip, and an unconditional
+            // invalidate() here would spin at 60 fps forever. Losing the per-row skip is the
+            // correct degradation in that case: dirtyRect stays null, so every visible row is
+            // drawn — same pixels, just no optimization.
+            boolean needFullFollowup = !isFullClip && !mPixelsValid && !mFullFramePending;
             // C1: keep mTopRow inside the live buffer before drawing — the emulator may have
             // switched to the alternate screen or cleared the transcript since the last
             // onScreenUpdated(), and render() would otherwise read rows below the history
@@ -2493,7 +2680,17 @@ public final class TerminalView extends View {
             final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
             if (mTopRow < minTopRow) mTopRow = minTopRow;
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
-                mGridOffsetX, glyphYOffset(), dirtyRect);
+                mGridOffsetX, glyphYOffset(), dirtyRect, mPixelsValid);
+            // A full-clip frame really did paint every visible row — the surface now holds the
+            // correct pixels for them, so the next partial repaint can safely skip non-dirty rows.
+            // It is also the only moment it's safe to drop the dirty set wholesale: rows outside a
+            // partial clip keep their bits so they get redrawn on the next full reveal. The
+            // renderer already cleared per-row bits as each row was drawn.
+            if (isFullClip) {
+                mPixelsValid = true;
+                mFullFramePending = false;
+                mEmulator.getScreen().clearDirtyState();
+            }
 
             // Text selection handles are only meaningful on a full repaint: while selecting,
             // repaintAfterUpdate() forces full repaints (and invalidateCursorCell() falls back to a
@@ -2513,6 +2710,17 @@ public final class TerminalView extends View {
             // Overscroll glow (optional, EDGE_GLOW_ENABLED): purely visual overlay, the glyph
             // content itself is never offset past the edges.
             drawEdgeGlow(canvas);
+
+            // We drew into a partial clip with the surface still "unknown" — this frame painted
+            // every visible row, but only within the clip. Rows outside the clip may still not
+            // hold valid pixels, so ask the framework for a full-frame draw next time. The
+            // invalidate() override clears mPixelsValid to false; the resulting full repaint will
+            // reset it to true on the frame after that, completing the recovery in two frames.
+            // The pending flag is set *after* invalidate() because the override clears it.
+            if (needFullFollowup) {
+                invalidate();
+                mFullFramePending = true;
+            }
         }
     }
 
@@ -2572,10 +2780,24 @@ public final class TerminalView extends View {
      */
     private void drawScrollbar(Canvas canvas) {
         int range = getScrollbarRange();
-        if (range <= 0) return; // no history → nothing to draw
+        if (range <= 0) {
+            // E3: no thumb was painted, so a later thumb-only repaint has no old position to
+            // restore. Record that explicitly rather than leaving a stale rect behind.
+            mLastThumbTop = NO_THUMB;
+            mLastThumbBottom = NO_THUMB;
+            return;
+        }
 
         RectF thumbRect = computeThumbRect();
-        if (thumbRect.width() <= 0 || thumbRect.height() <= 0) return;
+        if (thumbRect.width() <= 0 || thumbRect.height() <= 0) {
+            mLastThumbTop = NO_THUMB;
+            mLastThumbBottom = NO_THUMB;
+            return;
+        }
+        // E3: remember where the thumb landed. Rounded *outward* so the saved band never cuts
+        // into a row the anti-aliased edge of the thumb touched.
+        mLastThumbTop = (int) Math.floor(thumbRect.top);
+        mLastThumbBottom = (int) Math.ceil(thumbRect.bottom);
 
         int color;
         if (mScrollbarColorsSet) {
