@@ -1,5 +1,8 @@
 package com.termux.view;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -33,6 +36,7 @@ import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityManager;
 import android.view.autofill.AutofillManager;
 import android.view.autofill.AutofillValue;
+import android.view.animation.LinearInterpolator;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -207,6 +211,44 @@ public final class TerminalView extends View {
     private EdgeEffect mEdgeGlowTop, mEdgeGlowBottom;
 
     /**
+     * Elastic over-drag: accumulated (undamped) finger travel past a boundary, in px.
+     *
+     * <p>Sign convention: <b>positive = pulled past the TOP of history</b> (the grid is shifted
+     * DOWN), <b>negative = past the live BOTTOM</b> (shifted UP). That is deliberately the sign
+     * of the gesture velocity ({@code velocityY > 0} = into history), so the drag channel, the
+     * fling absorb and {@link #mOverdragRawPx} all share one sign — the drag's
+     * {@code distanceY} is the one that has to be negated (it is "distance scrolled", so it has
+     * the opposite sign to the finger's own velocity).</p>
+     *
+     * <p>This is the single source of truth of the effect: the spring animates it too, and the
+     * applied displacement is always derived from it. Nothing ever writes the displacement
+     * directly, so the two can never disagree.</p>
+     */
+    private float mOverdragRawPx;
+
+    /**
+     * The displacement actually applied to the glyph grid — whole pixels, same sign as
+     * {@link #mOverdragRawPx}. Whole pixels because a fractional grid offset gives the adjacent
+     * rows' background rects a fractional shared edge, which anti-aliases into visible hairline
+     * seams (the exact reason {@code mGridOffsetY} is snapped in {@code updateSize()}).
+     */
+    private int mOverdragPx;
+
+    /** True while the finger is holding a pull (set on the first pull, cleared on release). */
+    private boolean mOverdragDragging;
+
+    @Nullable
+    private ValueAnimator mOverdragSpring;
+    /** The fly-out of a fling impact (the band being stretched); null unless one is running. */
+    private ValueAnimator mOverdragImpact;
+
+    /** Display density, resolved once — every dp constant above is scaled with it. */
+    private final float mDensity;
+
+    /** Deferred {@link #settleOverdragNow()}: the "never displaced while idle" safety net. */
+    private final Runnable mOverdragSettleRunnable = this::settleOverdragNow;
+
+    /**
      * Carry the residual velocity of a fling interrupted by a touch into the next fling, so
      * re-swiping over still-moving text speeds it up instead of restarting it.
      *
@@ -249,6 +291,27 @@ public final class TerminalView extends View {
     /** Draw an overscroll edge glow instead of a purely hard stop. OFF by default: commit
      *  0fab152e deliberately chose a hard decelerated stop without overscroll bounce/glow. */
     private static final boolean EDGE_GLOW_ENABLED = false;
+
+    // ── Elastic over-drag of the vertical (history) scroll ───────────────────────────────────
+    //
+    // Full rationale: docs/elastic-terminal-overdrag-design.md.
+    // This is the vertical counterpart of PagerOverscrollController: against either end of the
+    // scroll range (mTopRow == 0 live bottom, mTopRow == -transcriptRows top of history) the
+    // content follows the finger with a damped response and springs back on release.
+    // The displacement is applied in GLYPH space (an additive offset on the glyph grid), never
+    // as a view translation — see glyphYOffset().
+    //
+    // The PHYSICS is not here: both this and the pager call into ElasticOverdrag, so the pull
+    // curve, the cap (a third of the surface) and the return spring are literally the same
+    // object on both surfaces. This class only decides where the displacement goes and how the
+    // gesture is measured.
+
+    /** Master switch for the elastic over-drag. */
+    private static final boolean ELASTIC_OVERDRAG_ENABLED = true;
+
+    /** Sanity cap on an absorbed velocity (dp/s) before it is converted into travel. With the
+     *  rubber band saturating, this is unreachable — it only guarantees bounded arithmetic. */
+    private static final float OVERDRAG_MAX_ABSORB_VELOCITY_DP = 8000f;
 
     /**
      * Turn a wheel gesture into a fling once it settles (Chromebook-style inertia). Ticks are
@@ -389,6 +452,7 @@ public final class TerminalView extends View {
                 // stopFlingAndClear().
                 clearCapturedFlingVelocity();
                 releaseEdgeGlow();
+                releaseOverdrag();
                 if (mEmulator != null && mEmulator.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText() && !scrolledWithFinger) {
                     sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, true);
                     sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, false);
@@ -442,7 +506,14 @@ public final class TerminalView extends View {
                         return true;
                     }
                     scrolledWithFinger = true;
-                    if (EDGE_GLOW_ENABLED && !mEmulator.isMouseTrackingActive() && !mEmulator.isAlternateBufferActive()) {
+                    // Elastic over-drag: the drag is offered to the rubber band first. It takes
+                    // either all of it (the finger is pushing past a boundary, or further out on
+                    // an already-held pull → restY == 0) or just the part that pays a held pull
+                    // back; the surplus is what actually becomes rows.
+                    final float scrollY = distanceY + mScrollRemainder;
+                    final float restY = ELASTIC_OVERDRAG_ENABLED ? applyOverdrag(scrollY) : scrollY;
+                    if (EDGE_GLOW_ENABLED && restY == scrollY
+                            && !mEmulator.isMouseTrackingActive() && !mEmulator.isAlternateBufferActive()) {
                         // Pulling past an edge feeds the glow (visual only) instead of the
                         // scroll accumulator — content never moves past the boundary.
                         // Sign convention (matches doScroll() and the px fling axis, which is
@@ -461,9 +532,8 @@ public final class TerminalView extends View {
                             return true;
                         }
                     }
-                    distanceY += mScrollRemainder;
-                    int deltaRows = (int) (distanceY / mRenderer.mFontLineSpacing);
-                    mScrollRemainder = distanceY - deltaRows * mRenderer.mFontLineSpacing;
+                    int deltaRows = (int) (restY / mRenderer.mFontLineSpacing);
+                    mScrollRemainder = restY - deltaRows * mRenderer.mFontLineSpacing;
                     doScroll(e, deltaRows);
                 }
                 return true;
@@ -517,6 +587,7 @@ public final class TerminalView extends View {
             public void onCancel(MotionEvent event) {
                 stopFlingAndClear();
                 releaseEdgeGlow();
+                releaseOverdrag();
                 scrolledWithFinger = false;
                 mScrollAxis = SCROLL_AXIS_UNDECIDED;
                 if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
@@ -538,6 +609,8 @@ public final class TerminalView extends View {
             mEdgeGlowTop = new EdgeEffect(context);
             mEdgeGlowBottom = new EdgeEffect(context);
         }
+
+        mDensity = context.getResources().getDisplayMetrics().density;
 
         // Interactive scrollbar paint
         mScrollbarWidth = (int) (24 * context.getResources().getDisplayMetrics().density + 0.5f);
@@ -812,6 +885,11 @@ public final class TerminalView extends View {
 
         mEmulator.clearScrollCounter();
 
+        // Invariant: the elastic over-drag may only exist while mTopRow sits exactly on a
+        // boundary. If the buffer changed under us (transcript cleared, alternate buffer,
+        // session switch) the screen is no longer against the edge it was pulled from.
+        if (mOverdragPx != 0 && !isAtLiveBottom() && !isAtHistoryTop()) resetOverdrag();
+
         repaintAfterUpdate(oldTopRow);
         // setContentDescription() materializes the whole visible screen as a String on every frame,
         // which is >1 MB/s of garbage during streaming output. Throttle it: TalkBack reading 4 times
@@ -896,6 +974,21 @@ public final class TerminalView extends View {
     }
 
     /**
+     * Vertical offset of the glyph grid, including the elastic over-drag.
+     *
+     * <p>This is the ONE place the over-drag enters the rendering, and it is the whole point of
+     * doing the effect in glyph space: {@code TerminalRenderer.render()} derives the row band of a
+     * partial repaint from the very same {@code yOffset} it is handed
+     * ({@code base = yOffset + mFontLineSpacingAndAscent}), so invalidation and painting stay
+     * bit-exact even while the grid is displaced and new output is arriving. A
+     * {@code translationY} would instead invalidate the band at the un-shifted position and let
+     * the framework transform the damage — the two disagree by the pull on every frame.</p>
+     */
+    private float glyphYOffset() {
+        return mGridOffsetY + mOverdragPx;
+    }
+
+    /**
      * View-y of the top edge of an external row (must match TerminalRenderer's row layout).
      *
      * This relies on the invariant that the glyph grid is pinned to the top of the view, i.e.
@@ -905,9 +998,11 @@ public final class TerminalView extends View {
      * renderer draws each row into after its {@code canvas.translate(xOffset, yOffset)}. If the
      * grid is ever re-pinned (e.g. vertically centered) or the offsets stop being snapped to whole
      * pixels, the 1px rounding mismatch between this method and the renderer will produce seams.
+     *
+     * <p>The over-drag term is whole pixels precisely to keep that invariant intact.</p>
      */
     private int rowToPixelTop(int externalRow) {
-        return Math.round(mGridOffsetY + mRenderer.mFontLineSpacingAndAscent
+        return Math.round(glyphYOffset() + mRenderer.mFontLineSpacingAndAscent
             + (externalRow - mTopRow) * (float) mRenderer.mFontLineSpacing);
     }
 
@@ -1035,7 +1130,9 @@ public final class TerminalView extends View {
      * touch paths (mouse-wheel tracking, text-selection start) via the reusable {@link #mScratchColumnAndRow}. */
     public void getColumnAndRow(MotionEvent event, boolean relativeToScroll, int[] out) {
         out[0] = (int) ((event.getX() - mGridOffsetX) / mRenderer.mFontWidth);
-        out[1] = (int) ((event.getY() - mGridOffsetY - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
+        // Through glyphYOffset(), so a touch still hits the row it visually lands on while the
+        // grid is displaced (selection and mouse reporting stay correct).
+        out[1] = (int) ((event.getY() - glyphYOffset() - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
         if (relativeToScroll) {
             out[1] += mTopRow;
         }
@@ -1306,6 +1403,31 @@ public final class TerminalView extends View {
             }
         }
 
+        if (ELASTIC_OVERDRAG_ENABLED && !mFlingDeltaMode && !mFlingAbsorbedAtEdge) {
+            // The fling ran into a boundary with velocity left over. Turn that impact into an
+            // over-drag proportional to it and spring straight back, so a hard flick visibly
+            // slams the screen against its limit instead of being swallowed by a hard stop.
+            // getCurrVelocity() is a NORM (always >= 0), so the direction comes from the gesture
+            // velocity the fling was launched with — the same source captureCurrentFlingVelocity()
+            // uses. mTopRow is the truth for "are we actually on the boundary".
+            float v = mScroller.getCurrVelocity();
+            if (v > mMinFlingVelocity) {
+                final int transcriptRows = mEmulator.getScreen().getActiveTranscriptRows();
+                // Only the edge the fling is pushing AGAINST may absorb it: a fling leaving the
+                // bottom towards history is still sitting on mTopRow == 0 for its first frame
+                // (the sub-row delta rounds to 0), and must not read as an impact on the bottom.
+                final boolean intoHistory = mFlingRawVelocity >= 0f;
+                final boolean atEdge = intoHistory
+                        ? mTopRow <= -transcriptRows
+                        : mTopRow >= 0;
+                if (atEdge) {
+                    // velocityY > 0 == into history == the top edge (see doScroll()).
+                    absorbIntoOverdrag(intoHistory ? 1 : -1, v);
+                    mFlingAbsorbedAtEdge = true;
+                }
+            }
+        }
+
         if (more) {
             // Tail-cut: below ~FLING_TAIL_ROWS_PER_SEC rows/s the remaining travel is on the
             // order of a row, but the quantized steps become individually visible ("staircase"
@@ -1435,6 +1557,293 @@ public final class TerminalView extends View {
             return true;
         }
         return false;
+    }
+
+    // ── Elastic over-drag of the vertical scroll (glyph space) ───────────────────────────────
+    //
+    // Design: docs/elastic-terminal-overdrag-design.md.
+    //
+    // Three invariants, the same ones that keep PagerOverscrollController fail-safe:
+    //   1. finite      — the raw accumulator is clamped, damp() on a finite argument is finite;
+    //   2. bounded     — |mOverdragPx| <= maxOverdragPx() (20 % of the view height, snapped to
+    //                    whole glyph rows);
+    //   3. never displaced while idle — after any gesture the offset is exactly 0, guaranteed by
+    //      the spring's onAnimationEnd plus the posted settleOverdragNow() safety net.
+    // Worst case on an arithmetic mistake is therefore a MISSING animation, never a screen that
+    // stays pulled off its boundary.
+
+    /**
+     * The quantum the over-drag is measured in: the glyph row height. The cap becomes a whole
+     * number of rows, so at full stretch the transcript is displaced by an exact number of rows
+     * (no half-cut row at the extreme), and the fling impulse — which is measured in rows — is
+     * converted back to px through the very same number. 0 before the renderer exists, which the
+     * shared model reads as "no quantum".
+     */
+    private float overdragUnitPx() {
+        return (mRenderer != null) ? (float) mRenderer.mFontLineSpacing : 0f;
+    }
+
+    /** Upper bound of the over-drag in px: 20 % of the view height, as whole glyph rows. */
+    private float maxOverdragPx() {
+        return ElasticOverdrag.maxPull(getHeight(), overdragUnitPx());
+    }
+
+    /**
+     * The rubber band, straight from the shared model: {@code f(x) = M·sin((π/2)·x/L)} with
+     * {@code M} = 20 % of the height snapped to whole rows and {@code L} derived from it.
+     * Sign-preserving, clamped to {@code ±M}.
+     */
+    private float dampedOverdrag(float rawPx) {
+        return ElasticOverdrag.damp(rawPx, getHeight(), overdragUnitPx());
+    }
+
+    /** The single writer of {@link #mOverdragRawPx} / {@link #mOverdragPx}. */
+    private void setOverdragRaw(float rawPx) {
+        if (!isFinite(rawPx)) rawPx = 0f;
+        rawPx = ElasticOverdrag.clampRaw(rawPx, getHeight(), overdragUnitPx());
+        mOverdragRawPx = rawPx;
+        // Whole pixels: a fractional grid offset gives adjacent rows' background rects a
+        // fractional shared edge, which anti-aliases into hairline seams (the reason
+        // mGridOffsetY is snapped in updateSize()).
+        final int px = Math.round(dampedOverdrag(rawPx));
+        if (px == mOverdragPx) return;
+        mOverdragPx = px;
+        // The offset moves every row AND vacates a strip at the edge, so a partial repaint is
+        // not applicable here — a full frame is what doScroll() pays for an ordinary scroll too.
+        invalidate();
+    }
+
+    /** True when the elastic over-drag may engage at all. */
+    private boolean canOverdrag() {
+        return mEmulator != null && mRenderer != null
+                && !mScrollbarDragging && !isSelectingText()
+                // Both mean the application owns the scroll position: there is no transcript to
+                // pull against (the same gate the edge glow has).
+                && !mEmulator.isMouseTrackingActive() && !mEmulator.isAlternateBufferActive()
+                // Nothing to scroll == nothing to stretch.
+                && mEmulator.getScreen().getActiveTranscriptRows() > 0;
+    }
+
+    private boolean isAtHistoryTop() {
+        return mTopRow <= -mEmulator.getScreen().getActiveTranscriptRows();
+    }
+
+    private boolean isAtLiveBottom() {
+        return mTopRow >= 0;
+    }
+
+    /**
+     * Offer {@code dy} px of vertical drag to the rubber band and return what is left for real
+     * scrolling.
+     *
+     * @param dy signed scroll delta in {@code onScroll} terms: {@code < 0} moves into history.
+     *           Already includes {@link #mScrollRemainder}.
+     * @return the part of {@code dy} that must still become rows; {@code 0} when the rubber band
+     *         took all of it.
+     */
+    private float applyOverdrag(float dy) {
+        if (!canOverdrag() || !isFinite(dy)) return dy;
+        // Axis of the pull: p > 0 = past the TOP of history, p < 0 = past the live BOTTOM.
+        // distanceY is "distance scrolled", i.e. the negated finger movement, hence the sign flip.
+        final float p = -dy;
+        final float raw = mOverdragRawPx;
+        final float target;        // new raw travel
+        float rest = 0f;           // what survives as real scroll (in dy units)
+
+        if (raw == 0f) {
+            // Not pulling yet. The drag is split exactly at the boundary: the part that reaches
+            // it still scrolls, the surplus starts the pull. Without the split a fast swipe would
+            // hand its whole delta to doScroll(), which clamps at the edge, and lose up to one
+            // event's worth of travel before the band picked the motion up — a visible hitch.
+            final float ls = (float) mRenderer.mFontLineSpacing;
+            if (p > 0f) {
+                // px of drag still needed to reach the top of history (0 when already there).
+                final float toEdge = (mTopRow + mEmulator.getScreen().getActiveTranscriptRows()) * ls;
+                if (!(p > toEdge)) return dy;   // ordinary scroll: the band is not involved
+                rest = -toEdge;
+                target = p + rest;
+            } else if (p < 0f) {
+                final float toEdge = -mTopRow * ls;
+                if (!(-p > toEdge)) return dy;
+                rest = toEdge;
+                target = p + rest;
+            } else {
+                return dy;
+            }
+        } else if ((p > 0f) == (raw > 0f)) {
+            target = raw + p;      // the finger is pulling further out over the same edge
+        } else {
+            // Returning: the first px pay the held travel back (in RAW space, so the finger
+            // retraces the very same curve it stretched — position stays continuous), and only
+            // the surplus becomes rows.
+            final float returned = Math.min(Math.abs(raw), Math.abs(p));
+            target = (raw > 0f) ? raw - returned : raw + returned;
+            rest = dy + (raw > 0f ? -returned : returned);
+        }
+
+        // The finger takes the band away from the animations: otherwise they would keep writing
+        // raw in parallel with it.
+        cancelOverdragAnimators();
+        mOverdragDragging = true;
+        setOverdragRaw(target);
+        return rest;
+    }
+
+    /**
+     * A scroll impulse (a fling) hit a boundary. Convert the impact into a proportional
+     * over-drag and release it immediately, so a hard flick slams the screen against its limit
+     * instead of dying in a hard stop.
+     *
+     * @param edgeSign {@code +1} = top of history, {@code -1} = live bottom. Same sign as the
+     *                 gesture velocity ({@code velocityY > 0} = into history).
+     * @param velocity impact speed in px/s (magnitude; it is a norm, always {@code >= 0}).
+     */
+    private void absorbIntoOverdrag(int edgeSign, float velocity) {
+        if (!canOverdrag() || !isFinite(velocity)) return;
+        float v = Math.min(Math.abs(velocity), OVERDRAG_MAX_ABSORB_VELOCITY_DP * mDensity);
+        // Subtracting the fling threshold keeps the response continuous at it: a flick that only
+        // just qualifies produces a pull of ~0 instead of stepping straight to a visible bounce.
+        v = Math.max(0f, v - mMinFlingVelocity);
+        if (!(v > 0f)) {
+            releaseOverdrag();
+            return;
+        }
+        // The impulse -> how far it stretches the band, AND how fast it gets there. The fly-out
+        // starts at the very speed the content crossed the boundary with and is stopped by the
+        // band alone, so a harder flick flies out faster as well as further — it is not a
+        // one-frame jump to the peak. Identical model to the pager's: same feel on both surfaces,
+        // one definition.
+        final ElasticOverdrag.Impact impact =
+                ElasticOverdrag.impact(v, getHeight(), overdragUnitPx());
+        startOverdragImpact(mOverdragRawPx, edgeSign, impact);
+    }
+
+    /**
+     * Play the fly-out half of an impact: the band being stretched by the impulse that arrived,
+     * sample by sample, at the speed that impulse actually had — then hand the stretch to the
+     * return spring. Writing the peak in one frame is what made the bounce read wrong: only the
+     * return was animated, so the outbound leg had no speed of its own.
+     *
+     * @param baseRaw  raw travel already held (a spring may have been interrupted mid-flight).
+     * @param edgeSign {@code +1} = top of history, {@code -1} = live bottom.
+     */
+    private void startOverdragImpact(float baseRaw, int edgeSign, ElasticOverdrag.Impact impact) {
+        cancelOverdragAnimators();
+        if (impact == null || impact.durationMs <= 0L || !(impact.peakTravelPx() > 0f)) {
+            setOverdragRaw(baseRaw);
+            releaseOverdrag();
+            return;
+        }
+        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(impact.durationMs);
+        // Linear: the samples ARE the timing. Any easing here would re-shape the motion the
+        // integration just produced, i.e. undo the very thing this exists for.
+        animator.setInterpolator(new LinearInterpolator());
+        animator.addUpdateListener(animation -> {
+            float progress = (Float) animation.getAnimatedValue();
+            if (isFinite(progress)) setOverdragRaw(baseRaw + edgeSign * impact.travelAt(progress));
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                mOverdragImpact = null;
+                // The band is loaded — now release it. The spring starts from the peak the
+                // fly-out actually reached, so the two halves meet exactly.
+                releaseOverdrag();
+            }
+        });
+        mOverdragImpact = animator;
+        animator.start();
+    }
+
+    /** Finger lifted or gesture cancelled: spring whatever is held back to the boundary. */
+    private void releaseOverdrag() {
+        mOverdragDragging = false;
+        if (mOverdragSpring != null) return;    // already on its way home
+        if (mOverdragImpact != null) return;    // still being stretched; it will release itself
+        final float raw = mOverdragRawPx;
+        if (raw == 0f) return;
+        startOverdragSpring(raw);
+        // Safety net for invariant (3): if no path ever drove this to 0, one frame later this
+        // will. It is posted (not run inline) because onFling can still be dispatched after
+        // onUp and may legitimately keep the spring alive.
+        removeCallbacks(mOverdragSettleRunnable);
+        post(mOverdragSettleRunnable);
+    }
+
+    /** Drop any held over-drag right now, without animating. */
+    private void resetOverdrag() {
+        cancelOverdragAnimators();
+        mOverdragDragging = false;
+        removeCallbacks(mOverdragSettleRunnable);
+        setOverdragRaw(0f);
+    }
+
+    private void startOverdragSpring(float fromRaw) {
+        cancelOverdragAnimators();
+        if (!isFinite(fromRaw) || fromRaw == 0f) {
+            setOverdragRaw(0f);
+            return;
+        }
+        ValueAnimator animator = ValueAnimator.ofFloat(fromRaw, 0f);
+        animator.setDuration(ElasticOverdrag.SPRING_DURATION_MS);
+        animator.setInterpolator(ElasticOverdrag.SPRING);
+        animator.addUpdateListener(animation -> {
+            float value = (Float) animation.getAnimatedValue();
+            if (isFinite(value)) setOverdragRaw(value);
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                mOverdragSpring = null;
+                setOverdragRaw(0f);
+            }
+        });
+        mOverdragSpring = animator;
+        animator.start();
+    }
+
+    /** Stop both the fly-out and the return. Raw is left exactly where it is — see below. */
+    private void cancelOverdragAnimators() {
+        cancelOverdragSpring();
+        cancelOverdragImpact();
+    }
+
+    private void cancelOverdragSpring() {
+        ValueAnimator spring = mOverdragSpring;
+        mOverdragSpring = null;
+        if (spring == null) return;
+        // Unhook before cancelling: cancel() delivers onAnimationEnd too, which would snap the
+        // screen back to the boundary mid-gesture.
+        spring.removeAllUpdateListeners();
+        spring.removeAllListeners();
+        spring.cancel();
+        // Raw is left exactly where the animation froze it, and since the spring animates raw
+        // (not the displacement) a pull that interrupts the bounce simply continues from there —
+        // no re-seeding, no second source of truth.
+    }
+
+    private void cancelOverdragImpact() {
+        ValueAnimator impact = mOverdragImpact;
+        mOverdragImpact = null;
+        if (impact == null) return;
+        // Same reasoning: cancel() would deliver onAnimationEnd, which releases into the spring
+        // and would fight whatever is taking over (a finger, or a second, harder impact).
+        impact.removeAllUpdateListeners();
+        impact.removeAllListeners();
+        impact.cancel();
+    }
+
+    private void settleOverdragNow() {
+        if (mOverdragSpring != null || mOverdragImpact != null || mOverdragDragging) return;
+        if (mOverdragRawPx != 0f || mOverdragPx != 0) resetOverdrag();
+    }
+
+    /** The spring-back curve itself lives in {@link ElasticOverdrag#SPRING} — shared with the
+     *  session pager, so both surfaces return to their boundary in exactly the same way. */
+
+    private static boolean isFinite(float v) {
+        return !Float.isNaN(v) && !Float.isInfinite(v);
     }
 
     // ── Interactive scrollbar helpers ──
@@ -2056,7 +2465,7 @@ public final class TerminalView extends View {
             final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
             if (mTopRow < minTopRow) mTopRow = minTopRow;
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
-                mGridOffsetX, mGridOffsetY, dirtyRect);
+                mGridOffsetX, glyphYOffset(), dirtyRect);
 
             // Text selection handles are only meaningful on a full repaint: while selecting,
             // repaintAfterUpdate() forces full repaints (and invalidateCursorCell() falls back to a
@@ -2186,7 +2595,10 @@ public final class TerminalView extends View {
     }
 
     public int getCursorY(float y) {
-        return (int) (((y - mGridOffsetY) / mRenderer.mFontLineSpacing) + mTopRow);
+        // glyphYOffset(), so the mapping stays the inverse of getPointY() while the grid is
+        // displaced by the elastic over-drag (selection and the band are mutually exclusive,
+        // so in practice the extra term is only ever non-zero during a spring-back).
+        return (int) (((y - glyphYOffset()) / mRenderer.mFontLineSpacing) + mTopRow);
     }
 
     public int getPointX(int cx) {
@@ -2197,7 +2609,7 @@ public final class TerminalView extends View {
     }
 
     public int getPointY(int cy) {
-        return Math.round((cy - mTopRow) * mRenderer.mFontLineSpacing + mGridOffsetY);
+        return Math.round((cy - mTopRow) * mRenderer.mFontLineSpacing + glyphYOffset());
     }
 
     public int getTopRow() {
@@ -2698,6 +3110,9 @@ public final class TerminalView extends View {
         removeCallbacks(mWheelImpulseRunnable);
         mWheelImpulse.clear();
         stopFlingAndClear();
+        // A detached view can no longer be sprung back, and the displacement must not survive
+        // into the next attachment (the pager rebinds these views across sessions).
+        resetOverdrag();
 
         if (mTextSelectionCursorController != null) {
             // Might solve the following exception

@@ -6,7 +6,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.view.View;
-import android.view.animation.Interpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.EdgeEffect;
 
 import androidx.annotation.NonNull;
@@ -14,8 +14,10 @@ import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.termux.view.ElasticOverdrag;
+
 /**
- * iOS-like elastic ("rubber band") over-drag for the horizontal session pager.
+ * Elastic ("rubber band") over-drag for the horizontal session pager.
  *
  * <p>On the first/last page there is no neighbouring page to scroll to, so a horizontal drag
  * currently dies at the boundary: {@code LinearLayoutManager} consumes nothing and the page sits
@@ -55,7 +57,7 @@ import androidx.viewpager2.widget.ViewPager2;
  * On the pager's inner RecyclerView itself ({@code translationX}), not on a page. The pager is
  * full-bleed and clips its children, so translating the RecyclerView slides the edge page by
  * exactly that amount and the strip it vacates shows the activity background / wallpaper — the
- * same reveal iOS produces. The RecyclerView's own scroll offset stays untouched, so
+ * same reveal. The RecyclerView's own scroll offset stays untouched, so
  * {@code PagerSnapHelper}, {@code onPageScrolled} and {@code getCurrentItem()} never see the
  * over-drag and cannot fight it.
  *
@@ -76,11 +78,10 @@ import androidx.viewpager2.widget.ViewPager2;
  * page, so a bad value here takes out all sessions at once, and it is unrecoverable without
  * recreating the activity. Two things make that very easy to get wrong:
  * <ul>
- *   <li>{@code damp(x)} is {@code (C*M*x) / (C*x + M)} — for {@code x = +Infinity} that is
- *       {@code Inf/Inf}, i.e. {@code NaN}; for a merely huge {@code x} the numerator overflows to
- *       Infinity first and the result is NaN all the same. Infinity used to be reachable two ways:
+ *   <li>the damping curve divides by the pull's distance to its own cap — for a huge {@code x}
+ *       that is {@code Inf/Inf}, i.e. {@code NaN}, and Infinity used to be reachable two ways:
  *       normalising the pull against a zero-width view, and an unbounded raw-travel accumulator fed
- *       by {@code inverseDamp()} (which divides by {@code MAX - damped}).</li>
+ *       by {@code inverseDamp()}.</li>
  *   <li>A NaN translation is not just "invisible": the RenderNode transform is invalid, so the
  *       whole subtree — every page, every session — stops being drawn, <em>and</em>
  *       {@code ViewGroup} hit-testing inverts a NaN matrix, so the touch coordinates handed to the
@@ -92,8 +93,8 @@ import androidx.viewpager2.widget.ViewPager2;
  * <ol>
  *   <li><b>Finite only.</b> No non-finite value is ever stored or handed to
  *       {@code setTranslationX}.</li>
- *   <li><b>Bounded.</b> The raw accumulator is capped, which makes {@link #damp(float)} provably
- *       bounded by {@link #MAX_PULL_DP} — no overflow, no Infinity, no NaN.</li>
+ *   <li><b>Bounded.</b> The raw accumulator is capped at the saturation travel, which makes
+ *       {@link #damp(float)} provably bounded by the pull cap — no overflow, no Infinity, no NaN.</li>
  *   <li><b>Never displaced while idle.</b> After every gesture the pager is guaranteed to sit at
  *       exactly 0 — see {@link #ensureSettled()}. This holds even when the spring-back was
  *       cancelled mid-flight (which used to be the one path that never wrote a clean 0 again),
@@ -104,39 +105,10 @@ import androidx.viewpager2.widget.ViewPager2;
 public final class PagerOverscrollController {
 
     /**
-     * Rubber-band stiffness — the same constant {@code UIScrollView} uses. It is the slope of the
-     * response curve at zero: the page follows the finger at ~55% and bends away from there.
+     * Sanity cap on an absorbed fling velocity (px/s) before it is converted to pull. With the
+     * rubber band saturating, the extra pull is bounded anyway — this only guarantees bounded
+     * arithmetic for an absurd velocity.
      */
-    private static final float STIFFNESS = 0.55f;
-
-    /** Hard cap on how far the edge page can be pulled off the boundary, in dp. */
-    private static final float MAX_PULL_DP = 56f;
-
-    /**
-     * Cap on the accumulated raw finger travel, in px (~4 screen widths). Purely a safety bound:
-     * {@link #damp(float)} is asymptotic, so past a few hundred px the curve is already within a
-     * pixel or two of the cap and no finger can tell the difference — but without a bound the
-     * accumulator is a float that only ever grows, and once it reaches the overflow threshold
-     * {@code damp()} returns NaN (see the class javadoc).
-     */
-    private static final float MAX_RAW_TRAVEL_PX = 4096f;
-
-    /** Spring-back duration, in ms. */
-    private static final long SPRING_DURATION_MS = 320L;
-
-    /**
-     * Damped-oscillation constants for the spring-back curve
-     * {@code f(t) = 1 - e^(-decay*t) * cos(freq*t)}: f(0)=0, f(1)~1. The cosine crosses zero at
-     * t=0.17 (the page reaches the boundary) and bottoms out at t=0.35, so the page overshoots the
-     * boundary by e^(-1.92) ~ 14% of the displacement and settles — one visible bounce, no ringing.
-     */
-    private static final float SPRING_DECAY = 5.5f;
-    private static final float SPRING_FREQ = 9f;
-
-    /** Fraction of a fling velocity (px/s) converted into extra pull when it hits the wall. */
-    private static final float ABSORB_VELOCITY_SCALE = 0.02f;
-
-    /** Sanity cap on an absorbed fling velocity (px/s) before it is converted to pull. */
     private static final int MAX_ABSORB_VELOCITY = 6000;
 
     private static final int DIRECTION_LEFT = RecyclerView.EdgeEffectFactory.DIRECTION_LEFT;
@@ -144,9 +116,6 @@ public final class PagerOverscrollController {
 
     /** The pager's inner RecyclerView — the view that actually gets displaced. */
     private final RecyclerView mRecyclerView;
-
-    /** {@link #MAX_PULL_DP} in pixels, resolved once against the display density. */
-    private final float mMaxPullPx;
 
     /** Accumulated (undamped) finger travel past the left / right boundary, in px. Never negative. */
     private float mLeftRawPx;
@@ -159,6 +128,10 @@ public final class PagerOverscrollController {
     @Nullable
     private ValueAnimator mSpring;
 
+    /** The fly-out of a fling impact (the band being stretched); null unless one is running. */
+    @Nullable
+    private ValueAnimator mImpact;
+
     private boolean mEnabled = true;
 
     private final RecyclerView.OnScrollListener mScrollListener;
@@ -169,7 +142,6 @@ public final class PagerOverscrollController {
 
     private PagerOverscrollController(@NonNull RecyclerView recyclerView) {
         mRecyclerView = recyclerView;
-        mMaxPullPx = Math.max(1f, MAX_PULL_DP * recyclerView.getResources().getDisplayMetrics().density);
 
         // OVER_SCROLL_NEVER short-circuits pullGlows()/absorbGlows() entirely, so the edge has to
         // be scrollable again for the spy to receive anything. Nothing visible comes of it: the
@@ -226,7 +198,7 @@ public final class PagerOverscrollController {
 
     /** Drop any held displacement right now, without animating. */
     public void reset() {
-        cancelSpring();
+        cancelAnimators();
         mRecyclerView.removeCallbacks(mSettleRunnable);
         mLeftRawPx = 0f;
         mRightRawPx = 0f;
@@ -258,7 +230,7 @@ public final class PagerOverscrollController {
         if (!mEnabled) return;
         // Rejects NaN as well: NaN > 0f is false.
         if (!(deltaPx > 0f) || !isFinite(deltaPx)) return;
-        cancelSpring();
+        cancelAnimators();
         // The finger can only be on one side of the boundary at a time, so a new pull first pays
         // off whatever the opposite side still holds. This is what makes the (single-page) case
         // work: RecyclerView cannot scroll back, so a return-to-boundary drag is reported as an
@@ -305,12 +277,51 @@ public final class PagerOverscrollController {
             onEdgeRelease();
             return;
         }
-        cancelSpring();
-        float extra = clampRaw(Math.min(velocity, MAX_ABSORB_VELOCITY) * ABSORB_VELOCITY_SCALE);
-        if (direction == DIRECTION_LEFT) mLeftRawPx = clampRaw(mLeftRawPx + extra);
-        else mRightRawPx = clampRaw(mRightRawPx + extra);
-        apply();
-        onEdgeRelease();
+        cancelAnimators();
+        // Same conversion as the terminal's, and it is played out in TIME: the impulse stretches
+        // the band sample by sample at the speed it actually arrived with, instead of the page
+        // being teleported to the peak and only the return being animated.
+        final ElasticOverdrag.Impact impact = ElasticOverdrag.impact(
+                Math.min(velocity, MAX_ABSORB_VELOCITY), extentPx(), 0f);
+        final float base = (direction == DIRECTION_LEFT) ? mLeftRawPx : mRightRawPx;
+        startImpact(direction, base, impact);
+    }
+
+    /**
+     * Play the fly-out half of an impact: the band being stretched by the impulse that arrived.
+     * The samples are raw travel, but they were integrated in displacement and converted back, so
+     * the page follows the band being loaded — and it starts at the speed the impulse actually
+     * arrived with, i.e. a harder flick flies out faster as well as further. On the last sample
+     * the stretch is handed to
+     * {@link #onEdgeRelease()}, so the return starts from wherever the fly-out actually got to.
+     */
+    private void startImpact(int direction, float baseRaw, @Nullable ElasticOverdrag.Impact impact) {
+        cancelAnimators();
+        if (impact == null || impact.durationMs <= 0L || !(impact.peakTravelPx() > 0f)) {
+            onEdgeRelease();
+            return;
+        }
+        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(impact.durationMs);
+        // Linear: the samples ARE the timing.
+        animator.setInterpolator(new LinearInterpolator());
+        animator.addUpdateListener(animation -> {
+            float progress = (Float) animation.getAnimatedValue();
+            if (!isFinite(progress)) return;
+            float raw = clampRaw(baseRaw + impact.travelAt(progress));
+            if (direction == DIRECTION_LEFT) mLeftRawPx = raw;
+            else mRightRawPx = raw;
+            apply();
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                mImpact = null;
+                onEdgeRelease();
+            }
+        });
+        mImpact = animator;
+        animator.start();
     }
 
     /**
@@ -320,7 +331,7 @@ public final class PagerOverscrollController {
      */
     private void bleedIntoScroll(float dx) {
         if (mTranslationPx == 0f) return;
-        cancelSpring();
+        cancelAnimators();
         // Only the MAGNITUDE of the scroll matters, never its sign: the bleed can only ever pull
         // the displacement back toward the boundary, never push it further out. Subtracting the
         // signed dx (the obvious reading of "give one pixel back per pixel of scroll") is what
@@ -350,37 +361,56 @@ public final class PagerOverscrollController {
      */
     private void setTranslation(float px) {
         if (!isFinite(px)) px = 0f;
-        px = Math.max(-mMaxPullPx, Math.min(mMaxPullPx, px));
+        float max = maxPullPx();
+        px = Math.max(-max, Math.min(max, px));
         mTranslationPx = px;
         mRecyclerView.setTranslationX(px);
     }
 
     /**
-     * The rubber-band curve: {@code f(x) = C*MAX*x / (C*x + MAX)} — f(0)=0, f'(0)=C (the page
-     * follows the finger at 55% near the boundary), f(inf)=MAX (it can never be pulled further
-     * than the cap however hard the finger insists). Strictly below MAX for every finite x, so a
-     * clamped accumulator can never produce an unbounded — or non-finite — displacement.
+     * The pager's extent along the drag axis — the inner RecyclerView's width. Every scale of the
+     * effect is a fraction of it: the cap is 20 % of it, and the finger travel that reaches the
+     * cap is derived from it. Read on demand rather than cached, so a rotation or a split-screen
+     * resize reflows the physics instead of keeping a stale pixel value.
+     *
+     * <p>The pager has no quantum to snap to (unlike the transcript, which is made of glyph
+     * rows), so all of these use the plain {@link ElasticOverdrag} entry points.</p>
+     */
+    private float extentPx() {
+        return Math.max(1f, mRecyclerView.getWidth());
+    }
+
+    private float maxPullPx() {
+        return ElasticOverdrag.maxPull(extentPx());
+    }
+
+    /**
+     * The rubber-band curve, straight from the shared model: {@code f(x) = M·sin((π/2)·x/L)} with
+     * {@code M} = 20 % of the width (the cap) and {@code L} derived from it. {@code f(0)=0},
+     * {@code f'(0) = BOUNDARY_SLOPE = 0.14} — the page follows the finger at 14 % right at the
+     * boundary, i.e. the band resists hard from the first pixel — and {@code f(L)=M} with
+     * {@code f'(L)=0}, so the cap is arrived at rather than chased: no knee, no wall, and the
+     * pull can never exceed it.
+     *
+     * <p>Exactly the curve the terminal transcript uses, so both surfaces feel like the same
+     * material; see {@link ElasticOverdrag}.</p>
      */
     private float damp(float rawPx) {
         // Rejects NaN as well.
         if (!(rawPx > 0f)) return 0f;
-        float x = Math.min(rawPx, MAX_RAW_TRAVEL_PX);
-        return (STIFFNESS * mMaxPullPx * x) / (STIFFNESS * x + mMaxPullPx);
+        return ElasticOverdrag.damp(rawPx, extentPx());
     }
 
     /** Inverse of {@link #damp(float)}: the raw travel that produces {@code dampedPx}. */
     private float inverseDamp(float dampedPx) {
         if (!(dampedPx > 0f)) return 0f;
-        // Clamped well short of the asymptote: the denominator is (MAX - damped), which is what
-        // makes the raw travel blow up (and eventually overflow) as the pull approaches the cap.
-        float d = Math.min(dampedPx, mMaxPullPx * 0.98f);
-        return clampRaw((d * mMaxPullPx) / (STIFFNESS * (mMaxPullPx - d)));
+        return clampRaw(ElasticOverdrag.undamp(dampedPx, extentPx()));
     }
 
     /** Keep the raw accumulator finite and bounded: positive, never NaN/Infinity, never > cap. */
-    private static float clampRaw(float rawPx) {
+    private float clampRaw(float rawPx) {
         if (!(rawPx > 0f) || !isFinite(rawPx)) return 0f;
-        return Math.min(rawPx, MAX_RAW_TRAVEL_PX);
+        return ElasticOverdrag.clampRaw(rawPx, extentPx());
     }
 
     private static boolean isFinite(float v) {
@@ -411,14 +441,14 @@ public final class PagerOverscrollController {
     }
 
     private void settleNow() {
-        if (!mEnabled || mSpring != null) return;
+        if (!mEnabled || mSpring != null || mImpact != null) return;
         if (mTranslationPx != 0f || mLeftRawPx != 0f || mRightRawPx != 0f) reset();
     }
 
     // ── spring back ────────────────────────────────────────────────────────────────────────
 
     private void startSpring(float from) {
-        cancelSpring();
+        cancelAnimators();
         if (!isFinite(from) || from == 0f) {
             // Nothing sane to animate from: drop the displacement instead of animating NaN.
             mLeftRawPx = 0f;
@@ -426,10 +456,11 @@ public final class PagerOverscrollController {
             setTranslation(0f);
             return;
         }
-        from = Math.max(-mMaxPullPx, Math.min(mMaxPullPx, from));
+        float max = maxPullPx();
+        from = Math.max(-max, Math.min(max, from));
         ValueAnimator animator = ValueAnimator.ofFloat(from, 0f);
-        animator.setDuration(SPRING_DURATION_MS);
-        animator.setInterpolator(SPRING_INTERPOLATOR);
+        animator.setDuration(ElasticOverdrag.SPRING_DURATION_MS);
+        animator.setInterpolator(ElasticOverdrag.SPRING);
         animator.addUpdateListener(animation ->
                 setTranslation((Float) animation.getAnimatedValue()));
         animator.addListener(new AnimatorListenerAdapter() {
@@ -443,6 +474,23 @@ public final class PagerOverscrollController {
         });
         mSpring = animator;
         animator.start();
+    }
+
+    /** Stop both the fly-out and the return, leaving the displacement exactly where it is. */
+    private void cancelAnimators() {
+        cancelImpact();
+        cancelSpring();
+    }
+
+    private void cancelImpact() {
+        ValueAnimator impact = mImpact;
+        mImpact = null;
+        if (impact == null) return;
+        // Same reasoning as the spring: cancel() would deliver onAnimationEnd, which releases
+        // into the spring and would fight whatever is taking over.
+        impact.removeAllUpdateListeners();
+        impact.removeAllListeners();
+        impact.cancel();
     }
 
     private void cancelSpring() {
@@ -462,8 +510,9 @@ public final class PagerOverscrollController {
         }
     }
 
-    private static final Interpolator SPRING_INTERPOLATOR = input ->
-            (float) (1f - Math.exp(-SPRING_DECAY * input) * Math.cos(SPRING_FREQ * input));
+    /** The spring-back curve itself lives in {@link ElasticOverdrag#SPRING}: critically damped,
+     *  monotone, and landing exactly on the boundary — shared with the terminal transcript, so
+     *  both surfaces return the same way. */
 
     // ── the edge-effect spy ────────────────────────────────────────────────────────────────
 

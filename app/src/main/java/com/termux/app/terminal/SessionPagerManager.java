@@ -38,7 +38,7 @@ public final class SessionPagerManager {
     private final ViewPager2 mTerminalPager;
 
     /**
-     * iOS-like elastic over-drag at the first/last page ("rubber band"): the edge terminal screen
+     * Elastic over-drag at the first/last page ("rubber band"): the edge terminal screen
      * follows the finger past the boundary with damped resistance and springs back on release.
      * Null only if the pager had no inner RecyclerView when {@link #setup()} ran.
      */
@@ -206,7 +206,7 @@ public final class SessionPagerManager {
         final RecyclerView pagerRv = getPagerRecyclerView();
         if (pagerRv != null) {
             pagerRv.setItemAnimator(null);
-            // Elastic (iOS-style) over-drag on the first/last page. NOTE: this REPLACES the old
+            // Elastic over-drag on the first/last page. NOTE: this REPLACES the old
             // setOverScrollMode(OVER_SCROLL_NEVER) — that switch also disabled the plumbing the
             // rubber band is measured with (RecyclerView#scrollByInternal skips pullGlows() and
             // ViewFlinger skips absorbGlows() when the mode is NEVER).
