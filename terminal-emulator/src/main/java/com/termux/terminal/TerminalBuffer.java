@@ -434,22 +434,49 @@ public final class TerminalBuffer {
                             lastNonSpaceIndex = i + 1;
                 }
 
-                // B2/F6: a plain row (one char per column) that fits the new width without
-                // wrapping is two arraycopies instead of one setChar() per cell. Cursor rows are
-                // excluded: the loop below also has to place the cursor and to wrap it.
+                // B2/F6/G6: a plain row (one char per column) is copied with two arraycopies per
+                // chunk instead of one setChar() per cell — a rotation re-flows the whole
+                // transcript, so this is thousands of rows times the row width. Cursor rows are
+                // excluded: the loop below also has to place the cursor and to stop at it.
                 int currentOldCol = 0;
                 long styleAtCol = 0;
-                boolean copiedInBulk = false;
-                if (!cursorAtThisRow && !oldLine.mHasNonOneWidthOrSurrogateChars
-                        && currentOutputExternalColumn + lastNonSpaceIndex <= mColumns) {
-                    TerminalRow newLine = allocateFullLineIfNecessary(externalToInternalRow(currentOutputExternalRow));
-                    if (newLine.copyPlainInterval(oldLine, 0, currentOutputExternalColumn, lastNonSpaceIndex)) {
-                        currentOutputExternalColumn += lastNonSpaceIndex;
-                        copiedInBulk = true;
+                int oldCharIndex = 0;
+                if (!cursorAtThisRow && !oldLine.mHasNonOneWidthOrSurrogateChars) {
+                    // G6: chunked, so the bulk path also covers the rows that have to wrap. B2
+                    // bailed out unless the whole row fitted the new width, which is exactly the
+                    // case that dominates when the screen gets *narrower* (landscape -> portrait,
+                    // the most common rotation) — every long line then fell back to per-char
+                    // setChar(). A plain row has char index == column in both the source and the
+                    // destination, so any sub-interval of it is still two arraycopies; only the
+                    // chunk length has to stop at the right margin.
+                    //
+                    // Rows with wide/surrogate/combining chars keep the per-char path by design:
+                    // there char index != column, so no bulk copy is possible.
+                    while (oldCharIndex < lastNonSpaceIndex) {
+                        if (currentOutputExternalColumn == mColumns) {
+                            setLineWrap(currentOutputExternalRow);
+                            if (currentOutputExternalRow == mScreenRows - 1) {
+                                if (newCursorPlaced) newCursorRow--;
+                                scrollDownOneLine(0, mScreenRows, currentStyle);
+                            } else {
+                                currentOutputExternalRow++;
+                            }
+                            currentOutputExternalColumn = 0;
+                        }
+                        final int chunk = Math.min(lastNonSpaceIndex - oldCharIndex,
+                            mColumns - currentOutputExternalColumn);
+                        TerminalRow newLine = allocateFullLineIfNecessary(externalToInternalRow(currentOutputExternalRow));
+                        // false = the destination turned out not to be plain after all; fall back to
+                        // the per-char loop for the rest of the row (oldCharIndex/currentOldCol/
+                        // currentOutputExternalColumn are all consistent, so it simply resumes).
+                        if (!newLine.copyPlainInterval(oldLine, oldCharIndex, currentOutputExternalColumn, chunk)) break;
+                        oldCharIndex += chunk;
+                        currentOldCol += chunk;
+                        currentOutputExternalColumn += chunk;
                     }
                 }
 
-                for (int i = 0; !copiedInBulk && i < lastNonSpaceIndex; i++) {
+                for (int i = oldCharIndex; i < lastNonSpaceIndex; i++) {
                     // Note that looping over java character, not cells.
                     char c = oldLine.mText[i];
                     int codePoint = (Character.isHighSurrogate(c)) ? Character.toCodePoint(c, oldLine.mText[++i]) : c;
@@ -649,8 +676,14 @@ public final class TerminalBuffer {
     public void setChar(int column, int row, int codePoint, long style) {
         if (row  < 0 || row >= mScreenRows || column < 0 || column >= mColumns)
             throw new IllegalArgumentException("TerminalBuffer.setChar(): row=" + row + ", column=" + column + ", mScreenRows=" + mScreenRows + ", mColumns=" + mColumns);
-        markRowDirty(row);
+        // G7: this is the hottest write path in the emulator — it runs once per output code point,
+        // i.e. tens of thousands of times per `cat` of a large file. It used to resolve the external
+        // row twice: once inside markRowDirty() (which re-derived the ring slot from the external
+        // index, modulo and all) and once here. Resolve it once and use the ring-slot variant
+        // directly. The defensive bounds check inside markRowDirty() is dead weight here too —
+        // `row` has just been validated to be a live screen row.
         row = externalToInternalRow(row);
+        markInternalRowDirty(row);
         allocateFullLineIfNecessary(row).setChar(column, codePoint, style);
     }
 
@@ -671,6 +704,9 @@ public final class TerminalBuffer {
             line.mBlankAndUniform = false;
             int startOfLine = (rectangular || y == top) ? left : leftMargin;
             int endOfLine = (rectangular || y + 1 == bottom) ? right : rightMargin;
+            // G3: same reason as mBlankAndUniform above, but this bound is only *raised*: the
+            // cells from endOfLine on were not touched, so a uniform suffix still starts there.
+            line.noteStyleRangeWritten(endOfLine);
             for (int x = startOfLine; x < endOfLine; x++) {
                 long currentStyle = line.getStyle(x);
                 int foreColor = TextStyle.decodeForeColor(currentStyle);
