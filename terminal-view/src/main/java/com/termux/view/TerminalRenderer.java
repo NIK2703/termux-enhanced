@@ -216,8 +216,17 @@ public final class TerminalRenderer {
      * htop, syntax highlighting) a frame has hundreds-to-thousands of runs; most adjacent runs
      * share the same color/bold/underline/italic/strike state, so the setter churn is almost
      * entirely redundant. Reset to "unknown" at the start of each {@link #render}.
+     *
+     * <p>The colour memo is a {@code long} holding the colour's <em>unsigned</em> 32-bit value,
+     * not an {@code int}, and the "unknown" sentinel is {@code -1L}. A 32-bit sentinel is not
+     * usable here: every {@code int} is a valid ARGB colour, and {@code -1} is exactly
+     * {@code 0xFFFFFFFF} — opaque white, the single most common foreground in terminal output.
+     * A fresh memo therefore used to look like "already painting white", so the first white run
+     * of a frame skipped {@code setColor()} and was drawn with whatever colour the shared
+     * {@link #mTextPaint} still carried from the previous frame. See
+     * {@link #needsForeColorSet(int, long)}.</p>
      */
-    private int mLastPaintForeColor = -1;
+    private long mLastPaintForeColorKey = -1L;
     private boolean mLastPaintBold = false;
     private boolean mLastPaintUnderline = false;
     private boolean mLastPaintItalic = false;
@@ -405,7 +414,7 @@ public final class TerminalRenderer {
         mLastPaintUnderline = false;
         mLastPaintItalic = false;
         mLastPaintStrike = false;
-        mLastPaintForeColor = -1;
+        mLastPaintForeColorKey = -1L;
 
         final boolean reverseVideo = mEmulator.isReverseVideo();
         // C1: the view's scroll position can transiently point deeper than the buffer's real
@@ -1070,6 +1079,31 @@ public final class TerminalRenderer {
         out[1] = backColor;
     }
 
+    /**
+     * B4: the memo key for an ARGB colour — its unsigned 32-bit value as a {@code long}.
+     *
+     * <p>Widening an {@code int} colour straight into the memo would sign-extend it, so opaque
+     * white ({@code 0xFFFFFFFF}, i.e. {@code -1}) would be indistinguishable from the
+     * "no colour applied yet" sentinel.</p>
+     */
+    static long foreColorKey(int foreColor) {
+        return foreColor & 0xFFFFFFFFL;
+    }
+
+    /**
+     * B4: must {@link Paint#setColor(int)} be called before drawing this run?
+     *
+     * <p>Extracted so the invariant that matters can be tested without an Android {@link Canvas}:
+     * the "unknown" sentinel must not be equal to any colour the renderer can produce. With a
+     * 32-bit memo it was — {@code 0xFFFFFFFF} (opaque white) collides with a sentinel of
+     * {@code -1} — and the first white run of a frame was painted with the previous frame's
+     * leftover colour. That is only observable when nothing else primed the memo first, which is
+     * why it surfaced once the blank-run draws were optimised away.</p>
+     */
+    static boolean needsForeColorSet(int foreColor, long lastForeColorKey) {
+        return foreColorKey(foreColor) != lastForeColorKey;
+    }
+
     private void drawRunText(Canvas canvas, char[] text, float y, int startColumn, int runWidthColumns,
                              int startCharIndex, int runWidthChars, float mes, int cursor, int cursorStyle,
                              long textStyle, int foreColor, int backColor, boolean fontWidthMismatch,
@@ -1166,9 +1200,10 @@ public final class TerminalRenderer {
             // B4: only touch the native paint setters when the value actually changed. The style
             // setters are the expensive ones (they recompute the Skia font state), and the vast
             // majority of adjacent runs share the same state, so this eliminates most of their calls.
-            if (foreColor != mLastPaintForeColor) {
+            final long key = foreColorKey(foreColor);
+            if (needsForeColorSet(foreColor, mLastPaintForeColorKey)) {
                 mTextPaint.setColor(foreColor);
-                mLastPaintForeColor = foreColor;
+                mLastPaintForeColorKey = key;
             }
             if (bold != mLastPaintBold) {
                 mTextPaint.setFakeBoldText(bold);
