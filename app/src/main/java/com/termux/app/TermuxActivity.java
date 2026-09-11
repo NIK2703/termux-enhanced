@@ -2614,13 +2614,37 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Tri-state scrollbar presence of {@code view}: {@code TRUE} it shows a scrollbar,
+     * {@code FALSE} it definitely does not, {@code null} it cannot be determined yet.
+     * <p/>
+     * {@code null} means "no terminal bound yet": either the activity has no terminal view at all
+     * (before {@code onServiceConnected()} re-attaches the sessions), or the view exists but has
+     * not been attached to its session's emulator. The latter is the normal state right after the
+     * pager binds a page — RecyclerView binds before the page is measured, and {@code mEmulator}
+     * is only assigned in {@code TerminalView.updateSize()} once the view has a non-zero size.
+     * <p/>
+     * Callers that WRITE the margin must treat {@code null} as unknown and leave the current
+     * margin alone; only callers that merely READ it may collapse {@code null} to "no scrollbar"
+     * (see {@link #hasScrollbar}).
+     */
+    @Nullable
+    private static Boolean getScrollbarState(@Nullable TerminalView view) {
+        if (view == null || view.mEmulator == null) return null;
+        return view.mEmulator.getScreen().getActiveTranscriptRows() > 0;
+    }
+
+    /**
      * Whether the given terminal view currently shows a scrollbar (i.e. has scrollable
      * transcript content). Used both for the button's base margin and to decide whether
      * the terminal's own right inset must be added to the button margin.
+     * <p/>
+     * Note that an unknown scrollbar state (see {@link #getScrollbarState}) collapses to
+     * {@code false} here, so the scroll path in {@code SessionPagerManager} interpolating between
+     * a bound and a not-yet-bound page falls back to the plain margin — which is what it wants,
+     * since it passes the other page's real view in that case.
      */
     public static boolean hasScrollbar(@Nullable TerminalView view) {
-        return view != null && view.mEmulator != null
-            && view.mEmulator.getScreen().getActiveTranscriptRows() > 0;
+        return Boolean.TRUE.equals(getScrollbarState(view));
     }
 
     public static int computeFloatingButtonMarginEnd(TerminalView view, android.content.res.Resources resources) {
@@ -2639,9 +2663,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * settled value here would yank the button to its final position and the very next scroll
      * frame would pull it back — the jitter that showed up as the button trembling on every chunk
      * of terminal output while swiping onto a session that prints continuously.
+     * <p/>
+     * Also a no-op while the scrollbar state is unknown ({@link #getScrollbarState} returns
+     * {@code null}): writing the "no scrollbar" default in that window is what dropped the
+     * button's scrollbar clearance after a theme change. On an activity recreate the new instance
+     * calls this from {@code setToggleTextInputButtonView()} while no session is bound yet (and
+     * again from {@code setTerminalView()} while the freshly bound page still has no emulator), so
+     * the margin was forced to the 6dp no-scrollbar value. The terminal is idle after a theme
+     * change, so no screen update ever arrived to correct it and the button stayed on top of the
+     * scrollbar thumb. Keeping the existing margin instead is safe: the XML default already is the
+     * scrollbar value, and {@link TermuxTerminalViewClient#onEmulatorSet()} recomputes the margin
+     * as soon as the emulator is actually bound.
      */
     public void updateFloatingButtonMargin() {
         if (isPagerScrollInProgress()) return;
+        if (getScrollbarState(mTerminalView) == null) return;
         setFloatingButtonMarginEnd(computeSettledFloatingButtonMarginEnd(mTerminalView));
     }
 

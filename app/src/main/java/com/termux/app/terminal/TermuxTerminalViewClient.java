@@ -221,6 +221,27 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             terminalView.mEmulator.setAutoScrollDisabled(disabled);
         }
 
+        // The floating toggle button's right margin is derived from the BOUND emulator's scrollback
+        // (see TermuxActivity.hasScrollbar), so it cannot be computed before this point: the pager
+        // binds a page before it is measured, and mEmulator is only assigned by
+        // TerminalView.updateSize() once the view has a non-zero size. TermuxActivity
+        // .updateFloatingButtonMargin() therefore refuses to touch the margin while the scrollbar
+        // state is unknown, and this callback is where that state becomes known.
+        //
+        // Without it the margin is never refreshed for an IDLE terminal: the button's other refresh
+        // source is the TerminalView's OnScreenUpdateListener, which only fires on terminal output.
+        // After an activity recreate (theme change) nothing is printing, so the button kept the
+        // margin it had while no session was bound and ended up overlapping the scrollbar thumb.
+        //
+        // Posted, not called inline: updateSize() runs from onSizeChanged(), i.e. inside the layout
+        // pass, and setFloatingButtonMarginEnd() calls setLayoutParams() — doing that synchronously
+        // would request a layout from within a layout. The settled margin is a one-shot value, so a
+        // frame's delay is irrelevant, and updateFloatingButtonMargin() still early-returns while
+        // the pager is animating a page scroll (that window belongs to the scroll interpolation).
+        if (terminalView != null) {
+            terminalView.post(mActivity::updateFloatingButtonMargin);
+        }
+
         if (!mTerminalCursorBlinkerStateAlreadySet) {
             // Start terminal cursor blinking if enabled
             // We need to wait for the first session to be attached that's set in
