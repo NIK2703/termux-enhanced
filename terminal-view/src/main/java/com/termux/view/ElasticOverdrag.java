@@ -433,7 +433,8 @@ public final class ElasticOverdrag {
     /**
      * The inverse of {@link #damp(float, float, float)}: the raw travel that produces
      * {@code dampedPx}. Used to re-seed a held pull from the displacement currently on screen
-     * (the pager's bleed path), and to publish the fly-out of {@link #impact(float, float, float)}
+     * (the pager's spring-cancel path, where a gesture takes over a running return), and to
+     * publish the fly-out of {@link #impact(float, float, float)}
      * — which is simulated in displacement — back into the raw accumulator both call sites
      * animate. {@code damp(undamp(y)) == y} exactly, so nothing is lost in the round trip.
      */

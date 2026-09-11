@@ -63,9 +63,13 @@ import com.termux.view.ElasticOverdrag;
  * <h2>Giving the pull back (the bleed)</h2>
  * A RecyclerView does not know an over-drag exists, so the moment the finger travels back inward
  * it starts scrolling for real — which would move the page by both the scroll <em>and</em> the
- * still-held over-drag. {@code onScrolled} therefore bleeds the held displacement back into the
- * scroll one pixel per pixel of consumed scroll ({@link #bleedIntoScroll}), so pull-then-return
- * and pull-then-fling-inward read as one continuous motion instead of a jump.
+ * still-held over-drag. {@code onScrolled} therefore bleeds the held pull back into the scroll one
+ * pixel of <em>finger travel</em> per pixel of consumed scroll ({@link #bleedIntoScroll}), so
+ * pull-then-return and pull-then-fling-inward read as one continuous motion instead of a jump.
+ * Paying it back in the finger-travel domain rather than in the displacement on screen is what
+ * keeps the motion continuous: the damped value is concave, so one pixel of scroll would otherwise
+ * cancel ~2.4x the pull that one pixel of finger travel bought, and a single large scroll frame
+ * could zero the whole displacement at once.
  *
  * <p>With a single page the RecyclerView cannot scroll back at all, so the return arrives as an
  * unconsumed delta on the <em>opposite</em> edge. {@link #onEdgePull} handles that by spending a
@@ -96,9 +100,10 @@ import com.termux.view.ElasticOverdrag;
  *       {@link #damp(float)} provably bounded by the pull cap — no overflow, no Infinity, no NaN.</li>
  *   <li><b>Never displaced while idle.</b> After every gesture the pager is guaranteed to sit at
  *       exactly 0 — see {@link #ensureSettled()}. This holds even when the spring-back was
- *       cancelled mid-flight (which used to be the one path that never wrote a clean 0 again),
- *       and it is what makes the whole feature fail-safe: the worst case is a missing animation,
- *       never a broken pager.</li>
+ *       cancelled mid-flight (which used to be the one path that never wrote a clean 0 again), and
+ *       it is reached by <em>animating</em> any leftover rather than by zeroing it, so enforcing
+ *       the invariant is never itself the jerk the user sees. That is what makes the whole feature
+ *       fail-safe: the worst case is a missing animation, never a broken pager.</li>
  * </ol>
  */
 public final class PagerOverscrollController {
@@ -326,27 +331,44 @@ public final class PagerOverscrollController {
     }
 
     /**
-     * The pager scrolled for real by {@code dx} (positive = content moved left). Hand the held
-     * displacement back one pixel per pixel of scroll so a pull-then-return gesture stays
+     * The pager scrolled for real by {@code dx} (positive = content moved left). Hand the held pull
+     * back one pixel of finger travel per pixel of scroll so a pull-then-return gesture stays
      * continuous; without this the page would move by the scroll <em>and</em> keep the over-drag.
+     * The payback is applied to the raw accumulator, never to the damped value on screen — see the
+     * comment inside, it is the difference between a continuous return and a snap.
      */
     private void bleedIntoScroll(float dx) {
         if (mTranslationPx == 0f) return;
         cancelAnimators();
         // Only the MAGNITUDE of the scroll matters, never its sign: the bleed can only ever pull
-        // the displacement back toward the boundary, never push it further out. Subtracting the
-        // signed dx (the obvious reading of "give one pixel back per pixel of scroll") is what
-        // broke the reported case — the spring-back curve overshoots past 1, so after ~100 ms the
-        // displacement has the OPPOSITE sign to the pull, and a real scroll then ADDED |dx| to it
-        // on every single onScrolled frame. One page swipe piles ~1000 px of displacement onto the
-        // pager and the RecyclerView parks a full screen width off, with every page (i.e. every
-        // session) drawn outside the viewport and no path left that ever writes a clean 0.
-        float magnitude = Math.max(0f, Math.abs(mTranslationPx) - Math.abs(dx));
-        float target = mTranslationPx > 0f ? magnitude : -magnitude;
-        setTranslation(target);
-        // Re-seed the accumulators from the damped value so the next pull picks up from here.
-        mLeftRawPx = inverseDamp(target);
-        mRightRawPx = inverseDamp(-target);
+        // the displacement back toward the boundary, never push it further out.
+        //
+        // And it is paid back in the RAW (finger-travel) domain, not in the damped displacement
+        // that is on screen. "One pixel of scroll gives back one pixel of pull" is a statement
+        // about the raw accumulator, because that is the only quantity the finger actually
+        // produced. Subtracting from the damped value instead — which is what this did — pays the
+        // pull back at 1/f'(x) ≈ 2.4x the rate near the boundary, since the pull curve is concave:
+        // 140 px of finger travel buy only 58 px of displacement, so 58 px of scroll used to cancel
+        // all of it. Two visible consequences, one of them the reported bug:
+        //   * the page moved ~2x the finger's speed all through the return (d(page) = -dS + dt =
+        //     -2·dS), so the pull "ran away" from the finger instead of coming back with it;
+        //   * a single scroll frame whose |dx| exceeded the held displacement saturated the
+        //     subtraction at 0 and wrote a clean zero in ONE frame — the page snapped up to the
+        //     full cap (20 % of the width) back to the boundary with no animation at all.
+        // In the raw domain the payback is exactly 1:1, so the displacement can only be given back
+        // as fast as the finger travel that created it, and the visible motion is continuous:
+        // d(page) = -(1 + f'(raw))·dS, bounded by 1.42·|dx| at the boundary and 1.0·|dx| at the cap
+        // — never a jump, and no velocity step when the band bottoms out.
+        final float giveBack = Math.abs(dx);
+        if (mTranslationPx > 0f) {
+            mLeftRawPx = clampRaw(mLeftRawPx - giveBack);
+        } else {
+            mRightRawPx = clampRaw(mRightRawPx - giveBack);
+        }
+        // The damped value follows from the raw, so it is re-derived rather than decremented:
+        // the raw accumulator stays the single source of truth (see the class doc), and the
+        // displacement can never be driven past the cap.
+        apply();
     }
 
     // ── displacement ───────────────────────────────────────────────────────────────────────
@@ -459,14 +481,23 @@ public final class PagerOverscrollController {
      * user interrupts the spring (which is exactly what "quickly page to the neighbour while it is
      * still returning" does), {@link #cancelSpring()} strips the listeners before cancelling so the
      * page does not snap mid-gesture, and that very same listener removal removes the only
-     * guaranteed writer of a clean 0. If the bleed did not finish the job in that frame, nothing
-     * ever would again.
+     * guaranteed writer of a clean 0. {@link #bleedIntoScroll()} does the same thing on purpose —
+     * it has to take the animators down to own the displacement while it gives the pull back — and
+     * it can do so long after {@code ACTION_UP}, because a fling or the pager's own snap-back keeps
+     * scrolling. If the bleed does not finish the job in that frame, nothing ever would again.
      *
-     * <p>So on every {@code SCROLL_STATE_IDLE} we post a check that zeroes any leftover
-     * displacement. It is posted rather than run inline because RecyclerView reaches IDLE while
-     * dispatching {@code ACTION_UP}, i.e. <em>before</em> it hands the edge effects their
-     * {@code onRelease()} — running inline would kill the spring-back before it starts. One frame
-     * later the spring (if any) is already registered, and the check stands down.
+     * <p>So on every {@code SCROLL_STATE_IDLE} we post a check for leftover displacement. It is
+     * posted rather than run inline because RecyclerView reaches IDLE while dispatching
+     * {@code ACTION_UP}, i.e. <em>before</em> it hands the edge effects their {@code onRelease()} —
+     * running inline would kill the spring-back before it starts. One frame later the spring (if
+     * any) is already registered, and the check stands down.
+     *
+     * <p>The check <em>animates</em> what it finds rather than zeroing it: the leftover is a
+     * displacement the user can see, so writing a clean 0 is a snap of up to the full cap, which is
+     * the very thing this class must not do. Handing it to {@link #startSpring(float)} keeps the
+     * invariant absolute (the spring lands on exactly 0) while arriving there smoothly. That also
+     * keeps the fail-safe promise — the worst case stays a <em>missing</em> animation, never a
+     * broken pager — because a spring can only ever end at 0.
      */
     private void ensureSettled() {
         mRecyclerView.removeCallbacks(mSettleRunnable);
@@ -475,7 +506,23 @@ public final class PagerOverscrollController {
 
     private void settleNow() {
         if (!mEnabled || mSpring != null || mImpact != null) return;
-        if (mTranslationPx != 0f || mLeftRawPx != 0f || mRightRawPx != 0f) reset();
+        if (mTranslationPx != 0f) {
+            // Displaced with no animator: the return was cancelled mid-flight. The bleed does
+            // exactly that on every scroll frame it gives the pull back on, so a fling — or the
+            // pager's own snap-back — can easily outlive the spring that was armed on ACTION_UP.
+            // Hand the leftover to the spring instead of zeroing it: an instant reset here is a
+            // visible snap of up to the full cap (20 % of the width), i.e. precisely the "it
+            // returns abruptly instead of animating" that this check must never cause. The
+            // invariant is still absolute — startSpring() coerces anything non-finite to 0, clamps
+            // to the cap and its onAnimationEnd writes a clean 0 — it just gets there by animating.
+            mLeftRawPx = 0f;
+            mRightRawPx = 0f;
+            startSpring(mTranslationPx);
+            return;
+        }
+        // A raw accumulator on its own can never be on screen (a non-zero raw always damps to a
+        // non-zero displacement), so there is nothing to animate — just drop it.
+        if (mLeftRawPx != 0f || mRightRawPx != 0f) reset();
     }
 
     // ── spring back ────────────────────────────────────────────────────────────────────────
