@@ -957,12 +957,25 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 NewSessionSelectMode.SELECT_AND_SCROLL, true, false);
     }
 
+    /**
+     * Persist the current session handle so a later {@link #onStart()} can restore it.
+     * <p/>
+     * Only writes when a session is actually bound to the activity. An activity recreate that
+     * happens while the app is in the background (theme change from Settings, system day/night
+     * switch) runs the new instance's {@code onStop()} <em>before</em> {@code onServiceConnected()}
+     * has re-attached the sessions, so {@code getCurrentSession()} is null at that point. Writing
+     * null there deleted the stored handle, and the next {@link #getCurrentStoredSessionOrLast()}
+     * then fell back to {@link TermuxService#getLastTermuxSession()} — the rightmost tab — so every
+     * theme change silently jumped to the last tab.
+     * <p/>
+     * Keeping the previous handle instead is safe: {@link #getCurrentStoredSession()} validates it
+     * against the live session list and ignores it when that session no longer exists (falling back
+     * to the last session, which is the correct answer in that case anyway).
+     */
     public void setCurrentStoredSession() {
         TerminalSession currentSession = mActivity.getCurrentSession();
         if (currentSession != null)
             mActivity.getPreferences().setCurrentSession(currentSession.mHandle);
-        else
-            mActivity.getPreferences().setCurrentSession(null);
     }
 
     /** The current session as stored or the last one if that does not exist. */

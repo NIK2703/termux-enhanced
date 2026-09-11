@@ -97,6 +97,14 @@ public class TermuxSessionSnapshotManager {
         if (sessions == null || sessions.isEmpty()) return;
 
         TerminalSession current = mActivity.getCurrentSession();
+        // No session is bound to this activity instance, so the active tab cannot be derived.
+        // That is the case for an instance that was recreated while the app was in the
+        // background: its onStop() runs BEFORE onServiceConnected() has re-attached the
+        // sessions (theme change from Settings, system day/night switch). Keep the snapshot
+        // already on disk rather than rewriting it with active = 0, which would make a later
+        // cold start reopen the FIRST tab. The same premature onStop also wipes the stored
+        // current-session handle — see TermuxTerminalSessionActivityClient#setCurrentStoredSession.
+        if (current == null) return;
         JSONArray tabs = new JSONArray();
         int activeIndex = 0;
         for (int i = 0; i < sessions.size(); i++) {
