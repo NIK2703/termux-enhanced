@@ -254,19 +254,55 @@ public final class TerminalRenderer {
         mBackgroundAlpha = Math.round(255f * (100 - percent) / 100f);
     }
 
+    /**
+     * Measure text with the shared Paint forced into a style-neutral state.
+     *
+     * <p>The per-code-point advance cache is keyed by (typeface, text size) and is shared by every
+     * renderer of that font, so a value stored in it must not depend on the style the Paint happens
+     * to carry at the moment of the first measurement. That style is <em>not</em> neutral: a row's
+     * runs are built after the previous row has already been drawn, and {@code drawRunText()} leaves
+     * the style of the last run it drew on the shared Paint. For the box-drawing and block glyphs
+     * that terminal art is made of, {@code setTextSkewX()} (italic) changes the measured advance by
+     * a whole pixel at the font sizes in use — 18.0 becomes 19.0 at size 26. A single italic run
+     * drawn above the art therefore caches the wrong advance for the whole process, and because
+     * {@code drawRunText()} derives its mismatch scale as
+     * {@code runWidthColumns * mFontWidth / measuredWidth}, every glyph of the affected run is then
+     * drawn 18 * 16/19 ≈ 15.2 px wide inside a 16 px cell: a ~0.8 px seam at every cell boundary,
+     * i.e. visibly "dancing" block art. Measuring here with the style stripped makes the cache
+     * deterministic and independent of what was drawn before.</p>
+     */
+    private float measureNeutral(char[] line, int index, int count) {
+        final boolean bold = mTextPaint.isFakeBoldText();
+        final float skew = mTextPaint.getTextSkewX();
+        final boolean underline = mTextPaint.isUnderlineText();
+        final boolean strike = mTextPaint.isStrikeThruText();
+        mTextPaint.setFakeBoldText(false);
+        mTextPaint.setTextSkewX(0.f);
+        mTextPaint.setUnderlineText(false);
+        mTextPaint.setStrikeThruText(false);
+        final float measured = mTextPaint.measureText(line, index, count);
+        // Restore the exact previous state: drawRunText() tracks it in mLastPaint* and would skip a
+        // setter it believes is already applied, leaking the wrong style into the next run.
+        mTextPaint.setFakeBoldText(bold);
+        mTextPaint.setTextSkewX(skew);
+        mTextPaint.setUnderlineText(underline);
+        mTextPaint.setStrikeThruText(strike);
+        return measured;
+    }
+
     /** Measure the on-screen width of a code point, using the per-code-point cache. */
     private float measureCodePoint(int codePoint, char[] line, int index, int count) {
         if (codePoint < 0x10000) {
             float cached = bmpMeasures[codePoint];
             if (cached == 0f && codePoint != 0) {
-                cached = mTextPaint.measureText(line, index, count);
+                cached = measureNeutral(line, index, count);
                 bmpMeasures[codePoint] = cached;
             }
             return cached;
         }
         Float cached = supplementaryMeasures.get(codePoint);
         if (cached == null) {
-            cached = mTextPaint.measureText(line, index, count);
+            cached = measureNeutral(line, index, count);
             supplementaryMeasures.put(codePoint, cached);
         }
         return cached;
