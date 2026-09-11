@@ -124,6 +124,14 @@ public final class TerminalRenderer {
     private int[] mRunCursorStyle;
     private boolean[] mRunReverseVideo;
     private boolean[] mRunFontWidthMismatch;
+    /**
+     * H1: true when every code point of the run is a block-element "area fill" (U+2580..U+259F,
+     * i.e. {@code ▀▄█▌▐░▒▓} and the quadrant / eighth variants). Such a glyph does not read as
+     * text — it paints a solid (or dithered) area and is visually a background — so it must
+     * honour the configured background transparency exactly like pass A's rectangles do.
+     * See {@link #drawRunText} for how that is done without an offscreen layer.
+     */
+    private boolean[] mRunBlockFill;
     /** Resolved ARGB foreground/background color of each run, computed once per row (see render). */
     private int[] mRunForeColor;
     private int[] mRunBackColor;
@@ -168,6 +176,39 @@ public final class TerminalRenderer {
      * the region to exactly (colour, alpha) instead.
      */
     private static final PorterDuffXfermode SRC_XFERMODE = new PorterDuffXfermode(PorterDuff.Mode.SRC);
+    /**
+     * H1: {@link PorterDuff.Mode#SRC_ATOP}, the single mode that makes a block-element glyph
+     * honour the background transparency without touching its geometry.
+     *
+     * <p>A block element ({@code ▀▄█▌▐░▒▓} and friends) paints an <em>area</em>, so semantically it
+     * is the cell's background, not its text: where the glyph covers a fraction {@code m} of a
+     * pixel, the cell's background colour {@code A} must be replaced by {@code m·C + (1-m)·A}, and
+     * the whole cell must then be handed to the compositor at the background alpha {@code a}. The
+     * renderer has already painted the cell as {@code (a·A, a)} (premultiplied), so the target is
+     * {@code (a·(m·C + (1-m)·A), a)} — the alpha has to stay put while the colour changes.</p>
+     *
+     * <p>SRC_ATOP is exactly "replace the colour, keep the destination alpha": with source
+     * {@code (m·C, m)} — an <em>opaque</em> paint, the coverage is the only alpha — and destination
+     * {@code (a·A, a)} it yields {@code (m·C·a + (1-m)·a·A, a)}. Correct for every {@code m},
+     * including the anti-aliased rim. Alternatives all lose:</p>
+     * <ul>
+     *   <li>{@code SRC_OVER} with {@code (C, a)}: composes to {@code 2a-a²} — 0.96 at the 20 %
+     *       setting, i.e. still nearly opaque. That was the original defect.</li>
+     *   <li>{@code SRC}: erases the rest of the cell, because a text paint's coverage is 0 there.</li>
+     *   <li>{@code DST_OUT} + {@code SRC_OVER(C, a)} (the first attempt): correct at {@code m=1},
+     *       but it cuts the base with the glyph's own coverage <em>and</em> then re-stamps with the
+     *       glyph's alpha, so the two partial-coverage factors multiply. At the rim the cell ends up
+     *       at {@code a·m + a·(1-m)·(1-a·m) < a} — too transparent — and where two neighbouring
+     *       block glyphs overlap by a pixel (a fallback font's 18 px advance inside a 16 px cell)
+     *       the pair is applied twice, so every cell boundary of a block-art run got a visible
+     *       light/dark seam. Measured ripple: std 0.00 before, 6.45 after.</li>
+     * </ul>
+     *
+     * <p>SRC_ATOP is additionally <em>idempotent</em>: drawing the same full-coverage glyph twice
+     * yields {@code (C·a, a)} both times, so overlapping neighbours cannot produce a seam — which
+     * is precisely what the double-draw could not guarantee.</p>
+     */
+    private static final PorterDuffXfermode SRC_ATOP_XFERMODE = new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP);
 
     /**
      * B4: last {@link Paint} text-style state applied, so {@link #drawRunText} only touches the
@@ -607,6 +648,8 @@ public final class TerminalRenderer {
             int lastRunStartColumn = -1;
             int lastRunStartIndex = 0;
             boolean lastRunFontWidthMismatch = false;
+            // H1: same, for the "this run paints solid area, not text" flag.
+            boolean lastRunBlockFill = false;
             // A3: scale factor (measured / expected) of the current run's mismatched glyphs, -1 = none.
             float lastRunMismatchRatio = -1.f;
             int currentCharIndex = 0;
@@ -690,7 +733,14 @@ public final class TerminalRenderer {
                 final boolean scaleChanged = fontWidthMismatch && lastRunFontWidthMismatch
                     && (mismatchRatio < 0.f || lastRunMismatchRatio < 0.f || mismatchRatio != lastRunMismatchRatio);
 
-                if (style != lastRunStyle || insideCursor != lastRunInsideCursor || insideSelection != lastRunInsideSelection || fontWidthMismatch != lastRunFontWidthMismatch || scaleChanged) {
+                // H1: a block element (U+2580..U+259F) paints an area, not a glyph outline — the cell
+                // it sits in reads as a background, not as text. Such a run has to honour the
+                // configured background transparency (see drawRunText), so it may not share a run
+                // with neighbouring text: break on the flag. The tail's ' ' and every ASCII cell
+                // fall outside the range, so the hot path only pays one compare.
+                final boolean blockFill = codePoint >= 0x2580 && codePoint <= 0x259F;
+
+                if (blockFill != lastRunBlockFill || style != lastRunStyle || insideCursor != lastRunInsideCursor || insideSelection != lastRunInsideSelection || fontWidthMismatch != lastRunFontWidthMismatch || scaleChanged) {
                     if (column != 0) {
                         final int columnWidthSinceLastRun = column - lastRunStartColumn;
                         int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
@@ -706,7 +756,8 @@ public final class TerminalRenderer {
                             invertCursorTextColor = true;
                         }
                         addRun(lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
-                            lastRunStyle, cursorColor, cursorShape, reverseVideo || invertCursorTextColor || lastRunInsideSelection, lastRunFontWidthMismatch);
+                            lastRunStyle, cursorColor, cursorShape, reverseVideo || invertCursorTextColor || lastRunInsideSelection, lastRunFontWidthMismatch,
+                            lastRunBlockFill);
                     }
                     measuredWidthForRun = 0.f;
                     lastRunStyle = style;
@@ -715,6 +766,7 @@ public final class TerminalRenderer {
                     lastRunStartColumn = column;
                     lastRunStartIndex = currentCharIndex;
                     lastRunFontWidthMismatch = fontWidthMismatch;
+                    lastRunBlockFill = blockFill;
                     lastRunMismatchRatio = mismatchRatio;
                     // F0: a new run starts here, so its content boundary starts here too. Whether
                     // it may be trimmed is decided by what the run *is*:
@@ -782,7 +834,8 @@ public final class TerminalRenderer {
             // When g3Start == 0 there is nothing to the left of the tail.
             if (!g3 || g3Start > 0) {
                 addRun(lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
-                    lastRunStyle, cursorColor, cursorShape, reverseVideo || invertCursorTextColor || lastRunInsideSelection, lastRunFontWidthMismatch);
+                    lastRunStyle, cursorColor, cursorShape, reverseVideo || invertCursorTextColor || lastRunInsideSelection, lastRunFontWidthMismatch,
+                    lastRunBlockFill);
             }
             if (g3) {
                 // The tail run: `columns - g3Start` blank cells under one style, no cursor and no
@@ -794,7 +847,8 @@ public final class TerminalRenderer {
                 final boolean tailNoTrim = (TextStyle.decodeEffect(tailStyle)
                     & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) != 0;
                 addRun(g3Start, tailColumns, currentCharIndex, tailNoTrim ? tailColumns : 0,
-                    tailColumns * mFontWidth, tailStyle, 0, cursorShape, reverseVideo, false);
+                    tailColumns * mFontWidth, tailStyle, 0, cursorShape, reverseVideo, false,
+                    false);
             }
 
             // Resolve each run's colors once here so that pass A (backgrounds) and pass B (text)
@@ -881,7 +935,7 @@ public final class TerminalRenderer {
             for (int i = 0; i < mRunCount; i++) {
                 drawRunText(canvas, line, heightOffset, mRunStartColumn[i], mRunWidthColumns[i], mRunStartChar[i],
                     mRunCharCount[i], mRunMeasuredWidth[i], mRunCursorColor[i], mRunCursorStyle[i], mRunStyle[i],
-                    mRunForeColor[i], mRunBackColor[i], mRunFontWidthMismatch[i], rawBgColor);
+                    mRunForeColor[i], mRunBackColor[i], mRunFontWidthMismatch[i], rawBgColor, mRunBlockFill[i]);
             }
         }
 
@@ -908,6 +962,7 @@ public final class TerminalRenderer {
             mRunCursorStyle = new int[columns];
             mRunReverseVideo = new boolean[columns];
             mRunFontWidthMismatch = new boolean[columns];
+            mRunBlockFill = new boolean[columns];
             mRunForeColor = new int[columns];
             mRunBackColor = new int[columns];
         }
@@ -929,6 +984,7 @@ public final class TerminalRenderer {
             && mRunBackColor[a] == mRunBackColor[b]
             && mRunReverseVideo[a] == mRunReverseVideo[b]
             && mRunCursorColor[a] == mRunCursorColor[b]
+            && mRunBlockFill[a] == mRunBlockFill[b]
             && !mRunFontWidthMismatch[a] && !mRunFontWidthMismatch[b]
             && TextStyle.decodeEffect(mRunStyle[a]) == TextStyle.decodeEffect(mRunStyle[b]);
     }
@@ -964,12 +1020,14 @@ public final class TerminalRenderer {
         mRunCursorStyle[to] = mRunCursorStyle[from];
         mRunReverseVideo[to] = mRunReverseVideo[from];
         mRunFontWidthMismatch[to] = mRunFontWidthMismatch[from];
+        mRunBlockFill[to] = mRunBlockFill[from];
         mRunForeColor[to] = mRunForeColor[from];
         mRunBackColor[to] = mRunBackColor[from];
     }
 
     private void addRun(int startColumn, int runWidthColumns, int startCharIndex, int runWidthChars, float measuredWidth,
-                        long style, int cursorColor, int cursorStyle, boolean reverseVideo, boolean fontWidthMismatch) {
+                        long style, int cursorColor, int cursorStyle, boolean reverseVideo, boolean fontWidthMismatch,
+                        boolean blockFill) {
         ensureRunCapacity(mRunCount + 1);
         mRunStartColumn[mRunCount] = startColumn;
         mRunWidthColumns[mRunCount] = runWidthColumns;
@@ -981,6 +1039,7 @@ public final class TerminalRenderer {
         mRunCursorStyle[mRunCount] = cursorStyle;
         mRunReverseVideo[mRunCount] = reverseVideo;
         mRunFontWidthMismatch[mRunCount] = fontWidthMismatch;
+        mRunBlockFill[mRunCount] = blockFill;
         mRunCount++;
     }
 
@@ -1014,7 +1073,7 @@ public final class TerminalRenderer {
     private void drawRunText(Canvas canvas, char[] text, float y, int startColumn, int runWidthColumns,
                              int startCharIndex, int runWidthChars, float mes, int cursor, int cursorStyle,
                              long textStyle, int foreColor, int backColor, boolean fontWidthMismatch,
-                             int baseBgColor) {
+                             int baseBgColor, boolean blockFill) {
         // foreColor/backColor are pre-resolved ARGB colors (palette lookup + reverse-video swap done
         // once per run in render()); only the effect bits and the dim adjustment are handled here.
         final int effect = TextStyle.decodeEffect(textStyle);
@@ -1129,7 +1188,34 @@ public final class TerminalRenderer {
             }
 
             // The text alignment is the default Paint.Align.LEFT.
-            canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars, left, y - mFontLineSpacingAndAscent, false, mTextPaint);
+            final float textY = y - mFontLineSpacingAndAscent;
+            // H1: a block element (U+2580..U+259F) paints a solid or dithered *area*, so on a
+            // translucent terminal it is a background in everything but name. Leaving it opaque
+            // punches a fully saturated hole through the wallpaper — the visible symptom was an
+            // opencode input-box border drawn as a row of U+2580, 16 px of flat (245,245,245)
+            // with row std 0.00 while every neighbouring row sat at 10..39.
+            //
+            // The fix cannot be "push the alpha into the paint": SRC_OVER of (C, a) over the base
+            // fill, which is itself (A, a), composes to 2a-a^2, and SRC on a text paint erases the
+            // rest of the cell (a text paint's coverage is 0 outside the glyph — the same reason
+            // the mismatch fill above refuses to use mTextPaint for its rectangle).
+            //
+            // SRC_ATOP is the mode that does it in one draw: it replaces the destination's colour
+            // with the source's and keeps the destination's alpha, so the glyph's own coverage
+            // becomes the only partial-alpha term and the cell is handed to the compositor at
+            // exactly (a·(m·C + (1-m)·A), a) — the same value a pass-A rectangle of that colour
+            // would have produced, for every coverage m, rim included. Being idempotent for
+            // m = 1, it also makes the 1 px overlap between neighbouring block glyphs (fallback
+            // font: 18 px advance in a 16 px cell) invisible instead of a seam.
+            //
+            // The paint keeps its normal *opaque* colour: the transparency is contributed by the
+            // destination alpha, not by the ink. Adding mBackgroundAlpha here would re-introduce
+            // the doubled-alpha error at the rim. Geometry is untouched — same text, same matrix,
+            // same left/right — so a mismatch-scaled run looks exactly as it did before.
+            final boolean blockTranslucent = blockFill && mBackgroundAlpha < 255;
+            if (blockTranslucent) mTextPaint.setXfermode(SRC_ATOP_XFERMODE);
+            canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars, left, textY, false, mTextPaint);
+            if (blockTranslucent) mTextPaint.setXfermode(null);
         }
 
         if (savedMatrix) canvas.restore();
