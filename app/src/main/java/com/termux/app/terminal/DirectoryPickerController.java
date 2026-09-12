@@ -1,7 +1,9 @@
 package com.termux.app.terminal;
 
+import android.animation.ValueAnimator;
 import android.util.TypedValue;
 import android.view.View;
+import android.view.animation.LinearInterpolator;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -55,6 +57,15 @@ public final class DirectoryPickerController {
     private static final int TEXT_SIZE_SP = 15;
     /** Fallback hint height (48dp icon + 8dp gap + one text line) used before the first measure. */
     private static final int HINT_FALLBACK_DP = 76;
+    /**
+     * How long the un-picked rows take to leave once the finger is lifted.
+     *
+     * <p>Deliberately far shorter than the pager's settle and than the commit's own
+     * {@code PLACEHOLDER_FADE_OUT_MS} (150 ms): the point is that the choice is readable
+     * <em>during</em> the settle, not that the list disappears gracefully. By the time the page
+     * lands, only the picked row is left, and the commit fade then takes that one away.
+     */
+    private static final long ROW_FADE_OUT_MS = 50L;
 
     private final TermuxActivity mActivity;
     private final ArrayList<String> mItems = new ArrayList<>();
@@ -82,8 +93,25 @@ public final class DirectoryPickerController {
     /** How much of the page is on screen, 0…1; kept so a rebind can re-apply it. */
     private float mRevealedFraction = 1f;
 
+    /** Row the release fade leaves alone; {@code -1} = nothing was selected, so every row fades. */
+    private int mRowFadeKeepRow = -1;
+    /** True while a row fade is in effect, so {@link #clearRowFade()} can bail out for free. */
+    private boolean mRowFadeActive;
+    /**
+     * Drives the release fade. Built once and restarted per gesture rather than allocated on the
+     * finger lift — the release is the settle's critical frame.
+     */
+    private final ValueAnimator mRowFadeAnimator;
+
     public DirectoryPickerController(@NonNull TermuxActivity activity) {
         mActivity = activity;
+        mRowFadeAnimator = ValueAnimator.ofFloat(1f, 0f);
+        mRowFadeAnimator.setDuration(ROW_FADE_OUT_MS);
+        mRowFadeAnimator.setInterpolator(new LinearInterpolator());
+        // Driven off the fraction rather than the animated value: it is a primitive float, so the
+        // update callback allocates nothing on the frames it runs.
+        mRowFadeAnimator.addUpdateListener(
+                animator -> applyRowFade(1f - animator.getAnimatedFraction()));
     }
 
     /** Attach the placeholder page's views. Called from {@code onBindViewHolder}. */
@@ -123,6 +151,10 @@ public final class DirectoryPickerController {
 
     /** Drop the view references (page recycled / slot rebound to a real session). */
     public void unbind() {
+        // The surfaces are going away, so a running fade can no longer be pushed to them — and the
+        // animator would otherwise keep writing to a view we no longer own until it ends. Stopping
+        // it here also drops the flag, so the next bind starts from "no fade".
+        stopRowFade();
         mView = null;
         mHintContent = null;
         mFadingView = null;
@@ -137,8 +169,17 @@ public final class DirectoryPickerController {
         mFadingView = mView;
     }
 
-    /** Release the fade's surface (the fade has finished, or was cut short). */
+    /**
+     * Release the fade's surface (the fade has finished, or was cut short).
+     *
+     * <p>Also where a row fade that outlived its commit is dropped. The adapter's end action only
+     * tears the picker down while the container it faded is still the current placeholder binding —
+     * which is <em>not</em> the case after a commit, because the page is re-armed one frame later
+     * and the picker is rebound to the new page. Nothing else runs for that gesture afterwards, so
+     * without this the fade would stay armed and the next menu would open with its rows dimmed.
+     */
     public void endFadeOut() {
+        if (mRowFadeActive) resetRowFade();
         mFadingView = null;
     }
 
@@ -171,6 +212,9 @@ public final class DirectoryPickerController {
     public void show(float anchorY, float pageHeight) {
         if (pageHeight <= 0f) return;
         mPageHeight = pageHeight;
+        // A new gesture: the previous release fade (if any) must not carry over, or the list would
+        // open with rows already dimmed.
+        resetRowFade();
         buildItems();
 
         final float hintHeight = measureHintHeight();
@@ -220,8 +264,74 @@ public final class DirectoryPickerController {
         return (itemIndex >= 0) ? mItems.get(itemIndex) : null;
     }
 
+    /**
+     * The selected directory is being committed: fade out every row that was not selected, in
+     * {@link #ROW_FADE_OUT_MS}.
+     *
+     * <p>Called from the commit path, <em>not</em> from the finger lift. A swipe that ends up
+     * creating nothing must leave the list exactly as it was — otherwise the rows would already be
+     * gone when the page springs back, and the next pull-out would open on an empty menu.
+     *
+     * <p>Runs on its own clock rather than off the pager's scroll progress — the requirement is that
+     * the fade is <em>shorter</em> than the settle, which a progress-driven ramp could not express.
+     *
+     * <p>The selection is whatever the finger tracking last highlighted, and it is only
+     * <em>read</em> here: the commit must not move the highlight or otherwise touch the selected
+     * row. With nothing highlighted no row is selected, so every row fades.
+     */
+    public void beginRowFadeOut() {
+        mRowFadeKeepRow = mHighlight;
+        mRowFadeActive = true;
+        // Restart rather than resume: a second lift in the same gesture (or a stale run) must not
+        // pick up mid-ramp, where the rows would be half gone already.
+        mRowFadeAnimator.cancel();
+        mRowFadeAnimator.start();
+    }
+
+    /** Push the current fade onto every surface the controller owns. */
+    private void applyRowFade(float alpha) {
+        if (mView != null) mView.setRowFade(mRowFadeKeepRow, alpha);
+        // The commit fade-out hands the overlay of the committed page over to mFadingView; its rows
+        // must keep fading on the same ramp as the page it is still drawn on.
+        if (mFadingView != null && mFadingView != mView) mFadingView.setRowFade(mRowFadeKeepRow, alpha);
+    }
+
+    /**
+     * Undo the release fade: stop the animator, then hand every surface the neutral value.
+     *
+     * <p>The neutral value is what makes this safe to call from anywhere: {@code setRowFade} stores
+     * it and the next draw pass derives the alphas from it, so a surface that missed the fade's
+     * last frames is put back to "no fade" rather than to whatever it happened to hold.
+     */
+    private void resetRowFade() {
+        stopRowFade();
+        applyRowFade(1f);
+    }
+
+    /** Stop the fade's animator and forget it, without writing to any surface. */
+    private void stopRowFade() {
+        mRowFadeAnimator.cancel();
+        mRowFadeKeepRow = -1;
+        mRowFadeActive = false;
+    }
+
+    /**
+     * Drop the row fade if one is still in effect. Called whenever the placeholder page is fully off
+     * screen, which is the one moment that is guaranteed to precede any gesture that can open the
+     * menu again — so a fade can never survive into the next pull-out, whatever the previous gesture
+     * did with the pager.
+     *
+     * <p>Returns immediately when there is nothing to undo, so the per-frame scroll callback pays
+     * one comparison.
+     */
+    public void clearRowFade() {
+        if (!mRowFadeActive) return;
+        resetRowFade();
+    }
+
     /** Clear the overlay: called when the gesture ends, whichever way it ended. */
     public void hide() {
+        resetRowFade();
         mHighlight = -1;
         mLayout = null;
         if (mView != null) {

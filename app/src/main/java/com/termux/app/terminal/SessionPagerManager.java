@@ -240,14 +240,17 @@ public final class SessionPagerManager {
                             mFingerRawY = e.getRawY();
                             if (mAnchorLatched) {
                                 DirectoryPickerController picker = getDirectoryPicker();
+                                final float pageY = rawToPageY(mFingerRawY);
                                 // null = "not on a row" = the default working directory. Resolved
                                 // here, on release, because onPageSelected (which commits) only runs
                                 // on the settle's first frame — too late to read the finger.
                                 mPendingPickDirectory =
-                                        (picker != null) ? picker.resolvePick(rawToPageY(mFingerRawY)) : null;
+                                        (picker != null) ? picker.resolvePick(pageY) : null;
                                 mPendingPickReady = true;
                                 // Released over a row: the new tab opens whatever the drag distance
-                                // was. See armForcedPick() for how that is animated.
+                                // was, and the unselected rows fade out while it does. See
+                                // armForcedPick() — the fade belongs to the opening, not to the
+                                // release, so a swipe that creates nothing leaves the list alone.
                                 if (mPendingPickDirectory != null) {
                                     armForcedPick(mPendingPickDirectory);
                                 }
@@ -795,6 +798,14 @@ public final class SessionPagerManager {
         if (mTerminalPager == null) return;
         mForcedPickDirectory = directory;
         mForcedPickPending = true;
+        // The tab is about to open, and this is the ONLY case the unselected rows fade in. Tying the
+        // fade to the opening rather than to the release is deliberate: a release that ends up
+        // creating nothing must leave the list exactly as it was, so the next pull-out shows it
+        // intact. Started here (rather than in the posted runnable) so it still lands on the
+        // release's own frame — the runnable only bails if the placeholder went away in between, and
+        // that path resets the fade along with the overlay.
+        final DirectoryPickerController picker = getDirectoryPicker();
+        if (picker != null) picker.beginRowFadeOut();
         final int placeholderIndex = mTerminalPagerAdapter.getPlaceholderIndex();
         mTerminalPager.post(() -> forceCommitOntoPlaceholder(placeholderIndex));
     }
@@ -810,9 +821,9 @@ public final class SessionPagerManager {
         if (!mForcedPickPending) return;  // the natural settle already committed with this pick
         if (mTerminalPagerAdapter == null || !mTerminalPagerAdapter.isPlaceholderActive()
                 || placeholderIndex != mTerminalPagerAdapter.getPlaceholderIndex()) {
-            // Nothing to commit into any more — drop the pick so the overlay is released normally.
-            mForcedPickPending = false;
-            mForcedPickDirectory = null;
+            // Nothing to commit into any more — drop the pick so the overlay (and with it the row
+            // fade that was started for this opening) is released normally.
+            clearForcedPick();
             endPickerGesture();
             return;
         }
@@ -872,7 +883,14 @@ public final class SessionPagerManager {
         // Runs before the anchor latch, so the very first frame the menu appears already has the
         // width this callback produced.
         final DirectoryPickerController picker = getDirectoryPicker();
-        if (picker != null) picker.setRevealedFraction(reveal);
+        if (picker != null) {
+            // The page being fully off screen is the one moment that always precedes a gesture that
+            // can open the menu, so it is where a leftover row fade from the previous gesture is
+            // dropped — the menu must never open on rows that are already dimmed. Free unless there
+            // is something to undo.
+            if (reveal <= 0f) picker.clearRowFade();
+            picker.setRevealedFraction(reveal);
+        }
         mTerminalPagerAdapter.setPlaceholderScrollOffset(reveal);
     }
 

@@ -412,6 +412,60 @@ if (stillCurrent) mDirectoryPicker.hide();   // иначе снесём сост
 Контейнер коммитнутой страницы уходит в `GONE` в любом случае — stale-вьюха внутри неё невидима, а
 `bind()` всё равно чистит её при следующем использовании.
 
+### 4.11. Затухание невыбранных строк при отпускании (50 мс)
+
+Строки, которые не были выбраны, гаснут за `ROW_FADE_OUT_MS = 50` мс — и это **свои часы**, а не
+рампа раскрытия (§4.8). Требование именно в том, что затухание *короче* доводки пейджера, а рампа по
+прогрессу скролла такого выразить не может по построению: она заканчивается ровно вместе с доводкой.
+
+**Затухание запускается открытием вкладки, а не отпусканием пальца.** Точка запуска — `armForcedPick()`
+(§6.2), то есть ветка, где уже решено, что сессия будет создана. Если отпускание не создаёт ничего
+(палец ушёл со строк, свайп не дотянут), список не трогается вообще: иначе строки успели бы погаснуть
+до того, как страница отъедет назад, и следующее вытягивание открывалось бы на пустом меню. Именно
+эта ошибка и была допущена в первой версии.
+
+Страховка на этот случай — `clearRowFade()`, который `applyOverlayReveal()` зовёт при `reveal <= 0`,
+то есть на каждом кадре, когда страница плейсхолдера полностью за экраном. Это единственный момент,
+гарантированно предшествующий любому жесту, который может раскрыть меню, поэтому затухание физически
+не может пережить свой жест. Метод выходит сразу, если гасить нечего, — на обычном кадре скролла это
+одно сравнение.
+
+Драйвер — один `ValueAnimator`, созданный в конструкторе `DirectoryPickerController`, а не на
+отпускании (отпускание — критический кадр settle'а). Линейный, значение берётся из
+`getAnimatedFraction()` — это примитив, поэтому колбэк ничего не аллоцирует.
+
+Альфа применяется **к пейнтам строк** в `DirectoryPickerView.onDraw`, а не к вьюхе:
+
+- `setAlpha` на вьюхе завёл бы второй слой композитинга и — что важнее — погасил бы вместе с
+  остальными и выбранную строку;
+- строки и так рисуются по одной в цикле, так что цена — только пере-запись display list на кадрах
+  затухания, то есть единицы кадров за жест.
+
+Две ловушки, обе стоили отдельной итерации:
+
+1. **`Paint.setAlpha()` перезаписывает альфу цвета, а не умножает её.** Цвета схемы не все
+   непрозрачные: заливка подсветки — это `withAlpha(textColor, 0x26)`, то есть ~15 %. Запись
+   «255» в `mFillPaint` для выбранной строки превращала полупрозрачную подсветку в сплошную
+   плашку цвета текста — выбранный пункт «темнел» на всё время доводки. Поэтому затухание —
+   **множитель** `mRowFadeAlpha` к базовым альфам (`mTextBaseAlpha`, `mSeparatorBaseAlpha`,
+   снимаются в `setColors`), а `mFillPaint` не трогается вообще: заливку рисует только выбранная
+   строка, то есть ровно та, которую затухание обязано не задевать.
+2. **Базовые альфы надо возвращать.** `setRowFade(..., 1f)` и `setItems()` вызывают
+   `applyRowFadeAlpha()`, который при `mRowFadeAlpha == 1` возвращает пейнтам исходные альфы —
+   иначе значение застряло бы до следующего жеста. В самом `onDraw` пейнты трогаются **только**
+   пока затухание идёт, так что обычный кадр жеста не изменился ни на операцию.
+
+`mFadeKeepRow` — строка, которую затухание не трогает; `-1` означает «ничего не выбрано», и тогда
+гаснут все. Признаком наличия затухания служит **не** он, а `mRowFadeAlpha` (1 = затухания нет),
+потому что `-1` — осмысленное состояние, а не «выключено».
+
+Отпускание **не меняет** подсветку: выбранной считается та строка, которую подсветил трекинг пальца
+(§5, п. 2), и отпускание её только *читает*. Если палец ушёл со строк ещё до отпускания
+(`mHighlight == -1`), то выбранной строки нет — гаснут все.
+
+`setItems()` сбрасывает затухание: новый набор строк — это новый жест, а вьюха может быть
+переиспользованной и нести конечную (нулевую) альфу предыдущего.
+
 ---
 
 ## 5. Хит-тест и выбор
@@ -461,6 +515,8 @@ public String resolvePick(float pageY) {
 ```
 ACTION_UP                       → picker.resolvePick(pageY) → mPendingPickDirectory
                                   mPendingPickReady = true
+                                  если pick != null → armForcedPick()  // §6.2
+                                     └─ picker.beginRowFadeOut()       // §4.11 — только здесь
 DRAGGING → SETTLING             → onPageSelected(placeholderIndex)
                                   └─ mUserScrollInProgress == true
                                      → commitPlaceholderToSession()
@@ -554,6 +610,57 @@ public TermuxSession createSessionForPlaceholder(boolean isFailSafe, String sess
 резервирование end-scroll в таб-строке, `managePlaceholderForPosition`. Вся механика «плейсхолдер
 становится сессией без прыжка» переиспользуется как есть.
 
+### 6.2. Отпускание над строкой коммитит независимо от прогресса свайпа
+
+Требование: если в момент отпускания палец стоит напротив пункта истории, новая вкладка открывается
+**в любом случае**, и анимация её открытия — **точно та же**, что при дотягивании страницы до
+предела.
+
+Ключевое наблюдение: «анимация открытия» — это не отдельная анимация, а **доводка пейджера** на
+страницу-плейсхолдер, в первом кадре которой вызывается `commitPlaceholderToSession()` (затухание
+оверлея, §4.10, идёт параллельно с доездом страницы). Значит, воспроизвести её для короткого свайпа
+можно ровно одним способом — заставить пейджер реально доехать до страницы плейсхолдера. Никакого
+своего «похожего» затухания тут быть не должно: любая своя анимация была бы уже не той.
+
+Где именно вмешиваться — неочевидно, и две очевидные точки не работают:
+
+- **Не в `ACTION_UP`.** В этот момент пейджер ещё не решил, куда ехать: решение принимается в
+  обработке отпускания внутри RecyclerView (флинг в `PagerSnapHelper` либо снап-назад при переходе в
+  IDLE). `setCurrentItem()` оттуда гонку проигрывает — его либо перебивает это решение, либо убивает
+  `stopScrollersInternal()` из IDLE.
+- **Не на `SCROLL_STATE_IDLE`.** Это уже *после* доводки: страница успевает уехать назад, и
+  пользователь видит две анимации вместо одной (именно так и была сделана первая, отвергнутая
+  версия).
+
+Рабочая точка — `post()` из обработки отпускания. Он исполняется после того, как RecyclerView
+полностью закончил свою обработку, но **до первого кадра доводки**: доводка может сдвинуться только
+на следующем vsync, а `post()` отрабатывает в текущем проходе очереди сообщений. Ничего ещё не
+сдвинулось, поэтому подмена собственного скролла пейджера нашим невидима — это тот же
+`smoothScrollToPosition` на то же расстояние из той же позиции, а `onPageSelected` срабатывает в той
+же точке доводки, так что коммит и затухание идут обычным путём.
+
+```java
+// ACTION_UP
+if (mPendingPickDirectory != null) armForcedPick(mPendingPickDirectory);   // → post()
+
+// в отложенном раннабле
+pagerRv.stopScroll();                                     // снять флинг/снап-назад: иначе два скроллера
+                                                          // дерутся (OverScroller и SmoothScroller
+                                                          // оба ведутся ViewFlinger'ом)
+mTerminalPager.setCurrentItem(placeholderIndex, true);    // та же доводка, что после полного свайпа
+```
+
+Детали, без которых это не работает:
+
+| Что | Почему |
+|---|---|
+| `mForcedPickDirectory` / `mForcedPickPending` — отдельные поля | `endPickerGesture()` стирает `mPendingPick*`, а на медленном отпускании IDLE приходит **до** начала снапа, который и решает, куда поедет страница |
+| гейт коммита `mUserScrollInProgress \|\| mForcedPickPending` | `stopScroll()` успевает выдать IDLE и сбросить `mUserScrollInProgress` |
+| `endPickerGesture()` не гасит оверлей, пока pick pending | иначе строки исчезнут до того, как страница доедет |
+| на промежуточном IDLE IME-гвард не снимается | это не конец жеста; иначе клавиатура мигнёт посреди settle'а |
+| pick снимается в `commitPlaceholderToSession()`, `cancelPlaceholder()`, `ACTION_DOWN`/`CANCEL` | одноразовость коммита и отсутствие утечки оверлея |
+| раннабл сверяет `placeholderIndex` и `isPlaceholderActive()` | между отпусканием и раннаблом плейсхолдер мог быть снят (лимит сессий, смена числа вкладок) |
+
 ---
 
 ## 7. Данные и настройки
@@ -581,8 +688,8 @@ public TermuxSession createSessionForPlaceholder(boolean isFailSafe, String sess
 | Файл | Содержимое |
 |---|---|
 | `app/src/main/java/com/termux/app/terminal/DirectoryPickerLayout.java` | чистая геометрия: `compute(pageH, pad, gap, hintPad, anchorY, itemCount, hintH, rowH)` → `{mode, rowH, rows, listTop, listBottom, hintTop}`; `Result#indexAt(y)` и `Result#itemIndexAt(row)` — единственный источник соответствия «строка ↔ пункт». Никаких зависимостей от Android → юнит-тестируется без Robolectric |
-| `app/src/main/java/com/termux/app/terminal/DirectoryPickerView.java` | `View`, рисует строки через `Canvas` (заливка подсветки + текст, `Paint` из активной цветовой схемы). Подписи выровнены по правому краю раскрытой области и **обрезаются собственными границами** — ни `ellipsize`, ни пересчёта ширин на кадр (§4.8). `setItems(list, layout)`, `setRevealedWidth(px)`, `setHighlight(row)` |
-| `app/src/main/java/com/termux/app/terminal/DirectoryPickerController.java` | владеет списком элементов (10 новейших), якорем, результатом геометрии и индексом подсветки; `show(yA, pageH)`, `updateFinger(y)`, `resolvePick(y)`, `hide()`; расставляет `translationY` подсказки |
+| `app/src/main/java/com/termux/app/terminal/DirectoryPickerView.java` | `View`, рисует строки через `Canvas` (заливка подсветки + текст, `Paint` из активной цветовой схемы). Подписи выровнены по правому краю раскрытой области и **обрезаются собственными границами** — ни `ellipsize`, ни пересчёта ширин на кадр (§4.8). `setItems(list, layout)`, `setRevealedWidth(px)`, `setHighlight(row)`, `setRowFade(keepRow, alpha)` (§4.11) |
+| `app/src/main/java/com/termux/app/terminal/DirectoryPickerController.java` | владеет списком элементов (10 новейших), якорем, результатом геометрии и индексом подсветки; `show(yA, pageH)`, `updateFinger(y)`, `resolvePick(y)`, `hide()`; расставляет `translationY` подсказки; `beginRowFadeOut()` + свой `ValueAnimator` на 50 мс (§4.11) |
 | `app/src/test/java/com/termux/app/DirectoryPickerLayoutTest.java` | тесты геометрии (см. §10.1) |
 
 **Изменяемые:**
@@ -591,7 +698,7 @@ public TermuxSession createSessionForPlaceholder(boolean isFailSafe, String sess
 |---|---|
 | `res/layout/item_terminal_page.xml` | добавить `DirectoryPickerView` внутрь `terminal_placeholder_hint_container` (`visibility="invisible"` — не `gone`: у пикера нет содержимого, пока жест не поставил список, а смена бита GONE вызывает `requestLayout()`, то есть layout-обход окна на первом кадре раскрытия; аудит 2, §3.1); у `_content` `layout_gravity="center"` **сохраняется** — вертикаль задаётся `translationY` относительно центра, потому что от центрирования выводится горизонтальный `translationX` |
 | `TerminalPagerAdapter` | `DirectoryPickerView` во `ViewHolder`; `mDirectoryPicker.bind/unbind` в `onBindViewHolder`/`onViewRecycled`; геттер `getDirectoryPicker()`; затухание при коммите — `fadeOutPlaceholderOverlay()` + `hideDirectoryPicker()` (§4.10) |
-| `SessionPagerManager` | `OnItemTouchListener` (трекер пальца), фиксация якоря в `onPageScrolled`, `resolvePick` на `ACTION_UP` → `mPendingPickDirectory`, `resolvePickDirectory()` в `commitPlaceholderToSession`, сброс в `endPickerGesture()` |
+| `SessionPagerManager` | `OnItemTouchListener` (трекер пальца), фиксация якоря в `onPageScrolled`, `resolvePick` на `ACTION_UP` → `mPendingPickDirectory` + `beginRowFadeOut()`, `resolvePickDirectory()` в `commitPlaceholderToSession`, сброс в `endPickerGesture()`; принудительный коммит по строке — `armForcedPick()`/`forceCommitOntoPlaceholder()` (§6.2) |
 | `TermuxTerminalSessionActivityClient` | overload `createSessionForPlaceholder(..., directory)` |
 | `TermuxActivity` | геттер `getDirectoryHistoryController()`; прокинуть контроллер в `SessionPagerManager` (в `setup()`) |
 | `res/values/strings.xml` + 12 локалей | ничего нового не требуется: подсказка остаётся `new_tab_placeholder_hint`, счётчика «ещё N…» нет (обрезка молчаливая, §4.3) |
@@ -611,7 +718,10 @@ public TermuxSession createSessionForPlaceholder(boolean isFailSafe, String sess
 | Директория по умолчанию совпадает со строкой истории | не дублируется: в списке её нет, но отпускание на этой строке даёт тот же путь |
 | `yA` у верхней границы (выше порога) | `rows = 0` → `Mode.NONE`: только подсказка, по центру страницы |
 | `yA` у нижней границы | список над пальцем на всю доступную высоту, подсказка прижата к верхней полосе; между ними широкая пустая полоса |
-| Свайп отменён (возврат на вкладку) | `ACTION_UP` → выбор разрешён, но `onPageSelected` на плейсхолдер не сработает → сессия не создаётся; оверлей скрыт |
+| Свайп отменён (возврат на вкладку) | `ACTION_UP` → выбор разрешён, но `onPageSelected` на плейсхолдер не сработает → сессия не создаётся; оверлей скрыт. Затухание строк **не запускается** (§4.11) — список уезжает вместе со страницей ровно таким, каким был |
+| Отпускание над строкой при коротком свайпе | Сессия создаётся в этой директории **в любом случае**: `armForcedPick()` → `post()` → `stopScroll()` + `setCurrentItem(placeholder, true)` (§6.2). Невыбранные строки при этом гаснут за 50 мс |
+| Отпускание вне строк (в т.ч. `mHighlight == -1`) | Директория — по умолчанию; затухание не запускается, список не трогается |
+| Плейсхолдер снят между отпусканием и отложенным раннаблом | `forceCommitOntoPlaceholder()` видит `!isPlaceholderActive()` или чужой индекс → pick снимается, оверлей отпускается обычным путём, коммита нет |
 | `ACTION_CANCEL` (системный жест, звонок) | выбор не разрешается; оверлей скрыт |
 | Программный `setCurrentItem` на плейсхолдер | `mUserScrollInProgress == false` → якорь не фиксируется, оверлей не показывается |
 | Очень низкая страница (ландшафт, ~350 dp) | `availUp` почти всегда меньше `rowH` → `Mode.NONE`; список появляется только если палец опущен достаточно низко, и тогда состоит из 1–2 строк |

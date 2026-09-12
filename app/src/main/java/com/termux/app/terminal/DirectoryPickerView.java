@@ -2,6 +2,7 @@ package com.termux.app.terminal;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.text.TextPaint;
@@ -52,8 +53,24 @@ import java.util.List;
 public final class DirectoryPickerView extends View {
 
     private final TextPaint mTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    /**
+     * The same text paint at a reduced alpha, used for the rows the release fade is taking away.
+     *
+     * <p>A <em>separate</em> paint rather than {@link #mTextPaint} with its alpha modulated: the
+     * row the fade keeps has to be drawn pixel-identically to how it was drawn before the finger
+     * lifted, and that is only provable if nothing ever writes to the paint it uses. Every write
+     * the fade needs lands here instead, and this paint is never used outside a fade — so a bug in
+     * the fade can dim the rows that are leaving, but can never touch the one that stays.
+     */
+    private final TextPaint mFadeTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mSeparatorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /**
+     * {@link #mSeparatorPaint} at a reduced alpha, for the same reason as
+     * {@link #mFadeTextPaint}. A separator is only ever drawn for a row that is <em>not</em>
+     * highlighted, so during the fade every drawn separator belongs to a leaving row.
+     */
+    private final Paint mFadeSeparatorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF mRowRect = new RectF();
 
     private final ArrayList<String> mItems = new ArrayList<>();
@@ -77,6 +94,39 @@ public final class DirectoryPickerView extends View {
     private DirectoryPickerLayout.Result mLayout;
     private int mHighlight = -1;
 
+    /**
+     * Row the release fade leaves alone; {@code -1} = none was selected, so every row fades.
+     *
+     * <p>Set on the finger lift, once the choice is made: the selected row stays legible while the
+     * unselected ones leave, so the choice reads immediately instead of the whole list lingering
+     * until the commit's own fade-out reaches it. See
+     * {@code DirectoryPickerController#beginRowFadeOut}.
+     */
+    private int mFadeKeepRow = -1;
+    /**
+     * Multiplier applied to the opacity of every row but {@link #mFadeKeepRow}.
+     *
+     * <p>1 = the fade is not running and every row is painted as usual; this — not
+     * {@link #mFadeKeepRow} — is what says whether there is a fade at all, because
+     * {@code mFadeKeepRow == -1} is a meaningful state ("fade them all").
+     *
+     * <p>A <em>multiplier</em>, not an alpha: {@code Paint.setAlpha()} <em>overwrites</em> the alpha
+     * baked into the colour rather than scaling it, and the scheme's colours are not all opaque —
+     * the highlight fill is {@code withAlpha(textColor, 0x26)} and the separator is
+     * {@code withAlpha(textColor, 0x3C)}. Writing a plain 255 into a paint therefore replaces those
+     * with full opacity. The base alphas below are what keeps the fade a scaling of the configured
+     * colours, and they are only ever written to {@link #mFadeTextPaint} and
+     * {@link #mFadeSeparatorPaint}.
+     *
+     * <p>Derived afresh from this field at the top of every draw pass, so the fade can never leave
+     * a stale alpha behind: whatever the paint held last frame is overwritten before it is used.
+     */
+    private float mRowFadeAlpha = 1f;
+    /** Alpha baked into the text colour by {@link #setColors}; the fade scales it. */
+    private int mTextBaseAlpha = 255;
+    /** Alpha baked into the separator colour by {@link #setColors}; the fade scales it. */
+    private int mSeparatorBaseAlpha = 255;
+
     private float mPaddingH;
     private float mCornerRadius;
     /**
@@ -94,14 +144,18 @@ public final class DirectoryPickerView extends View {
     public DirectoryPickerView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         mTextPaint.setStyle(Paint.Style.FILL);
+        mFadeTextPaint.setStyle(Paint.Style.FILL);
         mFillPaint.setStyle(Paint.Style.FILL);
         mSeparatorPaint.setStyle(Paint.Style.STROKE);
         mSeparatorPaint.setStrokeWidth(1f);
+        mFadeSeparatorPaint.setStyle(Paint.Style.STROKE);
+        mFadeSeparatorPaint.setStrokeWidth(1f);
     }
 
     /** Text size in px. */
     public void setLabelTextSize(float px) {
         mTextPaint.setTextSize(px);
+        mFadeTextPaint.setTextSize(px);
         // The cached widths are in the old size, so they are re-measured rather than reused.
         measureInto(mItems);
         invalidate();
@@ -116,8 +170,15 @@ public final class DirectoryPickerView extends View {
 
     public void setColors(int textColor, int highlightFill, int separatorColor) {
         mTextPaint.setColor(textColor);
+        mFadeTextPaint.setColor(textColor);
         mFillPaint.setColor(highlightFill);
         mSeparatorPaint.setColor(separatorColor);
+        mFadeSeparatorPaint.setColor(separatorColor);
+        mTextBaseAlpha = Color.alpha(textColor);
+        mSeparatorBaseAlpha = Color.alpha(separatorColor);
+        // No need to re-apply the fade's alphas here: they are written to the two fade paints at the
+        // top of every draw pass (see onDraw), so a restyle mid-fade picks the new base up on the
+        // very next frame instead of depending on this method running at the right moment.
         invalidate();
     }
 
@@ -132,6 +193,10 @@ public final class DirectoryPickerView extends View {
         mItems.addAll(items);
         mLayout = layout;
         mHighlight = -1;
+        // A new item set is a new gesture: the release fade of the previous one is meaningless here,
+        // and this view may be a recycled one that still carries the previous gesture's final value.
+        mFadeKeepRow = -1;
+        mRowFadeAlpha = 1f;
         // Reuse the widths when this list is a prefix of the one already measured, which is the
         // normal case: the controller pre-measures the full history at bind time and this call then
         // installs its first `rows` entries. Only a history that changed in between pays for the
@@ -171,6 +236,33 @@ public final class DirectoryPickerView extends View {
     }
 
     /**
+     * Fade every row except {@code keepRow} to {@code alpha}.
+     *
+     * <p>Applied by choosing a paint per row in {@link #onDraw} rather than to the view, so the
+     * selected row is not dimmed along with the rest and no second compositing layer is needed —
+     * the rows are already drawn one by one. The price is that the display list is re-recorded on
+     * each frame of the fade; the fade lasts 50 ms, i.e. a handful of frames once per gesture, and
+     * only on the release (see {@code DirectoryPickerController#ROW_FADE_OUT_MS}).
+     *
+     * <p>The selected row is left <em>pixel-identical</em> to its pre-release picture: it keeps
+     * drawing with {@link #mTextPaint} and {@link #mFillPaint}, which this method never writes to.
+     *
+     * <p>This method only stores the two values — the actual alphas are derived from them at the
+     * top of the next draw pass, so a fade that ends, is cancelled, or is interrupted mid-frame
+     * cannot leave anything behind.
+     *
+     * @param keepRow row left untouched, or {@code -1} to fade them all.
+     * @param alpha   0 = gone, 1 = no fade at all.
+     */
+    public void setRowFade(int keepRow, float alpha) {
+        final float clamped = Math.max(0f, Math.min(1f, alpha));
+        if (keepRow == mFadeKeepRow && clamped == mRowFadeAlpha) return;
+        mFadeKeepRow = keepRow;
+        mRowFadeAlpha = clamped;
+        invalidate();
+    }
+
+    /**
      * How much of this page is currently on screen, in px — the list is revealed together with the
      * page instead of appearing at full length.
      *
@@ -196,8 +288,9 @@ public final class DirectoryPickerView extends View {
      * <p>This is the whole point of the arrangement: the picture is identical to drawing rows of
      * length {@code revealed} right-aligned to the revealed edge, but a translation is a render-node
      * property, so the reveal no longer re-records the display list. During a gesture the only
-     * invalidations left are {@link #setHighlight} (once per 48 dp of finger travel) and
-     * {@link #setItems}.
+     * invalidations left are {@link #setHighlight} (once per 48 dp of finger travel),
+     * {@link #setItems}, and the release fade — {@link #setRowFade}, which is bounded to the 50 ms
+     * that follow the finger lift.
      */
     private void applyRevealTranslation() {
         final float width = getWidth();
@@ -250,17 +343,35 @@ public final class DirectoryPickerView extends View {
         // font's own ascent/descent span, which keeps it optically centred for any typeface.
         final float baselineOffset = (rowHeight - (mTextPaint.descent() + mTextPaint.ascent())) / 2f;
 
+        // Release fade. Only the two dedicated fade paints are touched, and they are re-derived
+        // from mRowFadeAlpha on every pass, so they can never carry a stale value in or out of a
+        // frame. mTextPaint / mSeparatorPaint / mFillPaint are left exactly as setColors() put
+        // them — which is what keeps the row the fade preserves identical to its pre-release
+        // picture, and the whole list identical when no fade is running.
+        final boolean rowFading = mRowFadeAlpha < 1f;
+        if (rowFading) {
+            mFadeTextPaint.setAlpha(Math.round(mTextBaseAlpha * mRowFadeAlpha));
+            mFadeSeparatorPaint.setAlpha(Math.round(mSeparatorBaseAlpha * mRowFadeAlpha));
+        }
+
         for (int i = 0; i < rowCount; i++) {
             final float top = layout.listTop + i * rowHeight;
             final float bottom = top + rowHeight;
             if (bottom <= 0f || top >= getHeight()) continue; // clipped away entirely
+
+            // The preserved row keeps the ordinary paints; everything else switches to the faded
+            // ones for the duration of the fade. With no fade running both branches hand back the
+            // configured paints, so the drawn picture is the one setColors() describes.
+            final boolean keep = !rowFading || i == mFadeKeepRow;
+            final TextPaint textPaint = keep ? mTextPaint : mFadeTextPaint;
+            final Paint separatorPaint = keep ? mSeparatorPaint : mFadeSeparatorPaint;
 
             if (i == mHighlight) {
                 mRowRect.set(0f, top, rowWidth, bottom);
                 canvas.drawRoundRect(mRowRect, mCornerRadius, mCornerRadius, mFillPaint);
             } else if (i > 0 && textRight > mPaddingH) {
                 // Hairline between rows so the list stays readable over arbitrary terminal content.
-                canvas.drawLine(mPaddingH, top, textRight, top, mSeparatorPaint);
+                canvas.drawLine(mPaddingH, top, textRight, top, separatorPaint);
             }
 
             // Right-aligned to the canonical row end, clipped by the page's own bounds. The tail of
@@ -273,7 +384,7 @@ public final class DirectoryPickerView extends View {
             final int itemIndex = layout.itemIndexAt(i);
             if (itemIndex < 0) continue;
             canvas.drawText(mItems.get(itemIndex), textRight - mLabelWidths[itemIndex],
-                    top + baselineOffset, mTextPaint);
+                    top + baselineOffset, textPaint);
         }
     }
 }
