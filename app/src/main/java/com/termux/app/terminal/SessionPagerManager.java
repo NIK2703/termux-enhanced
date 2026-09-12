@@ -2,6 +2,7 @@ package com.termux.app.terminal;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
 
@@ -147,6 +148,95 @@ public final class SessionPagerManager {
     private final Consumer<TermuxSessionTabsController> mScrollForwarder =
             tabs -> tabs.onPageScrolled(mLastScrollPos, mLastScrollOffset);
 
+    // ── right-swipe directory picker ────────────────────────────────────────────────────────
+    //
+    // The picker needs two things the pager does not otherwise expose: the finger's VERTICAL
+    // position over the whole gesture, and the exact moment the placeholder page starts to appear.
+    // Both are gathered here, because this is the only place that owns the pager's touch stream
+    // (see mPickerTouchListener) and its scroll callback at the same time.
+
+    /** Last raw Y seen on the pager, px. Kept up to date on every ACTION_MOVE. */
+    private float mFingerRawY;
+    /** True between ACTION_DOWN and ACTION_UP/CANCEL of a pager gesture. */
+    private boolean mFingerDown;
+    /**
+     * True once the anchor has been latched for the current gesture. The anchor is the finger's
+     * vertical position at the moment the placeholder appears, and it is captured ONCE: the whole
+     * point of the gesture is that the list stays put while the finger moves over it, so that the
+     * release position — not the touch-down position — is what selects a directory.
+     */
+    private boolean mAnchorLatched;
+    /** Directory resolved on ACTION_UP, or null when the release was outside the list rows. */
+    @Nullable
+    private String mPendingPickDirectory;
+    /** True once ACTION_UP resolved a pick for the current gesture. */
+    private boolean mPendingPickReady;
+    /** Reused location buffer for {@link #rawToPageY(float)} — avoids an int[2] per touch event. */
+    private final int[] mPagerLocation = new int[2];
+
+    /**
+     * The pager's touch stream, used to track the finger's vertical position and to resolve the
+     * selection on release.
+     *
+     * <p>An {@link RecyclerView.OnItemTouchListener} on the pager's inner RecyclerView is the only
+     * hook that sees BOTH ends of the gesture. {@code PagerOverscrollController} works off
+     * unconsumed scroll deltas and never sees a coordinate; a plain {@code OnTouchListener} on the
+     * pager is only consulted once the RecyclerView has taken over the stream, so it misses
+     * ACTION_DOWN. The interception this listener rides on is not suppressed for a horizontal drag:
+     * {@code TerminalView} raises {@code requestDisallowInterceptTouchEvent(true)} only when it
+     * decides the gesture is a vertical history scroll, and explicitly ignores the horizontal axis
+     * so the ViewPager2 can page.
+     */
+    private final RecyclerView.OnItemTouchListener mPickerTouchListener =
+            new RecyclerView.OnItemTouchListener() {
+                @Override
+                public boolean onInterceptTouchEvent(@NonNull RecyclerView rv, @NonNull MotionEvent e) {
+                    switch (e.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            mFingerDown = true;
+                            mAnchorLatched = false;
+                            mPendingPickReady = false;
+                            mPendingPickDirectory = null;
+                            mFingerRawY = e.getRawY();
+                            break;
+                        case MotionEvent.ACTION_MOVE:
+                            mFingerRawY = e.getRawY();
+                            if (mAnchorLatched) {
+                                DirectoryPickerController picker = getDirectoryPicker();
+                                if (picker != null) picker.updateFinger(rawToPageY(mFingerRawY));
+                            }
+                            break;
+                        case MotionEvent.ACTION_UP:
+                            mFingerRawY = e.getRawY();
+                            if (mAnchorLatched) {
+                                DirectoryPickerController picker = getDirectoryPicker();
+                                // null = "not on a row" = the default working directory. Resolved
+                                // here, on release, because onPageSelected (which commits) only runs
+                                // on the settle's first frame — too late to read the finger.
+                                mPendingPickDirectory =
+                                        (picker != null) ? picker.resolvePick(rawToPageY(mFingerRawY)) : null;
+                                mPendingPickReady = true;
+                            }
+                            mFingerDown = false;
+                            break;
+                        case MotionEvent.ACTION_CANCEL:
+                            mFingerDown = false;
+                            mPendingPickReady = false;
+                            mPendingPickDirectory = null;
+                            break;
+                        default:
+                            break;
+                    }
+                    return false;
+                }
+
+                @Override
+                public void onTouchEvent(@NonNull RecyclerView rv, @NonNull MotionEvent e) { }
+
+                @Override
+                public void onRequestDisallowInterceptTouchEvent(boolean disallowIntercept) { }
+            };
+
     /**
      * Cached value of the "swipe rightmost tab for new session" preference (P1). Read once and kept
      * fresh via a SharedPreferences listener, so onPageSelected() no longer hits disk on every
@@ -206,6 +296,8 @@ public final class SessionPagerManager {
         final RecyclerView pagerRv = getPagerRecyclerView();
         if (pagerRv != null) {
             pagerRv.setItemAnimator(null);
+            // Finger tracking for the right-swipe directory picker (see mPickerTouchListener).
+            pagerRv.addOnItemTouchListener(mPickerTouchListener);
             // Elastic over-drag on the first/last page. NOTE: this REPLACES the old
             // setOverScrollMode(OVER_SCROLL_NEVER) — that switch also disabled the plumbing the
             // rubber band is measured with (RecyclerView#scrollByInternal skips pullGlows() and
@@ -249,6 +341,11 @@ public final class SessionPagerManager {
                     withTabsController(tabs -> tabs.setEndScrollReserved(false));
                 } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
                     mUserScrollInProgress = false;
+                    // The gesture is over, whichever way it ended: drop the picker overlay. Safe to
+                    // clear the pending pick here — commitPlaceholderToSession() already consumed it,
+                    // because onPageSelected() is dispatched on the settle's FIRST frame and IDLE
+                    // only arrives at its end.
+                    endPickerGesture();
                 }
 
                 // Suppress IME hide/show churn for the ENTIRE swipe gesture, not just around
@@ -292,16 +389,52 @@ public final class SessionPagerManager {
                 // Update floating button margin for intermediate scroll state
                 updateFloatingButtonMarginForScroll(position, positionOffset);
 
-                // Keep the placeholder "New tab" hint centered in the slice of the placeholder page
-                // that is currently visible (between the last real tab's right edge and the screen
-                // edge) as the user drags toward it.
-                if (mTerminalPagerAdapter != null && mTerminalPagerAdapter.isPlaceholderActive()) {
-                    TermuxService service = mActivity.getTermuxService();
-                    int realLast = (service != null) ? service.getTermuxSessionsSize() - 1 : -1;
-                    if (position == realLast) {
-                        mTerminalPagerAdapter.setPlaceholderScrollOffset(positionOffset);
-                    } else if (position == realLast + 1) {
-                        mTerminalPagerAdapter.setPlaceholderScrollOffset(1f);
+                // Keep the placeholder content tracking the page it lives on: the hint stays centered
+                // in the slice that is currently visible, and the directory rows are drawn no longer
+                // than that slice, growing into view with the page.
+                //
+                // The page is taken from the adapter rather than derived from the live session count.
+                // At the instant the swipe commits, a session is added and the page stops being "the
+                // placeholder" as far as the list is concerned — but the overlay is still sitting on
+                // it and must go on tracking the settle. Otherwise the reveal freezes at the slice the
+                // finger happened to be at, and the content reads as shifted sideways once the page
+                // lands, instead of looking as if the finger had been dragged all the way to the edge.
+                if (mTerminalPagerAdapter != null) {
+                    final int overlayPage = mTerminalPagerAdapter.getPlaceholderOverlayPage();
+                    if (overlayPage >= 0) {
+                        // 0 while the pager sits on the page before it, 1 once it is fully revealed.
+                        float reveal = (position + positionOffset) - (overlayPage - 1);
+                        if (reveal < 0f) reveal = 0f;
+                        else if (reveal > 1f) reveal = 1f;
+
+                        // Fed before the anchor latch below so the very first frame the menu appears
+                        // already has the right width.
+                        DirectoryPickerController picker = getDirectoryPicker();
+                        if (picker != null) picker.setRevealedFraction(reveal);
+                        mTerminalPagerAdapter.setPlaceholderScrollOffset(reveal);
+
+                        // First frame that reveals the placeholder — the moment the user first sees
+                        // the menu. The finger's Y right now becomes the anchor, and it is latched
+                        // once per gesture: the list must stay put while the finger travels over it,
+                        // otherwise the release position could never select anything but the row the
+                        // finger started on.
+                        //
+                        // Gated twice. mUserScrollInProgress keeps a programmatic scroll that merely
+                        // passes over the last tab's index from popping the menu. mFingerDown keeps a
+                        // FLING from popping it: the finger is already up when the placeholder flies
+                        // in, so there is no finger to anchor on, and the menu would be a flash of
+                        // unreachable UI during the settle. Both cases fall through to the default
+                        // working directory, which is exactly what a release outside the rows means.
+                        // isPlaceholderActive() also keeps the latch off the committed page, whose
+                        // overlay is only finishing its fade.
+                        if (mTerminalPagerAdapter.isPlaceholderActive()
+                                && mUserScrollInProgress && mFingerDown && !mAnchorLatched
+                                && positionOffset > 0f) {
+                            mAnchorLatched = true;
+                            if (picker != null) {
+                                picker.show(rawToPageY(mFingerRawY), mTerminalPager.getHeight());
+                            }
+                        }
                     }
                 }
             }
@@ -475,8 +608,18 @@ public final class SessionPagerManager {
         // termuxSessionListNotifyUpdated(), but because the adapter still reports
         // getItemCount() == service size (the placeholder is counted), that sync is a no-op — we
         // update the adapter ourselves below so the placeholder slot is rebound in place.
-        TermuxSession newSession = client.createSessionForPlaceholder(false, null);
+        //
+        // The directory comes from the release position: the row the finger was over, or — for every
+        // position outside the rows, including the neutral zone at the anchor and the hint band —
+        // the working directory configured in Settings. The gesture therefore always creates a
+        // session, never nothing.
+        TermuxSession newSession = client.createSessionForPlaceholder(false, null, resolvePickDirectory());
         if (newSession == null) { cancelPlaceholder(); return; }
+
+        // Start the overlay leaving BEFORE the rebind is scheduled: the fade flag has to be up by the
+        // time onBindViewHolder() runs for the committed slot, otherwise the bind path would set the
+        // container GONE and the placeholder would disappear in a single frame instead of fading.
+        mTerminalPagerAdapter.fadeOutPlaceholderOverlay();
 
         mTerminalPagerAdapter.commitPlaceholder(service.getTermuxSessions(), placeholderIndex);
         withTabsController(tabs -> {
@@ -530,6 +673,50 @@ public final class SessionPagerManager {
             tabs.setPlaceholderActive(false);
             tabs.resetPageSelection(mTerminalPager.getCurrentItem());
         });
+        endPickerGesture();
+    }
+
+    // ── right-swipe directory picker helpers ────────────────────────────────────────────────
+
+    /** @return the picker owned by the adapter, or null before the adapter exists. */
+    @Nullable
+    private DirectoryPickerController getDirectoryPicker() {
+        return (mTerminalPagerAdapter != null) ? mTerminalPagerAdapter.getDirectoryPicker() : null;
+    }
+
+    /**
+     * Convert a raw (screen) Y into the placeholder page's own coordinate space. The pager is
+     * full-bleed and the elastic over-drag displaces the RecyclerView along X only, so the page's
+     * top edge is the pager's top edge and no other correction is needed.
+     */
+    private float rawToPageY(float rawY) {
+        if (mTerminalPager == null) return rawY;
+        mTerminalPager.getLocationOnScreen(mPagerLocation);
+        return rawY - mPagerLocation[1];
+    }
+
+    /**
+     * Drop the picker overlay and any pick resolved for the gesture that just ended.
+     *
+     * <p>Goes through the adapter rather than the controller directly so a commit fade-out that is
+     * still running keeps ownership of the overlay: hiding here would cut the fade and snap the
+     * list away while the hint is still visible.
+     */
+    private void endPickerGesture() {
+        mPendingPickReady = false;
+        mPendingPickDirectory = null;
+        if (mTerminalPagerAdapter != null) mTerminalPagerAdapter.hideDirectoryPicker();
+    }
+
+    /**
+     * The directory the swipe selected: the row the finger was over on release, or the default
+     * working directory for every other release position (neutral zone at the anchor, the hint band,
+     * and the empty space above and below the list).
+     */
+    @NonNull
+    private String resolvePickDirectory() {
+        if (mPendingPickReady && mPendingPickDirectory != null) return mPendingPickDirectory;
+        return mActivity.getProperties().getDefaultWorkingDirectory();
     }
 
     /**
@@ -913,5 +1100,8 @@ public final class SessionPagerManager {
             mOverscroll.destroy();
             mOverscroll = null;
         }
+        // Unhook the finger tracker so nothing outlives the activity.
+        RecyclerView pagerRv = getPagerRecyclerView();
+        if (pagerRv != null) pagerRv.removeOnItemTouchListener(mPickerTouchListener);
     }
 }

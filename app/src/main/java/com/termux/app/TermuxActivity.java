@@ -1578,6 +1578,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void reloadProperties() {
         mProperties.loadTermuxPropertiesFromDisk();
 
+        // The default working directory is never recorded in the directory history (it is the
+        // implicit fallback of every add-tab action). Keep the controller's filter in sync when the
+        // setting is changed in Settings. Guarded: the very first call happens before the
+        // controllers are constructed.
+        if (mDirectoryHistoryCtrl != null)
+            mDirectoryHistoryCtrl.setExcludedDirectory(mProperties.getDefaultWorkingDirectory());
+
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onReloadProperties();
     }
@@ -2430,8 +2437,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // the mode switches immediately.
             prefs.registerOnSharedPreferenceChangeListener(mPerDirPrefListener);
 
-            // Load the persisted recent-directories history once.
+            // Load the persisted recent-directories history once. The default working directory is
+            // filtered out (and purged from anything persisted before this filter existed) — set the
+            // exclusion BEFORE loading so it applies to the entries coming off disk.
             mDirectoryHistoryCtrl.setMaxSize(prefs.getInt("directory_history_max", DIRECTORY_HISTORY_MAX_DEFAULT));
+            mDirectoryHistoryCtrl.setExcludedDirectory(mProperties.getDefaultWorkingDirectory());
             loadDirectoryHistory();
 
             // A touch listener drives two gestures on the pencil button:
@@ -3704,6 +3714,23 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     public TermuxTerminalSessionActivityClient getTermuxTerminalSessionClient() {
         return mTermuxTerminalSessionActivityClient;
+    }
+
+    /**
+     * @return the visited-directory history controller. Read by the right-swipe directory picker,
+     *         which offers the newest entries as working directories for a new session.
+     */
+    public DirectoryHistoryController getDirectoryHistoryController() {
+        return mDirectoryHistoryCtrl;
+    }
+
+    /**
+     * @return the colour-scheme manager, whose derived colours (history text, highlight fill,
+     *         separator) the right-swipe directory picker paints with, so the menu matches the
+     *         existing directory-history popup.
+     */
+    public TermuxColorSchemeManager getTermuxColorSchemeManager() {
+        return mColorSchemeManager;
     }
 
     public TermuxSessionTabsController getTermuxSessionTabsController() {

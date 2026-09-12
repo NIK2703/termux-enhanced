@@ -22,16 +22,26 @@
         android:scrollbarThumbVertical="@drawable/terminal_scroll_shape"
         android:scrollbars="vertical" />
 
-    <!-- "New tab" hint, only visible on the trailing placeholder page (hidden by default).
-         The outer container dims the whole page; the inner content group is translated
-         horizontally during a drag so the hint stays centered in the slice of the
-         placeholder page that is currently visible (between the right edge of the last
-         real tab and the screen's right edge). -->
+    <!-- Placeholder overlay, only visible on the trailing placeholder page (hidden by default).
+         Holds two independent layers:
+           - terminal_directory_picker: the directory list of the right-swipe picker, drawn onto
+             the page at coordinates derived from the finger's latched vertical position;
+           - terminal_placeholder_hint_content: the "+ new session" block, translated horizontally
+             during a drag so it stays centered in the slice of the placeholder page that is
+             currently visible (and vertically by DirectoryPickerController so it always sits above
+             the list). Its layout_gravity="center" is load-bearing — the horizontal translation is
+             expressed relative to the centred position. -->
     <FrameLayout
         android:id="@+id/terminal_placeholder_hint_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone">
+
+        <com.termux.app.terminal.DirectoryPickerView
+            android:id="@+id/terminal_directory_picker"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
 
         <LinearLayout
             android:id="@+id/terminal_placeholder_hint_content"

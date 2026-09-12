@@ -925,9 +925,17 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * Create a new terminal session tab. Thin wrapper over {@link #createNewSession} for the
      * "+" button, keyboard shortcuts and the notification/service-launch paths: the new tab is
      * selected and the strip scrolls to reveal the trailing (+) button.
+     * <p>
+     * The tab starts in the <em>configured default working directory</em>, not in a copy of the
+     * directory the currently-visible session happens to sit in: the "+" button means "give me a
+     * plain new tab", and silently inheriting an arbitrary {@code cd} made the result depend on
+     * whatever the user had been doing. Picking a specific directory is the job of the
+     * directory-history popup ({@link #addNewSessionInDirectory}) and of the right-swipe picker
+     * ({@link #createSessionForPlaceholder}), which both pass an explicit path.
      */
     public void addNewSession(boolean isFailSafe, String sessionName) {
-        createNewSession(isFailSafe, sessionName, null,
+        createNewSession(isFailSafe, sessionName,
+                mActivity.getProperties().getDefaultWorkingDirectory(),
                 NewSessionSelectMode.SELECT_AND_SCROLL, true, true);
     }
 
@@ -942,7 +950,21 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      *         limit was reached.
      */
     public TermuxSession createSessionForPlaceholder(boolean isFailSafe, String sessionName) {
-        return createNewSession(isFailSafe, sessionName, null,
+        return createSessionForPlaceholder(isFailSafe, sessionName, null);
+    }
+
+    /**
+     * Same as {@link #createSessionForPlaceholder(boolean, String)}, but starting in an explicit
+     * directory. Used by the right-swipe picker, whose whole purpose is to choose the directory:
+     * the release position selects a visited directory or falls back to the configured default
+     * working directory.
+     *
+     * @param directory working directory; null falls back to the current session's cwd or the
+     *                  default working directory (see {@link #createNewSession}).
+     */
+    public TermuxSession createSessionForPlaceholder(boolean isFailSafe, String sessionName,
+            @Nullable String directory) {
+        return createNewSession(isFailSafe, sessionName, directory,
                 NewSessionSelectMode.CALLER_MANAGED, false, false);
     }
 

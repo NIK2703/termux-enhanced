@@ -119,8 +119,12 @@ public final class DirectoryHistoryPopupController {
     /** @return true if there is at least one entry to show (capturing CWD on demand). */
     public boolean shouldShow() {
         if (!mDirCtrl.getHistoryList().isEmpty()) return true;
-        // Try to capture the current directory on demand (e.g. first time).
-        return mCallback.recordCurrentDirectory() != null;
+        // Try to capture the current directory on demand (e.g. first time). It may legitimately be
+        // rejected — the default working directory is filtered out of the history — in which case
+        // there is nothing to offer and the popup must not open at all (show() would bail after
+        // dismissing, leaving the swipe consumed for no visible effect).
+        mCallback.recordCurrentDirectory();
+        return !mDirCtrl.getHistoryList().isEmpty();
     }
 
     /**

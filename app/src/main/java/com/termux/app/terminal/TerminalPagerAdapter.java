@@ -44,13 +44,39 @@ import java.util.List;
  */
 public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPagerAdapter.TerminalPageViewHolder> {
 
-    /** Stable id for the placeholder page — chosen in the high range so it can never collide with a
-     *  real session id (which are sign-extended 32-bit hashCode() values). */
-    private static final long PLACEHOLDER_ID = 0x4000000000000000L;
+    /**
+     * Base for placeholder-page ids. Chosen in the high range so it can never collide with a real
+     * session id (which are sign-extended 32-bit {@code hashCode()} values).
+     *
+     * <p>A placeholder does not carry this constant directly: every time the trailing page is armed
+     * it is handed a FRESH id ({@link #mPlaceholderId}), and the session that later takes the slot
+     * over inherits that same id (see {@link #commitPlaceholder}). Both rules matter — two pages
+     * must never report the same id, and a slot must not change id across the commit.
+     */
+    private static final long PLACEHOLDER_ID_BASE = 0x4000000000000000L;
+
+    /** Id of the currently armed placeholder page. Bumped on every arming so ids stay unique. */
+    private long mPlaceholderId = PLACEHOLDER_ID_BASE;
+
+    /**
+     * The session a placeholder slot was converted into, together with the id that slot still
+     * reports. Kept because the ViewHolder on screen was bound while the slot was still the
+     * placeholder, i.e. with that id — and RecyclerView compares ids when it re-validates a
+     * scrapped holder. See {@link #getItemId}.
+     */
+    private TermuxSession mCommittedSession = null;
+    private long mCommittedId = RecyclerView.NO_ID;
 
     private final TermuxActivity mActivity;
     private final TermuxTerminalViewClient mViewClient;
     private List<TermuxSession> mSessions;
+
+    /**
+     * Owns the right-swipe directory picker shown on the placeholder page. It outlives any single
+     * binding (the placeholder page may be recycled mid-gesture), which is why the pick geometry —
+     * not the view — is what the swipe resolves against.
+     */
+    private final DirectoryPickerController mDirectoryPicker;
 
     /** Whether the trailing placeholder page is currently appended. */
     private boolean mPlaceholderActive = false;
@@ -71,6 +97,56 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     private View mPlaceholderHintContent = null;
     /** The ViewHolder currently displaying the placeholder page (so we can clear state on recycle). */
     private TerminalPageViewHolder mPlaceholderHolder = null;
+
+    /**
+     * The placeholder overlay container currently bound, or null.
+     *
+     * <p>Kept separately from {@link #mPlaceholderHintContent} so {@link #fadeOutPlaceholderOverlay()}
+     * can still reach the overlay <em>after</em> the placeholder slot has been rebound to a real
+     * session — which is precisely the moment the fade-out starts, and by which point the bind path
+     * has already dropped the "this is the placeholder" bookkeeping.
+     */
+    private View mPlaceholderHintContainer = null;
+
+    /**
+     * True while the commit fade-out is running.
+     *
+     * <p>While set, both the bind path and the picker's hide() leave the overlay's visibility and
+     * alpha alone: the animation owns them, and the rebind that lands a frame later would otherwise
+     * cut the fade off by setting the container GONE.
+     */
+    private boolean mPlaceholderFadingOut = false;
+
+    /**
+     * Adapter position of the page that hosts the overlay currently fading out, or -1.
+     *
+     * <p>Set for the duration of the commit fade only. It has to be remembered because the page
+     * stops being "the placeholder" the instant the session is committed — the live session count
+     * moves on — yet the overlay is still sitting on it and must keep tracking the pager's settle
+     * until the page is fully revealed. Without this the overlay freezes at whatever slice the
+     * finger happened to be at and the content reads as shifted sideways once the page lands.
+     */
+    private int mFadingPage = -1;
+
+    /**
+     * The hint content group of the overlay being faded out, captured when the fade starts.
+     *
+     * <p>It has to be held separately: the trailing placeholder is re-armed about one frame after
+     * the commit, and that bind repoints {@link #mPlaceholderHintContent} (and the picker) at the
+     * NEW page. The overlay that is still on screen would then stop being driven — its reveal would
+     * freeze at whatever slice the re-arm landed on, and it would drift left with the page for the
+     * rest of the settle instead of completing the reveal. The fade owns these handles until it ends.
+     */
+    private View mFadingHintContent = null;
+
+    /**
+     * How long the placeholder overlay takes to leave once the swipe commits a new session.
+     *
+     * <p>Short enough to read as the tail of the swipe rather than a separate animation, long enough
+     * that the freshly attached terminal does not appear to snap into place behind it. It also fits
+     * inside the pager's settle, so the page is already still by the time the fade lands.
+     */
+    private static final long PLACEHOLDER_FADE_OUT_MS = 150L;
 
     /**
      * User-configured terminal margins in dp (settings "terminal-margin-left" / "terminal-margin-top" /
@@ -96,7 +172,34 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         this.mActivity = activity;
         this.mViewClient = viewClient;
         this.mSessions = sessions;
+        this.mDirectoryPicker = new DirectoryPickerController(activity);
         setHasStableIds(true);
+    }
+
+    /**
+     * The RecyclerView this adapter is attached to (ViewPager2's inner one). Needed by
+     * {@link #commitPlaceholder}, which must hand the new session to the ViewHolder that is
+     * <em>currently on screen</em> rather than asking RecyclerView to re-resolve it — see the note
+     * there for why a change notification cannot do that.
+     */
+    private RecyclerView mPagerRv = null;
+
+    @Override
+    public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
+        super.onAttachedToRecyclerView(recyclerView);
+        mPagerRv = recyclerView;
+    }
+
+    @Override
+    public void onDetachedFromRecyclerView(@NonNull RecyclerView recyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView);
+        if (mPagerRv == recyclerView) mPagerRv = null;
+    }
+
+    /** @return the right-swipe directory picker owned by this adapter (never null). */
+    @NonNull
+    public DirectoryPickerController getDirectoryPicker() {
+        return mDirectoryPicker;
     }
 
     /**
@@ -178,10 +281,19 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
     @Override
     public long getItemId(int position) {
-        if (mPlaceholderActive && position == mSessions.size()) return PLACEHOLDER_ID;
-        if (position < 0 || position >= mSessions.size()) return RecyclerView.NO_ID;
-        TerminalSession session = mSessions.get(position).getTerminalSession();
-        return session == null ? RecyclerView.NO_ID : (long) session.mHandle.hashCode();
+        if (position >= 0 && position < mSessions.size()) {
+            // A slot that used to be the placeholder keeps reporting the placeholder's id. The
+            // ViewHolder currently on screen was bound while the slot was still the placeholder —
+            // i.e. with that id — and RecyclerView's stable-id validation
+            // (validateViewHolderForOffsetPosition) compares holder id against getItemId() on every
+            // layout. If the id changed here the on-screen page would be rejected and recycled on
+            // the very next layout pass, which cuts the commit fade after a single frame.
+            if (mSessions.get(position) == mCommittedSession) return mCommittedId;
+            TerminalSession session = mSessions.get(position).getTerminalSession();
+            return session == null ? RecyclerView.NO_ID : (long) session.mHandle.hashCode();
+        }
+        if (mPlaceholderActive && position == mSessions.size()) return mPlaceholderId;
+        return RecyclerView.NO_ID;
     }
 
     /**
@@ -288,9 +400,30 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                 TextView hintText = holder.mHintText;
                 if (hintText != null) hintText.setTextColor(fg);
                 hint.setVisibility(View.VISIBLE);
+                // The whole overlay fades with the drag (see setPlaceholderScrollOffset). Start it
+                // transparent: the ViewHolder can be created mid-drag, and fading in from 0 costs at
+                // worst one invisible frame, whereas starting at 1 would flash the full overlay.
+                hint.setAlpha(0f);
+                mPlaceholderHintContainer = hint;
+            } else if (mPlaceholderFadingOut) {
+                // This slot was JUST rebound to the session the swipe committed, and the overlay is
+                // still fading out over it. Leave the container alone — the animation owns its alpha
+                // and visibility, and setting GONE here would swallow the fade. Leaving it on top of
+                // the new session is the whole point: the terminal appears to fade in from under the
+                // placeholder rather than replacing it in one frame.
+                hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
             } else {
                 hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
                 hint.setVisibility(View.GONE);
+                hint.setAlpha(1f);
+                // Drop the overlay handle ONLY when it refers to this holder's own overlay. Binding
+                // some other real session page must not orphan the placeholder page's overlay: while
+                // the user sits on an earlier tab the placeholder's ViewHolder stays in the view
+                // cache and is NOT rebound when the drag brings it back on screen, so a handle
+                // cleared from an unrelated bind is never restored. The commit then finds no
+                // container to fade and hides the directory list in a single frame — and with no
+                // overlay page to track, the reveal is left frozen at the finger's last slice.
+                if (mPlaceholderHintContainer == hint) mPlaceholderHintContainer = null;
             }
         }
 
@@ -298,14 +431,35 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         if (isPlaceholder) {
             mPlaceholderHintContent = hintContent;
             mPlaceholderHolder = holder;
-            if (hintContent != null) hintContent.setTranslationX(0);
+            if (hintContent != null) {
+                hintContent.setTranslationX(0);
+                // The picker places the hint vertically itself; a stale offset from a previous
+                // gesture must not survive into the freshly shown placeholder.
+                hintContent.setTranslationY(0);
+            }
+            // Hand the picker its drawing surface for this binding. It stays invisible until a
+            // gesture actually reveals the placeholder (DirectoryPickerController#show).
+            mDirectoryPicker.bind(holder.mPickerView, hintContent);
             // Nothing to bind — the TerminalView is intentionally left unbound (no session) and the
             // page blends with the themed window background. We still keep a valid TerminalView in
             // the holder so a commit can rebind it to a real session in place (no ViewHolder churn).
             return;
         }
-        mPlaceholderHintContent = null;
-        mPlaceholderHolder = null;
+        if (mPlaceholderFadingOut) {
+            // This slot was just committed and the overlay is still leaving over the session that
+            // took it. Keep the hint content referenced and the picker bound: the pager is still
+            // settling, and both are what the reveal tracking writes to (setPlaceholderScrollOffset
+            // and DirectoryPickerController#setRevealedFraction). Dropping them here is what used to
+            // freeze the overlay at the finger's last slice, so the content appeared to jump
+            // sideways as the page finished sliding in. The fade's end action does the teardown.
+        } else if (mPlaceholderHolder == holder) {
+            // Same reasoning as the overlay handle above: only this holder's own rebind may drop the
+            // placeholder bookkeeping. Any other real page being bound has nothing to do with the
+            // placeholder, which can still be alive and cached off screen.
+            mPlaceholderHintContent = null;
+            mPlaceholderHolder = null;
+            mDirectoryPicker.unbind();
+        }
 
         TermuxSession termuxSession = mSessions.get(position);
         TerminalSession session = termuxSession.getTerminalSession();
@@ -383,6 +537,17 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     @Override
     public void onViewRecycled(@NonNull TerminalPageViewHolder holder) {
         super.onViewRecycled(holder);
+        // The overlay is going away with this holder (e.g. the user swiped back off the placeholder
+        // mid-fade): stop the animation before its end action can fire against a view that is about
+        // to be rebound to a different page.
+        if (holder.mHintContainer != null && holder.mHintContainer == mPlaceholderHintContainer) {
+            holder.mHintContainer.animate().cancel();
+            mPlaceholderFadingOut = false;
+            mFadingPage = -1;
+            mFadingHintContent = null;
+            mPlaceholderHintContainer = null;
+            mDirectoryPicker.endFadeOut();
+        }
         // The page view is about to be detached/recycled — persist its live scroll
         // position so the next bind (possibly after a multi-page jump) restores it.
         // Must run BEFORE attachSession(null) drops the emulator below.
@@ -397,6 +562,10 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         if (holder == mPlaceholderHolder) {
             mPlaceholderHintContent = null;
             mPlaceholderHolder = null;
+            // The placeholder page is going away: drop the picker's view references so a recycled
+            // holder can never be written to. The computed geometry is kept — a gesture in flight
+            // must still resolve its directory off the stored layout (see DirectoryPickerController).
+            mDirectoryPicker.unbind();
         }
         // Detach the emulator but keep the session alive. The view may be reused for a different
         // position; re-attaching on the next bind restores the correct emulator from the session.
@@ -440,6 +609,23 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     }
 
     /**
+     * The adapter position of the page that currently hosts the placeholder overlay: the trailing
+     * placeholder page while it is armed, or — while the commit fade is still running — the page the
+     * placeholder was just committed into.
+     *
+     * <p>It deliberately survives the commit. The pager's scroll callback uses it to work out how
+     * much of that page is on screen, and the overlay must keep being driven by that until the page
+     * is fully revealed; otherwise the reveal freezes at the slice the finger was at and the content
+     * reads as shifted sideways once the page lands.
+     *
+     * @return the adapter position, or -1 when no overlay is present.
+     */
+    public int getPlaceholderOverlayPage() {
+        if (mFadingPage >= 0) return mFadingPage;
+        return mPlaceholderActive ? mSessions.size() : -1;
+    }
+
+    /**
      * Show or hide the trailing placeholder page. Inserting it makes a real "next page" exist to the
      * right of the last real tab, so a ViewPager2 right-swipe scrolls into it live (normal
      * tab-to-tab feel) rather than bouncing against a non-existent page.
@@ -447,8 +633,14 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     public void setPlaceholderActive(boolean active) {
         if (active == mPlaceholderActive) return;
         mPlaceholderActive = active;
-        if (active) notifyItemInserted(mSessions.size());
-        else notifyItemRemoved(mSessions.size());
+        if (active) {
+            // A fresh id for every arming: the previous one now belongs to the session that took
+            // that slot over (see commitPlaceholder), and two pages must never share an id.
+            mPlaceholderId++;
+            notifyItemInserted(mSessions.size());
+        } else {
+            notifyItemRemoved(mSessions.size());
+        }
     }
 
     /**
@@ -467,12 +659,41 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
      */
     public void commitPlaceholder(@NonNull List<TermuxSession> serviceSessions, int placeholderIndex) {
         mSessions = new java.util.ArrayList<>(serviceSessions);
+        // Hand the slot's id to the session that now occupies it, so the slot does not change id
+        // across the commit (see getItemId). The placeholder is re-armed one frame later and gets a
+        // fresh id, so this one remains unique.
+        mCommittedSession = (placeholderIndex >= 0 && placeholderIndex < mSessions.size())
+                ? mSessions.get(placeholderIndex) : null;
+        mCommittedId = mPlaceholderId;
         mPlaceholderActive = false;
-        // Use a payload so onBindViewHolder() is GUARANTEED to run and re-attach the new session to
-        // the (reused) ViewHolder. A plain notifyItemChanged() can be skipped by RecyclerView when
-        // the ViewHolder is already bound to that position, which would leave the view without its
-        // session and the activity pointing at a blank page.
-        notifyItemChanged(placeholderIndex, PAYLOAD_REBIND);
+
+        // Hand the new session to the ViewHolder that is ALREADY on screen, by binding it directly.
+        //
+        // notifyItemChanged() cannot do this job, and using it was the bug: this adapter has stable
+        // ids, and RecyclerView resolves a *changed* ViewHolder out of mChangedScrap BY ITEM ID
+        // (getChangedScrapViewForPosition). The placeholder page carries PLACEHOLDER_ID, but the
+        // session that replaces it carries its session-handle hash — so the lookup misses, the
+        // on-screen page is recycled, and a DIFFERENT ViewHolder is pulled from the pool for the
+        // slot. That has two visible consequences:
+        //   1. the replacement page's overlay is freshly inflated (GONE, alpha 1), so the
+        //      placeholder content is cut in a single frame;
+        //   2. the 150 ms fade-out runs on the recycled view, off screen — which is why the fade
+        //      was never seen, and why the placeholder and the new tab read as two different pages.
+        //
+        // Binding directly keeps the very same ViewHolder. RecyclerView only ever re-resolves it
+        // from mAttachedScrap, which is matched BY POSITION (no id check), so the later layout pass
+        // that re-arms the trailing placeholder keeps it too — and since it is still bound and not
+        // flagged for update, it is not rebound again.
+        TerminalPageViewHolder holder = (mPagerRv == null) ? null
+                : (TerminalPageViewHolder) mPagerRv.findViewHolderForAdapterPosition(placeholderIndex);
+        if (holder != null) {
+            onBindViewHolder(holder, placeholderIndex,
+                    java.util.Collections.singletonList(PAYLOAD_REBIND));
+        } else {
+            // The slot is not laid out (it should always be — the user just settled on it). Fall
+            // back to a notification so the session still ends up attached to some page.
+            notifyItemChanged(placeholderIndex, PAYLOAD_REBIND);
+        }
     }
 
     /**
@@ -495,17 +716,123 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
      * the screen's right edge — instead of being pinned to the centre of the (partly off-screen)
      * placeholder page.
      *
+     * <p>The fade is applied to the <em>whole</em> placeholder overlay, not just the hint, so every
+     * layer of the page — the "+ new session" block and the directory list alike — arrives and
+     * leaves together on one ramp. It goes through {@code View.setAlpha()}, which the render node
+     * applies at composite time: the fade therefore costs no draw pass.
+     *
      * @param pageOffset drag progress toward the placeholder, 0 = still on the last real tab,
      *                   1 = fully settled on the placeholder page.
      */
     public void setPlaceholderScrollOffset(float pageOffset) {
-        if (mPlaceholderHintContent == null) return;
-        View parent = (View) mPlaceholderHintContent.getParent();
+        // While the commit fade is running the overlay belongs to the fade, not to the placeholder
+        // slot: the slot has already been re-armed onto a different page by then.
+        final View hintContent = mPlaceholderFadingOut ? mFadingHintContent : mPlaceholderHintContent;
+        if (hintContent == null) return;
+        View parent = (View) hintContent.getParent();
         if (parent == null || parent.getWidth() <= 0) return;
         // At offset 0 the hint sits at the screen's right edge (just peeking in); at offset 1 it is
         // centred on screen. Linear interpolation between those two positions.
-        mPlaceholderHintContent.setTranslationX(parent.getWidth() * (pageOffset - 1f) / 2f);
-        mPlaceholderHintContent.setAlpha(Math.min(1f, pageOffset * 1.5f));
+        hintContent.setTranslationX(parent.getWidth() * (pageOffset - 1f) / 2f);
+        // The hint content is translated horizontally but NOT faded on its own any more — the whole
+        // overlay fades, so a per-child alpha here would multiply into it.
+        hintContent.setAlpha(1f);
+        // The overlay's opacity IS the pull: invisible at offset 0, fully opaque at 1, linear in
+        // between. Deliberately not a ramp that saturates early — committing needs the page pulled
+        // past halfway, so anything reaching full opacity before 1 would mean the commit fade-out
+        // always restarted from opaque instead of continuing from the value the pull had reached.
+        //
+        // Not re-asserted while the commit fade-out runs: the animation drives the same property,
+        // and a scroll frame arriving mid-fade would snap the overlay back up. The horizontal
+        // translation above is still applied — the page keeps sliding while it fades.
+        if (!mPlaceholderFadingOut) parent.setAlpha(Math.min(1f, pageOffset));
+    }
+
+    /**
+     * Fade the placeholder overlay out instead of hiding it outright, handing the page over to the
+     * session being committed underneath it.
+     *
+     * <p>Called at the instant the swipe commits: the new session is attached to the very same
+     * ViewHolder, so the overlay is not covering something that is not there yet — it merely has to
+     * leave. Cutting it to {@code GONE} in that frame is what used to make the placeholder vanish
+     * abruptly; see {@link #PLACEHOLDER_FADE_OUT_MS}.
+     *
+     * <p>The fade <em>continues</em> the opacity the pull reached rather than restarting from
+     * opaque: {@code ViewPropertyAnimator} takes its start value from the view's current alpha, and
+     * the reveal ramp sets that alpha to the pull progress (see {@link #setPlaceholderScrollOffset}).
+     * A short pull therefore commits from a half-transparent placeholder and fades out from there.
+     *
+     * <p>The hard reset is deferred to the animation's end action, which drops the directory list
+     * and restores the hint's offset — the state the picker needs for the next gesture.
+     *
+     * <p>Falls through to an immediate hide when there is nothing visible to fade (the overlay was
+     * never revealed, or the placeholder was dropped while off-screen).
+     */
+    public void fadeOutPlaceholderOverlay() {
+        // Already leaving: let the running animation finish rather than resetting the overlay here,
+        // which would snap the list away mid-fade.
+        if (mPlaceholderFadingOut) return;
+
+        final View container = mPlaceholderHintContainer;
+        if (container == null || container.getVisibility() != View.VISIBLE) {
+            // Nothing visible to fade — the overlay was never revealed, or the placeholder was
+            // dropped while off-screen. Hide outright so the picker state does not leak.
+            mDirectoryPicker.hide();
+            return;
+        }
+
+        mPlaceholderFadingOut = true;
+        // Remember which page the overlay lives on for the duration of the fade: the session count
+        // moves on the moment the commit lands, so the pager's scroll callback can no longer derive
+        // this page from the live list. See getPlaceholderOverlayPage().
+        mFadingPage = mSessions.size();
+        // Take ownership of the overlay's handles for the duration of the fade — the re-arm that
+        // lands a frame later repoints the placeholder bookkeeping at the new page.
+        mFadingHintContent = mPlaceholderHintContent;
+        mDirectoryPicker.beginFadeOut();
+        // A reveal ramp from the same gesture may still be queued on this view; cancel() also drops
+        // any pending end action, so the one below is the only one that can run.
+        container.animate().cancel();
+        container.animate()
+                .alpha(0f)
+                .setDuration(PLACEHOLDER_FADE_OUT_MS)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .withEndAction(() -> {
+                    mPlaceholderFadingOut = false;
+                    mFadingPage = -1;
+                    mFadingHintContent = null;
+                    mDirectoryPicker.endFadeOut();
+                    // The trailing slot is re-armed one frame after the commit, so by the time this
+                    // runs a NEW placeholder page may already be bound — to a different ViewHolder,
+                    // with the picker re-bound to it. Only tear the overlay down when the one we
+                    // faded is still the current binding; otherwise the reset would wipe the fresh
+                    // page's state instead of this one's.
+                    final boolean stillCurrent = (mPlaceholderHintContainer == container);
+                    if (stillCurrent) {
+                        mPlaceholderHintContainer = null;
+                        // The bind path deliberately left these in place for the fade (see
+                        // onBindViewHolder); the overlay is gone now, so drop them.
+                        mPlaceholderHintContent = null;
+                        mPlaceholderHolder = null;
+                        mDirectoryPicker.hide();
+                        mDirectoryPicker.unbind();
+                    }
+                    container.setVisibility(View.GONE);
+                    // Back to fully opaque for the next time this holder serves as the placeholder;
+                    // the placeholder bind sets 0 itself, but the non-placeholder path assumes 1.
+                    container.setAlpha(1f);
+                })
+                .start();
+    }
+
+    /**
+     * Hide the picker overlay, unless a commit fade-out is in flight — then the animation's end
+     * action does it, and hiding now would cut the fade short (and snap the list away while the
+     * hint is still visible).
+     */
+    public void hideDirectoryPicker() {
+        if (mPlaceholderFadingOut) return;
+        mDirectoryPicker.hide();
     }
 
     public static final class TerminalPageViewHolder extends RecyclerView.ViewHolder {
@@ -518,6 +845,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         public final TextView mHintText;
         /** The movable hint content group (translated during a drag). */
         public final View mHintContent;
+        /** Canvas surface the right-swipe directory list is painted onto (placeholder page only). */
+        public final DirectoryPickerView mPickerView;
         /** The adapter position this ViewHolder was last bound to; lets onViewRecycled()
          *  drop the mAttachedViews entry in O(1) without a linear scan. -1 when unbound. */
         public int boundPosition = -1;
@@ -529,6 +858,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             mHintPlus = itemView.findViewById(R.id.terminal_placeholder_hint_plus);
             mHintText = itemView.findViewById(R.id.terminal_placeholder_hint_text);
             mHintContent = itemView.findViewById(R.id.terminal_placeholder_hint_content);
+            mPickerView = itemView.findViewById(R.id.terminal_directory_picker);
         }
     }
 }
