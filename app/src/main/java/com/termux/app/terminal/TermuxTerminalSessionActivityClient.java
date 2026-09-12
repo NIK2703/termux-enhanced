@@ -1599,19 +1599,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * black foreground, readable 16-color palette) used when the app is in light mode and the
      * user has not defined a custom {@code ~/.termux/colors.properties}.
      *
-     * Reads color values from {@code R.array.light_terminal_color_scheme_keys} and
-     * {@code R.array.light_terminal_color_scheme_values} arrays.
+     * <p>Delegates to {@link ColorSchemeUtils#getBuiltinLightSchemeProperties}, which owns the
+     * values, so the terminal and the color-scheme picker's "Default" preview cannot disagree.
      */
     private Properties getLightTerminalColorScheme() {
-        Properties props = new Properties();
-        String[] keys = mActivity.getResources().getStringArray(R.array.light_terminal_color_scheme_keys);
-        String[] values = mActivity.getResources().getStringArray(R.array.light_terminal_color_scheme_values);
-        int len = Math.min(keys.length, values.length);
-        for (int i = 0; i < len; i++) {
-            props.setProperty(keys[i], values[i]);
-        }
-        // cursor color is auto-picked based on background brightness by TerminalColorScheme.
-        return props;
+        // The cursor color is auto-picked based on background brightness by TerminalColorScheme.
+        return ColorSchemeUtils.getBuiltinLightSchemeProperties(mActivity);
     }
 
     /**

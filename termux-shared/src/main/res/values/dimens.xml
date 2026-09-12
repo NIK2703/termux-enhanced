@@ -11,4 +11,16 @@
 
     <!-- Text size for the multi-line input panel (terminal_toolbar_text_input). -->
     <dimen name="text_input_text_size">16sp</dimen>
+
+    <!-- Picker rows (color schemes, fonts): a standard Material list row. Shared by both pickers
+         so their entries cannot drift apart in height, padding or text size. -->
+    <dimen name="termux_shared_picker_row_min_height">48dp</dimen>
+    <dimen name="termux_shared_picker_row_padding">16dp</dimen>
+    <dimen name="termux_shared_picker_row_text_size">16sp</dimen>
+
+    <!-- Color-scheme rows only: the 16-color swatch and the single-choice radio. -->
+    <dimen name="termux_shared_color_scheme_palette_margin">12dp</dimen>
+    <!-- Gap between the radio and the scheme name; the framework's own single-choice dialog rows
+         used exactly this distance (abc_select_dialog_material's drawablePadding). -->
+    <dimen name="termux_shared_color_scheme_radio_gap">20dp</dimen>
 </resources>

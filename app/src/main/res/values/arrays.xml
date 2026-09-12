@@ -236,46 +236,10 @@
         <item>gestures</item>
         <item>off</item>
     </string-array>
-    <!-- Light terminal color scheme (default colors used when no custom colors.properties exists) -->
-    <string-array name="light_terminal_color_scheme_keys">
-        <item>background</item>
-        <item>foreground</item>
-        <item>color0</item>
-        <item>color1</item>
-        <item>color2</item>
-        <item>color3</item>
-        <item>color4</item>
-        <item>color5</item>
-        <item>color6</item>
-        <item>color7</item>
-        <item>color8</item>
-        <item>color9</item>
-        <item>color10</item>
-        <item>color11</item>
-        <item>color12</item>
-        <item>color13</item>
-        <item>color14</item>
-        <item>color15</item>
-    </string-array>
-
-    <string-array name="light_terminal_color_scheme_values">
-        <item>#ffffff</item>
-        <item>#000000</item>
-        <item>#000000</item>
-        <item>#cd0000</item>
-        <item>#00cd00</item>
-        <item>#cdcd00</item>
-        <item>#1060c0</item>
-        <item>#cd00cd</item>
-        <item>#00cdcd</item>
-        <item>#404040</item>
-        <item>#808080</item>
-        <item>#ff0000</item>
-        <item>#00ff00</item>
-        <item>#ffff00</item>
-        <item>#6969ff</item>
-        <item>#ff00ff</item>
-        <item>#00ffff</item>
-        <item>#ffffff</item>
-    </string-array>
+    <!--
+      The light terminal color scheme arrays used to live here. They moved to termux-shared
+      (res/values/arrays.xml) because the color-scheme picker — which now previews every entry's
+      real terminal colors — lives in that module and must resolve the "Default" entry from the
+      same source the terminal itself is themed with.
+    -->
 </resources>

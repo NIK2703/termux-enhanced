@@ -1,7 +1,9 @@
 package com.termux.shared.termux.extrakeys;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.view.ContextThemeWrapper;
+import android.widget.ListView;
 
 import androidx.appcompat.app.AlertDialog;
 
@@ -532,21 +534,25 @@ public final class ColorSchemeUtils {
             return;
         }
 
-        final String[] labels = new String[schemes.length];
-        for (int i = 0; i < schemes.length; i++)
-            labels[i] = schemeDisplayName(schemes[i]);
-
         // Pre-select whatever is currently stored for the theme, so the dialog opens on "Default"
         // (or the previously chosen Monet variant) rather than an arbitrary row.
         final String current = getSelectedSchemeName(isNight);
-        int checkedItem = 0;
+        int checkedItem = -1;
         for (int i = 0; i < schemes.length; i++) {
             if (schemes[i].equals(current)) { checkedItem = i; break; }
         }
 
+        // Each row is painted in the colors of the scheme it stands for — background, label and the
+        // 16-color swatch — so the list previews the schemes instead of merely naming them. This is
+        // also why the framework's single-choice rows are replaced by a custom adapter: a
+        // framework row cannot carry a per-row background.
+        final ColorSchemePreviewAdapter adapter =
+            new ColorSchemePreviewAdapter(dialogContext, isNight, schemes, checkedItem);
+
         AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
             .setTitle(title)
-            .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> {
+            .setAdapter(adapter, (dialog, which) -> {
+                adapter.setCheckedPosition(which);
                 persistSelection(isNight, schemes[which]);
                 applyStylingScheme(context, isNight, schemes[which]);
                 if (onApplied != null) onApplied.run();
@@ -554,6 +560,17 @@ public final class ColorSchemeUtils {
             })
             .create();
         d.show();
+
+        // The rows are opaque and painted with the scheme's own background, so the framework's
+        // divider would draw a line in a color that belongs to no scheme across the preview strip.
+        final ListView list = d.getListView();
+        if (list != null) {
+            list.setDivider(null);
+            list.setDividerHeight(0);
+            // ...and the list must not be allowed to measure itself taller than the dialog, or its
+            // last entry ends up drawn past the bottom edge with nothing left to scroll.
+            PickerDialogList.boundHeightToWindow(list);
+        }
     }
 
     /**
@@ -651,7 +668,59 @@ public final class ColorSchemeUtils {
 
     /** Package context of the installed Termux:Style app, or {@code null} if not installed. */
     private static Context getStylingContext(Context context) {
+        if (context == null) return null;
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME);
+    }
+
+    /**
+     * Read a Termux:Style color scheme's raw properties from the plugin's assets.
+     *
+     * <p>Shared by the apply path and the picker's preview, so the colors a scheme is previewed
+     * with and the colors it is applied with can only ever come from the same bytes.
+     *
+     * @param fileName the asset file name as returned by {@link #listStylingColorSchemes}.
+     * @return The scheme's properties, or {@code null} when Termux:Style is not installed or the
+     *         asset cannot be read.
+     */
+    @Nullable
+    static Properties loadStylingSchemeProperties(@Nullable Context context, @NonNull String fileName) {
+        final Context stylingContext = getStylingContext(context);
+        if (stylingContext == null) return null;
+        try (InputStream in = stylingContext.getAssets().open(STYLING_COLORS_ASSET_DIR + "/" + fileName)) {
+            final Properties props = new Properties();
+            props.load(in);
+            return props;
+        } catch (IOException e) {
+            Logger.logError(LOG_TAG, "Failed to read Termux:Style scheme \"" + fileName + "\": " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * The built-in light terminal color scheme: the colors the terminal paints in light mode when
+     * the {@link #SCHEME_DEFAULT} entry is selected and no per-theme colors file exists.
+     *
+     * <p>Lives here rather than in the app because the picker — which lives in this module — has to
+     * preview the "Default" row with the very colors the terminal will later use.
+     *
+     * @return The light scheme, or an empty {@link Properties} when {@code context} cannot resolve
+     *         the resources (the built-in defaults then apply, as in night mode).
+     */
+    @NonNull
+    public static Properties getBuiltinLightSchemeProperties(@Nullable Context context) {
+        final Properties props = new Properties();
+        if (context == null) return props;
+        final Resources resources = context.getResources();
+        if (resources == null) return props;
+
+        final String[] keys = resources.getStringArray(com.termux.shared.R.array.light_terminal_color_scheme_keys);
+        final String[] values = resources.getStringArray(com.termux.shared.R.array.light_terminal_color_scheme_values);
+        final int length = Math.min(keys.length, values.length);
+        for (int i = 0; i < length; i++) {
+            props.setProperty(keys[i], values[i]);
+        }
+        // The cursor color is auto-picked from the background brightness by TerminalColorScheme.
+        return props;
     }
 
     /**

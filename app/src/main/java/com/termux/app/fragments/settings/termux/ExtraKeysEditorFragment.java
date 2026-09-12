@@ -821,16 +821,10 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
         // on every preview rebuild — including the getResources().getStringArray() reads — is wasted work.
         if (!mColorSchemeReady) {
             boolean isNight = ThemeUtils.isNightModeEnabled(requireContext());
-            Properties lightScheme = null;
-            if (!isNight) {
-                lightScheme = new Properties();
-                String[] keys = getResources().getStringArray(R.array.light_terminal_color_scheme_keys);
-                String[] values = getResources().getStringArray(R.array.light_terminal_color_scheme_values);
-                int len = Math.min(keys.length, values.length);
-                for (int i = 0; i < len; i++) {
-                    lightScheme.setProperty(keys[i], values[i]);
-                }
-            }
+            // The light scheme's values live in termux-shared, next to the picker that previews
+            // them; see ColorSchemeUtils.getBuiltinLightSchemeProperties.
+            Properties lightScheme = isNight ? null
+                    : ColorSchemeUtils.getBuiltinLightSchemeProperties(requireContext());
             ColorSchemeUtils.ensureColorSchemeForTheme(requireContext(), isNight, lightScheme);
 
             TermuxColorSchemeManager cm = new TermuxColorSchemeManager();

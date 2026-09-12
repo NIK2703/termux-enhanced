@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One entry of the color-scheme picker: the single-choice radio, the scheme name and its 16-color
+  swatch. The name, the row background and the palette are set programmatically from the scheme the
+  row stands for (see ColorSchemePreviewAdapter) — the row background is that scheme's terminal
+  background and the text is its terminal foreground, so nothing in this layout may carry a color of
+  its own. The radio is the very indicator the framework's own single-choice rows used, drawn from
+  the same theme attribute, and is tinted to the row's own foreground at bind time.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/termux_shared_picker_row_min_height"
+    android:paddingStart="@dimen/termux_shared_picker_row_padding"
+    android:paddingEnd="@dimen/termux_shared_picker_row_padding">
+
+    <!-- A CheckedTextView rather than a RadioButton: this is exactly how the framework renders a
+         single-choice dialog row — the indicator is a compound drawable whose state follows the
+         view's own checked state, so no extra child view is involved and the indicator keeps the
+         framework's own shape. It is tinted to the row's foreground at bind time.
+
+         gravity="center_vertical" is not redundant with the row's own gravity: a TextView's box is
+         as tall as the taller of its text and its compound drawable (TextView.getDesiredHeight),
+         and the text is laid out at the TOP of that box unless told otherwise — which lifted every
+         name slightly above the centre of its row. -->
+    <CheckedTextView
+        android:id="@+id/color_scheme_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:drawableStart="?android:attr/listChoiceIndicatorSingle"
+        android:drawablePadding="@dimen/termux_shared_color_scheme_radio_gap"
+        android:gravity="center_vertical"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="@dimen/termux_shared_picker_row_text_size"
+        android:clickable="false"
+        android:focusable="false" />
+
+    <com.termux.shared.termux.extrakeys.ColorSchemePaletteView
+        android:id="@+id/color_scheme_palette"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/termux_shared_color_scheme_palette_margin"
+        android:importantForAccessibility="no" />
+</LinearLayout>

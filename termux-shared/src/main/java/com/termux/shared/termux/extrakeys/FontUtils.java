@@ -3,7 +3,10 @@ package com.termux.shared.termux.extrakeys;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.view.ContextThemeWrapper;
+import android.widget.ListView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -99,6 +102,10 @@ public final class FontUtils {
      * and on selection copies the font to {@code ~/.termux/font.ttf} and invokes
      * {@code onApplied} so the caller can trigger a live restyle.
      *
+     * <p>Every entry is drawn in the font it stands for, so the picker shows the fonts instead of
+     * only naming them; {@link #FONT_DEFAULT} is drawn in {@link Typeface#MONOSPACE}, which is what
+     * the terminal falls back to.
+     *
      * @param context   A UI context to show the dialog with.
      * @param notInstalledMessage Message shown if Termux:Style is not installed.
      * @param onApplied Run after a font is applied (e.g. to reload styling live); may be {@code null}.
@@ -117,18 +124,48 @@ public final class FontUtils {
             return;
         }
 
-        final String[] labels = new String[fonts.length];
-        for (int i = 0; i < fonts.length; i++)
-            labels[i] = fontDisplayName(fonts[i]);
+        // The framework's plain item rows cannot carry a per-row typeface, so the picker supplies
+        // its own adapter; the rows it inflates are a single TextView each.
+        final FontPreviewAdapter adapter = new FontPreviewAdapter(dialogContext, fonts);
 
         AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
             .setTitle(dialogContext.getString(com.termux.shared.R.string.title_select_font))
-            .setItems(labels, (dialog, which) -> {
+            .setAdapter(adapter, (dialog, which) -> {
                 applyStylingFont(context, fonts[which]);
                 if (onApplied != null) onApplied.run();
+                dialog.dismiss();
             })
             .create();
         d.show();
+
+        // The list is bounded exactly as the color-scheme picker's is: a font list long enough to
+        // fill the dialog would otherwise leave its last row drawn past the bottom edge and
+        // unreachable.
+        final ListView list = d.getListView();
+        if (list != null) {
+            PickerDialogList.boundHeightToWindow(list);
+        }
+    }
+
+    /**
+     * Load a Termux:Style font as a {@link Typeface}, so it can be previewed before it is applied.
+     *
+     * @param fileName The font asset file name, as returned by {@link #listStylingFonts}.
+     * @return The typeface, or {@code null} when Termux:Style is not installed or the font cannot
+     *         be parsed (a truncated or corrupt file), in which case the caller should fall back
+     *         to {@link Typeface#MONOSPACE}.
+     */
+    @Nullable
+    public static Typeface loadStylingTypeface(@Nullable Context context, @NonNull String fileName) {
+        final Context stylingContext = getStylingContext(context);
+        if (stylingContext == null) return null;
+        try {
+            return Typeface.createFromAsset(stylingContext.getAssets(),
+                    STYLING_FONTS_ASSET_DIR + "/" + fileName);
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to load Termux:Style font \"" + fileName + "\": " + e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -172,6 +209,7 @@ public final class FontUtils {
 
     /** Package context of the installed Termux:Style app, or {@code null} if not installed. */
     private static Context getStylingContext(Context context) {
+        if (context == null) return null;
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME);
     }
 }

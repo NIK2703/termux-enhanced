@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One entry of the font picker: the font's name, drawn IN that font (see FontPreviewAdapter).
+  The typeface is set programmatically; the text color is pinned to the very attribute the
+  framework's own item layout (select_dialog_item_material) used. It must not be left to the theme's
+  default, which resolves to the runtime Termux:Style scheme overlay's colorOnSurface — white for
+  light schemes, i.e. white-on-white rows in light theme.
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/font_name"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="@dimen/termux_shared_picker_row_min_height"
+    android:paddingStart="@dimen/termux_shared_picker_row_padding"
+    android:paddingEnd="@dimen/termux_shared_picker_row_padding"
+    android:gravity="center_vertical"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:textColor="?attr/textColorAlertDialogListItem"
+    android:textSize="@dimen/termux_shared_picker_row_text_size" />
