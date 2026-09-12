@@ -654,6 +654,22 @@ public final class SessionPagerManager {
         TermuxSession newSession = client.createSessionForPlaceholder(false, null, directory);
         if (newSession == null) { cancelPlaceholder(); return; }
 
+        // The rows the gesture did not pick start leaving here, on the settle's first frame: 50 ms,
+        // so the list is gone long before the page lands and long before the overlay's own 150 ms
+        // fade finishes. The row the finger was on is kept — and when the release was outside the
+        // rows (which resolves to the default working directory) nothing is highlighted, so the whole
+        // list goes, which is exactly the "no directory was chosen" reading.
+        //
+        // Started here rather than on the finger lift so that EVERY tab a swipe opens fades the list
+        // the same way — a natural full drag as well as a forced pick — while a release that creates
+        // nothing never touches it. Both paths reach this line on the same frame: the forced one
+        // through the posted setCurrentItem(), which dispatches onPageSelected synchronously.
+        //
+        // Before the overlay's teardown below, so the highlight is still the one the finger left;
+        // and the teardown itself resets the fade if there was no visible overlay to fade.
+        final DirectoryPickerController picker = getDirectoryPicker();
+        if (picker != null) picker.beginRowFadeOut();
+
         // Start the overlay leaving BEFORE the rebind is scheduled: the fade flag has to be up by the
         // time onBindViewHolder() runs for the committed slot, otherwise the bind path would set the
         // container GONE and the placeholder would disappear in a single frame instead of fading.
@@ -798,14 +814,10 @@ public final class SessionPagerManager {
         if (mTerminalPager == null) return;
         mForcedPickDirectory = directory;
         mForcedPickPending = true;
-        // The tab is about to open, and this is the ONLY case the unselected rows fade in. Tying the
-        // fade to the opening rather than to the release is deliberate: a release that ends up
-        // creating nothing must leave the list exactly as it was, so the next pull-out shows it
-        // intact. Started here (rather than in the posted runnable) so it still lands on the
-        // release's own frame — the runnable only bails if the placeholder went away in between, and
-        // that path resets the fade along with the overlay.
-        final DirectoryPickerController picker = getDirectoryPicker();
-        if (picker != null) picker.beginRowFadeOut();
+        // NOTE: the row fade is deliberately NOT started here. It belongs to the commit — see
+        // commitPlaceholderToSession() — which is the one point every tab opened by a swipe passes
+        // through, forced pick or natural settle alike, and which never runs for a swipe that ends
+        // up creating nothing.
         final int placeholderIndex = mTerminalPagerAdapter.getPlaceholderIndex();
         mTerminalPager.post(() -> forceCommitOntoPlaceholder(placeholderIndex));
     }
