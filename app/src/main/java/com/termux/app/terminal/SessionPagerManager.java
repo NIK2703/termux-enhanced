@@ -171,6 +171,20 @@ public final class SessionPagerManager {
     private String mPendingPickDirectory;
     /** True once ACTION_UP resolved a pick for the current gesture. */
     private boolean mPendingPickReady;
+    /**
+     * Directory picked from a history row whose pick must survive the gesture's bookkeeping.
+     *
+     * <p>{@link #mPendingPickDirectory} is cleared by {@link #endPickerGesture()}, and on a slow
+     * release the pager dispatches IDLE <em>before</em> it starts the snap that decides where the
+     * page goes — so the natural pending pick is gone by the time the settle is under way. A pick
+     * taken over a row must outlive that, because it is what forces the commit through. Cleared as
+     * soon as the commit consumes it, on the next {@code ACTION_DOWN}, or when the forced scroll is
+     * abandoned.
+     */
+    @Nullable
+    private String mForcedPickDirectory;
+    /** True when the release happened over a history row and the commit is therefore mandatory. */
+    private boolean mForcedPickPending;
     /** Reused location buffer for {@link #rawToPageY(float)} — avoids an int[2] per touch event. */
     private final int[] mPagerLocation = new int[2];
     /**
@@ -207,6 +221,8 @@ public final class SessionPagerManager {
                             mAnchorLatched = false;
                             mPendingPickReady = false;
                             mPendingPickDirectory = null;
+                            mForcedPickPending = false;
+                            mForcedPickDirectory = null;
                             // Re-latch the pager's screen position for this gesture: everything that
                             // follows (the anchor and every updateFinger) reads it, and one lookup per
                             // gesture is enough while the pager itself is not moving.
@@ -230,6 +246,11 @@ public final class SessionPagerManager {
                                 mPendingPickDirectory =
                                         (picker != null) ? picker.resolvePick(rawToPageY(mFingerRawY)) : null;
                                 mPendingPickReady = true;
+                                // Released over a row: the new tab opens whatever the drag distance
+                                // was. See armForcedPick() for how that is animated.
+                                if (mPendingPickDirectory != null) {
+                                    armForcedPick(mPendingPickDirectory);
+                                }
                             }
                             mFingerDown = false;
                             break;
@@ -237,6 +258,8 @@ public final class SessionPagerManager {
                             mFingerDown = false;
                             mPendingPickReady = false;
                             mPendingPickDirectory = null;
+                            mForcedPickPending = false;
+                            mForcedPickDirectory = null;
                             break;
                         default:
                             break;
@@ -376,7 +399,16 @@ public final class SessionPagerManager {
                         || state == ViewPager2.SCROLL_STATE_SETTLING) {
                     mActivity.setTerminalPageSwitchInProgress(true);
                 } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
-                    mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
+                    // Not the end of the gesture when a forced commit is armed: stopping the pager's
+                    // own scroll to re-issue it towards the placeholder emits an IDLE on the way, and
+                    // dropping the IME guard there would let the old page hide the keyboard mid-settle
+                    // — exactly the flicker the guard exists for. The real IDLE (after the commit has
+                    // consumed the pick) still lowers it.
+                    if (mForcedPickPending) {
+                        mActivity.setTerminalPageSwitchInProgress(true);
+                    } else {
+                        mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
+                    }
                     // Hand the floating button's margin back to the settled state. onPageScrolled()
                     // is the sole owner of it while the pager scrolls (updateFloatingButtonMargin()
                     // early-returns during a scroll), so without this the button would stay parked
@@ -443,7 +475,11 @@ public final class SessionPagerManager {
                 // index — also lands here, but must NOT commit a (duplicate) session.
                 if (mTerminalPagerAdapter != null && mTerminalPagerAdapter.isPlaceholderActive()
                         && position == mTerminalPagerAdapter.getPlaceholderIndex()) {
-                    if (mUserScrollInProgress) {
+                    // mForcedPickPending: the release was over a history row, so the tab opens even
+                    // though the drag itself did not reach the placeholder. The settle that brings
+                    // the page in is the pager's own (see forceCommitOntoPlaceholder), and it reports
+                    // IDLE before it starts — hence mUserScrollInProgress is already false here.
+                    if (mUserScrollInProgress || mForcedPickPending) {
                         commitPlaceholderToSession();
                     } else {
                         // Programmatic scroll onto the placeholder slot — e.g. addNewSession()
@@ -608,7 +644,11 @@ public final class SessionPagerManager {
         // position outside the rows, including the neutral zone at the anchor and the hint band —
         // the working directory configured in Settings. The gesture therefore always creates a
         // session, never nothing.
-        TermuxSession newSession = client.createSessionForPlaceholder(false, null, resolvePickDirectory());
+        final String directory = resolvePickDirectory();
+        // Consume the pick now: endPickerGesture() at the end of the settle must be free to release
+        // the overlay, and the posted forceCommitOntoPlaceholder() must see the job as done.
+        clearForcedPick();
+        TermuxSession newSession = client.createSessionForPlaceholder(false, null, directory);
         if (newSession == null) { cancelPlaceholder(); return; }
 
         // Start the overlay leaving BEFORE the rebind is scheduled: the fade flag has to be up by the
@@ -661,6 +701,9 @@ public final class SessionPagerManager {
 
     /** Drop the placeholder page without creating a session and restore a clean tab-strip state. */
     private void cancelPlaceholder() {
+        // A forced pick is being abandoned: release it before endPickerGesture() so the overlay is
+        // cleared rather than left on screen waiting for a commit that will not happen.
+        clearForcedPick();
         if (mTerminalPagerAdapter != null && mTerminalPagerAdapter.isPlaceholderActive()) {
             mTerminalPagerAdapter.setPlaceholderActive(false);
         }
@@ -709,11 +752,86 @@ public final class SessionPagerManager {
      * <p>Goes through the adapter rather than the controller directly so a commit fade-out that is
      * still running keeps ownership of the overlay: hiding here would cut the fade and snap the
      * list away while the hint is still visible.
+     *
+     * <p>Skipped entirely while a forced pick is still pending — see {@link #armForcedPick(String)}.
      */
     private void endPickerGesture() {
         mPendingPickReady = false;
         mPendingPickDirectory = null;
+        // The forced pick outlives this call by design: it is the only thing that still knows a row
+        // was chosen once the pager has reported IDLE. Hiding the rows here would empty the page the
+        // forced scroll is about to slide in.
+        if (mForcedPickPending) return;
         if (mTerminalPagerAdapter != null) mTerminalPagerAdapter.hideDirectoryPicker();
+    }
+
+    /**
+     * Release over a directory-history row: the new tab opens no matter how far the page was
+     * dragged — and it opens with the same animation a full drag produces.
+     *
+     * <h2>Why it has to be done this way</h2>
+     * The "new tab opening" animation is not a separate animation of ours: it is the pager settling
+     * forward onto the placeholder page, with {@link #commitPlaceholderToSession()} running on the
+     * settle's first frame (the overlay fades out over 150 ms while the page finishes travelling).
+     * So the only way to reproduce it for a short drag is to make the pager actually travel to the
+     * placeholder page.
+     *
+     * <h2>Why here, and not on the release itself</h2>
+     * On {@code ACTION_UP} the pager has not yet decided where to go — that happens inside the
+     * RecyclerView's own up-handling (a fling into {@code PagerSnapHelper}, or a snap-back once the
+     * state falls to IDLE). Issuing {@code setCurrentItem} from the release handler itself races
+     * with that decision and either gets overridden by it or gets killed by the IDLE's
+     * {@code stopScrollersInternal()}.
+     *
+     * <p>Posting instead lands the call after the whole up-handling and <em>before the settle's
+     * first animation frame</em>: the settle can only move on the next vsync, while a {@code post()}
+     * runs in the current message-loop pass. Nothing has moved yet, so replacing the pager's own
+     * scroll with ours is invisible — it is the same {@code smoothScrollToPosition} over the same
+     * distance from the same position, and {@code onPageSelected} fires at the same point of the
+     * settle, so the commit and the fade-out run exactly as they do for a full drag.
+     */
+    private void armForcedPick(@NonNull String directory) {
+        if (mTerminalPagerAdapter == null || !mTerminalPagerAdapter.isPlaceholderActive()) return;
+        if (mTerminalPager == null) return;
+        mForcedPickDirectory = directory;
+        mForcedPickPending = true;
+        final int placeholderIndex = mTerminalPagerAdapter.getPlaceholderIndex();
+        mTerminalPager.post(() -> forceCommitOntoPlaceholder(placeholderIndex));
+    }
+
+    /**
+     * Drive the placeholder page in, so the commit runs through the ordinary settle.
+     *
+     * @param placeholderIndex the index captured on release; the runnable bails out if the page is
+     *                         no longer the placeholder (a rebind or a session-count change in
+     *                         between would make scrolling to it wrong).
+     */
+    private void forceCommitOntoPlaceholder(int placeholderIndex) {
+        if (!mForcedPickPending) return;  // the natural settle already committed with this pick
+        if (mTerminalPagerAdapter == null || !mTerminalPagerAdapter.isPlaceholderActive()
+                || placeholderIndex != mTerminalPagerAdapter.getPlaceholderIndex()) {
+            // Nothing to commit into any more — drop the pick so the overlay is released normally.
+            mForcedPickPending = false;
+            mForcedPickDirectory = null;
+            endPickerGesture();
+            return;
+        }
+        // Whatever the pager started on its own (the fling's snap, or the snap-back from a slow
+        // release) has not drawn a single frame yet, but it is armed. Clear it, or the two scrollers
+        // would fight and the page would crawl — OverScroller and SmoothScroller are both driven by
+        // ViewFlinger.
+        final RecyclerView pagerRv = getPagerRecyclerView();
+        if (pagerRv != null) pagerRv.stopScroll();
+        // Same settle ViewPager2 performs after a drag that carried past the threshold: a smooth
+        // scroll onto the page, which dispatches onPageSelected(placeholderIndex) right away — the
+        // commit and its 150 ms fade-out start on this very frame.
+        mTerminalPager.setCurrentItem(placeholderIndex, true);
+    }
+
+    /** Forget a forced pick without touching the overlay. */
+    private void clearForcedPick() {
+        mForcedPickPending = false;
+        mForcedPickDirectory = null;
     }
 
     /**
@@ -799,6 +917,7 @@ public final class SessionPagerManager {
      */
     @NonNull
     private String resolvePickDirectory() {
+        if (mForcedPickPending && mForcedPickDirectory != null) return mForcedPickDirectory;
         if (mPendingPickReady && mPendingPickDirectory != null) return mPendingPickDirectory;
         return mActivity.getProperties().getDefaultWorkingDirectory();
     }
