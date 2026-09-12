@@ -567,6 +567,10 @@ public final class ColorSchemeUtils {
         if (list != null) {
             list.setDivider(null);
             list.setDividerHeight(0);
+            // Strip Material's list-item insets so each scheme's colored background runs edge to
+            // edge of the dialog instead of leaving an unpainted strip to the right (and left) of
+            // every row on first launch.
+            list.setPadding(0, list.getPaddingTop(), 0, list.getPaddingBottom());
             // ...and the list must not be allowed to measure itself taller than the dialog, or its
             // last entry ends up drawn past the bottom edge with nothing left to scroll.
             PickerDialogList.boundHeightToWindow(list);

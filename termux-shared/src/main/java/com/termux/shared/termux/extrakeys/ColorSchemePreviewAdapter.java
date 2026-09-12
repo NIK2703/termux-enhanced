@@ -116,13 +116,6 @@ public final class ColorSchemePreviewAdapter extends BaseAdapter {
                 ColorSchemePreview.blend(preview.background, preview.foreground, PRESSED_BLEND));
         holder.normal.setColor(preview.background);
 
-        // Belt and braces for the same reason: if the row already has a size, bound the background
-        // now instead of waiting for a frame change that may never come.
-        final View row = holder.itemView;
-        if (row.getWidth() > 0) {
-            holder.background.setBounds(0, 0, row.getWidth(), row.getHeight());
-        }
-
         holder.name.setText(mLabels[position]);
         // Label and radio share the scheme's terminal foreground. The radio is the row's own
         // compound drawable, so it is tinted rather than replaced: on schemes whose background sits
@@ -158,6 +151,14 @@ public final class ColorSchemePreviewAdapter extends BaseAdapter {
             background.addState(new int[]{android.R.attr.state_pressed}, pressed);
             background.addState(new int[]{}, normal);
             row.setBackground(background);
+
+            // Pin the background to the row's full size on every layout. The framework only
+            // re-bounds a background when the view's frame changes, and a recycled row whose frame
+            // is reused can keep the bounds of an earlier, narrower measure — which on first launch
+            // left rows painted only up to the previous drawable's extent. Re-binding here on every
+            // layout keeps the fill exact regardless of when the dialog settles on its width.
+            row.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) ->
+                    background.setBounds(0, 0, r - l, b - t));
         }
     }
 }

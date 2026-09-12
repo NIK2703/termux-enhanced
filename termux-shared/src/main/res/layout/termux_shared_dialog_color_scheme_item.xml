@@ -6,12 +6,16 @@
   background and the text is its terminal foreground, so nothing in this layout may carry a color of
   its own. The radio is the very indicator the framework's own single-choice rows used, drawn from
   the same theme attribute, and is tinted to the row's own foreground at bind time.
+
+  The row is a RelativeLayout rather than a weight-based LinearLayout on purpose: with
+  layout_alignParentEnd the swatch is pinned to the right edge of the row on the very first measure,
+  before any recycled row has established a width — a weighted TextView can leave the swatch sitting
+  next to the (still narrow) name on first launch. The name fills everything from the start up to the
+  swatch's left edge (layout_toStartOf), so the swatch can never drift inward.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
     android:minHeight="@dimen/termux_shared_picker_row_min_height"
     android:paddingStart="@dimen/termux_shared_picker_row_padding"
     android:paddingEnd="@dimen/termux_shared_picker_row_padding">
@@ -21,15 +25,17 @@
          view's own checked state, so no extra child view is involved and the indicator keeps the
          framework's own shape. It is tinted to the row's foreground at bind time.
 
-         gravity="center_vertical" is not redundant with the row's own gravity: a TextView's box is
+         gravity="center_vertical" is not redundant with the row's own centring: a TextView's box is
          as tall as the taller of its text and its compound drawable (TextView.getDesiredHeight),
          and the text is laid out at the TOP of that box unless told otherwise — which lifted every
          name slightly above the centre of its row. -->
     <CheckedTextView
         android:id="@+id/color_scheme_name"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@id/color_scheme_palette"
+        android:layout_centerVertical="true"
         android:drawableStart="?android:attr/listChoiceIndicatorSingle"
         android:drawablePadding="@dimen/termux_shared_color_scheme_radio_gap"
         android:gravity="center_vertical"
@@ -43,6 +49,8 @@
         android:id="@+id/color_scheme_palette"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
         android:layout_marginStart="@dimen/termux_shared_color_scheme_palette_margin"
         android:importantForAccessibility="no" />
-</LinearLayout>
+</RelativeLayout>
