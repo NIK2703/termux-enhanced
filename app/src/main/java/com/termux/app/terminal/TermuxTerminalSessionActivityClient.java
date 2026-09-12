@@ -1340,6 +1340,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // is null, which is why the emulator reset above runs first.
             final Typeface newTypeface = resolveTerminalTypeface();
             invalidateAllTerminalViews(newTypeface);
+
+            // The placeholder page is not a terminal page: its overlay (the "+ new session" block and
+            // the directory menu) takes its colours at bind time and is NOT rebound by a scheme
+            // change, so it has to be restyled explicitly. Runs after resetAllEmulatorColors() above,
+            // which is what getCurrentTerminalColor() reads the new palette from.
+            mActivity.applyPlaceholderColors();
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in applyTerminalColorScheme()", e);
         }

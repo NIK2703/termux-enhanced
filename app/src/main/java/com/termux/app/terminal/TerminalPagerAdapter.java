@@ -393,12 +393,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                 // hidden on this page) or, at the same alpha A, compose over that fill to
                 // 2A-A^2 — i.e. double the transparency and tint it with the fill underneath.
                 // One layer only: transparent container on top of the TerminalView's own fill.
-                int fg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_FOREGROUND);
                 hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-                ImageView plus = holder.mHintPlus;
-                if (plus != null) plus.setColorFilter(fg);
-                TextView hintText = holder.mHintText;
-                if (hintText != null) hintText.setTextColor(fg);
+                applyPlaceholderHintColors(holder);
                 hint.setVisibility(View.VISIBLE);
                 // The whole overlay fades with the drag (see setPlaceholderScrollOffset). Start it
                 // transparent: the ViewHolder can be created mid-drag, and fading in from 0 costs at
@@ -414,7 +410,11 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                 hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
             } else {
                 hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-                hint.setVisibility(View.GONE);
+                // INVISIBLE, never GONE — same reason as in the layout: GONE makes setFlags() call
+                // requestLayout(), and this runs on every bind of a non-placeholder page, including
+                // the re-arm that lands a frame after a commit (i.e. inside the settle of the swipe
+                // that just committed). See the note on terminal_placeholder_hint_container.
+                hint.setVisibility(View.INVISIBLE);
                 hint.setAlpha(1f);
                 // Drop the overlay handle ONLY when it refers to this holder's own overlay. Binding
                 // some other real session page must not orphan the placeholder page's overlay: while
@@ -710,6 +710,45 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     }
 
     /**
+     * Re-apply the terminal palette to the placeholder page's overlay — the "+ new session" block
+     * and the directory menu's rows.
+     *
+     * <p>Both take their colours at bind time, and the placeholder's ViewHolder is precisely the one
+     * a colour-scheme change does <em>not</em> rebind: while the user sits on a real tab the
+     * placeholder page stays in RecyclerView's view cache, and applying a scheme rebinds nothing at
+     * all. Without this hook the overlay kept the palette of whichever scheme was current when the
+     * slot was last bound, so it only caught up once the slot happened to be rebound — i.e. on the
+     * next tab addition.
+     *
+     * <p>Idempotent and cheap: it runs from the scheme-application path (a settings change), never
+     * per frame. Nothing to do when no placeholder is currently bound — the next bind reads the
+     * (already updated) palette itself.
+     */
+    public void applyPlaceholderColors() {
+        final TerminalPageViewHolder holder = mPlaceholderHolder;
+        if (holder != null && holder.mHintContainer != null) {
+            applyPlaceholderHintColors(holder);
+        }
+        // The rows carry their own colours; the controller also covers the surface a running commit
+        // fade-out still owns, which is no longer the bound one.
+        mDirectoryPicker.applyColors();
+    }
+
+    /**
+     * Tint the "+ new session" block with the terminal foreground so an unbound (blank) terminal
+     * page reads like a real one. Called on every placeholder bind and again on a colour-scheme
+     * change (see {@link #applyPlaceholderColors()}).
+     *
+     * <p>The <em>background</em> is deliberately not painted here — see the call site in
+     * {@link #onBindViewHolder} for why one layer only.
+     */
+    private void applyPlaceholderHintColors(@NonNull TerminalPageViewHolder holder) {
+        final int fg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_FOREGROUND);
+        if (holder.mHintPlus != null) holder.mHintPlus.setColorFilter(fg);
+        if (holder.mHintText != null) holder.mHintText.setTextColor(fg);
+    }
+
+    /**
      * Translate the placeholder hint horizontally while the user drags from the last real tab toward
      * the placeholder page, so the hint stays centered in the <em>visible slice</em> of the
      * placeholder page — i.e. between the right edge of the last real tab (the drag split point) and
@@ -817,7 +856,10 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                         mDirectoryPicker.hide();
                         mDirectoryPicker.unbind();
                     }
-                    container.setVisibility(View.GONE);
+                    // INVISIBLE, never GONE (see the layout note): this end action is the last frame
+                    // of the commit fade, so it runs inside the settle animation — the one moment a
+                    // layout traversal of the whole window is least welcome.
+                    container.setVisibility(View.INVISIBLE);
                     // Back to fully opaque for the next time this holder serves as the placeholder;
                     // the placeholder bind sets 0 itself, but the non-placeholder path assumes 1.
                     container.setAlpha(1f);

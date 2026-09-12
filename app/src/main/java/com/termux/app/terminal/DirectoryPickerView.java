@@ -26,9 +26,11 @@ import java.util.List;
  * comes verbatim from {@link DirectoryPickerLayout.Result}, so the drawing and the hit-testing in
  * {@link DirectoryPickerController} can never disagree about where a row is.
  *
- * <p>Rows are only as long as the part of the page that is currently on screen (see
- * {@link #setRevealedWidth(float)}), so the list grows into view with the page instead of being laid
- * out at full length the instant it appears.
+ * <p>Rows are drawn at their canonical, fully-revealed geometry; how much of the list is on screen is
+ * expressed as a horizontal translation of this view (see {@link #setRevealedWidth(float)}) rather
+ * than as a length, and the page's own bounds do the clipping. The picture is identical to drawing
+ * shorter rows right-aligned to the revealed edge, but nothing in {@code onDraw()} depends on the
+ * reveal any more — so the display list is recorded once per gesture instead of once per frame.
  *
  * <h2>Truncation by occlusion, not by recomposition</h2>
  *
@@ -57,10 +59,19 @@ public final class DirectoryPickerView extends View {
     private final ArrayList<String> mItems = new ArrayList<>();
     /**
      * Cached label widths, px — measured once per item set (and on a text-size change) so the draw
-     * pass never measures text. Indexed alongside {@link #mItems}; entries past the current size are
-     * simply not read.
+     * pass never measures text. Indexed alongside {@link #mMeasuredLabels}; entries past the current
+     * size are simply not read.
      */
     private float[] mLabelWidths = new float[0];
+    /**
+     * The labels {@link #mLabelWidths} belongs to.
+     *
+     * <p>Kept so a new item set can be recognised as a prefix of the one already measured, which is
+     * the normal case: the controller pre-measures the full history at bind time (see
+     * {@link #premeasure}) and {@code show()} then installs its first {@code rows} entries. That is
+     * what keeps text shaping off the gesture's critical frame.
+     */
+    private final ArrayList<String> mMeasuredLabels = new ArrayList<>();
 
     @Nullable
     private DirectoryPickerLayout.Result mLayout;
@@ -69,9 +80,10 @@ public final class DirectoryPickerView extends View {
     private float mPaddingH;
     private float mCornerRadius;
     /**
-     * Width of the part of this page that is currently revealed, px. During the swipe the page
-     * slides in from the right, so this is the page-local {@code [0, revealed]} slice — rows are
-     * drawn no longer than that. {@link Float#MAX_VALUE} means "not constrained" (fully settled).
+     * Width of the part of this page that is currently revealed, px — the page-local
+     * {@code [0, revealed]} slice. It is applied as a translation of the whole view (see
+     * {@link #applyRevealTranslation()}), not as a row length.
+     * {@link Float#MAX_VALUE} means "not constrained" (fully settled).
      */
     private float mRevealedWidth = Float.MAX_VALUE;
 
@@ -90,7 +102,8 @@ public final class DirectoryPickerView extends View {
     /** Text size in px. */
     public void setLabelTextSize(float px) {
         mTextPaint.setTextSize(px);
-        measureLabels();
+        // The cached widths are in the old size, so they are re-measured rather than reused.
+        measureInto(mItems);
         invalidate();
     }
 
@@ -111,16 +124,43 @@ public final class DirectoryPickerView extends View {
     /**
      * Install a new list + geometry. Pass an empty list (or a null layout) to clear.
      *
-     * <p>This is the one place labels are measured, so the per-frame draw pass never touches the
-     * font engine.
+     * <p>Labels are measured here — or reused from {@link #premeasure} — so the per-frame draw pass
+     * never touches the font engine.
      */
     public void setItems(@NonNull List<String> items, @Nullable DirectoryPickerLayout.Result layout) {
         mItems.clear();
         mItems.addAll(items);
         mLayout = layout;
         mHighlight = -1;
-        measureLabels();
+        // Reuse the widths when this list is a prefix of the one already measured, which is the
+        // normal case: the controller pre-measures the full history at bind time and this call then
+        // installs its first `rows` entries. Only a history that changed in between pays for the
+        // shaping, and then it is exactly what this method used to do unconditionally.
+        if (!isMeasuredPrefix()) measureInto(mItems);
         invalidate();
+    }
+
+    /**
+     * Measure the labels of {@code items} without installing them, so the widths are already known
+     * when a gesture starts.
+     *
+     * <p>{@link #setItems} runs on the first frame that reveals the placeholder — the gesture's
+     * critical frame, where this view also goes from {@code GONE} to {@code VISIBLE} and has its
+     * display list recorded from scratch. Measuring up to ten paths there means up to ten text
+     * shaping calls on that one frame. The controller calls this while the page is at rest instead.
+     */
+    public void premeasure(@NonNull List<String> items) {
+        measureInto(items);
+    }
+
+    /** @return true if {@link #mLabelWidths} already covers {@link #mItems} entry by entry. */
+    private boolean isMeasuredPrefix() {
+        final int count = mItems.size();
+        if (count > mMeasuredLabels.size()) return false;
+        for (int i = 0; i < count; i++) {
+            if (!java.util.Objects.equals(mItems.get(i), mMeasuredLabels.get(i))) return false;
+        }
+        return true;
     }
 
     /** Highlight the row under the finger; {@code -1} clears it. */
@@ -131,28 +171,63 @@ public final class DirectoryPickerView extends View {
     }
 
     /**
-     * How much of this page is currently on screen, in px — the rows are drawn no longer than this,
-     * so the list is revealed together with the page instead of appearing at full length.
+     * How much of this page is currently on screen, in px — the list is revealed together with the
+     * page instead of appearing at full length.
      *
-     * <p>Pass {@link Float#MAX_VALUE} (or anything past the view's width) to draw full-width.
+     * <p>Pass {@link Float#MAX_VALUE} (or anything past the view's width) for the fully revealed
+     * picture.
      */
     public void setRevealedWidth(float px) {
         final float clamped = Math.max(0f, px);
         if (clamped == mRevealedWidth) return;
         mRevealedWidth = clamped;
-        invalidate();
+        applyRevealTranslation();
     }
 
     /**
-     * Measure every label once, so the draw pass can right-align without touching the font engine.
-     * Called on install and on a text-size change — never per frame.
+     * Express the reveal as a horizontal translation of the whole row block.
+     *
+     * <p>{@code onDraw()} paints the canonical, fully-revealed geometry; the reveal slides that block
+     * left so exactly its right {@code revealed} pixels stay inside the page:
+     * {@code translationX = revealed − width}. The page's own bounds clip the rest — the same
+     * mechanism that already truncates a too-long path (see the class comment), so the row's head
+     * simply continues under the neighbouring terminal.
+     *
+     * <p>This is the whole point of the arrangement: the picture is identical to drawing rows of
+     * length {@code revealed} right-aligned to the revealed edge, but a translation is a render-node
+     * property, so the reveal no longer re-records the display list. During a gesture the only
+     * invalidations left are {@link #setHighlight} (once per 48 dp of finger travel) and
+     * {@link #setItems}.
      */
-    private void measureLabels() {
-        final int count = mItems.size();
+    private void applyRevealTranslation() {
+        final float width = getWidth();
+        // Not laid out yet: bind() pushes a reveal while the page is still being measured. The
+        // width is real by onSizeChanged, which re-applies it.
+        if (width <= 0f) return;
+        // Math.min keeps the "unconstrained" default — and any over-wide value — at translation 0,
+        // i.e. the fully revealed picture. Same clamp the draw pass used to apply to the row width.
+        setTranslationX(Math.min(mRevealedWidth, width) - width);
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        applyRevealTranslation();
+    }
+
+    /**
+     * Measure {@code items} into the width cache, so the draw pass can right-align without touching
+     * the font engine. Called on install, on a text-size change and by {@link #premeasure} — never
+     * per frame.
+     */
+    private void measureInto(@NonNull List<String> items) {
+        final int count = items.size();
         if (mLabelWidths.length < count) mLabelWidths = new float[count];
         for (int i = 0; i < count; i++) {
-            mLabelWidths[i] = mTextPaint.measureText(mItems.get(i));
+            mLabelWidths[i] = mTextPaint.measureText(items.get(i));
         }
+        mMeasuredLabels.clear();
+        mMeasuredLabels.addAll(items);
     }
 
     @Override
@@ -161,9 +236,11 @@ public final class DirectoryPickerView extends View {
         final DirectoryPickerLayout.Result layout = mLayout;
         if (layout == null || !layout.hasList() || mItems.isEmpty()) return;
 
-        // Rows stop where the page stops being visible. A page that is only 5% revealed shows a
-        // 5%-wide stub of a row, which is exactly the "grows into view" read we want.
-        final float rowWidth = Math.min(mRevealedWidth, getWidth());
+        // Canonical geometry: the fully revealed row. How much of it is on screen is the view's own
+        // translation (see applyRevealTranslation) and the page's bounds clip the rest, so nothing
+        // below depends on the reveal — which is what lets the display list survive the whole
+        // gesture instead of being re-recorded on every frame.
+        final float rowWidth = getWidth();
         if (rowWidth <= 0f) return;
 
         final int rowCount = Math.min(mItems.size(), layout.rows);
@@ -186,10 +263,10 @@ public final class DirectoryPickerView extends View {
                 canvas.drawLine(mPaddingH, top, textRight, top, mSeparatorPaint);
             }
 
-            // Right-aligned to the revealed edge, clipped by the page's own bounds. The tail of the
-            // path — the part that identifies the directory — is therefore on screen from the first
-            // pixel of the reveal, and the head is simply cut where the neighbouring terminal begins.
-            // A label wider than the row needs no special case: the clip is the truncation.
+            // Right-aligned to the canonical row end, clipped by the page's own bounds. The tail of
+            // the path — the part that identifies the directory — is therefore on screen from the
+            // first pixel of the reveal, and the head is simply cut where the neighbouring terminal
+            // begins. A label wider than the row needs no special case: the clip is the truncation.
             //
             // The row→entry mapping comes from the layout, so the newest entry is always the one on
             // the row nearest the finger — the list is reversed relative to the data.

@@ -1250,12 +1250,28 @@ public class TermuxSessionTabsController {
             ensureDimens();
             d.setCornerRadius(mTabCornerRadiusPx);
             if (state != null) state.bgDrawable = d;
+        } else if (state.bgValid && state.bgColor == color && view.getBackground() == d) {
+            // Nothing to do — the drawable already carries this exact colour and is still installed.
+            // onPageScrolled() calls this twice per swipe frame, and GradientDrawable.setColor()
+            // invalidates the drawable unconditionally, so without this early-out every frame
+            // re-recorded the tab's display list even while the blend ratio had not moved (which is
+            // most frames: MOVE events arrive 2-4x per displayed frame). Guarded on the background
+            // identity as well, because a scheme change can swap the background without the state
+            // noticing. Compared against the cached int rather than GradientDrawable.getColor(),
+            // which is API 24+.
+            return;
         }
         // Mutate the SAME drawable instead of allocating a fresh one per call: setColor()
         // invalidates it in place. onPageScrolled() calls this twice per swipe frame, so the
         // old version allocated two drawables and re-bound two backgrounds 60-120 times a second.
         d.setColor(color);
         if (view.getBackground() != d) view.setBackground(d);
+        // Keep the diff cache in sync with what was just painted, so the early-out above stays
+        // honest for callers that do not write state.bgColor themselves.
+        if (state != null) {
+            state.bgColor = color;
+            state.bgValid = true;
+        }
     }
 
     private static int blendColors(int from, int to, float ratio) {

@@ -1679,6 +1679,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mSessionPagerManager.setTerminalBackgroundTransparency(getEffectiveBackgroundTransparency());
     }
 
+    /**
+     * Re-apply the current terminal palette to the placeholder page's overlay — the "+ new session"
+     * block and the directory menu's rows.
+     * <p>
+     * Those colours are baked into the views when the placeholder slot is bound, and a colour-scheme
+     * change rebinds nothing: while the user sits on a real tab the placeholder page stays in
+     * RecyclerView's view cache. Called from the scheme-application path, without it the overlay
+     * kept the previous scheme's colours until the slot was rebound by the next tab addition.
+     */
+    public void applyPlaceholderColors() {
+        if (mSessionPagerManager != null) mSessionPagerManager.applyPlaceholderColors();
+    }
+
     // -----------------------------------------------------------------------------------------
     //  Wallpaper blur — Android 12+ system blur (FLAG_BLUR_BEHIND)
     //
@@ -2425,6 +2438,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     private void setToggleTextInputButtonView() {
         ImageButton toggleTextInputButton = findViewById(R.id.toggle_text_input_button);
+        // Seed the hot-path handle used by the margin setters (see mFloatingButton).
+        mFloatingButton = toggleTextInputButton;
         if (toggleTextInputButton != null) {
             SharedPreferences prefs = getSharedPreferences("termux_prefs", MODE_PRIVATE);
             // Load the persisted sent-message history once.
@@ -2687,7 +2702,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     public void updateFloatingButtonMargin() {
         if (isPagerScrollInProgress()) return;
-        if (getScrollbarState(mTerminalView) == null) return;
+        if (getScrollbarState(mTerminalView) == null) {
+            // No settled value to compute — but the scroll path may still have left a translation
+            // behind, because this method is what runs on the scroll's IDLE state and a cancelled
+            // swipe ends there without ever producing a scrollable page to settle onto. Dropping the
+            // offset keeps the "keeping the existing margin instead is safe" contract above intact:
+            // the margin is untouched, and the button is back on it.
+            resetFloatingButtonTranslation();
+            return;
+        }
         setFloatingButtonMarginEnd(computeSettledFloatingButtonMarginEnd(mTerminalView));
     }
 
@@ -2724,19 +2747,103 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Cached handle for the floating toggle button.
+     *
+     * <p>The two margin setters below run once per ViewPager2 scroll frame, and {@code findViewById()}
+     * walks the whole view tree on every call. The activity's content view is inflated once, so the
+     * handle is valid for the instance's lifetime; {@link #setToggleTextInputButtonView()} — the place
+     * the view is first resolved — seeds it, and a re-inflation on the same instance would have to go
+     * through there too.
+     */
+    private ImageButton mFloatingButton;
+
+    /**
+     * The {@code marginEnd} the floating button carries in the LAYOUT, captured once from the
+     * inflated LayoutParams and never written afterwards.
+     *
+     * <p>Both margin paths — the settled one and the per-frame scroll one — express the button's
+     * position as a translation against this base rather than as a new {@code marginEnd}, because
+     * writing a margin means {@code setLayoutParams()} → {@code requestLayout()}, i.e. a full
+     * measure+layout pass over the activity's hierarchy. With the base immutable, neither path ever
+     * needs one: the settled write that used to close every gesture is gone too.
+     * {@code -1} means "not captured yet" — the first caller adopts the live value.
+     */
+    private int mFloatingButtonLayoutMarginEnd = -1;
+
+    /** @return the floating toggle button, or null before the content view is inflated. */
+    private ImageButton getFloatingButton() {
+        if (mFloatingButton == null) mFloatingButton = findViewById(R.id.toggle_text_input_button);
+        return mFloatingButton;
+    }
+
+    /**
+     * The {@code marginEnd} the button's LayoutParams hold, captured on first use.
+     *
+     * <p>Immutable for the instance's lifetime: nothing writes the button's layout margin any more,
+     * so this stays the value the XML inflated and {@code translationX} alone carries the position.
+     */
+    private int getFloatingButtonLayoutMarginEnd(@NonNull ImageButton toggleButton) {
+        if (mFloatingButtonLayoutMarginEnd < 0) {
+            ViewGroup.LayoutParams lp = toggleButton.getLayoutParams();
+            mFloatingButtonLayoutMarginEnd = (lp instanceof RelativeLayout.LayoutParams)
+                    ? ((RelativeLayout.LayoutParams) lp).rightMargin : 0;
+        }
+        return mFloatingButtonLayoutMarginEnd;
+    }
+
+    /**
+     * Put the button where a {@code marginEnd} of {@code marginEndPx} would put it, without
+     * touching the layout.
+     *
+     * <p>The sign: a larger {@code marginEnd} pulls the button further from the end edge, so the
+     * translation is {@code base − target}. {@code View.setTranslationX()} early-outs on an
+     * unchanged value, so repeat frames are free.
+     */
+    private void applyFloatingButtonMarginEnd(int marginEndPx) {
+        ImageButton toggleButton = getFloatingButton();
+        if (toggleButton == null) return;
+        toggleButton.setTranslationX(getFloatingButtonLayoutMarginEnd(toggleButton) - marginEndPx);
+    }
+
+    /**
      * Directly set the floating button's right margin in pixels. Unlike
      * {@link #updateFloatingButtonMargin()} which recomputes the margin from the
-     * current terminal view's scrollbar state, this pushes an explicit value so
-     * the scroll callback can drive intermediate (interpolated) margins while a
-     * ViewPager2 page swipe is in progress.
+     * current terminal view's scrollbar state, this pushes an explicit value.
+     *
+     * <p>This is the SETTLED path. Like the per-frame scroll path it applies the value as a
+     * translation rather than a layout param, so closing a gesture costs no measure+layout either —
+     * see {@link #mFloatingButtonLayoutMarginEnd}. Per-frame scroll updates go through
+     * {@link #setFloatingButtonMarginEndForScroll(int)} instead.
      */
     public void setFloatingButtonMarginEnd(int marginEndPx) {
-        ImageButton toggleButton = findViewById(R.id.toggle_text_input_button);
-        if (toggleButton == null) return;
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) toggleButton.getLayoutParams();
-        if (params.rightMargin != marginEndPx) {
-            params.rightMargin = marginEndPx;
-            toggleButton.setLayoutParams(params);
+        applyFloatingButtonMarginEnd(marginEndPx);
+    }
+
+    /**
+     * Apply an interpolated right margin for one frame of a ViewPager2 page scroll.
+     *
+     * <p>Same value {@link #setFloatingButtonMarginEnd(int)} would install, and applied the same way
+     * — as a horizontal translation of the button instead of a new {@code marginEnd}. Writing the
+     * margin means {@code setLayoutParams()} → {@code requestLayout()}, i.e. a full measure+layout
+     * pass over the activity's hierarchy on EVERY scroll frame of a swipe — and the placeholder page
+     * is exactly the case where the two pages' margins always differ (an unbound page never reports a
+     * scrollbar, so it keeps the 6dp margin while a real tab with a scrollbar gets 30dp−2 plus the
+     * right inset). A translation moves the button by the same number of pixels, is a render-node
+     * property, and costs no layout at all.
+     *
+     * <p>The interpolation is transient: it deliberately leaves the resting position untouched, and
+     * {@link #updateFloatingButtonMargin()} restores that on the scroll's IDLE — so a cancelled swipe
+     * cannot leave the button parked at an interpolated offset.
+     */
+    public void setFloatingButtonMarginEndForScroll(int marginEndPx) {
+        applyFloatingButtonMarginEnd(marginEndPx);
+    }
+
+    /** Drop any horizontal offset the pager-scroll path applied to the floating button. */
+    private void resetFloatingButtonTranslation() {
+        ImageButton toggleButton = getFloatingButton();
+        if (toggleButton != null && toggleButton.getTranslationX() != 0f) {
+            toggleButton.setTranslationX(0f);
         }
     }
 

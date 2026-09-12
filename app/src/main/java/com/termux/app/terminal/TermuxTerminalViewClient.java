@@ -234,8 +234,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // margin it had while no session was bound and ended up overlapping the scrollbar thumb.
         //
         // Posted, not called inline: updateSize() runs from onSizeChanged(), i.e. inside the layout
-        // pass, and setFloatingButtonMarginEnd() calls setLayoutParams() — doing that synchronously
-        // would request a layout from within a layout. The settled margin is a one-shot value, so a
+        // pass, and although the settled write is now a translation (no setLayoutParams, see
+        // TermuxActivity.mFloatingButtonLayoutMarginEnd) posting still keeps it off the layout pass
+        // and out of the re-entrancy question entirely. The settled margin is a one-shot value, so a
         // frame's delay is irrelevant, and updateFloatingButtonMargin() still early-returns while
         // the pager is animating a page scroll (that window belongs to the scroll interpolation).
         if (terminalView != null) {

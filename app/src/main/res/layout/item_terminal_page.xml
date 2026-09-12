@@ -30,18 +30,34 @@
              during a drag so it stays centered in the slice of the placeholder page that is
              currently visible (and vertically by DirectoryPickerController so it always sits above
              the list). Its layout_gravity="center" is load-bearing — the horizontal translation is
-             expressed relative to the centred position. -->
+             expressed relative to the centred position.
+
+         INVISIBLE, never GONE, as the initial state too: the adapter toggles this container on
+         every page bind (VISIBLE for the placeholder page, INVISIBLE for a real one), and
+         View.setFlags() only calls requestLayout() when the GONE bit changes — so starting from
+         GONE would put a full-window layout traversal on the first bind of every page, including
+         the placeholder re-arm that lands a frame after a commit, i.e. inside the settle animation
+         of the gesture that just finished. Nothing reads this as "not GONE": the only reader
+         (TerminalPagerAdapter#fadeOutPlaceholderOverlay) tests `getVisibility() != VISIBLE`, which
+         is true for INVISIBLE exactly as it was for GONE. -->
     <FrameLayout
         android:id="@+id/terminal_placeholder_hint_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone">
+        android:forceHasOverlappingRendering="false"
+        android:visibility="invisible">
 
+        <!-- INVISIBLE, never GONE: the picker paints nothing unless a gesture installed a list
+             (see DirectoryPickerView.onDraw), so hiding it is purely a "do not draw" state — but
+             GONE also makes View.setFlags() call requestLayout() (the GONE bit is what triggers it,
+             not the visibility as such), i.e. a layout traversal of the whole window on the very
+             frame the placeholder is first revealed and again when the gesture ends. INVISIBLE
+             keeps the view out of the draw pass without ever touching that bit. -->
         <com.termux.app.terminal.DirectoryPickerView
             android:id="@+id/terminal_directory_picker"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:visibility="gone" />
+            android:visibility="invisible" />
 
         <LinearLayout
             android:id="@+id/terminal_placeholder_hint_content"

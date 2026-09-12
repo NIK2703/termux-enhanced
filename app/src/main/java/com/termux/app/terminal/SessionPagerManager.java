@@ -173,6 +173,16 @@ public final class SessionPagerManager {
     private boolean mPendingPickReady;
     /** Reused location buffer for {@link #rawToPageY(float)} — avoids an int[2] per touch event. */
     private final int[] mPagerLocation = new int[2];
+    /**
+     * True once {@link #mPagerLocation} has been latched for the current gesture.
+     *
+     * <p>{@code getLocationOnScreen()} walks the whole parent chain, and it was being called on every
+     * {@code ACTION_MOVE}. The pager's position on screen cannot change during a horizontal swipe
+     * (the elastic over-drag displaces the RecyclerView's content, not the pager itself), so one
+     * lookup per gesture is enough. Cleared on {@code ACTION_DOWN}, which is also what re-latches it
+     * after anything that could have moved the pager between gestures (IME, toolbar).
+     */
+    private boolean mPagerLocationValid;
 
     /**
      * The pager's touch stream, used to track the finger's vertical position and to resolve the
@@ -197,6 +207,10 @@ public final class SessionPagerManager {
                             mAnchorLatched = false;
                             mPendingPickReady = false;
                             mPendingPickDirectory = null;
+                            // Re-latch the pager's screen position for this gesture: everything that
+                            // follows (the anchor and every updateFinger) reads it, and one lookup per
+                            // gesture is enough while the pager itself is not moving.
+                            mPagerLocationValid = false;
                             mFingerRawY = e.getRawY();
                             break;
                         case MotionEvent.ACTION_MOVE:
@@ -390,52 +404,33 @@ public final class SessionPagerManager {
                 updateFloatingButtonMarginForScroll(position, positionOffset);
 
                 // Keep the placeholder content tracking the page it lives on: the hint stays centered
-                // in the slice that is currently visible, and the directory rows are drawn no longer
-                // than that slice, growing into view with the page.
+                // in the slice that is currently visible, and the directory rows are revealed
+                // together with the page.
                 //
-                // The page is taken from the adapter rather than derived from the live session count.
-                // At the instant the swipe commits, a session is added and the page stops being "the
-                // placeholder" as far as the list is concerned — but the overlay is still sitting on
-                // it and must go on tracking the settle. Otherwise the reveal freezes at the slice the
-                // finger happened to be at, and the content reads as shifted sideways once the page
-                // lands, instead of looking as if the finger had been dragged all the way to the edge.
-                if (mTerminalPagerAdapter != null) {
-                    final int overlayPage = mTerminalPagerAdapter.getPlaceholderOverlayPage();
-                    if (overlayPage >= 0) {
-                        // 0 while the pager sits on the page before it, 1 once it is fully revealed.
-                        float reveal = (position + positionOffset) - (overlayPage - 1);
-                        if (reveal < 0f) reveal = 0f;
-                        else if (reveal > 1f) reveal = 1f;
+                // Applied SYNCHRONOUSLY, on every callback, and unconditionally while an overlay page
+                // exists. All three properties matter, because the settle that follows the finger lift
+                // is driven by these very callbacks: deferring the write by a frame leaves the overlay
+                // a frame behind the page, and skipping it when the reveal happens to read 0 leaves the
+                // overlay sitting at its previous value. Either way the menu no longer tracks the page
+                // it is drawn on — it snaps at the end of the gesture, or stays half-revealed over a
+                // cancelled swipe. Both were observed with the deferred/guarded variant.
+                applyOverlayReveal(position, positionOffset);
 
-                        // Fed before the anchor latch below so the very first frame the menu appears
-                        // already has the right width.
-                        DirectoryPickerController picker = getDirectoryPicker();
-                        if (picker != null) picker.setRevealedFraction(reveal);
-                        mTerminalPagerAdapter.setPlaceholderScrollOffset(reveal);
-
-                        // First frame that reveals the placeholder — the moment the user first sees
-                        // the menu. The finger's Y right now becomes the anchor, and it is latched
-                        // once per gesture: the list must stay put while the finger travels over it,
-                        // otherwise the release position could never select anything but the row the
-                        // finger started on.
-                        //
-                        // Gated twice. mUserScrollInProgress keeps a programmatic scroll that merely
-                        // passes over the last tab's index from popping the menu. mFingerDown keeps a
-                        // FLING from popping it: the finger is already up when the placeholder flies
-                        // in, so there is no finger to anchor on, and the menu would be a flash of
-                        // unreachable UI during the settle. Both cases fall through to the default
-                        // working directory, which is exactly what a release outside the rows means.
-                        // isPlaceholderActive() also keeps the latch off the committed page, whose
-                        // overlay is only finishing its fade.
-                        if (mTerminalPagerAdapter.isPlaceholderActive()
-                                && mUserScrollInProgress && mFingerDown && !mAnchorLatched
-                                && positionOffset > 0f) {
-                            mAnchorLatched = true;
-                            if (picker != null) {
-                                picker.show(rawToPageY(mFingerRawY), mTerminalPager.getHeight());
-                            }
-                        }
-                    }
+                // First frame that reveals the placeholder — the moment the user first sees
+                // the menu. The finger's Y right now becomes the anchor, and it is latched
+                // once per gesture: the list must stay put while the finger travels over it,
+                // otherwise the release position could never select anything but the row the
+                // finger started on.
+                //
+                // Runs AFTER the reveal above so the picker is laid out against the width it
+                // currently has. Gated by shouldLatchAnchor(): mUserScrollInProgress keeps a
+                // programmatic scroll that merely passes over the last tab's index from popping the
+                // menu; mFingerDown keeps a FLING from popping it (the finger is already up when the
+                // placeholder flies in, so there is no finger to anchor on, and the menu would be a
+                // flash of unreachable UI during the settle). Both cases fall through to the default
+                // working directory, which is exactly what a release outside the rows means.
+                if (shouldLatchAnchor(position, positionOffset)) {
+                    latchAnchor();
                 }
             }
 
@@ -685,13 +680,26 @@ public final class SessionPagerManager {
     }
 
     /**
+     * Re-apply the terminal palette to the placeholder page's overlay (the "+ new session" block and
+     * the directory menu). Called when the colour scheme changes — see
+     * {@link TerminalPagerAdapter#applyPlaceholderColors()} for why the normal bind path is not
+     * enough.
+     */
+    public void applyPlaceholderColors() {
+        if (mTerminalPagerAdapter != null) mTerminalPagerAdapter.applyPlaceholderColors();
+    }
+
+    /**
      * Convert a raw (screen) Y into the placeholder page's own coordinate space. The pager is
      * full-bleed and the elastic over-drag displaces the RecyclerView along X only, so the page's
      * top edge is the pager's top edge and no other correction is needed.
      */
     private float rawToPageY(float rawY) {
         if (mTerminalPager == null) return rawY;
-        mTerminalPager.getLocationOnScreen(mPagerLocation);
+        if (!mPagerLocationValid) {
+            mTerminalPager.getLocationOnScreen(mPagerLocation);
+            mPagerLocationValid = true;
+        }
         return rawY - mPagerLocation[1];
     }
 
@@ -706,6 +714,82 @@ public final class SessionPagerManager {
         mPendingPickReady = false;
         mPendingPickDirectory = null;
         if (mTerminalPagerAdapter != null) mTerminalPagerAdapter.hideDirectoryPicker();
+    }
+
+    /**
+     * How much of the placeholder page is on screen, 0…1 — or {@code -1} when there is no overlay
+     * page to drive at all (the commit fade has finished, or the placeholder was dropped).
+     *
+     * <p>The page is taken from the adapter rather than derived from the live session count. At the
+     * instant the swipe commits, a session is added and the page stops being "the placeholder" as far
+     * as the list is concerned — but the overlay is still sitting on it and must go on tracking the
+     * settle. Otherwise the reveal freezes at the slice the finger happened to be at, and the content
+     * reads as shifted sideways once the page lands, instead of looking as if the finger had been
+     * dragged all the way to the edge.
+     */
+    private float revealFor(int position, float positionOffset) {
+        if (mTerminalPagerAdapter == null) return -1f;
+        final int overlayPage = mTerminalPagerAdapter.getPlaceholderOverlayPage();
+        if (overlayPage < 0) return -1f;
+        // 0 while the pager sits on the page before it, 1 once it is fully revealed.
+        final float reveal = (position + positionOffset) - (overlayPage - 1);
+        if (reveal < 0f) return 0f;
+        if (reveal > 1f) return 1f;
+        return reveal;
+    }
+
+    /**
+     * Drive the placeholder overlay to the current reveal: the hint's horizontal centring, the
+     * overlay's fade ramp, and the directory rows' width.
+     *
+     * <p>Driven unconditionally on every scroll callback, exactly as before the optimisations: the
+     * overlay has to track the page through the whole settle — including the return leg of a
+     * cancelled swipe, where the reveal ramps back down to 0 — otherwise the menu stands still while
+     * the page slides out from under it.
+     */
+    private void applyOverlayReveal(int position, float positionOffset) {
+        final float reveal = revealFor(position, positionOffset);
+        if (reveal < 0f) return;
+
+        // Runs before the anchor latch, so the very first frame the menu appears already has the
+        // width this callback produced.
+        final DirectoryPickerController picker = getDirectoryPicker();
+        if (picker != null) picker.setRevealedFraction(reveal);
+        mTerminalPagerAdapter.setPlaceholderScrollOffset(reveal);
+    }
+
+    /**
+     * Whether this scroll callback is the one that has to open the menu.
+     *
+     * <p>First frame that reveals the placeholder — the moment the user first sees the menu. The
+     * finger's Y right then becomes the anchor, and it is latched once per gesture: the list must stay
+     * put while the finger travels over it, otherwise the release position could never select
+     * anything but the row the finger started on.
+     *
+     * <p>The {@code reveal > 0} part is what ties the latch to the placeholder actually being on
+     * screen, so a drag from an earlier tab (where the placeholder is armed but pages away) can no
+     * longer latch an anchor for a menu nobody can see. {@code mUserScrollInProgress} keeps a
+     * programmatic scroll that merely passes over the last tab's index from popping the menu.
+     * {@code mFingerDown} keeps a FLING from popping it: the finger is already up when the placeholder
+     * flies in, so there is no finger to anchor on, and the menu would be a flash of unreachable UI
+     * during the settle. Both cases fall through to the default working directory, which is exactly
+     * what a release outside the rows means. {@code isPlaceholderActive()} also keeps the latch off
+     * the committed page, whose overlay is only finishing its fade.
+     */
+    private boolean shouldLatchAnchor(int position, float positionOffset) {
+        if (mAnchorLatched || positionOffset <= 0f) return false;
+        if (!mUserScrollInProgress || !mFingerDown) return false;
+        if (mTerminalPagerAdapter == null || !mTerminalPagerAdapter.isPlaceholderActive()) return false;
+        return revealFor(position, positionOffset) > 0f;
+    }
+
+    /** Open the menu, anchoring the list at the finger's current vertical position. */
+    private void latchAnchor() {
+        mAnchorLatched = true;
+        final DirectoryPickerController picker = getDirectoryPicker();
+        if (picker != null) {
+            picker.show(rawToPageY(mFingerRawY), mTerminalPager.getHeight());
+        }
     }
 
     /**
@@ -886,6 +970,14 @@ public final class SessionPagerManager {
      * one without (or vice versa), the button margin smoothly transitions between
      * the two states so the visual position tracks the user's finger instead of
      * snapping only after the page settles.
+     *
+     * <p>Every write here goes through
+     * {@link TermuxActivity#setFloatingButtonMarginEndForScroll(int)}, which applies the value as a
+     * translation against the margin the layout already holds. The previous version wrote a real
+     * {@code marginEnd} per frame, i.e. a full measure+layout pass over the activity on every frame
+     * of the swipe; the geometry the user sees is identical (the translation produces exactly the
+     * same effective margin), only the way it is applied changed. The settled margin is restored —
+     * and the translation cleared — by {@code updateFloatingButtonMargin()} on the scroll's IDLE.
      */
     private void updateFloatingButtonMarginForScroll(int position, float positionOffset) {
         if (mActivity == null) return;
@@ -898,12 +990,12 @@ public final class SessionPagerManager {
 
         if (leftView == null) {
             // Only right page available — use its margin directly
-            mActivity.setFloatingButtonMarginEnd(computeMarginEnd(rightView));
+            mActivity.setFloatingButtonMarginEndForScroll(computeMarginEnd(rightView));
             return;
         }
         if (rightView == null) {
             // Only left page available — use its margin directly
-            mActivity.setFloatingButtonMarginEnd(computeMarginEnd(leftView));
+            mActivity.setFloatingButtonMarginEndForScroll(computeMarginEnd(leftView));
             return;
         }
 
@@ -916,7 +1008,7 @@ public final class SessionPagerManager {
 
         // Interpolate between the two margins based on scroll progress
         int interpolatedMargin = Math.round(leftMargin * (1f - positionOffset) + rightMargin * positionOffset);
-        mActivity.setFloatingButtonMarginEnd(interpolatedMargin);
+        mActivity.setFloatingButtonMarginEndForScroll(interpolatedMargin);
     }
 
     /**

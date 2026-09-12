@@ -101,7 +101,22 @@ public final class DirectoryPickerController {
             // by the page being recycled, in which case hide() never got to reach the view. The next
             // show() repopulates it.
             view.setItems(java.util.Collections.emptyList(), null);
-            view.setVisibility(View.GONE);
+            // INVISIBLE, never GONE. View.setVisibility(GONE) makes setFlags() call requestLayout()
+            // — the GONE bit is what triggers it, not the visibility as such — so hiding the picker
+            // that way costs a layout traversal of the whole window. It is toggled on the first frame
+            // that reveals the placeholder and again when the gesture ends, i.e. exactly on the
+            // gesture's critical frame. INVISIBLE keeps the view out of the draw pass with no layout
+            // at all, and nothing reads this view's visibility: "nothing to draw" is expressed by the
+            // empty item set above, which is the first thing DirectoryPickerView.onDraw checks.
+            view.setVisibility(View.INVISIBLE);
+            // Measure the candidate labels now, while the page is at rest. show() runs on the first
+            // frame that reveals the placeholder — the gesture's critical frame, where the picker also
+            // goes from GONE to VISIBLE and has its display list recorded from scratch — and shaping
+            // up to ten paths there would land entirely on that frame. setItems() then reuses these
+            // widths because show() installs the first `rows` entries of this very list, and falls
+            // back to measuring only when the history changed in between.
+            buildItems();
+            view.premeasure(mItems);
             applyReveal(view);
         }
     }
@@ -131,9 +146,9 @@ public final class DirectoryPickerController {
      * How much of the placeholder page is currently on screen.
      *
      * <p>During the drag the page slides in from the right, so only its left {@code fraction} is
-     * visible; the rows are drawn no longer than that and grow into view with the page instead of
-     * being laid out at full length the moment the menu appears. The menu fades in on the same ramp
-     * the "+ new session" hint already uses, so the two layers arrive together.
+     * visible; the rows are revealed together with the page instead of being laid out at full length
+     * the moment the menu appears. The menu fades in on the same ramp the "+ new session" hint
+     * already uses, so the two layers arrive together.
      *
      * @param fraction 0 = not visible yet, 1 = fully settled.
      */
@@ -172,7 +187,8 @@ public final class DirectoryPickerController {
                 applyReveal(mView);
             } else {
                 mView.setItems(java.util.Collections.emptyList(), null);
-                mView.setVisibility(View.GONE);
+                // INVISIBLE for the same reason as in bind() — see the comment there.
+                mView.setVisibility(View.INVISIBLE);
             }
         }
         positionHint();
@@ -210,7 +226,10 @@ public final class DirectoryPickerController {
         mLayout = null;
         if (mView != null) {
             mView.setItems(java.util.Collections.emptyList(), null);
-            mView.setVisibility(View.GONE);
+            // INVISIBLE for the same reason as in bind() — see the comment there. This is the write
+            // that used to land on the settle's IDLE, i.e. a layout traversal at the end of every
+            // placeholder gesture.
+            mView.setVisibility(View.INVISIBLE);
         }
         if (mHintContent != null) mHintContent.setTranslationY(0f);
     }
@@ -277,6 +296,22 @@ public final class DirectoryPickerController {
         hint.setTranslationY(centreY - containerHeight / 2f);
     }
 
+    /**
+     * Re-apply the scheme colours to the rows, on every surface this controller currently owns.
+     *
+     * <p>The rows take their colours in {@link #bind}, and the placeholder page's ViewHolder is
+     * exactly the one a colour-scheme change does not rebind (while the user sits on a real tab it
+     * stays in RecyclerView's view cache), so without this the menu kept the previous scheme's
+     * colours until the slot was rebound — i.e. until the next tab was added. Called from the
+     * scheme-application path, so it costs nothing per frame.
+     */
+    public void applyColors() {
+        if (mView != null) applyColors(mView);
+        // The surface a running commit fade-out still drives is no longer the bound one, but it is
+        // still on screen — restyle it too or it would finish the fade in the old palette.
+        if (mFadingView != null && mFadingView != mView) applyColors(mFadingView);
+    }
+
     private void applyColors(@NonNull DirectoryPickerView view) {
         TermuxColorSchemeManager colors = mActivity.getTermuxColorSchemeManager();
         if (colors == null) return;
@@ -285,9 +320,13 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * Push the current reveal onto the view: how long the rows are.
+     * Push the current reveal onto the view: how much of it is on screen.
      *
-     * <p>Only the length — the fade is applied by {@code TerminalPagerAdapter#setPlaceholderScrollOffset}
+     * <p>Applied as a translation of the whole row block rather than as a row length — see
+     * {@link DirectoryPickerView#setRevealedWidth(float)} — so a scroll frame re-applies one
+     * render-node property instead of re-recording the rows.
+     *
+     * <p>Only the reveal — the fade is applied by {@code TerminalPagerAdapter#setPlaceholderScrollOffset}
      * to the whole placeholder overlay, so every layer of the page arrives on the same ramp and a
      * second alpha here would multiply into it.
      */
