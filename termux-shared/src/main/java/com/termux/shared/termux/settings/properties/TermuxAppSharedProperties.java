@@ -267,11 +267,6 @@ public class TermuxAppSharedProperties {
         return prefs().isUsingFullScreen();
     }
 
-    public boolean isUsingFullScreenWorkAround() {
-        return prefs().isUsingFullScreenWorkAround();
-    }
-
-
     /* int */
 
     public int getBellBehaviour() {

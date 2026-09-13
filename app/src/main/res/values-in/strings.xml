@@ -210,9 +210,6 @@
 <string name="termux_terminal_view_key_logging_enabled_title">Pencatatan Log Tombol Tampilan Terminal</string>
 <string name="termux_terminal_view_preferences_summary">Preferensi tampilan terminal</string>
 <string name="termux_terminal_view_preferences_title">Tampilan Terminal</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_off">Penyesuaian margin terminal akan dinonaktifkan.</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_on">Penyesuaian margin terminal akan diaktifkan. Harus diaktifkan untuk mencoba memperbaiki masalah dimana keyboard lunak menutupi sebagian tombol ekstra/tampilan terminal. Jika menyebabkan kedipan layar pada perangkat Anda, nonaktifkan.</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_title">Penyesuaian Margin Terminal</string>
 <string name="termux_terminal_view_view_header">Tampilan</string>
 <string name="termux_widget_preferences_summary">Preferensi untuk aplikasi Termux:Widget</string>
 <string name="text_input_append_enter_summary">Saat mengirim dari kolom input teks, kirimkan juga baris baru (tekan Enter). Nonaktifkan untuk mengirim teks tanpa baris baru di akhir.</string>
@@ -499,8 +496,6 @@
     
     <string name="fullscreen_title">Layar penuh</string>
     <string name="fullscreen_summary">Jalankan Termux dalam mode layar penuh.</string>
-    <string name="use_fullscreen_workaround_title">Solusi layar penuh</string>
-    <string name="use_fullscreen_workaround_summary">Gunakan solusi untuk layar penuh pada perangkat yang menyembunyikannya secara tidak benar.</string>
 
     
     <string name="night_mode_legacy_title">Mode malam (night-mode lama)</string>

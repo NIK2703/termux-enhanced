@@ -172,16 +172,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     }
 
 
-    public boolean isTerminalMarginAdjustmentEnabled() {
-        return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_MARGIN_ADJUSTMENT, TERMUX_APP.DEFAULT_TERMINAL_MARGIN_ADJUSTMENT);
-    }
-
-    public void setTerminalMarginAdjustment(boolean value) {
-        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_MARGIN_ADJUSTMENT, value, false);
-    }
-
-
-
     public boolean isSoftKeyboardEnabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED, TERMUX_APP.DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED);
     }
@@ -223,9 +213,9 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
         int[] sizes = new int[3];
 
-        // This is a bit arbitrary and sub-optimal. We want to give a sensible default for minimum font size
-        // to prevent invisible text due to zoom be mistake:
-        sizes[1] = (int) (4f * dipInPixels); // min
+        // Absolute rather than density-derived (the original 4dp floor was ~10px and made the lower
+        // half of the slider travel point at sizes no one wants). 20px keeps a useful floor.
+        sizes[1] = 20; // min
 
         // http://www.google.com/design/spec/style/typography.html#typography-line-height
         int defaultFontSize = Math.round(12 * dipInPixels);
@@ -234,7 +224,18 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
         sizes[0] = defaultFontSize; // default
 
-        sizes[2] = 256; // max
+        // Absolute rather than density-derived (the original cap was 256px, which made the Display
+        // settings slider useless over most of its travel). 40px keeps the whole range usable — the
+        // density-derived default (12dp) sits comfortably inside it — and because the pinch gesture,
+        // the fontsize preference and the slider all clamp to this same bound, the slider still
+        // cannot reach a size the gesture cannot.
+        sizes[2] = 40; // max
+
+        // Guards: on a very high-density display the density-derived default can exceed the absolute
+        // max, and on a low-density one it can fall below the absolute min. Either way the slider must
+        // be able to represent the current size, so clamp the default into [min, max].
+        if (sizes[0] > sizes[2]) sizes[0] = sizes[2];
+        if (sizes[0] < sizes[1]) sizes[0] = sizes[1];
 
         return sizes;
     }
@@ -552,16 +553,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setFullScreen(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_FULLSCREEN, value, false);
     }
-
-
-    public boolean isUsingFullScreenWorkAround() {
-        return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_FULLSCREEN_WORKAROUND, TERMUX_APP.DEFAULT_VALUE_USE_FULLSCREEN_WORKAROUND);
-    }
-
-    public void setFullScreenWorkAround(boolean value) {
-        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_FULLSCREEN_WORKAROUND, value, false);
-    }
-
 
     /* int */
 

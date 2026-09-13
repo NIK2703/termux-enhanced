@@ -275,11 +275,6 @@
                 <string name="extra_keys_button_margin_summary">Space between buttons</string>
 
                 <!-- Terminal View Margin Adjustment -->
-                <string name="termux_terminal_view_terminal_margin_adjustment_title">Terminal Margin Adjustment</string>
-                <string name="termux_terminal_view_terminal_margin_adjustment_off">Terminal margin adjustment will be disabled.</string>
-                <string name="termux_terminal_view_terminal_margin_adjustment_on">Terminal margin adjustment will be enabled.
-                    It should be enabled to try to fix the issue where soft keyboard covers part of extra keys/terminal view.
-                    If it causes screen flickering on your devices, then disable it.</string>
 
     <!-- Termux:API App Preferences -->
     <string name="termux_api_preferences_title">&TERMUX_API_APP_NAME;</string>
@@ -609,8 +604,6 @@
     <string name="fullscreen_title">Fullscreen</string>
     <string name="fullscreen_summary">Run Termux in fullscreen mode.</string>
 
-    <string name="use_fullscreen_workaround_title">Fullscreen workaround</string>
-    <string name="use_fullscreen_workaround_summary">Use a workaround for fullscreen on devices that hide it incorrectly.</string>
 
     <string name="night_mode_legacy_title">Night mode (legacy night-mode)</string>
     <string name="night_mode_legacy_summary">Controls the legacy night-mode property. Prefer the theme setting on the Display screen.</string>

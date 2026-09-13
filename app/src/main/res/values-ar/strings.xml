@@ -243,11 +243,6 @@
     <string name="termux_terminal_view_key_logging_enabled_title">تسجيل مفاتيح عرض الطرفية</string>
     <string name="termux_terminal_view_preferences_summary">تفضيلات عرض الطرفية</string>
     <string name="termux_terminal_view_preferences_title">عرض الطرفية</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">سيتم تعطيل ضبط هامش الطرفية.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">سيتم تمكين ضبط هامش الطرفية.
-                    يجب تمكينه لمحاولة إصلاح مشكلة تغطية لوحة المفاتيح الناعمة لجزء من المفاتيح الإضافية/عرض الطرفية.
-                    إذا تسبب في وميض الشاشة على جهازك، فقم بتعطيله.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">ضبط هامش الطرفية</string>
     <string name="termux_terminal_view_view_header">عرض</string>
     <string name="termux_widget_preferences_summary">تفضيلات تطبيق Termux:Widget</string>
     <string name="text_input_append_enter_summary">عند الإرسال من حقل الإدخال، يُضاف سطر جديد تلقائياً (الضغط على Enter). عطّل هذا الخيار لإرسال النص كما هو بدون سطر جديد في النهاية.</string>
@@ -500,8 +495,6 @@
     <string name="terminal_onclick_url_open_summary">فتح عناوين URL في سجل الطرفية عند النقر عليها.</string>
     <string name="fullscreen_title">ملء الشاشة</string>
     <string name="fullscreen_summary">تشغيل Termux في وضع ملء الشاشة.</string>
-    <string name="use_fullscreen_workaround_title">حل بديل لملء الشاشة</string>
-    <string name="use_fullscreen_workaround_summary">استخدام حل بديل لملء الشاشة على الأجهزة التي لا تعرض ملء الشاشة بشكل صحيح.</string>
     <string name="night_mode_legacy_title">الوضع الليلي (الإصدار القديم)</string>
     <string name="night_mode_legacy_summary">يتحكم في خاصية الوضع الليلي القديمة. يُفضل استخدام إعداد السمة في شاشة العرض.</string>
     <string name="shortcut_summary">التنسيق: Ctrl+مفتاح (مثل Ctrl+a). اتركه فارغًا للتعطيل.</string>

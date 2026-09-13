@@ -79,7 +79,6 @@ import com.termux.app.terminal.io.autocomplete.DirectoryHistoryController;
 import com.termux.app.terminal.io.autocomplete.DirectoryHistoryPopupController;
 import com.termux.app.terminal.io.SessionUiStateStore;
 import com.termux.app.terminal.io.autocomplete.MessageHistoryController;
-import com.termux.app.terminal.io.FullScreenWorkAround;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.shared.termux.monet.MonetSchemeStore;
@@ -249,17 +248,6 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private final Runnable mClearJustResumedRunnable = () -> mJustResumed = false;
 
     /**
-     * Deferred root-view relayout used after a resume. Reused (instead of a fresh lambda per
-     * resume) so {@code removeCallbacks} can collapse repeats and so it can be cancelled in
-     * onStop — otherwise a relayout queued by the previous resume ran while the activity was
-     * already back in the background.
-     */
-    private final Runnable mRootRelayoutRunnable = () -> {
-        final TermuxActivityRootView rootView = getTermuxActivityRootView();
-        if (rootView != null) rootView.forceRelayout();
-    };
-
-    /**
      * Single-threaded daemon executor that resolves the current session's working directory
      * (a /proc/&lt;pid&gt;/cwd readlink) off the UI thread during tab switches (P3-2). The result
      * is posted back to the main thread for its consumers.
@@ -275,11 +263,6 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      * The root view of the {@link TermuxActivity}.
      */
     TermuxActivityRootView mTermuxActivityRootView;
-
-    /**
-     * The space at the bottom of {@link @mTermuxActivityRootView} of the {@link TermuxActivity}.
-     */
-    View mTermuxActivityBottomSpaceView;
 
     /**
      * The terminal extra keys view.
@@ -353,13 +336,11 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      */
     private boolean mIsInvalidState;
 
-    private int mNavBarHeight;
     // Last known IME (soft keyboard) height in px, taken from WindowInsetsCompat.Type.ime().
     // This is an INDEPENDENT signal of the real keyboard height, not derived from
     // getWindowVisibleDisplayFrame(), so it is reliable even when the visible-frame reading
-    // is garbage (e.g. during an IME-height change in multi-window). TermuxActivityRootView
-    // uses it to reject implausible bottom-margin measurements. Zero when the IME is hidden
-    // or insets are unavailable (API < 30 without ADJUST_RESIZE).
+    // is garbage (e.g. during an IME-height change in multi-window). Zero when the IME is
+    // hidden or insets are unavailable (API < 30 without ADJUST_RESIZE).
     private int mLastImeBottomPx = 0;
     // Tracks the last known IME (soft keyboard) visibility so we can react to it
     // being hidden while the text input panel is open.
@@ -403,7 +384,6 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     private TerminalSession mLastSavedInputSession;
 
     private TermuxActivityPopupController mPopupCtrl;
-    private FullScreenWorkAround mFullScreenWorkAround;
     private ImeVisibilityDetector mImeDetector;
 
     /**
@@ -668,12 +648,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mPopupCtrl.setMessageHistoryController(mMessageHistoryCtrl);
 
         mTermuxActivityRootView = findViewById(R.id.activity_termux_root_view);
-        mTermuxActivityRootView.setActivity(this);
         mTextInputPanel.setup(savedInstanceState, mTermuxActivityRootView);
         mViewHelper = new TermuxActivityViewHelper(this, getLayoutInflater());
         mViewHelper.setDirectoryHistoryPopupController(mDirectoryHistoryPopupCtrl);
-        mTermuxActivityBottomSpaceView = findViewById(R.id.activity_termux_bottom_space_view);
-        mTermuxActivityRootView.setOnApplyWindowInsetsListener(new TermuxActivityRootView.WindowInsetsListener());
 
         // ── Dual IME detection: insets method + visible-frame method ──
         // Both methods run simultaneously and complement each other via OR logic:
@@ -684,11 +661,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         //   3) Startup/recreate race → whichever fires first sets the state
         View content = findViewById(android.R.id.content);
         content.setOnApplyWindowInsetsListener((v, insets) -> {
-            mNavBarHeight = insets.getSystemWindowInsetBottom();
             WindowInsetsCompat _compat = WindowInsetsCompat.toWindowInsetsCompat(insets);
-            // Independent signal of the real keyboard height, used by TermuxActivityRootView to
-            // reject bottom-margin measurements that are physically impossible. It is not derived
-            // from getWindowVisibleDisplayFrame(), so it stays correct while that reading is
+            // Independent signal of the real keyboard height. It is not derived from
+            // getWindowVisibleDisplayFrame(), so it stays correct while that reading is
             // garbage (IME height change in multi-window).
             mLastImeBottomPx = _compat.getInsets(WindowInsetsCompat.Type.ime()).bottom;
             onImeInsetsChanged(_compat.isVisible(WindowInsetsCompat.Type.ime())
@@ -943,14 +918,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // value, which also re-applies the right flag/radius state right away.
             registerCrossWindowBlurListener();
         }
-
-        if (mPreferences.isTerminalMarginAdjustmentEnabled())
-            addTermuxActivityRootViewGlobalLayoutListener();
-        if (mPreferences.isTerminalMarginAdjustmentEnabled()) {
-            final TermuxActivityRootView rootView = getTermuxActivityRootView();
-            if (rootView != null)
-                rootView.forceRelayout();
-        }
     }
 
     @Override
@@ -1081,10 +1048,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mIsOnResumeAfterOnCreate = false;
         mIsPaused = false;
-        if (mPreferences.isTerminalMarginAdjustmentEnabled()) {
-            mMainHandler.removeCallbacks(mRootRelayoutRunnable);
-            mMainHandler.postDelayed(mRootRelayoutRunnable, 300);
-        }
 
         // Wallpaper / options may have changed while we were backgrounded.
         refreshMonetOnResume();
@@ -1119,7 +1082,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Drop the resume-scoped timers: nothing they do is meaningful while backgrounded, and
         // leaving them queued meant a relayout / latch flip firing mid-backgrounding.
         mMainHandler.removeCallbacks(mClearJustResumedRunnable);
-        mMainHandler.removeCallbacks(mRootRelayoutRunnable);
 
         // Dismiss any history popup still showing, to avoid a leaked window when
         // the activity goes to the background.
@@ -1153,8 +1115,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onStop();
-
-        removeTermuxActivityRootViewGlobalLayoutListener();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             unregisterCrossWindowBlurListener();
@@ -1198,13 +1158,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // handler so the single-thread shell-fetch worker doesn't leak across
         // activity destruction.
         if (mAutoCompleteCtrl != null) mAutoCompleteCtrl.destroy();
-
-        // Remove the fullscreen workaround global layout listener to prevent
-        // leaking the activity via ViewTreeObserver.
-        if (mFullScreenWorkAround != null) {
-            mFullScreenWorkAround.unregister();
-            mFullScreenWorkAround = null;
-        }
 
         // Detach the IME detector to prevent leaking the activity via
         // ViewTreeObserver.OnGlobalLayoutListener.
@@ -1852,17 +1805,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
 
 
-    public void addTermuxActivityRootViewGlobalLayoutListener() {
-        getTermuxActivityRootView().getViewTreeObserver().addOnGlobalLayoutListener(getTermuxActivityRootView());
-    }
-
-    public void removeTermuxActivityRootViewGlobalLayoutListener() {
-        if (getTermuxActivityRootView() != null)
-            getTermuxActivityRootView().getViewTreeObserver().removeOnGlobalLayoutListener(getTermuxActivityRootView());
-    }
-
-
-
     private void setTermuxTerminalViewAndClients() {
         // Set termux terminal view and session clients
         mTermuxTerminalSessionActivityClient = new TermuxTerminalSessionActivityClient(this);
@@ -2011,11 +1953,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         extraKeysView.setDynamicFontSize(getPreferences().isExtraKeysDynamicFontSizeEnabled(this));
         extraKeysView.setRuntimeEdgeIndicatorsEnabled(getPreferences().isExtraKeysEdgeIndicatorsEnabled());
         setExtraKeysView(extraKeysView);
-
-        // apply extra keys fix if enabled in prefs
-        if (mProperties.isUsingFullScreen() && mProperties.isUsingFullScreenWorkAround()) {
-            mFullScreenWorkAround = FullScreenWorkAround.apply(this);
-        }
 
         setTerminalToolbarHeight();
 
@@ -3662,16 +3599,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
 
 
-    public int getNavBarHeight() {
-        return mNavBarHeight;
-    }
-
     public TermuxActivityRootView getTermuxActivityRootView() {
         return mTermuxActivityRootView;
-    }
-
-    public View getTermuxActivityBottomSpaceView() {
-        return mTermuxActivityBottomSpaceView;
     }
 
     public ExtraKeysView getExtraKeysView() {
@@ -3979,20 +3908,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /** True if the extra keys panel should currently be shown (honours preference). */
     private boolean shouldShowExtraKeys() {
         return !(mPreferences.shouldHideExtraKeysWithKeyboard() && !mSoftKeyboardVisible);
-    }
-
-    /**
-     * Get the last known IME (soft keyboard) height in px as reported by
-     * {@link WindowInsetsCompat.Type#ime()}.
-     *
-     * This is an independent signal of the real keyboard height, not derived from
-     * {@code getWindowVisibleDisplayFrame()}, so {@link TermuxActivityRootView} can use it to reject
-     * bottom-margin measurements that are physically impossible. Returns {@code 0} when the IME is
-     * hidden or when insets are unavailable (API < 30 without {@code ADJUST_RESIZE}), in which case
-     * the root view falls back to the legacy behaviour.
-     */
-    public int getLastImeBottomPx() {
-        return mLastImeBottomPx;
     }
 
     /**

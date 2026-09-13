@@ -216,18 +216,5 @@
             app:title="@string/fullscreen_title"
             app:iconSpaceReserved="false" />
 
-        <SwitchPreferenceCompat
-            app:key="use-fullscreen-workaround"
-            app:title="@string/use_fullscreen_workaround_title"
-            app:summary="@string/use_fullscreen_workaround_summary"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="terminal_margin_adjustment"
-            app:summaryOff="@string/termux_terminal_view_terminal_margin_adjustment_off"
-            app:summaryOn="@string/termux_terminal_view_terminal_margin_adjustment_on"
-            app:title="@string/termux_terminal_view_terminal_margin_adjustment_title"
-            app:iconSpaceReserved="false" />
-
     </PreferenceCategory>
 </PreferenceScreen>

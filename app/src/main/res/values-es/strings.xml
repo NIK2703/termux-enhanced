@@ -124,9 +124,6 @@
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparencia de elemento inactivo</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Transparencia de elemento activo</string>
     <string name="extra_keys_corner_radius_title">Radio de esquinas de botones</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">Ajuste de margen de terminal</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">El ajuste de margen de terminal estará deshabilitado.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">El ajuste de margen de terminal estará habilitado. Debe estar habilitado para intentar solucionar el problema donde el teclado virtual cubre parte de las teclas adicionales/vista de terminal. Si causa parpadeo de pantalla en su dispositivo, desactívelo.</string>
     <string name="termux_api_preferences_summary">Preferencias para la aplicación Termux:API</string>
     <string name="termux_float_preferences_summary">Preferencias para la aplicación Termux:Float</string>
     <string name="termux_tasker_preferences_summary">Preferencias para la aplicación Termux:Tasker</string>
@@ -512,8 +509,6 @@
     <string name="termux_float_debugging_title">Depuración de Termux:Float</string>
     <string name="termux_tasker_debugging_title">Depuración de Termux:Tasker</string>
     <string name="termux_widget_debugging_title">Depuración de Termux:Widget</string>
-    <string name="use_fullscreen_workaround_summary">Usar una solución alternativa para pantalla completa en dispositivos que la ocultan incorrectamente.</string>
-    <string name="use_fullscreen_workaround_title">Solución alternativa de pantalla completa</string>
     <string name="volume_keys_summary">Si las teclas de volumen controlan el volumen o actúan como teclas virtuales.</string>
     <string name="volume_keys_title">Comportamiento de las teclas de volumen</string>
     <string name="volume_keys_virtual">Virtual (las teclas de volumen actúan como teclas)</string>

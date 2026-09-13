@@ -239,9 +239,6 @@ $HOME/bin/termux-url-opener
     <string name="termux_terminal_view_key_logging_enabled_title">터미널 뷰 키 로깅</string>
     <string name="termux_terminal_view_preferences_summary">터미널 화면 표시 관련 설정을 관리합니다</string>
     <string name="termux_terminal_view_preferences_title">터미널 보기 설정</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">터미널 여백 조정이 비활성화됩니다.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">터미널 여백 조정이 활성화됩니다. 소프트 키보드가 추가 키/터미널 화면의 일부를 가리는 문제를 해결하려면 활성화해야 합니다. 기기에서 화면 깜빡임이 발생하면 비활성화하세요.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">터미널 여백 조정</string>
     <string name="termux_terminal_view_view_header">터미널 보기</string>
     <string name="termux_widget_preferences_summary">Termux:Widget 앱 설정</string>
     <string name="text_input_append_enter_summary">입력 필드에서 전송할 때 줄도 함께 제출합니다(Enter 키 누름). 뒤에 줄 바꿈 없이 원시 텍스트를 전송하려면 비활성화하세요.</string>
@@ -504,8 +501,6 @@ $HOME/bin/termux-url-opener
     
     <string name="fullscreen_summary">Termux를 전체 화면 모드로 실행합니다.</string>
     <string name="fullscreen_title">전체 화면</string>
-    <string name="use_fullscreen_workaround_summary">전체 화면을 올바르게 숨기지 않는 기기에서 우회 방법을 사용합니다.</string>
-    <string name="use_fullscreen_workaround_title">전체 화면 우회 방법</string>
 
     
     <string name="ctrl_space_workaround_summary">Ctrl+Space가 올바르게 전달되도록 우회 방법을 사용합니다.</string>

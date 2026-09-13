@@ -224,9 +224,6 @@
     <string name="termux_terminal_view_key_logging_enabled_title">Registro de Teclas da Visualização do Terminal</string>
     <string name="termux_terminal_view_preferences_summary">Preferências para visualização do terminal</string>
     <string name="termux_terminal_view_preferences_title">Visualização do Terminal</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">O ajuste de margem do terminal será desativado.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">O ajuste de margem do terminal será ativado. Deve estar ativado para tentar corrigir o problema onde o teclado virtual cobre parte das teclas extras/visualização do terminal. Se causar cintilação na tela do seu dispositivo, desative-o.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">Ajuste de Margem do Terminal</string>
     <string name="termux_terminal_view_view_header">Visualização</string>
     <string name="termux_widget_preferences_title">Termux:Widget</string>
     <string name="termux_widget_preferences_summary">Preferências para o aplicativo Termux:Widget</string>
@@ -534,8 +531,6 @@
     <string name="terminal_onclick_url_open_summary">Abrir URLs na transcrição do terminal quando tocadas.</string>
     <string name="fullscreen_title">Tela cheia</string>
     <string name="fullscreen_summary">Executar Termux em modo tela cheia.</string>
-    <string name="use_fullscreen_workaround_title">Solução para tela cheia</string>
-    <string name="use_fullscreen_workaround_summary">Usar uma solução para tela cheia em dispositivos que a ocultam incorretamente.</string>
     <string name="night_mode_legacy_title">Modo noturno (legacy night-mode)</string>
     <string name="night_mode_legacy_summary">Controla a propriedade legacy night-mode. Prefira a configuração de tema na tela de Exibição.</string>
     <string name="shortcut_summary">Formato: Ctrl+KEY (ex.: Ctrl+a). Deixe vazio para desativar.</string>

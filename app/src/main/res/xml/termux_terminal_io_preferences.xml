@@ -50,15 +50,12 @@
             app:key="text_input_enabled"
             app:defaultValue="true"
             app:title="@string/text_input_show_title"
-            app:summaryOn="@string/text_input_show_summary_on"
-            app:summaryOff="@string/text_input_show_summary_off"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="text_input_append_enter"
             app:defaultValue="true"
             app:title="@string/text_input_append_enter_title"
-            app:summary="@string/text_input_append_enter_summary"
             app:iconSpaceReserved="false" />
 
         <ListPreference
@@ -99,7 +96,6 @@
         <SeekBarPreference
             app:key="suggestions_max_count"
             app:title="@string/suggestions_max_count_title"
-            app:summary="@string/suggestions_max_count_summary"
             app:defaultValue="4"
             android:max="10"
             app:showSeekBarValue="true"
@@ -113,15 +109,11 @@
 
         <SwitchPreferenceCompat
             app:key="soft_keyboard_enabled"
-            app:summaryOff="@string/termux_soft_keyboard_enabled_off"
-            app:summaryOn="@string/termux_soft_keyboard_enabled_on"
             app:title="@string/termux_soft_keyboard_enabled_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="soft_keyboard_enabled_only_if_no_hardware"
-            app:summaryOff="@string/termux_soft_keyboard_enabled_only_if_no_hardware_off"
-            app:summaryOn="@string/termux_soft_keyboard_enabled_only_if_no_hardware_on"
             app:title="@string/termux_soft_keyboard_enabled_only_if_no_hardware_title"
             app:iconSpaceReserved="false" />
 

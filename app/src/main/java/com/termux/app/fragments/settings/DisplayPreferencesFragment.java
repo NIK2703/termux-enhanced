@@ -119,20 +119,6 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("fullscreen", prefs != null && prefs.isUsingFullScreen(),
             value -> { if (prefs != null) prefs.setFullScreen(value); });
 
-        configureSwitch("use-fullscreen-workaround", prefs != null && prefs.isUsingFullScreenWorkAround(),
-            value -> { if (prefs != null) prefs.setFullScreenWorkAround(value); });
-
-        // --- Window: terminal margin ---
-        final SwitchPreferenceCompat marginPref = findPreference("terminal_margin_adjustment");
-        if (marginPref != null) {
-            marginPref.setPersistent(false);
-            marginPref.setChecked(prefs != null && prefs.isTerminalMarginAdjustmentEnabled());
-            marginPref.setOnPreferenceChangeListener((preference, newValue) -> {
-                if (prefs != null) prefs.setTerminalMarginAdjustment((Boolean) newValue);
-                return true;
-            });
-        }
-
         // --- Tabs ---
         // --- Terminal appearance (moved from Terminal screen) ---
         configureTerminalAppearancePreferences(prefs);

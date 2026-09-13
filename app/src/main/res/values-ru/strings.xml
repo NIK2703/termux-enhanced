@@ -165,16 +165,10 @@
             <string name="termux_keyboard_header">Клавиатура</string>
 
                 
-                <string name="termux_soft_keyboard_enabled_title">Экранная клавиатура включена</string>
-                <string name="termux_soft_keyboard_enabled_off">Экранная клавиатура будет отключена.</string>
-                <string name="termux_soft_keyboard_enabled_on">Экранная клавиатура будет включена.</string>
+                <string name="termux_soft_keyboard_enabled_title">Экранная клавиатура</string>
 
                 
-                <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Экранная клавиатура: только при отсутствии аппаратной</string>
-                <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Экранная клавиатура будет включена, даже если
-                    подключена аппаратная клавиатура.</string>
-                <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Экранная клавиатура будет включена, только если
-                    не подключена аппаратная клавиатура.</string>
+                <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Скрывать при подключении аппаратной клавиатуры</string>
 
                 <string name="keyboard_state_follow_tab_switch_title">Состояние клавиатуры при смене вкладок</string>
                 <string name="keyboard_state_follow_tab_switch_on">При смене вкладок восстанавливать состояние клавиатуры для каждой вкладки, запомненное на момент переключения с неё</string>
@@ -194,11 +188,6 @@
                 <string name="termux_button_bg_active_alpha_title" formatted="false">Прозрачность фона активных элементов</string>
 
                 
-                <string name="termux_terminal_view_terminal_margin_adjustment_title">Корректировка отступов терминала</string>
-                <string name="termux_terminal_view_terminal_margin_adjustment_off">Корректировка отступов терминала будет отключена.</string>
-                <string name="termux_terminal_view_terminal_margin_adjustment_on">Корректировка отступов терминала будет включена.
-                    Следует включить, чтобы исправить проблему, когда экранная клавиатура перекрывает часть дополнительных кнопок/терминала.
-                    Если это вызывает мерцание экрана на вашем устройстве, отключите.</string>
 
     
     <string name="termux_api_preferences_summary">Настройки приложения Termux:API</string>
@@ -236,7 +225,6 @@
     
     <string name="input_panel_title">Панель ввода</string>
     <string name="text_input_append_enter_title">Добавлять Enter при отправке</string>
-    <string name="text_input_append_enter_summary">При отправке из панели ввода также отправлять перевод строки (Enter). Отключите, чтобы отправлять текст без завершающего переноса строки.</string>
 
     <string name="text_input_hide_on_send_title">Скрывать панель ввода после отправки</string>
     <string name="text_input_hide_on_send_summary">При включении панель ввода закрывается и фокус переходит в терминал после отправки. Отключите, чтобы панель оставалась открытой для последовательных команд.</string>
@@ -263,7 +251,7 @@
 
     
     <string name="directory_history_title">История папок</string>
-    <string name="directory_history_max_title">Максимум сохранённых директорий</string>
+    <string name="directory_history_max_title">Максимум директорий в истории</string>
 
     
     <string name="restore_sessions_title">Восстанавливать вкладки при запуске</string>
@@ -339,9 +327,7 @@
     <string name="termux_tab_panel_position_bottom">Снизу</string>
 
     
-    <string name="text_input_show_title">Показывать панель ввода текста</string>
-    <string name="text_input_show_summary_on">Панель ввода текста отображается над дополнительными кнопками</string>
-    <string name="text_input_show_summary_off">Панель ввода текста скрыта</string>
+    <string name="text_input_show_title">Кнопка переключения панели ввода</string>
 
     
     <string name="message_history_empty">Нет истории сообщений</string>
@@ -410,8 +396,7 @@
     <string name="hide_extra_keys_with_keyboard_summary">Автоматически скрывать дополнительные кнопки при закрытии клавиатуры, показывать при открытии</string>
 
     
-    <string name="suggestions_max_count_title">Максимум подсказок</string>
-    <string name="suggestions_max_count_summary">Автодополнение из истории сообщений</string>
+    <string name="suggestions_max_count_title">Максимум предложений автодополнения</string>
 
     
     <string name="language_category_title">Язык</string>
@@ -442,8 +427,7 @@
     <string name="extra_keys_style_arrows_all">Все стрелки</string>
     <string name="extra_keys_style_all">Все</string>
     <string name="extra_keys_style_none">Нет</string>
-    <string name="extra_keys_text_all_caps_title">Текст заглавными</string>
-    <string name="extra_keys_text_all_caps_summary">Показывать подписи дополнительных кнопок в верхнем регистре.</string>
+    <string name="extra_keys_text_all_caps_title">Текст меток заглавными</string>
     <string name="extra_keys_special_button_mode_title">Поведение спецкнопок</string>
     <string name="extra_keys_special_button_mode_summary">Как модификаторы (CTRL, ALT, SHIFT, FN) реагируют на касание. Залипающий: нажмите для переключения, долгое нажатие — для блокировки. Удержание: активно только пока кнопка нажата.</string>
     <string name="extra_keys_special_button_mode_sticky">Залипающий (переключение / блокировка)</string>
@@ -464,10 +448,10 @@
 
     
     <string name="screen_orientation_entry_follow_sensor">По датчику</string>
-    <string name="screen_orientation_entry_portrait_follow_sensor">Книжная (по датчику)</string>
-    <string name="screen_orientation_entry_landscape_follow_sensor">Альбомная (по датчику)</string>
-    <string name="screen_orientation_entry_portrait">Книжная</string>
-    <string name="screen_orientation_entry_landscape">Альбомная</string>
+    <string name="screen_orientation_entry_portrait_follow_sensor">Портретная (по датчику)</string>
+    <string name="screen_orientation_entry_landscape_follow_sensor">Ландшафтная (по датчику)</string>
+    <string name="screen_orientation_entry_portrait">Портретная</string>
+    <string name="screen_orientation_entry_landscape">Ландшафтная</string>
 
     
     <string name="terminal_preferences_title">Дополнительно</string>
@@ -506,8 +490,7 @@
     <string name="terminal_background_blur_radius_title">Радиус размытия фона</string>
     <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамическом фоне с высоким радиусом размытия. На статическом фоне энергопотребление несущественно</string>
 
-    <string name="terminal_toolbar_height_title">Масштаб панели инструментов</string>
-    <string name="terminal_toolbar_height_summary">Коэффициент масштаба панели дополнительных кнопок / терминала.</string>
+    <string name="terminal_toolbar_height_title">Масштаб панели</string>
 
     <string name="bell_character_title">Поведение при сигнале</string>
     <string name="bell_character_summary">Что происходит, когда терминал получает символ звонка (BEL).</string>
@@ -551,8 +534,6 @@
     <string name="fullscreen_title">Полноэкранный режим</string>
     <string name="fullscreen_summary">Запускать Termux в полноэкранном режиме.</string>
 
-    <string name="use_fullscreen_workaround_title">Обходная мера полноэкранного режима</string>
-    <string name="use_fullscreen_workaround_summary">Использовать обходную меру для полноэкранного режима на устройствах, где он скрыт некорректно.</string>
 
     <string name="shortcut_summary">Формат: Ctrl+КЛАВИША (например Ctrl+a). Оставьте пустым, чтобы отключить.</string>
     <string name="shortcut_empty_summary">Не задано (оставьте пустым для отключения)</string>
@@ -604,9 +585,7 @@
     <string name="extra_keys_editor_title">Редактор дополнительных кнопок</string>
     <string name="extra_keys_editor_summary">Визуальное создание панели дополнительных кнопок: задайте строки и столбцы, затем нажмите на кнопку, чтобы назначить сигнал.</string>
     <string name="extra_keys_editor_columns_title">Столбцы</string>
-    <string name="extra_keys_editor_columns_summary">Количество кнопок в строке.</string>
     <string name="extra_keys_editor_rows_title">Строки</string>
-    <string name="extra_keys_editor_rows_summary">Количество рядов кнопок.</string>
     <string name="extra_keys_editor_preview_title">Предпросмотр</string>
     <string name="extra_keys_editor_preview_summary">Интерактивная панель — нажмите на любую кнопку, чтобы изменить её сигнал.</string>
     <string name="extra_keys_editor_signal_dialog_title">Назначить сигнал</string>
@@ -621,8 +600,7 @@
     <string name="extra_keys_editor_open_editor">Редактировать дополнительные кнопки</string>
     <string name="extra_keys_editor_open_editor_summary">Настройка раскладки, масштаба и привязки кнопок</string>
     <string name="extra_keys_edge_indicators_title">Индикаторы направлений свайпа</string>
-    <string name="extra_keys_edge_indicators_summary">Показывать на кнопках индикаторы направлений свайпа с заданными действиями</string>
-    <string name="extra_keys_editor_hint">Нажмите, чтобы назначить основное действие · Смахните ↑ ↓ ← → для назначения действий по жестам · Долгое нажатие для задания метки кнопки</string>
+    <string name="extra_keys_editor_hint">Нажмите, чтобы назначить основное действие.\nСмахните вверх, вниз, влево или вправо, чтобы назначить действие на соответствующий жест.\nУдерживайте на кнопке, чтобы задать метку.</string>
     <string name="extra_keys_editor_mode_assign">Назначить</string>
     <string name="extra_keys_editor_mode_move">Переместить</string>
     <string name="extra_keys_editor_hint_move">Перетащите кнопку на другую ячейку, чтобы переместить/обменять все её действия</string>
@@ -685,13 +663,11 @@
 
     
     <string name="extra_keys_button_margin_title">Отступы между кнопками</string>
-    <string name="extra_keys_button_margin_summary">Расстояние между кнопками</string>
 
     
     <string name="extra_keys_dynamic_font_size_title">Динамический размер шрифта</string>
-    <string name="extra_keys_dynamic_font_size_summary">Уменьшать размер шрифта при увеличении числа столбцов или макросов</string>
+    <string name="extra_keys_dynamic_font_size_summary">Уменьшать размер шрифта при увеличении числа столбцов или наличии макросов на основном действии</string>
     <string name="extra_keys_font_size_title">Базовый размер шрифта</string>
-    <string name="extra_keys_font_size_summary">Базовый размер текста для подписей кнопок</string>
     <string name="extra_keys_editor_tap_suffix"> (Нажатие)</string>
     <string name="extra_keys_editor_remove_signal">Удалить %s</string>
 

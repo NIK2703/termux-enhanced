@@ -134,11 +134,6 @@
     <string name="termux_terminal_view_view_header">视图</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">非活动元素透明度</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">活动元素透明度</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">终端边距调整</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">终端边距调整将被禁用。</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">终端边距调整将启用。
-        应启用此项以尝试修复软键盘遮挡部分扩展键/终端视图的问题。
-        如果在您的设备上导致屏幕闪烁，请禁用它。</string>
     <string name="termux_api_preferences_title">Termux:API 偏好设置</string>
     <string name="termux_api_preferences_summary">Termux:API 应用的偏好设置</string>
     <string name="termux_float_preferences_title">Termux:Float 偏好设置</string>
@@ -531,8 +526,6 @@
     <string name="fullscreen_title">全屏</string>
     <string name="fullscreen_summary">以全屏模式运行 Termux。</string>
 
-    <string name="use_fullscreen_workaround_title">全屏变通方案</string>
-    <string name="use_fullscreen_workaround_summary">对错误隐藏全屏的设备使用变通方案。</string>
 
     <string name="night_mode_legacy_title">夜间模式（旧版）</string>
     <string name="night_mode_legacy_summary">控制旧版夜间模式属性。建议使用显示屏幕中的主题设置。</string>

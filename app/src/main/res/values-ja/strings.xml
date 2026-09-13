@@ -121,9 +121,6 @@
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">非アクティブ項目の背景透明度</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">アクティブ項目の背景透明度</string>
 <string name="extra_keys_corner_radius_title">ボタンの角の丸み</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_title">ターミナルマージン調整</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_off">ターミナルのマージン調整を無効にします。</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_on">ターミナルのマージン調整を有効にします。ソフトウェアキーボードが追加キーやターミナル表示の一部を覆う問題を修正するには有効にする必要があります。デバイスで画面のちらつきが発生する場合は無効にしてください。</string>
 <string name="termux_api_preferences_summary">Termux:API アプリの設定</string>
 <string name="termux_float_preferences_summary">Termux:Float アプリの設定</string>
 <string name="termux_tasker_preferences_summary">Termux:Tasker アプリの設定</string>
@@ -520,8 +517,6 @@
     
     <string name="fullscreen_title">全画面</string>
     <string name="fullscreen_summary">Termuxを全画面モードで実行します。</string>
-    <string name="use_fullscreen_workaround_title">全画面回避策</string>
-    <string name="use_fullscreen_workaround_summary">全画面を正しく非表示にできないデバイスで回避策を使用します。</string>
 
     
     <string name="night_mode_legacy_title">ナイトモード（従来のnight-mode）</string>

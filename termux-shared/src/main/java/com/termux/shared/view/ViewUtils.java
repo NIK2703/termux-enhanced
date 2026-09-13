@@ -77,9 +77,9 @@ public class ViewUtils {
      * Allocation-free variant of {@link #getWindowAndViewRects(View, int)}.
      * <p>
      * The original allocated four objects per call ({@code windowRect}, {@code windowAvailableRect},
-     * {@code viewRect}, the {@code int[2]} location scratch) plus a {@code Rect[]}, and it ran from
-     * {@code TermuxActivityRootView}'s global-layout listener — i.e. on EVERY layout pass while the
-     * IME animates (~60/s). Callers on a hot path pass their own buffers instead.
+     * {@code viewRect}, the {@code int[2]} location scratch) plus a {@code Rect[]}. Callers that
+     * measure on a hot path (e.g. from a layout listener, where the IME animating means ~60 calls
+     * per second) pass their own buffers instead.
      *
      * @param cachedDisplayOrientation {@link Configuration#ORIENTATION_PORTRAIT} or
      *        {@link Configuration#ORIENTATION_LANDSCAPE} already known by the caller, or

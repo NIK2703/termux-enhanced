@@ -135,11 +135,6 @@
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">Pasif eleman saydamlığı</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">Aktif eleman saydamlığı</string>
 <string name="extra_keys_corner_radius_title">Düğme köşe yarıçapı</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_title">Terminal Kenar Boşluğu Ayarı</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_off">Terminal kenar boşluğu ayarı devre dışı bırakılacak.</string>
-<string name="termux_terminal_view_terminal_margin_adjustment_on">Terminal kenar boşluğu ayarı etkinleştirilecek.
-                    Yumuşak klavyenin ek tuşları/terminal görünümünün bir kısmını kapladığı sorunu çözmek için etkinleştirilmelidir.
-                    Cihazlarınızda ekran titremesine neden oluyorsa devre dışı bırakın.</string>
 <string name="termux_api_preferences_summary">Termux:API uygulaması için tercihler</string>
 <string name="termux_float_preferences_summary">Termux:Float uygulaması için tercihler</string>
 <string name="termux_tasker_preferences_summary">Termux:Tasker uygulaması için tercihler</string>
@@ -529,8 +524,6 @@
     
     <string name="fullscreen_title">Tam ekran</string>
     <string name="fullscreen_summary">Termux\'u tam ekran modunda çalıştır.</string>
-    <string name="use_fullscreen_workaround_title">Tam ekran geçici çözümü</string>
-    <string name="use_fullscreen_workaround_summary">Tam ekranı yanlış gizleyen cihazlar için geçici çözüm kullan.</string>
 
     
     <string name="night_mode_legacy_title">Gece modu (eski gece modu)</string>

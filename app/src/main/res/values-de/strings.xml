@@ -207,9 +207,6 @@
     <string name="termux_terminal_view_key_logging_enabled_title">Terminal-View-Key-Protokollierung</string>
     <string name="termux_terminal_view_preferences_summary">Einstellungen für die Terminalansicht</string>
     <string name="termux_terminal_view_preferences_title">Terminalansicht</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">Die Terminalrand-Anpassung wird deaktiviert.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">Die Terminalrand-Anpassung wird aktiviert. Muss aktiviert sein, um zu versuchen, das Problem zu beheben, bei dem die Soft-Tastatur einen Teil der Zusatztasten/Terminalansicht verdeckt. Falls sie auf Ihrem Gerät zu Bildschirmflackern führt, deaktivieren Sie sie.</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">Terminalrand-Anpassung</string>
     <string name="termux_terminal_view_view_header">Ansicht</string>
     <string name="termux_widget_preferences_summary">Einstellungen für die Termux:Widget-App</string>
     <string name="text_input_append_enter_summary">Beim Senden aus dem Eingabefeld auch die Zeile absenden (Eingabetaste drücken). Deaktivieren, um Rohtext ohne abschließende neue Zeile zu senden.</string>
@@ -493,8 +490,6 @@
     <string name="fullscreen_title">Vollbild</string>
     <string name="fullscreen_summary">Termux im Vollbildmodus ausführen.</string>
 
-    <string name="use_fullscreen_workaround_title">Vollbild-Workaround</string>
-    <string name="use_fullscreen_workaround_summary">Einen Workaround für Vollbild auf Geräten verwenden, die es falsch ausblenden.</string>
 
     <string name="night_mode_legacy_title">Nachtmodus (veraltet)</string>
     <string name="night_mode_legacy_summary">Steuert die veraltete Nachtmodus-Eigenschaft. Bevorzugen Sie die Design-Einstellung im Anzeige-Bildschirm.</string>

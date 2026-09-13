@@ -212,9 +212,6 @@
     <string name="termux_terminal_view_key_logging_enabled_title">टर्मिनल व्यू कुंजी लॉगिंग</string>
     <string name="termux_terminal_view_preferences_summary">टर्मिनल दृश्य के लिए प्राथमिकताएँ</string>
     <string name="termux_terminal_view_preferences_title">टर्मिनल दृश्य</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">टर्मिनल मार्जिन समायोजन अक्षम किया जाएगा।</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_on">टर्मिनल मार्जिन समायोजन सक्षम किया जाएगा। इसे उस समस्या को ठीक करने के लिए सक्षम किया जाना चाहिए जहाँ सॉफ्ट कीबोर्ड अतिरिक्त कीज़/टर्मिनल दृश्य का एक हिस्सा ढक देता है। यदि यह आपके डिवाइसों पर स्क्रीन फ्लिकरिंग का कारण बनता है, तो इसे अक्षम करें।</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">टर्मिनल मार्जिन समायोजन</string>
     <string name="termux_terminal_view_view_header">दृश्य</string>
     <string name="termux_tab_height_mode_title">टैब ऊँचाई</string>
     <string name="termux_tab_height_mode_single">एक लाइन</string>
@@ -476,8 +473,6 @@
     <string name="terminal_onclick_url_open_summary">टर्मिनल ट्रांसक्रिप्ट में URL टैप करने पर खोलें।</string>
     <string name="fullscreen_title">पूर्ण स्क्रीन</string>
     <string name="fullscreen_summary">Termux को पूर्ण स्क्रीन मोड में चलाएँ।</string>
-    <string name="use_fullscreen_workaround_title">पूर्ण स्क्रीन वर्कअराउंड</string>
-    <string name="use_fullscreen_workaround_summary">उन डिवाइसों पर पूर्ण स्क्रीन के लिए वर्कअराउंड का उपयोग करें जो इसे गलत तरीके से छिपाते हैं।</string>
     <string name="night_mode_legacy_title">नाइट मोड (लीगेसी नाइट-मोड)</string>
     <string name="night_mode_legacy_summary">लीगेसी नाइट-मोड गुण नियंत्रित करता है। डिस्प्ले स्क्रीन पर थीम सेटिंग को प्राथमिकता दें।</string>
     <string name="shortcut_summary">प्रारूप: Ctrl+KEY (जैसे Ctrl+a). अक्षम करने के लिए खाली छोड़ें।</string>

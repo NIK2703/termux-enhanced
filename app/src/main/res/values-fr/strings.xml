@@ -127,9 +127,6 @@
     <string name="termux_terminal_view_view_header">Vue</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparence des éléments inactifs</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Transparence des éléments actifs</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_title">Ajustement de la marge du terminal</string>
-    <string name="termux_terminal_view_terminal_margin_adjustment_off">L\'ajustement de la marge du terminal sera désactivé.</string>
-        <string name="termux_terminal_view_terminal_margin_adjustment_on">L\'ajustement de la marge du terminal sera activé. Il doit être activé pour tenter de corriger le problème où le clavier virtuel cache une partie des touches supplémentaires/de la vue du terminal. S\'il provoque un scintillement de l\'écran sur vos appareils, désactivez-le.</string>
     <string name="termux_api_preferences_summary">Préférences pour l\'application Termux:API</string>
     <string name="termux_float_preferences_summary">Préférences pour l\'application Termux:Float</string>
     <string name="termux_tasker_preferences_summary">Préférences pour l\'application Termux:Tasker</string>
@@ -566,8 +563,6 @@
     <string name="termux_widget_debugging_title">Débogage Termux:Widget</string>
 
     
-    <string name="use_fullscreen_workaround_title">Contournement plein écran</string>
-    <string name="use_fullscreen_workaround_summary">Utiliser un contournement pour le plein écran sur les appareils qui le masquent incorrectement.</string>
 
     
     <string name="volume_keys_title">Comportement des touches de volume</string>

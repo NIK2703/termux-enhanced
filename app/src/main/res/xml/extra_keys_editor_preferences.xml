@@ -12,7 +12,6 @@
     <SeekBarPreference
         app:key="extra_keys_editor_columns"
         app:title="@string/extra_keys_editor_columns_title"
-        app:summary="@string/extra_keys_editor_columns_summary"
         android:max="10"
         app:min="1"
         app:defaultValue="5"
@@ -22,7 +21,6 @@
     <SeekBarPreference
         app:key="extra_keys_editor_rows"
         app:title="@string/extra_keys_editor_rows_title"
-        app:summary="@string/extra_keys_editor_rows_summary"
         android:max="4"
         app:min="1"
         app:defaultValue="2"
@@ -32,7 +30,6 @@
     <SeekBarPreference
         app:key="terminal-toolbar-height"
         app:title="@string/terminal_toolbar_height_title"
-        app:summary="@string/terminal_toolbar_height_summary"
         app:min="50"
         android:max="200"
         app:defaultValue="100"
@@ -52,7 +49,6 @@
     <SeekBarPreference
         app:key="extra-keys-button-margin"
         app:title="@string/extra_keys_button_margin_title"
-        app:summary="@string/extra_keys_button_margin_summary"
         app:min="1"
         android:max="40"
         app:defaultValue="20"
@@ -63,7 +59,6 @@
     <SeekBarPreference
         app:key="extra-keys-font-size"
         app:title="@string/extra_keys_font_size_title"
-        app:summary="@string/extra_keys_font_size_summary"
         app:min="12"
         android:max="16"
         app:defaultValue="14"
@@ -84,7 +79,6 @@
         app:key="extra-keys-text-all-caps"
         app:defaultValue="true"
         app:title="@string/extra_keys_text_all_caps_title"
-        app:summary="@string/extra_keys_text_all_caps_summary"
         app:iconSpaceReserved="false" />
 
     <SwitchPreferenceCompat
@@ -98,7 +92,6 @@
         app:key="extra-keys-edge-indicators"
         app:defaultValue="true"
         app:title="@string/extra_keys_edge_indicators_title"
-        app:summary="@string/extra_keys_edge_indicators_summary"
         app:iconSpaceReserved="false" />
 
 </PreferenceScreen>
