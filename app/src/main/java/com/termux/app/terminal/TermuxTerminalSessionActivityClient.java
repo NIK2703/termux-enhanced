@@ -911,34 +911,45 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             + "' mActivity.getFilesDir()='" + mActivity.getFilesDir().getAbsolutePath()
             + "' getDefaultWD='" + mActivity.getProperties().getDefaultWorkingDirectory() + "'");
 
-        // Open the rebuild window BEFORE the session is added: adding it re-notifies the session
-        // list, which rebuilds the adapter and detaches the served IME target. The system's
-        // resulting IME HIDE must not be recorded as a keyboard intent (see
-        // TermuxActivity.beginSessionUiChurn) — it would poison the memory of the tab being
-        // created and of every tab created after it.
+        // ── Capture the state the new tab must inherit, BEFORE anything is rebuilt ─────────────
+        //
+        // Order matters and is the whole point of this block. TermuxService.createTermuxSession()
+        // notifies the session list SYNCHRONOUSLY (TermuxService:627), so the pager switches to the
+        // new page — and runs the per-session keyboard reconcile for it — *inside* the call below,
+        // before this method could seed anything. That first reconcile therefore has no per-session
+        // record to read and falls back to the GLOBAL keyboard intent.
+        //
+        // If that fallback disagrees with the real IME state, the reconcile acts on it (hides a
+        // keyboard that is up), and the second reconcile — triggered by the setCurrentSession()
+        // below, now reading the seeded record — undoes it (shows it again). The user sees the
+        // keyboard close and re-open on every new tab.
+        //
+        // Writing the REAL state into the global intent here makes the fallback correct, and the
+        // seeded per-session record then agrees with it, so both reconciles are no-ops and the
+        // keyboard simply stays exactly as it was.
+        final boolean inheritedKeyboard = mActivity.computeImeVisibility();
+        final boolean inheritedPanel = mActivity.isTextInputVisible();
+        final TerminalSession outgoingSession = mActivity.getCurrentSession();
+        final boolean inheritedFocusOnInput = mActivity.isFocusOnInputForSession(outgoingSession);
+        mActivity.getTextInputState().setSoftKeyboardVisibleIntent(inheritedKeyboard);
+        if (outgoingSession != null)
+            mActivity.getTextInputState().setSoftKeyboardIntent(outgoingSession, inheritedKeyboard);
+
+        // Open the rebuild window before the session is added: adding it rebuilds the adapter and
+        // can detach the served IME target, and the system's resulting IME HIDE must not be
+        // recorded as a keyboard intent (see TermuxActivity.beginSessionUiChurn).
         mActivity.beginSessionUiChurn(SESSION_UI_CHURN_MS);
 
         TermuxSession newTermuxSession = service.createTermuxSession(null, null, null, workingDirectory, isFailSafe, sessionName);
         if (newTermuxSession == null) return null;
         TerminalSession newTerminalSession = newTermuxSession.getTerminalSession();
-        // A new tab inherits the keyboard AND panel state of the moment it is created (user
-        // expectation: creating a tab must not make the keyboard or the input panel jump).
-        //
-        // The inherited keyboard value is "the IME is up" OR "the session we are leaving wanted it
-        // up" — never the raw IME probe alone. Mid-creation the probe is unreliable (the rebuild
-        // may already have dropped the IME), and using it is what made consecutive new tabs lose
-        // the keyboard: tab #2 was seeded from a momentarily-down IME and tab #3 inherited that
-        // "hidden". Falling back to the remembered intent keeps the value stable through the churn.
-        final boolean inheritedKeyboard = mActivity.computeImeVisibility()
-                || mActivity.getTextInputState().isSoftKeyboardIntent(mActivity.getCurrentSession());
+        // Seed the new tab with the captured state, so the reconcile authority
+        // (applyTextInputVisibilityForSession) has a per-session record that matches what the user
+        // was looking at instead of the "current panel" fallback, which races the switch.
         mActivity.getTextInputState().setSoftKeyboardIntent(newTerminalSession, inheritedKeyboard);
-        // Panel visibility + focus target are inherited the same way, so the single reconcile
-        // authority (applyTextInputVisibilityForSession) has a per-session record to work from
-        // instead of the "current panel" fallback, which races the switch.
-        final boolean inheritedPanel = mActivity.isTextInputVisible();
         mActivity.getTextInputState().setVisible(newTerminalSession.mHandle, inheritedPanel);
         mActivity.getTextInputState().setFocusOnInput(newTerminalSession,
-                inheritedPanel && mActivity.isFocusOnInputForSession(mActivity.getCurrentSession()));
+                inheritedPanel && inheritedFocusOnInput);
         // CALLER_MANAGED (right-swipe gesture): the caller handles selection / pager bookkeeping /
         // its own end-scroll, so just hand back the session.
         if (selectMode == NewSessionSelectMode.CALLER_MANAGED) {

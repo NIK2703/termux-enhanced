@@ -5,8 +5,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.TypedArray;
-import android.util.Log;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
@@ -27,9 +25,6 @@ import android.view.ViewParent;
 import android.view.Window;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.view.animation.Animation;
-import android.view.animation.AnimationSet;
-import android.view.animation.AnimationUtils;
 import android.widget.PopupWindow;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -760,96 +755,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // app has been opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
 
-        // TEMP DEBUG PROBE (com.termux.BuildConfig.DEBUG only): log the resolved popup
-        // window-animation durations for both history popups.
-        if (com.termux.BuildConfig.DEBUG) debugProbePopupAnimDurations();
-
         // Monet: build the selected variants up front so the token is stable before the
         // first buildSchemeKey() runs, and subscribe to wallpaper changes.
         setupMonet();
-    }
-
-    /**
-     * TEMPORARY DEBUG PROBE. Resolves the *real* window animation of both history popups
-     * at runtime and logs the durations of every child animation, so the directory-history
-     * popup (framework default) and the message-history popup (explicit style) can be
-     * compared on the device instead of only in the sources.
-     */
-    private void debugProbePopupAnimDurations() {
-        final View content = findViewById(android.R.id.content);
-        if (content == null) return;
-        content.post(() -> {
-            float scale = android.provider.Settings.Global.getFloat(getContentResolver(),
-                    android.provider.Settings.Global.WINDOW_ANIMATION_SCALE, -1f);
-            Log.d("AnimProbe", "window_animation_scale=" + scale);
-
-            // (1) FRAMEWORK DEFAULT — exactly what DirectoryHistoryPopupController gets:
-            // a plain PopupWindow(scroll, w, WRAP_CONTENT, false) with no setAnimationStyle().
-            // No background, so the content view is added straight into PopupDecorView and
-            // its LayoutParams are the real WindowManager.LayoutParams of the popup window.
-            View dummy = new View(this);
-            final PopupWindow probe = new PopupWindow(dummy, 1, 1, false);
-            int defaultStyle = 0;
-            try {
-                probe.showAsDropDown(content, 0, 0, Gravity.START);
-                ViewParent parent = dummy.getParent();
-                if (parent instanceof View) {
-                    ViewGroup.LayoutParams lp = ((View) parent).getLayoutParams();
-                    if (lp instanceof WindowManager.LayoutParams)
-                        defaultStyle = ((WindowManager.LayoutParams) lp).windowAnimations;
-                }
-                probe.dismiss();
-            } catch (Throwable t) {
-                Log.d("AnimProbe", "probe popup failed: " + t);
-            }
-            Log.d("AnimProbe", "DIRECTORY (framework default): windowAnimations=0x"
-                    + Integer.toHexString(defaultStyle)
-                    + (defaultStyle == 0x010302f5 ? " = Animation.DropDownUp"
-                       : defaultStyle == 0x010302f4 ? " = Animation.DropDownDown" : ""));
-            logPopupAnim("DIRECTORY", defaultStyle);
-
-            // (2) MESSAGE-HISTORY popup — explicit R.style.MessageHistoryPopupAnimation.
-            logPopupAnim("MESSAGE", R.style.MessageHistoryPopupAnimation);
-        });
-    }
-
-    /** Resolve a window-animation style into its enter/exit anims and log both. */
-    private void logPopupAnim(String who, int styleRes) {
-        if (styleRes == 0) {
-            Log.d("AnimProbe", who + ": style=0 -> no window animation at all");
-            return;
-        }
-        TypedArray a = obtainStyledAttributes(styleRes, new int[]{
-                android.R.attr.windowEnterAnimation, android.R.attr.windowExitAnimation});
-        int enterRes = a.getResourceId(0, 0);
-        int exitRes = a.getResourceId(1, 0);
-        a.recycle();
-        Log.d("AnimProbe", who + ": enterRes=0x" + Integer.toHexString(enterRes)
-                + " exitRes=0x" + Integer.toHexString(exitRes));
-        dumpAnim(who + "/ENTER", enterRes);
-        dumpAnim(who + "/EXIT", exitRes);
-    }
-
-    /** Log every child animation of an <set> with its duration and interpolator. */
-    private void dumpAnim(String label, int res) {
-        if (res == 0) {
-            Log.d("AnimProbe", label + ": <none>");
-            return;
-        }
-        Animation anim = AnimationUtils.loadAnimation(this, res);
-        if (anim instanceof AnimationSet) {
-            Log.d("AnimProbe", label + ": AnimationSet{");
-            for (Animation child : ((AnimationSet) anim).getAnimations()) {
-                Log.d("AnimProbe", "    " + label + " " + child.getClass().getSimpleName()
-                        + " duration=" + child.getDuration()
-                        + " startOffset=" + child.getStartOffset()
-                        + " interpolator=" + child.getInterpolator());
-            }
-        } else {
-            Log.d("AnimProbe", label + ": " + anim.getClass().getSimpleName()
-                    + " duration=" + anim.getDuration()
-                    + " interpolator=" + anim.getInterpolator());
-        }
     }
 
     /**
@@ -966,12 +874,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // returning from Settings) is executed here — showSoftInput only works
         // once the window has focus.
         if (hasFocus && mPendingKeyboardRestore) {
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) -> runKeyboardRestore (pending)");
             runKeyboardRestore();
         } else if (hasFocus) {
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onWindowFocusChanged(true) (no pending)"
-                    + " kbIntent=" + mTextInputState.isSoftKeyboardVisibleIntent()
-                    + " insetsVis=" + mImeVisibleFromInsets);
         }
 
         // When Termux regains focus (e.g. after returning from Settings), apply
@@ -1007,12 +911,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // "show keyboard on launch" behaviour and skips the restore.
         final boolean willRestoreKeyboard = !mIsOnResumeAfterOnCreate || mIsActivityRecreated;
 
-        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onResume willRestore=" + willRestoreKeyboard
-                + " coldStart=" + mIsOnResumeAfterOnCreate + " recreated=" + mIsActivityRecreated
-                + " resumeFocusWasOnInput=" + resumeFocusWasOnInput
-                + " kbIntent=" + mTextInputState.isSoftKeyboardVisibleIntent()
-                + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
-                + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
 
         // Raise the restore latch BEFORE the view client runs setSoftKeyboardState(), so the
         // per-page focus listener suppresses ALL IME / panel churn triggered by its
@@ -1035,8 +933,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             } else {
                 KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(this);
             }
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("onResume windowState: kbIntent=" + kbIntentEarly
-                    + " -> " + (kbIntentEarly ? "ADJUST_RESIZE(showable)" : "ALWAYS_HIDDEN"));
         }
 
         if (mTermuxTerminalSessionActivityClient != null)
@@ -1262,10 +1158,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         boolean kbIntentCapture = computeImeVisibility();
         mTextInputState.setSoftKeyboardVisibleIntent(kbIntentCapture);
         mTextInputState.setSoftKeyboardIntent(session, kbIntentCapture);
-        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("capture: kbIntent->" + kbIntentCapture
-                + " paused=" + mIsPaused
-                + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
-                + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
     }
 
     /** Ordered live TerminalSession list (service order == snapshot order). */
@@ -1339,7 +1231,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (isFinishing()) return;
         if (!hasWindowFocus()) {
             mPendingKeyboardRestore = true;   // consumed by onWindowFocusChanged(true)
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore defer: no window focus");
             return;
         }
         final TerminalSession session = getCurrentSession();
@@ -1351,16 +1242,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 : getActiveTerminalView();
         if (target == null) {
             mPendingKeyboardRestore = true;   // page not bound yet
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore defer: no target (panelVis=" + panelVisible
-                    + " focusOnInput=" + focusOnInput + ")");
             return;
         }
-        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore run: kbIntent=" + kbIntent
-                + " panelVis=" + panelVisible + " focusOnInput=" + focusOnInput
-                + " target=" + (target == getTerminalToolbarTextInput() ? "panel" : "terminal")
-                + " kbDisabled=" + KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
-                        mPreferences.isSoftKeyboardEnabled(),
-                        mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware()));
         mPendingKeyboardRestore = false;
         mRestoringKeyboard = true;
 
@@ -1385,7 +1268,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // SHOW_IMPLICIT (used by the retry) is ignored while ALWAYS_HIDDEN is set;
                 // a show request is an explicit intent — make the window showable first.
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
-                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("restore show: showWithRetry");
                 target.requestFocus();
                 // Probe must use the SAME authoritative signal as the intent capture: a
                 // visible-frame false positive here would make showWithRetry believe the
@@ -2237,8 +2119,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mTiBoundSession = session;
         String text = session == null ? "" : mTextInputState.getInputText(session.mHandle);
         String target = text != null ? text : "";
-        if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tiBind: " + target.length() + "ch live="
-                + textInputView.getText().length());
         if (target.contentEquals(textInputView.getText())) return;   // already converged
         mAutoCompleteCtrl.setRestoringInput(true);
         try {
@@ -4032,15 +3912,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             View focusedNow = getCurrentFocus();
             boolean systemDrop = !imeVisible
                     && (focusedNow == null || !focusedNow.isAttachedToWindow());
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("imeChange " + (imeVisible ? "SHOW" : "HIDE")
-                    + " paused=" + mIsPaused + " justResumed=" + mJustResumed
-                    + " restoringKb=" + mRestoringKeyboard + " pendingKb=" + mPendingKeyboardRestore
-                    + " switchInProg=" + isTerminalPageSwitchInProgress()
-                    + " churn=" + mSessionUiChurn
-                    + " panelVis=" + isTextInputVisible()
-                    + " systemDrop=" + systemDrop
-                    + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
-                    + " frameVis=" + (mImeDetector != null && mImeDetector.isImeVisible()));
             // Any of these states means the change is NOT an honest user action we should
             // record or react to:
             //  - mIsPaused: system hides the IME when we go to background;
@@ -4145,15 +4016,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * @param visible true to show, false to hide
      */
     public void setTextInputVisible(boolean visible) {
-        if (com.termux.app.terminal.io.KBTrace.ENABLED) {
-            // getStackTrace() is expensive: the whole capture must stay inside the
-            // compile-time gate so release builds never pay for it.
-            StackTraceElement[] st = Thread.currentThread().getStackTrace();
-            String caller = st.length > 3 ? st[3].getMethodName() : "?";
-            com.termux.app.terminal.io.KBTrace.i("tiVis: " + visible + " session="
-                    + (getCurrentSession() == null ? "null" : Integer.toHexString(System.identityHashCode(getCurrentSession())))
-                    + " via " + caller);
-        }
         // Dismiss auto-complete suggestions when hiding the panel. Use the
         // controller's dismiss() (not the raw popup dismiss) so any in-progress
         // swipe-gesture suppression guard is also cleared and auto-complete is
@@ -4286,9 +4148,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // tab-switch or startup restore (which otherwise left hasVisible()==false
         // and made Back finish the app instead of hiding the panel).
         if (session != null) {
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tiApply: session="
-                    + Integer.toHexString(System.identityHashCode(session))
-                    + " visible=" + visible + " hasRecorded=" + hasRecorded + " applyFocus=" + applyFocus);
             mTextInputState.setVisible(session.mHandle, visible);
         }
         setTextInputSlotVisible(visible);
@@ -4313,7 +4172,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 visible = false;
                 if (session != null) mTextInputState.setVisible(session.mHandle, false);
                 setTextInputSlotVisible(false);
-                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): panel closed (IME hidden, target wanted it open)");
             }
             // On switch, restore where focus was last for this session:
             // on the panel (with keyboard) or on the terminal.
@@ -4376,14 +4234,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // the whole reconcile (and the close-rebind re-assert below).
             boolean imeVisibleNow = computeImeVisibility();
             if (!followKbOnSwitch) {
-                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch (follow=off): keyboard untouched");
             } else if (!showKeyboardIfFocused && imeVisibleNow) {
                 if (mTermuxTerminalViewClient != null) {
                     mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
                     mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
                 }
                 KeyboardUtils.hideSoftKeyboard(this, currentInput != null ? currentInput : mTerminalView);
-                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: hide (target session kbIntent=false)");
             } else if (showKeyboardIfFocused && !imeVisibleNow
                     && !KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
                             mPreferences.isSoftKeyboardEnabled(),
@@ -4399,7 +4255,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(showTarget,
                             this::computeImeVisibility);
                 }
-                if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("tabSwitch reconcile: show (target session kbIntent=true)");
             } else if (showKeyboardIfFocused && imeVisibleNow) {
                 // The IME is up and the landed session wants it up: fine for now, BUT if this
                 // switch came from closing the current tab, the adapter rebuild detaches the
@@ -4435,7 +4290,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             KeyboardUtils.setSoftInputModeAdjustResize(this);
             com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
                     this::computeImeVisibility);
-            if (com.termux.app.terminal.io.KBTrace.ENABLED) com.termux.app.terminal.io.KBTrace.i("switch reassert: re-show after close-rebind drop");
         }, 300);
     }
 
