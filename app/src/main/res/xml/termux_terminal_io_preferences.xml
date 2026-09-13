@@ -9,7 +9,6 @@
         <Preference
             app:key="extra_keys_editor"
             app:title="@string/extra_keys_editor_open_editor"
-            app:summary="@string/extra_keys_editor_open_editor_summary"
             app:fragment="com.termux.app.fragments.settings.termux.ExtraKeysEditorFragment"
             app:iconSpaceReserved="false" />
 
@@ -29,6 +28,15 @@
             app:useSimpleSummaryProvider="true"
             app:entries="@array/extra_keys_special_button_mode_entries"
             app:entryValues="@array/extra_keys_special_button_mode_values"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            app:key="soft-keyboard-toggle-behaviour"
+            app:defaultValue="show/hide"
+            app:title="@string/soft_keyboard_toggle_behaviour_title"
+            app:useSimpleSummaryProvider="true"
+            app:entries="@array/soft_keyboard_toggle_behaviour_entries"
+            app:entryValues="@array/soft_keyboard_toggle_behaviour_values"
             app:iconSpaceReserved="false" />
 
         <ListPreference
@@ -113,6 +121,11 @@
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
+            app:key="hide-soft-keyboard-on-startup"
+            app:title="@string/hide_soft_keyboard_on_startup_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
             app:key="soft_keyboard_enabled_only_if_no_hardware"
             app:title="@string/termux_soft_keyboard_enabled_only_if_no_hardware_title"
             app:iconSpaceReserved="false" />
@@ -123,6 +136,51 @@
             app:summaryOff="@string/keyboard_state_follow_tab_switch_off"
             app:summaryOn="@string/keyboard_state_follow_tab_switch_on"
             app:title="@string/keyboard_state_follow_tab_switch_title"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="@string/system_buttons_category_title"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            app:key="back-key"
+            app:defaultValue="false"
+            app:title="@string/back_key_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="volume-keys"
+            app:defaultValue="true"
+            app:title="@string/volume_keys_title"
+            app:summary="@string/volume_keys_summary"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="@string/input_additional_category_title"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            app:key="ctrl-space-workaround"
+            app:title="@string/ctrl_space_workaround_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="enforce-char-based-input"
+            app:title="@string/enforce_char_based_input_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="disable-hardware-keyboard-shortcuts"
+            app:title="@string/disable_hardware_keyboard_shortcuts_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="terminal-onclick-url-open"
+            app:title="@string/terminal_onclick_url_open_title"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>

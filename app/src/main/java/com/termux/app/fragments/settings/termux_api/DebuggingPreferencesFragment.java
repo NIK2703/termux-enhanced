@@ -40,7 +40,7 @@ public class DebuggingPreferencesFragment extends TermuxPreferenceFragmentBase {
             TermuxAPIAppSharedPreferences preferences = TermuxAPIAppSharedPreferences.build(context, true);
             if (preferences == null) return;
 
-            com.termux.app.fragments.settings.termux.DebuggingPreferencesFragment.
+            TermuxPreferenceFragmentBase.
                 setLogLevelListPreferenceData(logLevelListPreference, context, preferences.getLogLevel(true));
             loggingCategory.addPreference(logLevelListPreference);
         }

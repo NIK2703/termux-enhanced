@@ -73,6 +73,36 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private boolean mShowSoftKeyboardWithDelayOnce;
 
     /**
+     * Set on a true cold start (first {@link TermuxActivity#onResume()} after {@code onCreate}) when
+     * the active {@link TerminalView} is not ready yet. Consumed by
+     * {@link #applyStartupSoftKeyboardState()} once the first pager page is bound and
+     * {@link TermuxActivity#getTerminalView()} is non-null.
+     *
+     * <p>Why this exists: {@link #onResume()} calls {@link #setSoftKeyboardState(boolean, boolean)},
+     * which early-returns while {@code getTerminalView()} is still null (the ViewPager2 has not bound
+     * and selected page 0 yet on a cold start). That dropped the "hide soft keyboard on startup"
+     * preference entirely, so the keyboard popped up on launch even though the user enabled it.
+     * {@link TermuxActivity#consumePendingKeyboardRestoreIfReady()} is the single "page is live" hook
+     * (first fired after page 0 is bound), so it re-runs the hide with a real view.
+     */
+    private boolean mStartupSoftKeyboardPending;
+
+    /**
+     * Bounded re-assert of the cold-start hide. The startup sequence fires the per-session IME
+     * reconcile more than once (the pager re-selects page 0 whenever the session list is
+     * re-notified while sessions are still being restored), and each pass re-reads the keyboard
+     * intent. Recording the intent as hidden fixes that, but a platform-driven IME show can still
+     * land in the same window, so the hide is re-applied a few times and then stops.
+     *
+     * <p>Cancelled by the first real user interaction ({@link TermuxActivity#onUserInteraction()}),
+     * so it can never close a keyboard the user just opened.
+     */
+    private static final long STARTUP_HIDE_REASSERT_DELAY_MS = 150;
+    private static final int STARTUP_HIDE_REASSERT_MAX = 4;
+    private final Runnable mStartupHideReassertRunnable = this::reassertStartupSoftKeyboardHide;
+    private int mStartupHideReassertsLeft;
+
+    /**
      * Auto-clear runnable for {@link #mShowSoftKeyboardIgnoreOnce}. Bounds the latch lifetime
      * so that a stale latch (set, but never consumed because requestFocus() was a no-op on an
      * already-focused view) cannot swallow a later legitimate keyboard show.
@@ -178,6 +208,38 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * Should be called when mActivity.onResume() is called
      */
     public void onResume() {
+        // On a true cold start with the "hide soft keyboard on startup" preference in effect, keep
+        // the keyboard hidden for the whole startup window. Two things must be neutralised, both of
+        // which otherwise pop the IME on launch:
+        //   1. setSoftKeyboardState() below early-returns while the ViewPager2 has not bound and
+        //      selected page 0 yet (getTerminalView() == null), so the hide is never applied.
+        //   2. The startup per-session IME reconcile (applyTextInputVisibilityForSession) shows the
+        //      keyboard via SoftKeyboardRestore.showWithRetry because a fresh session's default
+        //      keyboard intent is "visible" (SessionUiStateStore) — and it runs AFTER the hide.
+        // mStartupSoftKeyboardPending gates (2); consumePendingKeyboardRestoreIfReady() (the single
+        // "page is live" hook) applies the hide for (1) and clears the gate.
+        if (mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()
+                && !KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
+                        mActivity.getPreferences().isSoftKeyboardEnabled(),
+                        mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware())
+                && mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
+            mStartupSoftKeyboardPending = true;
+            // Pre-set the window flag now (view-independent): it stops the platform's IME auto-show
+            // on window-focus-gain (~30ms after resume) before page 0 is even bound, so there is no
+            // keyboard flash. The actual hideSoftKeyboard() is applied once the TerminalView exists.
+            KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(mActivity);
+            // Record the INTENT as hidden — this is the part that actually makes the preference
+            // stick. The startup page selection runs the per-session IME reconcile more than once
+            // (the pager re-selects page 0 every time the session list is re-notified while
+            // sessions are still being restored), and each pass reads the keyboard intent fresh.
+            // A restored session has no per-session record, so it falls back to this global one,
+            // which defaults to "visible" — meaning every reconcile AFTER the hide re-showed the
+            // keyboard (SoftKeyboardRestore.showWithRetry) and the preference appeared broken.
+            // Writing "hidden" here makes every later pass agree with the hide instead of fighting
+            // it. A real user action (tap, keyboard toggle) overwrites it again on the spot.
+            mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
+        }
+
         // Show the soft keyboard if required
         setSoftKeyboardState(true, mActivity.isActivityRecreated());
 
@@ -777,6 +839,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 // Required to keep keyboard hidden on app startup. Use the self-clearing
                 // variant so a no-op focus change cannot leave the latch stuck forever.
                 ignoreOnceSoftKeyboardOnFocus();
+                // Record the intent as hidden so any later startup reconcile agrees with the
+                // hide instead of restoring the default "visible" intent (see onResume()).
+                mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
             }
         }
 
@@ -810,6 +875,112 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 terminalView.postDelayed(getShowSoftKeyboardRunnable(), 300);
             }
         }
+    }
+
+    /**
+     * Applies the "hide soft keyboard on startup" preference for a true cold start, deferred until
+     * the first pager page is bound (when {@link TermuxActivity#getTerminalView()} is non-null).
+     *
+     * <p>See {@link #onResume()} for why this is needed: {@link #setSoftKeyboardState(boolean, boolean)}
+     * early-returns when the active {@link TerminalView} is not ready yet, which dropped the hide on
+     * launch. Called from {@link TermuxActivity#consumePendingKeyboardRestoreIfReady()} — the single
+     * "page is live" hook — exactly once per cold start (guarded by {@link #mStartupSoftKeyboardPending}).
+     * The window flag {@code SOFT_INPUT_STATE_ALWAYS_HIDDEN} is already pre-set in {@link #onResume()}
+     * to suppress the platform's IME auto-show before the view exists, so this only needs to perform
+     * the actual {@code hideSoftKeyboard()} + focus + ignore-once once the view is real.
+     */
+    public void applyStartupSoftKeyboardState() {
+        if (!mStartupSoftKeyboardPending) return;
+
+        // Keep the flag up while the view is missing: the "page is live" hook fires again once the
+        // destination page is actually attached (see SessionPagerManager.onTerminalPageSelected).
+        TerminalView terminalView = mActivity.getTerminalView();
+        if (terminalView == null) return;
+        mStartupSoftKeyboardPending = false;
+
+        // Keyboard fully disabled for Termux: nothing to hide (the disable path owns it).
+        if (KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
+                mActivity.getPreferences().isSoftKeyboardEnabled(),
+                mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware()))
+            return;
+
+        if (mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
+            Logger.logVerbose(LOG_TAG, "Hiding soft keyboard on startup (deferred to page live)");
+            performStartupSoftKeyboardHide();
+
+            // Re-assert a few times: the pager re-selects page 0 while sessions are still being
+            // restored, and a platform-driven IME show can land inside that window too.
+            mStartupHideReassertsLeft = STARTUP_HIDE_REASSERT_MAX;
+            terminalView.removeCallbacks(mStartupHideReassertRunnable);
+            terminalView.postDelayed(mStartupHideReassertRunnable,
+                    STARTUP_HIDE_REASSERT_DELAY_MS);
+        }
+    }
+
+    /**
+     * One cold-start hide: window flag + {@code hideSoftKeyboard()} + focus, and the keyboard
+     * intent recorded as hidden (see {@link #onResume()} for why the intent write is the part
+     * that makes the preference stick across the repeated startup reconciles).
+     */
+    private void performStartupSoftKeyboardHide() {
+        TerminalView terminalView = mActivity.getTerminalView();
+        if (terminalView == null) return;
+
+        // Idempotent with the onResume() pre-set; re-assert in case a recreate/restore cleared it.
+        KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(mActivity);
+        KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
+        terminalView.requestFocus();
+        // Suppress the focus-change show that requestFocus() would otherwise schedule.
+        ignoreOnceSoftKeyboardOnFocus();
+        cancelPendingSoftKeyboardShow();
+
+        mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
+        TerminalSession session = mActivity.getCurrentSession();
+        if (session != null)
+            mActivity.getTextInputState().setSoftKeyboardIntent(session, false);
+    }
+
+    /** Bounded re-assert of {@link #performStartupSoftKeyboardHide()}. */
+    private void reassertStartupSoftKeyboardHide() {
+        if (mStartupHideReassertsLeft <= 0) return;
+        if (!mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) return;
+        if (KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
+                mActivity.getPreferences().isSoftKeyboardEnabled(),
+                mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware())) return;
+
+        performStartupSoftKeyboardHide();
+
+        if (--mStartupHideReassertsLeft <= 0) return;
+        TerminalView terminalView = mActivity.getTerminalView();
+        if (terminalView != null)
+            terminalView.postDelayed(mStartupHideReassertRunnable,
+                    STARTUP_HIDE_REASSERT_DELAY_MS);
+    }
+
+    /**
+     * Abandon the cold-start hide re-assert, e.g. because the user just interacted with the app.
+     * The keyboard state from that moment on is the user's, not the startup policy's.
+     */
+    public void cancelStartupSoftKeyboardReassert() {
+        mStartupHideReassertsLeft = 0;
+        TerminalView terminalView = mActivity.getTerminalView();
+        if (terminalView != null)
+            terminalView.removeCallbacks(mStartupHideReassertRunnable);
+    }
+
+    /**
+     * Whether a cold-start "hide soft keyboard on startup" is still pending/active.
+     *
+     * <p>Read by {@link TermuxActivity#applyTextInputVisibilityForSession} to stop the startup
+     * per-session IME reconcile from popping the keyboard: a freshly created session has no recorded
+     * keyboard intent, so {@code isSoftKeyboardIntent()} falls back to the global default of
+     * {@code true} and the reconcile would call {@code SoftKeyboardRestore.showWithRetry} — which
+     * runs AFTER the startup hide and wins. The flag is raised in {@link #onResume()} and cleared by
+     * {@link #applyStartupSoftKeyboardState()} once the startup page selection is done, so only the
+     * startup reconcile is affected and later user-driven shows keep working.
+     */
+    public boolean isStartupSoftKeyboardHidePending() {
+        return mStartupSoftKeyboardPending;
     }
 
     /**

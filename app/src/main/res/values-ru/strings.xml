@@ -163,6 +163,8 @@
 
             
             <string name="termux_keyboard_header">Клавиатура</string>
+            <string name="system_buttons_category_title">Системные кнопки</string>
+            <string name="input_additional_category_title">Дополнительно</string>
 
                 
                 <string name="termux_soft_keyboard_enabled_title">Экранная клавиатура</string>
@@ -215,12 +217,12 @@
     <string name="color_scheme_dark_title">Цветовая схема терминала (Тёмная тема)</string>
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
-    <string name="message_history_title">История сообщений</string>
-    <string name="message_history_max_title">Максимум сохранённых сообщений</string>
-    <string name="per_directory_message_history_title">История сообщений по директориям</string>
-    <string name="per_directory_message_history_summary">Вести отдельную историю сообщений для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
+    <string name="message_history_title">История введённых текстов</string>
+    <string name="message_history_max_title">Максимум текстов в истории</string>
+    <string name="per_directory_message_history_title">История введённых текстов по директориям</string>
+    <string name="per_directory_message_history_summary">Вести отдельную историю введённых текстов для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
     <string name="save_cleared_to_history_title">Очищаемые в истории</string>
-    <string name="save_cleared_to_history_summary">Сохранять в историю очищаемые из поля ввода сообщения.</string>
+    <string name="save_cleared_to_history_summary">Сохранять в историю очищаемые из поля ввода введённые тексты.</string>
 
     
     <string name="input_panel_title">Панель ввода</string>
@@ -243,7 +245,7 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">Поведение при восстановлении сообщения из истории</string>
+    <string name="text_input_insert_at_cursor_title">Поведение при восстановлении текста из истории</string>
     <string name="text_input_insert_at_cursor_summary">Нажмите, чтобы выбрать: вставить в позицию курсора или заменить всё поле ввода</string>
     <string name="text_input_insert_at_cursor_dialog_title">Режим восстановления из истории</string>
     <string name="text_input_insert_at_cursor_option_insert">Вставить в позицию курсора</string>
@@ -330,20 +332,20 @@
     <string name="text_input_show_title">Кнопка переключения панели ввода</string>
 
     
-    <string name="message_history_empty">Нет истории сообщений</string>
+    <string name="message_history_empty">Нет истории введённых текстов</string>
     <string name="message_history_clear_all">ОЧИСТИТЬ ИСТОРИЮ…</string>
     <string name="message_history_clear">Очистить</string>
 
     
-    <string name="message_history_clear_dialog_title">Очистить историю сообщений</string>
-    <string name="message_history_clear_question">Очистить историю сообщений?</string>
-    <string name="message_history_clear_confirm_current">Очистить все сохранённые сообщения для текущей директории? Это действие необратимо.</string>
-    <string name="message_history_clear_confirm_all">Очистить всю историю сообщений? Это действие необратимо.</string>
+    <string name="message_history_clear_dialog_title">Очистить историю введённых текстов</string>
+    <string name="message_history_clear_question">Очистить историю введённых текстов?</string>
+    <string name="message_history_clear_confirm_current">Очистить все сохранённые введённые тексты для текущей директории? Это действие необратимо.</string>
+    <string name="message_history_clear_confirm_all">Очистить всю историю введённых текстов? Это действие необратимо.</string>
     <string name="message_history_clear_ok">ОК</string>
     <string name="message_history_clear_all_btn">Все</string>
     <string name="message_history_clear_current_only_question">Очистить историю только для текущей директории?</string>
-    <string name="message_history_clear_all_question">Это навсегда удалит все сохранённые сообщения.</string>
-    <string name="message_history_cleared">История сообщений очищена</string>
+    <string name="message_history_clear_all_question">Это навсегда удалит все сохранённые введённые тексты.</string>
+    <string name="message_history_cleared">История введённых текстов очищена</string>
 
     
     <string name="directory_history_clear_dialog_title">Очистить историю папок</string>
@@ -401,11 +403,11 @@
     
     <string name="language_category_title">Язык</string>
     <string name="input_preferences_title">Ввод</string>
-    <string name="input_preferences_summary">Настройки ввода текста и клавиатуры</string>
+    <string name="input_preferences_summary">Дополнительные кнопки, панель ввода, клавиатура, системные кнопки</string>
     <string name="extra_keys_preferences_title">Дополнительные кнопки</string>
     <string name="extra_keys_preferences_summary">Настройки панели дополнительных кнопок</string>
     <string name="display_preferences_title">Отображение</string>
-    <string name="display_preferences_summary">Тема, прозрачность панели, вид терминала, вкладки, окно и полноэкранный режим</string>
+    <string name="display_preferences_summary">Внешний вид, вкладки, терминал, окно</string>
     <string name="sessions_history_preferences_title">Сессии</string>
     <string name="sessions_history_preferences_summary">Настройки сессий, вкладок и истории</string>
     <string name="backup_restore_preferences_title">Резервное копирование и восстановление</string>
@@ -455,7 +457,7 @@
 
     
     <string name="terminal_preferences_title">Дополнительно</string>
-    <string name="terminal_preferences_summary">Поведение клавиш, ярлыки, сессия, безопасность и прочее</string>
+    <string name="terminal_preferences_summary">Звук и уведомления, ярлыки, сессия, безопасность, журналирование и уведомление об ошибках</string>
 
     <string name="sound_category_title">Звук и уведомления</string>
     <string name="key_behaviour_category_title">Поведение клавиш</string>
@@ -498,15 +500,10 @@
     <string name="bell_character_beep">Звук</string>
     <string name="bell_character_ignore">Игнорировать</string>
 
-    <string name="back_key_title">Поведение клавиши «Назад»</string>
-    <string name="back_key_summary">Что делает аппаратная/экранная клавиша «Назад» в терминале.</string>
-    <string name="back_key_back">Кнопка «Назад»</string>
-    <string name="back_key_escape">Клавиша Escape</string>
+    <string name="back_key_title">Отправлять Escape по нажатию кнопки «Назад»</string>
 
-    <string name="volume_keys_title">Поведение клавиш громкости</string>
-    <string name="volume_keys_summary">Управляют ли клавиши громкости звуком или работают как виртуальные клавиши.</string>
-    <string name="volume_keys_virtual">Виртуальные (работают как клавиши)</string>
-    <string name="volume_keys_volume">Громкость (управляют звуком устройства)</string>
+    <string name="volume_keys_title">Кнопки громкости как модификаторы</string>
+    <string name="volume_keys_summary">Зажать Ctrl или Fn при зажатии на устройстве кнопок громкости вниз или вверх соответственно. Для открытия панели громкости в таком режиме используйте Fn + v</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">Поведение переключателя клавиатуры</string>
     <string name="soft_keyboard_toggle_behaviour_summary">Показывает/скрывает или включает/выключает экранную клавиатуру переключатель.</string>

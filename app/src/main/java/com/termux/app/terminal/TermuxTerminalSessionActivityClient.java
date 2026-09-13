@@ -167,6 +167,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     private static final String LOG_TAG = "TermuxTerminalSessionActivityClient";
 
+    /**
+     * How long the tab-create rebuild window (see {@code TermuxActivity.beginSessionUiChurn})
+     * suppresses keyboard-intent recording. Must cover the adapter rebuild, the page switch, the
+     * per-session reconcile and the bounded post-switch re-assert (300 ms) that may follow it.
+     */
+    private static final long SESSION_UI_CHURN_MS = 900L;
+
     public TermuxTerminalSessionActivityClient(TermuxActivity activity) {
         this.mActivity = activity;
         // Fallback runnable that scrolls to the end even if the shell never sets a title.
@@ -904,15 +911,34 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             + "' mActivity.getFilesDir()='" + mActivity.getFilesDir().getAbsolutePath()
             + "' getDefaultWD='" + mActivity.getProperties().getDefaultWorkingDirectory() + "'");
 
+        // Open the rebuild window BEFORE the session is added: adding it re-notifies the session
+        // list, which rebuilds the adapter and detaches the served IME target. The system's
+        // resulting IME HIDE must not be recorded as a keyboard intent (see
+        // TermuxActivity.beginSessionUiChurn) — it would poison the memory of the tab being
+        // created and of every tab created after it.
+        mActivity.beginSessionUiChurn(SESSION_UI_CHURN_MS);
+
         TermuxSession newTermuxSession = service.createTermuxSession(null, null, null, workingDirectory, isFailSafe, sessionName);
         if (newTermuxSession == null) return null;
         TerminalSession newTerminalSession = newTermuxSession.getTerminalSession();
-        // A new tab inherits the keyboard state of the moment it is created (user expectation:
-        // creating a tab must not make the keyboard jump). Record it BEFORE the page switch so
-        // the per-session reconcile in applyTextInputVisibilityForSession works with the
-        // inherited value instead of the global fallback (which races the switch churn).
-        mActivity.getTextInputState().setSoftKeyboardIntent(newTerminalSession,
-                mActivity.computeImeVisibility());
+        // A new tab inherits the keyboard AND panel state of the moment it is created (user
+        // expectation: creating a tab must not make the keyboard or the input panel jump).
+        //
+        // The inherited keyboard value is "the IME is up" OR "the session we are leaving wanted it
+        // up" — never the raw IME probe alone. Mid-creation the probe is unreliable (the rebuild
+        // may already have dropped the IME), and using it is what made consecutive new tabs lose
+        // the keyboard: tab #2 was seeded from a momentarily-down IME and tab #3 inherited that
+        // "hidden". Falling back to the remembered intent keeps the value stable through the churn.
+        final boolean inheritedKeyboard = mActivity.computeImeVisibility()
+                || mActivity.getTextInputState().isSoftKeyboardIntent(mActivity.getCurrentSession());
+        mActivity.getTextInputState().setSoftKeyboardIntent(newTerminalSession, inheritedKeyboard);
+        // Panel visibility + focus target are inherited the same way, so the single reconcile
+        // authority (applyTextInputVisibilityForSession) has a per-session record to work from
+        // instead of the "current panel" fallback, which races the switch.
+        final boolean inheritedPanel = mActivity.isTextInputVisible();
+        mActivity.getTextInputState().setVisible(newTerminalSession.mHandle, inheritedPanel);
+        mActivity.getTextInputState().setFocusOnInput(newTerminalSession,
+                inheritedPanel && mActivity.isFocusOnInputForSession(mActivity.getCurrentSession()));
         // CALLER_MANAGED (right-swipe gesture): the caller handles selection / pager bookkeeping /
         // its own end-scroll, so just hand back the session.
         if (selectMode == NewSessionSelectMode.CALLER_MANAGED) {
@@ -1088,6 +1114,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // "keyboard state not restored after closing a tab" bug). The landed session's own
         // reconcile then restores its remembered state untouched.
         mActivity.setTerminalPageSwitchInProgress(true);
+        // Same reasoning for the bounded intent-recording window: the page-switch flag above is
+        // cleared one frame after the reconcile, which can be BEFORE the system delivers the IME
+        // HIDE caused by detaching the closed page's view.
+        mActivity.beginSessionUiChurn(SESSION_UI_CHURN_MS);
 
         int index = service.removeTermuxSession(finishedSession);
 

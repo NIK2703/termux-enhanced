@@ -50,30 +50,9 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
             value -> prefs.setDefaultWorkingDirectory(value), false);
 
         // --- Key behaviour ---
-        configureListPreference("back-key", prefs.getBackKeyBehaviour(),
-            R.array.back_key_values, value -> prefs.setBackKeyBehaviour(value), false);
-
-        configureListPreference("volume-keys", prefs.getVolumeKeysBehaviour(),
-            R.array.volume_keys_values, value -> prefs.setVolumeKeysBehaviour(value), false);
-
-        configureListPreference("soft-keyboard-toggle-behaviour", prefs.getSoftKeyboardToggleBehaviour(),
-            R.array.soft_keyboard_toggle_behaviour_values,
-            value -> prefs.setSoftKeyboardToggleBehaviour(value), false);
-
-        configureSwitch("ctrl-space-workaround", prefs.isUsingCtrlSpaceWorkaround(),
-            value -> prefs.setCtrlSpaceWorkaround(value), false);
-
-        configureSwitch("enforce-char-based-input", prefs.isEnforcingCharBasedInput(),
-            value -> prefs.setEnforceCharBasedInput(value), false);
-
-        configureSwitch("disable-hardware-keyboard-shortcuts", prefs.areHardwareKeyboardShortcutsDisabled(),
-            value -> prefs.setHardwareKeyboardShortcutsDisabled(value), false);
-
-        configureSwitch("disable-terminal-session-change-toast", prefs.areTerminalSessionChangeToastsDisabled(),
-            value -> prefs.setTerminalSessionChangeToastsDisabled(value), false);
-
-        configureSwitch("terminal-onclick-url-open", prefs.shouldOpenTerminalTranscriptURLOnClick(),
-            value -> prefs.setOpenTerminalTranscriptURLOnClick(value), false);
+        // (Previously hosted the Back key, Volume keys, keyboard toggle, Ctrl+Space workaround,
+        // char-based input, hardware keyboard shortcuts, session-change toast and URL-on-click
+        // toggles. These were migrated to the "Input" screen's TerminalIOPreferencesDataStore.)
 
         // Night/theme mode is configured on the Display screen (theme_mode) to avoid a duplicate.
 
@@ -96,8 +75,25 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("run-termux-am-socket-server", prefs.shouldRunTermuxAmSocketServer(),
             value -> prefs.setRunTermuxAmSocketServer(value), false);
 
-        configureSwitch("hide-soft-keyboard-on-startup", prefs.shouldSoftKeyboardBeHiddenOnStartup(),
-            value -> prefs.setSoftKeyboardHiddenOnStartup(value), false);
+        // --- Diagnostics (migrated from the deleted Debugging screen) ---
+        configureSwitch("terminal_view_key_logging_enabled", prefs.isTerminalViewKeyLoggingEnabled(),
+            value -> prefs.setTerminalViewKeyLoggingEnabled(value), false);
+
+        configureSwitch("plugin_error_notifications_enabled", prefs.arePluginErrorNotificationsEnabled(false),
+            value -> prefs.setPluginErrorNotificationsEnabled(value), false);
+
+        configureSwitch("crash_report_notifications_enabled", prefs.areCrashReportNotificationsEnabled(false),
+            value -> prefs.setCrashReportNotificationsEnabled(value), false);
+
+        ListPreference logLevelPref = findPreference("log_level");
+        if (logLevelPref != null) {
+            setLogLevelListPreferenceData(logLevelPref, context, prefs.getLogLevel());
+            logLevelPref.setPersistent(false);
+            logLevelPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                prefs.setLogLevel(context, Integer.parseInt((String) newValue));
+                return true;
+            });
+        }
     }
 
     // -----------------------------------------------------------------------

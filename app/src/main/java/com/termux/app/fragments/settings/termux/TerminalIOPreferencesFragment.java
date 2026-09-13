@@ -148,6 +148,31 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "keyboard_state_follow_tab_switch":
                 mPreferences.setKeyboardStateFollowTabSwitch(value);
                 break;
+            case "back-key":
+                mPreferences.setBackKeyBehaviour(value
+                    ? TermuxPropertyConstants.IVALUE_BACK_KEY_BEHAVIOUR_ESCAPE
+                    : TermuxPropertyConstants.IVALUE_BACK_KEY_BEHAVIOUR_BACK);
+                break;
+            case "volume-keys":
+                mPreferences.setVolumeKeysBehaviour(value
+                    ? TermuxPropertyConstants.IVALUE_VOLUME_KEY_BEHAVIOUR_VIRTUAL
+                    : TermuxPropertyConstants.IVALUE_VOLUME_KEY_BEHAVIOUR_VOLUME);
+                break;
+            case "ctrl-space-workaround":
+                mPreferences.setCtrlSpaceWorkaround(value);
+                break;
+            case "enforce-char-based-input":
+                mPreferences.setEnforceCharBasedInput(value);
+                break;
+            case "disable-hardware-keyboard-shortcuts":
+                mPreferences.setHardwareKeyboardShortcutsDisabled(value);
+                break;
+            case "terminal-onclick-url-open":
+                mPreferences.setOpenTerminalTranscriptURLOnClick(value);
+                break;
+            case "hide-soft-keyboard-on-startup":
+                mPreferences.setSoftKeyboardHiddenOnStartup(value);
+                break;
             case "text_input_enabled":
                 getTermuxPrefs().edit().putBoolean("text_input_enabled", value).apply();
                 break;
@@ -201,6 +226,20 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware();
             case "keyboard_state_follow_tab_switch":
                 return mPreferences.isKeyboardStateFollowTabSwitch();
+            case "back-key":
+                return mPreferences.isBackKeyTheEscapeKey();
+            case "volume-keys":
+                return !mPreferences.areVirtualVolumeKeysDisabled();
+            case "ctrl-space-workaround":
+                return mPreferences.isUsingCtrlSpaceWorkaround();
+            case "enforce-char-based-input":
+                return mPreferences.isEnforcingCharBasedInput();
+            case "disable-hardware-keyboard-shortcuts":
+                return mPreferences.areHardwareKeyboardShortcutsDisabled();
+            case "terminal-onclick-url-open":
+                return mPreferences.shouldOpenTerminalTranscriptURLOnClick();
+            case "hide-soft-keyboard-on-startup":
+                return mPreferences.shouldSoftKeyboardBeHiddenOnStartup();
             case "text_input_enabled":
                 return getTermuxPrefs().getBoolean("text_input_enabled", true);
             case "text_input_append_enter":
@@ -251,6 +290,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences.shouldHideExtraKeysWithKeyboard() ? "keyboard" : "always";
             case "text_input_action_on_send":
                 return mPreferences != null ? mPreferences.getTextInputActionOnSend() : "hide_keyboard";
+            case "soft-keyboard-toggle-behaviour":
+                return mPreferences != null ? mPreferences.getSoftKeyboardToggleBehaviour() : "show/hide";
             default:
                 return defValue;
         }
@@ -287,6 +328,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 break;
             case "text_input_action_on_send":
                 if (mPreferences != null) mPreferences.setTextInputActionOnSend(String.valueOf(value));
+                break;
+            case "soft-keyboard-toggle-behaviour":
+                if (mPreferences != null) mPreferences.setSoftKeyboardToggleBehaviour(value);
                 break;
             default:
                 break;

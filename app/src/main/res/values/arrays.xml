@@ -110,15 +110,6 @@
         <item>escape</item>
     </string-array>
 
-    <string-array name="volume_keys_entries">
-        <item>@string/volume_keys_virtual</item>
-        <item>@string/volume_keys_volume</item>
-    </string-array>
-    <string-array name="volume_keys_values">
-        <item>virtual</item>
-        <item>volume</item>
-    </string-array>
-
     <string-array name="soft_keyboard_toggle_behaviour_entries">
         <item>@string/soft_keyboard_toggle_show_hide</item>
         <item>@string/soft_keyboard_toggle_enable_disable</item>

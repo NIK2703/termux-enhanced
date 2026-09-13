@@ -31,13 +31,6 @@
         app:fragment="com.termux.app.fragments.settings.termux.BackupRestorePreferencesFragment"/>
 
     <Preference
-        app:key="diagnostics"
-        app:title="@string/diagnostics_preferences_title"
-        app:summary="@string/diagnostics_preferences_summary"
-        app:iconSpaceReserved="false"
-        app:fragment="com.termux.app.fragments.settings.termux.DebuggingPreferencesFragment"/>
-
-    <Preference
         app:key="termux_api"
         app:title="@string/termux_api_preferences_title"
         app:summary="@string/termux_api_preferences_summary"

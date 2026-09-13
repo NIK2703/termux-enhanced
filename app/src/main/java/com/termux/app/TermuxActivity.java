@@ -422,6 +422,44 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     }
 
     /**
+     * True for a bounded window while a tab is being CREATED. The adapter rebuild that carries the
+     * new session detaches the served IME target, so the system fires an IME HIDE of its own — with
+     * the new page already focused and attached, so the {@code systemDrop} heuristic in
+     * {@link #onImeVisibilityChanged(boolean)} cannot recognise it as spurious.
+     *
+     * <p>Without this guard that HIDE is treated as an honest user action and written into the
+     * keyboard intent — both globally and for the landed session — which is what made the keyboard
+     * state memory collapse when tabs were opened one after another: the first creation overwrote
+     * the intent to "hidden", the second new tab inherited "hidden", and from then on every tab
+     * came up without a keyboard. {@link #removeFinishedSession} already carries the same guard for
+     * the close path (there it protects the LANDED session's memory).
+     */
+    private boolean mSessionUiChurn = false;
+    private final Runnable mEndSessionUiChurnRunnable = () -> mSessionUiChurn = false;
+
+    /** Whether a tab create/close rebuild window is suppressing keyboard-intent recording. */
+    public boolean isSessionUiChurnActive() {
+        return mSessionUiChurn;
+    }
+
+    /**
+     * Open the create/close rebuild window for {@code timeoutMs}. Self-clearing on a posted
+     * runnable, so a missed teardown can never leave the intent recording switched off forever.
+     */
+    public void beginSessionUiChurn(long timeoutMs) {
+        mSessionUiChurn = true;
+        // A tab being created supersedes the cold-start hide policy: the new page inherits the
+        // keyboard state, so a pending startup re-assert must not close what it inherits.
+        if (mTermuxTerminalViewClient != null)
+            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+        android.view.View decor = getWindow() != null ? getWindow().getDecorView() : null;
+        if (decor != null) {
+            decor.removeCallbacks(mEndSessionUiChurnRunnable);
+            decor.postDelayed(mEndSessionUiChurnRunnable, timeoutMs);
+        }
+    }
+
+    /**
      * Whether the ViewPager2 is currently animating a page scroll — i.e. its scroll state is
      * DRAGGING (finger down) or SETTLING (the settle animation), as opposed to IDLE.
      *
@@ -1054,8 +1092,22 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        // Real user input ends the cold-start "hide keyboard on startup" policy: from here on the
+        // keyboard state is the user's. Without this the bounded re-assert could close a keyboard
+        // the user had just opened right after launch.
+        if (mTermuxTerminalViewClient != null)
+            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
+
+        // Cold-start hide re-assert is meaningless once we leave the foreground.
+        if (mTermuxTerminalViewClient != null)
+            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
 
         // Mark paused so the IME-hidden handler (WindowInsetsListener) does not
         // close the text input panel when the system dismisses the soft keyboard
@@ -1377,6 +1429,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** Called by SessionPagerManager.onTerminalPageSelected once a page is live. */
     public void consumePendingKeyboardRestoreIfReady() {
+        // Cold-start "hide keyboard on startup": onResume() may run before the ViewPager2 has bound
+        // page 0, so getTerminalView() is still null and setSoftKeyboardState() early-returns without
+        // applying the hide -> the keyboard pops up on launch. Re-apply it now that the active
+        // TerminalView exists. No-op unless a cold-start hide is still pending (runs exactly once).
+        if (mTermuxTerminalViewClient != null)
+            mTermuxTerminalViewClient.applyStartupSoftKeyboardState();
+
         if (mPendingKeyboardRestore && getActiveTerminalView() != null) {
             runKeyboardRestore();
         }
@@ -3977,6 +4036,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     + " paused=" + mIsPaused + " justResumed=" + mJustResumed
                     + " restoringKb=" + mRestoringKeyboard + " pendingKb=" + mPendingKeyboardRestore
                     + " switchInProg=" + isTerminalPageSwitchInProgress()
+                    + " churn=" + mSessionUiChurn
                     + " panelVis=" + isTextInputVisible()
                     + " systemDrop=" + systemDrop
                     + " insetsSeen=" + mImeInsetsSeen + " insetsVis=" + mImeVisibleFromInsets
@@ -3989,12 +4049,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             //    authority and is still applying the real state;
             //  - isTerminalPageSwitchInProgress(): the shared IME must not churn mid-switch;
             //  - systemDrop: the served view was detached by a close/create rebind — the HIDE
-            //    belongs to the old session, not to the now-current (landed) one.
+            //    belongs to the old session, not to the now-current (landed) one;
+            //  - mSessionUiChurn: a tab create/close rebuild window (see beginSessionUiChurn) —
+            //    the same spurious HIDE, but with the new page already focused and attached, so
+            //    systemDrop cannot see it. Recording it here overwrote the keyboard intent to
+            //    "hidden" and broke the state memory for every following new tab.
             boolean inTransition = mIsPaused
                     || mJustResumed
                     || mRestoringKeyboard
                     || mPendingKeyboardRestore
                     || isTerminalPageSwitchInProgress()
+                    || mSessionUiChurn
                     || systemDrop;
 
             // Record the keyboard INTENT only in honest foreground states. Both the global
@@ -4194,9 +4259,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     public void applyTextInputVisibilityForSession(@Nullable TerminalSession session,
                                                    boolean applyFocus,
-                                                   boolean showKeyboardIfFocused) {
+                                                   boolean showKeyboardIfFocusedParam) {
         View textInputContainer = findViewById(R.id.terminal_toolbar_text_input_container);
         if (textInputContainer == null) return;
+
+        // Cold start + "hide keyboard on startup": the startup per-session reconcile must not pop
+        // the IME, even though a freshly created session's default keyboard intent is "visible"
+        // (SessionUiStateStore) — otherwise SoftKeyboardRestore.showWithRetry runs after the startup
+        // hide and the keyboard appears on launch despite the preference. The gate is raised in
+        // TermuxTerminalViewClient.onResume() and cleared once the startup page selection is done
+        // (consumePendingKeyboardRestoreIfReady), so later user-driven shows are unaffected.
+        // Resolved into a final local (the parameter is captured by the whenViewLaidOut lambda).
+        final boolean showKeyboardIfFocused = showKeyboardIfFocusedParam
+                && !(mTermuxTerminalViewClient != null
+                        && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending());
 
         boolean enabled = isTextInputEnabled();
         boolean hasRecorded = session != null && mTextInputState.hasVisible(session.mHandle);

@@ -192,6 +192,8 @@
 
             <!-- Keyboard Category -->
             <string name="termux_keyboard_header">Keyboard</string>
+            <string name="system_buttons_category_title">System buttons</string>
+            <string name="input_additional_category_title">Additional</string>
 
                 <!-- Soft Keyboard -->
                 <string name="termux_soft_keyboard_enabled_title">Soft Keyboard Enabled</string>
@@ -577,8 +579,8 @@
     <string name="back_key_title">Back key behaviour</string>
     <string name="back_key_summary">What the hardware/software back key does in the terminal.</string>
 
-    <string name="volume_keys_title">Volume keys behaviour</string>
-    <string name="volume_keys_summary">Whether volume keys control volume or act as virtual keys.</string>
+    <string name="volume_keys_title">Volume keys as modifiers</string>
+    <string name="volume_keys_summary">Hold Ctrl or Fn while pressing the device volume down or up keys respectively. To open the volume panel in this mode, use Fn + v.</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">Keyboard toggle behaviour</string>
     <string name="soft_keyboard_toggle_behaviour_summary">Whether the keyboard toggle shows/hides or enables/disables the soft keyboard.</string>
@@ -640,9 +642,6 @@
 
     <string name="back_key_back">Back button</string>
     <string name="back_key_escape">Escape key</string>
-
-    <string name="volume_keys_virtual">Virtual (volume keys act as keys)</string>
-    <string name="volume_keys_volume">Volume (control device volume)</string>
 
     <string name="soft_keyboard_toggle_show_hide">Show / hide</string>
     <string name="soft_keyboard_toggle_enable_disable">Enable / disable</string>

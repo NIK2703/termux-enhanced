@@ -19,77 +19,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        app:title="@string/key_behaviour_category_title"
-        app:iconSpaceReserved="false">
-
-        <ListPreference
-            app:key="back-key"
-            app:defaultValue="back"
-            app:title="@string/back_key_title"
-            app:useSimpleSummaryProvider="true"
-            app:entries="@array/back_key_entries"
-            app:entryValues="@array/back_key_values"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <ListPreference
-            app:key="volume-keys"
-            app:defaultValue="virtual"
-            app:title="@string/volume_keys_title"
-            app:useSimpleSummaryProvider="true"
-            app:entries="@array/volume_keys_entries"
-            app:entryValues="@array/volume_keys_values"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <ListPreference
-            app:key="soft-keyboard-toggle-behaviour"
-            app:defaultValue="show/hide"
-            app:title="@string/soft_keyboard_toggle_behaviour_title"
-            app:useSimpleSummaryProvider="true"
-            app:entries="@array/soft_keyboard_toggle_behaviour_entries"
-            app:entryValues="@array/soft_keyboard_toggle_behaviour_values"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="ctrl-space-workaround"
-            app:title="@string/ctrl_space_workaround_title"
-            app:summary="@string/ctrl_space_workaround_summary"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="enforce-char-based-input"
-            app:title="@string/enforce_char_based_input_title"
-            app:summary="@string/enforce_char_based_input_summary"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="disable-hardware-keyboard-shortcuts"
-            app:title="@string/disable_hardware_keyboard_shortcuts_title"
-            app:summary="@string/disable_hardware_keyboard_shortcuts_summary"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="disable-terminal-session-change-toast"
-            app:title="@string/disable_terminal_session_change_toast_title"
-            app:summary="@string/disable_terminal_session_change_toast_summary"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="terminal-onclick-url-open"
-            app:title="@string/terminal_onclick_url_open_title"
-            app:summary="@string/terminal_onclick_url_open_summary"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
         app:title="@string/shortcuts_category_title"
         app:iconSpaceReserved="false">
 
@@ -174,12 +103,6 @@
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        app:title="@string/misc_category_title"
-        app:iconSpaceReserved="false">
-
         <SwitchPreferenceCompat
             app:key="run-termux-am-socket-server"
             app:title="@string/run_termux_am_socket_server_title"
@@ -187,11 +110,47 @@
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
-        <SwitchPreferenceCompat
-            app:key="hide-soft-keyboard-on-startup"
-            app:title="@string/hide_soft_keyboard_on_startup_title"
-            app:summary="@string/hide_soft_keyboard_on_startup_summary"
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="logging"
+        app:title="@string/termux_logging_header"
+        app:iconSpaceReserved="false">
+
+        <ListPreference
+            app:defaultValue="1"
+            app:key="log_level"
+            app:title="@string/termux_log_level_title"
+            app:useSimpleSummaryProvider="true"
             android:persistent="false"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="terminal_view_key_logging_enabled"
+            app:summaryOff="@string/termux_terminal_view_key_logging_enabled_off"
+            app:summaryOn="@string/termux_terminal_view_key_logging_enabled_on"
+            app:title="@string/termux_terminal_view_key_logging_enabled_title"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="failure_notifications"
+        app:title="@string/failure_notifications_category_title"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            app:key="plugin_error_notifications_enabled"
+            app:summaryOff="@string/termux_plugin_error_notifications_enabled_off"
+            app:summaryOn="@string/termux_plugin_error_notifications_enabled_on"
+            app:title="@string/termux_plugin_error_notifications_enabled_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="crash_report_notifications_enabled"
+            app:summaryOff="@string/termux_crash_report_notifications_enabled_off"
+            app:summaryOn="@string/termux_crash_report_notifications_enabled_on"
+            app:title="@string/termux_crash_report_notifications_enabled_title"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
