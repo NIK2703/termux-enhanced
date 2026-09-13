@@ -152,12 +152,26 @@ public final class DirectoryPickerView extends View {
         mFadeSeparatorPaint.setStrokeWidth(1f);
     }
 
-    /** Text size in px. */
+    /**
+     * Text size in px.
+     *
+     * <p>Identity early-out, and it matters: {@code DirectoryPickerController#bind} sets this on
+     * every bind, and a bind of the placeholder page lands inside the settle of the swipe that just
+     * opened a tab. The old body re-measured {@link #mItems} — the <em>previous</em> gesture's list,
+     * since {@code bind} clears it on the very next line — so every bind shaped up to ten labels
+     * only to throw them away, and it also dropped the width cache that makes
+     * {@link #premeasure} free.
+     *
+     * <p>A real change (a different font scale) still invalidates the cache: clearing
+     * {@link #mMeasuredLabels} is exactly what makes the next {@link #setItems} — or
+     * {@link #premeasure} — measure instead of reuse.
+     */
     public void setLabelTextSize(float px) {
+        if (mTextPaint.getTextSize() == px && mFadeTextPaint.getTextSize() == px) return;
         mTextPaint.setTextSize(px);
         mFadeTextPaint.setTextSize(px);
-        // The cached widths are in the old size, so they are re-measured rather than reused.
-        measureInto(mItems);
+        // The cached widths are in the old size, so they must not be reused.
+        mMeasuredLabels.clear();
         invalidate();
     }
 
@@ -210,22 +224,35 @@ public final class DirectoryPickerView extends View {
      * when a gesture starts.
      *
      * <p>{@link #setItems} runs on the first frame that reveals the placeholder — the gesture's
-     * critical frame, where this view also goes from {@code GONE} to {@code VISIBLE} and has its
-     * display list recorded from scratch. Measuring up to ten paths there means up to ten text
+     * critical frame, where this view also goes from {@code INVISIBLE} to {@code VISIBLE} and has
+     * its display list recorded from scratch. Measuring up to ten paths there means up to ten text
      * shaping calls on that one frame. The controller calls this while the page is at rest instead.
+     *
+     * <p>Reuses the existing cache when {@code items} is a prefix of what it already covers, which
+     * is the normal case across bindings: the view lives in a ViewHolder that RecyclerView recycles
+     * between gestures, and the directory history rarely changes between two swipes. Without this
+     * the pre-measurement below was repeated on every placeholder (re)bind — and a (re)bind is
+     * exactly what the pager performs one frame after a commit, i.e. inside the settle of the swipe
+     * that opened the tab.
      */
     public void premeasure(@NonNull List<String> items) {
+        if (isMeasuredPrefixOf(items)) return;
         measureInto(items);
+    }
+
+    /** @return true if {@link #mLabelWidths} already covers {@code items} entry by entry. */
+    private boolean isMeasuredPrefixOf(@NonNull List<String> items) {
+        final int count = items.size();
+        if (count > mMeasuredLabels.size()) return false;
+        for (int i = 0; i < count; i++) {
+            if (!java.util.Objects.equals(items.get(i), mMeasuredLabels.get(i))) return false;
+        }
+        return true;
     }
 
     /** @return true if {@link #mLabelWidths} already covers {@link #mItems} entry by entry. */
     private boolean isMeasuredPrefix() {
-        final int count = mItems.size();
-        if (count > mMeasuredLabels.size()) return false;
-        for (int i = 0; i < count; i++) {
-            if (!java.util.Objects.equals(mItems.get(i), mMeasuredLabels.get(i))) return false;
-        }
-        return true;
+        return isMeasuredPrefixOf(mItems);
     }
 
     /** Highlight the row under the finger; {@code -1} clears it. */

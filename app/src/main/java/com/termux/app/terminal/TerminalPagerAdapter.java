@@ -379,21 +379,22 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
         // The placeholder layout carries a "New tab" hint overlay; show it only for the
         // placeholder page and hide it once this slot is rebound to a real session (commit).
+        //
+        // NOTE: none of the three branches paints a background on the container, and that is
+        // deliberate rather than an omission. The unbound TerminalView below already fills the whole
+        // page with the scheme background in onDraw() (the mEmulator == null placeholder branch), and
+        // that fill honours the configured transparency: scheme colour at alpha A in SRC mode. This
+        // container is match_parent, so a second full-page layer would either be opaque (wallpaper
+        // hidden on this page) or, at the same alpha A, compose over that fill to 2A-A^2 — i.e.
+        // double the transparency and tint it with the fill underneath. One layer only: the layout
+        // leaves the container with no background at all, and the three
+        // setBackgroundColor(TRANSPARENT) calls that used to stand here were no-ops that still cost
+        // a ColorDrawable on the first bind of each ViewHolder plus an ancestor invalidation.
         View hint = holder.mHintContainer;
         if (hint != null) {
             if (isPlaceholder) {
                 // Tint the hint with the terminal foreground so an unbound (blank) terminal page
                 // reads like a real one.
-                //
-                // The *background* is deliberately NOT painted here. The unbound TerminalView below
-                // already fills the whole page with the scheme background in onDraw() (the
-                // mEmulator == null placeholder branch), and that fill honours the configured
-                // transparency: scheme colour at alpha A in SRC mode. This container is
-                // match_parent, so a second full-page layer would either be opaque (wallpaper
-                // hidden on this page) or, at the same alpha A, compose over that fill to
-                // 2A-A^2 — i.e. double the transparency and tint it with the fill underneath.
-                // One layer only: transparent container on top of the TerminalView's own fill.
-                hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
                 applyPlaceholderHintColors(holder);
                 hint.setVisibility(View.VISIBLE);
                 // The whole overlay fades with the drag (see setPlaceholderScrollOffset). Start it
@@ -404,12 +405,10 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             } else if (mPlaceholderFadingOut) {
                 // This slot was JUST rebound to the session the swipe committed, and the overlay is
                 // still fading out over it. Leave the container alone — the animation owns its alpha
-                // and visibility, and setting GONE here would swallow the fade. Leaving it on top of
-                // the new session is the whole point: the terminal appears to fade in from under the
-                // placeholder rather than replacing it in one frame.
-                hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+                // and visibility, and setting INVISIBLE here would swallow the fade. Leaving it on
+                // top of the new session is the whole point: the terminal appears to fade in from
+                // under the placeholder rather than replacing it in one frame.
             } else {
-                hint.setBackgroundColor(android.graphics.Color.TRANSPARENT);
                 // INVISIBLE, never GONE — same reason as in the layout: GONE makes setFlags() call
                 // requestLayout(), and this runs on every bind of a non-placeholder page, including
                 // the re-arm that lands a frame after a commit (i.e. inside the settle of the swipe
@@ -739,11 +738,29 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
      * page reads like a real one. Called on every placeholder bind and again on a colour-scheme
      * change (see {@link #applyPlaceholderColors()}).
      *
+     * <p>Guarded by the colour last applied to <em>this holder</em>: both writes below allocate on
+     * the framework side — {@code ImageView.setColorFilter(int)} always builds a fresh
+     * {@code PorterDuffColorFilter} ({@code ImageView.java:1533}) and {@code TextView.setTextColor(int)}
+     * resolves a {@code ColorStateList} and walks the compound drawables — and a bind of the
+     * placeholder page happens inside the settle of the swipe that opened the tab, where the colour
+     * is almost always the one already in force.
+     *
+     * <p>The cache lives on the holder, not on the adapter, because it describes two specific views.
+     * A freshly created holder carries the <em>layout's</em> tint ({@code ?attr/colorOnSurface}, not
+     * the terminal palette), and the holder that is the placeholder changes on every commit — the
+     * committed slot becomes a real page and the trailing placeholder is re-armed onto another
+     * holder. An adapter-wide cache would therefore see "already applied" and leave the new
+     * placeholder showing the theme colour. Per holder, the first bind of each holder into the
+     * placeholder role always applies, and only the repeats are free.
+     *
      * <p>The <em>background</em> is deliberately not painted here — see the call site in
      * {@link #onBindViewHolder} for why one layer only.
      */
     private void applyPlaceholderHintColors(@NonNull TerminalPageViewHolder holder) {
         final int fg = getCurrentTerminalColor(TextStyle.COLOR_INDEX_FOREGROUND);
+        if (holder.mHintFgValid && fg == holder.mHintFg) return;
+        holder.mHintFgValid = true;
+        holder.mHintFg = fg;
         if (holder.mHintPlus != null) holder.mHintPlus.setColorFilter(fg);
         if (holder.mHintText != null) holder.mHintText.setTextColor(fg);
     }
@@ -768,23 +785,51 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // slot: the slot has already been re-armed onto a different page by then.
         final View hintContent = mPlaceholderFadingOut ? mFadingHintContent : mPlaceholderHintContent;
         if (hintContent == null) return;
-        View parent = (View) hintContent.getParent();
-        if (parent == null || parent.getWidth() <= 0) return;
+        final View parent = (View) hintContent.getParent();
+        if (parent == null) return;
+        // The width is read live, on every callback, and deliberately not latched. Auditing this
+        // suggested caching it per gesture (the same trick rawToPageY() uses for
+        // getLocationOnScreen(), SessionPagerManager:199), but the two cases are not alike:
+        // getLocationOnScreen() walks the parent chain, whereas getWidth() is two field reads, and
+        // — decisively — TermuxActivity declares
+        // configChanges="orientation|screenSize|smallestScreenSize|…", so a rotation or a
+        // split-screen resize does NOT recreate the activity. The adapter and this hint content
+        // survive it while the pager's width changes, so a latch keyed on the view would hold a
+        // stale width and misposition the overlay for the whole of the next gesture. Two field reads
+        // are not worth that.
+        final int width = parent.getWidth();
+        if (width <= 0) return;
+
         // At offset 0 the hint sits at the screen's right edge (just peeking in); at offset 1 it is
-        // centred on screen. Linear interpolation between those two positions.
-        hintContent.setTranslationX(parent.getWidth() * (pageOffset - 1f) / 2f);
-        // The hint content is translated horizontally but NOT faded on its own any more — the whole
-        // overlay fades, so a per-child alpha here would multiply into it.
-        hintContent.setAlpha(1f);
+        // centred on screen. Linear interpolation between those two positions, snapped to whole
+        // pixels: a fractional translation rasterises the text at a fractional offset (soft edges)
+        // and a sub-pixel change still re-records the ancestors' display lists, so rounding both
+        // sharpens the picture and drops the writes that could not have been seen. The endpoints are
+        // unaffected — offset 1 is exactly 0, and at offset 0 the overlay is fully transparent.
+        hintContent.setTranslationX(Math.round(width * (pageOffset - 1f) / 2f));
+        // The hint content is translated horizontally but NOT faded on its own — the whole overlay
+        // fades (below), so a per-child alpha here would multiply into it. (The setAlpha(1f) that
+        // used to stand here was a permanent no-op: this view's alpha is written nowhere else.)
+        //
         // The overlay's opacity IS the pull: invisible at offset 0, fully opaque at 1, linear in
         // between. Deliberately not a ramp that saturates early — committing needs the page pulled
         // past halfway, so anything reaching full opacity before 1 would mean the commit fade-out
         // always restarted from opaque instead of continuing from the value the pull had reached.
         //
+        // Quantized to the 8-bit step the alpha channel can express, so a callback that would not
+        // move the rendered alpha no longer re-records the ancestors' display lists (and
+        // View.setAlpha's own early-out then makes it free). The approximation is bounded by 1/255,
+        // i.e. below the quantization the framework applies anyway.
+        //
         // Not re-asserted while the commit fade-out runs: the animation drives the same property,
         // and a scroll frame arriving mid-fade would snap the overlay back up. The horizontal
         // translation above is still applied — the page keeps sliding while it fades.
-        if (!mPlaceholderFadingOut) parent.setAlpha(Math.min(1f, pageOffset));
+        if (!mPlaceholderFadingOut) parent.setAlpha(quantizeAlpha(Math.min(1f, pageOffset)));
+    }
+
+    /** Round an alpha to the 8-bit step the framework's alpha channel can express. */
+    private static float quantizeAlpha(float alpha) {
+        return Math.round(alpha * 255f) / 255f;
     }
 
     /**
@@ -892,6 +937,16 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         /** The adapter position this ViewHolder was last bound to; lets onViewRecycled()
          *  drop the mAttachedViews entry in O(1) without a linear scan. -1 when unbound. */
         public int boundPosition = -1;
+        /**
+         * Foreground colour last applied to {@link #mHintPlus} / {@link #mHintText}, and whether it
+         * has been applied at all. Guards the two framework-side allocations in
+         * {@link #applyPlaceholderHintColors} — see there for why the cache is per holder.
+         *
+         * <p>A separate validity flag rather than a sentinel colour, because every {@code int} is a
+         * legal ARGB value.
+         */
+        public int mHintFg;
+        public boolean mHintFgValid = false;
 
         TerminalPageViewHolder(@NonNull View itemView) {
             super(itemView);

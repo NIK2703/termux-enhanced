@@ -894,4 +894,9 @@
     <string name="extra_keys_editor_profile_import_failed">Import failed</string>
     <string name="extra_keys_editor_profile_import_default_name">Imported</string>
 
+    <!-- Terminal font size (Display > Appearance). The same value, the same bounds
+         and the same step the pinch gesture uses — see
+         TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
+    <string name="terminal_font_size_title" formatted="false">Font size</string>
+    <string name="terminal_font_size_summary" formatted="false">Pinching on the terminal changes the same value</string>
 </resources>

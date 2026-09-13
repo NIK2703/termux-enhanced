@@ -15,6 +15,7 @@ import androidx.preference.SwitchPreferenceCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
+import com.termux.app.terminal.TermuxActivityBroadcastManager;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
@@ -208,8 +209,51 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureBackgroundBlurRadiusSeekBar(prefs);
         updateBackgroundBlurPrefState(prefs);
 
+        configureFontSizeSeekBar(prefs);
+
         configureSwitch("scroll-on-new-output", prefs.isScrollOnNewOutputEnabled(),
             value -> prefs.setScrollOnNewOutputEnabled(value));
+    }
+
+    /**
+     * Terminal font-size slider.
+     *
+     * <p>It writes the same {@code fontsize} preference the pinch-to-zoom gesture writes, and its
+     * bounds come from the very constants that gesture clamps to
+     * ({@link TermuxAppSharedPreferences#getMinFontSize()} /
+     * {@link TermuxAppSharedPreferences#getMaxFontSize()}), so the slider cannot reach a size the
+     * gesture cannot. The lower bound is density-derived (4dp) and therefore cannot be a literal in
+     * the XML — it has to be applied here.
+     *
+     * <p>{@link TermuxAppSharedPreferences#FONT_SIZE_STEP} is fed to {@code setSeekBarIncrement()},
+     * which {@code SeekBarPreference} applies to keyboard/DPAD stepping only; a finger drag is left
+     * at full resolution on purpose. Snapping the dragged value would desynchronise the thumb from
+     * the number shown next to it, and every integer in the range is a size the preference accepts.
+     *
+     * <p>Deliberately <em>not</em> {@link #configureSeekBarInt(String, int, PreferenceValueSetter)}:
+     * that helper asks for an activity recreate on every value. A dedicated broadcast is sent
+     * instead, and the running terminal re-applies the size to every page it keeps bound — no
+     * recreate, and the terminal is already correct by the time the user gets back to it.
+     * {@code SeekBarPreference} commits a drag on finger release (its default
+     * {@code updatesContinuously = false}), so this is one broadcast per drag rather than one per
+     * frame; per-frame application would buy nothing anyway, because this settings screen is
+     * covering the terminal the whole time the slider is moving.
+     */
+    private void configureFontSizeSeekBar(TermuxAppSharedPreferences prefs) {
+        final SeekBarPreference pref = findPreference("terminal-font-size");
+        if (pref == null) return;
+
+        pref.setMin(prefs.getMinFontSize());
+        pref.setMax(prefs.getMaxFontSize());
+        pref.setSeekBarIncrement(TermuxAppSharedPreferences.FONT_SIZE_STEP);
+        pref.setPersistent(false);
+        pref.setValue(prefs.getFontSize());
+
+        pref.setOnPreferenceChangeListener((preference, newValue) -> {
+            prefs.setFontSize((Integer) newValue);
+            TermuxActivityBroadcastManager.notifyFontSizeChanged(requireContext());
+            return true;
+        });
     }
 
     private void configureSeekBarInt(String key, int current,

@@ -445,6 +445,28 @@ public final class TerminalEmulator {
         resizeScreen();
     }
 
+    /**
+     * Whether this emulator is already sized exactly as asked, so that {@link #resize} would return
+     * on its first check and the pty would be handed a window size it already has.
+     *
+     * <p>Exists so a caller can avoid the resize <em>round trip</em>, not just the reflow:
+     * {@code TerminalSession.updateSize()} issues {@code JNI.setPtyWindowSize} before calling
+     * {@link #resize}, i.e. an ioctl on the pty. The session pager reaches that path on every page
+     * (re)bind, because {@code TerminalView.attachSession()} drops the view's emulator reference and
+     * the next {@code updateSize()} therefore has to re-resolve it — see
+     * {@code TerminalView.updateSize()}.
+     *
+     * @param columns         number of columns.
+     * @param rows            number of rows.
+     * @param cellWidthPixels width of one cell in pixels.
+     * @param cellHeightPixels height of one cell in pixels.
+     * @return true when nothing about the size would change.
+     */
+    public boolean hasSize(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
+        return mColumns == columns && mRows == rows
+                && mCellWidthPixels == cellWidthPixels && mCellHeightPixels == cellHeightPixels;
+    }
+
     private void resizeScreen() {
         final int[] cursor = {mCursorCol, mCursorRow};
         int newTotalRows = (mScreen == mAltBuffer) ? mRows : mMainBuffer.mTotalRows;

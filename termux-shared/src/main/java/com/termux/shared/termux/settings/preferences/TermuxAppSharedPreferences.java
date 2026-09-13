@@ -252,15 +252,45 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return DataUtils.clamp(fontSize, MIN_FONTSIZE, MAX_FONTSIZE);
     }
 
+    /**
+     * Store the terminal font size, in pixels.
+     *
+     * <p>Clamped to the same bounds {@link #getFontSize()} clamps to, so a value that came from
+     * outside the app (an old preferences file, a settings UI that computed its own range) can
+     * never be persisted out of range and then read back — the read-side clamp stays as the second
+     * line of defence, but the stored value is now always valid on its own.
+     */
     public void setFontSize(int value) {
+        value = DataUtils.clamp(value, MIN_FONTSIZE, MAX_FONTSIZE);
         SharedPreferenceUtils.setIntStoredAsString(mSharedPreferences, TERMUX_APP.KEY_FONTSIZE, value, false);
     }
+
+    /**
+     * The smallest terminal font size, in pixels — the lower bound the pinch gesture, the
+     * {@code fontsize} preference and the Display settings slider all share.
+     */
+    public int getMinFontSize() {
+        return MIN_FONTSIZE;
+    }
+
+    /**
+     * The largest terminal font size, in pixels — the upper bound the pinch gesture, the
+     * {@code fontsize} preference and the Display settings slider all share.
+     */
+    public int getMaxFontSize() {
+        return MAX_FONTSIZE;
+    }
+
+    /**
+     * The adjustment step of the terminal font size, in pixels — how much the pinch gesture moves
+     * the size per step, and the granularity the Display settings slider snaps to.
+     */
+    public static final int FONT_SIZE_STEP = 2;
 
     public void changeFontSize(boolean increase) {
         int fontSize = getFontSize();
 
-        fontSize += (increase ? 1 : -1) * 2;
-        fontSize = Math.max(MIN_FONTSIZE, Math.min(fontSize, MAX_FONTSIZE));
+        fontSize += (increase ? 1 : -1) * FONT_SIZE_STEP;
 
         setFontSize(fontSize);
     }

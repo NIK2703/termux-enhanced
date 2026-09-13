@@ -5,6 +5,8 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 import com.termux.terminal.TerminalSession;
 
 /**
@@ -63,7 +65,18 @@ public interface TerminalViewClient {
     boolean onCodePoint(int codePoint, boolean ctrlDown, TerminalSession session);
 
 
-    void onEmulatorSet();
+    /**
+     * Called when {@link TerminalView#mEmulator} is set, on a specific view.
+     *
+     * <p>The source view is passed in because this client is shared by <em>every</em> page of the
+     * session pager: a bind of a background page reaches this callback too, so a handler that means
+     * "the emulator that just appeared" must act on {@code terminalView} and never on the activity's
+     * currently selected view. Acting on the latter made a background page bind reset the
+     * <em>active</em> session's {@code autoScrollDisabled} flag, which the next chunk of output then
+     * turned into "scrolled into history, jumped back to the bottom" — see
+     * {@code TermuxTerminalViewClient#onEmulatorSet}.
+     */
+    void onEmulatorSet(@NonNull TerminalView terminalView);
 
 
     void logError(String tag, String message);

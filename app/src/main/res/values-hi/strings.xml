@@ -724,4 +724,9 @@
         <item>GB</item>
     </string-array>
 
+    <!-- Terminal font size (Display > Appearance). The same value, the same bounds
+         and the same step the pinch gesture uses — see
+         TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
+    <string name="terminal_font_size_title" formatted="false">फ़ॉन्ट आकार</string>
+    <string name="terminal_font_size_summary" formatted="false">टर्मिनल पर पिंच करने से भी यही मान बदलता है</string>
 </resources>

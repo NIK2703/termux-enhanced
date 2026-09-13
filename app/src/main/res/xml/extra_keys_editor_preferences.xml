@@ -75,7 +75,7 @@
         app:key="extra-keys-style"
         app:defaultValue="default"
         app:title="@string/extra_keys_style_title"
-        app:summary="@string/extra_keys_style_summary"
+        app:useSimpleSummaryProvider="true"
         app:entries="@array/extra_keys_style_entries"
         app:entryValues="@array/extra_keys_style_values"
         app:iconSpaceReserved="false" />

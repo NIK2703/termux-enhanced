@@ -1273,15 +1273,36 @@ public final class TerminalView extends View {
     /**
      * Sets the text size, which in turn sets the number of rows and columns.
      *
+     * <p>Identity early-out: a {@link TerminalRenderer} is a pure function of (typeface, text size),
+     * and the pager re-applies the configured size on <em>every</em> page bind — see
+     * {@link #setTypeface}. Rebuilding the renderer for a size that is already in force therefore
+     * bought nothing and cost a lot: the constructor allocates its paints, a per-code-point measure
+     * table and the ASCII tables, and calls the native font metrics three times. Skipping it is
+     * exactly equivalent, because the pair {@code setTextSize(s)} + {@code setTypeface(t)} still
+     * rebuilds whenever either half actually changes — the first call keeps the current typeface and
+     * the second keeps the size, so neither can be skipped into a stale combination.
+     *
      * @param textSize the new font size, in density-independent pixels.
      */
     public void setTextSize(int textSize) {
+        if (mRenderer != null && mRenderer.mTextSize == textSize) return;
         mRenderer = new TerminalRenderer(textSize, mRenderer == null ? Typeface.MONOSPACE : mRenderer.mTypeface);
         mRenderer.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
         updateSize();
     }
 
+    /**
+     * Sets the typeface, which in turn sets the number of rows and columns.
+     *
+     * <p>Identity early-out, for the same reason as {@link #setTextSize}: the pager calls this on
+     * every page bind through {@code checkForFontAndColorsForView()}, and the typeface it passes is
+     * a <em>cached</em> instance, so an unchanged typeface can be recognised by reference. A genuine
+     * font change still rebuilds. The {@code invalidate()} below is deliberately not repeated on the
+     * early-out path: nothing that was drawn needs repainting if the typeface did not change, and
+     * the one caller that does need a repaint asks for it itself.
+     */
     public void setTypeface(Typeface newTypeface) {
+        if (mRenderer != null && mRenderer.mTypeface == newTypeface) return;
         mRenderer = new TerminalRenderer(mRenderer.mTextSize, newTypeface);
         mRenderer.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
         updateSize();
@@ -2633,9 +2654,26 @@ public final class TerminalView extends View {
             // the viewport stable instead of jumping to the bottom; after attachSession()
             // this is 0 and the queued restore below overrides it.
             int previousTopRow = mTopRow;
-            mTermSession.updateSize(newColumns, newRows, (int) mRenderer.getFontWidth(), mRenderer.getFontLineSpacing());
+            // TerminalSession.updateSize() is not free: it issues JNI.setPtyWindowSize (an ioctl on
+            // the pty) unconditionally. On a pager (re)bind mEmulator is null here — attachSession()
+            // has just dropped it — while the session's OWN emulator is already the right size, so
+            // without this check every page bind pays for an ioctl that changes nothing. That bind
+            // is not a rare event: the trailing placeholder is re-armed one frame after a commit,
+            // i.e. inside the settle of the swipe that opened the tab. TerminalEmulator.resize()
+            // already early-outs on an unchanged size, so skipping the call is behaviour-preserving;
+            // only the syscall goes away.
+            final TerminalEmulator sessionEmulator = mTermSession.getEmulator();
+            final int fontWidth = (int) mRenderer.getFontWidth();
+            final int fontLineSpacing = mRenderer.getFontLineSpacing();
+            if (sessionEmulator == null
+                    || !sessionEmulator.hasSize(newColumns, newRows, fontWidth, fontLineSpacing)) {
+                mTermSession.updateSize(newColumns, newRows, fontWidth, fontLineSpacing);
+            }
             mEmulator = mTermSession.getEmulator();
-            mClient.onEmulatorSet();
+            // The source view is handed over: this client is shared by every pager page, so a
+            // handler that means "the emulator that just appeared" must act on THIS view, never on
+            // the activity's selected one — see TerminalViewClient#onEmulatorSet.
+            mClient.onEmulatorSet(this);
 
             // Update mTerminalCursorBlinkerRunnable inner class mEmulator on session change
             if (mTerminalCursorBlinkerRunnable != null)
@@ -3138,7 +3176,7 @@ public final class TerminalView extends View {
      * This should be called when the view holding this activity is resumed or stopped so that
      * cursor blinker does not run when activity is not visible. If you call this on onResume()
      * to start cursor blinking, then ensure that {@link #mEmulator} is set, otherwise wait for the
-     * {@link TerminalViewClient#onEmulatorSet()} event after calling {@link #attachSession(TerminalSession)}
+     * {@link TerminalViewClient#onEmulatorSet(TerminalView)} event after calling {@link #attachSession(TerminalSession)}
      * for the first session added in the activity since blinking will not start if {@link #mEmulator}
      * is not set, like if activity is started again after exiting it with double back press. Do not
      * call this directly after {@link #attachSession(TerminalSession)} since {@link #updateSize()}

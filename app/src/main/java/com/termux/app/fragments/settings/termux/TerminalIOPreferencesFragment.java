@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Bundle;
 
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceDataStore;
 import androidx.preference.PreferenceManager;
@@ -46,10 +47,16 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             });
         }
 
+        // "Restore from history" is a two-way choice picked in a dialog, but it is a hand-rolled
+        // AlertDialog rather than a ListPreference, so useSimpleSummaryProvider cannot reach it.
+        // The selected option's name is written onto the row here instead — the same thing every
+        // other multi-choice setting on this screen now shows in place of its old hint.
+        final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
         Preference historyRestorePref = findPreference("text_input_insert_at_cursor");
-        if (historyRestorePref != null) {
+        if (historyRestorePref != null && appPrefs != null) {
+            historyRestorePref.setSummary(historyRestoreSummaryRes(appPrefs));
             historyRestorePref.setOnPreferenceClickListener(pref -> {
-                showHistoryRestoreDialog();
+                showHistoryRestoreDialog(pref, appPrefs);
                 return true;
             });
         }
@@ -71,11 +78,17 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         });
     }
 
-    private void showHistoryRestoreDialog() {
+    /** The resource of whichever {@code text_input_insert_at_cursor} option is currently selected. */
+    private static int historyRestoreSummaryRes(@NonNull TermuxAppSharedPreferences prefs) {
+        return prefs.shouldInsertAtCursorOnHistoryPick()
+                ? R.string.text_input_insert_at_cursor_option_insert
+                : R.string.text_input_insert_at_cursor_option_replace;
+    }
+
+    private void showHistoryRestoreDialog(@NonNull Preference pref,
+                                          @NonNull TermuxAppSharedPreferences prefs) {
         Context context = getContext();
         if (context == null) return;
-
-        TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context, true);
 
         String[] items = {
                 context.getString(R.string.text_input_insert_at_cursor_option_replace),
@@ -87,6 +100,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
                 .setTitle(R.string.text_input_insert_at_cursor_dialog_title)
                 .setSingleChoiceItems(items, checkedItem, (dialog, which) -> {
                     prefs.setInsertAtCursorOnHistoryPick(which == 1);
+                    pref.setSummary(historyRestoreSummaryRes(prefs));
                     dialog.dismiss();
                 })
                 .setNegativeButton(android.R.string.cancel, null)

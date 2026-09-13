@@ -17,7 +17,7 @@
             app:key="extra_keys_visibility"
             app:defaultValue="keyboard"
             app:title="@string/extra_keys_visibility_title"
-            app:summary="@string/extra_keys_visibility_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/extra_keys_visibility_entries"
             app:entryValues="@array/extra_keys_visibility_values"
             app:iconSpaceReserved="false" />
@@ -26,7 +26,7 @@
             app:key="extra-keys-special-button-mode"
             app:defaultValue="sticky"
             app:title="@string/extra_keys_special_button_mode_title"
-            app:summary="@string/extra_keys_special_button_mode_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/extra_keys_special_button_mode_entries"
             app:entryValues="@array/extra_keys_special_button_mode_values"
             app:iconSpaceReserved="false" />
@@ -35,7 +35,7 @@
             app:key="extra-keys-haptic"
             app:defaultValue="all"
             app:title="@string/extra_keys_haptic_title"
-            app:summary="@string/extra_keys_haptic_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/extra_keys_haptic_entries"
             app:entryValues="@array/extra_keys_haptic_values"
             app:iconSpaceReserved="false" />
@@ -65,7 +65,7 @@
             app:key="text_input_action_on_send"
             app:defaultValue="hide_keyboard"
             app:title="@string/text_input_action_on_send_title"
-            app:summary="@string/text_input_action_on_send_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/text_input_action_on_send_entries"
             app:entryValues="@array/text_input_action_on_send_values"
             app:iconSpaceReserved="false" />
@@ -73,7 +73,6 @@
         <Preference
             app:key="text_input_insert_at_cursor"
             app:title="@string/text_input_insert_at_cursor_title"
-            app:summary="@string/text_input_insert_at_cursor_summary"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat

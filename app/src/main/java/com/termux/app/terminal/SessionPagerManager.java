@@ -438,6 +438,12 @@ public final class SessionPagerManager {
                 // Update floating button margin for intermediate scroll state
                 updateFloatingButtonMarginForScroll(position, positionOffset);
 
+                // How much of the placeholder page is on screen, 0…1, or -1 when there is no
+                // overlay page to drive. Derived ONCE and shared by the two consumers below: it is
+                // a pure function of the scroll callback, and both of them used to recompute it
+                // (including the getPlaceholderOverlayPage() read inside revealFor()).
+                final float reveal = revealFor(position, positionOffset);
+
                 // Keep the placeholder content tracking the page it lives on: the hint stays centered
                 // in the slice that is currently visible, and the directory rows are revealed
                 // together with the page.
@@ -449,7 +455,7 @@ public final class SessionPagerManager {
                 // overlay sitting at its previous value. Either way the menu no longer tracks the page
                 // it is drawn on — it snaps at the end of the gesture, or stays half-revealed over a
                 // cancelled swipe. Both were observed with the deferred/guarded variant.
-                applyOverlayReveal(position, positionOffset);
+                applyOverlayReveal(reveal);
 
                 // First frame that reveals the placeholder — the moment the user first sees
                 // the menu. The finger's Y right now becomes the anchor, and it is latched
@@ -464,7 +470,7 @@ public final class SessionPagerManager {
                 // placeholder flies in, so there is no finger to anchor on, and the menu would be a
                 // flash of unreachable UI during the settle). Both cases fall through to the default
                 // working directory, which is exactly what a release outside the rows means.
-                if (shouldLatchAnchor(position, positionOffset)) {
+                if (shouldLatchAnchor(positionOffset, reveal)) {
                     latchAnchor();
                 }
             }
@@ -887,9 +893,11 @@ public final class SessionPagerManager {
      * overlay has to track the page through the whole settle — including the return leg of a
      * cancelled swipe, where the reveal ramps back down to 0 — otherwise the menu stands still while
      * the page slides out from under it.
+     *
+     * @param reveal the value {@link #revealFor(int, float)} already produced for this callback, or
+     *               a negative value when there is no overlay page to drive.
      */
-    private void applyOverlayReveal(int position, float positionOffset) {
-        final float reveal = revealFor(position, positionOffset);
+    private void applyOverlayReveal(float reveal) {
         if (reveal < 0f) return;
 
         // Runs before the anchor latch, so the very first frame the menu appears already has the
@@ -923,12 +931,17 @@ public final class SessionPagerManager {
      * during the settle. Both cases fall through to the default working directory, which is exactly
      * what a release outside the rows means. {@code isPlaceholderActive()} also keeps the latch off
      * the committed page, whose overlay is only finishing its fade.
+     *
+     * @param positionOffset the raw callback offset — {@code 0} is the "nothing is transitioning"
+     *                       frame, which must never open the menu.
+     * @param reveal         the value {@link #revealFor(int, float)} already produced for this
+     *                       callback, so it is not recomputed here.
      */
-    private boolean shouldLatchAnchor(int position, float positionOffset) {
+    private boolean shouldLatchAnchor(float positionOffset, float reveal) {
         if (mAnchorLatched || positionOffset <= 0f) return false;
         if (!mUserScrollInProgress || !mFingerDown) return false;
         if (mTerminalPagerAdapter == null || !mTerminalPagerAdapter.isPlaceholderActive()) return false;
-        return revealFor(position, positionOffset) > 0f;
+        return reveal > 0f;
     }
 
     /** Open the menu, anchoring the list at the finger's current vertical position. */

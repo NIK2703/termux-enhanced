@@ -5,6 +5,7 @@ import android.view.MotionEvent;
 
 import com.termux.shared.logger.Logger;
 import com.termux.terminal.TerminalSession;
+import com.termux.view.TerminalView;
 import com.termux.view.TerminalViewClient;
 
 public class TermuxTerminalViewClientBase implements TerminalViewClient {
@@ -85,7 +86,7 @@ public class TermuxTerminalViewClientBase implements TerminalViewClient {
     }
 
     @Override
-    public void onEmulatorSet() {
+    public void onEmulatorSet(TerminalView terminalView) {
 
     }
 

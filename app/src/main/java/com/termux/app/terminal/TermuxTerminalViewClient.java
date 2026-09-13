@@ -61,6 +61,14 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
     private Runnable mShowSoftKeyboardRunnable;
 
+    /**
+     * {@link TermuxActivity#updateFloatingButtonMargin()}, posted from {@link #onEmulatorSet}.
+     *
+     * <p>A field rather than a fresh method reference per call: this runs on every page bind, and
+     * the pager binds pages inside the settle of the swipe that opened the tab.
+     */
+    private final Runnable mUpdateFloatingButtonMargin;
+
     private boolean mShowSoftKeyboardIgnoreOnce;
     private boolean mShowSoftKeyboardWithDelayOnce;
 
@@ -124,6 +132,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     public TermuxTerminalViewClient(TermuxActivity activity, TermuxTerminalSessionActivityClient termuxTerminalSessionActivityClient) {
         this.mActivity = activity;
         this.mTermuxTerminalSessionActivityClient = termuxTerminalSessionActivityClient;
+        // Bound here, not in a field initializer: mActivity is a blank final, and a field
+        // initializer runs before it is assigned (and may not reference it at all).
+        this.mUpdateFloatingButtonMargin = activity::updateFloatingButtonMargin;
     }
 
     public TermuxActivity getActivity() {
@@ -210,15 +221,33 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     }
 
     /**
-     * Should be called when {@link com.termux.view.TerminalView#mEmulator} is set
+     * Should be called when {@link com.termux.view.TerminalView#mEmulator} is set on
+     * {@code terminalView}.
+     *
+     * <p><b>The source view matters.</b> This client is shared by every page of the session pager
+     * ({@code TerminalPagerAdapter} installs the same instance on each page), so this callback fires
+     * for a background page bind just as it does for the active page. Anything that means "the
+     * emulator that just appeared" must therefore be applied to {@code terminalView} and never to
+     * {@link TermuxActivity#getTerminalView()}: acting on the latter made a bind of a
+     * <em>neighbouring</em> page reset the active session's {@code autoScrollDisabled} flag, which
+     * discards "the user scrolled up" — and the very next chunk of output then took the
+     * {@code mTopRow = 0} branch in {@code TerminalView.onScreenUpdated()} and snapped the viewport
+     * back to the bottom.
+     *
+     * <p>The preferences are read from the activity's cached instance rather than built here:
+     * {@code TermuxAppSharedPreferences.build(...)} resolves a package context
+     * ({@code createPackageContext} — an IPC plus a fresh {@code Resources}), and this method runs on
+     * every page bind, including the placeholder re-arm that lands inside the settle of the swipe
+     * that just committed a tab.
      */
     @Override
-    public void onEmulatorSet() {
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView != null && terminalView.mEmulator != null) {
-            TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(mActivity, true);
-            boolean disabled = !prefs.isScrollOnNewOutputEnabled();
-            terminalView.mEmulator.setAutoScrollDisabled(disabled);
+    public void onEmulatorSet(@NonNull TerminalView terminalView) {
+        if (terminalView.mEmulator != null) {
+            TermuxAppSharedPreferences prefs = mActivity.getPreferences();
+            if (prefs == null) prefs = TermuxAppSharedPreferences.build(mActivity, true);
+            if (prefs != null) {
+                terminalView.mEmulator.setAutoScrollDisabled(!prefs.isScrollOnNewOutputEnabled());
+            }
         }
 
         // The floating toggle button's right margin is derived from the BOUND emulator's scrollback
@@ -239,8 +268,12 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // and out of the re-entrancy question entirely. The settled margin is a one-shot value, so a
         // frame's delay is irrelevant, and updateFloatingButtonMargin() still early-returns while
         // the pager is animating a page scroll (that window belongs to the scroll interpolation).
-        if (terminalView != null) {
-            terminalView.post(mActivity::updateFloatingButtonMargin);
+        // Still addressed to the ACTIVE view, unlike the auto-scroll write above: the margin belongs
+        // to the one page the user is looking at, and this callback is merely the moment that page's
+        // scrollbar state becomes knowable. The runnable is a field, so a bind allocates nothing.
+        final TerminalView active = mActivity.getTerminalView();
+        if (active != null) {
+            active.post(mUpdateFloatingButtonMargin);
         }
 
         if (!mTerminalCursorBlinkerStateAlreadySet) {
@@ -615,11 +648,20 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
 
 
+    /**
+     * Step the terminal font size up or down by one pinch step, then apply it everywhere.
+     *
+     * <p>Reached from the pinch gesture ({@link #onScale}) and from the Ctrl+Alt+{@code +}/{@code -}
+     * hardware keyboard shortcut ({@link #onKeyDown}). The application goes through the session
+     * client so that <em>every</em> page the pager keeps bound gets the new size, not just the
+     * active one: the neighbours are already bound and are not rebound when they come back on
+     * screen ({@code setOffscreenPageLimit(1)}), so they would otherwise keep the old size until
+     * recycled. The Display settings slider writes the same preference and takes the same path —
+     * see {@code TermuxTerminalSessionActivityClient.applyTerminalFontSizeToAllViews()}.
+     */
     public void changeFontSize(boolean increase) {
         mActivity.getPreferences().changeFontSize(increase);
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView != null)
-            terminalView.setTextSize(mActivity.getPreferences().getFontSize());
+        mTermuxTerminalSessionActivityClient.applyTerminalFontSizeToAllViews();
     }
 
 

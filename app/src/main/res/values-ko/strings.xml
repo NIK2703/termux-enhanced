@@ -806,4 +806,9 @@ $HOME/bin/termux-url-opener
     <string name="termux_tasker_preferences_title">Termux:Tasker</string>
     <string name="termux_widget_preferences_title">Termux:Widget</string>
 
+    <!-- Terminal font size (Display > Appearance). The same value, the same bounds
+         and the same step the pinch gesture uses — see
+         TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
+    <string name="terminal_font_size_title" formatted="false">글꼴 크기</string>
+    <string name="terminal_font_size_summary" formatted="false">터미널에서 핀치해도 같은 값이 바뀝니다</string>
 </resources>

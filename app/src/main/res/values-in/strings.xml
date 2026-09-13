@@ -792,4 +792,9 @@
     <item>MB</item>
     <item>GB</item>
 </string-array>
+    <!-- Terminal font size (Display > Appearance). The same value, the same bounds
+         and the same step the pinch gesture uses — see
+         TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
+    <string name="terminal_font_size_title" formatted="false">Ukuran font</string>
+    <string name="terminal_font_size_summary" formatted="false">Cubit pada terminal juga mengubah nilai yang sama</string>
 </resources>

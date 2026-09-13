@@ -9,7 +9,7 @@
         <ListPreference
             app:key="theme_mode"
             app:title="@string/theme_mode_title"
-            app:summary="@string/theme_mode_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/theme_mode_entries"
             app:entryValues="@array/theme_mode_values"
             app:defaultValue="system"
@@ -25,6 +25,19 @@
             app:key="color_scheme_dark"
             app:title="@string/color_scheme_dark_title"
             app:summary="@string/color_scheme_dark_summary"
+            app:iconSpaceReserved="false" />
+
+        <!-- Terminal font size, in pixels — the very same preference the pinch-to-zoom gesture
+             writes, so both entry points stay in sync by construction. The bounds and the step are
+             (re)applied from code in DisplayPreferencesFragment, because the lower bound is derived
+             from the display density (4dp) and cannot be written as a literal here; app:min /
+             android:max only need to form a valid range so the preference inflates. -->
+        <SeekBarPreference
+            app:key="terminal-font-size"
+            app:title="@string/terminal_font_size_title"
+            app:min="1"
+            android:max="256"
+            app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
 
         <SeekBarPreference
@@ -71,6 +84,7 @@
         <ListPreference
             app:key="tab_panel_position"
             app:title="@string/termux_tab_panel_position_title"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/tab_panel_position_entries"
             app:entryValues="@array/tab_panel_position_values"
             app:defaultValue="top"
@@ -79,6 +93,7 @@
         <ListPreference
             app:key="tab_height_mode"
             app:title="@string/termux_tab_height_mode_title"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/tab_height_mode_entries"
             app:entryValues="@array/tab_height_mode_values"
             app:defaultValue="single"
@@ -87,14 +102,12 @@
         <SwitchPreferenceCompat
             app:key="swipe_rightmost_new_tab"
             app:title="@string/swipe_rightmost_new_tab_title"
-            app:summary="@string/swipe_rightmost_new_tab_summary"
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="restore_sessions"
             app:title="@string/restore_sessions_title"
-            app:summary="@string/restore_sessions_summary"
             app:defaultValue="true"
             app:iconSpaceReserved="false" />
 
@@ -122,7 +135,7 @@
             app:defaultValue="block"
             android:persistent="false"
             app:title="@string/terminal_cursor_style_title"
-            app:summary="@string/terminal_cursor_style_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/terminal_cursor_style_entries"
             app:entryValues="@array/terminal_cursor_style_values"
             app:iconSpaceReserved="false" />
@@ -131,7 +144,6 @@
         <SwitchPreferenceCompat
             app:key="scroll-on-new-output"
             app:title="@string/scroll_on_new_output_title"
-            app:summary="@string/scroll_on_new_output_summary"
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
@@ -193,7 +205,7 @@
         <ListPreference
             app:key="screen_orientation"
             app:title="@string/screen_orientation_title"
-            app:summary="@string/screen_orientation_summary"
+            app:useSimpleSummaryProvider="true"
             app:entries="@array/screen_orientation_entries"
             app:entryValues="@array/screen_orientation_values"
             app:defaultValue="sensor"
@@ -202,7 +214,6 @@
         <SwitchPreferenceCompat
             app:key="fullscreen"
             app:title="@string/fullscreen_title"
-            app:summary="@string/fullscreen_summary"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat

@@ -2432,6 +2432,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     }
 
+    /**
+     * Re-apply the configured terminal font size to every page the pager keeps bound.
+     *
+     * <p>Called from {@link com.termux.app.terminal.TermuxActivityBroadcastManager} when the Display
+     * settings slider moves — the second entry point for the size, next to the pinch gesture, and
+     * the only one that happens while this activity is not the one in front. Both end up in
+     * {@code TermuxTerminalSessionActivityClient.applyTerminalFontSizeToAllViews()}, so the slider
+     * and the pinch cannot drift apart.
+     */
+    public void applyTerminalFontSize() {
+        if (mTermuxTerminalSessionActivityClient != null) {
+            mTermuxTerminalSessionActivityClient.applyTerminalFontSizeToAllViews();
+        }
+    }
+
     private void setNewSessionButtonView() {
         // New session button is now in the tabs bar, handled in setTermuxSessionsListView
     }
@@ -2697,7 +2712,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * the margin was forced to the 6dp no-scrollbar value. The terminal is idle after a theme
      * change, so no screen update ever arrived to correct it and the button stayed on top of the
      * scrollbar thumb. Keeping the existing margin instead is safe: the XML default already is the
-     * scrollbar value, and {@link TermuxTerminalViewClient#onEmulatorSet()} recomputes the margin
+     * scrollbar value, and {@link TermuxTerminalViewClient#onEmulatorSet(TerminalView)} recomputes the margin
      * as soon as the emulator is actually bound.
      */
     public void updateFloatingButtonMargin() {

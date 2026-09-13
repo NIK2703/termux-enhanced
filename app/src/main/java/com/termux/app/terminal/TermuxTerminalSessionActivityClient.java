@@ -9,6 +9,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.EditText;
@@ -95,9 +96,40 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      */
     private String mLoadedColorSchemeKey = null;
 
+    /**
+     * The scheme key last built by {@link #resolveSchemeKey}, and when it was built.
+     *
+     * <p>{@link #checkForFontAndColorsForView} runs on <em>every</em> pager page bind — including
+     * the placeholder re-arm that lands one frame after a commit, i.e. inside the settle of the
+     * swipe that opened the tab — and it needs the key as its argument. Building it is not free:
+     * {@link #buildSchemeKey} resolves the per-theme scheme file, then stats the scheme file and the
+     * font file (mtime + size each), reads the selected scheme out of the preferences, and runs
+     * {@link MonetOptions#load()} — which allocates a {@link java.util.Properties} and a
+     * {@code MonetOptions} object and reads seven more preferences. All of that just to discover
+     * that the key has not changed.
+     *
+     * <p>So the built key is memoized. It is rebuilt when night mode differs from the cached value,
+     * when {@link #invalidateAppliedScheme()} has dropped it (the explicit "re-read the style" path
+     * used by the settings UI and after a recreate), or when it is older than
+     * {@link #SCHEME_KEY_MAX_AGE_MS} — the last one is what still catches a scheme or font file
+     * edited by another app while Termux sits in the foreground. The throttle bounds how long such
+     * an external edit can go unnoticed; an in-app change is never delayed, because every in-app
+     * path goes through {@link #invalidateAppliedScheme()} first.
+     */
+    private String mCachedSchemeKey = null;
+    private boolean mCachedSchemeKeyIsNight;
+    private long mCachedSchemeKeyBuiltAtMs;
+
+    /** How long {@link #mCachedSchemeKey} may be reused before it is rebuilt from the filesystem. */
+    private static final long SCHEME_KEY_MAX_AGE_MS = 1000L;
+
     /** Cached terminal typeface — parsing the font file is expensive and it rarely changes. */
     private static Typeface sCachedTypeface = null;
     private static String sCachedTypefaceKey = null;
+    /** When {@link #sCachedTypefaceKey} was last verified against the font file — see {@link #resolveTerminalTypeface()}. */
+    private static long sCachedTypefaceCheckedAtMs;
+    /** How long the cached typeface key may be trusted before the font file is stat'ed again. */
+    private static final long TYPEFACE_KEY_MAX_AGE_MS = 1000L;
 
     /**
      * Armed in {@link #onStart()} and consumed by the FIRST
@@ -244,6 +276,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // An explicit styling reload must always really re-apply, even if the scheme files are
         // untouched (e.g. only a preference changed).
         invalidateAppliedScheme();
+        // Re-apply the terminal font size to every bound page. Deliberately before the scheme
+        // apply below: a size change re-lays-out the grid, and this way that grid is repainted by
+        // the scheme's own pass instead of by a second one. Free when the size did not change —
+        // TerminalView.setTextSize() early-returns on an unchanged size.
+        applyTerminalFontSizeToAllViews();
         // Set terminal fonts and colors
         checkForFontAndColors();
     }
@@ -1192,10 +1229,24 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /**
      * {@link #buildSchemeKey(boolean)} with the Monet scheme generated first, so the token
      * in the key is the final one and does not change again right after the scheme was applied.
+     *
+     * <p>Memoized — see {@link #mCachedSchemeKey} for why this matters on the pager's bind path.
      */
     private String resolveSchemeKey(boolean isNight) {
+        final long now = SystemClock.uptimeMillis();
+        final String cached = mCachedSchemeKey;
+        if (cached != null && mCachedSchemeKeyIsNight == isNight
+                && now - mCachedSchemeKeyBuiltAtMs < SCHEME_KEY_MAX_AGE_MS) {
+            return cached;
+        }
+        // Generate the Monet palette first so the token folded into the key is the final one and
+        // does not change again right after the scheme was applied.
         ColorSchemeUtils.warmUpMonet(mActivity, isNight);
-        return buildSchemeKey(isNight);
+        final String key = buildSchemeKey(isNight);
+        mCachedSchemeKey = key;
+        mCachedSchemeKeyIsNight = isNight;
+        mCachedSchemeKeyBuiltAtMs = now;
+        return key;
     }
 
     /**
@@ -1209,22 +1260,40 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // selected scheme — picking a different Monet variant (or going back to Default)
         // looked like a no-op even though the selection had been persisted correctly.
         mLoadedColorSchemeKey = null;
+        // And the memoized key itself, or the re-read below would be handed the value the gate was
+        // just cleared for and the whole reload would be a no-op.
+        mCachedSchemeKey = null;
+        sCachedTypefaceCheckedAtMs = 0L;
     }
 
     /**
      * Resolve the terminal typeface, parsing the font file only when it actually changed
      * (mtime + size). {@code Typeface.createFromFile()} is a full TTF/OTF parse and used to run on
      * every page bind.
+     *
+     * <p>Like {@link #resolveSchemeKey}, the <em>check</em> is memoized as well as the result: it is
+     * three filesystem calls ({@code exists}, {@code lastModified}, {@code length}) and it runs on
+     * every page bind, i.e. inside the settle of the swipe that opened a tab. Re-verifying at most
+     * once per {@link #TYPEFACE_KEY_MAX_AGE_MS} still catches a font dropped in by another app,
+     * while an in-app change goes through {@link #invalidateAppliedScheme()}.
      */
     private static Typeface resolveTerminalTypeface() {
+        final long now = SystemClock.uptimeMillis();
+        if (sCachedTypeface != null && now - sCachedTypefaceCheckedAtMs < TYPEFACE_KEY_MAX_AGE_MS) {
+            return sCachedTypeface;
+        }
         final File fontFile = TermuxConstants.TERMUX_FONT_FILE;
         final String key = (fontFile == null) ? "-"
                 : fontFile.lastModified() + ":" + fontFile.length();
-        if (sCachedTypeface != null && key.equals(sCachedTypefaceKey)) return sCachedTypeface;
+        if (sCachedTypeface != null && key.equals(sCachedTypefaceKey)) {
+            sCachedTypefaceCheckedAtMs = now;
+            return sCachedTypeface;
+        }
         Typeface tf = (fontFile != null && fontFile.exists() && fontFile.length() > 0)
                 ? Typeface.createFromFile(fontFile) : Typeface.MONOSPACE;
         sCachedTypeface = tf;
         sCachedTypefaceKey = key;
+        sCachedTypefaceCheckedAtMs = now;
         return tf;
     }
 
@@ -1234,9 +1303,16 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * {@link #applyTerminalColorScheme} and the per-page {@link #checkForFontAndColorsForView}
      * funnel through here, so binding a page no longer re-reads {@code colors.properties} from
      * disk — and vice versa.
+     *
+     * @return true when the palette was actually reloaded, i.e. {@code key} differed from the one
+     *         currently reflected by the global scheme. Callers use this to decide whether the
+     *         things <em>derived</em> from the palette — the emulators' cached colours, the
+     *         repaint — have to be redone; when it is false they are provably still current, and
+     *         redoing them costs a full page repaint and (worse) wipes any dynamic palette a
+     *         program set with OSC 4/11/12.
      */
-    private void ensureColorSchemeLoaded(boolean isNight, String key) {
-        if (key.equals(mLoadedColorSchemeKey)) return;
+    private boolean ensureColorSchemeLoaded(boolean isNight, String key) {
+        if (key.equals(mLoadedColorSchemeKey)) return false;
         // One shared resolution chain: Termux:Style file -> Monet, but ONLY when this theme
         // actually selected one of the Monet entries -> the built-in light/dark scheme.
         // Routing through ColorSchemeUtils is what stops "Default" from being silently replaced by
@@ -1245,6 +1321,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         ColorSchemeUtils.applyColorSchemeForTheme(mActivity, isNight,
                 isNight ? null : getLightTerminalColorScheme());
         mLoadedColorSchemeKey = key;
+        return true;
     }
 
     /**
@@ -1273,27 +1350,51 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * Apply the current terminal font and color scheme to a specific {@link TerminalView} (a pager
      * page) without touching the shared bottom panel (which is updated once via the active view).
      * Used to theme pages as they are (re)bound to their session in the horizontal pager.
+     *
+     * <p>Everything below the key is <em>conditional</em> on the scheme having actually changed.
+     * This method runs on every page bind — the pager re-arms its trailing placeholder one frame
+     * after a commit, i.e. inside the settle of the swipe that opened the tab — and the two writes
+     * it used to do unconditionally were both harmful:
+     * <ul>
+     *   <li>{@code emulator.mColors.reset()} copies the scheme's <em>defaults</em> over the live
+     *       palette, so it threw away any indexed colour a program had set with OSC 4/11/12. That
+     *       directly contradicted {@code TerminalPagerAdapter.applyPlaceholderColors()}, which reads
+     *       those same live colours in order to make the placeholder match the running terminal.</li>
+     *   <li>{@code invalidate() + onScreenUpdated()} is a full repaint of the page — and
+     *       {@code onScreenUpdated()} additionally snaps a scrolled view back to the bottom
+     *       ({@code mTopRow = 0}), which is the same "lost my scroll position" failure mode that
+     *       {@code invalidateAllTerminalViews(typeface, false)} already guards against elsewhere in
+     *       this class.</li>
+     * </ul>
+     * When the key is unchanged neither is needed: the palette is already the one the global scheme
+     * describes, a freshly bound page paints itself from scratch anyway, and a re-bound one was
+     * already repainted by {@link #applyTerminalColorScheme} (which walks every bound page) when the
+     * scheme did change.
      */
     public void checkForFontAndColorsForView(@NonNull TerminalView terminalView) {
         final boolean isNight = TermuxActivity.isNightModeActive();
         try {
-            // Only pay for the disk read when the global palette is not already current.
-            ensureColorSchemeLoaded(isNight, resolveSchemeKey(isNight));
+            // Only pay for the disk read when the global palette is not already current — and this
+            // is also the signal for whether anything below has to run at all.
+            final boolean schemeReloaded =
+                    ensureColorSchemeLoaded(isNight, resolveSchemeKey(isNight));
 
-            TerminalEmulator emulator = terminalView.mEmulator;
-            if (emulator == null) {
-                TerminalSession session = terminalView.getCurrentSession();
-                if (session != null) emulator = session.getEmulator();
-            }
-            if (emulator != null) {
-                emulator.mColors.reset();
-            }
-            if (terminalView != null) {
+            if (schemeReloaded) {
+                TerminalEmulator emulator = terminalView.mEmulator;
+                if (emulator == null) {
+                    TerminalSession session = terminalView.getCurrentSession();
+                    if (session != null) emulator = session.getEmulator();
+                }
+                if (emulator != null) {
+                    emulator.mColors.reset();
+                }
                 terminalView.invalidate();
                 terminalView.onScreenUpdated();
             }
 
-            // Cached: a page bind no longer stats + parses the font file.
+            // Always attempted, but cheap: setTypeface() early-returns on an unchanged typeface,
+            // and this call is what keeps a page bound AFTER a scheme change in sync. Cached: a page
+            // bind no longer stats + parses the font file either.
             terminalView.setTypeface(resolveTerminalTypeface());
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in checkForFontAndColorsForView()", e);
@@ -1394,12 +1495,44 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      *                     throw away the user's scroll position in a background tab.
      */
     private void invalidateAllTerminalViews(@Nullable Typeface typeface, boolean resyncScreen) {
+        forEachBoundTerminalView(terminalView -> {
+            terminalView.invalidate();
+            if (resyncScreen) terminalView.onScreenUpdated();
+            if (typeface != null) terminalView.setTypeface(typeface);
+        });
+    }
+
+    /**
+     * Re-apply the configured terminal font size to every page the pager keeps bound.
+     *
+     * <p><b>Not just the active page.</b> The pager keeps the current page's neighbours bound
+     * ({@code setOffscreenPageLimit(1)}, {@code SessionPagerManager:331}) and a neighbour that comes
+     * back on screen is <em>not</em> rebound — {@code onBindViewHolder} only runs for a page that
+     * enters the offscreen window — so a size applied to the active page alone stays stale on its
+     * neighbours until they are recycled out and back in. Both entry points for the size (the pinch
+     * gesture and the Display settings slider) therefore go through here.
+     *
+     * <p>Cheap by construction: {@code TerminalView.setTextSize()} early-returns on an unchanged
+     * size, so pages that are already correct cost one int comparison each. That is what lets this
+     * be the single funnel for every path that can set the size — the pinch, the Ctrl+Alt
+     * shortcut, a styling reload and the Display settings slider alike.
+     */
+    public void applyTerminalFontSizeToAllViews() {
+        final int fontSize = mActivity.getPreferences().getFontSize();
+        forEachBoundTerminalView(terminalView -> terminalView.setTextSize(fontSize));
+    }
+
+    /**
+     * Run {@code action} for the active terminal view and for every other page the pager keeps
+     * bound — the one walk both {@link #invalidateAllTerminalViews} and
+     * {@link #applyTerminalFontSizeToAllViews} need.
+     *
+     * <p>The child counts are read once, before the loop, because an action may change the content
+     * of a page (a size change resizes its grid) while this walk has to stay a snapshot either way.
+     */
+    private void forEachBoundTerminalView(@NonNull TerminalViewAction action) {
         final TerminalView active = mActivity.getTerminalView();
-        if (active != null) {
-            active.invalidate();
-            if (resyncScreen) active.onScreenUpdated();
-            if (typeface != null) active.setTypeface(typeface);
-        }
+        if (active != null) action.apply(active);
 
         androidx.viewpager2.widget.ViewPager2 pager = mActivity.getTerminalPager();
         if (pager == null) return;
@@ -1414,11 +1547,14 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 if (!(v instanceof TerminalView)) continue;
                 TerminalView tv = (TerminalView) v;
                 if (tv == active) continue; // already handled above
-                tv.invalidate();
-                if (resyncScreen) tv.onScreenUpdated();
-                if (typeface != null) tv.setTypeface(typeface);
+                action.apply(tv);
             }
         }
+    }
+
+    /** The per-page action {@link #forEachBoundTerminalView} applies. */
+    private interface TerminalViewAction {
+        void apply(@NonNull TerminalView terminalView);
     }
 
     /**
