@@ -147,9 +147,7 @@
 
 <string name="donate_preference_title">寄付</string>
 <string name="backup_preference_title">Termuxデータのバックアップ</string>
-<string name="backup_preference_summary">Termuxデータディレクトリ（インストール済みパッケージ + ホーム）をバックアップtar.gzファイルに保存します</string>
 <string name="restore_preference_title">Termuxデータの復元</string>
-<string name="restore_preference_summary">バックアップtar.gzファイルからTermuxデータディレクトリを復元します</string>
 <string name="backup_restore_dialog_title">Termuxデータのバックアップ / 復元</string>
 <string name="backup_restore_warning_backup">これにより、Termuxデータディレクトリ（インストール済みパッケージと環境、およびホームディレクトリ）の圧縮アーカイブが作成されます。\n\nバックアップの保存先ファイルを選択してください。</string>
     <string name="backup_restore_warning_restore">復元を実行すると、選択したバックアップファイルの内容で現在のTermuxデータディレクトリ（インストール済みパッケージとホームディレクトリ）が上書きされます。既存のデータは失われます。\n\n⚠ バックアップファイルが破損している、不完全である、または処理中に接続が中断された場合など、復元に失敗すると、Termux環境は空のままになります。元のデータを復元する方法はありません。\n\nこの操作は元に戻せません。先にバックアップを作成し、バックアップファイルが有効であることを確認することを強くお勧めします。</string>
@@ -175,9 +173,7 @@
 <string name="backup_restore_full_data_category_title">全データ</string>
 <string name="backup_restore_settings_category_title">アプリ設定</string>
 <string name="backup_settings_title">アプリ設定のバックアップ</string>
-<string name="backup_settings_summary">設定、カラースキーム、フォント、キーバインドを保存します（小さいファイル）</string>
 <string name="restore_settings_title">アプリ設定の復元</string>
-<string name="restore_settings_summary">設定、カラースキーム、フォント、キーバインドを復元します</string>
 <string name="settings_backup_warning">アプリの設定（設定、カラースキーム、フォント、拡張キーレイアウト）を小さなバックアップファイルに保存します。\n\n保存先ファイルを選択してください。</string>
 <string name="settings_restore_warning">バックアップファイルからアプリの設定を復元します。現在の設定は上書きされます。</string>
 <string name="settings_backup_progress">設定をバックアップ中…</string>
@@ -276,7 +272,6 @@
     <string name="locale_override_title">アプリの言語</string>
     <string name="locale_override_summary">アプリの言語を上書き</string>
     <string name="locale_override_entry_system">システム言語（自動翻訳、不正確な場合あり）</string>
-    <string name="locale_override_entry_english">英語</string>
     
     <string name="hide_extra_keys_with_keyboard_title">キーボードで拡張キーを隠す</string>
     <string name="hide_extra_keys_with_keyboard_summary">キーボードが閉じられたときに追加ボタンを自動的に非表示にし、開かれたときに表示します</string>
@@ -533,13 +528,10 @@
     <string name="allow_external_apps_title">外部アプリを許可</string>
     <string name="allow_external_apps_summary">他のアプリがRUN_COMMANDを介してTermuxコマンドを開始することを許可します。</string>
     <string name="disable_file_share_receiver_title">ファイル共有レシーバーを無効化</string>
-    <string name="disable_file_share_receiver_summary">Termuxに共有されたファイルを受け入れません。</string>
     <string name="disable_file_view_receiver_title">ファイルビューレシーバーを無効化</string>
-    <string name="disable_file_view_receiver_summary">表示用にTermuxに送信されたファイルを開きません。</string>
 
     
     <string name="run_termux_am_socket_server_title">termux-am ソケットサーバーを実行</string>
-    <string name="run_termux_am_socket_server_summary">プロセス間コマンド用にtermux-amソケットサーバーを起動します。</string>
 
     
     <string name="hide_soft_keyboard_on_startup_title">起動時にソフトウェアキーボードを非表示</string>

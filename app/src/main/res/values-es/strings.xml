@@ -154,9 +154,7 @@
 
     <string name="donate_preference_title">Donar</string>
     <string name="backup_preference_title">Respaldar datos de Termux</string>
-    <string name="backup_preference_summary">Guardar el directorio de datos de Termux (paquetes instalados + home) en un archivo tar.gz de copia de seguridad</string>
     <string name="restore_preference_title">Restaurar datos de Termux</string>
-    <string name="restore_preference_summary">Restaurar el directorio de datos de Termux desde un archivo de copia de seguridad tar.gz</string>
     <string name="backup_restore_dialog_title">Copia de seguridad / Restauración de datos de Termux</string>
     <string name="backup_restore_warning_backup">Esto creará un archivo comprimido de su directorio de datos de Termux (paquetes instalados y entorno junto con su directorio home).\n\nElija un archivo de destino para guardar la copia de seguridad.</string>
     <string name="backup_restore_warning_restore">La restauración SOBRESCRIBIRÁ el directorio de datos actual de Termux (paquetes instalados más su directorio personal) con el contenido del archivo de copia de seguridad seleccionado. Los datos existentes se PERDERÁN.\n\n⚠ Si la restauración falla — porque el archivo de copia de seguridad está dañado, incompleto o la conexión se interrumpe durante el proceso — su entorno Termux se quedará VACÍO. No habrá forma de recuperar los datos originales.\n\nEsto no se puede deshacer. Se recomienda encarecidamente hacer una copia de seguridad PRIMERO y verificar que el archivo de copia de seguridad sea válido.</string>
@@ -182,9 +180,7 @@
     <string name="backup_restore_full_data_category_title">Datos completos</string>
     <string name="backup_restore_settings_category_title">Ajustes de la app</string>
     <string name="backup_settings_title">Respaldar ajustes de la app</string>
-    <string name="backup_settings_summary">Guardar preferencias, esquema de color, fuente y asignaciones de teclas (archivo pequeño)</string>
     <string name="restore_settings_title">Restaurar ajustes de la app</string>
-    <string name="restore_settings_summary">Restaurar preferencias, esquema de color, fuente y asignaciones de teclas</string>
     <string name="settings_backup_warning">Esto guardará los ajustes de su app Termux (preferencias, esquema de color, fuente, disposición de teclas extra) en un archivo de respaldo pequeño.\n\nElija un archivo de destino.</string>
     <string name="settings_restore_warning">Esto restaurará los ajustes de su app Termux desde un archivo de respaldo. Los ajustes actuales serán sobrescritos.</string>
     <string name="settings_backup_progress">Respaldando ajustes…</string>
@@ -278,7 +274,6 @@
     <string name="locale_override_title">Idioma de la app</string>
     <string name="locale_override_summary">Anular el idioma de la app</string>
     <string name="locale_override_entry_system">Idioma del sistema (traducción automática, posible inexactitud)</string>
-    <string name="locale_override_entry_english">Inglés</string>
     
     <string name="hide_extra_keys_with_keyboard_title">Ocultar teclas extra con teclado</string>
     <string name="hide_extra_keys_with_keyboard_summary">Ocultar automáticamente los botones adicionales al cerrar el teclado, mostrar al abrir</string>
@@ -429,9 +424,7 @@
     <string name="default_working_directory_title">Directorio de trabajo predeterminado</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_summary">Eliminar archivos más antiguos de N días del TMPDIR de la sesión al salir (-1 = no eliminar nunca).</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_title">Eliminar archivos antiguos de TMPDIR al salir</string>
-    <string name="disable_file_share_receiver_summary">No aceptar archivos compartidos en Termux.</string>
     <string name="disable_file_share_receiver_title">Deshabilitar receptor de archivos compartidos</string>
-    <string name="disable_file_view_receiver_summary">No abrir archivos enviados a Termux para su visualización.</string>
     <string name="disable_file_view_receiver_title">Deshabilitar receptor de visualización de archivos</string>
     <string name="disable_hardware_keyboard_shortcuts_summary">Ignorar atajos de teclado de un teclado físico/externo.</string>
     <string name="disable_hardware_keyboard_shortcuts_title">Deshabilitar atajos de teclado físico</string>
@@ -464,7 +457,6 @@
     <string name="night_mode_true">Oscuro</string>
     <string name="report_issue_title">Termux Reportar problema</string>
     <string name="report_issue_transcript_header">## Transcripción\n</string>
-    <string name="run_termux_am_socket_server_summary">Iniciar el servidor de socket termux-am para comandos entre procesos.</string>
     <string name="run_termux_am_socket_server_title">Ejecutar servidor de socket termux-am</string>
     <string name="screen_category_title">Pantalla</string>
     <string name="security_category_title">Seguridad</string>

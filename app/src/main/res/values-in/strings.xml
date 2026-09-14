@@ -37,7 +37,6 @@
 <string name="appearance_preferences_title">Tampilan</string>
 <string name="backup_dialog_background">Latar Belakang</string>
 <string name="backup_dialog_cancel">Batal</string>
-<string name="backup_preference_summary">Menyimpan direktori data Termux (paket terinstal + home) ke file .tar.gz</string>
 <string name="backup_preference_title">Cadangan Data Termux</string>
 <string name="backup_restore_backup_started">Mencadangkan data…</string>
 <string name="backup_restore_backup_success">Data berhasil dicadangkan</string>
@@ -46,9 +45,7 @@
 <string name="backup_restore_full_data_category_title">Data Lengkap</string>
 <string name="backup_restore_settings_category_title">Pengaturan Aplikasi</string>
 <string name="backup_settings_title">Cadangkan Pengaturan Aplikasi</string>
-<string name="backup_settings_summary">Simpan preferensi, skema warna, font, dan pemetaan tombol (file kecil)</string>
 <string name="restore_settings_title">Pulihkan Pengaturan Aplikasi</string>
-<string name="restore_settings_summary">Pulihkan preferensi, skema warna, font, dan pemetaan tombol</string>
 <string name="settings_backup_warning">Ini akan menyimpan pengaturan aplikasi Termux (preferensi, skema warna, font, tata letak tombol tambahan) ke file cadangan kecil.\n\nPilih file tujuan.</string>
 <string name="settings_restore_warning">Ini akan memulihkan pengaturan aplikasi Termux dari file cadangan. Pengaturan saat ini akan ditimpa.</string>
 <string name="settings_backup_progress">Mencadangkan pengaturan…</string>
@@ -156,7 +153,6 @@
 <string name="per_directory_message_history_title">Riwayat Pesan per Direktori</string>
 <string name="permission_run_command_description">jalankan perintah sembarang di lingkungan Termux dan akses file</string>
 <string name="permission_run_command_label">jalankan perintah di lingkungan Termux</string>
-<string name="restore_preference_summary">Pulihkan direktori data Termux dari berkas cadangan .tar.gz</string>
 <string name="restore_preference_title">Pulihkan Data Termux</string>
 <string name="restore_sessions_summary">Pulihkan semua tab yang dibuka di sesi sebelumnya saat aplikasi dimulai.</string>
 <string name="restore_sessions_title">Pulihkan tab saat diluncurkan</string>
@@ -266,7 +262,6 @@
 <string name="locale_override_title">Bahasa aplikasi</string>
     <string name="locale_override_summary">Timpa bahasa aplikasi</string>
     <string name="locale_override_entry_system">Bahasa sistem (terjemahan otomatis, mungkin tidak akurat)</string>
-<string name="locale_override_entry_english">Inggris</string>
 <string name="hide_extra_keys_with_keyboard_title">Sembunyikan tombol ekstra dengan keyboard</string>
 <string name="hide_extra_keys_with_keyboard_summary">Sembunyikan tombol tambahan saat keyboard ditutup, tampilkan saat dibuka</string>
 <string name="suggestions_max_count_title">Maks saran</string>
@@ -514,13 +509,10 @@
 
     
     <string name="disable_file_share_receiver_title">Nonaktifkan penerima file bersama</string>
-    <string name="disable_file_share_receiver_summary">Jangan terima file yang dibagikan ke Termux.</string>
     <string name="disable_file_view_receiver_title">Nonaktifkan penerima tampilan file</string>
-    <string name="disable_file_view_receiver_summary">Jangan buka file yang dikirim ke Termux untuk dilihat.</string>
 
     
     <string name="run_termux_am_socket_server_title">Jalankan server soket termux-am</string>
-    <string name="run_termux_am_socket_server_summary">Mulai server soket termux-am untuk perintah antar-proses.</string>
 
     
     <string name="hide_soft_keyboard_on_startup_title">Sembunyikan keyboard lunak saat startup</string>

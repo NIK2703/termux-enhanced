@@ -156,9 +156,7 @@
     <string name="theme_mode_title">Thème de l\'application</string>
     <string name="theme_mode_summary">Choisir le thème de l\'application et du terminal</string>
     <string name="backup_preference_title">Sauvegarder les données Termux</string>
-    <string name="backup_preference_summary">Sauvegarder le répertoire de données Termux (paquets installés + home) dans un fichier tar.gz</string>
     <string name="restore_preference_title">Restaurer les données Termux</string>
-    <string name="restore_preference_summary">Restaurer le répertoire de données Termux depuis un fichier de sauvegarde tar.gz</string>
     <string name="backup_restore_dialog_title">Sauvegarde / Restauration des données Termux</string>
     <string name="backup_restore_warning_backup">Cela créera une archive compressée de votre répertoire de données Termux (paquets installés et environnement avec votre répertoire home).\n\nChoisissez un fichier de destination pour enregistrer la sauvegarde.</string>
 
@@ -184,9 +182,7 @@
     <string name="backup_restore_full_data_category_title">Données complètes</string>
     <string name="backup_restore_settings_category_title">Paramètres de l\'application</string>
     <string name="backup_settings_title">Sauvegarder les paramètres de l\'application</string>
-    <string name="backup_settings_summary">Sauvegarder les préférences, le jeu de couleurs, la police et les raccourcis clavier (petit fichier)</string>
     <string name="restore_settings_title">Restaurer les paramètres de l\'application</string>
-    <string name="restore_settings_summary">Restaurer les préférences, le jeu de couleurs, la police et les raccourcis clavier</string>
     <string name="settings_backup_warning">Cela sauvegardera les paramètres de votre application Termux (préférences, jeu de couleurs, police, disposition des touches supplémentaires) dans un petit fichier.\n\nChoisissez un fichier de destination.</string>
     <string name="settings_restore_warning">Cela restaurera les paramètres de votre application Termux à partir d\'un fichier de sauvegarde. Les paramètres actuels seront écrasés.</string>
     <string name="settings_backup_progress">Sauvegarde des paramètres en cours…</string>
@@ -269,7 +265,6 @@
     <string name="locale_override_title">Langue de l\'appli</string>
     <string name="locale_override_summary">Surcharger la langue de l\'application</string>
     <string name="locale_override_entry_system">Langue du système (traduction automatique, inexactitudes possibles)</string>
-    <string name="locale_override_entry_english">Anglais</string>
     <string name="termux_tab_height_mode_title">Hauteur de l\'onglet</string>
     <string name="termux_tab_height_mode_single">Ligne unique</string>
     <string name="termux_tab_height_mode_double">Deux lignes</string>
@@ -441,11 +436,9 @@
 
     
     <string name="disable_file_share_receiver_title">Désactiver le récepteur de partage de fichiers</string>
-    <string name="disable_file_share_receiver_summary">Ne pas accepter les fichiers partagés dans Termux.</string>
 
     
     <string name="disable_file_view_receiver_title">Désactiver le récepteur de visualisation de fichiers</string>
-    <string name="disable_file_view_receiver_summary">Ne pas ouvrir les fichiers envoyés à Termux pour visualisation.</string>
 
     
     <string name="disable_hardware_keyboard_shortcuts_title">Désactiver les raccourcis du clavier physique</string>
@@ -506,7 +499,6 @@
     <string name="report_issue_title">Termux Signaler un problème</string>
     <string name="report_issue_transcript_header">## Transcription\n</string>
     <string name="run_termux_am_socket_server_title">Exécuter le serveur socket termux-am</string>
-    <string name="run_termux_am_socket_server_summary">Démarrer le serveur socket termux-am pour les commandes inter-processus.</string>
 
     
     <string name="shortcut_summary">Format : Ctrl+KEY (ex. Ctrl+a). Laissez vide pour désactiver.</string>

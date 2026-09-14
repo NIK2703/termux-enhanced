@@ -164,9 +164,7 @@
 <string name="screen_orientation_summary">"Sensörü takip et" varyantları iki yönlendirme arasında döner (ör. 0°/180° dikey).</string>
 <string name="donate_preference_title">Bağış Yap</string>
 <string name="backup_preference_title">Termux Verilerini Yedekle</string>
-<string name="backup_preference_summary">Termux veri dizinini (yüklü paketler + ev) bir tar.gz dosyasına kaydet</string>
 <string name="restore_preference_title">Termux Verilerini Geri Yükle</string>
-<string name="restore_preference_summary">Termux veri dizinini bir tar.gz yedek dosyasından geri yükle</string>
 <string name="backup_restore_dialog_title">Termux Veri Yedekleme / Geri Yükleme</string>
 <string name="backup_restore_warning_backup">Bu işlem, Termux veri dizinizin (yüklü paketler ve ev dizininizle birlikte ortam) sıkıştırılmış bir arşivini oluşturacaktır.\n\nYedeklemeyi kaydetmek için bir hedef dosya seçin.</string>
 <string name="backup_restore_warning_restore">Geri yükleme, mevcut Termux veri dizinini (yüklü paketler ve ev dizininiz) seçilen yedek dosyasının içeriğiyle ÜZERİNE YAZACAKTIR. Mevcut veriler KAYBOLACAKTIR.\n\n⚠ Geri yükleme başarısız olursa — yedek dosyası bozuk, eksik veya işlem sırasında bağlantı kesilirse — Termux ortamınız BOŞ BIRAKILACAKTIR. Orijinal verileri kurtarmanın hiçbir yolu olmayacaktır.\n\nBu işlem geri alınamaz. Öncelikle yedekleme yapmanız ve yedek dosyasının geçerliliğini doğrulamanız kesinlikle önerilir.</string>
@@ -191,9 +189,7 @@
 <string name="backup_restore_full_data_category_title">Tüm Veriler</string>
 <string name="backup_restore_settings_category_title">Uygulama Ayarları</string>
 <string name="backup_settings_title">Uygulama Ayarlarını Yedekle</string>
-<string name="backup_settings_summary">Tercihleri, renk şemasını, yazı tipini ve tuş bağlamalarını kaydeder (küçük dosya)</string>
 <string name="restore_settings_title">Uygulama Ayarlarını Geri Yükle</string>
-<string name="restore_settings_summary">Tercihleri, renk şemasını, yazı tipini ve tuş bağlamalarını geri yükler</string>
 <string name="settings_backup_warning">Bu, Termux uygulama ayarlarınızı (tercihler, renk şeması, yazı tipi, ek tuş düzeni) küçük bir yedek dosyaya kaydedecektir.\n\nBir hedef dosya seçin.</string>
 <string name="settings_restore_warning">Bu, Termux uygulama ayarlarınızı bir yedek dosyadan geri yükleyecektir. Mevcut ayarların üzerine yazılacaktır.</string>
 <string name="settings_backup_progress">Ayarlar yedekleniyor…</string>
@@ -289,7 +285,6 @@
     <string name="locale_override_title">Uygulama dili</string>
     <string name="locale_override_summary">Uygulama dilini geçersiz kıl</string>
     <string name="locale_override_entry_system">Sistem dili (otomatik çeviri, yanlışlıklar olabilir)</string>
-    <string name="locale_override_entry_english">İngilizce</string>
     
     <string name="hide_extra_keys_with_keyboard_title">Ek tuşları klavyeyle gizle</string>
     <string name="hide_extra_keys_with_keyboard_summary">Klavye kapatıldığında ek düğmeleri otomatik gizle, açıldığında göster</string>
@@ -538,13 +533,10 @@
 
     
     <string name="disable_file_share_receiver_title">Dosya paylaşım alıcısını devre dışı bırak</string>
-    <string name="disable_file_share_receiver_summary">Termux\'a paylaşılan dosyaları kabul etme.</string>
     <string name="disable_file_view_receiver_title">Dosya görüntüleme alıcısını devre dışı bırak</string>
-    <string name="disable_file_view_receiver_summary">Termux\'a görüntülenmek üzere gönderilen dosyaları açma.</string>
 
     
     <string name="run_termux_am_socket_server_title">termux-am soket sunucusunu çalıştır</string>
-    <string name="run_termux_am_socket_server_summary">İşlemler arası komutlar için termux-am soket sunucusunu başlat.</string>
 
     
     <string name="hide_soft_keyboard_on_startup_title">Başlangıçta yazılım klavyeyi gizle</string>

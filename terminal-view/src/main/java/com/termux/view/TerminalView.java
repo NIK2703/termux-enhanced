@@ -59,9 +59,6 @@ import com.termux.view.textselection.TextSelectionCursorController;
 /** View displaying and interacting with a {@link TerminalSession}. */
 public final class TerminalView extends View {
 
-    /** Log terminal view key and IME events. */
-    private static boolean TERMINAL_VIEW_KEY_LOGGING_ENABLED = false;
-
     /** The currently displayed terminal session, whose emulator is {@link #mEmulator}. */
     public TerminalSession mTermSession;
     /** Our terminal emulator whose session is {@link #mTermSession}. */
@@ -720,15 +717,6 @@ public final class TerminalView extends View {
         this.mClient = client;
     }
 
-    /**
-     * Sets whether terminal view key logging is enabled or not.
-     *
-     * @param value The boolean value that defines the state.
-     */
-    public void setIsTerminalViewKeyLoggingEnabled(boolean value) {
-        TERMINAL_VIEW_KEY_LOGGING_ENABLED = value;
-    }
-
 
 
     /**
@@ -804,7 +792,6 @@ public final class TerminalView extends View {
 
             @Override
             public boolean finishComposingText() {
-                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) mClient.logInfo(LOG_TAG, "IME: finishComposingText()");
                 super.finishComposingText();
 
                 sendTextToTerminal(getEditable());
@@ -814,9 +801,6 @@ public final class TerminalView extends View {
 
             @Override
             public boolean commitText(CharSequence text, int newCursorPosition) {
-                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
-                    mClient.logInfo(LOG_TAG, "IME: commitText(\"" + text + "\", " + newCursorPosition + ")");
-                }
                 super.commitText(text, newCursorPosition);
 
                 if (mEmulator == null) return true;
@@ -829,9 +813,6 @@ public final class TerminalView extends View {
 
             @Override
             public boolean deleteSurroundingText(int leftLength, int rightLength) {
-                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
-                    mClient.logInfo(LOG_TAG, "IME: deleteSurroundingText(" + leftLength + ", " + rightLength + ")");
-                }
                 // The stock Samsung keyboard with 'Auto check spelling' enabled sends leftLength > 1.
                 KeyEvent deleteKey = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL);
                 for (int i = 0; i < leftLength; i++) sendKeyEvent(deleteKey);
@@ -840,6 +821,10 @@ public final class TerminalView extends View {
 
             void sendTextToTerminal(CharSequence text) {
                 stopTextSelectionMode();
+                // Read the extra-keys Shift state once for the whole text: it is one-shot, so
+                // reading it per character would only ever uppercase the first one. The value is
+                // also handed on to inputCodePoint, which is where the client sees the modifier set.
+                final boolean shiftDown = mClient.readShiftKey();
                 final int textLengthInChars = text.length();
                 for (int i = 0; i < textLengthInChars; i++) {
                     char firstChar = text.charAt(i);
@@ -856,7 +841,7 @@ public final class TerminalView extends View {
                     }
 
                     // Check onKeyDown() for details.
-                    if (mClient.readShiftKey())
+                    if (shiftDown)
                         codePoint = Character.toUpperCase(codePoint);
 
                     boolean ctrlHeld = false;
@@ -890,7 +875,7 @@ public final class TerminalView extends View {
                         }
                     }
 
-                    inputCodePoint(KEY_EVENT_SOURCE_SOFT_KEYBOARD, codePoint, ctrlHeld, false);
+                    inputCodePoint(KEY_EVENT_SOURCE_SOFT_KEYBOARD, codePoint, ctrlHeld, false, shiftDown, false);
                 }
             }
 
@@ -2273,8 +2258,6 @@ public final class TerminalView extends View {
 
     @Override
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-            mClient.logInfo(LOG_TAG, "onKeyPreIme(keyCode=" + keyCode + ", event=" + event + ")");
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             cancelRequestAutoFill();
             if (isSelectingText()) {
@@ -2396,8 +2379,6 @@ public final class TerminalView extends View {
      */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-            mClient.logInfo(LOG_TAG, "onKeyDown(keyCode=" + keyCode + ", isSystem()=" + event.isSystem() + ", event=" + event + ")");
         if (mEmulator == null) return true;
         if (isSelectingText()) {
             stopTextSelectionMode();
@@ -2428,7 +2409,6 @@ public final class TerminalView extends View {
         if (event.isNumLockOn()) keyMod |= KeyHandler.KEYMOD_NUM_LOCK;
         // https://github.com/termux/termux-app/issues/731
         if (!event.isFunctionPressed() && handleKeyCode(keyCode, keyMod)) {
-            if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) mClient.logInfo(LOG_TAG, "handleKeyCode() took key event");
             return true;
         }
 
@@ -2443,11 +2423,12 @@ public final class TerminalView extends View {
         int effectiveMetaState = event.getMetaState() & ~bitsToClear;
 
         if (shiftDown) effectiveMetaState |= KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON;
-        if (mClient.readFnKey()) effectiveMetaState |= KeyEvent.META_FUNCTION_ON;
+        // Read once: the extra-keys Fn button is one-shot, and the value is needed both for the
+        // character lookup below and for the modifier set handed to the client.
+        final boolean fnDown = mClient.readFnKey();
+        if (fnDown) effectiveMetaState |= KeyEvent.META_FUNCTION_ON;
 
         int result = event.getUnicodeChar(effectiveMetaState);
-        if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-            mClient.logInfo(LOG_TAG, "KeyEvent#getUnicodeChar(" + effectiveMetaState + ") returned: " + result);
         if (result == 0) {
             return false;
         }
@@ -2456,7 +2437,7 @@ public final class TerminalView extends View {
         if ((result & KeyCharacterMap.COMBINING_ACCENT) != 0) {
             // If entered combining accent previously, write it out:
             if (mCombiningAccent != 0)
-                inputCodePoint(event.getDeviceId(), mCombiningAccent, controlDown, leftAltDown);
+                inputCodePoint(event.getDeviceId(), mCombiningAccent, controlDown, leftAltDown, shiftDown, fnDown);
             mCombiningAccent = result & KeyCharacterMap.COMBINING_ACCENT_MASK;
         } else {
             if (mCombiningAccent != 0) {
@@ -2464,7 +2445,7 @@ public final class TerminalView extends View {
                 if (combinedChar > 0) result = combinedChar;
                 mCombiningAccent = 0;
             }
-            inputCodePoint(event.getDeviceId(), result, controlDown, leftAltDown);
+            inputCodePoint(event.getDeviceId(), result, controlDown, leftAltDown, shiftDown, fnDown);
         }
 
         if (mCombiningAccent != oldCombiningAccent) invalidate();
@@ -2472,12 +2453,23 @@ public final class TerminalView extends View {
         return true;
     }
 
-    public void inputCodePoint(int eventSource, int codePoint, boolean controlDownFromEvent, boolean leftAltDownFromEvent) {
-        if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
-            mClient.logInfo(LOG_TAG, "inputCodePoint(eventSource=" + eventSource + ", codePoint=" + codePoint + ", controlDownFromEvent=" + controlDownFromEvent + ", leftAltDownFromEvent="
-                + leftAltDownFromEvent + ")");
-        }
-
+    /**
+     * Input a code point, resolving the modifier state for it first.
+     *
+     * <p>The extra-keys Ctrl/Alt/Shift/Fn buttons are one-shot, so each of them is read exactly
+     * once per code point here and the result is handed to
+     * {@link TerminalViewClient#onCodePoint(int, boolean, boolean, boolean, boolean, TerminalSession)}.
+     * That is the only chance the client gets to see them: a read clears the button, so a client
+     * that read them itself would see them already spent.
+     *
+     * @param controlDownFromEvent Ctrl from the key event (or a committed control character).
+     * @param leftAltDownFromEvent Left Alt from the key event.
+     * @param shiftDownFromEvent Shift as already resolved by the caller — it is read (and spent) by
+     *                           {@link #onKeyDown} and by the IME text path before reaching here.
+     * @param fnDownFromEvent Fn as already resolved by the caller, for the same reason.
+     */
+    public void inputCodePoint(int eventSource, int codePoint, boolean controlDownFromEvent, boolean leftAltDownFromEvent,
+                               boolean shiftDownFromEvent, boolean fnDownFromEvent) {
         if (mTermSession == null) return;
 
         // Ensure cursor is shown when a key is pressed down like long hold on (arrow) keys
@@ -2486,8 +2478,10 @@ public final class TerminalView extends View {
 
         final boolean controlDown = controlDownFromEvent || mClient.readControlKey();
         final boolean altDown = leftAltDownFromEvent || mClient.readAltKey();
+        final boolean shiftDown = shiftDownFromEvent || mClient.readShiftKey();
+        final boolean fnDown = fnDownFromEvent || mClient.readFnKey();
 
-        if (mClient.onCodePoint(codePoint, controlDown, mTermSession)) return;
+        if (mClient.onCodePoint(codePoint, controlDown, altDown, shiftDown, fnDown, mTermSession)) return;
 
         if (controlDown) {
             if (codePoint >= 'a' && codePoint <= 'z') {
@@ -2537,6 +2531,16 @@ public final class TerminalView extends View {
         }
     }
 
+    /**
+     * @deprecated Use the overload that also takes the Shift and Fn state; this one is only kept
+     * so that existing callers keep compiling. The two missing flags are read here instead, which
+     * is only correct when the caller has not already spent them.
+     */
+    @Deprecated
+    public void inputCodePoint(int eventSource, int codePoint, boolean controlDownFromEvent, boolean leftAltDownFromEvent) {
+        inputCodePoint(eventSource, codePoint, controlDownFromEvent, leftAltDownFromEvent, false, false);
+    }
+
     /** Input the specified keyCode if applicable and return if the input was consumed. */
     public boolean handleKeyCode(int keyCode, int keyMod) {
         // Ensure cursor is shown when a key is pressed down like long hold on (arrow) keys
@@ -2582,9 +2586,6 @@ public final class TerminalView extends View {
      */
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-            mClient.logInfo(LOG_TAG, "onKeyUp(keyCode=" + keyCode + ", event=" + event + ")");
-
         // Do not return for KEYCODE_BACK and send it to the client since user may be trying
         // to exit the activity.
         if (mEmulator == null && keyCode != KeyEvent.KEYCODE_BACK) return true;
@@ -3207,10 +3208,9 @@ public final class TerminalView extends View {
      * toggled `-> off -> on`, which would call this very quickly sequentially. So that if cursor
      * is moved 2 or more times quickly, like long hold on arrow keys, it would trigger
      * `-> off -> on -> off -> on -> ...`, and the "on" callback at index 2 is automatically
-     * cancelled by next "off" callback at index 3 before getting a chance to be run. For this case
-     * we log only if {@link #TERMINAL_VIEW_KEY_LOGGING_ENABLED} is enabled, otherwise would clutter
-     * the log. We don't start the blinking with a delay to immediately show cursor in case it was
-     * previously not visible.
+     * cancelled by next "off" callback at index 3 before getting a chance to be run. We don't
+     * start the blinking with a delay to immediately show cursor in case it was previously not
+     * visible.
      *
      * @param start If cursor blinker should be started or stopped.
      * @param startOnlyIfCursorEnabled If set to {@code true}, then it will also be checked if the
@@ -3236,14 +3236,10 @@ public final class TerminalView extends View {
                 return;
             // If cursor blinder is to be started only if cursor is enabled
             else if (startOnlyIfCursorEnabled && ! mEmulator.isCursorEnabled()) {
-                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-                    mClient.logVerbose(LOG_TAG, "Ignoring call to start cursor blinker since cursor is not enabled");
                 return;
             }
 
             // Start cursor blinker runnable
-            if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-                mClient.logVerbose(LOG_TAG, "Starting cursor blinker with the blink rate " + mTerminalCursorBlinkerRate);
             if (mTerminalCursorBlinkerHandler == null)
                 mTerminalCursorBlinkerHandler = new Handler(Looper.getMainLooper());
             mTerminalCursorBlinkerRunnable = new TerminalCursorBlinkerRunnable(mEmulator, mTerminalCursorBlinkerRate);
@@ -3257,8 +3253,6 @@ public final class TerminalView extends View {
      */
     private void stopTerminalCursorBlinker() {
         if (mTerminalCursorBlinkerHandler != null && mTerminalCursorBlinkerRunnable != null) {
-            if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
-                mClient.logVerbose(LOG_TAG, "Stopping cursor blinker");
             mTerminalCursorBlinkerHandler.removeCallbacks(mTerminalCursorBlinkerRunnable);
         }
     }

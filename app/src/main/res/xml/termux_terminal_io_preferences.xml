@@ -6,11 +6,9 @@
         app:title="@string/extra_keys_category_title"
         app:iconSpaceReserved="false">
 
-        <Preference
-            app:key="extra_keys_editor"
-            app:title="@string/extra_keys_editor_open_editor"
-            app:fragment="com.termux.app.fragments.settings.termux.ExtraKeysEditorFragment"
-            app:iconSpaceReserved="false" />
+        <!-- Master of this section. When its value is "never" (Никогда), every other row below is
+             disabled in code (TerminalIOPreferencesFragment), since a ListPreference cannot drive
+             app:dependency the way a switch can. The master row itself stays enabled. -->
 
         <ListPreference
             app:key="extra_keys_visibility"
@@ -19,6 +17,12 @@
             app:useSimpleSummaryProvider="true"
             app:entries="@array/extra_keys_visibility_entries"
             app:entryValues="@array/extra_keys_visibility_values"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="extra_keys_editor"
+            app:title="@string/extra_keys_editor_open_editor"
+            app:fragment="com.termux.app.fragments.settings.termux.ExtraKeysEditorFragment"
             app:iconSpaceReserved="false" />
 
         <ListPreference
@@ -54,6 +58,11 @@
         app:title="@string/input_panel_title"
         app:iconSpaceReserved="false">
 
+        <!-- Master switch of this section: "Кнопка переключения панели ввода". With that button
+             gone there is nothing for the rows below to configure, so they declare it as their
+             dependency and grey out when it is switched off. AndroidX applies the state on bind
+             and re-applies it on every change, so no code is needed here. -->
+
         <SwitchPreferenceCompat
             app:key="text_input_enabled"
             app:defaultValue="true"
@@ -62,12 +71,14 @@
 
         <SwitchPreferenceCompat
             app:key="text_input_append_enter"
+            app:dependency="text_input_enabled"
             app:defaultValue="true"
             app:title="@string/text_input_append_enter_title"
             app:iconSpaceReserved="false" />
 
         <ListPreference
             app:key="text_input_action_on_send"
+            app:dependency="text_input_enabled"
             app:defaultValue="hide_keyboard"
             app:title="@string/text_input_action_on_send_title"
             app:useSimpleSummaryProvider="true"
@@ -77,11 +88,13 @@
 
         <Preference
             app:key="text_input_insert_at_cursor"
+            app:dependency="text_input_enabled"
             app:title="@string/text_input_insert_at_cursor_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="per_directory_message_history"
+            app:dependency="text_input_enabled"
             app:title="@string/per_directory_message_history_title"
             app:summary="@string/per_directory_message_history_summary"
             app:defaultValue="false"
@@ -89,6 +102,7 @@
 
         <SwitchPreferenceCompat
             app:key="save_cleared_to_history"
+            app:dependency="text_input_enabled"
             app:title="@string/save_cleared_to_history_title"
             app:summary="@string/save_cleared_to_history_summary"
             app:defaultValue="true"
@@ -96,6 +110,7 @@
 
         <SeekBarPreference
             app:key="message_history_max"
+            app:dependency="text_input_enabled"
             app:title="@string/message_history_max_title"
             app:defaultValue="20"
             app:showSeekBarValue="true"
@@ -103,6 +118,7 @@
 
         <SeekBarPreference
             app:key="suggestions_max_count"
+            app:dependency="text_input_enabled"
             app:title="@string/suggestions_max_count_title"
             app:defaultValue="4"
             android:max="10"
@@ -115,6 +131,12 @@
         app:title="@string/termux_keyboard_header"
         app:iconSpaceReserved="false">
 
+        <!-- Master switch of this category. Every other row below declares it as its
+             `dependency`, so switching the soft keyboard off greys them out and stops them
+             from being clicked, and switching it back on restores them. AndroidX applies the
+             state on bind and re-applies it on every checked change, so no code is needed here;
+             the master row itself must stay enabled, since it is the only way back. -->
+
         <SwitchPreferenceCompat
             app:key="soft_keyboard_enabled"
             app:title="@string/termux_soft_keyboard_enabled_title"
@@ -122,20 +144,54 @@
 
         <SwitchPreferenceCompat
             app:key="hide-soft-keyboard-on-startup"
+            app:dependency="soft_keyboard_enabled"
             app:title="@string/hide_soft_keyboard_on_startup_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="soft_keyboard_enabled_only_if_no_hardware"
+            app:dependency="soft_keyboard_enabled"
             app:title="@string/termux_soft_keyboard_enabled_only_if_no_hardware_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="keyboard_state_follow_tab_switch"
+            app:dependency="soft_keyboard_enabled"
             app:defaultValue="true"
             app:summaryOff="@string/keyboard_state_follow_tab_switch_off"
             app:summaryOn="@string/keyboard_state_follow_tab_switch_on"
             app:title="@string/keyboard_state_follow_tab_switch_title"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="@string/shortcuts_category_title"
+        app:iconSpaceReserved="false">
+
+        <!-- Each row opens the extra-keys signal picker in its session-shortcut mode: the delay
+             entry and the action-only buttons are hidden there, and the combination must start
+             with a modifier (enforced in the dialog, not advertised here). The row summary is
+             written in code — it shows the bound combination, or the "not set" hint. -->
+
+        <Preference
+            app:key="shortcut.create-session"
+            app:title="@string/shortcut_create_session_title"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="shortcut.next-session"
+            app:title="@string/shortcut_next_session_title"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="shortcut.previous-session"
+            app:title="@string/shortcut_previous_session_title"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="shortcut.rename-session"
+            app:title="@string/shortcut_rename_session_title"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>

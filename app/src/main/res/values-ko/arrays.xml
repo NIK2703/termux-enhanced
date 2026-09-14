@@ -14,11 +14,6 @@
         <item>@string/screen_orientation_entry_landscape</item>
     </string-array>
 
-    <string-array name="locale_override_entries">
-        <item>@string/locale_override_entry_system</item>
-        <item>@string/locale_override_entry_english</item>
-    </string-array>
-
     <string-array name="tab_panel_position_entries">
         <item>@string/termux_tab_panel_position_top</item>
         <item>@string/termux_tab_panel_position_bottom</item>
@@ -67,6 +62,7 @@
     <string-array name="soft_keyboard_toggle_behaviour_entries">
         <item>@string/soft_keyboard_toggle_show_hide</item>
         <item>@string/soft_keyboard_toggle_enable_disable</item>
+    
     </string-array>
 
     <string-array name="night_mode_entries">

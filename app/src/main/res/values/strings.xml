@@ -161,16 +161,12 @@
         <string name="termux_debugging_preferences_summary">Preferences for debugging</string>
 
             <!-- Logging Category -->
-            <string name="termux_logging_header">Logging</string>
             <string name="plugin_logging_category_title">Logging</string>
-
-            <!-- Failure Notifications Category -->
-            <string name="failure_notifications_category_title">Failure Notifications</string>
 
                 <!-- Log Level -->
                 <string name="termux_log_level_title">Log Level</string>
 
-                <!-- Terminal View Key Logging -->
+                <!-- Terminal View Key Logging (only the Termux:Float debugging screen uses these now) -->
                 <string name="termux_terminal_view_key_logging_enabled_title">Terminal View Key Logging</string>
                 <string name="termux_terminal_view_key_logging_enabled_off">Logs will not have entries for terminal view keys.</string>
                 <string name="termux_terminal_view_key_logging_enabled_on">Logcat logs will have entries for terminal view keys.
@@ -178,13 +174,9 @@
 
                 <!-- Plugin Error Notifications -->
                 <string name="termux_plugin_error_notifications_enabled_title">Plugin Error Notifications</string>
-                <string name="termux_plugin_error_notifications_enabled_off">Disable flashes and notifications for plugin errors.</string>
-                <string name="termux_plugin_error_notifications_enabled_on">Show flashes and notifications for plugin errors.</string>
 
                 <!-- Crash Report Notifications -->
                 <string name="termux_crash_report_notifications_enabled_title">Crash Report Notifications</string>
-                <string name="termux_crash_report_notifications_enabled_off">Disable notifications for crash reports.</string>
-                <string name="termux_crash_report_notifications_enabled_on">Show notifications for crash reports.</string>
 
         <!-- Terminal IO Preferences -->
         <string name="termux_terminal_io_preferences_title">Terminal I/O</string>
@@ -377,9 +369,7 @@
 
     <!-- Backup / Restore Preference -->
     <string name="backup_preference_title">Backup Termux Data</string>
-    <string name="backup_preference_summary">Save the Termux data directory (installed packages + home) to a tar.gz file</string>
     <string name="restore_preference_title">Restore Termux Data</string>
-    <string name="restore_preference_summary">Restore the Termux data directory from a tar.gz backup file</string>
     <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_restore_dialog_title">Termux Data Backup / Restore</string>
     <string name="backup_restore_warning_backup">This will create a compressed archive of your Termux data directory (installed packages and environment together with your home directory).\n\nChoose a destination file to save the backup.</string>
@@ -409,9 +399,7 @@
     <string name="backup_restore_full_data_category_title">Full Data</string>
     <string name="backup_restore_settings_category_title">App Settings</string>
     <string name="backup_settings_title">Backup App Settings</string>
-    <string name="backup_settings_summary">Save preferences, color scheme, font, and key bindings (small file)</string>
     <string name="restore_settings_title">Restore App Settings</string>
-    <string name="restore_settings_summary">Restore preferences, color scheme, font, and key bindings</string>
     <string name="settings_backup_warning">This will save your Termux app settings (preferences, color scheme, font, extra keys layout) to a small backup file.\n\nChoose a destination file.</string>
     <string name="settings_restore_warning">This will restore your Termux app settings from a backup file. Current settings will be overwritten.</string>
     <string name="settings_backup_progress">Backing up settings…</string>
@@ -508,6 +496,20 @@
     <string name="locale_override_entry_system">System default (auto-translate may be inaccurate)</string>
     <string name="locale_override_entry_english">English</string>
 
+    <!-- Native-language display names for the app-language picker (always shown in their own script) -->
+    <string name="locale_entry_ar" translatable="false">العربية</string>
+    <string name="locale_entry_de" translatable="false">Deutsch</string>
+    <string name="locale_entry_es" translatable="false">Español</string>
+    <string name="locale_entry_fr" translatable="false">Français</string>
+    <string name="locale_entry_hi" translatable="false">हिन्दी</string>
+    <string name="locale_entry_in" translatable="false">Indonesia</string>
+    <string name="locale_entry_ja" translatable="false">日本語</string>
+    <string name="locale_entry_ko" translatable="false">한국어</string>
+    <string name="locale_entry_pt" translatable="false">Português</string>
+    <string name="locale_entry_ru" translatable="false">Русский</string>
+    <string name="locale_entry_tr" translatable="false">Türkçe</string>
+    <string name="locale_entry_zh" translatable="false">中文</string>
+
     <string name="extra_keys_visibility_title">Show extra keys panel</string>
     <string name="extra_keys_visibility_summary">When the additional buttons bar is shown.</string>
 
@@ -522,17 +524,19 @@
     <string name="terminal_category_title">Terminal</string>
     <string name="key_behaviour_category_title">Key behaviour</string>
     <string name="screen_category_title">Screen</string>
-    <string name="shortcuts_category_title">Shortcuts</string>
+    <string name="shortcuts_category_title">Keyboard shortcuts</string>
     <string name="misc_category_title">Misc</string>
 
     <string name="security_category_title">Security</string>
+
+    <string name="addons_category_title">Add-ons</string>
 
     <string name="sound_category_title">Sound &amp; notifications</string>
 
     <string name="session_category_title">Session</string>
 
     <string name="empty_value_summary">Not set</string>
-    <string name="shortcut_empty_summary">Not set (leave empty to disable)</string>
+    <string name="shortcut_empty_summary">Not set</string>
 
     <string name="terminal_transcript_rows_title">Terminal transcript rows</string>
     <string name="terminal_transcript_rows_summary">Number of rows kept in the scrollback transcript.</string>
@@ -544,7 +548,8 @@
 
     <string name="invalid_number">Please enter a valid number.</string>
 
-    <string name="shortcut_invalid_format">Invalid shortcut. Use the format \"ctrl+x\" or leave empty to disable.</string>
+    <string name="session_shortcut_needs_modifier">Set a key combination with the Ctrl, Alt, Shift or Fn modifiers</string>
+    <string name="session_shortcut_needs_key">Add a key for the modifiers to apply to</string>
 
     <string name="terminal_cursor_style_title">Cursor style</string>
     <string name="terminal_cursor_style_summary">How the terminal cursor is drawn.</string>
@@ -610,23 +615,19 @@
     <string name="night_mode_legacy_title">Night mode (legacy night-mode)</string>
     <string name="night_mode_legacy_summary">Controls the legacy night-mode property. Prefer the theme setting on the Display screen.</string>
 
-    <string name="shortcut_summary">Format: Ctrl+KEY (e.g. Ctrl+a). Leave empty to disable.</string>
-    <string name="shortcut_create_session_title">Create session shortcut</string>
-    <string name="shortcut_next_session_title">Next session shortcut</string>
-    <string name="shortcut_previous_session_title">Previous session shortcut</string>
-    <string name="shortcut_rename_session_title">Rename session shortcut</string>
+    <string name="shortcut_create_session_title">New session</string>
+    <string name="shortcut_next_session_title">Next session</string>
+    <string name="shortcut_previous_session_title">Previous session</string>
+    <string name="shortcut_rename_session_title">Rename session</string>
 
     <string name="allow_external_apps_title">Allow external apps</string>
     <string name="allow_external_apps_summary">Allow other apps to start Termux commands via RUN_COMMAND.</string>
 
     <string name="disable_file_share_receiver_title">Disable file share receiver</string>
-    <string name="disable_file_share_receiver_summary">Do not accept files shared into Termux.</string>
 
     <string name="disable_file_view_receiver_title">Disable file view receiver</string>
-    <string name="disable_file_view_receiver_summary">Do not open files sent to Termux for viewing.</string>
 
     <string name="run_termux_am_socket_server_title">Run termux-am socket server</string>
-    <string name="run_termux_am_socket_server_summary">Start the termux-am socket server for inter-process commands.</string>
 
     <string name="hide_soft_keyboard_on_startup_title">Hide soft keyboard on startup</string>
     <string name="hide_soft_keyboard_on_startup_summary">Keep the soft keyboard hidden when Termux starts.</string>

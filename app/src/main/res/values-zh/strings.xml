@@ -169,9 +169,7 @@
 
     <string name="donate_preference_title">捐赠</string>
     <string name="backup_preference_title">备份 Termux 数据</string>
-    <string name="backup_preference_summary">将 Termux 数据目录（已安装的软件包 + 主目录）保存为 tar.gz 文件</string>
     <string name="restore_preference_title">恢复 Termux 数据</string>
-    <string name="restore_preference_summary">从 tar.gz 备份文件恢复 Termux 数据目录</string>
     <string name="backup_restore_dialog_title">Termux 数据备份 / 恢复</string>
     <string name="backup_restore_warning_backup">这为您的 Termux 数据目录（已安装的软件包和环境以及您的主目录）创建压缩归档。\n\n选择目标文件以保存备份。</string>
 
@@ -198,9 +196,7 @@
     <string name="backup_restore_full_data_category_title">完整数据</string>
     <string name="backup_restore_settings_category_title">应用设置</string>
     <string name="backup_settings_title">备份应用设置</string>
-    <string name="backup_settings_summary">保存偏好设置、配色方案、字体和按键绑定（小文件）</string>
     <string name="restore_settings_title">恢复应用设置</string>
-    <string name="restore_settings_summary">恢复偏好设置、配色方案、字体和按键绑定</string>
     <string name="settings_backup_warning">这将保存您的 Termux 应用设置（偏好设置、配色方案、字体、额外按键布局）到一个小的备份文件中。\n\n请选择目标文件。</string>
     <string name="settings_restore_warning">这将从备份文件恢复您的 Termux 应用设置。当前设置将被覆盖。</string>
     <string name="settings_backup_progress">正在备份设置…</string>
@@ -286,7 +282,6 @@
     <string name="locale_override_title">应用语言</string>
     <string name="locale_override_summary">覆盖应用语言</string>
     <string name="locale_override_entry_system">系统默认（自动翻译，可能不准确）</string>
-    <string name="locale_override_entry_english">英语</string>
     
     <string name="hide_extra_keys_with_keyboard_title">随键盘隐藏额外按键</string>
     <string name="hide_extra_keys_with_keyboard_summary">键盘关闭时自动隐藏额外按键，打开时显示</string>
@@ -537,13 +532,10 @@
     <string name="allow_external_apps_summary">允许其他应用通过 RUN_COMMAND 启动 Termux 命令。</string>
 
     <string name="disable_file_share_receiver_title">禁用文件共享接收器</string>
-    <string name="disable_file_share_receiver_summary">不接受共享到 Termux 的文件。</string>
 
     <string name="disable_file_view_receiver_title">禁用文件查看接收器</string>
-    <string name="disable_file_view_receiver_summary">不打开发送到 Termux 查看的文件。</string>
 
     <string name="run_termux_am_socket_server_title">运行 termux-am socket 服务器</string>
-    <string name="run_termux_am_socket_server_summary">启动 termux-am socket 服务器以处理进程间命令。</string>
 
     <string name="hide_soft_keyboard_on_startup_title">启动时隐藏软键盘</string>
     <string name="hide_soft_keyboard_on_startup_summary">启动 Termux 时保持软键盘隐藏。</string>

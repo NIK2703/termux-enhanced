@@ -40,7 +40,6 @@
     <string name="appearance_preferences_title">Aparência</string>
     <string name="backup_dialog_background">Segundo plano</string>
     <string name="backup_dialog_cancel">Cancelar</string>
-    <string name="backup_preference_summary">Salvar o diretório de dados do Termux (pacotes instalados + home) em um arquivo de backup tar.gz</string>
     <string name="backup_preference_title">Fazer Backup dos Dados do Termux</string>
     <string name="backup_restore_backup_started">Criando backup…</string>
     <string name="backup_restore_backup_success">Backup criado com sucesso</string>
@@ -49,9 +48,7 @@
     <string name="backup_restore_full_data_category_title">Dados Completos</string>
     <string name="backup_restore_settings_category_title">Configurações do App</string>
     <string name="backup_settings_title">Fazer Backup das Configurações do App</string>
-    <string name="backup_settings_summary">Salvar preferências, esquema de cores, fonte e atalhos de teclado (arquivo pequeno)</string>
     <string name="restore_settings_title">Restaurar Configurações do App</string>
-    <string name="restore_settings_summary">Restaurar preferências, esquema de cores, fonte e atalhos de teclado</string>
     <string name="settings_backup_warning">Isso salvará as configurações do seu app Termux (preferências, esquema de cores, fonte, layout de teclas extras) em um arquivo de backup pequeno.\n\nEscolha um arquivo de destino.</string>
     <string name="settings_restore_warning">Isso restaurará as configurações do seu app Termux a partir de um arquivo de backup. As configurações atuais serão substituídas.</string>
     <string name="settings_backup_progress">Fazendo backup das configurações…</string>
@@ -162,7 +159,6 @@
     <string name="per_directory_message_history_title">Histórico de Mensagens por Diretório</string>
     <string name="permission_run_command_description">executar comandos arbitrários no ambiente do Termux e acessar arquivos</string>
     <string name="permission_run_command_label">Executar comandos no ambiente do Termux</string>
-    <string name="restore_preference_summary">Restaurar o diretório de dados do Termux a partir de um arquivo de backup tar.gz</string>
     <string name="restore_preference_title">Restaurar Dados do Termux</string>
     <string name="restore_sessions_summary">Reabrir todas as abas e seus diretórios quando o aplicativo for iniciado</string>
     <string name="restore_sessions_title">Restaurar abas na inicialização</string>
@@ -285,7 +281,6 @@
     <string name="locale_override_title">Idioma do aplicativo</string>
     <string name="locale_override_summary">Substituir idioma do app</string>
     <string name="locale_override_entry_system">Idioma do sistema (tradução automática, possíveis imprecisões)</string>
-    <string name="locale_override_entry_english">Inglês</string>
     
     <string name="hide_extra_keys_with_keyboard_title">Ocultar teclas extras com o teclado</string>
     <string name="hide_extra_keys_with_keyboard_summary">Ocultar automaticamente botões extras quando o teclado estiver fechado; mostrar quando aberto</string>
@@ -541,11 +536,8 @@
     <string name="allow_external_apps_title">Permitir aplicativos externos</string>
     <string name="allow_external_apps_summary">Permitir que outros aplicativos iniciem comandos do Termux via RUN_COMMAND.</string>
     <string name="disable_file_share_receiver_title">Desativar recebimento de arquivos</string>
-    <string name="disable_file_share_receiver_summary">Não aceitar arquivos compartilhados no Termux.</string>
     <string name="disable_file_view_receiver_title">Desativar visualizador de arquivos</string>
-    <string name="disable_file_view_receiver_summary">Não abrir arquivos enviados ao Termux para visualização.</string>
     <string name="run_termux_am_socket_server_title">Executar servidor socket termux-am</string>
-    <string name="run_termux_am_socket_server_summary">Iniciar o servidor socket termux-am para comandos entre processos.</string>
     <string name="hide_soft_keyboard_on_startup_title">Ocultar teclado virtual na inicialização</string>
     <string name="hide_soft_keyboard_on_startup_summary">Manter o teclado virtual oculto quando o Termux iniciar.</string>
     <string name="terminal_cursor_style_block">Bloco</string>

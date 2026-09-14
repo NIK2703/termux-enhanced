@@ -43,7 +43,6 @@
     <string name="appearance_preferences_title">모양</string>
     <string name="backup_dialog_background">백그라운드에서 실행</string>
     <string name="backup_dialog_cancel">취소</string>
-    <string name="backup_preference_summary">데이터와 설정을 tar.gz 파일로 백업합니다</string>
     <string name="backup_preference_title">백업</string>
     <string name="backup_restore_backup_started">백업 시작</string>
     <string name="backup_restore_backup_success">백업 성공</string>
@@ -52,9 +51,7 @@
     <string name="backup_restore_full_data_category_title">전체 데이터</string>
     <string name="backup_restore_settings_category_title">앱 설정</string>
     <string name="backup_settings_title">앱 설정 백업</string>
-    <string name="backup_settings_summary">환경설정, 색 구성표, 글꼴 및 키 바인딩을 저장합니다 (작은 파일)</string>
     <string name="restore_settings_title">앱 설정 복원</string>
-    <string name="restore_settings_summary">환경설정, 색 구성표, 글꼴 및 키 바인딩을 복원합니다</string>
     <string name="settings_backup_warning">Termux 앱 설정(환경설정, 색 구성표, 글꼴, 추가 키 레이아웃)을 작은 백업 파일로 저장합니다.\n\n대상 파일을 선택하세요.</string>
     <string name="settings_restore_warning">백업 파일에서 Termux 앱 설정을 복원합니다. 현재 설정이 덮어쓰여집니다.</string>
     <string name="settings_backup_progress">설정 백업 중…</string>
@@ -183,7 +180,6 @@ $HOME/bin/termux-url-opener
     <string name="per_directory_message_history_title">디렉터리별 메시지 기록</string>
     <string name="permission_run_command_description">Termux 환경에서 명령을 실행하고 파일에 접근할 수 있도록 허용합니다</string>
     <string name="permission_run_command_label">Termux 환경에서 명령 실행</string>
-    <string name="restore_preference_summary">tar.gz 백업 파일에서 데이터와 설정을 복원합니다</string>
     <string name="restore_preference_title">복원</string>
     <string name="restore_sessions_summary">앱을 시작할 때 모든 탭과 해당 디렉터리를 다시 엽니다</string>
     <string name="restore_sessions_title">세션 복원</string>
@@ -289,7 +285,6 @@ $HOME/bin/termux-url-opener
     <string name="locale_override_title">앱 언어</string>
     <string name="locale_override_summary">앱 언어 재정의</string>
     <string name="locale_override_entry_system">시스템 언어 (자동 번역, 부정확할 수 있음)</string>
-    <string name="locale_override_entry_english">영어</string>
     
     <string name="hide_extra_keys_with_keyboard_title">키보드와 함께 추가 키 숨기기</string>
     <string name="hide_extra_keys_with_keyboard_summary">키보드가 닫히면 추가 버튼을 자동으로 숨기고 열리면 표시합니다</string>
@@ -539,13 +534,10 @@ $HOME/bin/termux-url-opener
     <string name="allow_external_apps_title">외부 앱 허용</string>
 
     
-    <string name="disable_file_share_receiver_summary">Termux로 공유된 파일을 수락하지 않습니다.</string>
     <string name="disable_file_share_receiver_title">파일 공유 수신 비활성화</string>
-    <string name="disable_file_view_receiver_summary">보기 위해 Termux로 보낸 파일을 열지 않습니다.</string>
     <string name="disable_file_view_receiver_title">파일 보기 수신 비활성화</string>
 
     
-    <string name="run_termux_am_socket_server_summary">프로세스 간 명령을 위해 termux-am 소켓 서버를 시작합니다.</string>
     <string name="run_termux_am_socket_server_title">termux-am 소켓 서버 실행</string>
 
     

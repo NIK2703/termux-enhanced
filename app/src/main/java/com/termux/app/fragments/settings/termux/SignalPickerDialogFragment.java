@@ -32,24 +32,40 @@ import com.termux.R;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import com.termux.shared.termux.extrakeys.BindingTokenizer;
+import com.termux.shared.termux.extrakeys.KeyCombination;
 
 @Keep
 public class SignalPickerDialogFragment extends DialogFragment {
 
     public static final String REQUEST_KEY = "signal_picker";
 
+    /** Picker for one binding of an extra-keys button. */
+    public static final String MODE_EXTRA_KEY = "extra_key";
+    /** Picker for a session shortcut combination; the delay entry and the action-only buttons
+     *  (KEYBOARD/PASTE/SCROLL) are hidden, since there is no key to press for any of them. */
+    public static final String MODE_SESSION_SHORTCUT = "session_shortcut";
+
     private static final String ARG_ROW = "row";
     private static final String ARG_COL = "col";
     private static final String ARG_TARGET = "target";
     private static final String ARG_SIGNALS = "signals";
+    private static final String ARG_MODE = "mode";
+    private static final String ARG_TITLE = "title";
+    private static final String ARG_REQUEST_ID = "request_id";
 
     public static final String RESULT_ROW = "row";
     public static final String RESULT_COL = "col";
     public static final String RESULT_TARGET = "target";
     public static final String RESULT_SIGNALS = "signals";
+    /** Echoes back {@link #ARG_REQUEST_ID} so a caller editing several bindings can tell them apart. */
+    public static final String RESULT_REQUEST_ID = "request_id";
+
+    private static final Set<String> SESSION_SHORTCUT_HIDDEN_VALUES = new HashSet<>(Arrays.asList(
+        "__DELAY_PICKER__", "KEYBOARD", "PASTE", "SCROLL"));
 
     public enum BindTarget { TAP, SWIPE_UP, SWIPE_DOWN, SWIPE_LEFT, SWIPE_RIGHT }
 
@@ -64,12 +80,40 @@ public class SignalPickerDialogFragment extends DialogFragment {
     /** Known grid signal values; tokens not in this set are user custom text (editable). */
     private Set<String> mSignalValues;
 
+    /** Whether this picker is in session-shortcut mode (drives the phased enabled state below). */
+    private boolean mSessionShortcutMode;
+    /** Adapter backing the grid; kept so the enabled/dim state can be refreshed after each change. */
+    private ArrayAdapter<String> mAdapter;
+
     public static SignalPickerDialogFragment newInstance(int row, int col, BindTarget target, ArrayList<String> currentSignals) {
         Bundle args = new Bundle();
         args.putInt(ARG_ROW, row);
         args.putInt(ARG_COL, col);
         args.putString(ARG_TARGET, target.name());
+        args.putString(ARG_MODE, MODE_EXTRA_KEY);
         args.putStringArrayList(ARG_SIGNALS, currentSignals != null ? currentSignals : new ArrayList<>());
+        SignalPickerDialogFragment f = new SignalPickerDialogFragment();
+        f.setArguments(args);
+        return f;
+    }
+
+    /**
+     * Picker for a session shortcut. {@code requestId} is the settings key being edited, so the
+     * caller knows which row to update, and {@code title} is that row's title — a combination is
+     * not tied to a swipe direction, so the extra-keys titles would not describe it.
+     */
+    public static SignalPickerDialogFragment newInstanceForSessionShortcut(@NonNull String requestId,
+                                                                          @NonNull String title,
+                                                                          @Nullable List<String> currentTokens) {
+        Bundle args = new Bundle();
+        args.putInt(ARG_ROW, -1);
+        args.putInt(ARG_COL, -1);
+        args.putString(ARG_TARGET, BindTarget.TAP.name());
+        args.putString(ARG_MODE, MODE_SESSION_SHORTCUT);
+        args.putString(ARG_TITLE, title);
+        args.putString(ARG_REQUEST_ID, requestId);
+        args.putStringArrayList(ARG_SIGNALS,
+            currentTokens != null ? new ArrayList<>(currentTokens) : new ArrayList<>());
         SignalPickerDialogFragment f = new SignalPickerDialogFragment();
         f.setArguments(args);
         return f;
@@ -83,21 +127,41 @@ public class SignalPickerDialogFragment extends DialogFragment {
         int col = args.getInt(ARG_COL);
         String targetStr = args.getString(ARG_TARGET, BindTarget.TAP.name());
         BindTarget target = BindTarget.valueOf(targetStr);
+        boolean sessionShortcutMode = MODE_SESSION_SHORTCUT.equals(args.getString(ARG_MODE, MODE_EXTRA_KEY));
+        mSessionShortcutMode = sessionShortcutMode;
 
         mSelected = new ArrayList<>(args.getStringArrayList(ARG_SIGNALS));
         mSelected.removeIf(String::isEmpty);
 
         Context context = requireContext();
-        String[] entries = getResources().getStringArray(R.array.extra_keys_editor_signal_entries);
-        String[] values = getResources().getStringArray(R.array.extra_keys_editor_signal_values);
-        mSignalValues = new HashSet<>(Arrays.asList(values));
+        String[] allEntries = getResources().getStringArray(R.array.extra_keys_editor_signal_entries);
+        String[] allValues = getResources().getStringArray(R.array.extra_keys_editor_signal_values);
+        mSignalValues = new HashSet<>(Arrays.asList(allValues));
+        final String[] entries;
+        final String[] values;
+        if (sessionShortcutMode) {
+            List<String> keptEntries = new ArrayList<>();
+            List<String> keptValues = new ArrayList<>();
+            for (int i = 0; i < allValues.length && i < allEntries.length; i++) {
+                if (SESSION_SHORTCUT_HIDDEN_VALUES.contains(allValues[i])) continue;
+                keptValues.add(allValues[i]);
+                keptEntries.add(allEntries[i]);
+            }
+            entries = keptEntries.toArray(new String[0]);
+            values = keptValues.toArray(new String[0]);
+        } else {
+            entries = allEntries;
+            values = allValues;
+        }
 
         View view = getLayoutInflater().inflate(R.layout.extra_keys_signal_grid, null);
         mChipsContainer = view.findViewById(R.id.chips_container);
         GridView grid = view.findViewById(R.id.signal_grid);
 
         String title;
-        switch (target) {
+        if (sessionShortcutMode) {
+            title = args.getString(ARG_TITLE, getString(R.string.shortcuts_category_title));
+        } else switch (target) {
             case TAP:
                 title = getString(R.string.extra_keys_editor_signal_dialog_title) + getString(R.string.extra_keys_editor_tap_suffix);
                 break;
@@ -120,25 +184,57 @@ public class SignalPickerDialogFragment extends DialogFragment {
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(context, R.style.ThemeOverlay_TermuxActivity_Dialog);
         builder.setTitle(title);
         builder.setView(view);
-        builder.setPositiveButton(getString(R.string.extra_keys_editor_done), (dialog, which) -> {
-            Bundle result = new Bundle();
-            result.putInt(RESULT_ROW, row);
-            result.putInt(RESULT_COL, col);
-            result.putString(RESULT_TARGET, target.name());
-            result.putStringArrayList(RESULT_SIGNALS, mSelected);
-            getParentFragmentManager().setFragmentResult(REQUEST_KEY, result);
-        });
+        // The click handler is attached in onShow below: a session shortcut must be able to refuse
+        // the confirmation and keep the dialog open, which a positive-button listener cannot do.
+        builder.setPositiveButton(getString(R.string.extra_keys_editor_done), null);
         builder.setNegativeButton(android.R.string.cancel, null);
 
         mDialog = builder.create();
         mDialog.setCanceledOnTouchOutside(false);
 
+        mDialog.setOnShowListener(dialog -> mDialog.getButton(DialogInterface.BUTTON_POSITIVE)
+            .setOnClickListener(v -> {
+                if (sessionShortcutMode && !validateSessionShortcut()) return;
+                Bundle result = new Bundle();
+                result.putInt(RESULT_ROW, row);
+                result.putInt(RESULT_COL, col);
+                result.putString(RESULT_TARGET, target.name());
+                result.putString(RESULT_REQUEST_ID, args.getString(ARG_REQUEST_ID, ""));
+                result.putStringArrayList(RESULT_SIGNALS, mSelected);
+                getParentFragmentManager().setFragmentResult(REQUEST_KEY, result);
+                dismiss();
+            }));
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1, entries);
-        grid.setAdapter(adapter);
+        mAdapter = new ArrayAdapter<String>(context, android.R.layout.simple_list_item_1, entries) {
+            @Override
+            public boolean areAllItemsEnabled() {
+                return false;
+            }
+
+            @Override
+            public boolean isEnabled(int position) {
+                if (position < 0 || position >= values.length) return false;
+                return isSignalSelectable(values[position]);
+            }
+
+            @Override
+            @NonNull
+            public View getView(int position, View convertView, @NonNull ViewGroup parent) {
+                View row = super.getView(position, convertView, parent);
+                boolean enabled = isEnabled(position);
+                row.setEnabled(enabled);
+                row.setAlpha(enabled ? 1.0f : 0.38f);
+                return row;
+            }
+        };
+        grid.setAdapter(mAdapter);
         grid.setOnItemClickListener((parent, v, position, id) -> {
             if (position < 0 || position >= values.length) return;
             String value = values[position];
+
+            // In session-shortcut mode the grid is phased: a disabled signal must be ignored even
+            // if the framework lets the click through (belt-and-suspenders with isEnabled() above).
+            if (mSessionShortcutMode && !isSignalSelectable(value)) return;
 
             if ("__CUSTOM__".equals(value)) {
                 openCustomTextDialog();
@@ -279,7 +375,44 @@ public class SignalPickerDialogFragment extends DialogFragment {
         mChipsContainer.addView(chip);
     }
 
+    /**
+     * The combination is built in three phases keyed to how many signals are already chosen:
+     *   - 0 chosen  → only modifiers (CTRL/ALT/SHIFT/FN) are selectable;
+     *   - 1 chosen  → only the key is selectable (everything except modifiers);
+     *   - 2+ chosen → nothing is selectable, the combination is complete.
+     * In extra-key mode every signal stays selectable.
+     */
+    private boolean isSignalSelectable(String value) {
+        if (!mSessionShortcutMode) return true;
+        if (mSelected.isEmpty()) {
+            return MODIFIERS.contains(value);
+        } else if (mSelected.size() == 1) {
+            return !MODIFIERS.contains(value);
+        }
+        return false;
+    }
+
     private void updateDoneButton() {
+        if (mAdapter != null) mAdapter.notifyDataSetChanged();
+    }
+
+    /**
+     * A session shortcut must be a combination, so it has to start with a modifier and have a key
+     * for that modifier to apply to. An empty selection is allowed through: that is how a binding
+     * is cleared, and an empty value has always meant "disabled".
+     */
+    private boolean validateSessionShortcut() {
+        if (mSelected.isEmpty()) return true;
+
+        if (!KeyCombination.hasLeadingModifier(mSelected)) {
+            Toast.makeText(requireContext(), R.string.session_shortcut_needs_modifier, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        if (!KeyCombination.hasKey(mSelected)) {
+            Toast.makeText(requireContext(), R.string.session_shortcut_needs_key, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        return true;
     }
     private static int dpToPx(Context context, float dp) {
         return (int) (dp * context.getResources().getDisplayMetrics().density);

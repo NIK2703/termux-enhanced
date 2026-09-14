@@ -231,12 +231,6 @@ public final class TermuxPreferenceConstants {
 
 
         /**
-         * Defines the key for whether termux terminal view key logging is enabled or not
-         */
-        public static final String KEY_TERMINAL_VIEW_KEY_LOGGING_ENABLED = "terminal_view_key_logging_enabled";
-        public static final boolean DEFAULT_VALUE_TERMINAL_VIEW_KEY_LOGGING_ENABLED = false;
-
-        /**
          * Defines the key for whether flashes and notifications for plugin errors are enabled or not.
          */
         public static final String KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED = "plugin_error_notifications_enabled";

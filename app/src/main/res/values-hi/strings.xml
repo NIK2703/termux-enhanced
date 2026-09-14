@@ -40,7 +40,6 @@
     <string name="appearance_preferences_title">दिखावट</string>
     <string name="backup_dialog_background">बैकग्राउंड</string>
     <string name="backup_dialog_cancel">रद्द करें</string>
-    <string name="backup_preference_summary">Termux डेटा निर्देशिका (स्थापित पैकेज + होम) को tar.gz फ़ाइल में सहेजें</string>
     <string name="backup_preference_title">Termux डेटा बैकअप</string>
     <string name="backup_restore_backup_started">बैकअप बनाया जा रहा है…</string>
     <string name="backup_restore_backup_success">बैकअप सफलतापूर्वक बनाया गया</string>
@@ -49,9 +48,7 @@
     <string name="backup_restore_full_data_category_title">पूर्ण डेटा</string>
     <string name="backup_restore_settings_category_title">ऐप सेटिंग्स</string>
     <string name="backup_settings_title">ऐप सेटिंग्स का बैकअप लें</string>
-    <string name="backup_settings_summary">प्राथमिकताएँ, रंग योजना, फ़ॉन्ट और की बाइंडिंग सहेजें (छोटी फ़ाइल)</string>
     <string name="restore_settings_title">ऐप सेटिंग्स पुनर्स्थापित करें</string>
-    <string name="restore_settings_summary">प्राथमिकताएँ, रंग योजना, फ़ॉन्ट और की बाइंडिंग पुनर्स्थापित करें</string>
     <string name="settings_backup_warning">यह आपकी Termux ऐप सेटिंग्स (प्राथमिकताएँ, रंग योजना, फ़ॉन्ट, अतिरिक्त कुंजी लेआउट) को एक छोटी बैकअप फ़ाइल में सहेजेगा।\n\nगंतव्य फ़ाइल चुनें।</string>
     <string name="settings_restore_warning">यह बैकअप फ़ाइल से आपकी Termux ऐप सेटिंग्स को पुनर्स्थापित करेगा। मौजूदा सेटिंग्स ओवरराइट हो जाएँगी।</string>
     <string name="settings_backup_progress">सेटिंग्स का बैकअप लिया जा रहा है…</string>
@@ -160,7 +157,6 @@
     <string name="per_directory_message_history_title">निर्देशिका-वार संदेश इतिहास</string>
     <string name="permission_run_command_description">Termux वातावरण में कोई भी कमांड चलाएँ और फ़ाइलों तक पहुँचें</string>
     <string name="permission_run_command_label">Termux वातावरण में कमांड चलाएँ</string>
-    <string name="restore_preference_summary">tar.gz बैकअप फ़ाइल से Termux डेटा निर्देशिका पुनर्स्थापित करें</string>
     <string name="restore_preference_title">Termux डेटा पुनर्स्थापित करें</string>
     <string name="restore_sessions_summary">ऐप शुरू होने पर सभी टैब और उनकी निर्देशिकाएँ पुनः खोलें</string>
     <string name="restore_sessions_title">लॉन्च पर टैब पुनर्स्थापित करें</string>
@@ -276,7 +272,6 @@
     <string name="locale_override_title">ऐप भाषा</string>
     <string name="locale_override_summary">ऐप भाषा ओवरराइड करें</string>
     <string name="locale_override_entry_system">सिस्टम भाषा (स्वचालित अनुवाद, अशुद्धियाँ हो सकती हैं)</string>
-    <string name="locale_override_entry_english">अंग्रेज़ी</string>
     
     <string name="hide_extra_keys_with_keyboard_title">कीबोर्ड से अतिरिक्त कुंजियाँ छिपाएँ</string>
     <string name="hide_extra_keys_with_keyboard_summary">कीबोर्ड बंद होने पर अतिरिक्त बटन छिपाएँ, खुलने पर दिखाएँ</string>
@@ -483,11 +478,8 @@
     <string name="allow_external_apps_title">बाहरी ऐप्स को अनुमति दें</string>
     <string name="allow_external_apps_summary">अन्य ऐप्स को RUN_COMMAND के माध्यम से Termux कमांड शुरू करने की अनुमति दें।</string>
     <string name="disable_file_share_receiver_title">फ़ाइल शेयर प्राप्तकर्ता अक्षम करें</string>
-    <string name="disable_file_share_receiver_summary">Termux में साझा की गई फ़ाइलें स्वीकार न करें।</string>
     <string name="disable_file_view_receiver_title">फ़ाइल व्यू प्राप्तकर्ता अक्षम करें</string>
-    <string name="disable_file_view_receiver_summary">देखने के लिए Termux को भेजी गई फ़ाइलें न खोलें।</string>
     <string name="run_termux_am_socket_server_title">termux-am सॉकेट सर्वर चलाएँ</string>
-    <string name="run_termux_am_socket_server_summary">अंतर-प्रक्रिया कमांड के लिए termux-am सॉकेट सर्वर प्रारंभ करें।</string>
     <string name="hide_soft_keyboard_on_startup_title">स्टार्टअप पर सॉफ्ट कीबोर्ड छिपाएँ</string>
     <string name="hide_soft_keyboard_on_startup_summary">Termux शुरू होने पर सॉफ्ट कीबोर्ड छिपा कर रखें।</string>
     <string name="terminal_cursor_style_block">ब्लॉक</string>

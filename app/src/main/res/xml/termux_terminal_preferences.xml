@@ -3,60 +3,6 @@
     android:title="@string/terminal_preferences_title">
 
     <PreferenceCategory
-        app:title="@string/sound_category_title"
-        app:iconSpaceReserved="false">
-
-        <ListPreference
-            app:key="bell-character"
-            app:defaultValue="vibrate"
-            app:title="@string/bell_character_title"
-            app:useSimpleSummaryProvider="true"
-            app:entries="@array/bell_character_entries"
-            app:entryValues="@array/bell_character_values"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        app:title="@string/shortcuts_category_title"
-        app:iconSpaceReserved="false">
-
-        <EditTextPreference
-            app:key="shortcut.create-session"
-            app:title="@string/shortcut_create_session_title"
-            app:summary="@string/shortcut_summary"
-            app:dialogTitle="@string/shortcut_create_session_title"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <EditTextPreference
-            app:key="shortcut.next-session"
-            app:title="@string/shortcut_next_session_title"
-            app:summary="@string/shortcut_summary"
-            app:dialogTitle="@string/shortcut_next_session_title"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <EditTextPreference
-            app:key="shortcut.previous-session"
-            app:title="@string/shortcut_previous_session_title"
-            app:summary="@string/shortcut_summary"
-            app:dialogTitle="@string/shortcut_previous_session_title"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-        <EditTextPreference
-            app:key="shortcut.rename-session"
-            app:title="@string/shortcut_rename_session_title"
-            app:summary="@string/shortcut_summary"
-            app:dialogTitle="@string/shortcut_rename_session_title"
-            android:persistent="false"
-            app:iconSpaceReserved="false" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
         app:title="@string/session_category_title"
         app:iconSpaceReserved="false">
 
@@ -79,6 +25,22 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        app:title="@string/sound_category_title"
+        app:iconSpaceReserved="false">
+
+        <ListPreference
+            app:key="bell-character"
+            app:defaultValue="vibrate"
+            app:title="@string/bell_character_title"
+            app:useSimpleSummaryProvider="true"
+            app:entries="@array/bell_character_entries"
+            app:entryValues="@array/bell_character_values"
+            android:persistent="false"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         app:title="@string/security_category_title"
         app:iconSpaceReserved="false">
 
@@ -92,29 +54,63 @@
         <SwitchPreferenceCompat
             app:key="disable-file-share-receiver"
             app:title="@string/disable_file_share_receiver_title"
-            app:summary="@string/disable_file_share_receiver_summary"
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="disable-file-view-receiver"
             app:title="@string/disable_file_view_receiver_title"
-            app:summary="@string/disable_file_view_receiver_summary"
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="run-termux-am-socket-server"
             app:title="@string/run_termux_am_socket_server_title"
-            app:summary="@string/run_termux_am_socket_server_summary"
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
 
     <PreferenceCategory
-        app:key="logging"
-        app:title="@string/termux_logging_header"
+        app:title="@string/addons_category_title"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="termux_api"
+            app:title="@string/termux_api_preferences_title"
+            app:summary="@string/termux_api_preferences_summary"
+            app:isPreferenceVisible="false"
+            app:iconSpaceReserved="false"
+            app:fragment="com.termux.app.fragments.settings.TermuxAPIPreferencesFragment" />
+
+        <Preference
+            app:key="termux_float"
+            app:title="@string/termux_float_preferences_title"
+            app:summary="@string/termux_float_preferences_summary"
+            app:isPreferenceVisible="false"
+            app:iconSpaceReserved="false"
+            app:fragment="com.termux.app.fragments.settings.TermuxFloatPreferencesFragment" />
+
+        <Preference
+            app:key="termux_tasker"
+            app:title="@string/termux_tasker_preferences_title"
+            app:summary="@string/termux_tasker_preferences_summary"
+            app:isPreferenceVisible="false"
+            app:iconSpaceReserved="false"
+            app:fragment="com.termux.app.fragments.settings.TermuxTaskerPreferencesFragment" />
+
+        <Preference
+            app:key="termux_widget"
+            app:title="@string/termux_widget_preferences_title"
+            app:summary="@string/termux_widget_preferences_summary"
+            app:isPreferenceVisible="false"
+            app:iconSpaceReserved="false"
+            app:fragment="com.termux.app.fragments.settings.TermuxWidgetPreferencesFragment" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="@string/termux_debugging_preferences_title"
         app:iconSpaceReserved="false">
 
         <ListPreference
@@ -126,30 +122,12 @@
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
-            app:key="terminal_view_key_logging_enabled"
-            app:summaryOff="@string/termux_terminal_view_key_logging_enabled_off"
-            app:summaryOn="@string/termux_terminal_view_key_logging_enabled_on"
-            app:title="@string/termux_terminal_view_key_logging_enabled_title"
-            app:iconSpaceReserved="false" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        app:key="failure_notifications"
-        app:title="@string/failure_notifications_category_title"
-        app:iconSpaceReserved="false">
-
-        <SwitchPreferenceCompat
             app:key="plugin_error_notifications_enabled"
-            app:summaryOff="@string/termux_plugin_error_notifications_enabled_off"
-            app:summaryOn="@string/termux_plugin_error_notifications_enabled_on"
             app:title="@string/termux_plugin_error_notifications_enabled_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="crash_report_notifications_enabled"
-            app:summaryOff="@string/termux_crash_report_notifications_enabled_off"
-            app:summaryOn="@string/termux_crash_report_notifications_enabled_on"
             app:title="@string/termux_crash_report_notifications_enabled_title"
             app:iconSpaceReserved="false" />
 

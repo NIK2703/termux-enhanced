@@ -6,13 +6,18 @@ import android.os.Bundle;
 import androidx.annotation.Keep;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
+import androidx.preference.Preference;
 import androidx.preference.SeekBarPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
+import com.termux.shared.termux.settings.preferences.TermuxAPIAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.preferences.TermuxFloatAppSharedPreferences;
+import com.termux.shared.termux.settings.preferences.TermuxTaskerAppSharedPreferences;
+import com.termux.shared.termux.settings.preferences.TermuxWidgetAppSharedPreferences;
 
 /**
  * The "Terminal" screen. Every migrated {@code termux.properties} key now lives in
@@ -56,12 +61,6 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
 
         // Night/theme mode is configured on the Display screen (theme_mode) to avoid a duplicate.
 
-        // --- Shortcuts (raw "Ctrl+KEY" strings) ---
-        configureShortcut("shortcut.create-session", prefs.getShortcutString("shortcut.create-session"));
-        configureShortcut("shortcut.next-session", prefs.getShortcutString("shortcut.next-session"));
-        configureShortcut("shortcut.previous-session", prefs.getShortcutString("shortcut.previous-session"));
-        configureShortcut("shortcut.rename-session", prefs.getShortcutString("shortcut.rename-session"));
-
         // --- Misc ---
         configureSwitch("allow-external-apps", prefs.shouldAllowExternalApps(),
             value -> prefs.setAllowExternalApps(value), false);
@@ -76,9 +75,6 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
             value -> prefs.setRunTermuxAmSocketServer(value), false);
 
         // --- Diagnostics (migrated from the deleted Debugging screen) ---
-        configureSwitch("terminal_view_key_logging_enabled", prefs.isTerminalViewKeyLoggingEnabled(),
-            value -> prefs.setTerminalViewKeyLoggingEnabled(value), false);
-
         configureSwitch("plugin_error_notifications_enabled", prefs.arePluginErrorNotificationsEnabled(false),
             value -> prefs.setPluginErrorNotificationsEnabled(value), false);
 
@@ -94,6 +90,18 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
                 return true;
             });
         }
+
+        // --- Add-ons (Termux:API, Termux:Float, Termux:Tasker, Termux:Widget) ---
+        // Shown only when the corresponding add-on app is installed.
+        new Thread() {
+            @Override
+            public void run() {
+                configureTermuxAPIPreference(context);
+                configureTermuxFloatPreference(context);
+                configureTermuxTaskerPreference(context);
+                configureTermuxWidgetPreference(context);
+            }
+        }.start();
     }
 
     // -----------------------------------------------------------------------
@@ -212,38 +220,6 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         });
     }
 
-    private void configureShortcut(String key, String current) {
-        EditTextPreference pref = findPreference(key);
-        if (pref == null) return;
-        pref.setPersistent(false);
-        pref.setText(current);
-        pref.setSummary(current != null && !current.isEmpty() ? current : getString(R.string.shortcut_empty_summary));
-        pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            String value = (String) newValue;
-            // Empty value disables the shortcut. Otherwise require "ctrl+<key>".
-            if (!value.isEmpty() && !SHORTCUT_PATTERN.matcher(value).matches()) {
-                Context context = getContext();
-                if (context != null)
-                    android.widget.Toast.makeText(context, R.string.shortcut_invalid_format,
-                        android.widget.Toast.LENGTH_LONG).show();
-                return false;
-            }
-            Context context = getContext();
-            if (context != null) {
-                TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context, true);
-                if (prefs != null) prefs.setShortcutString(key, value);
-            }
-            pref.setSummary(value != null && !value.isEmpty() ? value : getString(R.string.shortcut_empty_summary));
-            // Shortcuts are re-read by setSessionShortcuts without recreating the Activity.
-            Context ctx = getContext();
-            if (ctx != null) TermuxActivity.updateTermuxActivityStyling(ctx, false);
-            return true;
-        });
-    }
-
-    private static final java.util.regex.Pattern SHORTCUT_PATTERN =
-        java.util.regex.Pattern.compile("^ctrl\\+.$", java.util.regex.Pattern.CASE_INSENSITIVE);
-
     private void updateStyling() {
         Context context = getContext();
         if (context != null) TermuxActivity.updateTermuxActivityStyling(context, true);
@@ -283,6 +259,42 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         if ("beep".equals(value)) return 2;
         if ("ignore".equals(value)) return 3;
         return 1;
+    }
+
+    // -----------------------------------------------------------------------
+    //  Add-on visibility (mirrors SettingsActivity.RootPreferencesFragment)
+    // -----------------------------------------------------------------------
+
+    private void configureTermuxAPIPreference(Context context) {
+        Preference pref = findPreference("termux_api");
+        if (pref != null) {
+            TermuxAPIAppSharedPreferences preferences = TermuxAPIAppSharedPreferences.build(context, false);
+            pref.setVisible(preferences != null);
+        }
+    }
+
+    private void configureTermuxFloatPreference(Context context) {
+        Preference pref = findPreference("termux_float");
+        if (pref != null) {
+            TermuxFloatAppSharedPreferences preferences = TermuxFloatAppSharedPreferences.build(context, false);
+            pref.setVisible(preferences != null);
+        }
+    }
+
+    private void configureTermuxTaskerPreference(Context context) {
+        Preference pref = findPreference("termux_tasker");
+        if (pref != null) {
+            TermuxTaskerAppSharedPreferences preferences = TermuxTaskerAppSharedPreferences.build(context, false);
+            pref.setVisible(preferences != null);
+        }
+    }
+
+    private void configureTermuxWidgetPreference(Context context) {
+        Preference pref = findPreference("termux_widget");
+        if (pref != null) {
+            TermuxWidgetAppSharedPreferences preferences = TermuxWidgetAppSharedPreferences.build(context, false);
+            pref.setVisible(preferences != null);
+        }
     }
 
 }

@@ -9,12 +9,14 @@ import com.termux.shared.logger.Logger;
 import com.termux.shared.data.DataUtils;
 import com.termux.shared.settings.properties.SharedProperties;
 import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.extrakeys.KeyCombination;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 
 import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
@@ -433,12 +435,12 @@ public class TermuxAppSharedProperties {
             case TermuxPropertyConstants.KEY_EXTRA_KEYS_CORNER_RADIUS:
                 return getExtraKeysCornerRadius();
 
-            /* Integer (code point, may be null) */
+            /* List<String> (session shortcut tokens, empty when unset) */
             case TermuxPropertyConstants.KEY_SHORTCUT_CREATE_SESSION:
             case TermuxPropertyConstants.KEY_SHORTCUT_NEXT_SESSION:
             case TermuxPropertyConstants.KEY_SHORTCUT_PREVIOUS_SESSION:
             case TermuxPropertyConstants.KEY_SHORTCUT_RENAME_SESSION:
-                return getShortcutCodePoint(key);
+                return getShortcutBinding(key);
 
             /* String (may be null) */
             case TermuxPropertyConstants.KEY_BACK_KEY_BEHAVIOUR:
@@ -470,36 +472,12 @@ public class TermuxAppSharedProperties {
     }
 
     /**
-     * Parse a stored "Ctrl+&lt;key&gt;" shortcut String into its code point, or {@code null} if the
-     * value is null/empty or not a valid Ctrl+&lt;something&gt; shortcut. This mirrors the legacy
-     * {@code TermuxSharedProperties.getCodePointForSessionShortcuts} behaviour.
+     * Parse a stored session shortcut into its canonical token list, or an empty list when the
+     * value is null/empty. Both the token form ({@code "CTRL ALT a"}) and the legacy
+     * {@code "ctrl+a"} form are understood — see {@link KeyCombination#parse(String)}.
      */
-    private Integer getShortcutCodePoint(String key) {
-        String value = prefs().getShortcutString(key);
-        if (value == null) return null;
-        return parseShortcutCodePoint(key, value);
-    }
-
-    private static Integer parseShortcutCodePoint(String key, String value) {
-        if (value == null) return null;
-        String[] parts = value.toLowerCase().trim().split("\\+");
-        String input = parts.length == 2 ? parts[1].trim() : null;
-        if (!(parts.length == 2 && parts[0].trim().equals("ctrl")) || input.isEmpty() || input.length() > 2) {
-            Logger.logError(LOG_TAG, "Keyboard shortcut '" + key + "' is not Ctrl+<something>");
-            return null;
-        }
-
-        char c = input.charAt(0);
-        int codePoint = c;
-        if (Character.isLowSurrogate(c)) {
-            if (input.length() != 2 || Character.isHighSurrogate(input.charAt(1))) {
-                Logger.logError(LOG_TAG, "Keyboard shortcut '" + key + "' is not Ctrl+<something>");
-                return null;
-            } else {
-                codePoint = Character.toCodePoint(input.charAt(1), c);
-            }
-        }
-
-        return codePoint;
+    @NonNull
+    private List<String> getShortcutBinding(String key) {
+        return KeyCombination.parse(prefs().getShortcutString(key));
     }
 }

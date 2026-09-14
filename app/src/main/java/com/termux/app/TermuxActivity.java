@@ -855,9 +855,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onStart();
 
-        if (mTermuxTerminalViewClient != null)
-            mTermuxTerminalViewClient.onStart();
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Blur availability can change while we are backgrounded (battery saver toggled), so
             // re-subscribe on every start: the listener is invoked immediately with the current

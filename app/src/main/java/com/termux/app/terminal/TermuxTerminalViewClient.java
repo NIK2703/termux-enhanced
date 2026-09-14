@@ -20,6 +20,8 @@ import com.termux.shared.interact.ShareUtils;
 import com.termux.shared.shell.ShellUtils;
 import com.termux.shared.termux.TermuxBootstrap;
 import com.termux.shared.termux.terminal.TermuxTerminalViewClientBase;
+import com.termux.shared.termux.extrakeys.ExtraKeysConstants;
+import com.termux.shared.termux.extrakeys.KeyCombination;
 import com.termux.shared.termux.extrakeys.SpecialButton;
 import com.termux.shared.android.AndroidUtils;
 import com.termux.shared.termux.TermuxConstants;
@@ -35,17 +37,18 @@ import com.termux.shared.markdown.MarkdownUtils;
 import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.data.TermuxUrlUtils;
 import com.termux.shared.view.KeyboardUtils;
-import com.termux.shared.view.ViewUtils;
 import com.termux.terminal.KeyHandler;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.view.TerminalView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -186,22 +189,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             terminalView.setTextSize(mActivity.getPreferences().getFontSize());
             terminalView.setKeepScreenOn(mActivity.getPreferences().shouldKeepScreenOn());
         }
-    }
-
-    /**
-     * Should be called when mActivity.onStart() is called
-     */
-    public void onStart() {
-        // Set {@link TerminalView#TERMINAL_VIEW_KEY_LOGGING_ENABLED} value
-        // Also required if user changed the preference from {@link TermuxSettings} activity and returns
-        boolean isTerminalViewKeyLoggingEnabled = mActivity.getPreferences().isTerminalViewKeyLoggingEnabled();
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView != null)
-            terminalView.setIsTerminalViewKeyLoggingEnabled(isTerminalViewKeyLoggingEnabled);
-
-        // Piggyback on the terminal view key logging toggle for now, should add a separate toggle in future
-        mActivity.getTermuxActivityRootView().setIsRootViewLoggingEnabled(isTerminalViewKeyLoggingEnabled);
-        ViewUtils.setIsViewUtilsLoggingEnabled(isTerminalViewKeyLoggingEnabled);
     }
 
     /**
@@ -435,6 +422,17 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     @SuppressLint("RtlHardcoded")
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent e, TerminalSession currentSession) {
+        // Checked before the virtual keys and before the built-in Ctrl+Alt shortcuts below: an
+        // explicitly configured combination always wins. Keys that the picker can address by name
+        // (F1-F12, arrows, ESC, TAB, ...) only ever arrive here — by the time they reach
+        // inputCodePoint() they would already have been turned into an escape sequence.
+        // The extra-keys modifiers are only peeked at, never spent, so that a key which is not a
+        // binding still reaches the terminal with its one-shot modifier applied.
+        if (handleSessionShortcut(keyTokenForEvent(keyCode, e),
+                e.isCtrlPressed() || peekControlKey(), e.isAltPressed() || peekAltKey(),
+                e.isShiftPressed() || peekShiftKey(), e.isFunctionPressed() || peekFnKey()))
+            return true;
+
         if (handleVirtualKeys(keyCode, e, true)) return true;
 
         if (keyCode == KeyEvent.KEYCODE_ENTER && !currentSession.isRunning()) {
@@ -516,32 +514,80 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
     @Override
     public boolean readControlKey() {
-        return readExtraKeysSpecialButton(SpecialButton.CTRL) || mVirtualControlKeyDown;
+        return readExtraKeysSpecialButton(SpecialButton.CTRL, true) || mVirtualControlKeyDown;
     }
 
     @Override
     public boolean readAltKey() {
-        return readExtraKeysSpecialButton(SpecialButton.ALT);
+        return readExtraKeysSpecialButton(SpecialButton.ALT, true);
     }
 
     @Override
     public boolean readShiftKey() {
-        return readExtraKeysSpecialButton(SpecialButton.SHIFT);
+        return readExtraKeysSpecialButton(SpecialButton.SHIFT, true);
     }
 
     @Override
     public boolean readFnKey() {
-        return readExtraKeysSpecialButton(SpecialButton.FN);
+        return readExtraKeysSpecialButton(SpecialButton.FN, true);
     }
 
-    public boolean readExtraKeysSpecialButton(SpecialButton specialButton) {
+    public boolean readExtraKeysSpecialButton(SpecialButton specialButton, boolean consume) {
         if (mActivity.getExtraKeysView() == null) return false;
-        Boolean state = mActivity.getExtraKeysView().readSpecialButton(specialButton, true);
+        Boolean state = mActivity.getExtraKeysView().readSpecialButton(specialButton, consume);
         if (state == null) {
             Logger.logError(LOG_TAG,"Failed to read an unregistered " + specialButton + " special button value from extra keys.");
             return false;
         }
         return state;
+    }
+
+    /**
+     * The extra-keys modifier state without spending it, for the session-shortcut matcher.
+     *
+     * <p>The Ctrl/Alt/Shift/Fn buttons are one-shot: reading one clears it, which is exactly what
+     * the terminal key handling below wants — the modifier applies to the key being pressed and is
+     * then gone. The matcher runs <em>before</em> that handling, so it must only look: a consuming
+     * read here would leave the key to be typed without the modifier it was pressed with (Ctrl+C
+     * would come out as a plain {@code c}), and on the text path it would see the modifier already
+     * spent by {@link TerminalView#inputCodePoint}.
+     *
+     * <p>The virtual volume-key Ctrl counts as a held modifier, just as it does in
+     * {@link #readControlKey()}; it is released by its key-up event, not by a read. The virtual
+     * volume-key Fn is deliberately <em>not</em> one: it is a translation mode of the terminal
+     * (letter → arrow/F-key), not the Fn button, and {@link #readFnKey()} does not report it
+     * either — a {@code FN} binding means the extra-keys Fn button or a hardware Fn key.
+     */
+    private boolean peekControlKey() {
+        return readExtraKeysSpecialButton(SpecialButton.CTRL, false) || mVirtualControlKeyDown;
+    }
+
+    private boolean peekAltKey() {
+        return readExtraKeysSpecialButton(SpecialButton.ALT, false);
+    }
+
+    private boolean peekShiftKey() {
+        return readExtraKeysSpecialButton(SpecialButton.SHIFT, false);
+    }
+
+    private boolean peekFnKey() {
+        return readExtraKeysSpecialButton(SpecialButton.FN, false);
+    }
+
+    /**
+     * Spend the one-shot extra-keys modifiers a fired combination used.
+     *
+     * <p>The matcher only peeks at them, so a key that is not a binding still reaches the terminal
+     * with its modifier intact. When the combination does fire, the key never gets that far and
+     * nothing else will clear the button — a tapped Ctrl or Alt would stay lit and silently apply
+     * to the next key as well. Hardware modifiers and locked buttons have nothing to clear, so
+     * these reads are no-ops for them.
+     */
+    private void consumeShortcutModifiers(boolean ctrl, boolean alt, boolean shift, boolean fn) {
+        if (ctrl) readControlKey();
+        if (alt) readAltKey();
+        if (shift) readShiftKey();
+        if (fn) readFnKey();
     }
 
     @Override
@@ -552,11 +598,26 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
 
     @Override
-    public boolean onCodePoint(final int codePoint, boolean ctrlDown, TerminalSession session) {
+    public boolean onCodePoint(final int codePoint, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown,
+                               TerminalSession session) {
+        // A configured combination wins over everything below, so that what the user picked in the
+        // settings is what actually happens — including over the Ctrl+Alt virtual-key mapping and
+        // over Ctrl+J's "remove the finished session" shortcut, which is only a fallback now.
+        //
+        // The modifiers are the ones TerminalView resolved for this code point and must not be read
+        // again here: the extra-keys buttons are one-shot and TerminalView has already spent them
+        // by the time we are called, so a fresh read would always come back false. That is what
+        // used to make every Alt combination dead on this path — the Alt was consumed by
+        // inputCodePoint() before the matcher ever saw it.
+        if (handleSessionShortcut(characterToken(codePoint), ctrlDown, altDown, shiftDown, fnDown))
+            return true;
+
         if (mVirtualFnKeyDown) {
             int resultingKeyCode = -1;
             int resultingCodePoint = -1;
-            boolean altDown = false;
+            // Whether the resulting code point is to be sent with an Alt (ESC) prefix, e.g. for the
+            // readline Alt+B/Alt+F motions. Not the incoming modifier state of the same name.
+            boolean altPrefix = false;
             int lowerCase = Character.toLowerCase(codePoint);
             switch (lowerCase) {
                 // Arrow keys.
@@ -628,7 +689,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 case 'f': // alf+f, jumping forward in readline.
                 case 'x': // alt+x, common in emacs.
                     resultingCodePoint = lowerCase;
-                    altDown = true;
+                    altPrefix = true;
                     break;
 
                 // Volume control.
@@ -650,7 +711,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 TerminalEmulator term = session.getEmulator();
                 session.write(KeyHandler.getCode(resultingKeyCode, 0, term.isCursorKeysApplicationMode(), term.isKeypadApplicationMode()));
             } else if (resultingCodePoint != -1) {
-                session.writeCodePoint(altDown, resultingCodePoint);
+                session.writeCodePoint(altPrefix, resultingCodePoint);
             }
             return true;
         } else if (ctrlDown) {
@@ -658,33 +719,83 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 mTermuxTerminalSessionActivityClient.removeFinishedSession(session);
                 return true;
             }
-
-            List<KeyboardShortcut> shortcuts = mSessionShortcuts;
-            if (shortcuts != null && !shortcuts.isEmpty()) {
-                int codePointLowerCase = Character.toLowerCase(codePoint);
-                for (int i = shortcuts.size() - 1; i >= 0; i--) {
-                    KeyboardShortcut shortcut = shortcuts.get(i);
-                    if (codePointLowerCase == shortcut.codePoint) {
-                        switch (shortcut.shortcutAction) {
-                            case TermuxPropertyConstants.ACTION_SHORTCUT_CREATE_SESSION:
-                                mTermuxTerminalSessionActivityClient.addNewSession(false, null);
-                                return true;
-                            case TermuxPropertyConstants.ACTION_SHORTCUT_NEXT_SESSION:
-                                mTermuxTerminalSessionActivityClient.switchToSession(true);
-                                return true;
-                            case TermuxPropertyConstants.ACTION_SHORTCUT_PREVIOUS_SESSION:
-                                mTermuxTerminalSessionActivityClient.switchToSession(false);
-                                return true;
-                            case TermuxPropertyConstants.ACTION_SHORTCUT_RENAME_SESSION:
-                                mTermuxTerminalSessionActivityClient.renameSession(mActivity.getCurrentSession());
-                                return true;
-                        }
-                    }
-                }
-            }
         }
 
         return false;
+    }
+
+    /**
+     * Runs the session action bound to a pressed combination, if any.
+     *
+     * <p>Bindings are matched in reverse registration order, so when two of them share a
+     * combination the one added last wins — the same tie-break the settings screen shows last.
+     *
+     * <p>The caller passes the modifier set it resolved for the key; this method never reads the
+     * extra-keys buttons itself, see {@link #peekControlKey()}. A fired combination spends the
+     * one-shot modifiers it used, see {@link #consumeShortcutModifiers}.
+     */
+    private boolean handleSessionShortcut(@Nullable String key,
+                                          boolean ctrl, boolean alt, boolean shift, boolean fn) {
+        if (key == null) return false;
+
+        List<KeyboardShortcut> shortcuts = mSessionShortcuts;
+        if (shortcuts == null || shortcuts.isEmpty()) return false;
+
+        for (int i = shortcuts.size() - 1; i >= 0; i--) {
+            KeyboardShortcut shortcut = shortcuts.get(i);
+            if (!shortcut.matches(key, ctrl, alt, shift, fn)) continue;
+
+            consumeShortcutModifiers(ctrl, alt, shift, fn);
+
+            switch (shortcut.shortcutAction) {
+                case TermuxPropertyConstants.ACTION_SHORTCUT_CREATE_SESSION:
+                    mTermuxTerminalSessionActivityClient.addNewSession(false, null);
+                    return true;
+                case TermuxPropertyConstants.ACTION_SHORTCUT_NEXT_SESSION:
+                    mTermuxTerminalSessionActivityClient.switchToSession(true);
+                    return true;
+                case TermuxPropertyConstants.ACTION_SHORTCUT_PREVIOUS_SESSION:
+                    mTermuxTerminalSessionActivityClient.switchToSession(false);
+                    return true;
+                case TermuxPropertyConstants.ACTION_SHORTCUT_RENAME_SESSION:
+                    mTermuxTerminalSessionActivityClient.renameSession(mActivity.getCurrentSession());
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The binding token for the key of a {@link KeyEvent}, or null when the key has no token.
+     *
+     * <p>Named keys are looked up first: the picker offers them by name, and a couple of them
+     * (TAB, ENTER) would otherwise be resolved to their control character instead, so a binding
+     * picked as {@code CTRL TAB} would never match. Anything else falls back to the unmodified
+     * code point of the key, which is what a character binding stores.
+     */
+    @Nullable
+    private static String keyTokenForEvent(int keyCode, @NonNull KeyEvent event) {
+        String namedKey = KEY_CODES_FOR_TOKENS.get(keyCode);
+        if (namedKey != null) return namedKey;
+
+        int unicodeChar = event.getUnicodeChar(0);
+        // 0 means the key produces nothing; negatives are combining-accent flags.
+        if (unicodeChar <= 0 || !Character.isValidCodePoint(unicodeChar)) return null;
+        return new String(Character.toChars(unicodeChar));
+    }
+
+    /** The binding token for a code point that arrived as text rather than as a key event. */
+    @Nullable
+    private static String characterToken(int codePoint) {
+        if (!Character.isValidCodePoint(codePoint)) return null;
+        return new String(Character.toChars(codePoint));
+    }
+
+    /** Reverse of {@link ExtraKeysConstants#PRIMARY_KEY_CODES_FOR_STRINGS}. */
+    private static final Map<Integer, String> KEY_CODES_FOR_TOKENS = new HashMap<>();
+    static {
+        for (Map.Entry<String, Integer> entry : ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS.entrySet())
+            KEY_CODES_FOR_TOKENS.put(entry.getValue(), entry.getKey());
     }
 
     /**
@@ -695,14 +806,17 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
         // The {@link TermuxPropertyConstants#MAP_SESSION_SHORTCUTS} stores the session shortcut key and action pair
         for (Map.Entry<String, Integer> entry : TermuxPropertyConstants.MAP_SESSION_SHORTCUTS.entrySet()) {
-            // The mMap stores the code points for the session shortcuts while loading properties
-            Integer codePoint = (Integer) mActivity.getProperties().getInternalPropertyValue(entry.getKey(), true);
-            // If codePoint is null, then session shortcut did not exist in properties or was invalid
-            // as parsed by {@link #getCodePointForSessionShortcuts(String,String)}
-            // If codePoint is not null, then get the action for the MAP_SESSION_SHORTCUTS key and
-            // add the code point to sessionShortcuts
-            if (codePoint != null)
-                mSessionShortcuts.add(new KeyboardShortcut(codePoint, entry.getValue()));
+            // The value is the parsed token list of the combination, empty when the shortcut is unset
+            Object value = mActivity.getProperties().getInternalPropertyValue(entry.getKey(), true);
+            if (!(value instanceof List)) continue;
+
+            List<String> tokens = new ArrayList<>();
+            for (Object token : (List<?>) value) {
+                if (token != null) tokens.add(token.toString());
+            }
+            // A combination always carries at least one modifier and one key, see KeyCombination.
+            if (KeyCombination.hasLeadingModifier(tokens) && KeyCombination.hasKey(tokens))
+                mSessionShortcuts.add(new KeyboardShortcut(tokens, entry.getValue()));
         }
     }
 

@@ -37,7 +37,6 @@
     <string name="appearance_preferences_title">Erscheinungsbild</string>
     <string name="backup_dialog_background">Hintergrund</string>
     <string name="backup_dialog_cancel">Abbrechen</string>
-    <string name="backup_preference_summary">Termux-Datenverzeichnis (installierte Pakete + Home) in eine tar.gz-Backupdatei speichern</string>
     <string name="backup_preference_title">Termux-Daten sichern</string>
     <string name="backup_restore_backup_started">Backup wird erstellt…</string>
     <string name="backup_restore_backup_success">Backup erfolgreich erstellt</string>
@@ -46,9 +45,7 @@
     <string name="backup_restore_full_data_category_title">Vollständige Daten</string>
     <string name="backup_restore_settings_category_title">App-Einstellungen</string>
     <string name="backup_settings_title">App-Einstellungen sichern</string>
-    <string name="backup_settings_summary">Einstellungen, Farbschema, Schriftart und Tastenkombinationen speichern (kleine Datei)</string>
     <string name="restore_settings_title">App-Einstellungen wiederherstellen</string>
-    <string name="restore_settings_summary">Einstellungen, Farbschema, Schriftart und Tastenkombinationen wiederherstellen</string>
     <string name="settings_backup_warning">Dies speichert Ihre Termux-App-Einstellungen (Einstellungen, Farbschema, Schriftart, Extra-Tasten-Layout) in einer kleinen Sicherungsdatei.\n\nWählen Sie eine Zieldatei.</string>
     <string name="settings_restore_warning">Dies stellt Ihre Termux-App-Einstellungen aus einer Sicherungsdatei wieder her. Aktuelle Einstellungen werden überschrieben.</string>
     <string name="settings_backup_progress">Sichere Einstellungen…</string>
@@ -156,7 +153,6 @@
     <string name="per_directory_message_history_title">Nachrichtenverlauf pro Verzeichnis</string>
     <string name="permission_run_command_description">beliebige Befehle in der Termux-Umgebung ausführen und auf Dateien zugreifen</string>
     <string name="permission_run_command_label">Befehle in der Termux-Umgebung ausführen</string>
-    <string name="restore_preference_summary">Termux-Datenverzeichnis aus einer tar.gz-Backupdatei wiederherstellen</string>
     <string name="restore_preference_title">Termux-Daten wiederherstellen</string>
     <string name="restore_sessions_summary">Alle Tabs und deren Verzeichnisse beim App-Start erneut öffnen</string>
     <string name="restore_sessions_title">Tabs beim Start wiederherstellen</string>
@@ -271,7 +267,6 @@
     <string name="locale_override_title">App-Sprache</string>
     <string name="locale_override_summary">App-Sprache überschreiben</string>
     <string name="locale_override_entry_system">Systemsprache (automatische Übersetzung, mögliche Ungenauigkeiten)</string>
-    <string name="locale_override_entry_english">Englisch</string>
 
 
     
@@ -504,13 +499,10 @@
     <string name="allow_external_apps_summary">Anderen Apps erlauben, Termux-Befehle über RUN_COMMAND zu starten.</string>
 
     <string name="disable_file_share_receiver_title">Datei-Empfang deaktivieren</string>
-    <string name="disable_file_share_receiver_summary">Keine an Termux gesendeten Dateien akzeptieren.</string>
 
     <string name="disable_file_view_receiver_title">Datei-Anzeige-Empfang deaktivieren</string>
-    <string name="disable_file_view_receiver_summary">Keine an Termux gesendeten Dateien zum Anzeigen öffnen.</string>
 
     <string name="run_termux_am_socket_server_title">termux-am-Socket-Server ausführen</string>
-    <string name="run_termux_am_socket_server_summary">Den termux-am-Socket-Server für prozessübergreifende Befehle starten.</string>
 
     <string name="hide_soft_keyboard_on_startup_title">Soft-Tastatur beim Start ausblenden</string>
     <string name="hide_soft_keyboard_on_startup_summary">Die Soft-Tastatur beim Start von Termux ausgeblendet lassen.</string>

@@ -62,6 +62,30 @@ public interface TerminalViewClient {
 
 
 
+    /**
+     * Called for a code point that is about to be sent to the terminal, both for a hardware key
+     * press ({@link TerminalView#onKeyDown}) and for text an IME committed.
+     *
+     * <p>The four modifier flags are resolved by {@link TerminalView} and handed in rather than
+     * re-read here. The extra-keys Ctrl/Alt/Shift/Fn buttons are <em>one-shot</em>: reading one
+     * clears it. A client that read them again would therefore see a modifier that
+     * {@link TerminalView} had already spent, and a client that read them before
+     * {@link TerminalView} did would take the modifier away from the key that was about to use it.
+     *
+     * @return {@code true} if the code point was consumed and must not reach the terminal.
+     */
+    default boolean onCodePoint(int codePoint, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown,
+                               TerminalSession session) {
+        return onCodePoint(codePoint, ctrlDown, session);
+    }
+
+    /**
+     * @deprecated Implement
+     * {@link #onCodePoint(int, boolean, boolean, boolean, boolean, TerminalSession)} instead, which
+     * also carries the Alt, Shift and Fn state. This overload only exists so that existing clients
+     * keep compiling.
+     */
+    @Deprecated
     boolean onCodePoint(int codePoint, boolean ctrlDown, TerminalSession session);
 
 

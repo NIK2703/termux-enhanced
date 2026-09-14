@@ -136,7 +136,6 @@
         <string name="termux_debugging_preferences_summary">Настройки отладки</string>
 
             
-            <string name="termux_logging_header">Журналирование</string>
 
                 
                 <string name="termux_log_level_title">Уровень журнала</string>
@@ -149,13 +148,9 @@
 
                 
                 <string name="termux_plugin_error_notifications_enabled_title">Уведомления об ошибках плагинов</string>
-                <string name="termux_plugin_error_notifications_enabled_off">Отключить всплывающие уведомления об ошибках плагинов.</string>
-                <string name="termux_plugin_error_notifications_enabled_on">Показывать всплывающие уведомления об ошибках плагинов.</string>
 
                 
                 <string name="termux_crash_report_notifications_enabled_title">Уведомления об отчётах о сбоях</string>
-                <string name="termux_crash_report_notifications_enabled_off">Отключить уведомления об отчётах о сбоях.</string>
-                <string name="termux_crash_report_notifications_enabled_on">Показывать уведомления об отчётах о сбоях.</string>
 
         
         <string name="termux_terminal_io_preferences_title">Ввод-вывод терминала</string>
@@ -218,7 +213,7 @@
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
     <string name="message_history_title">История введённых текстов</string>
-    <string name="message_history_max_title">Максимум текстов в истории</string>
+    <string name="message_history_max_title">Максимум введённых текстов в истории</string>
     <string name="per_directory_message_history_title">История введённых текстов по директориям</string>
     <string name="per_directory_message_history_summary">Вести отдельную историю введённых текстов для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
     <string name="save_cleared_to_history_title">Очищаемые в истории</string>
@@ -253,7 +248,7 @@
 
     
     <string name="directory_history_title">История папок</string>
-    <string name="directory_history_max_title">Максимум директорий в истории</string>
+    <string name="directory_history_max_title">Максимум рабочих директорий в истории</string>
 
     
     <string name="restore_sessions_title">Восстанавливать вкладки при запуске</string>
@@ -267,10 +262,8 @@
     <string name="donate_preference_title">Пожертвовать</string>
 
     
-    <string name="backup_preference_title">Резервное копирование данных Termux</string>
-    <string name="backup_preference_summary">Сохранить каталог данных Termux (установленные пакеты + домашний каталог) в файл tar.gz</string>
-    <string name="restore_preference_title">Восстановление данных Termux</string>
-    <string name="restore_preference_summary">Восстановить каталог данных Termux из файла резервной копии tar.gz</string>
+    <string name="backup_preference_title">Резервное копирование контейнера Termux</string>
+    <string name="restore_preference_title">Восстановление контейнера Termux</string>
     <string name="backup_restore_dialog_title">Резервное копирование / Восстановление данных Termux</string>
     <string name="backup_restore_warning_backup">Будет создан сжатый архив вашего каталога данных Termux (установленные пакеты и окружение вместе с домашним каталогом).\n\nВыберите файл назначения для сохранения резервной копии.</string>
     <string name="backup_restore_warning_restore">Восстановление ПЕРЕЗАПИШЕТ текущий каталог данных Termux (установленные пакеты и домашний каталог) содержимым выбранного файла резервной копии. Существующие данные будут УТЕРЯНЫ.\n\n⚠ Если восстановление не удастся — из-за повреждения файла резервной копии, неполноты или прерывания соединения во время процесса — ваше окружение Termux останется ПУСТЫМ. Восстановить исходные данные будет невозможно.\n\nЭто действие нельзя отменить. Настоятельно рекомендуется сначала СДЕЛАТЬ РЕЗЕРВНУЮ КОПИЮ и проверить, что файл резервной копии действителен.</string>
@@ -294,12 +287,10 @@
     <string name="backup_restore_cancelled">Операция отменена</string>
 
     <!-- Settings Backup / Restore (RU) -->
-    <string name="backup_restore_full_data_category_title">Все данные</string>
+    <string name="backup_restore_full_data_category_title">Контейнер Termux</string>
     <string name="backup_restore_settings_category_title">Настройки приложения</string>
-    <string name="backup_settings_title">Резервное копирование настроек</string>
-    <string name="backup_settings_summary">Резервное копирование настроек, темы, шрифта и раскладки кнопок</string>
-    <string name="restore_settings_title">Восстановить настройки</string>
-    <string name="restore_settings_summary">Восстановить настройки, тему, шрифт и раскладку кнопок</string>
+    <string name="backup_settings_title">Резервное копирование настроек приложения</string>
+    <string name="restore_settings_title">Восстановление настроек приложения</string>
     <string name="settings_backup_warning">Будут сохранены настройки приложения Termux (настройки, цветовая схема, шрифт, раскладка доп. кнопок) в файл резервной копии.\n\nВыберите файл назначения.</string>
     <string name="settings_restore_warning">Будут восстановлены настройки приложения Termux из файла резервной копии. Текущие настройки будут перезаписаны.</string>
     <string name="settings_backup_progress">Сохранение настроек…</string>
@@ -391,8 +382,7 @@
     
     <string name="locale_override_title">Язык приложения</string>
     <string name="locale_override_summary">Переопределить язык приложения</string>
-    <string name="locale_override_entry_system">Системный (автоперевод может быть неточным)</string>
-    <string name="locale_override_entry_english">Английский</string>
+    <string name="locale_override_entry_system">Системный</string>
     
     <string name="hide_extra_keys_with_keyboard_title">Скрывать кнопки с клавиатурой</string>
     <string name="hide_extra_keys_with_keyboard_summary">Автоматически скрывать дополнительные кнопки при закрытии клавиатуры, показывать при открытии</string>
@@ -415,7 +405,6 @@
     <string name="diagnostics_preferences_title">Диагностика</string>
     <string name="diagnostics_preferences_summary">Журналирование и уведомления об ошибках</string>
     <string name="plugin_logging_category_title">Журналирование</string>
-    <string name="failure_notifications_category_title">Уведомления об ошибках</string>
 
     
     <string name="extra_keys_header">Дополнительные кнопки</string>
@@ -462,9 +451,11 @@
     <string name="sound_category_title">Звук и уведомления</string>
     <string name="key_behaviour_category_title">Поведение клавиш</string>
     <string name="screen_category_title">Экран</string>
-    <string name="shortcuts_category_title">Ярлыки</string>
+    <string name="shortcuts_category_title">Сочетания клавиш</string>
     <string name="session_category_title">Сессия</string>
-    <string name="security_category_title">Безопасность</string>
+    <string name="security_category_title">Внешние приложения</string>
+
+    <string name="addons_category_title">Дополнения</string>
     <string name="misc_category_title">Прочее</string>
     <string name="terminal_category_title">Терминал</string>
 
@@ -532,13 +523,13 @@
     <string name="fullscreen_summary">Запускать Termux в полноэкранном режиме.</string>
 
 
-    <string name="shortcut_summary">Формат: Ctrl+КЛАВИША (например Ctrl+a). Оставьте пустым, чтобы отключить.</string>
-    <string name="shortcut_empty_summary">Не задано (оставьте пустым для отключения)</string>
-    <string name="shortcut_invalid_format">Неверный формат ярлыка. Используйте формат «ctrl+x» или оставьте пустым для отключения.</string>
-    <string name="shortcut_create_session_title">Ярлык создания сессии</string>
-    <string name="shortcut_next_session_title">Ярлык следующей сессии</string>
-    <string name="shortcut_previous_session_title">Ярлык предыдущей сессии</string>
-    <string name="shortcut_rename_session_title">Ярлык переименования сессии</string>
+    <string name="shortcut_empty_summary">Не задано</string>
+    <string name="session_shortcut_needs_modifier">Задайте сочетание клавиш с модификаторами Ctrl, Alt, Shift или Fn</string>
+    <string name="session_shortcut_needs_key">Добавьте клавишу, к которой применяются модификаторы</string>
+    <string name="shortcut_create_session_title">Новая сессия</string>
+    <string name="shortcut_next_session_title">Следующая сессия</string>
+    <string name="shortcut_previous_session_title">Предыдущая сессия</string>
+    <string name="shortcut_rename_session_title">Переименовать сессию</string>
 
     <string name="default_working_directory_title">Рабочая директория по умолчанию</string>
     <string name="default_working_directory_summary">Директория для новых сессий (оставьте пустой для домашней).</string>
@@ -546,17 +537,14 @@
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_title">Удалять старые файлы TMPDIR при выходе</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_summary">Удалять файлы старше N дней из TMPDIR сессии при выходе (-1 = не удалять).</string>
 
-    <string name="allow_external_apps_title">Разрешить внешние приложения</string>
+    <string name="allow_external_apps_title">Разрешить внешние команды</string>
     <string name="allow_external_apps_summary">Разрешить другим приложениям запускать команды Termux через RUN_COMMAND.</string>
 
     <string name="disable_file_share_receiver_title">Отключить приём общих файлов</string>
-    <string name="disable_file_share_receiver_summary">Не принимать файлы, отправленные в Termux.</string>
 
     <string name="disable_file_view_receiver_title">Отключить просмотр файлов</string>
-    <string name="disable_file_view_receiver_summary">Не открывать отправленные в Termux файлы для просмотра.</string>
 
     <string name="run_termux_am_socket_server_title">Запускать сокет-сервер termux-am</string>
-    <string name="run_termux_am_socket_server_summary">Запустить сокет-сервер termux-am для межпроцессных команд.</string>
 
     <string name="hide_soft_keyboard_on_startup_title">Скрывать клавиатуру при запуске</string>
     <string name="hide_soft_keyboard_on_startup_summary">Держать экранную клавиатуру скрытой при запуске Termux.</string>
@@ -596,7 +584,7 @@
     <string name="extra_keys_editor_done">Готово</string>
     <string name="extra_keys_editor_open_editor">Редактировать дополнительные кнопки</string>
     <string name="extra_keys_editor_open_editor_summary">Настройка раскладки, масштаба и привязки кнопок</string>
-    <string name="extra_keys_edge_indicators_title">Индикаторы направлений свайпа</string>
+    <string name="extra_keys_edge_indicators_title">Индикаторы направлений жестов</string>
     <string name="extra_keys_editor_hint">Нажмите, чтобы назначить основное действие.\nСмахните вверх, вниз, влево или вправо, чтобы назначить действие на соответствующий жест.\nУдерживайте на кнопке, чтобы задать метку.</string>
     <string name="extra_keys_editor_mode_assign">Назначить</string>
     <string name="extra_keys_editor_mode_move">Переместить</string>
@@ -663,7 +651,7 @@
 
     
     <string name="extra_keys_dynamic_font_size_title">Динамический размер шрифта</string>
-    <string name="extra_keys_dynamic_font_size_summary">Уменьшать размер шрифта при увеличении числа столбцов или наличии макросов на основном действии</string>
+    <string name="extra_keys_dynamic_font_size_summary">Уменьшать размер шрифта при увеличении числа столбцов или назначении макросов на основные действия</string>
     <string name="extra_keys_font_size_title">Базовый размер шрифта</string>
     <string name="extra_keys_editor_tap_suffix"> (Нажатие)</string>
     <string name="extra_keys_editor_remove_signal">Удалить %s</string>

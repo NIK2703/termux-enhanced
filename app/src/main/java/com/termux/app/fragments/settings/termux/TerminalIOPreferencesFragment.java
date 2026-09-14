@@ -2,11 +2,15 @@ package com.termux.app.fragments.settings.termux;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.view.View;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceDataStore;
+import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceManager;
 import androidx.preference.SeekBarPreference;
 import androidx.preference.SwitchPreferenceCompat;
@@ -14,8 +18,12 @@ import androidx.preference.SwitchPreferenceCompat;
 import com.termux.R;
 import com.termux.app.TermuxActivity;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
+import com.termux.shared.termux.extrakeys.KeyCombination;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The single "Input" screen. Routes I/O preferences through
@@ -27,6 +35,14 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
 
     private static final String LOG_TAG = "TerminalIOPrefsFragment";
 
+    /** The four session shortcuts, in the order they are shown. */
+    private static final String[] SESSION_SHORTCUT_KEYS = {
+        "shortcut.create-session",
+        "shortcut.next-session",
+        "shortcut.previous-session",
+        "shortcut.rename-session"
+    };
+
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         Context context = getContext();
@@ -36,6 +52,14 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         preferenceManager.setPreferenceDataStore(new TerminalIOPreferencesDataStore(context));
 
         setPreferencesFromResource(R.xml.termux_terminal_io_preferences, rootKey);
+
+        // "Никогда" on the extra-keys row disables the rest of its section. A ListPreference
+        // cannot drive app:dependency (that only reacts to a switch's checked state), so the
+        // section is greyed out from here instead. The master row always stays enabled.
+        ListPreference extraKeysVisibility = findPreference("extra_keys_visibility");
+        if (extraKeysVisibility != null) {
+            configureNeverDisablesSection(extraKeysVisibility, "never");
+        }
 
         SwitchPreferenceCompat textInputPref = findPreference("text_input_enabled");
         if (textInputPref != null) {
@@ -63,6 +87,98 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
 
         configureHistorySlider("message_history_max", 10, 100);
         configureHistorySlider("directory_history_max", 10, 100);
+
+        // Session shortcuts are combinations, not free text, so they are picked with the same
+        // dialog the extra-keys editor uses (minus the delay entry) instead of being typed.
+        for (String key : SESSION_SHORTCUT_KEYS) {
+            Preference shortcutPref = findPreference(key);
+            if (shortcutPref == null || appPrefs == null) continue;
+            shortcutPref.setPersistent(false);
+            shortcutPref.setSummary(sessionShortcutSummary(appPrefs, key));
+            shortcutPref.setOnPreferenceClickListener(pref -> {
+                showSessionShortcutPicker(appPrefs, key, pref.getTitle());
+                return true;
+            });
+        }
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        // Registered on the view lifecycle owner so the result is not delivered to a dead view.
+        // The picker is shown on the parent manager, which is the manager it reports back on.
+        getParentFragmentManager().setFragmentResultListener(
+            SignalPickerDialogFragment.REQUEST_KEY,
+            getViewLifecycleOwner(),
+            (requestKey, result) -> onSessionShortcutPicked(result));
+    }
+
+    // -----------------------------------------------------------------------
+    //  Session shortcuts
+    // -----------------------------------------------------------------------
+
+    /** The row summary: the bound combination, or the "not set" hint when nothing is bound. */
+    @NonNull
+    private String sessionShortcutSummary(@NonNull TermuxAppSharedPreferences prefs, @NonNull String key) {
+        List<String> tokens = KeyCombination.parse(prefs.getShortcutString(key));
+        if (tokens.isEmpty()) return getString(R.string.shortcut_empty_summary);
+        return KeyCombination.toDisplayString(tokens);
+    }
+
+    private void showSessionShortcutPicker(@NonNull TermuxAppSharedPreferences prefs,
+                                           @NonNull String key, @Nullable CharSequence title) {
+        List<String> current = KeyCombination.parse(prefs.getShortcutString(key));
+        SignalPickerDialogFragment.newInstanceForSessionShortcut(
+                key, title != null ? title.toString() : key, current)
+            .show(getParentFragmentManager(), "session_shortcut_picker");
+    }
+
+    private void onSessionShortcutPicked(@NonNull Bundle result) {
+        String key = result.getString(SignalPickerDialogFragment.RESULT_REQUEST_ID);
+        if (key == null || key.isEmpty()) return;
+
+        Context context = getContext();
+        if (context == null) return;
+        TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context, true);
+        if (prefs == null) return;
+
+        ArrayList<String> signals = result.getStringArrayList(SignalPickerDialogFragment.RESULT_SIGNALS);
+        // An empty selection clears the binding — that is how a shortcut is turned off.
+        prefs.setShortcutString(key, signals == null || signals.isEmpty() ? "" : KeyCombination.format(signals));
+
+        Preference row = findPreference(key);
+        if (row != null) row.setSummary(sessionShortcutSummary(prefs, key));
+
+        // Shortcuts are re-read by setSessionShortcuts without recreating the Activity.
+        TermuxActivity.updateTermuxActivityStyling(context, false);
+    }
+
+    /**
+     * Greys out every other row of a section while its master row holds {@code neverValue}.
+     * A ListPreference cannot drive app:dependency - that only reacts to a switch's checked
+     * state - so value-based disabling has to be done here. The master row itself is always
+     * left enabled, since it is the only way back out of the disabled state.
+     */
+    private void configureNeverDisablesSection(@NonNull ListPreference master,
+                                               @NonNull String neverValue) {
+        PreferenceGroup section = master.getParent();
+        if (section == null) return;
+
+        setSectionRowsEnabled(section, master, !neverValue.equals(master.getValue()));
+        master.setOnPreferenceChangeListener((preference, newValue) -> {
+            setSectionRowsEnabled(section, master, !neverValue.equals(String.valueOf(newValue)));
+            return true;
+        });
+    }
+
+    private static void setSectionRowsEnabled(@NonNull PreferenceGroup section,
+                                              @NonNull Preference master, boolean enabled) {
+        for (int i = 0; i < section.getPreferenceCount(); i++) {
+            Preference row = section.getPreference(i);
+            if (row == master) continue;
+            row.setEnabled(enabled);
+        }
     }
 
     private void configureHistorySlider(String key, int min, int max) {

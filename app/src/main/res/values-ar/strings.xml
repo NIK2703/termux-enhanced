@@ -40,7 +40,6 @@
     <string name="appearance_preferences_title">المظهر</string>
     <string name="backup_dialog_background">الخلفية</string>
     <string name="backup_dialog_cancel">إلغاء</string>
-    <string name="backup_preference_summary">حفظ مجلد بيانات Termux (الحزم المثبتة + المجلد الرئيسي) في ملف tar.gz</string>
     <string name="backup_preference_title">نسخ بيانات Termux احتياطيًا</string>
     <string name="backup_restore_backup_started">جاري إنشاء النسخة الاحتياطية…</string>
     <string name="backup_restore_backup_success">تم إنشاء النسخة الاحتياطية بنجاح</string>
@@ -49,9 +48,7 @@
     <string name="backup_restore_full_data_category_title">البيانات الكاملة</string>
     <string name="backup_restore_settings_category_title">إعدادات التطبيق</string>
     <string name="backup_settings_title">نسخ إعدادات التطبيق احتياطيًا</string>
-    <string name="backup_settings_summary">حفظ التفضيلات ونظام الألوان والخط وتخطيط المفاتيح (ملف صغير)</string>
     <string name="restore_settings_title">استعادة إعدادات التطبيق</string>
-    <string name="restore_settings_summary">استعادة التفضيلات ونظام الألوان والخط وتخطيط المفاتيح</string>
     <string name="settings_backup_warning">سيتم حفظ إعدادات تطبيق Termux (التفضيلات، نظام الألوان، الخط، تخطيط المفاتيح الإضافية) في ملف نسخ احتياطي صغير.\n\nاختر ملف الوجهة.</string>
     <string name="settings_restore_warning">سيتم استعادة إعدادات تطبيق Termux من ملف النسخ الاحتياطي. سيتم استبدال الإعدادات الحالية.</string>
     <string name="settings_backup_progress">جاري نسخ الإعدادات احتياطيًا…</string>
@@ -183,7 +180,6 @@
     <string name="per_directory_message_history_title">سجل الرسائل حسب الدليل</string>
     <string name="permission_run_command_description">تنفيذ أوامر عشوائية داخل بيئة Termux والوصول إلى الملفات</string>
     <string name="permission_run_command_label">تشغيل الأوامر في بيئة Termux</string>
-    <string name="restore_preference_summary">استعادة دليل بيانات Termux من ملف نسخ احتياطي tar.gz</string>
     <string name="restore_preference_title">استعادة بيانات Termux</string>
     <string name="restore_sessions_summary">إعادة فتح جميع علامات التبويب وأدلتها عند بدء التطبيق</string>
     <string name="restore_sessions_title">استعادة علامات التبويب عند التشغيل</string>
@@ -293,7 +289,6 @@
     <string name="locale_override_title">لغة التطبيق</string>
     <string name="locale_override_summary">تجاوز لغة التطبيق</string>
     <string name="locale_override_entry_system">لغة النظام (قد تظهر بعض النصوص بالإنجليزية)</string>
-    <string name="locale_override_entry_english">الإنجليزية</string>
     
     <string name="hide_extra_keys_with_keyboard_title">إخفاء المفاتيح الإضافية مع لوحة المفاتيح</string>
     <string name="hide_extra_keys_with_keyboard_summary">إخفاء المفاتيح الإضافية تلقائيًا عند إغلاق لوحة المفاتيح، أظهرها عند الفتح</string>
@@ -505,11 +500,8 @@
     <string name="allow_external_apps_title">السماح للتطبيقات الخارجية</string>
     <string name="allow_external_apps_summary">السماح للتطبيقات الأخرى بتشغيل أوامر Termux عبر RUN_COMMAND.</string>
     <string name="disable_file_share_receiver_title">تعطيل مستقبل مشاركة الملفات</string>
-    <string name="disable_file_share_receiver_summary">عدم قبول الملفات المشتركة إلى Termux.</string>
     <string name="disable_file_view_receiver_title">تعطيل مستقبل عرض الملفات</string>
-    <string name="disable_file_view_receiver_summary">عدم فتح الملفات المرسلة إلى Termux للعرض.</string>
     <string name="run_termux_am_socket_server_title">تشغيل خادم socket termux-am</string>
-    <string name="run_termux_am_socket_server_summary">تشغيل خادم socket termux-am للأوامر بين العمليات.</string>
     <string name="hide_soft_keyboard_on_startup_title">إخفاء لوحة المفاتيح البرمجية عند بدء التشغيل</string>
     <string name="hide_soft_keyboard_on_startup_summary">إبقاء لوحة المفاتيح البرمجية مخفية عند بدء تشغيل Termux.</string>
     <string name="terminal_cursor_style_block">كتلة</string>
