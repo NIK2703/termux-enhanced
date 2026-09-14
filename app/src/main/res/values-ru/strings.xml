@@ -393,7 +393,7 @@
     
     <string name="language_category_title">Язык</string>
     <string name="input_preferences_title">Ввод</string>
-    <string name="input_preferences_summary">Дополнительные кнопки, панель ввода, клавиатура, системные кнопки</string>
+    <string name="input_preferences_summary">Дополнительные кнопки, панель ввода, клавиатура, сочетания клавиш, системные кнопки</string>
     <string name="extra_keys_preferences_title">Дополнительные кнопки</string>
     <string name="extra_keys_preferences_summary">Настройки панели дополнительных кнопок</string>
     <string name="display_preferences_title">Отображение</string>
@@ -446,7 +446,7 @@
 
     
     <string name="terminal_preferences_title">Дополнительно</string>
-    <string name="terminal_preferences_summary">Звук и уведомления, ярлыки, сессия, безопасность, журналирование и уведомление об ошибках</string>
+    <string name="terminal_preferences_summary">Сессия, звук и уведомления, внешние приложения, дополнения, отладка</string>
 
     <string name="sound_category_title">Звук и уведомления</string>
     <string name="key_behaviour_category_title">Поведение клавиш</string>
