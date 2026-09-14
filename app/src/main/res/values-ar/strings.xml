@@ -290,7 +290,7 @@
     
     <string name="locale_override_title">لغة التطبيق</string>
     <string name="locale_override_summary">تجاوز لغة التطبيق</string>
-    <string name="locale_override_entry_system">لغة النظام (قد تظهر بعض النصوص بالإنجليزية)</string>
+    <string name="locale_override_entry_system">لغة النظام</string>
     
     <string name="hide_extra_keys_with_keyboard_title">إخفاء المفاتيح الإضافية مع لوحة المفاتيح</string>
     <string name="hide_extra_keys_with_keyboard_summary">إخفاء المفاتيح الإضافية تلقائيًا عند إغلاق لوحة المفاتيح، وإظهارها عند فتحها</string>

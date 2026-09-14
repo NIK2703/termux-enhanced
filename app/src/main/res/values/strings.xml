@@ -490,7 +490,7 @@
     <!-- App language override -->
     <string name="locale_override_title">App language</string>
     <string name="locale_override_summary">Override the app language.</string>
-    <string name="locale_override_entry_system">System default (auto-translate may be inaccurate)</string>
+    <string name="locale_override_entry_system">System default</string>
     <string name="locale_override_entry_english">English</string>
 
     <!-- Native-language display names for the app-language picker (always shown in their own script) -->
