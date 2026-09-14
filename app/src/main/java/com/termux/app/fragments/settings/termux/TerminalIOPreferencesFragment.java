@@ -197,8 +197,8 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
     /** The resource of whichever {@code text_input_insert_at_cursor} option is currently selected. */
     private static int historyRestoreSummaryRes(@NonNull TermuxAppSharedPreferences prefs) {
         return prefs.shouldInsertAtCursorOnHistoryPick()
-                ? R.string.text_input_insert_at_cursor_option_insert
-                : R.string.text_input_insert_at_cursor_option_replace;
+                ? R.string.text_input_restore_mode_option_insert
+                : R.string.text_input_restore_mode_option_replace;
     }
 
     private void showHistoryRestoreDialog(@NonNull Preference pref,
@@ -207,13 +207,13 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         if (context == null) return;
 
         String[] items = {
-                context.getString(R.string.text_input_insert_at_cursor_option_replace),
-                context.getString(R.string.text_input_insert_at_cursor_option_insert)
+                context.getString(R.string.text_input_restore_mode_option_replace),
+                context.getString(R.string.text_input_restore_mode_option_insert)
         };
         int checkedItem = prefs.shouldInsertAtCursorOnHistoryPick() ? 1 : 0;
 
         new androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle(R.string.text_input_insert_at_cursor_dialog_title)
+                .setTitle(R.string.text_input_restore_mode_dialog_title)
                 .setSingleChoiceItems(items, checkedItem, (dialog, which) -> {
                     prefs.setInsertAtCursorOnHistoryPick(which == 1);
                     pref.setSummary(historyRestoreSummaryRes(prefs));

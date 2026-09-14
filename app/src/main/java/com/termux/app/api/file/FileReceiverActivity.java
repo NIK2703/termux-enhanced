@@ -166,7 +166,7 @@ public class FileReceiverActivity extends AppCompatActivity {
     }
 
     void promptNameAndSave(final InputStream in, final String attachmentFileName) {
-        TextInputDialogUtils.textInput(this, R.string.title_file_received, attachmentFileName,
+        TextInputDialogUtils.textInput(this, R.string.title_file_received_save, attachmentFileName,
             R.string.action_file_received_edit, text -> {
                 File outFile = saveStreamWithName(in, text);
                 if (outFile == null) return;

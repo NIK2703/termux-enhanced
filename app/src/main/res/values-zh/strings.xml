@@ -27,7 +27,7 @@
     <string name="bootstrap_error_installed_on_portable_sd">Termux 无法安装在设备的便携/外部/可移除 SD 卡上。
         \n为 Termux 编译的引导二进制文件已硬编码 $PREFIX 路径，只能安装到以下路径：\n%1$s。</string>
     <string name="action_new_session">新建会话</string>
-    <string name="action_new_session_failsafe">故障保护</string>
+    <string name="action_failsafe_mode">故障保护</string>
     <string name="new_tab_placeholder_hint">新建会话</string>
     <string name="session_tabs_title">会话标签页</string>
     <string name="swipe_rightmost_new_tab_title">在最右侧标签向右滑动以新建会话</string>
@@ -40,8 +40,8 @@
     <string name="action_create_named_session_confirm">创建</string>
     <string name="action_toggle_soft_keyboard">键盘</string>
     <string name="action_toggle_text_input">切换文本输入</string>
-    <string name="msg_enabling_terminal_toolbar">正在启用终端工具栏</string>
-    <string name="msg_disabling_terminal_toolbar">正在禁用终端工具栏</string>
+    <string name="msg_terminal_panel_enabling">正在启用终端工具栏</string>
+    <string name="msg_terminal_panel_disabling">正在禁用终端工具栏</string>
     <string name="action_select_url">选择链接</string>
     <string name="title_select_url_dialog">点击复制链接，长按打开链接</string>
     <string name="title_select_url_none_found">终端中未找到链接。</string>
@@ -63,7 +63,7 @@
     <string name="action_style_terminal">样式</string>
     <string name="action_font_terminal">字体</string>
     <string name="font_picker_title">选择字体（.ttf）</string>
-    <string name="error_font_copy_failed">应用字体失败</string>
+    <string name="error_font_apply_failed">应用字体失败</string>
     <string name="action_toggle_keep_screen_on">保持屏幕常亮</string>
     <string name="action_open_help">帮助</string>
     <string name="action_open_settings">设置</string>
@@ -87,7 +87,7 @@
     <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService 的执行命令运行器无效：`%1$s`</string>
     <string name="error_run_command_service_mandatory_extra_missing">RunCommandService 缺少必需的额外参数：\"%1$s\"</string>
     <string name="error_run_command_service_api_help">访问 %1$s 获取有关 RUN_COMMAND Intent 用法的更多信息。</string>
-    <string name="title_file_received">保存文件到 ~/downloads/</string>
+    <string name="title_file_received_save">保存文件到 ~/downloads/</string>
     <string name="action_file_received_edit">编辑</string>
     <string name="action_file_received_open_directory">打开目录</string>
     <string name="error_termux_service_start_failed_general">启动 TermuxService 失败。检查 logcat 中的异常消息。</string>
@@ -151,19 +151,19 @@
     <string name="color_scheme_dark_title">终端配色方案（深色主题）</string>
     <string name="color_scheme_dark_summary">应用主题为深色时应用的配色方案</string>
 
-    <string name="message_history_title">消息历史</string>
-    <string name="message_history_max_title">历史消息最大数量</string>
-    <string name="per_directory_message_history_title">按目录的消息历史</string>
-    <string name="per_directory_message_history_summary">为每个工作目录保留单独的消息历史。关闭后，所有会话共享一个全局历史。</string>
-    <string name="save_cleared_to_history_title">清除项入历史</string>
-    <string name="save_cleared_to_history_summary">将从输入栏清除的消息保存到历史。</string>
+    <string name="input_history_title">消息历史</string>
+    <string name="input_history_max_title">历史消息最大数量</string>
+    <string name="per_directory_input_history_title">按目录的消息历史</string>
+    <string name="per_directory_input_history_summary">为每个工作目录保留单独的消息历史。关闭后，所有会话共享一个全局历史。</string>
+    <string name="input_history_save_cleared_title">清除项入历史</string>
+    <string name="input_history_save_cleared_summary">将从输入栏清除的消息保存到历史。</string>
     <string name="text_input_title">文本输入</string>
     <string name="text_input_append_enter_title">发送时附加换行</string>
     <string name="text_input_append_enter_summary">从输入框发送文本时同时提交该行（按下回车）。禁用则发送不含结尾换行的原始文本。</string>
     <string name="directory_history_title">目录历史</string>
     <string name="directory_history_max_title">目录历史最大数量</string>
-    <string name="restore_sessions_title">启动时恢复标签页</string>
-    <string name="restore_sessions_summary">应用启动时重新打开所有标签页及其目录</string>
+    <string name="restore_tabs_title">启动时恢复标签页</string>
+    <string name="restore_tabs_summary">应用启动时重新打开所有标签页及其目录</string>
     <string name="screen_orientation_title">屏幕方向</string>
     <string name="screen_orientation_summary">\"跟随传感器\"变体在两个方向之间旋转（例如 0°/180° 竖屏）。</string>
 
@@ -179,7 +179,7 @@
     <string name="backup_restore_backup_success">备份创建成功</string>
     <string name="backup_restore_restore_success">数据恢复成功</string>
     <string name="backup_restore_failed_title">操作失败</string>
-    <string name="backup_restore_need_termux">未找到 termux 二进制文件（tar）。请至少打开一次 Termux，以便容器完成设置。</string>
+    <string name="backup_restore_tar_not_found">未找到 termux 二进制文件（tar）。请至少打开一次 Termux，以便容器完成设置。</string>
     <string name="backup_restore_choose_backup">选择要恢复的 .tar.gz 备份文件</string>
     <string name="backup_service_channel_name">Termux 备份 / 恢复</string>
     <string name="backup_service_notification_title">Termux 数据备份</string>
@@ -188,7 +188,7 @@
     <string name="backup_service_notification_restore_success">数据恢复成功</string>
     <string name="backup_service_notification_failed">备份失败</string>
     <string name="backup_service_notification_restore_failed">恢复失败</string>
-    <string name="backup_dialog_background">后台</string>
+    <string name="backup_dialog_run_in_background">后台</string>
     <string name="backup_dialog_cancel">取消</string>
     <string name="backup_service_notification_cancel">取消</string>
     <string name="backup_restore_cancelled">已取消操作</string>
@@ -207,13 +207,13 @@
     <string name="settings_backup_failed">设置备份失败</string>
     <string name="settings_restore_failed">设置恢复失败</string>
     <string name="settings_backup_filename">termux-settings-backup.zip</string>
-    <string name="backup_exclude_tmp_checkbox">包含 tmp 目录 (usr/tmp/)</string>
+    <string name="backup_include_tmp_checkbox">包含 tmp 目录 (usr/tmp/)</string>
     <string name="error_settings_backup_format_version">不支持的备份格式版本：%1$s</string>
     <string name="error_settings_backup_missing_manifest">备份文件中缺少 manifest.properties</string>
     <string name="error_settings_restore_open_input">无法打开输入文件</string>
     <string name="tab_close_description">关闭标签页</string>
     <string name="session_default_title">终端</string>
-    <string name="text_input_show_title">显示文本输入框</string>
+    <string name="text_input_toggle_button_title">显示文本输入框</string>
     <string name="text_input_show_summary_on">文本输入框显示在额外按键上方</string>
     <string name="text_input_show_summary_off">文本输入框已隐藏</string>
     <string name="text_input_hide_on_send_title">发送后隐藏输入面板</string>
@@ -233,23 +233,23 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">历史消息恢复行为</string>
-    <string name="text_input_insert_at_cursor_summary">点击选择：在光标处插入或替换整个输入框内容</string>
-    <string name="text_input_insert_at_cursor_dialog_title">历史恢复模式</string>
-    <string name="text_input_insert_at_cursor_option_insert">在光标处插入</string>
-    <string name="text_input_insert_at_cursor_option_replace">替换整个输入框</string>
-    <string name="message_history_empty">无消息历史</string>
-    <string name="message_history_clear_all">清除历史…</string>
-    <string name="message_history_clear">清除</string>
-    <string name="message_history_clear_dialog_title">清除消息历史</string>
-    <string name="message_history_clear_question">清除消息历史？</string>
-    <string name="message_history_clear_confirm_current">清除当前目录的所有已记录消息？此操作不可撤销。</string>
-    <string name="message_history_clear_confirm_all">清除整个消息历史？此操作不可撤销。</string>
-    <string name="message_history_clear_ok">确定</string>
-    <string name="message_history_clear_all_btn">全部</string>
-    <string name="message_history_clear_current_only_question">仅清除当前目录的历史？</string>
-    <string name="message_history_clear_all_question">这将永久删除所有已记录的消息。</string>
-    <string name="message_history_cleared">消息历史已清除</string>
+    <string name="text_input_restore_mode_title">历史消息恢复行为</string>
+    <string name="text_input_restore_mode_summary">点击选择：在光标处插入或替换整个输入框内容</string>
+    <string name="text_input_restore_mode_dialog_title">历史恢复模式</string>
+    <string name="text_input_restore_mode_option_insert">在光标处插入</string>
+    <string name="text_input_restore_mode_option_replace">替换整个输入框</string>
+    <string name="input_history_empty">无消息历史</string>
+    <string name="input_history_clear_all">清除历史…</string>
+    <string name="input_history_clear">清除</string>
+    <string name="input_history_clear_dialog_title">清除消息历史</string>
+    <string name="input_history_clear_question">清除消息历史？</string>
+    <string name="input_history_clear_confirm_current">清除当前目录的所有已记录消息？此操作不可撤销。</string>
+    <string name="input_history_clear_confirm_all">清除整个消息历史？此操作不可撤销。</string>
+    <string name="input_history_clear_ok">确定</string>
+    <string name="input_history_clear_all_button">全部</string>
+    <string name="input_history_clear_current_only_question">仅清除当前目录的历史？</string>
+    <string name="input_history_clear_all_question">这将永久删除所有已记录的消息。</string>
+    <string name="input_history_cleared">消息历史已清除</string>
     <string name="directory_history_clear_dialog_title">清除目录历史</string>
     <string name="directory_history_clear_confirm">清除整个目录历史？此操作不可撤销。</string>
     <string name="directory_history_cleared">目录历史已清除</string>
@@ -306,10 +306,10 @@
     <string name="extra_keys_preferences_summary">额外按键栏偏好设置</string>
     <string name="display_preferences_title">显示</string>
     <string name="display_preferences_summary">主题、面板透明度、终端视图、标签页、窗口和全屏</string>
-    <string name="terminal_preferences_title">高级</string>
-    <string name="terminal_preferences_summary">按键行为、快捷键、会话、安全和其他设置</string>
+    <string name="terminal_advanced_title">高级</string>
+    <string name="terminal_advanced_summary">按键行为、快捷键、会话、安全和其他设置</string>
     <string name="extra_keys_corner_radius_title">按钮圆角半径</string>
-    <string name="sessions_history_preferences_title">会话</string>
+    <string name="sessions_preferences_title">会话</string>
     <string name="sessions_history_preferences_summary">会话、标签页和历史偏好设置</string>
     <string name="backup_restore_preferences_title">备份与恢复</string>
     <string name="backup_restore_preferences_summary">备份或恢复 Termux 数据</string>
@@ -378,8 +378,8 @@
     <string name="extra_keys_editor_signal_dialog_title">分配信号</string>
     <string name="extra_keys_editor_custom_text_title">自定义绑定</string>
     <string name="extra_keys_editor_custom_text_message">按下任意键以绑定：</string>
-    <string name="extra_keys_editor_save_title">应用到额外按键</string>
-    <string name="extra_keys_editor_save_summary">将此布局保存到额外按键设置。</string>
+    <string name="extra_keys_editor_apply_title">应用到额外按键</string>
+    <string name="extra_keys_editor_apply_summary">将此布局保存到额外按键设置。</string>
     <string name="extra_keys_editor_empty">（空）</string>
     <string name="extra_keys_editor_max_signals">每个按键最多 8 个信号</string>
     <string name="extra_keys_editor_custom_text_no_space">组合键中不支持含空格的文本</string>
@@ -418,7 +418,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">键盘切换</string>
     <string name="extra_keys_editor_signal_paste">粘贴</string>
-    <string name="extra_keys_editor_signal_scroll">滚动锁定</string>
+    <string name="extra_keys_editor_signal_scroll_lock">滚动锁定</string>
     <string name="extra_keys_editor_signal_space">空格</string>
     <string name="extra_keys_editor_signal_up">↑</string>
     <string name="extra_keys_editor_signal_left">←</string>
@@ -434,7 +434,7 @@
     <string name="screen_category_title">屏幕</string>
     <string name="shortcuts_category_title">快捷键</string>
     <string name="misc_category_title">杂项</string>
-    <string name="security_category_title">安全</string>
+    <string name="external_apps_category_title">安全</string>
     <string name="sound_category_title">声音与通知</string>
     <string name="session_category_title">会话</string>
     <string name="empty_value_summary">未设置</string>
@@ -479,13 +479,13 @@
     <string name="terminal_background_blur_radius_title">背景模糊半径</string>
     <string name="terminal_background_blur_radius_summary">在高模糊半径下使用动态壁纸可能会增加耗电量。使用静态壁纸时，对耗电的影响可以忽略不计。</string>
 
-    <string name="terminal_toolbar_height_title">工具栏高度比例</string>
+    <string name="terminal_toolbar_scale_title">工具栏高度比例</string>
     <string name="terminal_toolbar_height_summary">额外按键/终端工具栏高度比例因子。</string>
 
     <string name="default_working_directory_title">默认工作目录</string>
     <string name="default_working_directory_summary">新会话打开的目录（留空为主目录）。</string>
 
-    <string name="back_key_title">返回键行为</string>
+    <string name="back_key_sends_escape_title">返回键行为</string>
     <string name="back_key_summary">硬件/软件返回键在终端中的行为。</string>
     <string name="back_key_back">返回按钮</string>
     <string name="back_key_escape">Esc 键</string>

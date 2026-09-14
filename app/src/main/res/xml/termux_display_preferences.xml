@@ -107,7 +107,7 @@
 
         <SwitchPreferenceCompat
             app:key="restore_sessions"
-            app:title="@string/restore_sessions_title"
+            app:title="@string/restore_tabs_title"
             app:defaultValue="true"
             app:iconSpaceReserved="false" />
 

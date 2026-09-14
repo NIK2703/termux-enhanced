@@ -36,7 +36,7 @@
 
     
     <string name="action_new_session">Новый сеанс</string>
-    <string name="action_new_session_failsafe">Аварийный режим</string>
+    <string name="action_failsafe_mode">Аварийный режим</string>
     <string name="title_max_terminals_reached">Максимум терминалов</string>
     <string name="msg_max_terminals_reached">Закройте существующие, прежде чем создавать новые.</string>
 
@@ -48,8 +48,8 @@
     <string name="action_toggle_soft_keyboard">Клавиатура</string>
     <string name="action_toggle_text_input">Ввод текста</string>
 
-    <string name="msg_enabling_terminal_toolbar">Включение панели терминала</string>
-    <string name="msg_disabling_terminal_toolbar">Отключение панели терминала</string>
+    <string name="msg_terminal_panel_enabling">Включение панели терминала</string>
+    <string name="msg_terminal_panel_disabling">Отключение панели терминала</string>
 
     
     <string name="action_select_url">Выбрать URL</string>
@@ -78,7 +78,7 @@
     <string name="action_style_terminal">Стиль</string>
     <string name="action_font_terminal">Шрифт</string>
     <string name="font_picker_title">Выберите шрифт (.ttf)</string>
-    <string name="error_font_copy_failed">Не удалось применить шрифт</string>
+    <string name="error_font_apply_failed">Не удалось применить шрифт</string>
     <string name="action_toggle_keep_screen_on">Не выключать экран</string>
     <string name="action_open_help">Справка</string>
     <string name="action_open_settings">Настройки</string>
@@ -111,7 +111,7 @@
     <string name="error_run_command_service_api_help">Посетите %1$s для подробностей об использовании Intent RUN_COMMAND.</string>
 
     
-    <string name="title_file_received">Сохранить файл в ~/downloads/</string>
+    <string name="title_file_received_save">Сохранить файл в ~/downloads/</string>
     <string name="action_file_received_edit">Редактировать</string>
     <string name="action_file_received_open_directory">Открыть директорию</string>
 
@@ -212,12 +212,12 @@
     <string name="color_scheme_dark_title">Цветовая схема терминала (Тёмная тема)</string>
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
-    <string name="message_history_title">История введённых текстов</string>
-    <string name="message_history_max_title">Максимум введённых текстов в истории</string>
-    <string name="per_directory_message_history_title">История введённых текстов по директориям</string>
-    <string name="per_directory_message_history_summary">Вести отдельную историю введённых текстов для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
-    <string name="save_cleared_to_history_title">Очищаемые в истории</string>
-    <string name="save_cleared_to_history_summary">Сохранять в историю очищаемые из поля ввода введённые тексты.</string>
+    <string name="input_history_title">История введённых текстов</string>
+    <string name="input_history_max_title">Максимум введённых текстов в истории</string>
+    <string name="per_directory_input_history_title">История введённых текстов по директориям</string>
+    <string name="per_directory_input_history_summary">Вести отдельную историю введённых текстов для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
+    <string name="input_history_save_cleared_title">Очищаемые в истории</string>
+    <string name="input_history_save_cleared_summary">Сохранять в историю очищаемые из поля ввода введённые тексты.</string>
 
     
     <string name="input_panel_title">Панель ввода</string>
@@ -240,19 +240,19 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">Поведение при восстановлении текста из истории</string>
-    <string name="text_input_insert_at_cursor_summary">Нажмите, чтобы выбрать: вставить в позицию курсора или заменить всё поле ввода</string>
-    <string name="text_input_insert_at_cursor_dialog_title">Режим восстановления из истории</string>
-    <string name="text_input_insert_at_cursor_option_insert">Вставить в позицию курсора</string>
-    <string name="text_input_insert_at_cursor_option_replace">Заменить всё поле ввода</string>
+    <string name="text_input_restore_mode_title">Поведение при восстановлении текста из истории</string>
+    <string name="text_input_restore_mode_summary">Нажмите, чтобы выбрать: вставить в позицию курсора или заменить всё поле ввода</string>
+    <string name="text_input_restore_mode_dialog_title">Режим восстановления из истории</string>
+    <string name="text_input_restore_mode_option_insert">Вставить в позицию курсора</string>
+    <string name="text_input_restore_mode_option_replace">Заменить всё поле ввода</string>
 
     
     <string name="directory_history_title">История папок</string>
     <string name="directory_history_max_title">Максимум рабочих директорий в истории</string>
 
     
-    <string name="restore_sessions_title">Восстанавливать вкладки при запуске</string>
-    <string name="restore_sessions_summary">Повторно открывать все вкладки и их директории при запуске приложения</string>
+    <string name="restore_tabs_title">Восстанавливать вкладки при запуске</string>
+    <string name="restore_tabs_summary">Повторно открывать все вкладки и их директории при запуске приложения</string>
 
     
     <string name="screen_orientation_title">Ориентация экрана</string>
@@ -272,7 +272,7 @@
     <string name="backup_restore_backup_success">Резервная копия успешно создана</string>
     <string name="backup_restore_restore_success">Данные успешно восстановлены</string>
     <string name="backup_restore_failed_title">Операция не удалась</string>
-    <string name="backup_restore_need_termux">Двоичный файл termux (tar) не найден. Пожалуйста, откройте Termux хотя бы один раз, чтобы контейнер был настроен.</string>
+    <string name="backup_restore_tar_not_found">Двоичный файл termux (tar) не найден. Пожалуйста, откройте Termux хотя бы один раз, чтобы контейнер был настроен.</string>
     <string name="backup_restore_choose_backup">Выберите файл резервной копии .tar.gz для восстановления</string>
     <string name="backup_service_channel_name">Резервное копирование / Восстановление Termux</string>
     <string name="backup_service_notification_title">Резервное копирование данных Termux</string>
@@ -281,7 +281,7 @@
     <string name="backup_service_notification_restore_success">Данные успешно восстановлены</string>
     <string name="backup_service_notification_failed">Резервное копирование не удалось</string>
     <string name="backup_service_notification_restore_failed">Восстановление не удалось</string>
-    <string name="backup_dialog_background">Фон</string>
+    <string name="backup_dialog_run_in_background">Фон</string>
     <string name="backup_dialog_cancel">Отмена</string>
     <string name="backup_service_notification_cancel">Отмена</string>
     <string name="backup_restore_cancelled">Операция отменена</string>
@@ -301,7 +301,7 @@
     <string name="settings_backup_failed">Ошибка сохранения настроек</string>
     <string name="settings_restore_failed">Ошибка восстановления настроек</string>
     <string name="settings_backup_filename">termux-settings-backup.zip</string>
-    <string name="backup_exclude_tmp_checkbox">Включить каталог tmp (usr/tmp/)</string>
+    <string name="backup_include_tmp_checkbox">Включить каталог tmp (usr/tmp/)</string>
     <string name="error_settings_backup_format_version">Неподдерживаемая версия формата backup: %1$s</string>
     <string name="error_settings_backup_missing_manifest">В файле backup отсутствует manifest.properties</string>
     <string name="error_settings_restore_open_input">Не удалось открыть файл для чтения</string>
@@ -320,23 +320,23 @@
     <string name="termux_tab_panel_position_bottom">Снизу</string>
 
     
-    <string name="text_input_show_title">Кнопка переключения панели ввода</string>
+    <string name="text_input_toggle_button_title">Кнопка переключения панели ввода</string>
 
     
-    <string name="message_history_empty">Нет истории введённых текстов</string>
-    <string name="message_history_clear_all">ОЧИСТИТЬ ИСТОРИЮ…</string>
-    <string name="message_history_clear">Очистить</string>
+    <string name="input_history_empty">Нет истории введённых текстов</string>
+    <string name="input_history_clear_all">ОЧИСТИТЬ ИСТОРИЮ…</string>
+    <string name="input_history_clear">Очистить</string>
 
     
-    <string name="message_history_clear_dialog_title">Очистить историю введённых текстов</string>
-    <string name="message_history_clear_question">Очистить историю введённых текстов?</string>
-    <string name="message_history_clear_confirm_current">Очистить все сохранённые введённые тексты для текущей директории? Это действие необратимо.</string>
-    <string name="message_history_clear_confirm_all">Очистить всю историю введённых текстов? Это действие необратимо.</string>
-    <string name="message_history_clear_ok">ОК</string>
-    <string name="message_history_clear_all_btn">Все</string>
-    <string name="message_history_clear_current_only_question">Очистить историю только для текущей директории?</string>
-    <string name="message_history_clear_all_question">Это навсегда удалит все сохранённые введённые тексты.</string>
-    <string name="message_history_cleared">История введённых текстов очищена</string>
+    <string name="input_history_clear_dialog_title">Очистить историю введённых текстов</string>
+    <string name="input_history_clear_question">Очистить историю введённых текстов?</string>
+    <string name="input_history_clear_confirm_current">Очистить все сохранённые введённые тексты для текущей директории? Это действие необратимо.</string>
+    <string name="input_history_clear_confirm_all">Очистить всю историю введённых текстов? Это действие необратимо.</string>
+    <string name="input_history_clear_ok">ОК</string>
+    <string name="input_history_clear_all_button">Все</string>
+    <string name="input_history_clear_current_only_question">Очистить историю только для текущей директории?</string>
+    <string name="input_history_clear_all_question">Это навсегда удалит все сохранённые введённые тексты.</string>
+    <string name="input_history_cleared">История введённых текстов очищена</string>
 
     
     <string name="directory_history_clear_dialog_title">Очистить историю папок</string>
@@ -398,7 +398,7 @@
     <string name="extra_keys_preferences_summary">Настройки панели дополнительных кнопок</string>
     <string name="display_preferences_title">Отображение</string>
     <string name="display_preferences_summary">Внешний вид, вкладки, терминал, окно</string>
-    <string name="sessions_history_preferences_title">Сессии</string>
+    <string name="sessions_preferences_title">Сессии</string>
     <string name="sessions_history_preferences_summary">Настройки сессий, вкладок и истории</string>
     <string name="backup_restore_preferences_title">Резервное копирование и восстановление</string>
     <string name="backup_restore_preferences_summary">Контейнер Termux, настройки приложения</string>
@@ -445,15 +445,15 @@
     <string name="screen_orientation_entry_landscape">Ландшафтная</string>
 
     
-    <string name="terminal_preferences_title">Дополнительно</string>
-    <string name="terminal_preferences_summary">Сессия, звук и уведомления, внешние приложения, дополнения, отладка</string>
+    <string name="terminal_advanced_title">Дополнительно</string>
+    <string name="terminal_advanced_summary">Сессия, звук и уведомления, внешние приложения, дополнения, отладка</string>
 
     <string name="sound_category_title">Звук и уведомления</string>
     <string name="key_behaviour_category_title">Поведение клавиш</string>
     <string name="screen_category_title">Экран</string>
     <string name="shortcuts_category_title">Сочетания клавиш</string>
     <string name="session_category_title">Сессия</string>
-    <string name="security_category_title">Внешние приложения</string>
+    <string name="external_apps_category_title">Внешние приложения</string>
 
     <string name="addons_category_title">Дополнения</string>
     <string name="misc_category_title">Прочее</string>
@@ -483,7 +483,7 @@
     <string name="terminal_background_blur_radius_title">Радиус размытия фона</string>
     <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамическом фоне с высоким радиусом размытия. На статическом фоне энергопотребление несущественно</string>
 
-    <string name="terminal_toolbar_height_title">Масштаб панели</string>
+    <string name="terminal_toolbar_scale_title">Масштаб панели</string>
 
     <string name="bell_character_title">Поведение при сигнале</string>
     <string name="bell_character_summary">Что происходит, когда терминал получает символ звонка (BEL).</string>
@@ -491,7 +491,7 @@
     <string name="bell_character_beep">Звук</string>
     <string name="bell_character_ignore">Игнорировать</string>
 
-    <string name="back_key_title">Отправлять Escape по нажатию кнопки «Назад»</string>
+    <string name="back_key_sends_escape_title">Отправлять Escape по нажатию кнопки «Назад»</string>
 
     <string name="volume_keys_title">Кнопки громкости как модификаторы</string>
     <string name="volume_keys_summary">Зажать Ctrl или Fn при зажатии на устройстве кнопок громкости вниз или вверх соответственно. Для открытия панели громкости в таком режиме используйте Fn + v</string>
@@ -576,8 +576,8 @@
     <string name="extra_keys_editor_signal_dialog_title">Назначить сигнал</string>
     <string name="extra_keys_editor_custom_text_title">Символ/текст</string>
     <string name="extra_keys_editor_custom_text_message">Нажмите любую клавишу для привязки:</string>
-    <string name="extra_keys_editor_save_title">Применить к дополнительным кнопкам</string>
-    <string name="extra_keys_editor_save_summary">Сохранить раскладку в настройки дополнительных кнопок.</string>
+    <string name="extra_keys_editor_apply_title">Применить к дополнительным кнопкам</string>
+    <string name="extra_keys_editor_apply_summary">Сохранить раскладку в настройки дополнительных кнопок.</string>
     <string name="extra_keys_editor_empty">(пусто)</string>
     <string name="extra_keys_editor_max_signals">Максимум 8 сигналов на кнопку</string>
     <string name="extra_keys_editor_custom_text_no_space">Свой текст с пробелами не поддерживается в комбинациях</string>
@@ -625,7 +625,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Переключатель клавиатуры</string>
     <string name="extra_keys_editor_signal_paste">Вставить</string>
-    <string name="extra_keys_editor_signal_scroll">Блокировка прокрутки</string>
+    <string name="extra_keys_editor_signal_scroll_lock">Блокировка прокрутки</string>
     <string name="extra_keys_editor_signal_space">Пробел</string>
     <string name="extra_keys_editor_signal_up">Вверх</string>
     <string name="extra_keys_editor_signal_left">Влево</string>

@@ -35,7 +35,7 @@
 <string name="action_toggle_text_input">Alihkan Input Teks</string>
 <string name="appearance_preferences_summary">Preferensi untuk tampilan aplikasi dan transparansi panel</string>
 <string name="appearance_preferences_title">Tampilan</string>
-<string name="backup_dialog_background">Latar Belakang</string>
+<string name="backup_dialog_run_in_background">Latar Belakang</string>
 <string name="backup_dialog_cancel">Batal</string>
 <string name="backup_preference_title">Cadangan Data Termux</string>
 <string name="backup_restore_backup_started">Mencadangkan data…</string>
@@ -56,14 +56,14 @@
 <string name="settings_backup_failed">Cadangan pengaturan gagal</string>
 <string name="settings_restore_failed">Pemulihan pengaturan gagal</string>
 <string name="settings_backup_filename">termux-settings-backup.zip</string>
-<string name="backup_exclude_tmp_checkbox">Sertakan direktori tmp (usr/tmp/)</string>
+<string name="backup_include_tmp_checkbox">Sertakan direktori tmp (usr/tmp/)</string>
 <string name="error_settings_backup_format_version">Versi format cadangan tidak didukung: %1$s</string>
 <string name="error_settings_backup_missing_manifest">File cadangan tidak memiliki manifest.properties</string>
 <string name="error_settings_restore_open_input">Gagal membuka file masukan</string>
 <string name="backup_restore_choose_backup">Pilih file cadangan .tar.gz untuk dipulihkan</string>
 <string name="backup_restore_dialog_title">Cadangan / Pulihkan Data Termux</string>
 <string name="backup_restore_failed_title">Operasi Gagal</string>
-<string name="backup_restore_need_termux">Biner termux (tar) tidak ditemukan. Buka Termux setidaknya sekali untuk menyiapkan containernya.</string>
+<string name="backup_restore_tar_not_found">Biner termux (tar) tidak ditemukan. Buka Termux setidaknya sekali untuk menyiapkan containernya.</string>
 <string name="backup_restore_restore_started">Memulihkan cadangan…</string>
 <string name="backup_restore_restore_success">Data berhasil dipulihkan</string>
 <string name="backup_restore_warning_backup">Ini akan membuat arsip terkompresi dari direktori data Termux Anda (paket terinstal dan lingkungan bersama dengan direktori home Anda).\n\nPilih file tujuan untuk menyimpan cadangan.</string>
@@ -95,7 +95,7 @@
 <string name="directory_history_title">Riwayat Direktori</string>
 <string name="donate_preference_title">Donasi</string>
 <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Termux memerlukan izin "Tampil di atas aplikasi lain" untuk memulai sesi terminal dari latar belakang pada Android &gt;= 10. Berikan izin dari Pengaturan -&gt; Aplikasi -&gt; Termux -&gt; Tampil di atas aplikasi lain.</string>
-<string name="error_font_copy_failed">Gagal menerapkan fonta</string>
+<string name="error_font_apply_failed">Gagal menerapkan fonta</string>
 <string name="font_picker_title">Pilih fonta (.ttf)</string>
 <string name="msg_add_termux_debug_info">Sertakan info debug termux ke laporan?</string>
 <string name="error_run_command_service_api_help">Kunjungi %1$s untuk detail lebih lanjut tentang cara menggunakan intent RUN_COMMAND.</string>
@@ -120,21 +120,21 @@
 <string name="file_receiver_error_no_editor">Berkas berikut tidak ada:\n$HOME/bin/termux-file-editor\n\nBuat berkas ini sebagai skrip atau tautan simbolis — berkas tersebut akan dipanggil dengan file yang diterima sebagai satu-satunya argumen.</string>
 <string name="file_receiver_error_no_url_opener">Berkas berikut tidak ada:\n$HOME/bin/termux-url-opener\n\nBuat berkas ini sebagai skrip atau tautan simbolis — berkas tersebut akan dipanggil dengan URL yang dibagikan sebagai argumen pertamanya.</string>
 <string name="file_receiver_error_saving_file">Galat saat menyimpan file:\n\n%s</string>
-<string name="message_history_clear">Hapus</string>
-<string name="message_history_clear_all">HAPUS RIWAYAT…</string>
-<string name="message_history_clear_all_btn">Semua</string>
-<string name="message_history_clear_all_question">Anda yakin ingin menghapus semua riwayat pesan?</string>
-<string name="message_history_clear_confirm_all">Hapus seluruh riwayat pesan? Tindakan ini tidak dapat dibatalkan.</string>
-<string name="message_history_clear_confirm_current">Hapus semua pesan yang tersimpan untuk direktori saat ini? Tindakan ini tidak dapat dibatalkan.</string>
-<string name="message_history_clear_current_only_question">Anda yakin ingin menghapus riwayat pesan direktori saat ini?</string>
-<string name="message_history_clear_dialog_title">Hapus riwayat pesan</string>
-<string name="message_history_clear_question">Hapus riwayat pesan?</string>
-<string name="message_history_cleared">Riwayat pesan dihapus</string>
-<string name="message_history_empty">Tidak ada riwayat pesan</string>
-<string name="message_history_max_title">Maks. pesan tersimpan</string>
-<string name="message_history_title">Riwayat Pesan</string>
-<string name="msg_disabling_terminal_toolbar">Menonaktifkan bilah alat terminal</string>
-<string name="msg_enabling_terminal_toolbar">Mengaktifkan bilah alat terminal</string>
+<string name="input_history_clear">Hapus</string>
+<string name="input_history_clear_all">HAPUS RIWAYAT…</string>
+<string name="input_history_clear_all_button">Semua</string>
+<string name="input_history_clear_all_question">Anda yakin ingin menghapus semua riwayat pesan?</string>
+<string name="input_history_clear_confirm_all">Hapus seluruh riwayat pesan? Tindakan ini tidak dapat dibatalkan.</string>
+<string name="input_history_clear_confirm_current">Hapus semua pesan yang tersimpan untuk direktori saat ini? Tindakan ini tidak dapat dibatalkan.</string>
+<string name="input_history_clear_current_only_question">Anda yakin ingin menghapus riwayat pesan direktori saat ini?</string>
+<string name="input_history_clear_dialog_title">Hapus riwayat pesan</string>
+<string name="input_history_clear_question">Hapus riwayat pesan?</string>
+<string name="input_history_cleared">Riwayat pesan dihapus</string>
+<string name="input_history_empty">Tidak ada riwayat pesan</string>
+<string name="input_history_max_title">Maks. pesan tersimpan</string>
+<string name="input_history_title">Riwayat Pesan</string>
+<string name="msg_terminal_panel_disabling">Menonaktifkan bilah alat terminal</string>
+<string name="msg_terminal_panel_enabling">Mengaktifkan bilah alat terminal</string>
 <string name="msg_extra_keys_create_failed">Gagal membuat tombol tambahan bawaan</string>
 <string name="msg_extra_keys_load_failed">Gagal memuat dan menyetel properti \"%1$s\" dari file properti: %2$s</string>
 <string name="msg_generating_report">Membuat laporan…</string>
@@ -147,15 +147,15 @@
 <string name="notification_action_wake_unlock">Lepaskan wakelock</string>
 <string name="notification_wake_lock_held"> (wakelock ditahan)</string>
 <string name="panel_transparency_title">Transparansi Panel</string>
-<string name="per_directory_message_history_summary">Menyimpan riwayat pesan terpisah untuk setiap direktori kerja. Jika dinonaktifkan, semua sesi berbagi riwayat global.</string>
-<string name="save_cleared_to_history_title">Dihapus ke riwayat</string>
-<string name="save_cleared_to_history_summary">Simpan pesan yang dihapus dari kolom input ke riwayat.</string>
-<string name="per_directory_message_history_title">Riwayat Pesan per Direktori</string>
+<string name="per_directory_input_history_summary">Menyimpan riwayat pesan terpisah untuk setiap direktori kerja. Jika dinonaktifkan, semua sesi berbagi riwayat global.</string>
+<string name="input_history_save_cleared_title">Dihapus ke riwayat</string>
+<string name="input_history_save_cleared_summary">Simpan pesan yang dihapus dari kolom input ke riwayat.</string>
+<string name="per_directory_input_history_title">Riwayat Pesan per Direktori</string>
 <string name="permission_run_command_description">jalankan perintah sembarang di lingkungan Termux dan akses file</string>
 <string name="permission_run_command_label">jalankan perintah di lingkungan Termux</string>
 <string name="restore_preference_title">Pulihkan Data Termux</string>
-<string name="restore_sessions_summary">Pulihkan semua tab yang dibuka di sesi sebelumnya saat aplikasi dimulai.</string>
-<string name="restore_sessions_title">Pulihkan tab saat diluncurkan</string>
+<string name="restore_tabs_summary">Pulihkan semua tab yang dibuka di sesi sebelumnya saat aplikasi dimulai.</string>
+<string name="restore_tabs_title">Pulihkan tab saat diluncurkan</string>
 <string name="screen_orientation_summary">Varian \"Ikuti sensor\" beralih di antara dua orientasi (mis. potret 0°/180°).</string>
 <string name="screen_orientation_title">Orientasi Layar</string>
 <string name="shared_user_label">Termux Pengguna</string>
@@ -212,7 +212,7 @@
 <string name="text_input_append_enter_title">Tambahkan Enter saat Kirim</string>
 <string name="text_input_show_summary_off">Kolom input teks disembunyikan</string>
 <string name="text_input_show_summary_on">Kolom input teks terlihat di atas tombol tambahan</string>
-<string name="text_input_show_title">Tampilkan Input Teks</string>
+<string name="text_input_toggle_button_title">Tampilkan Input Teks</string>
 <string name="text_input_hide_on_send_title">Sembunyikan panel input setelah kirim</string>
     <string name="text_input_hide_on_send_summary">Jika diaktifkan, panel input tertutup dan fokus beralih ke terminal setelah mengirim. Nonaktifkan untuk membiarkan panel tetap terbuka guna perintah berturut-turut.</string>
 
@@ -231,18 +231,18 @@
         <item>hide_keyboard</item>
     </string-array>
 <string name="text_input_title">Input Teks</string>
-<string name="text_input_insert_at_cursor_title">Perilaku pemulihan pesan riwayat</string>
-<string name="text_input_insert_at_cursor_summary">Ketuk untuk memilih: sisipkan di kursor atau ganti seluruh kolom input</string>
-<string name="text_input_insert_at_cursor_dialog_title">Mode pemulihan riwayat</string>
-<string name="text_input_insert_at_cursor_option_insert">Sisipkan di kursor</string>
-<string name="text_input_insert_at_cursor_option_replace">Ganti seluruh kolom input</string>
+<string name="text_input_restore_mode_title">Perilaku pemulihan pesan riwayat</string>
+<string name="text_input_restore_mode_summary">Ketuk untuk memilih: sisipkan di kursor atau ganti seluruh kolom input</string>
+<string name="text_input_restore_mode_dialog_title">Mode pemulihan riwayat</string>
+<string name="text_input_restore_mode_option_insert">Sisipkan di kursor</string>
+<string name="text_input_restore_mode_option_replace">Ganti seluruh kolom input</string>
 <string name="theme_mode_summary">Pilih tema aplikasi dan terminal</string>
 <string name="theme_mode_title">Tema Aplikasi</string>
 <string name="theme_title">Tema</string>
 <string name="title_activity_termux_settings">Termux Pengaturan</string>
 <string name="title_confirm_kill_process">Yakin ingin menghentikan sesi ini?</string>
 <string name="title_create_named_session">Buat Sesi Bernama</string>
-<string name="title_file_received">Simpan file di ~/downloads/</string>
+<string name="title_file_received_save">Simpan file di ~/downloads/</string>
 <string name="title_max_terminals_reached">Batas terminal tercapai</string>
 <string name="title_rename_session">Ganti Nama Sesi</string>
 <string name="title_select_url_dialog">Klik URL untuk menyalin atau tekan lama untuk membuka</string>
@@ -289,9 +289,9 @@
 <string name="appearance_category_title">Tampilan</string>
 <string name="display_preferences_title">Tampilan</string>
 <string name="display_preferences_summary">Tema, transparansi panel, tampilan terminal, tab, jendela, dan layar penuh</string>
-<string name="terminal_preferences_title">Lanjutan</string>
-<string name="terminal_preferences_summary">Perilaku tombol, pintasan, sesi, keamanan, dan pengaturan lain</string>
-<string name="sessions_history_preferences_title">Sesi</string>
+<string name="terminal_advanced_title">Lanjutan</string>
+<string name="terminal_advanced_summary">Perilaku tombol, pintasan, sesi, keamanan, dan pengaturan lain</string>
+<string name="sessions_preferences_title">Sesi</string>
 <string name="sessions_history_preferences_summary">Preferensi untuk sesi, tab, dan riwayat</string>
 <string name="backup_restore_preferences_title">Cadangan &amp; Pulihkan</string>
 <string name="backup_restore_preferences_summary">Cadangkan atau pulihkan data Termux</string>
@@ -334,8 +334,8 @@
     <string name="extra_keys_editor_preview_title">Pratinjau</string>
     <string name="extra_keys_editor_preview_summary">Panel langsung — ketuk tombol apa pun untuk mengubah sinyalnya.</string>
     <string name="extra_keys_editor_signal_dialog_title">Tetapkan sinyal</string>
-    <string name="extra_keys_editor_save_title">Terapkan ke tombol tambahan</string>
-    <string name="extra_keys_editor_save_summary">Simpan tata letak ini ke pengaturan tombol tambahan.</string>
+    <string name="extra_keys_editor_apply_title">Terapkan ke tombol tambahan</string>
+    <string name="extra_keys_editor_apply_summary">Simpan tata letak ini ke pengaturan tombol tambahan.</string>
     <string name="extra_keys_editor_empty">(kosong)</string>
     <string name="extra_keys_editor_max_signals">Maksimal 8 sinyal per tombol</string>
     <string name="extra_keys_editor_custom_text_no_space">Teks kustom dengan spasi tidak didukung dalam kombinasi</string>
@@ -406,7 +406,7 @@
     <string name="screen_category_title">Layar</string>
     <string name="shortcuts_category_title">Pintasan</string>
     <string name="misc_category_title">Lain-lain</string>
-    <string name="security_category_title">Keamanan</string>
+    <string name="external_apps_category_title">Keamanan</string>
     <string name="sound_category_title">Suara &amp; notifikasi</string>
     <string name="session_category_title">Sesi</string>
 
@@ -449,7 +449,7 @@
     <string name="terminal_background_blur_radius_summary">Dapat meningkatkan konsumsi daya pada wallpaper dinamis dengan radius blur yang besar. Pada wallpaper statis, dampak dayanya dapat diabaikan.</string>
 
     
-    <string name="terminal_toolbar_height_title">Skala tinggi bilah alat</string>
+    <string name="terminal_toolbar_scale_title">Skala tinggi bilah alat</string>
     <string name="terminal_toolbar_height_summary">Faktor skala tinggi bilah alat terminal / tombol tambahan.</string>
 
     
@@ -457,7 +457,7 @@
     <string name="default_working_directory_summary">Direktori yang dibuka untuk sesi baru (kosongkan untuk direktori home).</string>
 
     
-    <string name="back_key_title">Perilaku tombol kembali</string>
+    <string name="back_key_sends_escape_title">Perilaku tombol kembali</string>
     <string name="back_key_summary">Apa yang dilakukan tombol kembali hardware/software di terminal.</string>
     <string name="volume_keys_title">Perilaku tombol volume</string>
     <string name="volume_keys_summary">Apakah tombol volume mengontrol volume atau bertindak sebagai tombol virtual.</string>
@@ -601,7 +601,7 @@
     <string name="application_name">TermuxEnhanced</string>
 
     <!-- Terminal Sidebar and Shortcuts -->
-    <string name="action_new_session_failsafe">Mode aman</string>
+    <string name="action_failsafe_mode">Mode aman</string>
     <string name="action_toggle_soft_keyboard">Keyboard</string>
 
     <!-- Termux App Preferences -->
@@ -641,7 +641,7 @@
     <string name="session_null_title">sesi null</string>
 
     <!-- Message history clear OK button -->
-    <string name="message_history_clear_ok">OK</string>
+    <string name="input_history_clear_ok">OK</string>
 
     <!-- Terminal category -->
     <string name="terminal_category_title">Terminal</string>
@@ -730,7 +730,7 @@
 <string name="extra_keys_editor_signal_fn">FN</string>
 <string name="extra_keys_editor_signal_keyboard">Alih keyboard</string>
 <string name="extra_keys_editor_signal_paste">Tempel</string>
-<string name="extra_keys_editor_signal_scroll">Kunci gulir</string>
+<string name="extra_keys_editor_signal_scroll_lock">Kunci gulir</string>
 <string name="extra_keys_editor_signal_space">Spasi</string>
 <string name="extra_keys_editor_signal_esc">Esc</string>
 <string name="extra_keys_editor_signal_tab">Tab</string>

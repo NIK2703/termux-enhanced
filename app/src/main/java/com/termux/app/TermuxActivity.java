@@ -1773,7 +1773,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             newSessionTabButton.setOnLongClickListener(v -> {
                 TextInputDialogUtils.textInput(TermuxActivity.this, R.string.title_create_named_session, null,
                     R.string.action_create_named_session_confirm, text -> mTermuxTerminalSessionActivityClient.addNewSession(false, text),
-                    R.string.action_new_session_failsafe, text -> mTermuxTerminalSessionActivityClient.addNewSession(true, text),
+                    R.string.action_failsafe_mode, text -> mTermuxTerminalSessionActivityClient.addNewSession(true, text),
                     -1, null, null);
                 return true;
             });
@@ -2041,7 +2041,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (terminalToolbarContainer == null) return;
 
         final boolean showNow = mPreferences.toogleShowTerminalToolbar();
-        Logger.showToast(this, (showNow ? getString(R.string.msg_enabling_terminal_toolbar) : getString(R.string.msg_disabling_terminal_toolbar)), true);
+        Logger.showToast(this, (showNow ? getString(R.string.msg_terminal_panel_enabling) : getString(R.string.msg_terminal_panel_disabling)), true);
         terminalToolbarContainer.setVisibility(showNow ? View.VISIBLE : View.GONE);
 
         // If hiding the toolbar while text input is visible, close text input first

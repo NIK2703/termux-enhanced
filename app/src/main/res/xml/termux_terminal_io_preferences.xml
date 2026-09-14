@@ -66,7 +66,7 @@
         <SwitchPreferenceCompat
             app:key="text_input_enabled"
             app:defaultValue="true"
-            app:title="@string/text_input_show_title"
+            app:title="@string/text_input_toggle_button_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
@@ -89,29 +89,29 @@
         <Preference
             app:key="text_input_insert_at_cursor"
             app:dependency="text_input_enabled"
-            app:title="@string/text_input_insert_at_cursor_title"
+            app:title="@string/text_input_restore_mode_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="per_directory_message_history"
             app:dependency="text_input_enabled"
-            app:title="@string/per_directory_message_history_title"
-            app:summary="@string/per_directory_message_history_summary"
+            app:title="@string/per_directory_input_history_title"
+            app:summary="@string/per_directory_input_history_summary"
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
             app:key="save_cleared_to_history"
             app:dependency="text_input_enabled"
-            app:title="@string/save_cleared_to_history_title"
-            app:summary="@string/save_cleared_to_history_summary"
+            app:title="@string/input_history_save_cleared_title"
+            app:summary="@string/input_history_save_cleared_summary"
             app:defaultValue="true"
             app:iconSpaceReserved="false" />
 
         <SeekBarPreference
             app:key="message_history_max"
             app:dependency="text_input_enabled"
-            app:title="@string/message_history_max_title"
+            app:title="@string/input_history_max_title"
             app:defaultValue="20"
             app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
@@ -203,7 +203,7 @@
         <SwitchPreferenceCompat
             app:key="back-key"
             app:defaultValue="false"
-            app:title="@string/back_key_title"
+            app:title="@string/back_key_sends_escape_title"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat

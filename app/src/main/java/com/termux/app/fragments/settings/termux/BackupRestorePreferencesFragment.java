@@ -76,7 +76,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
             if (activity == null) return true;
 
             android.widget.CheckBox checkBox = new android.widget.CheckBox(activity);
-            checkBox.setText(R.string.backup_exclude_tmp_checkbox);
+            checkBox.setText(R.string.backup_include_tmp_checkbox);
             checkBox.setChecked(true);
 
             android.widget.LinearLayout layout = new android.widget.LinearLayout(activity);

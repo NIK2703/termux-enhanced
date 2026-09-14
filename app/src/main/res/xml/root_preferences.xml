@@ -18,8 +18,8 @@
 
     <Preference
         app:key="terminal"
-        app:title="@string/terminal_preferences_title"
-        app:summary="@string/terminal_preferences_summary"
+        app:title="@string/terminal_advanced_title"
+        app:summary="@string/terminal_advanced_summary"
         app:iconSpaceReserved="false"
         app:fragment="com.termux.app.fragments.settings.termux.TerminalPreferencesFragment"/>
 

@@ -40,8 +40,8 @@
 <string name="action_create_named_session_confirm">Oluştur</string>
 <string name="action_toggle_soft_keyboard">Klavye</string>
 <string name="action_toggle_text_input">Metin girişini aç/kapat</string>
-<string name="msg_enabling_terminal_toolbar">Terminal Araç Çubuğu Etkinleştiriliyor</string>
-<string name="msg_disabling_terminal_toolbar">Terminal Araç Çubuğu Devre Dışı Bırakılıyor</string>
+<string name="msg_terminal_panel_enabling">Terminal Araç Çubuğu Etkinleştiriliyor</string>
+<string name="msg_terminal_panel_disabling">Terminal Araç Çubuğu Devre Dışı Bırakılıyor</string>
 <string name="action_select_url">URL seç</string>
 <string name="title_select_url_dialog">Kopyalamak için URL\'ye dokunun, açmak için uzun basın</string>
 <string name="title_select_url_none_found">Terminalde URL bulunamadı.</string>
@@ -62,7 +62,7 @@
 <string name="action_style_terminal">Stil</string>
 <string name="action_font_terminal">Yazı tipi</string>
 <string name="font_picker_title">Bir yazı tipi seçin (.ttf)</string>
-<string name="error_font_copy_failed">Yazı tipi uygulanamadı</string>
+<string name="error_font_apply_failed">Yazı tipi uygulanamadı</string>
 <string name="action_toggle_keep_screen_on">Ekranı açık tut</string>
 <string name="action_open_help">Yardım</string>
 <string name="action_open_settings">Ayarlar</string>
@@ -85,7 +85,7 @@
 <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService için geçersiz çalıştırma komutu Runner: `%1$s`</string>
 <string name="error_run_command_service_mandatory_extra_missing">RunCommandService için zorunlu ek alan eksik: \"%1$s\"</string>
 <string name="error_run_command_service_api_help">RUN_COMMAND Intent kullanımı hakkında daha fazla bilgi için %1$s adresini ziyaret edin.</string>
-<string name="title_file_received">Dosyayı ~/downloads/ içine kaydet</string>
+<string name="title_file_received_save">Dosyayı ~/downloads/ içine kaydet</string>
 <string name="action_file_received_edit">Düzenle</string>
 <string name="action_file_received_open_directory">Dizini aç</string>
 <string name="error_termux_service_start_failed_general">TermuxService başlatılamadı. Hata mesajı için logcat\'i kontrol edin.</string>
@@ -147,19 +147,19 @@
 <string name="color_scheme_light_summary">Uygulama teması açıkken uygulanan renk şeması</string>
 <string name="color_scheme_dark_title">Terminal Renk Şeması (Koyu Tema)</string>
 <string name="color_scheme_dark_summary">Uygulama teması koyuyken uygulanan renk şeması</string>
-<string name="message_history_title">Mesaj Geçmişi</string>
-<string name="message_history_max_title">Maks. hatırlanan mesaj sayısı</string>
-<string name="per_directory_message_history_title">Dizin başına mesaj geçmişi</string>
-<string name="per_directory_message_history_summary">Her çalışma dizini için ayrı bir mesaj geçmişi tutun. Kapalıyken tüm oturumlar ortak bir geçmiş kullanır.</string>
-<string name="save_cleared_to_history_title">Silinenler geçmişte</string>
-<string name="save_cleared_to_history_summary">Giriş alanından silinen mesajları geçmişe kaydet.</string>
+<string name="input_history_title">Mesaj Geçmişi</string>
+<string name="input_history_max_title">Maks. hatırlanan mesaj sayısı</string>
+<string name="per_directory_input_history_title">Dizin başına mesaj geçmişi</string>
+<string name="per_directory_input_history_summary">Her çalışma dizini için ayrı bir mesaj geçmişi tutun. Kapalıyken tüm oturumlar ortak bir geçmiş kullanır.</string>
+<string name="input_history_save_cleared_title">Silinenler geçmişte</string>
+<string name="input_history_save_cleared_summary">Giriş alanından silinen mesajları geçmişe kaydet.</string>
 <string name="text_input_title">Metin Girdisi</string>
 <string name="text_input_append_enter_title">Gönderirken Enter ekle</string>
 <string name="text_input_append_enter_summary">Girdi alanından gönderirken satırı da gönderin (Enter\'a basın). Sondaki yeni satır karakteri olmadan ham metin göndermek için devre dışı bırakın.</string>
 <string name="directory_history_title">Dizin Geçmişi</string>
 <string name="directory_history_max_title">Maks. hatırlanan dizin sayısı</string>
-<string name="restore_sessions_title">Başlatıldığında sekmeleri geri yükle</string>
-<string name="restore_sessions_summary">Uygulama başlatıldığında tüm sekmeleri ve dizinlerini yeniden açın</string>
+<string name="restore_tabs_title">Başlatıldığında sekmeleri geri yükle</string>
+<string name="restore_tabs_summary">Uygulama başlatıldığında tüm sekmeleri ve dizinlerini yeniden açın</string>
 <string name="screen_orientation_title">Ekran yönlendirmesi</string>
 <string name="screen_orientation_summary">"Sensörü takip et" varyantları iki yönlendirme arasında döner (ör. 0°/180° dikey).</string>
 <string name="donate_preference_title">Bağış Yap</string>
@@ -173,7 +173,7 @@
 <string name="backup_restore_backup_success">Yedekleme başarıyla oluşturuldu</string>
 <string name="backup_restore_restore_success">Veriler başarıyla geri yüklendi</string>
 <string name="backup_restore_failed_title">İşlem Başarısız</string>
-<string name="backup_restore_need_termux">Termux ikili dosyası (tar) bulunamadı. Lütfen konteynerin kurulması için Termux\'u en az bir kez açın.</string>
+<string name="backup_restore_tar_not_found">Termux ikili dosyası (tar) bulunamadı. Lütfen konteynerin kurulması için Termux\'u en az bir kez açın.</string>
 <string name="backup_restore_choose_backup">Geri yüklemek için bir .tar.gz yedek dosyası seçin</string>
 <string name="backup_service_channel_name">Termux Yedekleme / Geri Yükleme</string>
 <string name="backup_service_notification_title">Termux veri yedekleme</string>
@@ -182,7 +182,7 @@
 <string name="backup_service_notification_restore_success">Veriler başarıyla geri yüklendi</string>
 <string name="backup_service_notification_failed">Yedekleme başarısız oldu</string>
 <string name="backup_service_notification_restore_failed">Geri yükleme başarısız oldu</string>
-<string name="backup_dialog_background">Arka plan</string>
+<string name="backup_dialog_run_in_background">Arka plan</string>
 <string name="backup_dialog_cancel">İptal</string>
 <string name="backup_service_notification_cancel">İptal</string>
 <string name="backup_restore_cancelled">İşlem iptal edildi</string>
@@ -200,7 +200,7 @@
     <string name="settings_backup_failed">Ayarlar yedeklenemedi</string>
     <string name="settings_restore_failed">Ayarlar geri yüklenemedi</string>
 <string name="settings_backup_filename">termux-settings-backup.zip</string>
-<string name="backup_exclude_tmp_checkbox">tmp dizinini dahil et (usr/tmp/)</string>
+<string name="backup_include_tmp_checkbox">tmp dizinini dahil et (usr/tmp/)</string>
 <string name="error_settings_backup_format_version">Desteklenmeyen yedek biçimi sürümü: %1$s</string>
 <string name="error_settings_backup_missing_manifest">Yedek dosyasında manifest.properties eksik</string>
 <string name="error_settings_restore_open_input">Giriş dosyası açılamadı</string>
@@ -215,7 +215,7 @@
     <string name="termux_tab_panel_position_title">Sekme paneli konumu</string>
     <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
-    <string name="text_input_show_title">Metin giriş alanını göster</string>
+    <string name="text_input_toggle_button_title">Metin giriş alanını göster</string>
 <string name="text_input_show_summary_on">Metin giriş alanı ek tuşlarının üzerinde görünür</string>
     <string name="text_input_show_summary_off">Metin giriş alanı gizli</string>
     <string name="text_input_hide_on_send_title">Gönderdikten sonra giriş panelini gizle</string>
@@ -235,23 +235,23 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">Geçmiş mesaj geri yükleme davranışı</string>
-    <string name="text_input_insert_at_cursor_summary">Seçmek için dokunun: imlece ekle veya giriş alanının tamamını değiştir</string>
-    <string name="text_input_insert_at_cursor_dialog_title">Geçmiş geri yükleme modu</string>
-    <string name="text_input_insert_at_cursor_option_insert">İmlece ekle</string>
-    <string name="text_input_insert_at_cursor_option_replace">Tüm giriş alanını değiştir</string>
-<string name="message_history_empty">Mesaj geçmişi yok</string>
-<string name="message_history_clear_all">GEÇMİŞİ TEMİZLE…</string>
-<string name="message_history_clear">Temizle</string>
-<string name="message_history_clear_dialog_title">Mesaj geçmişini temizle</string>
-<string name="message_history_clear_question">Mesaj geçmişi temizlensin mi?</string>
-<string name="message_history_clear_confirm_current">Geçerli dizin için hatırlanan tüm mesajlar temizlensin mi? Bu işlem geri alınamaz.</string>
-<string name="message_history_clear_confirm_all">Tüm mesaj geçmişi temizlensin mi? Bu işlem geri alınamaz.</string>
-<string name="message_history_clear_ok">Tamam</string>
-<string name="message_history_clear_all_btn">Tümü</string>
-<string name="message_history_clear_current_only_question">Yalnızca geçerli dizinin geçmişi temizlensin mi?</string>
-<string name="message_history_clear_all_question">Bu, hatırlanan tüm mesajları kalıcı olarak kaldıracaktır.</string>
-<string name="message_history_cleared">Mesaj geçmişi temizlendi</string>
+    <string name="text_input_restore_mode_title">Geçmiş mesaj geri yükleme davranışı</string>
+    <string name="text_input_restore_mode_summary">Seçmek için dokunun: imlece ekle veya giriş alanının tamamını değiştir</string>
+    <string name="text_input_restore_mode_dialog_title">Geçmiş geri yükleme modu</string>
+    <string name="text_input_restore_mode_option_insert">İmlece ekle</string>
+    <string name="text_input_restore_mode_option_replace">Tüm giriş alanını değiştir</string>
+<string name="input_history_empty">Mesaj geçmişi yok</string>
+<string name="input_history_clear_all">GEÇMİŞİ TEMİZLE…</string>
+<string name="input_history_clear">Temizle</string>
+<string name="input_history_clear_dialog_title">Mesaj geçmişini temizle</string>
+<string name="input_history_clear_question">Mesaj geçmişi temizlensin mi?</string>
+<string name="input_history_clear_confirm_current">Geçerli dizin için hatırlanan tüm mesajlar temizlensin mi? Bu işlem geri alınamaz.</string>
+<string name="input_history_clear_confirm_all">Tüm mesaj geçmişi temizlensin mi? Bu işlem geri alınamaz.</string>
+<string name="input_history_clear_ok">Tamam</string>
+<string name="input_history_clear_all_button">Tümü</string>
+<string name="input_history_clear_current_only_question">Yalnızca geçerli dizinin geçmişi temizlensin mi?</string>
+<string name="input_history_clear_all_question">Bu, hatırlanan tüm mesajları kalıcı olarak kaldıracaktır.</string>
+<string name="input_history_cleared">Mesaj geçmişi temizlendi</string>
 <string name="directory_history_clear_dialog_title">Dizin geçmişini temizle</string>
 <string name="directory_history_clear_confirm">Tüm dizin geçmişi temizlensin mi? Bu işlem geri alınamaz.</string>
 <string name="directory_history_cleared">Dizin geçmişi temizlendi</string>
@@ -301,9 +301,9 @@
 <string name="extra_keys_preferences_summary">Ek tuşlar çubuğu tercihleri</string>
 <string name="display_preferences_title">Görüntü</string>
 <string name="display_preferences_summary">Tema, panel saydamlığı, terminal görünümü, sekmeler, pencere ve tam ekran</string>
-    <string name="terminal_preferences_title">Gelişmiş</string>
-    <string name="terminal_preferences_summary">Tuş davranışı, kısayollar, oturum, güvenlik ve diğer ayarlar</string>
-<string name="sessions_history_preferences_title">Oturumlar</string>
+    <string name="terminal_advanced_title">Gelişmiş</string>
+    <string name="terminal_advanced_summary">Tuş davranışı, kısayollar, oturum, güvenlik ve diğer ayarlar</string>
+<string name="sessions_preferences_title">Oturumlar</string>
 <string name="sessions_history_preferences_summary">Oturumlar, sekmeler ve geçmiş tercihleri</string>
 <string name="backup_restore_preferences_title">Yedekle ve geri yükle</string>
 <string name="backup_restore_preferences_summary">Termux verilerini yedekleyin veya geri yükleyin</string>
@@ -332,7 +332,7 @@
 <string name="window_category_title">Pencere</string>
 <string name="history_category_title">Geçmiş</string>
 <string name="tabs_category_title">Sekmeler</string>
-    <string name="action_new_session_failsafe">Güvenli kip</string>
+    <string name="action_failsafe_mode">Güvenli kip</string>
     <string name="theme_mode_entry_dark">Koyu</string>
     <string name="theme_mode_entry_light">Açık</string>
     <string name="theme_mode_entry_system">Sistem varsayılanı</string>
@@ -371,8 +371,8 @@
     <string name="extra_keys_editor_signal_dialog_title">Sinyal ata</string>
     <string name="extra_keys_editor_custom_text_title">Özel bağlama</string>
     <string name="extra_keys_editor_custom_text_message">Bağlamak için bir tuşa basın:</string>
-    <string name="extra_keys_editor_save_title">Ek tuşlara uygula</string>
-    <string name="extra_keys_editor_save_summary">Bu düzeni ek tuşlar ayarına kaydedin.</string>
+    <string name="extra_keys_editor_apply_title">Ek tuşlara uygula</string>
+    <string name="extra_keys_editor_apply_summary">Bu düzeni ek tuşlar ayarına kaydedin.</string>
     <string name="extra_keys_editor_empty">(boş)</string>
     <string name="extra_keys_editor_max_signals">Düğme başına maksimum 8 sinyal</string>
     <string name="extra_keys_editor_custom_text_no_space">Boşluk içeren özel metin, kombinasyonlarda desteklenmez</string>
@@ -413,7 +413,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Klavye aç/kapat</string>
     <string name="extra_keys_editor_signal_paste">Yapıştır</string>
-    <string name="extra_keys_editor_signal_scroll">Kaydırma kilidi</string>
+    <string name="extra_keys_editor_signal_scroll_lock">Kaydırma kilidi</string>
     <string name="extra_keys_editor_signal_custom">Simge/metin…</string>
 
     
@@ -424,7 +424,7 @@
     <string name="screen_category_title">Ekran</string>
     <string name="shortcuts_category_title">Kısayollar</string>
     <string name="misc_category_title">Çeşitli</string>
-    <string name="security_category_title">Güvenlik</string>
+    <string name="external_apps_category_title">Güvenlik</string>
     <string name="sound_category_title">Ses &amp; bildirimler</string>
     <string name="session_category_title">Oturum</string>
 
@@ -473,7 +473,7 @@
     <string name="terminal_background_blur_radius_summary">Dinamik duvar kağıtlarında yüksek bulanıklık yarıçapı güç tüketimini artırabilir. Statik duvar kağıtlarında güç tüketimine etkisi ihmal edilebilir düzeydedir.</string>
 
     
-    <string name="terminal_toolbar_height_title">Araç çubuğu yükseklik ölçeği</string>
+    <string name="terminal_toolbar_scale_title">Araç çubuğu yükseklik ölçeği</string>
     <string name="terminal_toolbar_height_summary">Ek tuşlar / terminal araç çubuğu yükseklik ölçek faktörü.</string>
 
     
@@ -481,7 +481,7 @@
     <string name="default_working_directory_summary">Yeni oturumlar için açılan dizin (ev için boş bırakın).</string>
 
     
-    <string name="back_key_title">Geri tuşu davranışı</string>
+    <string name="back_key_sends_escape_title">Geri tuşu davranışı</string>
     <string name="back_key_summary">Donanım/yazılım geri tuşunun terminalde ne yaptığı.</string>
     <string name="back_key_back">Geri düğmesi</string>
     <string name="back_key_escape">Escape tuşu</string>

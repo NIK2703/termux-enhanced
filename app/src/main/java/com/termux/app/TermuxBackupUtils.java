@@ -259,7 +259,7 @@ public final class TermuxBackupUtils {
     private static Error checkTarHealth(@NonNull Context context) {
         String tarBinary = resolveTarBinary(context);
         if (tarBinary == null) {
-            return new Error(context.getString(R.string.backup_restore_need_termux));
+            return new Error(context.getString(R.string.backup_restore_tar_not_found));
         }
         if (tarBinary.equals(sTarHealthBinary)) return sTarHealthError;
         Error result = runTarHealthCheck(context, tarBinary);
@@ -303,7 +303,7 @@ public final class TermuxBackupUtils {
         }
         final String tarBinary = resolveTarBinary(context);
         if (tarBinary == null) {
-            listener.onResult(new Error(context.getString(R.string.backup_restore_need_termux)));
+            listener.onResult(new Error(context.getString(R.string.backup_restore_tar_not_found)));
             return;
         }
         final String filesDir = context.getFilesDir().getAbsolutePath();
@@ -405,7 +405,7 @@ public final class TermuxBackupUtils {
         }
         final String tarBinary = resolveTarBinary(context);
         if (tarBinary == null) {
-            listener.onResult(new Error(context.getString(R.string.backup_restore_need_termux)));
+            listener.onResult(new Error(context.getString(R.string.backup_restore_tar_not_found)));
             return;
         }
 

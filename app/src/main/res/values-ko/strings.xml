@@ -41,7 +41,7 @@
     <string name="action_toggle_text_input">텍스트 입력 전환</string>
     <string name="appearance_preferences_summary">앱 모양 및 패널 투명도 설정</string>
     <string name="appearance_preferences_title">모양</string>
-    <string name="backup_dialog_background">백그라운드에서 실행</string>
+    <string name="backup_dialog_run_in_background">백그라운드에서 실행</string>
     <string name="backup_dialog_cancel">취소</string>
     <string name="backup_preference_title">백업</string>
     <string name="backup_restore_backup_started">백업 시작</string>
@@ -62,14 +62,14 @@
     <string name="settings_backup_failed">설정 백업 실패</string>
     <string name="settings_restore_failed">설정 복원 실패</string>
     <string name="settings_backup_filename">termux-settings-backup.zip</string>
-    <string name="backup_exclude_tmp_checkbox">tmp 디렉터리 포함 (usr/tmp/)</string>
+    <string name="backup_include_tmp_checkbox">tmp 디렉터리 포함 (usr/tmp/)</string>
     <string name="error_settings_backup_format_version">지원되지 않는 백업 형식 버전: %1$s</string>
     <string name="error_settings_backup_missing_manifest">백업 파일에 manifest.properties가 없습니다</string>
     <string name="error_settings_restore_open_input">입력 파일을 열지 못했습니다</string>
     <string name="backup_restore_choose_backup">백업 파일 선택</string>
     <string name="backup_restore_dialog_title">백업 / 복원</string>
     <string name="backup_restore_failed_title">작업 실패</string>
-    <string name="backup_restore_need_termux">termux 바이너리(tar)를 찾을 수 없습니다. 컨테이너가 설정되도록 Termux를 적어도 한 번 실행해 주세요.</string>
+    <string name="backup_restore_tar_not_found">termux 바이너리(tar)를 찾을 수 없습니다. 컨테이너가 설정되도록 Termux를 적어도 한 번 실행해 주세요.</string>
     <string name="backup_restore_restore_started">복원 시작</string>
     <string name="backup_restore_restore_success">복원 성공</string>
     <string name="backup_restore_warning_backup">Termux 데이터 디렉터리(설치된 패키지, 환경, 홈 디렉터리)의 압축 아카이브를 생성합니다.\n\n백업을 저장할 대상 파일을 선택하세요.</string>
@@ -101,7 +101,7 @@
     <string name="directory_history_title">디렉터리 기록</string>
     <string name="donate_preference_title">후원하기</string>
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Termux은(는) Android &gt;= 10에서 백그라운드에서 터미널 세션을 시작하려면 "다른 앱 위에 표시" 권한이 필요합니다. 설정 -&gt; 앱 -&gt; Termux -&gt; 고급에서 부여하세요.</string>
-    <string name="error_font_copy_failed">폰트 파일 복사 실패</string>
+    <string name="error_font_apply_failed">폰트 파일 복사 실패</string>
     <string name="error_run_command_service_api_help">RUN_COMMAND 인텐트 사용법에 대한 자세한 내용은 %1$s를 방문하세요.</string>
     <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService에 잘못된 실행 명령 실행기: `%1$s`</string>
     <string name="error_run_command_service_invalid_intent_action">RunCommandService에 잘못된 인텐트 액션: `%1$s`</string>
@@ -135,23 +135,23 @@ $HOME/bin/termux-url-opener
 
 %s</string>
     <string name="font_picker_title">글꼴 선택 (.ttf)</string>
-    <string name="message_history_clear">지우기</string>
-    <string name="message_history_clear_all">기록 지우기…</string>
-    <string name="message_history_clear_all_btn">모두</string>
-    <string name="message_history_clear_all_question">기억된 모든 메시지가 영구적으로 삭제됩니다.</string>
-    <string name="message_history_clear_confirm_all">전체 메시지 기록을 지우시겠습니까? 되돌릴 수 없습니다.</string>
-    <string name="message_history_clear_confirm_current">현재 디렉터리에 대해 기억된 모든 메시지를 지우시겠습니까? 되돌릴 수 없습니다.</string>
-    <string name="message_history_clear_current_only_question">현재 디렉터리의 기록만 지우시겠습니까?</string>
-    <string name="message_history_clear_dialog_title">메시지 기록 지우기</string>
-    <string name="message_history_clear_ok">확인</string>
-    <string name="message_history_clear_question">기록을 지우시겠습니까?</string>
-    <string name="message_history_cleared">기록이 지워졌습니다</string>
-    <string name="message_history_empty">기록이 없습니다</string>
-    <string name="message_history_max_title">최대 메시지 기록 수</string>
-    <string name="message_history_title">메시지 기록</string>
+    <string name="input_history_clear">지우기</string>
+    <string name="input_history_clear_all">기록 지우기…</string>
+    <string name="input_history_clear_all_button">모두</string>
+    <string name="input_history_clear_all_question">기억된 모든 메시지가 영구적으로 삭제됩니다.</string>
+    <string name="input_history_clear_confirm_all">전체 메시지 기록을 지우시겠습니까? 되돌릴 수 없습니다.</string>
+    <string name="input_history_clear_confirm_current">현재 디렉터리에 대해 기억된 모든 메시지를 지우시겠습니까? 되돌릴 수 없습니다.</string>
+    <string name="input_history_clear_current_only_question">현재 디렉터리의 기록만 지우시겠습니까?</string>
+    <string name="input_history_clear_dialog_title">메시지 기록 지우기</string>
+    <string name="input_history_clear_ok">확인</string>
+    <string name="input_history_clear_question">기록을 지우시겠습니까?</string>
+    <string name="input_history_cleared">기록이 지워졌습니다</string>
+    <string name="input_history_empty">기록이 없습니다</string>
+    <string name="input_history_max_title">최대 메시지 기록 수</string>
+    <string name="input_history_title">메시지 기록</string>
     <string name="msg_add_termux_debug_info">Termux 디버그 정보를 보고서에 추가할까요?</string>
-    <string name="msg_disabling_terminal_toolbar">터미널 도구 모음을 비활성화하는 중…</string>
-    <string name="msg_enabling_terminal_toolbar">터미널 도구 모음을 활성화하는 중…</string>
+    <string name="msg_terminal_panel_disabling">터미널 도구 모음을 비활성화하는 중…</string>
+    <string name="msg_terminal_panel_enabling">터미널 도구 모음을 활성화하는 중…</string>
     <string name="msg_extra_keys_create_failed">기본 추가 키를 만들지 못했습니다</string>
     <string name="msg_extra_keys_load_failed">속성 파일에서 \"%1$s\" 속성을 로드하여 설정할 수 없습니다: %2$s</string>
     <string name="msg_generating_report">보고서 생성 중…</string>
@@ -174,15 +174,15 @@ $HOME/bin/termux-url-opener
         <item quantity="other">, %d 작업</item>
     </plurals>
     <string name="panel_transparency_title">패널 투명도</string>
-    <string name="per_directory_message_history_summary">각 디렉터리마다 개별적인 메시지 기록을 유지합니다. 비활성화하면 모든 세션이 하나의 전역 기록을 공유합니다.</string>
-    <string name="save_cleared_to_history_title">지운 항목 기록 저장</string>
-    <string name="save_cleared_to_history_summary">입력란에서 지운 메시지를 기록에 저장합니다.</string>
-    <string name="per_directory_message_history_title">디렉터리별 메시지 기록</string>
+    <string name="per_directory_input_history_summary">각 디렉터리마다 개별적인 메시지 기록을 유지합니다. 비활성화하면 모든 세션이 하나의 전역 기록을 공유합니다.</string>
+    <string name="input_history_save_cleared_title">지운 항목 기록 저장</string>
+    <string name="input_history_save_cleared_summary">입력란에서 지운 메시지를 기록에 저장합니다.</string>
+    <string name="per_directory_input_history_title">디렉터리별 메시지 기록</string>
     <string name="permission_run_command_description">Termux 환경에서 명령을 실행하고 파일에 접근할 수 있도록 허용합니다</string>
     <string name="permission_run_command_label">Termux 환경에서 명령 실행</string>
     <string name="restore_preference_title">복원</string>
-    <string name="restore_sessions_summary">앱을 시작할 때 모든 탭과 해당 디렉터리를 다시 엽니다</string>
-    <string name="restore_sessions_title">세션 복원</string>
+    <string name="restore_tabs_summary">앱을 시작할 때 모든 탭과 해당 디렉터리를 다시 엽니다</string>
+    <string name="restore_tabs_title">세션 복원</string>
     <string name="screen_orientation_summary">"센서 따르기" 옵션은 두 방향(예: 0°/180° 세로 모드) 사이를 회전합니다.</string>
     <string name="screen_orientation_title">화면 방향</string>
     <string name="session_default_title">터미널</string>
@@ -241,7 +241,7 @@ $HOME/bin/termux-url-opener
     <string name="text_input_append_enter_title">전송 시 Enter 키 추가</string>
     <string name="text_input_show_summary_off">텍스트 입력 필드가 숨겨집니다</string>
     <string name="text_input_show_summary_on">텍스트 입력 필드가 추가 키 위에 표시됩니다</string>
-    <string name="text_input_show_title">텍스트 입력 표시</string>
+    <string name="text_input_toggle_button_title">텍스트 입력 표시</string>
     <string name="text_input_title">텍스트 입력</string>
     <string name="text_input_hide_on_send_title">전송 후 입력 패널 숨기기</string>
     <string name="text_input_hide_on_send_summary">활성화하면 전송 후 입력 패널이 닫히고 포커스가 터미널로 이동합니다. 연속된 명령을 위해 패널을 열어 두려면 비활성화하세요.</string>
@@ -260,18 +260,18 @@ $HOME/bin/termux-url-opener
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">기록 메시지 복원 동작</string>
-    <string name="text_input_insert_at_cursor_summary">탭하여 선택: 커서에 삽입하거나 전체 입력 필드 교체</string>
-    <string name="text_input_insert_at_cursor_dialog_title">기록 복원 모드</string>
-    <string name="text_input_insert_at_cursor_option_insert">커서에 삽입</string>
-    <string name="text_input_insert_at_cursor_option_replace">전체 입력 필드 교체</string>
+    <string name="text_input_restore_mode_title">기록 메시지 복원 동작</string>
+    <string name="text_input_restore_mode_summary">탭하여 선택: 커서에 삽입하거나 전체 입력 필드 교체</string>
+    <string name="text_input_restore_mode_dialog_title">기록 복원 모드</string>
+    <string name="text_input_restore_mode_option_insert">커서에 삽입</string>
+    <string name="text_input_restore_mode_option_replace">전체 입력 필드 교체</string>
     <string name="theme_mode_title">앱 테마</string>
     <string name="theme_mode_summary">앱 및 터미널 테마 선택</string>
     <string name="theme_title">테마</string>
     <string name="title_activity_termux_settings">Termux 설정</string>
     <string name="title_confirm_kill_process">이 세션을 정말 강제 종료할까요?</string>
     <string name="title_create_named_session">이름을 지정하여 세션 생성</string>
-    <string name="title_file_received">~/downloads/에 파일 저장</string>
+    <string name="title_file_received_save">~/downloads/에 파일 저장</string>
     <string name="title_max_terminals_reached">최대 터미널 수 초과</string>
     <string name="title_rename_session">세션 이름 변경</string>
     <string name="title_select_url_dialog">클릭하여 복사하거나 길게 누르면 URL을 엽니다</string>
@@ -301,10 +301,10 @@ $HOME/bin/termux-url-opener
     <string name="extra_keys_preferences_summary">추가 키 표시줄 설정</string>
     <string name="display_preferences_title">화면 표시</string>
     <string name="display_preferences_summary">테마, 패널 투명도, 터미널 보기, 탭, 창 및 전체 화면</string>
-    <string name="terminal_preferences_title">고급</string>
-    <string name="terminal_preferences_summary">키 동작, 바로가기, 세션, 보안 및 기타 설정</string>
+    <string name="terminal_advanced_title">고급</string>
+    <string name="terminal_advanced_summary">키 동작, 바로가기, 세션, 보안 및 기타 설정</string>
     <string name="extra_keys_corner_radius_title">버튼 모서리 반경</string>
-    <string name="sessions_history_preferences_title">세션</string>
+    <string name="sessions_preferences_title">세션</string>
     <string name="sessions_history_preferences_summary">세션, 탭 및 기록 설정</string>
     <string name="backup_restore_preferences_title">백업 및 복원</string>
     <string name="backup_restore_preferences_summary">Termux 데이터 백업 또는 복원</string>
@@ -365,8 +365,8 @@ $HOME/bin/termux-url-opener
     <string name="extra_keys_editor_signal_dialog_title">신호 지정</string>
     <string name="extra_keys_editor_custom_text_title">사용자 정의 바인딩</string>
     <string name="extra_keys_editor_custom_text_message">바인딩할 키를 누르세요:</string>
-    <string name="extra_keys_editor_save_title">추가 키에 적용</string>
-    <string name="extra_keys_editor_save_summary">이 레이아웃을 추가 키 설정에 저장합니다.</string>
+    <string name="extra_keys_editor_apply_title">추가 키에 적용</string>
+    <string name="extra_keys_editor_apply_summary">이 레이아웃을 추가 키 설정에 저장합니다.</string>
     <string name="extra_keys_editor_empty">(비어 있음)</string>
     <string name="extra_keys_editor_max_signals">버튼당 최대 8개 신호</string>
     <string name="extra_keys_editor_custom_text_no_space">공백이 포함된 사용자 정의 텍스트는 키 조합에서 지원되지 않습니다</string>
@@ -410,7 +410,7 @@ $HOME/bin/termux-url-opener
     
     <string name="extra_keys_editor_signal_keyboard">키보드 전환</string>
     <string name="extra_keys_editor_signal_paste">붙여넣기</string>
-    <string name="extra_keys_editor_signal_scroll">스크롤 잠금</string>
+    <string name="extra_keys_editor_signal_scroll_lock">스크롤 잠금</string>
     <string name="extra_keys_editor_signal_space">스페이스</string>
     <string name="extra_keys_editor_signal_backslash">백슬래시 (\\)</string>
     <string name="extra_keys_editor_signal_quote">따옴표 (\")</string>
@@ -422,7 +422,7 @@ $HOME/bin/termux-url-opener
     <string name="key_behaviour_category_title">키 동작</string>
     <string name="misc_category_title">기타</string>
     <string name="screen_category_title">화면</string>
-    <string name="security_category_title">보안</string>
+    <string name="external_apps_category_title">보안</string>
     <string name="session_category_title">세션</string>
     <string name="shortcuts_category_title">단축키</string>
     <string name="sound_category_title">소리 및 알림</string>
@@ -432,7 +432,7 @@ $HOME/bin/termux-url-opener
     <string name="back_key_back">뒤로 가기 버튼</string>
     <string name="back_key_escape">Escape 키</string>
     <string name="back_key_summary">터미널에서 하드웨어/소프트웨어 뒤로 가기 키의 동작을 설정합니다.</string>
-    <string name="back_key_title">뒤로 가기 키 동작</string>
+    <string name="back_key_sends_escape_title">뒤로 가기 키 동작</string>
 
     
     <string name="bell_character_beep">비프음</string>
@@ -464,7 +464,7 @@ $HOME/bin/termux-url-opener
 
     
     <string name="terminal_toolbar_height_summary">추가 키 / 터미널 도구 모음 높이 배율입니다.</string>
-    <string name="terminal_toolbar_height_title">도구 모음 높이 배율</string>
+    <string name="terminal_toolbar_scale_title">도구 모음 높이 배율</string>
 
     
     <string name="terminal_transcript_rows_summary">스크롤백 기록에 유지되는 행 수입니다.</string>
@@ -637,7 +637,7 @@ $HOME/bin/termux-url-opener
 
     
     <!-- Terminal Sidebar and Shortcuts -->
-    <string name="action_new_session_failsafe">안전 모드</string>
+    <string name="action_failsafe_mode">안전 모드</string>
 
     
     <!-- Backup / Restore Preference -->

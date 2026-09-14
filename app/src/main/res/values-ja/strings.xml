@@ -23,7 +23,7 @@
 <string name="bootstrap_error_not_primary_user_message">Termux はプライマリユーザーとしてのみ実行できます。\nTermux 用にコンパイルされたブートストラップバイナリは $PREFIX パスがハードコードされており、以下のパス以外にはインストールできません。\n%1$s。</string>
 <string name="bootstrap_error_installed_on_portable_sd">Termux はデバイスのポータブル/外部/リムーバブル SD カードにインストールできません。\nTermux 用にコンパイルされたブートストラップバイナリは $PREFIX パスがハードコードされており、以下のパス以外にはインストールできません。\n%1$s。</string>
 <string name="action_new_session">新しいセッション</string>
-<string name="action_new_session_failsafe">フェイルセーフ</string>
+<string name="action_failsafe_mode">フェイルセーフ</string>
 <string name="title_max_terminals_reached">最大ターミナル数に達しました</string>
 <string name="msg_max_terminals_reached">新しいものを作成する前に既存のものを閉じてください。</string>
 <string name="title_rename_session">セッション名を設定</string>
@@ -32,8 +32,8 @@
 <string name="action_create_named_session_confirm">作成</string>
 <string name="action_toggle_soft_keyboard">キーボード</string>
 <string name="action_toggle_text_input">テキスト入力の切り替え</string>
-<string name="msg_enabling_terminal_toolbar">ターミナルツールバーを有効化中</string>
-<string name="msg_disabling_terminal_toolbar">ターミナルツールバーを無効化中</string>
+<string name="msg_terminal_panel_enabling">ターミナルツールバーを有効化中</string>
+<string name="msg_terminal_panel_disabling">ターミナルツールバーを無効化中</string>
 <string name="action_select_url">URLを選択</string>
 <string name="title_select_url_dialog">タップしてURLをコピー、長押しして開く</string>
 <string name="title_select_url_none_found">ターミナルにURLが見つかりません。</string>
@@ -54,7 +54,7 @@
 <string name="action_style_terminal">スタイル</string>
 <string name="action_font_terminal">フォント</string>
 <string name="font_picker_title">フォントを選択 (.ttf)</string>
-<string name="error_font_copy_failed">フォントの適用に失敗しました</string>
+<string name="error_font_apply_failed">フォントの適用に失敗しました</string>
 <string name="action_toggle_keep_screen_on">画面をオンのままにする</string>
 <string name="action_open_help">ヘルプ</string>
 <string name="action_open_settings">設定</string>
@@ -75,7 +75,7 @@
 <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService の実行コマンドランナーが無効です: `%1$s`</string>
 <string name="error_run_command_service_mandatory_extra_missing">RunCommandService の必須エクストラがありません: \"%1$s\"</string>
 <string name="error_run_command_service_api_help">RUN_COMMANDインテントの詳細は%1$sをご覧ください。</string>
-<string name="title_file_received">~/downloads/にファイルを保存</string>
+<string name="title_file_received_save">~/downloads/にファイルを保存</string>
 <string name="action_file_received_edit">編集</string>
 <string name="action_file_received_open_directory">ディレクトリを開く</string>
 <string name="error_termux_service_start_failed_general">TermuxService の起動に失敗しました。例外メッセージについてログキャットを確認してください。</string>
@@ -129,19 +129,19 @@
 <string name="color_scheme_light_summary">アプリのテーマがライトの場合に適用されるカラースキーム</string>
 <string name="color_scheme_dark_title">ターミナルのカラースキーム（ダークテーマ）</string>
 <string name="color_scheme_dark_summary">アプリのテーマがダークの場合に適用されるカラースキーム</string>
-    <string name="message_history_title">メッセージ履歴</string>
-<string name="message_history_max_title">最大記憶メッセージ数</string>
-<string name="per_directory_message_history_title">ディレクトリごとのメッセージ履歴</string>
-<string name="per_directory_message_history_summary">作業ディレクトリごとに個別のメッセージ履歴を保持します。無効にすると、すべてのセッションで1つのグローバル履歴を共有します。</string>
-<string name="save_cleared_to_history_title">クリア項目を履歴へ</string>
-<string name="save_cleared_to_history_summary">入力欄からクリアしたメッセージを履歴に保存します。</string>
+    <string name="input_history_title">メッセージ履歴</string>
+<string name="input_history_max_title">最大記憶メッセージ数</string>
+<string name="per_directory_input_history_title">ディレクトリごとのメッセージ履歴</string>
+<string name="per_directory_input_history_summary">作業ディレクトリごとに個別のメッセージ履歴を保持します。無効にすると、すべてのセッションで1つのグローバル履歴を共有します。</string>
+<string name="input_history_save_cleared_title">クリア項目を履歴へ</string>
+<string name="input_history_save_cleared_summary">入力欄からクリアしたメッセージを履歴に保存します。</string>
 <string name="text_input_title">テキスト入力</string>
 <string name="text_input_append_enter_title">送信時にEnterを追加</string>
 <string name="text_input_append_enter_summary">入力フィールドから送信する際に、Enter（改行）も送信します。無効にすると、末尾に改行のない生テキストが送信されます。</string>
 <string name="directory_history_title">ディレクトリ履歴</string>
 <string name="directory_history_max_title">最大記憶ディレクトリ数</string>
-<string name="restore_sessions_title">起動時にタブを復元</string>
-<string name="restore_sessions_summary">アプリ起動時にすべてのタブとそのディレクトリを再度開きます</string>
+<string name="restore_tabs_title">起動時にタブを復元</string>
+<string name="restore_tabs_summary">アプリ起動時にすべてのタブとそのディレクトリを再度開きます</string>
 <string name="screen_orientation_title">画面の向き</string>
 <string name="screen_orientation_summary">\"センサーに従う\"バリエーションは2つの向き（例：ポートレート0°/180°）の間で回転します。</string>
 
@@ -156,7 +156,7 @@
 <string name="backup_restore_backup_success">バックアップが正常に作成されました</string>
 <string name="backup_restore_restore_success">データが正常に復元されました</string>
 <string name="backup_restore_failed_title">操作に失敗しました</string>
-<string name="backup_restore_need_termux">termuxバイナリ（tar）が見つかりません。コンテナをセットアップするために、Termuxを一度は開いてください。</string>
+<string name="backup_restore_tar_not_found">termuxバイナリ（tar）が見つかりません。コンテナをセットアップするために、Termuxを一度は開いてください。</string>
 <string name="backup_restore_choose_backup">復元する.tar.gzバックアップファイルを選択してください</string>
 <string name="backup_service_channel_name">Termux バックアップ / 復元</string>
 <string name="backup_service_notification_title">Termux データバックアップ</string>
@@ -165,7 +165,7 @@
 <string name="backup_service_notification_restore_success">データが正常に復元されました</string>
 <string name="backup_service_notification_failed">バックアップに失敗しました</string>
 <string name="backup_service_notification_restore_failed">復元に失敗しました</string>
-<string name="backup_dialog_background">バックグラウンド</string>
+<string name="backup_dialog_run_in_background">バックグラウンド</string>
 <string name="backup_dialog_cancel">キャンセル</string>
 <string name="backup_service_notification_cancel">キャンセル</string>
 <string name="backup_restore_cancelled">操作がキャンセルされました</string>
@@ -184,7 +184,7 @@
 <string name="settings_backup_failed">設定のバックアップに失敗しました</string>
 <string name="settings_restore_failed">設定の復元に失敗しました</string>
 <string name="settings_backup_filename">termux-settings-backup.zip</string>
-<string name="backup_exclude_tmp_checkbox">tmp ディレクトリを含める (usr/tmp/)</string>
+<string name="backup_include_tmp_checkbox">tmp ディレクトリを含める (usr/tmp/)</string>
 <string name="error_settings_backup_format_version">サポートされていないバックアップ形式のバージョン: %1$s</string>
 <string name="error_settings_backup_missing_manifest">バックアップファイルに manifest.properties が見つかりません</string>
 <string name="error_settings_restore_open_input">入力ファイルを開けませんでした</string>
@@ -200,7 +200,7 @@
 <string name="termux_tab_panel_position_title">タブパネルの位置</string>
 <string name="termux_tab_panel_position_top">上</string>
 <string name="termux_tab_panel_position_bottom">下</string>
-<string name="text_input_show_title">テキスト入力欄を表示</string>
+<string name="text_input_toggle_button_title">テキスト入力欄を表示</string>
 <string name="text_input_show_summary_on">テキスト入力欄が追加キーの上に表示されています</string>
 <string name="text_input_show_summary_off">テキスト入力欄は非表示です</string>
 <string name="text_input_hide_on_send_title">送信後に入力パネルを隠す</string>
@@ -220,22 +220,22 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">履歴メッセージの復元動作</string>
-    <string name="text_input_insert_at_cursor_summary">タップして選択：カーソル位置に挿入するか、入力フィールド全体を置き換えます</string>
-    <string name="text_input_insert_at_cursor_dialog_title">履歴復元モード</string>
-    <string name="text_input_insert_at_cursor_option_insert">カーソル位置に挿入</string>
-    <string name="text_input_insert_at_cursor_option_replace">入力フィールド全体を置き換え</string>
-<string name="message_history_empty">メッセージ履歴はありません</string>
-<string name="message_history_clear_all">履歴をクリア…</string>
-<string name="message_history_clear">クリア</string>
-<string name="message_history_clear_dialog_title">メッセージ履歴をクリア</string>
-<string name="message_history_clear_question">メッセージ履歴をクリアしますか？</string>
-<string name="message_history_clear_confirm_current">現在のディレクトリの記憶されたメッセージをすべてクリアしますか？この操作は元に戻せません。</string>
-<string name="message_history_clear_confirm_all">すべてのメッセージ履歴をクリアしますか？この操作は元に戻せません。</string>
-<string name="message_history_clear_all_btn">すべて</string>
-<string name="message_history_clear_current_only_question">現在のディレクトリのみ履歴をクリアしますか？</string>
-<string name="message_history_clear_all_question">これにより、記憶されたすべてのメッセージが完全に削除されます。</string>
-<string name="message_history_cleared">メッセージ履歴がクリアされました</string>
+    <string name="text_input_restore_mode_title">履歴メッセージの復元動作</string>
+    <string name="text_input_restore_mode_summary">タップして選択：カーソル位置に挿入するか、入力フィールド全体を置き換えます</string>
+    <string name="text_input_restore_mode_dialog_title">履歴復元モード</string>
+    <string name="text_input_restore_mode_option_insert">カーソル位置に挿入</string>
+    <string name="text_input_restore_mode_option_replace">入力フィールド全体を置き換え</string>
+<string name="input_history_empty">メッセージ履歴はありません</string>
+<string name="input_history_clear_all">履歴をクリア…</string>
+<string name="input_history_clear">クリア</string>
+<string name="input_history_clear_dialog_title">メッセージ履歴をクリア</string>
+<string name="input_history_clear_question">メッセージ履歴をクリアしますか？</string>
+<string name="input_history_clear_confirm_current">現在のディレクトリの記憶されたメッセージをすべてクリアしますか？この操作は元に戻せません。</string>
+<string name="input_history_clear_confirm_all">すべてのメッセージ履歴をクリアしますか？この操作は元に戻せません。</string>
+<string name="input_history_clear_all_button">すべて</string>
+<string name="input_history_clear_current_only_question">現在のディレクトリのみ履歴をクリアしますか？</string>
+<string name="input_history_clear_all_question">これにより、記憶されたすべてのメッセージが完全に削除されます。</string>
+<string name="input_history_cleared">メッセージ履歴がクリアされました</string>
 <string name="directory_history_clear_dialog_title">ディレクトリ履歴をクリア</string>
 <string name="directory_history_clear_confirm">すべてのディレクトリ履歴をクリアしますか？この操作は元に戻せません。</string>
 <string name="directory_history_cleared">ディレクトリ履歴がクリアされました</string>
@@ -286,8 +286,8 @@
 <string name="diagnostics_preferences_summary">ログ記録と失敗通知</string>
 <string name="display_preferences_title">表示</string>
     <string name="display_preferences_summary">テーマ、パネルの透明度、ターミナルビュー、タブ、ウィンドウと全画面</string>
-<string name="terminal_preferences_title">詳細設定</string>
-<string name="terminal_preferences_summary">キー動作、ショートカット、セッション、セキュリティ、その他の設定</string>
+<string name="terminal_advanced_title">詳細設定</string>
+<string name="terminal_advanced_summary">キー動作、ショートカット、セッション、セキュリティ、その他の設定</string>
 <string name="extra_keys_preferences_title">拡張キー</string>
 <string name="extra_keys_preferences_summary">拡張キーバーの設定</string>
 <string name="extra_keys_header">拡張キー</string>
@@ -314,7 +314,7 @@
 <string name="input_panel_title">入力パネル</string>
 <string name="language_category_title">言語</string>
 <string name="plugin_logging_category_title">ログ記録</string>
-<string name="sessions_history_preferences_title">セッション</string>
+<string name="sessions_preferences_title">セッション</string>
 <string name="sessions_history_preferences_summary">セッション、タブ、履歴の設定</string>
 <string name="tabs_category_title">タブ</string>
 <string name="view_category_title">表示</string>
@@ -350,8 +350,8 @@
     <string name="extra_keys_editor_signal_dialog_title">シグナルを割り当て</string>
     <string name="extra_keys_editor_custom_text_title">カスタムバインド</string>
     <string name="extra_keys_editor_custom_text_message">キーを押してバインド:</string>
-    <string name="extra_keys_editor_save_title">拡張キーに適用</string>
-    <string name="extra_keys_editor_save_summary">このレイアウトを拡張キー設定に保存</string>
+    <string name="extra_keys_editor_apply_title">拡張キーに適用</string>
+    <string name="extra_keys_editor_apply_summary">このレイアウトを拡張キー設定に保存</string>
     <string name="extra_keys_editor_empty">（空）</string>
     <string name="extra_keys_editor_max_signals">1ボタンあたり最大8シグナル</string>
     <string name="extra_keys_editor_custom_text_no_space">スペースを含むカスタムテキストはキーの組み合わせに対応していません</string>
@@ -399,7 +399,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">キーボード切替</string>
     <string name="extra_keys_editor_signal_paste">ペースト</string>
-    <string name="extra_keys_editor_signal_scroll">スクロールロック</string>
+    <string name="extra_keys_editor_signal_scroll_lock">スクロールロック</string>
     <string name="extra_keys_editor_signal_backslash">Backslash（\\）</string>
     <string name="extra_keys_editor_signal_quote">Quote（\"）</string>
     <string name="extra_keys_editor_signal_apostrophe">Apostrophe（\'）</string>
@@ -427,7 +427,7 @@
     <string name="screen_category_title">画面</string>
     <string name="shortcuts_category_title">ショートカット</string>
     <string name="misc_category_title">その他</string>
-    <string name="security_category_title">セキュリティ</string>
+    <string name="external_apps_category_title">セキュリティ</string>
     <string name="sound_category_title">サウンドと通知</string>
     <string name="session_category_title">セッション</string>
 
@@ -470,7 +470,7 @@
     <string name="terminal_background_blur_radius_summary">動く壁紙でぼかし半径を大きくすると消費電力が増える場合があります。静止画の壁紙では電力への影響はほとんどありません。</string>
 
     
-    <string name="terminal_toolbar_height_title">ツールバーの高さ倍率</string>
+    <string name="terminal_toolbar_scale_title">ツールバーの高さ倍率</string>
     <string name="terminal_toolbar_height_summary">拡張キー / ターミナルツールバーの高さ倍率。</string>
 
     
@@ -478,7 +478,7 @@
     <string name="default_working_directory_summary">新しいセッションで開くディレクトリ（空の場合はホームディレクトリ）。</string>
 
     
-    <string name="back_key_title">戻るキーの動作</string>
+    <string name="back_key_sends_escape_title">戻るキーの動作</string>
     <string name="back_key_summary">ハードウェア/ソフトウェアの戻るキーがターミナルで行う動作。</string>
     <string name="volume_keys_title">ボリュームキーの動作</string>
     <string name="volume_keys_summary">ボリュームキーが音量調整を行うか、仮想キーとして動作するか。</string>
@@ -636,7 +636,7 @@
     <string name="report_issue_transcript_footer">\n##\n</string>
 
     <!-- Message history clear dialogs -->
-    <string name="message_history_clear_ok">OK</string>
+    <string name="input_history_clear_ok">OK</string>
 
     <!-- Extra keys editor signal entries -->
     <string name="extra_keys_editor_signal_ctrl">CTRL</string>

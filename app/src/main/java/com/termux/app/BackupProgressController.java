@@ -141,7 +141,7 @@ public final class BackupProgressController {
         }
         progress.setCancelable(false);
         progress.setButton(DialogInterface.BUTTON_NEUTRAL,
-            activity.getString(R.string.backup_dialog_background), (d, which) -> goBackground());
+            activity.getString(R.string.backup_dialog_run_in_background), (d, which) -> goBackground());
         progress.setButton(DialogInterface.BUTTON_NEGATIVE,
             activity.getString(R.string.backup_dialog_cancel), (d, which) -> cancel());
         mBackupDialog = progress;

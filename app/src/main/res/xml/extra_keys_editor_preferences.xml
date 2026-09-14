@@ -29,7 +29,7 @@
 
     <SeekBarPreference
         app:key="terminal-toolbar-height"
-        app:title="@string/terminal_toolbar_height_title"
+        app:title="@string/terminal_toolbar_scale_title"
         app:min="50"
         android:max="200"
         app:defaultValue="100"

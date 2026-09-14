@@ -22,7 +22,7 @@
     <string name="action_font_terminal">Fonte</string>
     <string name="action_kill_process">Finalizar processo (%d)</string>
     <string name="action_new_session">Nova sessão</string>
-    <string name="action_new_session_failsafe">Modo seguro</string>
+    <string name="action_failsafe_mode">Modo seguro</string>
     <string name="action_open_help">Ajuda</string>
     <string name="action_open_settings">Configurações</string>
     <string name="action_rename_session_confirm">Definir</string>
@@ -38,7 +38,7 @@
     <string name="action_toggle_text_input">Alternar entrada de texto</string>
     <string name="appearance_preferences_summary">Preferências de aparência do aplicativo e transparência do painel</string>
     <string name="appearance_preferences_title">Aparência</string>
-    <string name="backup_dialog_background">Segundo plano</string>
+    <string name="backup_dialog_run_in_background">Segundo plano</string>
     <string name="backup_dialog_cancel">Cancelar</string>
     <string name="backup_preference_title">Fazer Backup dos Dados do Termux</string>
     <string name="backup_restore_backup_started">Criando backup…</string>
@@ -59,14 +59,14 @@
     <string name="settings_backup_failed">Falha no backup das configurações</string>
     <string name="settings_restore_failed">Falha na restauração das configurações</string>
     <string name="settings_backup_filename">termux-settings-backup.zip</string>
-    <string name="backup_exclude_tmp_checkbox">Incluir diretório tmp (usr/tmp/)</string>
+    <string name="backup_include_tmp_checkbox">Incluir diretório tmp (usr/tmp/)</string>
     <string name="error_settings_backup_format_version">Versão do formato de backup não suportada: %1$s</string>
     <string name="error_settings_backup_missing_manifest">Arquivo de backup não contém manifest.properties</string>
     <string name="error_settings_restore_open_input">Falha ao abrir arquivo de entrada</string>
     <string name="backup_restore_choose_backup">Selecione um arquivo de backup .tar.gz para restaurar</string>
     <string name="backup_restore_dialog_title">Backup / Restauração de Dados do Termux</string>
     <string name="backup_restore_failed_title">Operação Falhou</string>
-    <string name="backup_restore_need_termux">O binário do Termux (tar) não foi encontrado. Abra o Termux pelo menos uma vez para que o contêiner seja configurado.</string>
+    <string name="backup_restore_tar_not_found">O binário do Termux (tar) não foi encontrado. Abra o Termux pelo menos uma vez para que o contêiner seja configurado.</string>
     <string name="backup_restore_restore_started">Restaurando backup…</string>
     <string name="backup_restore_restore_success">Dados restaurados com sucesso</string>
     <string name="backup_restore_warning_backup">Isso criará um arquivo compactado do seu diretório de dados do Termux (pacotes instalados e ambiente junto com seu diretório home).\n\nEscolha um arquivo de destino para salvar o backup.</string>
@@ -100,7 +100,7 @@
     <string name="directory_history_title">Histórico de Diretórios</string>
     <string name="donate_preference_title">Doar</string>
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">O Termux requer permissão \"Sobrepor a outros aplicativos\" para iniciar sessões do terminal em segundo plano no Android &gt;= 10. Conceda-a em Configurações -&gt; Aplicativos -&gt; Termux -&gt; Avançado</string>
-    <string name="error_font_copy_failed">Falha ao aplicar fonte</string>
+    <string name="error_font_apply_failed">Falha ao aplicar fonte</string>
     <string name="font_picker_title">Selecione uma fonte (.ttf)</string>
     <string name="error_run_command_service_api_help">Visite %1$s para mais informações sobre como usar a Intent RUN_COMMAND.</string>
     <string name="error_run_command_service_invalid_execution_command_runner">Runner de comando de execução inválido para RunCommandService: `%1$s`</string>
@@ -124,23 +124,23 @@
     <string name="file_receiver_error_no_editor">O seguinte arquivo não existe:\n$HOME/bin/termux-file-editor\n\nCrie este arquivo como um script ou link simbólico — ele será chamado com o arquivo recebido como único argumento.</string>
     <string name="file_receiver_error_no_url_opener">O seguinte arquivo não existe:\n$HOME/bin/termux-url-opener\n\nCrie este arquivo como um script ou link simbólico — ele será chamado com a URL compartilhada como primeiro argumento.</string>
     <string name="file_receiver_error_saving_file">Erro ao salvar arquivo:\n\n%s</string>
-    <string name="message_history_clear">Limpar</string>
-    <string name="message_history_clear_all">LIMPAR HISTÓRICO…</string>
-    <string name="message_history_clear_all_btn">Tudo</string>
-    <string name="message_history_clear_all_question">Isso excluirá permanentemente todas as mensagens salvas.</string>
-    <string name="message_history_clear_confirm_all">Limpar todo o histórico de mensagens? Esta ação não pode ser desfeita.</string>
-    <string name="message_history_clear_confirm_current">Limpar todas as mensagens salvas do diretório atual? Esta ação não pode ser desfeita.</string>
-    <string name="message_history_clear_current_only_question">Limpar histórico apenas do diretório atual?</string>
-    <string name="message_history_clear_dialog_title">Limpar Histórico de Mensagens</string>
-    <string name="message_history_clear_question">Limpar histórico de mensagens?</string>
-    <string name="message_history_clear_ok">OK</string>
-    <string name="message_history_cleared">Histórico de mensagens limpo</string>
-    <string name="message_history_empty">Nenhum histórico de mensagens</string>
-    <string name="message_history_max_title">Máx. de mensagens salvas</string>
-    <string name="message_history_title">Histórico de Mensagens</string>
+    <string name="input_history_clear">Limpar</string>
+    <string name="input_history_clear_all">LIMPAR HISTÓRICO…</string>
+    <string name="input_history_clear_all_button">Tudo</string>
+    <string name="input_history_clear_all_question">Isso excluirá permanentemente todas as mensagens salvas.</string>
+    <string name="input_history_clear_confirm_all">Limpar todo o histórico de mensagens? Esta ação não pode ser desfeita.</string>
+    <string name="input_history_clear_confirm_current">Limpar todas as mensagens salvas do diretório atual? Esta ação não pode ser desfeita.</string>
+    <string name="input_history_clear_current_only_question">Limpar histórico apenas do diretório atual?</string>
+    <string name="input_history_clear_dialog_title">Limpar Histórico de Mensagens</string>
+    <string name="input_history_clear_question">Limpar histórico de mensagens?</string>
+    <string name="input_history_clear_ok">OK</string>
+    <string name="input_history_cleared">Histórico de mensagens limpo</string>
+    <string name="input_history_empty">Nenhum histórico de mensagens</string>
+    <string name="input_history_max_title">Máx. de mensagens salvas</string>
+    <string name="input_history_title">Histórico de Mensagens</string>
     <string name="msg_add_termux_debug_info">Adicionar informações de depuração do Termux ao relatório?</string>
-    <string name="msg_disabling_terminal_toolbar">Desativando barra de ferramentas do terminal</string>
-    <string name="msg_enabling_terminal_toolbar">Ativando barra de ferramentas do terminal</string>
+    <string name="msg_terminal_panel_disabling">Desativando barra de ferramentas do terminal</string>
+    <string name="msg_terminal_panel_enabling">Ativando barra de ferramentas do terminal</string>
     <string name="msg_extra_keys_create_failed">Falha ao criar teclas extras padrão</string>
     <string name="msg_extra_keys_load_failed">Falha ao carregar e definir propriedade \"%1$s\" do arquivo de propriedades: %2$s</string>
     <string name="msg_generating_report">Gerando relatório</string>
@@ -153,15 +153,15 @@
     <string name="notification_action_wake_unlock">Liberar wakelock</string>
     <string name="notification_wake_lock_held"> (wakelock ativo)</string>
     <string name="panel_transparency_title">Transparência do painel</string>
-    <string name="per_directory_message_history_summary">Manter um histórico de mensagens separado para cada diretório de trabalho. Quando desativado, todas as sessões compartilham um histórico global.</string>
-    <string name="save_cleared_to_history_title">Limpos no histórico</string>
-    <string name="save_cleared_to_history_summary">Salvar no histórico as mensagens limpas do campo de entrada.</string>
-    <string name="per_directory_message_history_title">Histórico de Mensagens por Diretório</string>
+    <string name="per_directory_input_history_summary">Manter um histórico de mensagens separado para cada diretório de trabalho. Quando desativado, todas as sessões compartilham um histórico global.</string>
+    <string name="input_history_save_cleared_title">Limpos no histórico</string>
+    <string name="input_history_save_cleared_summary">Salvar no histórico as mensagens limpas do campo de entrada.</string>
+    <string name="per_directory_input_history_title">Histórico de Mensagens por Diretório</string>
     <string name="permission_run_command_description">executar comandos arbitrários no ambiente do Termux e acessar arquivos</string>
     <string name="permission_run_command_label">Executar comandos no ambiente do Termux</string>
     <string name="restore_preference_title">Restaurar Dados do Termux</string>
-    <string name="restore_sessions_summary">Reabrir todas as abas e seus diretórios quando o aplicativo for iniciado</string>
-    <string name="restore_sessions_title">Restaurar abas na inicialização</string>
+    <string name="restore_tabs_summary">Reabrir todas as abas e seus diretórios quando o aplicativo for iniciado</string>
+    <string name="restore_tabs_title">Restaurar abas na inicialização</string>
     <string name="screen_orientation_summary">Variantes \"Seguir sensor\" alternam entre as duas orientações (ex.: 0°/180° retrato).</string>
     <string name="screen_orientation_title">Orientação da tela</string>
     <string name="session_null_title">sessão nula</string>
@@ -241,15 +241,15 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_insert_at_cursor_title">Comportamento de restauração do histórico</string>
-    <string name="text_input_insert_at_cursor_summary">Toque para escolher: inserir no cursor ou substituir todo o campo de entrada</string>
-    <string name="text_input_insert_at_cursor_dialog_title">Modo de restauração do histórico</string>
-    <string name="text_input_insert_at_cursor_option_insert">Inserir no cursor</string>
-    <string name="text_input_insert_at_cursor_option_replace">Substituir todo o campo de entrada</string>
+    <string name="text_input_restore_mode_title">Comportamento de restauração do histórico</string>
+    <string name="text_input_restore_mode_summary">Toque para escolher: inserir no cursor ou substituir todo o campo de entrada</string>
+    <string name="text_input_restore_mode_dialog_title">Modo de restauração do histórico</string>
+    <string name="text_input_restore_mode_option_insert">Inserir no cursor</string>
+    <string name="text_input_restore_mode_option_replace">Substituir todo o campo de entrada</string>
     <string name="text_input_hide_on_send_title">Ocultar painel de entrada após envio</string>
     <string name="text_input_show_summary_off">O campo de entrada de texto está oculto</string>
     <string name="text_input_show_summary_on">O campo de entrada de texto está visível acima das teclas extras</string>
-    <string name="text_input_show_title">Mostrar campo de entrada de texto</string>
+    <string name="text_input_toggle_button_title">Mostrar campo de entrada de texto</string>
     <string name="text_input_title">Entrada de Texto</string>
     <string name="theme_title">Tema</string>
     <string name="theme_mode_title">Tema do Aplicativo</string>
@@ -257,7 +257,7 @@
     <string name="title_activity_termux_settings">Configurações do Termux</string>
     <string name="title_confirm_kill_process">Realmente finalizar esta sessão?</string>
     <string name="title_create_named_session">Nova sessão nomeada</string>
-    <string name="title_file_received">Salvar arquivo em ~/downloads/</string>
+    <string name="title_file_received_save">Salvar arquivo em ~/downloads/</string>
     <string name="title_max_terminals_reached">Máximo de terminais atingido</string>
     <string name="title_rename_session">Definir nome da sessão</string>
     <string name="title_select_url_dialog">Toque na URL para copiar ou pressione longamente para abrir</string>
@@ -312,11 +312,11 @@
     <string name="input_preferences_summary">Preferências para entrada de texto e teclado</string>
     <string name="display_preferences_title">Exibição</string>
     <string name="display_preferences_summary">Tema, transparência do painel, visualização do terminal, abas, janela e tela cheia</string>
-    <string name="terminal_preferences_title">Avançado</string>
-    <string name="terminal_preferences_summary">Comportamento das teclas, atalhos, sessão, segurança e outras configurações</string>
+    <string name="terminal_advanced_title">Avançado</string>
+    <string name="terminal_advanced_summary">Comportamento das teclas, atalhos, sessão, segurança e outras configurações</string>
     <string name="terminal_category_title">Terminal</string>
     <string name="extra_keys_corner_radius_title">Raio do canto dos botões</string>
-    <string name="sessions_history_preferences_title">Sessões</string>
+    <string name="sessions_preferences_title">Sessões</string>
     <string name="sessions_history_preferences_summary">Preferências para sessões, abas e histórico</string>
     <string name="backup_restore_preferences_title">Backup e Restauração</string>
     <string name="backup_restore_preferences_summary">Fazer backup ou restaurar os dados do Termux</string>
@@ -362,8 +362,8 @@
     <string name="extra_keys_editor_signal_dialog_title">Atribuir sinal</string>
     <string name="extra_keys_editor_custom_text_title">Atalho personalizado</string>
     <string name="extra_keys_editor_custom_text_message">Pressione qualquer tecla para vincular:</string>
-    <string name="extra_keys_editor_save_title">Aplicar às teclas extras</string>
-    <string name="extra_keys_editor_save_summary">Salvar este layout na configuração de teclas extras.</string>
+    <string name="extra_keys_editor_apply_title">Aplicar às teclas extras</string>
+    <string name="extra_keys_editor_apply_summary">Salvar este layout na configuração de teclas extras.</string>
     <string name="extra_keys_editor_empty">(vazio)</string>
     <string name="extra_keys_editor_max_signals">Máximo de 8 sinais por botão</string>
     <string name="extra_keys_editor_custom_text_no_space">Texto personalizado com espaços não é suportado em combinações</string>
@@ -409,7 +409,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Alternar teclado</string>
     <string name="extra_keys_editor_signal_paste">Colar</string>
-    <string name="extra_keys_editor_signal_scroll">Bloqueio de rolagem</string>
+    <string name="extra_keys_editor_signal_scroll_lock">Bloqueio de rolagem</string>
     <string name="extra_keys_editor_signal_space">Espaço</string>
     <string name="extra_keys_editor_signal_backslash">Barra invertida (\\)</string>
     <string name="extra_keys_editor_signal_quote">Aspas (\")</string>
@@ -475,7 +475,7 @@
     <string name="screen_category_title">Tela</string>
     <string name="shortcuts_category_title">Atalhos</string>
     <string name="misc_category_title">Diversos</string>
-    <string name="security_category_title">Segurança</string>
+    <string name="external_apps_category_title">Segurança</string>
     <string name="sound_category_title">Som e notificações</string>
     <string name="session_category_title">Sessão</string>
     <string name="empty_value_summary">Não definido</string>
@@ -502,11 +502,11 @@
 
     <string name="terminal_background_blur_radius_title">Raio de desfoque do fundo</string>
     <string name="terminal_background_blur_radius_summary">Pode aumentar o consumo de energia com papéis de parede dinâmicos e um raio de desfoque elevado. Com papéis de parede estáticos, o impacto no consumo é insignificante.</string>
-    <string name="terminal_toolbar_height_title">Escala da altura da barra de ferramentas</string>
+    <string name="terminal_toolbar_scale_title">Escala da altura da barra de ferramentas</string>
     <string name="terminal_toolbar_height_summary">Fator de escala da altura da barra de teclas extras / barra de ferramentas do terminal.</string>
     <string name="default_working_directory_title">Diretório de trabalho padrão</string>
     <string name="default_working_directory_summary">Diretório aberto para novas sessões (deixe vazio para o diretório home).</string>
-    <string name="back_key_title">Comportamento da tecla Voltar</string>
+    <string name="back_key_sends_escape_title">Comportamento da tecla Voltar</string>
     <string name="back_key_summary">O que a tecla Voltar física/de software faz no terminal.</string>
     <string name="volume_keys_title">Comportamento das teclas de volume</string>
     <string name="volume_keys_summary">Se as teclas de volume controlam o volume ou atuam como teclas virtuais.</string>

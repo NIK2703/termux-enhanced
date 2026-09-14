@@ -163,7 +163,7 @@ public final class TermuxActivityPopupController {
         // out white-on-white in light mode on some ROMs.
         if (emptyState) {
             TextView hint = new TextView(mContext);
-            hint.setText(mContext.getString(R.string.message_history_empty));
+            hint.setText(mContext.getString(R.string.input_history_empty));
             hint.setGravity(Gravity.CENTER);
             hint.setTextColor(mColorSchemeManager.getHistoryTextColor());
             hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
@@ -179,7 +179,7 @@ public final class TermuxActivityPopupController {
         // "Clear" row (clears the input), it is not a replacement for it.
         if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
             TextView tv = new TextView(mContext);
-            tv.setText(mContext.getString(R.string.message_history_clear_all));
+            tv.setText(mContext.getString(R.string.input_history_clear_all));
             tv.setGravity(Gravity.CENTER);
             tv.setAllCaps(true);
             tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
@@ -240,7 +240,7 @@ public final class TermuxActivityPopupController {
         // the input field. Shown only when the input panel actually has text.
         if (!TextUtils.isEmpty(inputText)) {
             TextView tv = new TextView(mContext);
-            tv.setText(mContext.getString(R.string.message_history_clear));
+            tv.setText(mContext.getString(R.string.input_history_clear));
             tv.setGravity(Gravity.CENTER);
             tv.setAllCaps(true);
             tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
@@ -535,15 +535,15 @@ public final class TermuxActivityPopupController {
      */
     public void confirmClearAllHistory() {
         final MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(mContext)
-                .setTitle(mContext.getString(R.string.message_history_clear_question))
+                .setTitle(mContext.getString(R.string.input_history_clear_question))
                 .setNegativeButton(android.R.string.cancel, null);
 
         if (mMessageHistoryCtrl != null && mMessageHistoryCtrl.isPerDirectoryEnabled()) {
-            builder.setMessage(mContext.getString(R.string.message_history_clear_current_only_question))
-                    .setPositiveButton(mContext.getString(R.string.message_history_clear_ok), (d, w) -> clearAllHistory())
-                    .setNeutralButton(mContext.getString(R.string.message_history_clear_all_btn), (d, w) -> clearAllDirectoriesHistory());
+            builder.setMessage(mContext.getString(R.string.input_history_clear_current_only_question))
+                    .setPositiveButton(mContext.getString(R.string.input_history_clear_ok), (d, w) -> clearAllHistory())
+                    .setNeutralButton(mContext.getString(R.string.input_history_clear_all_button), (d, w) -> clearAllDirectoriesHistory());
         } else {
-            builder.setMessage(mContext.getString(R.string.message_history_clear_all_question))
+            builder.setMessage(mContext.getString(R.string.input_history_clear_all_question))
                     .setPositiveButton(android.R.string.ok, (d, w) -> clearAllHistory());
         }
 
@@ -555,15 +555,15 @@ public final class TermuxActivityPopupController {
     private void confirmClearHistory() {
         final MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(mContext);
         b.setIcon(android.R.drawable.ic_dialog_alert);
-        b.setTitle(mContext.getString(R.string.message_history_clear_dialog_title));
+        b.setTitle(mContext.getString(R.string.input_history_clear_dialog_title));
         String msg = (mMessageHistoryCtrl != null && mMessageHistoryCtrl.isPerDirectoryEnabled())
-                ? mContext.getString(R.string.message_history_clear_confirm_current)
-                : mContext.getString(R.string.message_history_clear_confirm_all);
+                ? mContext.getString(R.string.input_history_clear_confirm_current)
+                : mContext.getString(R.string.input_history_clear_confirm_all);
         b.setMessage(msg);
         b.setPositiveButton(android.R.string.yes, (dialog, id) -> {
             dialog.dismiss();
             clearAllHistory();
-            showToast(mContext.getString(R.string.message_history_cleared), true);
+            showToast(mContext.getString(R.string.input_history_cleared), true);
         });
         b.setNegativeButton(android.R.string.no, null);
         androidx.appcompat.app.AlertDialog dialog = b.create();

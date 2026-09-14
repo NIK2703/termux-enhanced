@@ -177,7 +177,7 @@ public final class DirectoryHistoryPopupController {
                         ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
 
                 TextView tv = new TextView(mContext);
-                tv.setText(mContext.getString(R.string.message_history_clear_all));
+                tv.setText(mContext.getString(R.string.input_history_clear_all));
                 tv.setGravity(Gravity.CENTER);
                 tv.setAllCaps(true);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
@@ -195,7 +195,7 @@ public final class DirectoryHistoryPopupController {
             // Synthetic "CLEAR HISTORY…" row pinned at the TOP of the popup.
             if (!mDirCtrl.getHistoryList().isEmpty()) {
                 TextView tv = new TextView(mContext);
-                tv.setText(mContext.getString(R.string.message_history_clear_all));
+                tv.setText(mContext.getString(R.string.input_history_clear_all));
                 tv.setGravity(Gravity.CENTER);
                 tv.setAllCaps(true);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());

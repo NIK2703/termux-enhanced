@@ -41,15 +41,15 @@ public class TermuxDialogs {
                                             @NonNull Runnable onConfirmCurrent,
                                             @NonNull Runnable onConfirmAll) {
         final MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(mActivity)
-                .setTitle(mActivity.getString(R.string.message_history_clear_question))
+                .setTitle(mActivity.getString(R.string.input_history_clear_question))
                 .setNegativeButton(android.R.string.cancel, null);
 
         if (perDirectoryEnabled) {
-            builder.setMessage(mActivity.getString(R.string.message_history_clear_current_only_question))
-                    .setPositiveButton(mActivity.getString(R.string.message_history_clear_ok), (d, w) -> onConfirmCurrent.run())
-                    .setNeutralButton(mActivity.getString(R.string.message_history_clear_all_btn), (d, w) -> onConfirmAll.run());
+            builder.setMessage(mActivity.getString(R.string.input_history_clear_current_only_question))
+                    .setPositiveButton(mActivity.getString(R.string.input_history_clear_ok), (d, w) -> onConfirmCurrent.run())
+                    .setNeutralButton(mActivity.getString(R.string.input_history_clear_all_button), (d, w) -> onConfirmAll.run());
         } else {
-            builder.setMessage(mActivity.getString(R.string.message_history_clear_all_question))
+            builder.setMessage(mActivity.getString(R.string.input_history_clear_all_question))
                     .setPositiveButton(android.R.string.ok, (d, w) -> onConfirmCurrent.run());
         }
 
@@ -75,10 +75,10 @@ public class TermuxDialogs {
     public void showConfirmClearHistory(boolean perDirectoryEnabled, @NonNull Runnable onConfirm) {
         final MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(mActivity);
         b.setIcon(android.R.drawable.ic_dialog_alert);
-        b.setTitle(mActivity.getString(R.string.message_history_clear_dialog_title));
+        b.setTitle(mActivity.getString(R.string.input_history_clear_dialog_title));
         String msg = perDirectoryEnabled
-                ? mActivity.getString(R.string.message_history_clear_confirm_current)
-                : mActivity.getString(R.string.message_history_clear_confirm_all);
+                ? mActivity.getString(R.string.input_history_clear_confirm_current)
+                : mActivity.getString(R.string.input_history_clear_confirm_all);
         b.setMessage(msg);
         b.setPositiveButton(android.R.string.yes, (dialog, id) -> {
             dialog.dismiss();
