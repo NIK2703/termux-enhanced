@@ -22,11 +22,11 @@
     <string name="bootstrap_error_body">&TERMUX_APP_NAME; no pudo instalar los paquetes de bootstrap.</string>
     <string name="bootstrap_error_abort">Interrumpir</string>
     <string name="bootstrap_error_try_again">Reintentar</string>
-    <string name="bootstrap_error_not_primary_user_message">&TERMUX_APP_NAME; solo puede ejecutarse como usuario principal.\nLos binarios compilados de &TERMUX_APP_NAME; tienen la ruta $PREFIX codificada de forma fija y no pueden instalarse en otra ruta que no sea:\n%1$s.</string>
+    <string name="bootstrap_error_not_primary_user_message">&TERMUX_APP_NAME; solo puede ejecutarse como el usuario principal.\nLos binarios compilados de &TERMUX_APP_NAME; tienen la ruta $PREFIX codificada de forma fija y no pueden instalarse en otra ruta que no sea:\n%1$s.</string>
     <string name="bootstrap_error_installed_on_portable_sd">&TERMUX_APP_NAME; no puede instalarse en una tarjeta SD portátil/externa/extraíble de su dispositivo.\nLos binarios compilados de &TERMUX_APP_NAME; tienen la ruta $PREFIX codificada de forma fija y no pueden instalarse en otra ruta que no sea:\n%1$s.</string>
     <string name="action_new_session">Nueva sesión</string>
     <string name="action_failsafe_mode">Modo a prueba de fallos</string>
-    <string name="title_max_terminals_reached">Límite de terminales alcanzado</string>
+    <string name="title_max_terminals_reached">Se alcanzó el límite de terminales</string>
     <string name="msg_max_terminals_reached">Cierre las sesiones existentes antes de crear una nueva.</string>
     <string name="title_rename_session">Establecer el nombre de la sesión</string>
     <string name="action_rename_session_confirm">Establecer</string>
@@ -93,7 +93,7 @@
     <string name="termux_log_level_title">Nivel de registro</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Registro de teclas del terminal</string>
     <string name="termux_terminal_view_key_logging_enabled_off">El registro no contendrá entradas de teclas del terminal.</string>
-    <string name="termux_terminal_view_key_logging_enabled_on">El registro de logcat contendrá entradas de teclas del terminal. Son muy detalladas y deben desactivarse en el uso normal, ya que pueden causar problemas de rendimiento.</string>
+    <string name="termux_terminal_view_key_logging_enabled_on">El registro de logcat contendrá entradas de teclas del terminal. Estas entradas son muy detalladas y deben desactivarse en el uso normal, ya que pueden causar problemas de rendimiento.</string>
     <string name="termux_plugin_error_notifications_enabled_title">Notificaciones de errores de complementos</string>
     <string name="termux_crash_report_notifications_enabled_title">Notificaciones de informes de errores</string>
     <string name="termux_terminal_io_preferences_title">Entrada/salida del terminal</string>
@@ -127,7 +127,7 @@
     <string name="color_scheme_dark_title">Esquema de colores del terminal (tema oscuro)</string>
     <string name="color_scheme_dark_summary">Esquema de colores aplicado cuando el tema de la aplicación es oscuro</string>
     <string name="input_history_title">Historial de texto introducido</string>
-    <string name="input_history_max_title">Número máximo de textos introducidos en el historial</string>
+    <string name="input_history_max_title">Número máximo de entradas en el historial</string>
     <string name="per_directory_input_history_title">Historial de texto introducido por directorio</string>
     <string name="per_directory_input_history_summary">Mantener un historial de texto introducido separado para cada directorio de trabajo. Si está desactivado, todas las sesiones comparten un historial global.</string>
     <string name="input_history_save_cleared_title">Guardar textos borrados en el historial</string>
@@ -145,7 +145,7 @@
     <string name="restore_preference_title">Restauración del contenedor de Termux</string>
     <string name="backup_restore_dialog_title">Copia de seguridad / Restauración de datos de Termux</string>
     <string name="backup_restore_warning_backup">Se creará un archivo comprimido de su directorio de datos de Termux (paquetes instalados y entorno junto con su directorio home).\n\nElija un archivo de destino para guardar la copia de seguridad.</string>
-    <string name="backup_restore_warning_restore">La restauración SOBRESCRIBIRÁ el directorio de datos actual de Termux (paquetes instalados y su directorio personal) con el contenido del archivo de copia de seguridad seleccionado. Los datos existentes se PERDERÁN.\n\n⚠ Si la restauración falla —porque el archivo de copia de seguridad está dañado, incompleto o la conexión se interrumpe durante el proceso—, su entorno Termux se quedará VACÍO. No habrá forma de recuperar los datos originales.\n\nEsto no se puede deshacer. Se recomienda encarecidamente hacer una copia de seguridad PRIMERO y verificar que el archivo de copia de seguridad sea válido.</string>
+    <string name="backup_restore_warning_restore">La restauración SOBRESCRIBIRÁ el directorio de datos actual de Termux (paquetes instalados y su directorio personal) con el contenido del archivo de copia de seguridad seleccionado. Los datos existentes se PERDERÁN.\n\n⚠ Si la restauración falla —porque el archivo de copia de seguridad está dañado, incompleto o la conexión se interrumpe durante el proceso—, su entorno de Termux quedará VACÍO. No habrá forma de recuperar los datos originales.\n\nEsto no se puede deshacer. Se recomienda encarecidamente hacer una copia de seguridad PRIMERO y verificar que el archivo de copia de seguridad sea válido.</string>
     <string name="backup_restore_backup_started">Creando copia de seguridad…</string>
     <string name="backup_restore_restore_started">Restaurando copia de seguridad…</string>
     <string name="backup_restore_backup_success">Copia de seguridad creada correctamente</string>
@@ -217,17 +217,17 @@
     <string name="text_input_restore_mode_dialog_title">Modo de restauración del historial</string>
     <string name="text_input_restore_mode_option_insert">Insertar en la posición del cursor</string>
     <string name="text_input_restore_mode_option_replace">Reemplazar todo el campo de entrada</string>
-    <string name="input_history_empty">No hay texto introducido en el historial</string>
+    <string name="input_history_empty">El historial de texto introducido está vacío</string>
     <string name="input_history_clear_all">BORRAR HISTORIAL…</string>
     <string name="input_history_clear">Borrar</string>
     <string name="input_history_clear_dialog_title">Borrar historial de texto introducido</string>
     <string name="input_history_clear_question">¿Borrar el historial de texto introducido?</string>
-    <string name="input_history_clear_confirm_current">¿Borrar todos los textos introducidos guardados del directorio actual? Esta acción es irreversible.</string>
+    <string name="input_history_clear_confirm_current">¿Borrar todas las entradas guardadas del directorio actual? Esta acción es irreversible.</string>
     <string name="input_history_clear_confirm_all">¿Borrar todo el historial de texto introducido? Esta acción es irreversible.</string>
     <string name="input_history_clear_ok">Aceptar</string>
     <string name="input_history_clear_all_button">Borrar todo</string>
     <string name="input_history_clear_current_only_question">¿Borrar el historial solo del directorio actual?</string>
-    <string name="input_history_clear_all_question">Esto eliminará permanentemente todos los textos introducidos guardados.</string>
+    <string name="input_history_clear_all_question">Esto eliminará permanentemente todas las entradas guardadas.</string>
     <string name="input_history_cleared">Se borró el historial de texto introducido.</string>
     <string name="directory_history_clear_dialog_title">Borrar historial de directorios</string>
     <string name="directory_history_clear_confirm">¿Borrar todo el historial de directorios? Esta acción es irreversible.</string>
@@ -466,7 +466,7 @@
     <string name="terminal_background_transparency_title">Transparencia del fondo del terminal</string>
 
     <string name="terminal_background_blur_radius_title">Radio de desenfoque del fondo</string>
-    <string name="terminal_background_blur_radius_summary">Puede aumentar el consumo de energía con fondos de pantalla dinámicos y un radio de desenfoque alto. Con fondos estáticos, el impacto en el consumo es insignificante.</string>
+    <string name="terminal_background_blur_radius_summary">Puede aumentar el consumo de energía con fondos dinámicos y un radio de desenfoque alto. Con fondos estáticos, el impacto en el consumo es insignificante.</string>
     <string name="terminal_onclick_url_open_summary">Abrir los enlaces del búfer del terminal al tocarlos.</string>
     <string name="terminal_onclick_url_open_title">Abrir enlaces al tocar</string>
     <string name="terminal_toolbar_scale_title">Escala del panel</string>
@@ -495,7 +495,7 @@
     <string name="bootstrap_progress_title">Instalando bootstrap</string>
 
     <!-- Bootstrap Download Service -->
-    <string name="bootstrap_download_status_idle">Inactivo</string>
+    <string name="bootstrap_download_status_idle">En espera</string>
     <string name="bootstrap_download_status_connecting">Conectando</string>
     <string name="bootstrap_download_progress_preparing">Preparando descarga</string>
     <string name="bootstrap_download_status_installing">Instalando</string>
@@ -631,7 +631,7 @@
     <string name="error_bootstrap_symlink_absolute">No se permite un enlace simbólico con ruta absoluta: %1$s</string>
     <string name="error_bootstrap_symlink_no_parent">El enlace simbólico no tiene directorio padre: %1$s</string>
     <string name="error_bootstrap_symlink_escapes_root">El enlace simbólico escapa de la raíz de extracción: %1$s -&gt; %2$s</string>
-    <string name="error_bootstrap_path_traversal">Se detectó path traversal en la entrada del zip: %1$s</string>
+    <string name="error_bootstrap_path_traversal">Se detectó un recorrido de ruta (path traversal) en la entrada del zip: %1$s</string>
     <string name="error_bootstrap_no_symlinks">No se encontró SYMLINKS.txt</string>
     <string name="error_bootstrap_move_prefix">Error al mover el directorio de preparación del prefijo de Termux al directorio del prefijo</string>
     <string name="error_bootstrap_embedded_lib">La biblioteca de bootstrap integrada no está disponible</string>
@@ -679,5 +679,5 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Tamaño de fuente</string>
-    <string name="terminal_font_size_summary" formatted="false">El gesto de pinza en el terminal también cambia este valor</string>
+    <string name="terminal_font_size_summary" formatted="false">El gesto de pellizco en el terminal también cambia este valor</string>
 </resources>

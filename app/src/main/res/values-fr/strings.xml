@@ -16,7 +16,7 @@
     <string name="permission_run_command_label">Exécuter des commandes dans l\'environnement Termux</string>
     <string name="permission_run_command_description">exécuter des commandes arbitraires dans l\'environnement Termux et accéder aux fichiers</string>
     <string name="bootstrap_installer_body">Installation des paquets bootstrap…</string>
-    <string name="bootstrap_error_title">Impossible d\'installer le bootstrap</string>
+    <string name="bootstrap_error_title">Échec de l\'installation du bootstrap</string>
     <string name="bootstrap_error_body">Termux n\'a pas pu installer les paquets bootstrap.</string>
     <string name="bootstrap_error_abort">Interrompre</string>
     <string name="bootstrap_error_try_again">Réessayer</string>
@@ -36,12 +36,12 @@
     <string name="msg_terminal_panel_enabling">Activation du panneau du terminal</string>
     <string name="msg_terminal_panel_disabling">Désactivation du panneau du terminal</string>
     <string name="action_select_url">Sélectionner une URL</string>
-    <string name="title_select_url_dialog">Appuyez sur une URL pour la copier, ou appuyez longuement pour l\'ouvrir</string>
+    <string name="title_select_url_dialog">Appuyez sur une URL pour la copier ou appuyez longuement pour l\'ouvrir</string>
     <string name="title_select_url_none_found">Aucune URL trouvée dans le terminal.</string>
     <string name="msg_select_url_copied_to_clipboard">URL copiée dans le presse-papiers</string>
-    <string name="action_share_transcript">Partager la transcription</string>
-    <string name="title_share_transcript">Transcription du terminal</string>
-    <string name="title_share_transcript_with">Envoyer la transcription à :</string>
+    <string name="action_share_transcript">Partager le journal</string>
+    <string name="title_share_transcript">Journal du terminal</string>
+    <string name="title_share_transcript_with">Envoyer le journal à :</string>
     <string name="action_share_selected_text">Partager le texte sélectionné</string>
     <string name="title_share_selected_text">Texte du terminal</string>
     <string name="title_share_selected_text_with">Envoyer le texte sélectionné à :</string>
@@ -64,16 +64,16 @@
     <string name="error_styling_not_installed">Le plugin Termux:Styling n\'est pas installé.</string>
     <string name="action_styling_install">Installer</string>
     <string name="notification_action_exit">Quitter</string>
-    <string name="notification_action_wake_lock">Acquérir le verrouillage d\'activité</string>
-    <string name="notification_action_wake_unlock">Libérer le verrouillage d\'activité</string>
+    <string name="notification_action_wake_lock">Acquérir le verrouillage d\'éveil</string>
+    <string name="notification_action_wake_unlock">Libérer le verrouillage d\'éveil</string>
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Termux nécessite
-        l\'autorisation \"Affichage par-dessus les autres applications\" pour démarrer des sessions de terminal en arrière-plan sur Android &gt;= 10.
+        l\'autorisation « Afficher sur d\'autres applications » pour démarrer des sessions de terminal depuis l\'arrière-plan sur Android &gt;= 10.
         Accordez-la dans Paramètres → Applications → Termux → Avancé</string>
     <string name="error_termux_service_invalid_execution_command_runner">Exécuteur de commandes invalide pour TermuxService : `%1$s`</string>
     <string name="error_termux_service_unsupported_execution_command_runner">Exécuteur de commandes non pris en charge pour TermuxService : `%1$s`</string>
     <string name="error_termux_service_unsupported_execution_command_shell_create_mode">Mode de création de shell non pris en charge pour TermuxService : `%1$s`</string>
     <string name="error_termux_service_execution_command_shell_name_unset">Nom du shell non défini mais le mode de création de shell `%1$s` a été transmis</string>
-    <string name="error_run_command_service_invalid_intent_action">Action Intent invalide pour RunCommandService : `%1$s`</string>
+    <string name="error_run_command_service_invalid_intent_action">Action d\'Intent invalide pour RunCommandService : `%1$s`</string>
     <string name="error_run_command_service_invalid_execution_command_runner">Exécuteur de commandes invalide pour RunCommandService : `%1$s`</string>
     <string name="error_run_command_service_mandatory_extra_missing">Extra obligatoire manquant pour RunCommandService : \"%1$s\"</string>
     <string name="error_run_command_service_api_help">Consultez %1$s pour plus de détails sur l\'utilisation de l\'Intent RUN_COMMAND.</string>
@@ -84,20 +84,20 @@
     <string name="error_termux_service_start_failed_bg">Échec du démarrage de TermuxService en arrière-plan en raison des restrictions Android sur les applications en arrière-plan.</string>
     <string name="title_activity_termux_settings">Paramètres Termux</string>
     <string name="appearance_preferences_title">Apparence</string>
-    <string name="appearance_preferences_summary">Préférences pour l\'apparence de l\'application et la transparence du panneau</string>
+    <string name="appearance_preferences_summary">Préférences d\'apparence de l\'application et de transparence du panneau</string>
     <string name="theme_title">Thème</string>
     <string name="panel_transparency_title">Transparence du panneau</string>
-    <string name="termux_preferences_summary">Préférences pour l\'application Termux</string>
+    <string name="termux_preferences_summary">Préférences de l\'application Termux</string>
     <string name="termux_debugging_preferences_title">Débogage</string>
     <string name="termux_debugging_preferences_summary">Préférences de débogage</string>
-    <string name="termux_log_level_title">Niveau de journal</string>
+    <string name="termux_log_level_title">Niveau de journalisation</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Journalisation des touches du terminal</string>
-    <string name="termux_terminal_view_key_logging_enabled_off">Les journaux n\'auront pas d\'entrées pour les touches du terminal.</string>
-    <string name="termux_terminal_view_key_logging_enabled_on">Les journaux logcat auront des entrées pour les touches du terminal. Elles sont très verbeuses et devraient être désactivées en temps normal, sinon elles provoqueront des problèmes de performance.</string>
-    <string name="termux_plugin_error_notifications_enabled_title">Notifications d\'erreur des plugins</string>
-    <string name="termux_crash_report_notifications_enabled_title">Notifications de rapport de plantage</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">Les journaux ne contiendront pas d\'entrées pour les touches du terminal.</string>
+    <string name="termux_terminal_view_key_logging_enabled_on">Les journaux logcat contiendront des entrées pour les touches du terminal. Elles sont très détaillées et devraient être désactivées en temps normal, sinon elles peuvent provoquer des problèmes de performance.</string>
+    <string name="termux_plugin_error_notifications_enabled_title">Notifications d\'erreurs des plugins</string>
+    <string name="termux_crash_report_notifications_enabled_title">Notifications des rapports de plantage</string>
     <string name="termux_terminal_io_preferences_title">E/S du terminal</string>
-    <string name="termux_terminal_io_preferences_summary">Préférences pour les E/S du terminal</string>
+    <string name="termux_terminal_io_preferences_summary">Préférences des E/S du terminal</string>
 
     
     <string name="termux_keyboard_header">Clavier</string>
@@ -110,17 +110,17 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">État du clavier lors du changement d\'onglet</string>
-    <string name="keyboard_state_follow_tab_switch_on">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était lorsque vous l\'avez quitté.</string>
+    <string name="keyboard_state_follow_tab_switch_on">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était au moment de le quitter.</string>
     <string name="keyboard_state_follow_tab_switch_off">Lors du changement d\'onglet, l\'état du clavier ne change pas. Si vous passez d\'un onglet avec clavier masqué à un onglet avec le panneau de saisie ouvert, le panneau sera masqué.</string>
     <string name="termux_terminal_view_preferences_title">Vue du terminal</string>
-    <string name="termux_terminal_view_preferences_summary">Préférences pour la vue du terminal</string>
+    <string name="termux_terminal_view_preferences_summary">Préférences de la vue du terminal</string>
     <string name="termux_terminal_view_view_header">Vue</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparence du fond des éléments inactifs</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Transparence du fond des éléments actifs</string>
-    <string name="termux_api_preferences_summary">Préférences pour l\'application Termux:API</string>
-    <string name="termux_float_preferences_summary">Préférences pour l\'application Termux:Float</string>
-    <string name="termux_tasker_preferences_summary">Préférences pour l\'application Termux:Tasker</string>
-    <string name="termux_widget_preferences_summary">Préférences pour l\'application Termux:Widget</string>
+    <string name="termux_api_preferences_summary">Préférences de l\'application Termux:API</string>
+    <string name="termux_float_preferences_summary">Préférences de l\'application Termux:Float</string>
+    <string name="termux_tasker_preferences_summary">Préférences de l\'application Termux:Tasker</string>
+    <string name="termux_widget_preferences_summary">Préférences de l\'application Termux:Widget</string>
     <string name="color_scheme_dialog_title">Jeu de couleurs du terminal</string>
     <string name="color_scheme_light_title">Jeu de couleurs du terminal (Thème clair)</string>
     <string name="color_scheme_light_summary">Jeu de couleurs appliqué lorsque le thème de l\'application est clair</string>
@@ -132,13 +132,13 @@
     <string name="per_directory_input_history_summary">Conserver un historique distinct pour chaque répertoire de travail. Lorsque l\'option est désactivée, toutes les sessions partagent un historique commun.</string>
     <string name="input_history_save_cleared_title">Conserver les textes effacés dans l\'historique</string>
     <string name="input_history_save_cleared_summary">Enregistrer dans l\'historique les textes effacés du champ de saisie.</string>
-    <string name="text_input_append_enter_title">Ajouter Entrée lors de l\'envoi</string>
+    <string name="text_input_append_enter_title">Ajouter la touche Entrée lors de l\'envoi</string>
     <string name="directory_history_title">Historique des répertoires</string>
     <string name="directory_history_max_title">Nombre maximal de répertoires de travail dans l\'historique</string>
     <string name="restore_tabs_title">Restaurer les onglets au démarrage</string>
     <string name="restore_tabs_summary">Rouvrir tous les onglets et leurs répertoires au démarrage de l\'application</string>
     <string name="screen_orientation_title">Orientation de l\'écran</string>
-    <string name="screen_orientation_summary">Les variantes « Suivre le capteur » pivotent entre les deux orientations (ex. portrait 0°/180°).</string>
+    <string name="screen_orientation_summary">Les variantes « Suivre le capteur » basculent entre les deux orientations (ex. portrait 0°/180°).</string>
     <string name="donate_preference_title">Faire un don</string>
     <string name="about_preference_title">À propos</string>
     <string name="theme_mode_title">Thème de l\'application</string>
@@ -146,9 +146,9 @@
     <string name="backup_preference_title">Sauvegarde du conteneur Termux</string>
     <string name="restore_preference_title">Restauration du conteneur Termux</string>
     <string name="backup_restore_dialog_title">Sauvegarde / Restauration des données Termux</string>
-    <string name="backup_restore_warning_backup">Cela créera une archive compressée de votre répertoire de données Termux (paquets installés et environnement avec votre répertoire home).\n\nChoisissez un fichier de destination pour enregistrer la sauvegarde.</string>
+    <string name="backup_restore_warning_backup">Cela créera une archive compressée de votre répertoire de données Termux (paquets installés et environnement, avec votre répertoire personnel).\n\nChoisissez un fichier de destination pour enregistrer la sauvegarde.</string>
 
-    <string name="backup_restore_warning_restore">La restauration va ÉCRASER le répertoire de données Termux actuel (paquets installés plus votre répertoire personnel) avec le contenu du fichier de sauvegarde sélectionné. Les données existantes seront PERDUES.\n\n⚠ Si la restauration échoue — parce que le fichier de sauvegarde est corrompu, incomplet, ou que la connexion est interrompue pendant le processus — votre environnement Termux restera VIDE. Il n\'y aura aucun moyen de récupérer les données d\'origine.\n\nCette action est irréversible. Il est fortement recommandé de faire une sauvegarde D\'ABORD et de vérifier que le fichier de sauvegarde est valide.</string>
+    <string name="backup_restore_warning_restore">La restauration ÉCRASERA le répertoire de données Termux actuel (paquets installés ainsi que votre répertoire personnel) avec le contenu du fichier de sauvegarde sélectionné. Les données existantes seront PERDUES.\n\n⚠ Si la restauration échoue — parce que le fichier de sauvegarde est corrompu, incomplet ou que la connexion est interrompue pendant le processus — votre environnement Termux restera VIDE. Il n\'y aura aucun moyen de récupérer les données d\'origine.\n\nCette action est irréversible. Il est fortement recommandé de faire d\'abord une sauvegarde et de vérifier que le fichier de sauvegarde est valide.</string>
     <string name="backup_restore_backup_started">Création de la sauvegarde…</string>
     <string name="backup_restore_restore_started">Restauration de la sauvegarde…</string>
     <string name="backup_restore_backup_success">Sauvegarde créée avec succès</string>
@@ -163,7 +163,7 @@
     <string name="backup_service_notification_restore_success">Données restaurées avec succès</string>
     <string name="backup_service_notification_failed">Échec de la sauvegarde</string>
     <string name="backup_service_notification_restore_failed">Échec de la restauration</string>
-    <string name="backup_dialog_run_in_background">Arrière-plan</string>
+    <string name="backup_dialog_run_in_background">En arrière-plan</string>
     <string name="backup_dialog_cancel">Annuler</string>
     <string name="backup_service_notification_cancel">Annuler</string>
     <string name="backup_restore_cancelled">Opération annulée</string>
@@ -188,7 +188,7 @@
     <string name="tab_close_description">Fermer l\'onglet</string>
     <string name="new_tab_placeholder_hint">Nouvelle session</string>
     <string name="session_tabs_title">Onglets de session</string>
-    <string name="swipe_rightmost_new_tab_title">Balayer l\'onglet le plus à droite pour une nouvelle session</string>
+    <string name="swipe_rightmost_new_tab_title">Balayer le dernier onglet pour une nouvelle session</string>
     <string name="swipe_rightmost_new_tab_summary">Sur le dernier onglet, balayez vers la droite pour ouvrir une nouvelle session de terminal</string>
     <string name="text_input_toggle_button_title">Bouton de bascule du panneau de saisie</string>
     <string name="text_input_hide_on_send_title">Masquer le panneau de saisie après l\'envoi</string>
@@ -238,7 +238,7 @@
     <string name="file_receiver_error_empty_name">Le nom de fichier ne peut pas être nul ou vide</string>
     <string name="file_receiver_error_cannot_create_dir">Impossible de créer le répertoire : %s</string>
     <string name="file_receiver_error_saving_file">Erreur lors de l\'enregistrement du fichier :\n\n%s</string>
-    <string name="notification_wake_lock_held"> (verrouillage d\'activité actif)</string>
+    <string name="notification_wake_lock_held"> (verrouillage d\'éveil actif)</string>
     <string name="session_null_title">session null</string>
     <string name="msg_extra_keys_load_failed">Impossible de charger et de définir la propriété \"%1$s\" depuis le fichier de propriétés : %2$s</string>
     <string name="msg_extra_keys_create_failed">Impossible de créer les touches supplémentaires par défaut</string>
@@ -263,26 +263,26 @@
     <string name="hide_extra_keys_with_keyboard_summary">Masquer automatiquement les touches supplémentaires quand le clavier est fermé, les afficher quand il est ouvert</string>
 
     
-    <string name="suggestions_max_count_title">Maximum de suggestions de saisie semi-automatique</string>
+    <string name="suggestions_max_count_title">Nombre maximal de suggestions de saisie semi-automatique</string>
     <string name="language_category_title">Langue</string>
     <string name="appearance_category_title">Apparence</string>
     <string name="input_preferences_title">Saisie</string>
     <string name="input_preferences_summary">Touches supplémentaires, panneau de saisie, clavier, raccourcis clavier, boutons système</string>
     <string name="extra_keys_preferences_title">Touches supplémentaires</string>
-    <string name="extra_keys_preferences_summary">Préférences pour le panneau de touches supplémentaires</string>
+    <string name="extra_keys_preferences_summary">Préférences du panneau de touches supplémentaires</string>
     <string name="display_preferences_title">Affichage</string>
     <string name="display_preferences_summary">Apparence, onglets, terminal, fenêtre</string>
     <string name="terminal_advanced_title">Avancé</string>
     <string name="terminal_advanced_summary">Session, son et notifications, applications externes, extensions, débogage</string>
     <string name="extra_keys_corner_radius_title">Rayon d\'arrondi des boutons</string>
-    <string name="sessions_history_preferences_summary">Préférences pour les sessions, onglets et historique</string>
+    <string name="sessions_history_preferences_summary">Préférences des sessions, des onglets et de l\'historique</string>
     <string name="backup_restore_preferences_title">Sauvegarde &amp; restauration</string>
     <string name="backup_restore_preferences_summary">Conteneur Termux, paramètres de l\'application</string>
     <string name="diagnostics_preferences_summary">Journalisation et notifications d\'erreur</string>
     <string name="plugin_logging_category_title">Journalisation</string>
     <string name="action_failsafe_mode">Mode sans échec</string>
     <string name="extra_keys_special_button_mode_title">Comportement des touches spéciales</string>
-    <string name="extra_keys_special_button_mode_summary">Fonctionnement des touches de modification (CTRL, ALT, SHIFT, FN) au toucher. Collant : appui pour basculer, appui long pour verrouiller. Maintenu : actif uniquement pendant l\'appui.</string>
+    <string name="extra_keys_special_button_mode_summary">Fonctionnement des touches modificatrices (CTRL, ALT, SHIFT, FN) au toucher. Collant : appui pour basculer, appui long pour verrouiller. Maintenu : actif uniquement pendant l\'appui.</string>
     <string name="extra_keys_special_button_mode_sticky">Collant (basculer / verrouiller)</string>
     <string name="extra_keys_special_button_mode_hold">Maintenu (pendant l\'appui)</string>
     <string name="extra_keys_header">Touches supplémentaires</string>
@@ -376,7 +376,7 @@
     <string name="extra_keys_editor_signal_paste">Coller</string>
     <string name="extra_keys_editor_signal_scroll_lock">Verrouillage du défilement</string>
     <string name="extra_keys_editor_signal_space">Espace</string>
-    <string name="extra_keys_editor_signal_quote">Guillemet (\")</string>
+    <string name="extra_keys_editor_signal_quote">Guillemet double (\")</string>
     <string name="extra_keys_editor_signal_custom">Symbole/texte…</string>
 
     
@@ -455,7 +455,7 @@
     <string name="hide_soft_keyboard_on_startup_summary">Garder le clavier virtuel masqué au démarrage de Termux.</string>
 
     
-    <string name="invalid_number">Veuillez entrer un nombre valide.</string>
+    <string name="invalid_number">Veuillez saisir un nombre valide.</string>
 
     
     <string name="key_behaviour_category_title">Comportement des touches</string>
@@ -473,7 +473,7 @@
 
     
     <string name="report_issue_title">Termux — Signaler un problème</string>
-    <string name="report_issue_transcript_header">## Transcription\n</string>
+    <string name="report_issue_transcript_header">## Journal\n</string>
     <string name="run_termux_am_socket_server_title">Exécuter le serveur socket termux-am</string>
 
     
@@ -759,14 +759,14 @@
     <string name="human_size_format" formatted="false">%.1f %s</string>
     <string name="human_size_progress_format">%1$s / %2$s</string>
     <string-array name="human_size_units">
-        <item>B</item>
-        <item>KB</item>
-        <item>MB</item>
-        <item>GB</item>
+        <item>o</item>
+        <item>Ko</item>
+        <item>Mo</item>
+        <item>Go</item>
     </string-array>
     <!-- Terminal font size (Display > Appearance). The same value, the same bounds
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Taille de police</string>
-    <string name="terminal_font_size_summary" formatted="false">Le pincement sur le terminal modifie aussi cette valeur</string>
+    <string name="terminal_font_size_summary" formatted="false">Le pincement sur le terminal modifie également cette valeur</string>
 </resources>

@@ -73,7 +73,7 @@
     <string name="msg_terminal_font_applied">Font applied</string>
 
     <string name="action_kill_process">Kill process (%d)</string>
-    <string name="title_confirm_kill_process">Really kill this session?</string>
+    <string name="title_confirm_kill_process">Terminate this session?</string>
 
     <string name="action_style_terminal">Style</string>
     <string name="action_font_terminal">Font</string>
@@ -107,7 +107,7 @@
     <!-- Termux RunCommandService -->
     <string name="error_run_command_service_invalid_intent_action">Invalid intent action for RunCommandService: `%1$s`</string>
     <string name="error_run_command_service_invalid_execution_command_runner">Invalid execution command runner for RunCommandService: `%1$s`</string>
-    <string name="error_run_command_service_mandatory_extra_missing">A mandatory extra is missing from RunCommandService: \"%1$s\"</string>
+    <string name="error_run_command_service_mandatory_extra_missing">RunCommandService is missing a mandatory extra: \"%1$s\"</string>
     <string name="error_run_command_service_api_help">Visit %1$s for more information about RUN_COMMAND intent usage.</string>
 
     <!-- Termux File Receiver -->
@@ -202,7 +202,7 @@
                 <string name="termux_tab_height_mode_double">Two lines</string>
 
                 <!-- Extra keys special button mode -->
-                <string name="extra_keys_special_button_mode_title">Special keys behaviour</string>
+                <string name="extra_keys_special_button_mode_title">Special keys behavior</string>
                 <string name="extra_keys_special_button_mode_summary">How modifier keys (CTRL, ALT, SHIFT, FN) respond to touch. Sticky: tap to toggle; long-press to lock. Hold: active only while pressed.</string>
                 <string name="extra_keys_special_button_mode_sticky">Sticky (toggle / lock)</string>
                 <string name="extra_keys_special_button_mode_hold">Hold (while pressed)</string>
@@ -331,7 +331,7 @@
         <item>hide_keyboard</item>
     </string-array>
 
-    <string name="text_input_restore_mode_title">Input history restore behaviour</string>
+    <string name="text_input_restore_mode_title">Input history restore behavior</string>
     <string name="text_input_restore_mode_summary">Tap to choose whether to insert at the cursor or replace the entire input field.</string>
     <string name="text_input_restore_mode_dialog_title">Input history restore mode</string>
     <string name="text_input_restore_mode_option_insert">Insert at cursor</string>
@@ -390,7 +390,7 @@
     <string name="backup_dialog_run_in_background">Run in background</string>
     <string name="backup_dialog_cancel">Cancel</string>
     <string name="backup_service_notification_cancel">Cancel</string>
-    <string name="backup_restore_cancelled">Operation cancelled</string>
+    <string name="backup_restore_cancelled">Operation canceled</string>
 
     <!-- Settings Backup / Restore -->
     <string name="backup_restore_full_data_category_title">&TERMUX_APP_NAME; container</string>
@@ -437,7 +437,7 @@
 
     <!-- Message history -->
     <string name="input_history_empty">No input history</string>
-    <string name="input_history_clear_all">CLEAR HISTORY…</string>
+    <string name="input_history_clear_all">Clear history…</string>
     <string name="input_history_clear">Clear</string>
 
     <!-- Message history clear dialogs -->
@@ -463,8 +463,8 @@
     <string name="file_receiver_error_cannot_open">Cannot open file: %s</string>
     <string name="file_receiver_error_cannot_receive">Unable to receive any file or URL.</string>
     <string name="file_receiver_error_handle_shared">Unable to handle shared content:\n\n%s</string>
-    <string name="file_receiver_error_no_editor">The following file does not exist:\n$HOME/bin/termux-file-editor\n\nCreate this file as a script or a symlink. It will be called with the received file as the only argument.</string>
-    <string name="file_receiver_error_no_url_opener">The following file does not exist:\n$HOME/bin/termux-url-opener\n\nCreate this file as a script or a symlink. It will be called with the shared URL as the first argument.</string>
+    <string name="file_receiver_error_no_editor">File not found:\n$HOME/bin/termux-file-editor\n\nCreate this file as a script or a symlink. It will be called with the received file as the only argument.</string>
+    <string name="file_receiver_error_no_url_opener">File not found:\n$HOME/bin/termux-url-opener\n\nCreate this file as a script or a symlink. It will be called with the shared URL as the first argument.</string>
     <string name="file_receiver_error_empty_name">File name cannot be null or empty.</string>
     <string name="file_receiver_error_cannot_create_dir">Cannot create directory: %s</string>
     <string name="file_receiver_error_saving_file">Error saving file:\n\n%s</string>
@@ -481,7 +481,7 @@
     <string name="notification_wake_lock_held"> (wake lock active)</string>
 
     <!-- Session list -->
-    <string name="session_null_title">null session</string>
+    <string name="session_null_title">Unnamed session</string>
 
     <!-- Extra keys -->
     <string name="msg_extra_keys_load_failed">Could not load and set the \"%1$s\" property from the properties file: %2$s</string>
@@ -519,7 +519,7 @@
     <string name="terminal_advanced_summary">Session, sound and notifications, external apps, add-ons, and debugging</string>
 
     <string name="terminal_category_title">Terminal</string>
-    <string name="key_behaviour_category_title">Key behaviour</string>
+    <string name="key_behaviour_category_title">Key behavior</string>
     <string name="screen_category_title">Screen</string>
     <string name="shortcuts_category_title">Keyboard shortcuts</string>
     <string name="misc_category_title">Misc</string>
@@ -556,7 +556,7 @@
 
     <string name="terminal_cursor_blink_enabled_title">Cursor blinking</string>
 
-    <string name="bell_character_title">Bell behaviour</string>
+    <string name="bell_character_title">Bell behavior</string>
     <string name="bell_character_summary">What happens when the terminal receives a bell character (BEL).</string>
 
     <string name="terminal_margin_left_title">Left margin</string>
@@ -578,13 +578,13 @@
     <string name="default_working_directory_title">Default working directory</string>
     <string name="default_working_directory_summary">Directory opened for new sessions. Leave empty to use the home directory.</string>
 
-    <string name="back_key_sends_escape_title">Back key behaviour</string>
+    <string name="back_key_sends_escape_title">Back key behavior</string>
     <string name="back_key_summary">What the hardware/software back key does in the terminal.</string>
 
     <string name="volume_keys_title">Volume keys as modifiers</string>
     <string name="volume_keys_summary">Hold Ctrl or Fn while pressing the device volume-down or volume-up keys, respectively. To open the volume panel in this mode, use Fn + v.</string>
 
-    <string name="soft_keyboard_toggle_behaviour_title">Keyboard toggle behaviour</string>
+    <string name="soft_keyboard_toggle_behaviour_title">Keyboard toggle behavior</string>
     <string name="soft_keyboard_toggle_behaviour_summary">Choose whether the keyboard toggle shows/hides or enables/disables the soft keyboard.</string>
 
     <string name="ctrl_space_workaround_title">Ctrl+Space workaround</string>
@@ -891,5 +891,5 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Font size</string>
-    <string name="terminal_font_size_summary" formatted="false">Pinching on the terminal changes this same value.</string>
+    <string name="terminal_font_size_summary" formatted="false">Pinch-to-zoom on the terminal changes this same value.</string>
 </resources>

@@ -15,7 +15,7 @@
     <string name="about_preference_title">Sobre</string>
     <string name="application_name">TermuxEnhanced</string>
     <string name="action_autofill_password">Preencher senha automaticamente</string>
-    <string name="action_autofill_username">Preencher automaticamente o nome de usuário</string>
+    <string name="action_autofill_username">Preencher nome de usuário automaticamente</string>
     <string name="action_create_named_session_confirm">Criar</string>
     <string name="action_file_received_edit">Editar</string>
     <string name="action_file_received_open_directory">Abrir diretório</string>
@@ -33,27 +33,27 @@
     <string name="action_share_transcript">Compartilhar transcrição</string>
     <string name="action_style_terminal">Estilo</string>
     <string name="action_styling_install">Instalar</string>
-    <string name="action_toggle_keep_screen_on">Manter tela ligada</string>
+    <string name="action_toggle_keep_screen_on">Manter a tela ligada</string>
     <string name="action_toggle_soft_keyboard">Teclado</string>
     <string name="action_toggle_text_input">Alternar entrada de texto</string>
     <string name="appearance_preferences_summary">Preferências de aparência do aplicativo e transparência do painel</string>
     <string name="appearance_preferences_title">Aparência</string>
-    <string name="backup_dialog_run_in_background">Segundo plano</string>
+    <string name="backup_dialog_run_in_background">Em segundo plano</string>
     <string name="backup_dialog_cancel">Cancelar</string>
-    <string name="backup_preference_title">Fazer Backup dos Dados do Termux</string>
+    <string name="backup_preference_title">Backup do contêiner do Termux</string>
     <string name="backup_restore_backup_started">Criando backup…</string>
     <string name="backup_restore_backup_success">Backup criado com sucesso</string>
     <string name="backup_restore_cancelled">Operação cancelada</string>
     <!-- Settings Backup / Restore -->
-    <string name="backup_restore_full_data_category_title">Dados Completos</string>
-    <string name="backup_restore_settings_category_title">Configurações do App</string>
-    <string name="backup_settings_title">Fazer Backup das Configurações do App</string>
-    <string name="restore_settings_title">Restaurar Configurações do App</string>
-    <string name="settings_backup_warning">Isso salvará as configurações do seu app Termux (preferências, esquema de cores, fonte, layout de teclas extras) em um arquivo de backup pequeno.\n\nEscolha um arquivo de destino.</string>
-    <string name="settings_restore_warning">Isso restaurará as configurações do seu app Termux a partir de um arquivo de backup. As configurações atuais serão substituídas.</string>
+    <string name="backup_restore_full_data_category_title">Contêiner do Termux</string>
+    <string name="backup_restore_settings_category_title">Configurações do aplicativo</string>
+    <string name="backup_settings_title">Fazer backup das configurações do aplicativo</string>
+    <string name="restore_settings_title">Restaurar configurações do aplicativo</string>
+    <string name="settings_backup_warning">Esta ação salvará as configurações do aplicativo Termux (preferências, esquema de cores, fonte e layout das teclas extras) em um pequeno arquivo de backup.\n\nEscolha um arquivo de destino.</string>
+    <string name="settings_restore_warning">Esta ação restaurará as configurações do aplicativo Termux a partir de um arquivo de backup. As configurações atuais serão substituídas.</string>
     <string name="settings_backup_progress">Fazendo backup das configurações…</string>
     <string name="settings_restore_progress">Restaurando configurações…</string>
-    <string name="settings_backup_success">Backup das configurações concluído com sucesso</string>
+    <string name="settings_backup_success">Configurações salvas com sucesso</string>
     <string name="settings_restore_success">Configurações restauradas com sucesso</string>
     <string name="settings_restart_required">Reinicie o Termux para que todas as configurações restauradas tenham efeito</string>
     <string name="settings_backup_failed">Falha no backup das configurações</string>
@@ -61,61 +61,61 @@
     <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">Incluir diretório tmp (usr/tmp/)</string>
     <string name="error_settings_backup_format_version">Versão do formato de backup não suportada: %1$s</string>
-    <string name="error_settings_backup_missing_manifest">Arquivo de backup não contém manifest.properties</string>
-    <string name="error_settings_restore_open_input">Falha ao abrir arquivo de entrada</string>
+    <string name="error_settings_backup_missing_manifest">O arquivo de backup não contém manifest.properties</string>
+    <string name="error_settings_restore_open_input">Falha ao abrir o arquivo de entrada</string>
     <string name="backup_restore_choose_backup">Selecione um arquivo de backup .tar.gz para restaurar</string>
-    <string name="backup_restore_dialog_title">Backup / Restauração de Dados do Termux</string>
-    <string name="backup_restore_failed_title">Operação Falhou</string>
-    <string name="backup_restore_tar_not_found">O binário do Termux (tar) não foi encontrado. Abra o Termux pelo menos uma vez para que o contêiner seja configurado.</string>
+    <string name="backup_restore_dialog_title">Backup/restauração de dados do Termux</string>
+    <string name="backup_restore_failed_title">Falha na operação</string>
+    <string name="backup_restore_tar_not_found">O binário tar do Termux não foi encontrado. Abra o Termux pelo menos uma vez para configurar o contêiner.</string>
     <string name="backup_restore_restore_started">Restaurando backup…</string>
     <string name="backup_restore_restore_success">Dados restaurados com sucesso</string>
-    <string name="backup_restore_warning_backup">Isso criará um arquivo compactado do seu diretório de dados do Termux (pacotes instalados e ambiente junto com seu diretório home).\n\nEscolha um arquivo de destino para salvar o backup.</string>
-    <string name="backup_restore_warning_restore">A restauração IRÁ SUBSTITUIR o diretório de dados atual do Termux (pacotes instalados mais seu diretório home) com o conteúdo do arquivo de backup selecionado. Os dados EXISTENTES SERÃO PERDIDOS.\n\n⚠ Se a restauração falhar — porque o arquivo de backup está corrompido, incompleto ou a conexão cai durante o processo — seu ambiente Termux será DEIXADO VAZIO. Não haverá maneira de recuperar os dados originais.\n\nIsso não pode ser desfeito. É fortemente recomendado fazer backup PRIMEIRO e verificar se o arquivo de backup é válido.</string>
-    <string name="backup_service_channel_name">Backup/Restauração do Termux</string>
+    <string name="backup_restore_warning_backup">Esta ação criará um arquivo compactado do seu diretório de dados do Termux (pacotes instalados e ambiente, junto com o diretório home).\n\nEscolha um arquivo de destino para salvar o backup.</string>
+    <string name="backup_restore_warning_restore">A restauração SUBSTITUIRÁ o diretório de dados atual do Termux (pacotes instalados mais seu diretório home) pelo conteúdo do arquivo de backup selecionado. Os dados EXISTENTES SERÃO PERDIDOS.\n\n⚠ Se a restauração falhar — porque o arquivo de backup está corrompido ou incompleto, ou porque a conexão foi interrompida durante o processo — seu ambiente Termux ficará VAZIO. Não haverá como recuperar os dados originais.\n\nIsso não pode ser desfeito. É altamente recomendável fazer um backup PRIMEIRO e verificar se o arquivo de backup é válido.</string>
+    <string name="backup_service_channel_name">Backup/restauração do Termux</string>
     <string name="backup_service_notification_cancel">Cancelar</string>
-    <string name="backup_service_notification_failed">Backup falhou</string>
-    <string name="backup_service_notification_restore_failed">Restauração falhou</string>
+    <string name="backup_service_notification_failed">Falha no backup</string>
+    <string name="backup_service_notification_restore_failed">Falha na restauração</string>
     <string name="backup_service_notification_restore_success">Dados restaurados com sucesso</string>
-    <string name="backup_service_notification_restore_title">Restauração de Dados do Termux</string>
+    <string name="backup_service_notification_restore_title">Restauração de dados do Termux</string>
     <string name="backup_service_notification_success">Backup criado com sucesso</string>
-    <string name="backup_service_notification_title">Backup de Dados do Termux</string>
+    <string name="backup_service_notification_title">Backup de dados do Termux</string>
     <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
-    <string name="backup_progress_calculating_size">A calcular o tamanho da cópia de segurança…</string>
-    <string name="bootstrap_error_abort">Cancelar</string>
+    <string name="backup_progress_calculating_size">Calculando o tamanho…</string>
+    <string name="bootstrap_error_abort">Interromper</string>
     <string name="bootstrap_error_body">O Termux não conseguiu instalar os pacotes de bootstrap.</string>
-    <string name="bootstrap_error_installed_on_portable_sd">O Termux não pode ser instalado em um cartão SD portátil/externo/removível do seu dispositivo.\nOs binários de bootstrap compilados para o Termux têm o caminho $PREFIX codificado e não podem ser instalados em um caminho diferente de:\n%1$s.</string>
-    <string name="bootstrap_error_not_primary_user_message">O Termux só pode ser executado como usuário primário.\nOs binários de bootstrap compilados para o Termux têm o caminho $PREFIX codificado e não podem ser instalados em um caminho diferente de:\n%1$s.</string>
+    <string name="bootstrap_error_installed_on_portable_sd">O Termux não pode ser instalado em um cartão SD portátil/externo/removível do seu dispositivo.\nOs binários de bootstrap compilados para o Termux têm o caminho $PREFIX embutido e não podem ser instalados em um caminho diferente de:\n%1$s.</string>
+    <string name="bootstrap_error_not_primary_user_message">O Termux só pode ser executado como o usuário principal.\nOs binários de bootstrap compilados para o Termux têm o caminho $PREFIX embutido e não podem ser instalados em um caminho diferente de:\n%1$s.</string>
     <string name="bootstrap_error_title">Não é possível instalar o bootstrap</string>
     <string name="bootstrap_error_try_again">Tentar novamente</string>
     <string name="bootstrap_installer_body">Instalando pacotes de bootstrap…</string>
     <string name="color_scheme_dark_summary">Esquema de cores aplicado quando o tema do aplicativo é escuro</string>
-    <string name="color_scheme_dark_title">Esquema de Cores do Terminal (Tema Escuro)</string>
+    <string name="color_scheme_dark_title">Esquema de cores do terminal (tema escuro)</string>
     <string name="color_scheme_light_summary">Esquema de cores aplicado quando o tema do aplicativo é claro</string>
-    <string name="color_scheme_light_title">Esquema de Cores do Terminal (Tema Claro)</string>
+    <string name="color_scheme_light_title">Esquema de cores do terminal (tema claro)</string>
     <string name="directory_history_clear_confirm">Limpar todo o histórico de diretórios? Esta ação não pode ser desfeita.</string>
-    <string name="directory_history_clear_dialog_title">Limpar Histórico de Diretórios</string>
+    <string name="directory_history_clear_dialog_title">Limpar histórico de diretórios</string>
     <string name="directory_history_cleared">Histórico de diretórios limpo</string>
-    <string name="directory_history_max_title">Máx. de diretórios salvos</string>
-    <string name="directory_history_title">Histórico de Diretórios</string>
+    <string name="directory_history_max_title">Máx. de diretórios de trabalho no histórico</string>
+    <string name="directory_history_title">Histórico de diretórios</string>
     <string name="donate_preference_title">Doar</string>
-    <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">O Termux requer permissão \"Sobrepor a outros aplicativos\" para iniciar sessões do terminal em segundo plano no Android &gt;= 10. Conceda-a em Configurações -&gt; Aplicativos -&gt; Termux -&gt; Avançado</string>
+    <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">O Termux requer a permissão “Exibir sobre outros apps” para iniciar sessões do terminal em segundo plano no Android 10 ou superior. Conceda-a em Configurações → Aplicativos → Termux → Avançado.</string>
     <string name="error_font_apply_failed">Falha ao aplicar fonte</string>
     <string name="font_picker_title">Selecione uma fonte (.ttf)</string>
-    <string name="error_run_command_service_api_help">Visite %1$s para mais informações sobre como usar a Intent RUN_COMMAND.</string>
-    <string name="error_run_command_service_invalid_execution_command_runner">Runner de comando de execução inválido para RunCommandService: `%1$s`</string>
+    <string name="error_run_command_service_api_help">Consulte %1$s para obter mais informações sobre como usar a Intent RUN_COMMAND.</string>
+    <string name="error_run_command_service_invalid_execution_command_runner">Executor de comando inválido para RunCommandService: `%1$s`</string>
     <string name="error_run_command_service_invalid_intent_action">Ação de intent inválida para RunCommandService: `%1$s`</string>
-    <string name="error_run_command_service_mandatory_extra_missing">Extra obrigatório ausente para RunCommandService: \"%1$s\"</string>
-    <string name="error_styling_not_installed">O aplicativo de plugin Termux:Styling não está instalado.</string>
+    <string name="error_run_command_service_mandatory_extra_missing">Extra obrigatório ausente no RunCommandService: \"%1$s\"</string>
+    <string name="error_styling_not_installed">O plugin Termux:Styling não está instalado.</string>
     <string name="error_termux_service_execution_command_shell_name_unset">Nome do shell não definido, mas o modo de criação de shell `%1$s` foi passado</string>
-    <string name="error_termux_service_invalid_execution_command_runner">Runner de comando de execução inválido para TermuxService: `%1$s`</string>
+    <string name="error_termux_service_invalid_execution_command_runner">Executor de comando inválido para TermuxService: `%1$s`</string>
     <string name="error_termux_service_start_failed_bg">Falha ao iniciar TermuxService enquanto o aplicativo está em segundo plano devido às restrições de segundo plano do Android.</string>
-    <string name="error_termux_service_start_failed_general">Falha ao iniciar TermuxService. Verifique o logcat para a mensagem de exceção.</string>
-    <string name="error_termux_service_unsupported_execution_command_runner">Runner de comando de execução não suportado para TermuxService: `%1$s`</string>
-    <string name="error_termux_service_unsupported_execution_command_shell_create_mode">Modo de criação de shell de comando de execução não suportado para TermuxService: `%1$s`</string>
-    <string name="file_receiver_error_cannot_create_dir">Não é possível criar diretório: %s</string>
-    <string name="file_receiver_error_cannot_open">Não é possível abrir arquivo: %s</string>
-    <string name="file_receiver_error_cannot_receive">Não é possível receber nenhum arquivo ou URL.</string>
+    <string name="error_termux_service_start_failed_general">Falha ao iniciar o TermuxService. Verifique o logcat para encontrar a mensagem de exceção.</string>
+    <string name="error_termux_service_unsupported_execution_command_runner">Executor de comando não suportado para TermuxService: `%1$s`</string>
+    <string name="error_termux_service_unsupported_execution_command_shell_create_mode">Modo de criação de shell não suportado para TermuxService: `%1$s`</string>
+    <string name="file_receiver_error_cannot_create_dir">Não é possível criar o diretório: %s</string>
+    <string name="file_receiver_error_cannot_open">Não é possível abrir o arquivo: %s</string>
+    <string name="file_receiver_error_cannot_receive">Não é possível receber arquivos ou URLs.</string>
     <string name="file_receiver_error_empty_name">O nome do arquivo não pode ser nulo ou vazio</string>
     <string name="file_receiver_error_handle_shared">Não é possível processar conteúdo compartilhado:\n\n%s</string>
     <string name="file_receiver_error_invalid_path">O caminho do arquivo do URI de dados é nulo, vazio ou inválido.</string>
@@ -123,28 +123,28 @@
     <string name="file_receiver_error_no_data_uri">Nenhum URI de dados fornecido.</string>
     <string name="file_receiver_error_no_editor">O seguinte arquivo não existe:\n$HOME/bin/termux-file-editor\n\nCrie este arquivo como um script ou link simbólico — ele será chamado com o arquivo recebido como único argumento.</string>
     <string name="file_receiver_error_no_url_opener">O seguinte arquivo não existe:\n$HOME/bin/termux-url-opener\n\nCrie este arquivo como um script ou link simbólico — ele será chamado com a URL compartilhada como primeiro argumento.</string>
-    <string name="file_receiver_error_saving_file">Erro ao salvar arquivo:\n\n%s</string>
+    <string name="file_receiver_error_saving_file">Erro ao salvar o arquivo:\n\n%s</string>
     <string name="input_history_clear">Limpar</string>
     <string name="input_history_clear_all">LIMPAR HISTÓRICO…</string>
     <string name="input_history_clear_all_button">Tudo</string>
-    <string name="input_history_clear_all_question">Isso excluirá permanentemente todas as mensagens salvas.</string>
-    <string name="input_history_clear_confirm_all">Limpar todo o histórico de mensagens? Esta ação não pode ser desfeita.</string>
-    <string name="input_history_clear_confirm_current">Limpar todas as mensagens salvas do diretório atual? Esta ação não pode ser desfeita.</string>
+    <string name="input_history_clear_all_question">Esta ação excluirá permanentemente todos os textos inseridos salvos.</string>
+    <string name="input_history_clear_confirm_all">Limpar todo o histórico de textos inseridos? Esta ação não pode ser desfeita.</string>
+    <string name="input_history_clear_confirm_current">Limpar todos os textos inseridos salvos do diretório atual? Esta ação não pode ser desfeita.</string>
     <string name="input_history_clear_current_only_question">Limpar histórico apenas do diretório atual?</string>
-    <string name="input_history_clear_dialog_title">Limpar Histórico de Mensagens</string>
-    <string name="input_history_clear_question">Limpar histórico de mensagens?</string>
+    <string name="input_history_clear_dialog_title">Limpar histórico de textos inseridos</string>
+    <string name="input_history_clear_question">Limpar histórico de textos inseridos?</string>
     <string name="input_history_clear_ok">OK</string>
-    <string name="input_history_cleared">Histórico de mensagens limpo</string>
-    <string name="input_history_empty">Nenhum histórico de mensagens</string>
-    <string name="input_history_max_title">Máx. de mensagens salvas</string>
-    <string name="input_history_title">Histórico de Mensagens</string>
+    <string name="input_history_cleared">Histórico de textos inseridos limpo</string>
+    <string name="input_history_empty">Nenhum texto inserido no histórico</string>
+    <string name="input_history_max_title">Máx. de textos inseridos no histórico</string>
+    <string name="input_history_title">Histórico de textos inseridos</string>
     <string name="msg_add_termux_debug_info">Adicionar informações de depuração do Termux ao relatório?</string>
-    <string name="msg_terminal_panel_disabling">Desativando barra de ferramentas do terminal</string>
-    <string name="msg_terminal_panel_enabling">Ativando barra de ferramentas do terminal</string>
-    <string name="msg_extra_keys_create_failed">Falha ao criar teclas extras padrão</string>
+    <string name="msg_terminal_panel_disabling">Desativando o painel do terminal</string>
+    <string name="msg_terminal_panel_enabling">Ativando o painel do terminal</string>
+    <string name="msg_extra_keys_create_failed">Falha ao criar as teclas extras padrão</string>
     <string name="msg_extra_keys_load_failed">Falha ao carregar e definir propriedade \"%1$s\" do arquivo de propriedades: %2$s</string>
-    <string name="msg_generating_report">Gerando relatório</string>
-    <string name="msg_max_terminals_reached">Feche os existentes antes de criar um novo.</string>
+    <string name="msg_generating_report">Gerando o relatório</string>
+    <string name="msg_max_terminals_reached">Feche os terminais existentes antes de criar um novo.</string>
     <string name="msg_select_url_copied_to_clipboard">URL copiada para a área de transferência</string>
     <string name="msg_terminal_font_applied">Fonte aplicada</string>
     <string name="msg_terminal_reset">Terminal redefinido</string>
@@ -153,25 +153,25 @@
     <string name="notification_action_wake_unlock">Liberar wakelock</string>
     <string name="notification_wake_lock_held"> (wakelock ativo)</string>
     <string name="panel_transparency_title">Transparência do painel</string>
-    <string name="per_directory_input_history_summary">Manter um histórico de mensagens separado para cada diretório de trabalho. Quando desativado, todas as sessões compartilham um histórico global.</string>
-    <string name="input_history_save_cleared_title">Limpos no histórico</string>
-    <string name="input_history_save_cleared_summary">Salvar no histórico as mensagens limpas do campo de entrada.</string>
-    <string name="per_directory_input_history_title">Histórico de Mensagens por Diretório</string>
+    <string name="per_directory_input_history_summary">Manter um histórico de textos inseridos separado para cada diretório de trabalho. Quando desativado, todas as sessões compartilham um histórico global.</string>
+    <string name="input_history_save_cleared_title">Salvar textos limpos no histórico</string>
+    <string name="input_history_save_cleared_summary">Salvar no histórico os textos limpos do campo de entrada.</string>
+    <string name="per_directory_input_history_title">Histórico de textos inseridos por diretório</string>
     <string name="permission_run_command_description">executar comandos arbitrários no ambiente do Termux e acessar arquivos</string>
     <string name="permission_run_command_label">Executar comandos no ambiente do Termux</string>
-    <string name="restore_preference_title">Restaurar Dados do Termux</string>
+    <string name="restore_preference_title">Restauração do contêiner do Termux</string>
     <string name="restore_tabs_summary">Reabrir todas as abas e seus diretórios quando o aplicativo for iniciado</string>
     <string name="restore_tabs_title">Restaurar abas na inicialização</string>
-    <string name="screen_orientation_summary">Variantes \"Seguir sensor\" alternam entre as duas orientações (ex.: 0°/180° retrato).</string>
+    <string name="screen_orientation_summary">As variantes \"Seguir sensor\" alternam entre as duas orientações (por exemplo, retrato 0°/180°).</string>
     <string name="screen_orientation_title">Orientação da tela</string>
-    <string name="session_null_title">sessão nula</string>
+    <string name="session_null_title">Sessão nula</string>
     <string name="session_default_title">Terminal</string>
     <string name="shared_user_label">Usuário do Termux</string>
     <string name="tab_close_description">Fechar aba</string>
     <string name="new_tab_placeholder_hint">Nova sessão</string>
     <string name="session_tabs_title">Abas de sessão</string>
-    <string name="swipe_rightmost_new_tab_title">Deslizar a última aba para nova sessão</string>
-    <string name="swipe_rightmost_new_tab_summary">Na última aba, deslize para a direita para revelar e abrir uma nova sessão de terminal</string>
+    <string name="swipe_rightmost_new_tab_title">Deslizar a última aba para criar nova sessão</string>
+    <string name="swipe_rightmost_new_tab_summary">Na última aba, deslize para a direita para abrir uma nova sessão de terminal.</string>
     <string name="termux_tab_height_mode_title">Altura da aba</string>
     <string name="termux_tab_height_mode_single">Linha única</string>
     <string name="termux_tab_height_mode_double">Duas linhas</string>
@@ -180,25 +180,19 @@
     <string name="termux_tab_panel_position_bottom">Inferior</string>
     <string name="termux_api_preferences_title">Termux:API</string>
     <string name="termux_api_preferences_summary">Preferências para o aplicativo Termux:API</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">Transparência de elemento ativo</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparência de elemento inativo</string>
-    <string name="termux_crash_report_notifications_enabled_off">Desativar notificações para relatórios de falha.</string>
-    <string name="termux_crash_report_notifications_enabled_on">Mostrar notificações para relatórios de falha.</string>
-    <string name="termux_crash_report_notifications_enabled_title">Notificações de Relatório de Falha</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">Transparência do fundo dos elementos ativos</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparência do fundo dos elementos inativos</string>
+    <string name="termux_crash_report_notifications_enabled_title">Notificações de relatório de falha</string>
     <string name="termux_debugging_preferences_summary">Preferências de depuração</string>
     <string name="termux_debugging_preferences_title">Depuração</string>
     <string name="termux_float_preferences_title">Termux:Float</string>
     <string name="termux_float_preferences_summary">Preferências para o aplicativo Termux:Float</string>
     <string name="termux_log_level_title">Nível de log</string>
-    <string name="termux_logging_header">Registro de log</string>
-    <string name="termux_plugin_error_notifications_enabled_off">Desativar flashes e notificações para erros de plugin.</string>
-    <string name="termux_plugin_error_notifications_enabled_on">Mostrar flashes e notificações para erros de plugin.</string>
-    <string name="termux_plugin_error_notifications_enabled_title">Notificações de Erro de Plugin</string>
+    <string name="termux_plugin_error_notifications_enabled_title">Notificações de erro de plugin</string>
     <string name="termux_preferences_summary">Preferências do aplicativo Termux</string>
-    <string name="termux_settings_button_enabled_off">O botão de configurações está oculto. Abra as Configurações com uma pressão longa no terminal → Mais… → Configurações.</string>
-    <string name="termux_settings_button_enabled_on">O botão de configurações é exibido no painel de guias.</string>
-    <string name="termux_settings_button_enabled_title">Mostrar Botão de Configurações</string>
     <string name="termux_keyboard_header">Teclado</string>
+    <string name="system_buttons_category_title">Botões do sistema</string>
+    <string name="input_additional_category_title">Adicional</string>
     <string name="termux_soft_keyboard_enabled_off">O teclado virtual será desativado.</string>
     <string name="termux_soft_keyboard_enabled_on">O teclado virtual será ativado.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">O teclado virtual será ativado mesmo se um teclado físico estiver conectado.</string>
@@ -206,25 +200,25 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Estado do teclado ao alternar abas</string>
-    <string name="keyboard_state_follow_tab_switch_on">Ao alternar abas, o estado do teclado de cada aba é restaurado como estava quando você saiu dela.</string>
+    <string name="keyboard_state_follow_tab_switch_on">Ao alternar abas, o estado do teclado de cada aba é restaurado para como estava quando você saiu dela.</string>
     <string name="keyboard_state_follow_tab_switch_off">Ao alternar abas, o estado do teclado não muda. Se você alternar de uma aba com o teclado oculto para uma aba com o painel de entrada aberto, o painel será ocultado.</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Teclado Virtual Apenas Sem Teclado Físico</string>
-    <string name="termux_soft_keyboard_enabled_title">Teclado Virtual Ativado</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Usar teclado virtual apenas sem teclado físico</string>
+    <string name="termux_soft_keyboard_enabled_title">Teclado virtual ativado</string>
     <string name="termux_tasker_preferences_title">Termux:Tasker</string>
     <string name="termux_tasker_preferences_summary">Preferências para o aplicativo Termux:Tasker</string>
     <string name="termux_terminal_io_preferences_summary">Preferências de E/S do terminal</string>
-    <string name="termux_terminal_io_preferences_title">E/S do Terminal</string>
+    <string name="termux_terminal_io_preferences_title">E/S do terminal</string>
     <string name="termux_terminal_view_key_logging_enabled_off">Os logs não terão entradas de teclas da visualização do terminal.</string>
-    <string name="termux_terminal_view_key_logging_enabled_on">Os logs do logcat terão entradas de teclas da visualização do terminal. Eles são muito verbosos e devem ser desativados em circunstâncias normais, pois podem causar problemas de desempenho.</string>
+    <string name="termux_terminal_view_key_logging_enabled_on">Os logs do logcat conterão entradas de teclas da visualização do terminal. Essas entradas são muito detalhadas e devem ser desativadas em circunstâncias normais, pois podem causar problemas de desempenho.</string>
     <string name="termux_preferences_title">Termux</string>
-    <string name="termux_terminal_view_key_logging_enabled_title">Registro de Teclas da Visualização do Terminal</string>
+    <string name="termux_terminal_view_key_logging_enabled_title">Registro de teclas do terminal</string>
     <string name="termux_terminal_view_preferences_summary">Preferências para visualização do terminal</string>
-    <string name="termux_terminal_view_preferences_title">Visualização do Terminal</string>
+    <string name="termux_terminal_view_preferences_title">Visualização do terminal</string>
     <string name="termux_terminal_view_view_header">Visualização</string>
     <string name="termux_widget_preferences_title">Termux:Widget</string>
     <string name="termux_widget_preferences_summary">Preferências para o aplicativo Termux:Widget</string>
-    <string name="text_input_append_enter_summary">Ao enviar do campo de entrada, também submeter a linha (pressionar Enter). Desative para enviar texto sem uma nova linha no final.</string>
-    <string name="text_input_append_enter_title">Adicionar Enter ao Enviar</string>
+    <string name="text_input_append_enter_summary">Ao enviar a partir do campo de entrada, também envia uma nova linha (pressionar Enter). Desative para enviar o texto sem uma nova linha no final.</string>
+    <string name="text_input_append_enter_title">Adicionar Enter ao enviar</string>
     <string name="text_input_hide_on_send_summary">Quando ativado, o painel de entrada fecha e o foco vai para o terminal após o envio. Desative para manter o painel aberto para comandos consecutivos.</string>
 
     <string name="text_input_hide_keyboard_on_send_title">Ocultar o teclado virtual após enviar</string>
@@ -232,7 +226,7 @@
     <string name="text_input_action_on_send_title">Ação ao enviar</string>
     <string name="text_input_action_on_send_summary">O que acontece após enviar texto do campo de entrada: não fazer nada, ocultar o painel de entrada ou ocultar o painel de entrada e o teclado.</string>
     <string-array name="text_input_action_on_send_entries">
-        <item>Nada</item>
+        <item>Não fazer nada</item>
         <item>Ocultar painel de entrada</item>
         <item>Ocultar painel de entrada e teclado</item>
     </string-array>
@@ -241,27 +235,26 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">Comportamento de restauração do histórico</string>
-    <string name="text_input_restore_mode_summary">Toque para escolher: inserir no cursor ou substituir todo o campo de entrada</string>
+    <string name="text_input_restore_mode_title">Comportamento ao restaurar texto do histórico</string>
+    <string name="text_input_restore_mode_summary">Toque para escolher: inserir na posição do cursor ou substituir todo o texto do campo de entrada</string>
     <string name="text_input_restore_mode_dialog_title">Modo de restauração do histórico</string>
-    <string name="text_input_restore_mode_option_insert">Inserir no cursor</string>
+    <string name="text_input_restore_mode_option_insert">Inserir na posição do cursor</string>
     <string name="text_input_restore_mode_option_replace">Substituir todo o campo de entrada</string>
     <string name="text_input_hide_on_send_title">Ocultar painel de entrada após envio</string>
     <string name="text_input_show_summary_off">O campo de entrada de texto está oculto</string>
     <string name="text_input_show_summary_on">O campo de entrada de texto está visível acima das teclas extras</string>
-    <string name="text_input_toggle_button_title">Mostrar campo de entrada de texto</string>
-    <string name="text_input_title">Entrada de Texto</string>
+    <string name="text_input_toggle_button_title">Botão de alternância do painel de entrada</string>
     <string name="theme_title">Tema</string>
-    <string name="theme_mode_title">Tema do Aplicativo</string>
-    <string name="theme_mode_summary">Escolher tema do aplicativo e terminal</string>
+    <string name="theme_mode_title">Tema do aplicativo</string>
+    <string name="theme_mode_summary">Escolha o tema do aplicativo e do terminal</string>
     <string name="title_activity_termux_settings">Configurações do Termux</string>
-    <string name="title_confirm_kill_process">Realmente finalizar esta sessão?</string>
+    <string name="title_confirm_kill_process">Deseja realmente finalizar esta sessão?</string>
     <string name="title_create_named_session">Nova sessão nomeada</string>
     <string name="title_file_received_save">Salvar arquivo em ~/downloads/</string>
     <string name="title_max_terminals_reached">Máximo de terminais atingido</string>
     <string name="title_rename_session">Definir nome da sessão</string>
-    <string name="title_select_url_dialog">Toque na URL para copiar ou pressione longamente para abrir</string>
-    <string name="color_scheme_dialog_title">Esquema de Cores do Terminal</string>
+    <string name="title_select_url_dialog">Toque na URL para copiar ou mantenha pressionado para abrir</string>
+    <string name="color_scheme_dialog_title">Esquema de cores do terminal</string>
     <string name="title_select_url_none_found">Nenhuma URL encontrada no terminal.</string>
     <string name="title_share_selected_text">Texto do terminal</string>
     <string name="title_share_selected_text_with">Enviar texto selecionado para:</string>
@@ -279,22 +272,22 @@
 
     
     <string name="locale_override_title">Idioma do aplicativo</string>
-    <string name="locale_override_summary">Substituir idioma do app</string>
-    <string name="locale_override_entry_system">Idioma do sistema (tradução automática, possíveis imprecisões)</string>
+    <string name="locale_override_summary">Substituir o idioma do aplicativo</string>
+    <string name="locale_override_entry_system">Sistema</string>
     
     <string name="hide_extra_keys_with_keyboard_title">Ocultar teclas extras com o teclado</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Ocultar automaticamente botões extras quando o teclado estiver fechado; mostrar quando aberto</string>
+    <string name="hide_extra_keys_with_keyboard_summary">Ocultar automaticamente as teclas extras quando o teclado estiver fechado; mostrá-las quando aberto</string>
 
     
-    <string name="suggestions_max_count_title">Máx. sugestões</string>
-    <string name="suggestions_max_count_summary">Autocompletar do histórico de mensagens</string>
+    <string name="suggestions_max_count_title">Máximo de sugestões de autocompletar</string>
+    <string name="suggestions_max_count_summary">Número máximo de sugestões de autocompletar do histórico de textos inseridos.</string>
 
-    <string name="extra_keys_preferences_title">Teclas Extras</string>
+    <string name="extra_keys_preferences_title">Teclas extras</string>
     <string name="extra_keys_preferences_summary">Preferências da barra de teclas extras</string>
     <string name="extra_keys_header">Teclas extras</string>
-    <string name="extra_keys_category_title">Teclas Extras</string>
+    <string name="extra_keys_category_title">Teclas extras</string>
     <string name="extra_keys_layout_title">Layout das teclas</string>
-    <string name="extra_keys_layout_summary">Matriz JSON que define as linhas de teclas extras e seus pop-ups.</string>
+    <string name="extra_keys_layout_summary">Matriz JSON que define as linhas de teclas extras e seus menus pop-up.</string>
     <string name="extra_keys_style_title">Estilo das teclas</string>
     <string name="extra_keys_style_summary">Como os caracteres especiais nas teclas são exibidos.</string>
     <string name="extra_keys_style_default">Padrão</string>
@@ -302,24 +295,24 @@
     <string name="extra_keys_style_arrows_all">Todas as setas</string>
     <string name="extra_keys_style_all">Todas</string>
     <string name="extra_keys_style_none">Nenhuma</string>
-    <string name="extra_keys_text_all_caps_title">Texto em maiúsculas</string>
+    <string name="extra_keys_text_all_caps_title">Rótulos em maiúsculas</string>
     <string name="extra_keys_text_all_caps_summary">Exibir os rótulos das teclas extras em maiúsculas.</string>
     <string name="extra_keys_special_button_mode_title">Comportamento das teclas especiais</string>
-    <string name="extra_keys_special_button_mode_summary">Como as teclas modificadoras (CTRL, ALT, SHIFT, FN) respondem ao toque. Fixa: toque para alternar, pressione e segure para travar. Manter: ativa somente enquanto a tecla é pressionada.</string>
-    <string name="extra_keys_special_button_mode_sticky">Fixa (alternar / travar)</string>
+    <string name="extra_keys_special_button_mode_summary">Como as teclas modificadoras (CTRL, ALT, SHIFT, FN) respondem ao toque. Fixo: toque para alternar; mantenha a tecla pressionada para travar. Manter: ativa somente enquanto a tecla estiver pressionada.</string>
+    <string name="extra_keys_special_button_mode_sticky">Fixo (alternar/travar)</string>
     <string name="extra_keys_special_button_mode_hold">Manter (enquanto pressionada)</string>
     <string name="input_preferences_title">Entrada</string>
-    <string name="input_preferences_summary">Preferências para entrada de texto e teclado</string>
+    <string name="input_preferences_summary">Teclas extras, painel de entrada, teclado, atalhos de teclado, botões do sistema</string>
     <string name="display_preferences_title">Exibição</string>
-    <string name="display_preferences_summary">Tema, transparência do painel, visualização do terminal, abas, janela e tela cheia</string>
+    <string name="display_preferences_summary">Aparência, abas, terminal, janela</string>
     <string name="terminal_advanced_title">Avançado</string>
-    <string name="terminal_advanced_summary">Comportamento das teclas, atalhos, sessão, segurança e outras configurações</string>
+    <string name="terminal_advanced_summary">Sessão, som e notificações, aplicativos externos, complementos, depuração</string>
     <string name="terminal_category_title">Terminal</string>
-    <string name="extra_keys_corner_radius_title">Raio do canto dos botões</string>
+    <string name="extra_keys_corner_radius_title">Raio dos cantos das teclas</string>
     <string name="sessions_preferences_title">Sessões</string>
     <string name="sessions_history_preferences_summary">Preferências para sessões, abas e histórico</string>
-    <string name="backup_restore_preferences_title">Backup e Restauração</string>
-    <string name="backup_restore_preferences_summary">Fazer backup ou restaurar os dados do Termux</string>
+    <string name="backup_restore_preferences_title">Backup e restauração</string>
+    <string name="backup_restore_preferences_summary">Contêiner do Termux, configurações do aplicativo</string>
     <string name="diagnostics_preferences_title">Diagnóstico</string>
     <string name="diagnostics_preferences_summary">Registro em log e notificações de falha</string>
     <string name="appearance_category_title">Aparência</string>
@@ -329,20 +322,21 @@
     <string name="view_category_title">Visualização</string>
     <string name="window_category_title">Janela</string>
     <string name="plugin_logging_category_title">Registro de log</string>
-    <string name="failure_notifications_category_title">Notificações de Falha</string>
-    <string name="input_panel_title">Painel de Entrada</string>
+    <string name="failure_notifications_category_title">Notificações de falha</string>
+    <string name="addons_category_title">Complementos</string>
+    <string name="input_panel_title">Painel de entrada</string>
     <string name="theme_mode_entry_dark">Escuro</string>
     <string name="theme_mode_entry_light">Claro</string>
     <string name="theme_mode_entry_system">Padrão do sistema</string>
-    <string name="screen_orientation_entry_follow_sensor">Seguir sensor</string>
-    <string name="screen_orientation_entry_portrait_follow_sensor">Retrato (seguir sensor)</string>
-    <string name="screen_orientation_entry_landscape_follow_sensor">Paisagem (seguir sensor)</string>
+    <string name="screen_orientation_entry_follow_sensor">Seguir o sensor</string>
+    <string name="screen_orientation_entry_portrait_follow_sensor">Retrato (seguir o sensor)</string>
+    <string name="screen_orientation_entry_landscape_follow_sensor">Paisagem (seguir o sensor)</string>
     <string name="screen_orientation_entry_portrait">Retrato</string>
     <string name="screen_orientation_entry_landscape">Paisagem</string>
 
     
     <string name="extra_keys_visibility_title">Mostrar painel de teclas extras</string>
-    <string name="extra_keys_visibility_summary">Quando a barra de botões adicionais é exibida.</string>
+    <string name="extra_keys_visibility_summary">Define quando a barra de teclas extras é exibida.</string>
     <string name="extra_keys_visibility_always">Sempre</string>
     <string name="extra_keys_visibility_keyboard">Apenas quando o teclado estiver aberto</string>
     <string name="extra_keys_visibility_never">Nunca</string>
@@ -351,28 +345,28 @@
     <string name="extra_keys_invalid_json">JSON inválido para teclas extras. As alterações não foram salvas.</string>
 
     
-    <string name="extra_keys_editor_title">Editor de Teclas Extras</string>
-    <string name="extra_keys_editor_summary">Construa visualmente o painel de teclas extras: defina linhas e colunas, depois toque em uma tecla para atribuir um sinal.</string>
+    <string name="extra_keys_editor_title">Editor de teclas extras</string>
+    <string name="extra_keys_editor_summary">Criação visual do painel de teclas extras: defina linhas e colunas e toque em uma tecla para atribuir uma ação.</string>
     <string name="extra_keys_editor_columns_title">Colunas</string>
-    <string name="extra_keys_editor_columns_summary">Número de botões por linha (1 a 10).</string>
+    <string name="extra_keys_editor_columns_summary">Número de teclas por linha (1 a 10).</string>
     <string name="extra_keys_editor_rows_title">Linhas</string>
-    <string name="extra_keys_editor_rows_summary">Número de linhas de botões (1 a 4).</string>
+    <string name="extra_keys_editor_rows_summary">Número de linhas de teclas (1 a 4).</string>
     <string name="extra_keys_editor_preview_title">Pré-visualização</string>
-    <string name="extra_keys_editor_preview_summary">Painel ao vivo — toque em qualquer tecla para alterar seu sinal.</string>
-    <string name="extra_keys_editor_signal_dialog_title">Atribuir sinal</string>
-    <string name="extra_keys_editor_custom_text_title">Atalho personalizado</string>
-    <string name="extra_keys_editor_custom_text_message">Pressione qualquer tecla para vincular:</string>
+    <string name="extra_keys_editor_preview_summary">Painel interativo — toque em qualquer tecla para alterar a ação.</string>
+    <string name="extra_keys_editor_signal_dialog_title">Atribuir ação</string>
+    <string name="extra_keys_editor_custom_text_title">Símbolo/texto</string>
+    <string name="extra_keys_editor_custom_text_message">Toque em qualquer tecla para vincular:</string>
     <string name="extra_keys_editor_apply_title">Aplicar às teclas extras</string>
-    <string name="extra_keys_editor_apply_summary">Salvar este layout na configuração de teclas extras.</string>
+    <string name="extra_keys_editor_apply_summary">Salvar este layout nas configurações de teclas extras.</string>
     <string name="extra_keys_editor_empty">(vazio)</string>
-    <string name="extra_keys_editor_max_signals">Máximo de 8 sinais por botão</string>
+    <string name="extra_keys_editor_max_signals">Máximo de 8 ações por tecla</string>
     <string name="extra_keys_editor_custom_text_no_space">Texto personalizado com espaços não é suportado em combinações</string>
     <string name="extra_keys_editor_done">Concluído</string>
     <string name="extra_keys_editor_open_editor">Editar teclas extras</string>
-    <string name="extra_keys_editor_open_editor_summary">Configurar layout, escala e atalhos das teclas</string>
-    <string name="extra_keys_edge_indicators_title">Indicadores de direção do deslize</string>
-    <string name="extra_keys_edge_indicators_summary">Mostrar indicadores de direção do deslize com ações atribuídas às teclas extras</string>
-    <string name="extra_keys_editor_hint">Toque para atribuir a ação principal · Deslize ↑ ↓ ← → para atribuir ações de gesto · Prima e mantenha uma tecla para definir o seu rótulo</string>
+    <string name="extra_keys_editor_open_editor_summary">Configurar layout, escala e atribuições das teclas.</string>
+    <string name="extra_keys_edge_indicators_title">Indicadores de direção dos gestos</string>
+    <string name="extra_keys_edge_indicators_summary">Mostrar indicadores de direção dos gestos com ações atribuídas às teclas extras.</string>
+    <string name="extra_keys_editor_hint">Toque para atribuir a ação principal.\nDeslize para cima, para baixo, para a esquerda ou para a direita para atribuir ações de gesto.\nMantenha uma tecla pressionada para definir o rótulo.</string>
     <string name="extra_keys_editor_mode_assign">Atribuir</string>
     <string name="extra_keys_editor_mode_move">Mover</string>
     <string name="extra_keys_editor_hint_move">Arraste uma tecla para outra célula para mover/trocar todas as suas ações</string>
@@ -381,18 +375,18 @@
     <string name="extra_keys_editor_label_dialog_title">Rótulo</string>
     <string name="extra_keys_editor_profile_default">Padrão</string>
     <string name="extra_keys_editor_profile_add">Adicionar perfil</string>
-    <string name="extra_keys_editor_profile_delete">Eliminar perfil</string>
+    <string name="extra_keys_editor_profile_delete">Excluir perfil</string>
     <string name="extra_keys_editor_profile_add_title">Novo perfil de teclas extras</string>
     <string name="extra_keys_editor_profile_name_hint">Nome do perfil</string>
     <string name="extra_keys_editor_profile_exists">Já existe um perfil com este nome</string>
-    <string name="extra_keys_editor_profile_delete_title">Eliminar perfil</string>
-    <string name="extra_keys_editor_profile_delete_confirm">Eliminar o perfil “%1$s”? Os seus prefixos de sessão deixarão de ativar este layout.</string>
+    <string name="extra_keys_editor_profile_delete_title">Excluir perfil</string>
+    <string name="extra_keys_editor_profile_delete_confirm">Excluir o perfil “%1$s”? Os prefixos de sessão desse perfil deixarão de ativar este layout.</string>
     <string name="extra_keys_editor_profile_prefix_title">Prefixos de sessão</string>
-    <string name="extra_keys_editor_profile_prefix_hint">por exemplo nano, vim, htop</string>
+    <string name="extra_keys_editor_profile_prefix_hint">Por exemplo: nano, vim, htop</string>
     <string name="extra_keys_editor_profile_export">Exportar perfil</string>
     <string name="extra_keys_editor_profile_import">Importar perfil</string>
-    <string name="extra_keys_editor_profile_export_progress">A exportar o perfil…</string>
-    <string name="extra_keys_editor_profile_import_progress">A importar o perfil…</string>
+    <string name="extra_keys_editor_profile_export_progress">Exportando o perfil…</string>
+    <string name="extra_keys_editor_profile_import_progress">Importando o perfil…</string>
     <string name="extra_keys_editor_profile_export_success">Perfil exportado com sucesso</string>
     <string name="extra_keys_editor_profile_import_success">Perfil “%1$s” importado com sucesso</string>
     <string name="extra_keys_editor_profile_export_failed">Falha na exportação</string>
@@ -415,23 +409,23 @@
     <string name="extra_keys_editor_signal_quote">Aspas (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">Apóstrofo (\')</string>
     <string name="extra_keys_editor_signal_custom">Símbolo/texto…</string>
-    <string name="extra_keys_editor_signal_ctrl">Ctrl</string>
-    <string name="extra_keys_editor_signal_alt">Alt</string>
-    <string name="extra_keys_editor_signal_shift">Shift</string>
-    <string name="extra_keys_editor_signal_fn">Fn</string>
+    <string name="extra_keys_editor_signal_ctrl">CTRL</string>
+    <string name="extra_keys_editor_signal_alt">ALT</string>
+    <string name="extra_keys_editor_signal_shift">SHIFT</string>
+    <string name="extra_keys_editor_signal_fn">FN</string>
     <string name="extra_keys_editor_signal_esc">Esc</string>
     <string name="extra_keys_editor_signal_tab">Tab</string>
-    <string name="extra_keys_editor_signal_home">Início</string>
-    <string name="extra_keys_editor_signal_end">Fim</string>
-    <string name="extra_keys_editor_signal_page_up">Pag Acima</string>
-    <string name="extra_keys_editor_signal_page_down">Pag Abaixo</string>
-    <string name="extra_keys_editor_signal_insert">Inserir</string>
-    <string name="extra_keys_editor_signal_delete">Excluir</string>
+    <string name="extra_keys_editor_signal_home">Home</string>
+    <string name="extra_keys_editor_signal_end">End</string>
+    <string name="extra_keys_editor_signal_page_up">Page Up</string>
+    <string name="extra_keys_editor_signal_page_down">Page Down</string>
+    <string name="extra_keys_editor_signal_insert">Insert</string>
+    <string name="extra_keys_editor_signal_delete">Delete</string>
     <string name="extra_keys_editor_signal_backspace">Backspace</string>
-    <string name="extra_keys_editor_signal_up">↑</string>
-    <string name="extra_keys_editor_signal_down">↓</string>
-    <string name="extra_keys_editor_signal_left">←</string>
-    <string name="extra_keys_editor_signal_right">→</string>
+    <string name="extra_keys_editor_signal_up">Para cima</string>
+    <string name="extra_keys_editor_signal_down">Para baixo</string>
+    <string name="extra_keys_editor_signal_left">Para a esquerda</string>
+    <string name="extra_keys_editor_signal_right">Para a direita</string>
     <string name="extra_keys_editor_signal_enter">Enter</string>
     <string name="extra_keys_editor_signal_f1">F1</string>
     <string name="extra_keys_editor_signal_f2">F2</string>
@@ -446,7 +440,7 @@
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
     <string name="extra_keys_editor_signal_add_delay">Atraso…</string>
-    <string name="extra_keys_editor_delay_dialog_title">Adicionar atraso</string>
+    <string name="extra_keys_editor_delay_dialog_title">Atraso</string>
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
     <string name="extra_keys_editor_delay_presets">Seleção rápida:</string>
     <string name="extra_keys_editor_delay_hint">Atraso</string>
@@ -456,93 +450,92 @@
     <string name="termux_tasker_debugging_title">Depuração do Termux:Tasker</string>
     <string name="termux_widget_debugging_title">Depuração do Termux:Widget</string>
     <string name="extra_keys_dynamic_font_size_title">Tamanho dinâmico da fonte</string>
-    <string name="extra_keys_dynamic_font_size_summary">Reduzir o tamanho da fonte quando o número de colunas ou de atalhos macro aumentar</string>
+    <string name="extra_keys_dynamic_font_size_summary">Reduzir o tamanho da fonte ao aumentar o número de colunas ou atribuir macros às ações principais</string>
     <string name="extra_keys_font_size_title">Tamanho base da fonte</string>
-    <string name="extra_keys_font_size_summary">Tamanho base do texto para rótulos dos botões</string>
+    <string name="extra_keys_font_size_summary">Tamanho base do texto para os rótulos das teclas.</string>
     <string name="extra_keys_editor_tap_suffix"> (Toque)</string>
     <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>
     <string name="extra_keys_editor_swipe_down_suffix"> (↓)</string>
     <string name="extra_keys_editor_swipe_left_suffix"> (←)</string>
     <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
     <string name="extra_keys_editor_remove_signal">Remover %s</string>
-    <string name="extra_keys_button_margin_title">Espaçamento dos botões</string>
-    <string name="extra_keys_button_margin_summary">Espaço entre os botões</string>
-    <string name="report_issue_title">Termux Relatar Problema</string>
+    <string name="extra_keys_button_margin_title">Espaçamento das teclas</string>
+    <string name="extra_keys_button_margin_summary">Espaço entre as teclas.</string>
+    <string name="report_issue_title">Termux — Relatar problema</string>
     <string name="report_issue_transcript_header">## Transcrição\n</string>
     <string name="report_issue_transcript_footer">\n##\n</string>
-    <string name="backup_error_open_output">Falha ao abrir arquivo de saída</string>
+    <string name="backup_error_open_output">Falha ao abrir o arquivo de saída.</string>
     <string name="key_behaviour_category_title">Comportamento das teclas</string>
     <string name="screen_category_title">Tela</string>
     <string name="shortcuts_category_title">Atalhos</string>
     <string name="misc_category_title">Diversos</string>
-    <string name="external_apps_category_title">Segurança</string>
+    <string name="external_apps_category_title">Aplicativos externos</string>
     <string name="sound_category_title">Som e notificações</string>
     <string name="session_category_title">Sessão</string>
     <string name="empty_value_summary">Não definido</string>
-    <string name="shortcut_empty_summary">Não definido (deixe vazio para desativar)</string>
-    <string name="terminal_transcript_rows_title">Linhas de transcrição do terminal</string>
-    <string name="terminal_transcript_rows_summary">Número de linhas mantidas no histórico de rolagem da transcrição.</string>
+    <string name="shortcut_empty_summary">Não definido</string>
+    <string name="session_shortcut_needs_modifier">Defina um atalho com modificadores Ctrl, Alt, Shift ou Fn</string>
+    <string name="session_shortcut_needs_key">Adicione a tecla à qual os modificadores se aplicam</string>
+    <string name="terminal_transcript_rows_title">Número de linhas no buffer de rolagem</string>
+    <string name="terminal_transcript_rows_summary">Número de linhas mantidas no buffer de rolagem.</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_title">Excluir arquivos antigos do TMPDIR ao sair</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_summary">Excluir arquivos com mais de N dias do TMPDIR da sessão ao sair (-1 = nunca excluir).</string>
-    <string name="invalid_number">Insira um número válido.</string>
-    <string name="shortcut_invalid_format">Atalho inválido. Use o formato \"ctrl+x\" ou deixe vazio para desativar.</string>
+    <string name="invalid_number">Por favor, insira um número válido.</string>
     <string name="terminal_cursor_style_title">Estilo do cursor</string>
     <string name="terminal_cursor_style_summary">Como o cursor do terminal é desenhado.</string>
     <string name="terminal_cursor_blink_rate_title">Frequência de piscar do cursor</string>
     <string name="terminal_cursor_blink_rate_summary">Frequência de piscar do cursor em milissegundos.</string>
-    <string name="terminal_cursor_blink_enabled_title">Piscar cursor</string>
+    <string name="terminal_cursor_blink_enabled_title">Piscar o cursor</string>
     <string name="bell_character_title">Comportamento do sinal sonoro</string>
-    <string name="bell_character_summary">O que acontece quando o terminal recebe um caractere de sinal sonoro (BEL).</string>
+    <string name="bell_character_summary">O que acontece quando o terminal recebe um caractere de campainha (BEL).</string>
     <string name="terminal_margin_left_title">Margem esquerda</string>
     <string name="terminal_margin_top_title">Margem superior</string>
     <string name="terminal_margin_right_title">Margem direita</string>
     <string name="terminal_margin_bottom_title">Margem inferior</string>
 
-    <string name="terminal_background_transparency_title">Transparência do fundo</string>
+    <string name="terminal_background_transparency_title">Transparência do fundo do terminal</string>
 
     <string name="terminal_background_blur_radius_title">Raio de desfoque do fundo</string>
-    <string name="terminal_background_blur_radius_summary">Pode aumentar o consumo de energia com papéis de parede dinâmicos e um raio de desfoque elevado. Com papéis de parede estáticos, o impacto no consumo é insignificante.</string>
-    <string name="terminal_toolbar_scale_title">Escala da altura da barra de ferramentas</string>
-    <string name="terminal_toolbar_height_summary">Fator de escala da altura da barra de teclas extras / barra de ferramentas do terminal.</string>
+    <string name="terminal_background_blur_radius_summary">Pode aumentar o consumo de energia com planos de fundo dinâmicos e um raio de desfoque elevado. Com planos de fundo estáticos, o impacto no consumo é insignificante.</string>
+    <string name="terminal_toolbar_scale_title">Escala do painel</string>
+    <string name="terminal_toolbar_height_summary">Fator de escala da altura das teclas extras / barra de ferramentas do terminal.</string>
     <string name="default_working_directory_title">Diretório de trabalho padrão</string>
     <string name="default_working_directory_summary">Diretório aberto para novas sessões (deixe vazio para o diretório home).</string>
-    <string name="back_key_sends_escape_title">Comportamento da tecla Voltar</string>
-    <string name="back_key_summary">O que a tecla Voltar física/de software faz no terminal.</string>
-    <string name="volume_keys_title">Comportamento das teclas de volume</string>
-    <string name="volume_keys_summary">Se as teclas de volume controlam o volume ou atuam como teclas virtuais.</string>
+    <string name="back_key_sends_escape_title">Enviar Escape ao pressionar o botão Voltar</string>
+    <string name="volume_keys_title">Botões de volume como modificadores</string>
+    <string name="volume_keys_summary">Segurar os botões de volume para baixo ou para cima mantém Ctrl ou Fn pressionado, respectivamente. Para abrir o painel de volume nesse modo, use Fn + v.</string>
     <string name="soft_keyboard_toggle_behaviour_title">Comportamento de alternar teclado</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">Se a alternância do teclado mostra/oculta ou ativa/desativa o teclado virtual.</string>
-    <string name="ctrl_space_workaround_title">Solução para Ctrl+Space</string>
-    <string name="ctrl_space_workaround_summary">Usar uma solução para que Ctrl+Space seja enviado corretamente.</string>
-    <string name="enforce_char_based_input_title">Forçar entrada baseada em caracteres</string>
+    <string name="soft_keyboard_toggle_behaviour_summary">Define se o botão de alternância mostra/oculta ou ativa/desativa o teclado virtual.</string>
+    <string name="ctrl_space_workaround_title">Solução alternativa para Ctrl+Espaço</string>
+    <string name="ctrl_space_workaround_summary">Usar uma solução alternativa para que Ctrl+Espaço seja enviado corretamente.</string>
+    <string name="enforce_char_based_input_title">Envio de entrada byte a byte</string>
     <string name="enforce_char_based_input_summary">Forçar caracteres a serem enviados um byte de cada vez.</string>
     <string name="disable_hardware_keyboard_shortcuts_title">Desativar atalhos de teclado físico</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">Ignorar atalhos de teclado de um teclado físico/externo.</string>
+    <string name="disable_hardware_keyboard_shortcuts_summary">Ignorar atalhos de um teclado físico/externo.</string>
     <string name="disable_terminal_session_change_toast_title">Desativar aviso de mudança de sessão</string>
     <string name="disable_terminal_session_change_toast_summary">Não mostrar um aviso ao alternar entre sessões do terminal.</string>
     <string name="scroll_on_new_output_title">Rolar ao receber nova saída</string>
     <string name="scroll_on_new_output_summary">Rolar automaticamente para o final quando uma nova saída do terminal chegar.</string>
-    <string name="terminal_onclick_url_open_title">Abrir URL ao tocar</string>
-    <string name="terminal_onclick_url_open_summary">Abrir URLs na transcrição do terminal quando tocadas.</string>
+    <string name="terminal_onclick_url_open_title">Abrir links ao tocar</string>
+    <string name="terminal_onclick_url_open_summary">Abrir links no buffer do terminal ao tocar.</string>
     <string name="fullscreen_title">Tela cheia</string>
-    <string name="fullscreen_summary">Executar Termux em modo tela cheia.</string>
-    <string name="night_mode_legacy_title">Modo noturno (legacy night-mode)</string>
-    <string name="night_mode_legacy_summary">Controla a propriedade legacy night-mode. Prefira a configuração de tema na tela de Exibição.</string>
-    <string name="shortcut_summary">Formato: Ctrl+KEY (ex.: Ctrl+a). Deixe vazio para desativar.</string>
-    <string name="shortcut_create_session_title">Atalho de criar sessão</string>
-    <string name="shortcut_next_session_title">Atalho de próxima sessão</string>
-    <string name="shortcut_previous_session_title">Atalho de sessão anterior</string>
-    <string name="shortcut_rename_session_title">Atalho de renomear sessão</string>
-    <string name="allow_external_apps_title">Permitir aplicativos externos</string>
+    <string name="fullscreen_summary">Executar o Termux em modo tela cheia.</string>
+    <string name="night_mode_legacy_title">Modo noturno (night-mode legado)</string>
+    <string name="night_mode_legacy_summary">Controla a propriedade antiga de modo noturno. Use a configuração de tema na tela Exibição.</string>
+    <string name="shortcut_create_session_title">Nova sessão</string>
+    <string name="shortcut_next_session_title">Próxima sessão</string>
+    <string name="shortcut_previous_session_title">Sessão anterior</string>
+    <string name="shortcut_rename_session_title">Renomear sessão</string>
+    <string name="allow_external_apps_title">Permitir comandos externos</string>
     <string name="allow_external_apps_summary">Permitir que outros aplicativos iniciem comandos do Termux via RUN_COMMAND.</string>
-    <string name="disable_file_share_receiver_title">Desativar recebimento de arquivos</string>
+    <string name="disable_file_share_receiver_title">Desativar recebimento de arquivos compartilhados</string>
     <string name="disable_file_view_receiver_title">Desativar visualizador de arquivos</string>
-    <string name="run_termux_am_socket_server_title">Executar servidor socket termux-am</string>
+    <string name="run_termux_am_socket_server_title">Executar servidor de socket termux-am</string>
     <string name="hide_soft_keyboard_on_startup_title">Ocultar teclado virtual na inicialização</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Manter o teclado virtual oculto quando o Termux iniciar.</string>
+    <string name="hide_soft_keyboard_on_startup_summary">Manter o teclado virtual oculto ao iniciar o Termux.</string>
     <string name="terminal_cursor_style_block">Bloco</string>
     <string name="terminal_cursor_style_underline">Sublinhado</string>
-    <string name="terminal_cursor_style_bar">Barra</string>
+    <string name="terminal_cursor_style_bar">Barra vertical</string>
     <string name="bell_character_vibrate">Vibrar</string>
     <string name="bell_character_beep">Bipe</string>
     <string name="bell_character_ignore">Ignorar</string>
@@ -557,30 +550,30 @@
     <string name="night_mode_system">Padrão do sistema</string>
 
     <!-- Bootstrap Selector Activity -->
-    <string name="bootstrap_selector_error_load_sources">Falha ao carregar as fontes</string>
+    <string name="bootstrap_selector_error_load_sources">Falha ao carregar as origens</string>
     <string name="bootstrap_selector_install_local_title">Instalar bootstrap local?</string>
-    <string name="bootstrap_selector_install_local_message">Um arquivo bootstrap zip local pode executar código arbitrário. Continue apenas se confiar neste arquivo.</string>
+    <string name="bootstrap_selector_install_local_message">Um arquivo zip de bootstrap local pode executar código arbitrário. Continue apenas se confiar neste arquivo.</string>
     <string name="bootstrap_selector_install">Instalar</string>
     <string name="bootstrap_selector_cancel">Cancelar</string>
     <string name="bootstrap_selector_title">Instalação do bootstrap do Termux</string>
-    <string name="bootstrap_selector_status_default">Escolha uma fonte de bootstrap para instalar:</string>
-    <string name="bootstrap_selector_source_label">Fonte:</string>
+    <string name="bootstrap_selector_status_default">Escolha uma origem de bootstrap para instalar:</string>
+    <string name="bootstrap_selector_source_label">Origem:</string>
     <string name="bootstrap_selector_download">Baixar bootstrap recomendado</string>
     <string name="bootstrap_selector_pick_zip">Escolher arquivo .zip local</string>
     <string name="bootstrap_selector_retry">Tentar novamente</string>
-    <string name="bootstrap_selector_offline">Instalar mínimo offline (shell básico)</string>
+    <string name="bootstrap_selector_offline">Instalar bootstrap mínimo offline (shell básico)</string>
     <string name="bootstrap_progress_title">Instalando bootstrap</string>
 
     <!-- Bootstrap Download Service -->
-    <string name="bootstrap_download_status_idle">Ocioso</string>
+    <string name="bootstrap_download_status_idle">Aguardando</string>
     <string name="bootstrap_download_status_connecting">Conectando</string>
-    <string name="bootstrap_download_progress_preparing">Preparando download</string>
+    <string name="bootstrap_download_progress_preparing">Preparando o download</string>
     <string name="bootstrap_download_status_installing">Instalando</string>
     <string name="bootstrap_download_progress_extracting">Extraindo bootstrap</string>
     <string name="bootstrap_download_status_done">Concluído</string>
     <string name="bootstrap_download_status_installed">Bootstrap instalado</string>
-    <string name="bootstrap_download_status_failed">Falhou</string>
-    <string name="bootstrap_download_progress_copying_local">Copiando arquivo local</string>
+    <string name="bootstrap_download_status_failed">Falha</string>
+    <string name="bootstrap_download_progress_copying_local">Copiando o arquivo local</string>
     <string name="bootstrap_download_progress_copying_internal">Copiando para armazenamento interno</string>
     <string name="bootstrap_download_status_downloading">Baixando</string>
     <string name="bootstrap_download_status_verifying">Verificando</string>
@@ -593,90 +586,90 @@
 
 
     <!-- File Receiver -->
-    <string name="file_receiver_bootstrap_not_installed">Bootstrap não instalado. Abra o aplicativo Termux primeiro.</string>
+    <string name="file_receiver_bootstrap_not_installed">O bootstrap não está instalado. Abra primeiro o aplicativo Termux.</string>
 
     <!-- Run Command Service -->
-    <string name="run_command_bootstrap_not_installed">Bootstrap não instalado. Abra o aplicativo Termux para instalá-lo primeiro.</string>
+    <string name="run_command_bootstrap_not_installed">O bootstrap não está instalado. Abra o aplicativo Termux para instalá-lo primeiro.</string>
 
 
     <!-- Bootstrap install progress (TermuxInstaller) -->
     <string name="bootstrap_install_progress_verify_sha">Verificando a soma de verificação</string>
     <string name="bootstrap_install_progress_verify_manifest">Verificando o manifesto do pacote</string>
     <string name="bootstrap_install_progress_extract">Extraindo pacotes</string>
-    <string name="bootstrap_install_progress_finalize">Finalizando instalação</string>
-    <string name="bootstrap_install_progress_write_variant">Escrevendo marcador de variante</string>
+    <string name="bootstrap_install_progress_finalize">Finalizando a instalação</string>
+    <string name="bootstrap_install_progress_write_variant">Gravando o marcador de variante</string>
     <string name="bootstrap_install_progress_done">Concluído</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">Nenhuma ABI suportada neste dispositivo</string>
+    <string name="error_abi_no_supported_abis">Nenhuma ABI compatível neste dispositivo</string>
     <string name="error_abi_arch_mismatch">A arquitetura do bootstrap \'%1$s\' não corresponde à arquitetura do dispositivo \'%2$s\'. ABIs disponíveis: %3$s</string>
     <string name="error_abi_unknown">ABI desconhecida: %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">Falta BOOTSTRAP_INFO no zip de bootstrap</string>
-    <string name="error_bootstrap_manifest_missing_variant">Falta \'variant\' em BOOTSTRAP_INFO</string>
-    <string name="error_bootstrap_manifest_missing_arch">Falta \'arch\' em BOOTSTRAP_INFO</string>
+    <string name="error_bootstrap_manifest_missing_info">BOOTSTRAP_INFO ausente no zip de bootstrap</string>
+    <string name="error_bootstrap_manifest_missing_variant">A chave \'variant\' está ausente em BOOTSTRAP_INFO</string>
+    <string name="error_bootstrap_manifest_missing_arch">A chave \'arch\' está ausente em BOOTSTRAP_INFO</string>
 
     <!-- TermuxInstaller error messages -->
     <string name="error_bootstrap_install_in_progress">Instalação do bootstrap já em andamento</string>
-    <string name="error_bootstrap_zip_not_found">Zip de bootstrap não encontrado: %1$s</string>
-    <string name="error_bootstrap_create_temp_dir">Falha ao criar diretório temporário: %1$s</string>
-    <string name="error_bootstrap_rename_prefix">Falha ao renomear prefixo existente para backup</string>
-    <string name="error_bootstrap_rename_temp">Falha ao renomear diretório temporário para prefixo</string>
-    <string name="error_bootstrap_invalid_zip_entry">Nome de entrada zip inválido: %1$s</string>
-    <string name="error_bootstrap_duplicate_zip_entry">Entrada zip duplicada: %1$s</string>
+    <string name="error_bootstrap_zip_not_found">Arquivo zip de bootstrap não encontrado: %1$s</string>
+    <string name="error_bootstrap_create_temp_dir">Falha ao criar o diretório temporário: %1$s</string>
+    <string name="error_bootstrap_rename_prefix">Falha ao renomear o prefixo existente para backup</string>
+    <string name="error_bootstrap_rename_temp">Falha ao renomear o diretório temporário para prefixo</string>
+    <string name="error_bootstrap_invalid_zip_entry">Nome de entrada do zip inválido: %1$s</string>
+    <string name="error_bootstrap_duplicate_zip_entry">Entrada do zip duplicada: %1$s</string>
     <string name="error_bootstrap_directory_metadata_entry">Entrada de diretório com nome de metadados: %1$s</string>
-    <string name="error_bootstrap_failed_mkdir">Falha ao criar diretório: %1$s</string>
+    <string name="error_bootstrap_failed_mkdir">Falha ao criar o diretório: %1$s</string>
     <string name="error_bootstrap_entry_too_large">Entrada muito grande: %1$s (%2$s bytes)</string>
     <string name="error_bootstrap_compression_ratio">Taxa de compressão excedida para: %1$s</string>
     <string name="error_bootstrap_total_size_exceeded">Tamanho total descompactado excede o limite</string>
-    <string name="error_bootstrap_too_many_entries">Muitas entradas zip</string>
-    <string name="error_bootstrap_symlink_parent_dir">Falha ao criar diretório pai para link simbólico: %1$s</string>
-    <string name="error_bootstrap_symlink_create">Falha ao criar link simbólico: %1$s -&gt; %2$s</string>
+    <string name="error_bootstrap_too_many_entries">Muitas entradas no zip</string>
+    <string name="error_bootstrap_symlink_parent_dir">Falha ao criar o diretório pai para o link simbólico: %1$s</string>
+    <string name="error_bootstrap_symlink_create">Falha ao criar o link simbólico: %1$s -&gt; %2$s</string>
     <string name="error_bootstrap_symlink_line">Linha de link simbólico malformada: %1$s</string>
     <string name="error_bootstrap_unsupported_file_type">Tipo de arquivo não suportado para: %1$s</string>
-    <string name="error_bootstrap_symlink_target_empty">Destino do link simbólico vazio: %1$s</string>
-    <string name="error_bootstrap_symlink_absolute">Destino de link simbólico absoluto não permitido: %1$s</string>
-    <string name="error_bootstrap_symlink_no_parent">Link simbólico não tem pai: %1$s</string>
-    <string name="error_bootstrap_symlink_escapes_root">Link simbólico escapa da raiz de extração: %1$s -&gt; %2$s</string>
-    <string name="error_bootstrap_path_traversal">Travessia de caminho em entrada zip detectada: %1$s</string>
+    <string name="error_bootstrap_symlink_target_empty">Destino do link simbólico está vazio: %1$s</string>
+    <string name="error_bootstrap_symlink_absolute">Destino absoluto de link simbólico não permitido: %1$s</string>
+    <string name="error_bootstrap_symlink_no_parent">O link simbólico não tem diretório pai: %1$s</string>
+    <string name="error_bootstrap_symlink_escapes_root">O link simbólico sai da raiz de extração: %1$s -&gt; %2$s</string>
+    <string name="error_bootstrap_path_traversal">Path traversal detectado na entrada do zip: %1$s</string>
     <string name="error_bootstrap_no_symlinks">Nenhum SYMLINKS.txt encontrado</string>
-    <string name="error_bootstrap_move_prefix">Falha ao mover staging do prefixo termux para o diretório do prefixo</string>
+    <string name="error_bootstrap_move_prefix">Falha ao mover o diretório de staging do prefixo do Termux para o diretório do prefixo</string>
     <string name="error_bootstrap_embedded_lib">Biblioteca de bootstrap embutida não disponível</string>
 
     <!-- BootstrapDownloadService error messages -->
-    <string name="error_bootstrap_download_cache_dir">Falha ao criar diretório de cache</string>
-    <string name="error_bootstrap_download_read_uri">Não é possível ler URI — a permissão pode ter sido revogada</string>
-    <string name="error_bootstrap_download_storage">Armazenamento insuficiente. Precisa de pelo menos %1$s livres, tem %2$s</string>
+    <string name="error_bootstrap_download_cache_dir">Falha ao criar o diretório de cache</string>
+    <string name="error_bootstrap_download_read_uri">Não é possível ler a URI — a permissão pode ter sido revogada</string>
+    <string name="error_bootstrap_download_storage">Espaço insuficiente. São necessários pelo menos %1$s livres; disponível: %2$s</string>
     <string name="error_bootstrap_download_https">Apenas URLs HTTPS são permitidas</string>
     <string name="error_bootstrap_download_http">HTTP %1$d para %2$s</string>
-    <string name="error_bootstrap_download_sha_mismatch">SHA-256 não corresponde. Esperado %1$s, obtido %2$s</string>
-    <string name="error_bootstrap_download_rename">Falha ao renomear arquivo temporário</string>
+    <string name="error_bootstrap_download_sha_mismatch">O SHA-256 não corresponde. Esperado: %1$s, obtido: %2$s</string>
+    <string name="error_bootstrap_download_rename">Falha ao renomear o arquivo temporário</string>
 
     <!-- TermuxBackupUtils error messages -->
-    <string name="error_tar_health_check_exit">Verificação de integridade do binário tar falhou (código de saída %1$d)</string>
-    <string name="error_tar_health_check">Verificação de integridade do binário tar falhou: %1$s</string>
+    <string name="error_tar_health_check_exit">A verificação de integridade do binário tar falhou (código de saída %1$d)</string>
+    <string name="error_tar_health_check">A verificação de integridade do binário tar falhou: %1$s</string>
     <string name="error_backup_recreate_dir">Falha ao recriar %1$s</string>
     <string name="error_restore_io">Erro de E/S na restauração: %1$s</string>
     <string name="error_backup_io">Erro de E/S: %1$s</string>
-    <string name="error_tar_exit_code">tar saiu com código %1$d</string>
+    <string name="error_tar_exit_code">O tar saiu com o código %1$d</string>
 
 
     <!-- TermuxBootstrapState -->
-    <string name="error_bootstrap_state_create_dir">Falha ao criar diretório etc/termux</string>
+    <string name="error_bootstrap_state_create_dir">Falha ao criar o diretório etc/termux</string>
 
     <!-- Sha256 -->
-    <string name="error_sha256_not_available">SHA-256 não disponível</string>
+    <string name="error_sha256_not_available">SHA-256 não está disponível</string>
 
     <!-- TermuxServiceConnectionManager -->
-    <string name="error_bind_service">bindService() falhou</string>
+    <string name="error_bind_service">Falha ao chamar bindService()</string>
 
     <!-- TermuxOpenReceiver -->
     <string name="error_invalid_path">Caminho inválido: %1$s</string>
 
     <!-- Bootstrap crash notification -->
-    <string name="notification_bootstrap_crash_title">Erro de Bootstrap</string>
-    <string name="notification_bootstrap_crash_body">## Erro de Bootstrap\n\n%1$s</string>
+    <string name="notification_bootstrap_crash_title">Erro de bootstrap</string>
+    <string name="notification_bootstrap_crash_body">## Erro de bootstrap\n\n%1$s</string>
 
     <!-- Human-readable size formatting -->
     <string name="human_size_format" formatted="false">%.1f %s</string>

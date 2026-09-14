@@ -30,7 +30,7 @@
     <string name="action_reset_terminal">रीसेट करें</string>
     <string name="action_select_url">URL चुनें</string>
     <string name="action_share_selected_text">चयनित पाठ साझा करें</string>
-    <string name="action_share_transcript">लॉग साझा करें</string>
+    <string name="action_share_transcript">टर्मिनल लॉग साझा करें</string>
     <string name="action_style_terminal">शैली</string>
     <string name="action_styling_install">इंस्टॉल करें</string>
     <string name="action_toggle_keep_screen_on">स्क्रीन चालू रखें</string>
@@ -38,7 +38,7 @@
     <string name="action_toggle_text_input">टेक्स्ट इनपुट</string>
     <string name="appearance_preferences_summary">ऐप की दिखावट और पैनल पारदर्शिता के लिए प्राथमिकताएँ</string>
     <string name="appearance_preferences_title">दिखावट</string>
-    <string name="backup_dialog_run_in_background">बैकग्राउंड</string>
+    <string name="backup_dialog_run_in_background">पृष्ठभूमि में चलाएँ</string>
     <string name="backup_dialog_cancel">रद्द करें</string>
     <string name="backup_preference_title">Termux कंटेनर का बैकअप</string>
     <string name="backup_restore_backup_started">बैकअप बनाया जा रहा है…</string>
@@ -49,8 +49,8 @@
     <string name="backup_restore_settings_category_title">ऐप सेटिंग्स</string>
     <string name="backup_settings_title">ऐप सेटिंग्स का बैकअप लें</string>
     <string name="restore_settings_title">ऐप सेटिंग्स पुनर्स्थापित करें</string>
-    <string name="settings_backup_warning">यह आपकी Termux ऐप सेटिंग्स (प्राथमिकताएँ, रंग योजना, फ़ॉन्ट, अतिरिक्त कुंजी लेआउट) को बैकअप फ़ाइल में सहेजेगा।\n\nगंतव्य फ़ाइल चुनें।</string>
-    <string name="settings_restore_warning">यह बैकअप फ़ाइल से आपकी Termux ऐप सेटिंग्स पुनर्स्थापित करेगा। मौजूदा सेटिंग्स ओवरराइट हो जाएँगी।</string>
+    <string name="settings_backup_warning">इससे आपकी Termux ऐप सेटिंग्स (प्राथमिकताएँ, रंग योजना, फ़ॉन्ट, अतिरिक्त कुंजी लेआउट) बैकअप फ़ाइल में सहेजी जाएँगी।\n\nगंतव्य फ़ाइल चुनें।</string>
+    <string name="settings_restore_warning">इससे बैकअप फ़ाइल से आपकी Termux ऐप सेटिंग्स पुनर्स्थापित की जाएँगी। मौजूदा सेटिंग्स ओवरराइट हो जाएँगी।</string>
     <string name="settings_backup_progress">सेटिंग्स सहेजी जा रही हैं…</string>
     <string name="settings_restore_progress">सेटिंग्स पुनर्स्थापित की जा रही हैं…</string>
     <string name="settings_backup_success">सेटिंग्स सहेज दी गईं</string>
@@ -66,11 +66,11 @@
     <string name="backup_restore_choose_backup">पुनर्स्थापना के लिए .tar.gz बैकअप फ़ाइल चुनें</string>
     <string name="backup_restore_dialog_title">Termux डेटा बैकअप / पुनर्स्थापना</string>
     <string name="backup_restore_failed_title">ऑपरेशन विफल</string>
-    <string name="backup_restore_tar_not_found">termux बाइनरी (tar) नहीं मिली। कृपया कम से कम एक बार Termux खोलें ताकि कंटेनर सेट हो सके।</string>
-    <string name="backup_restore_restore_started">पुनर्स्थापना हो रही है…</string>
+    <string name="backup_restore_tar_not_found">Termux में tar बाइनरी नहीं मिली। कृपया कम से कम एक बार Termux खोलें ताकि कंटेनर सेटअप हो सके।</string>
+    <string name="backup_restore_restore_started">बैकअप से पुनर्स्थापना हो रही है…</string>
     <string name="backup_restore_restore_success">डेटा सफलतापूर्वक पुनर्स्थापित हो गया</string>
-    <string name="backup_restore_warning_backup">यह आपकी Termux डेटा निर्देशिका का एक संपीड़ित संग्रह बनाएगा (इंस्टॉल किए गए पैकेज और वातावरण आपकी होम निर्देशिका के साथ)।\n\nबैकअप सहेजने के लिए गंतव्य फ़ाइल चुनें।</string>
-    <string name="backup_restore_warning_restore">पुनर्स्थापना करने पर मौजूदा Termux डेटा निर्देशिका (इंस्टॉल किए गए पैकेज और होम डेटा) चयनित बैकअप फ़ाइल की सामग्री से ओवरराइट हो जाएगी। मौजूदा डेटा खो जाएगा।\n\n⚠ यदि पुनर्स्थापना विफल रहती है — क्योंकि बैकअप फ़ाइल क्षतिग्रस्त है, अधूरी है, या प्रक्रिया के दौरान कनेक्शन टूट जाता है — तो आपका Termux वातावरण खाली रह जाएगा। मूल डेटा पुनर्प्राप्त करने का कोई तरीका नहीं होगा।\n\nइसे पूर्ववत नहीं किया जा सकता। पहले बैकअप लेकर और यह सत्यापित करने की दृढ़ अनुशंसा की जाती है कि बैकअप फ़ाइल मान्य है।</string>
+    <string name="backup_restore_warning_backup">इससे आपकी Termux डेटा निर्देशिका का संपीड़ित संग्रह बनाया जाएगा (इंस्टॉल किए गए पैकेज और वातावरण, आपकी होम निर्देशिका सहित)।\n\nबैकअप सहेजने के लिए गंतव्य फ़ाइल चुनें।</string>
+    <string name="backup_restore_warning_restore">पुनर्स्थापना करने पर मौजूदा Termux डेटा निर्देशिका (इंस्टॉल किए गए पैकेज और होम निर्देशिका) चयनित बैकअप फ़ाइल की सामग्री से ओवरराइट हो जाएगी। मौजूदा डेटा खो जाएगा।\n\n⚠ यदि पुनर्स्थापना विफल रहती है — क्योंकि बैकअप फ़ाइल क्षतिग्रस्त है, अधूरी है, या प्रक्रिया के दौरान कनेक्शन टूट जाता है — तो आपका Termux वातावरण खाली रह जाएगा। मूल डेटा पुनर्प्राप्त करने का कोई तरीका नहीं होगा।\n\nइसे पूर्ववत नहीं किया जा सकता। पहले बैकअप बनाने और यह सत्यापित करने की दृढ़ अनुशंसा की जाती है कि बैकअप फ़ाइल मान्य है।</string>
     <string name="backup_service_channel_name">Termux बैकअप / पुनर्स्थापना</string>
     <string name="backup_service_notification_cancel">रद्द करें</string>
     <string name="backup_service_notification_failed">बैकअप विफल</string>
@@ -79,7 +79,7 @@
     <string name="backup_service_notification_restore_title">Termux डेटा पुनर्स्थापना</string>
     <string name="backup_service_notification_success">बैकअप सफलतापूर्वक बनाया गया</string>
     <string name="backup_service_notification_title">Termux डेटा बैकअप</string>
-    <string name="bootstrap_error_abort">बंद करें</string>
+    <string name="bootstrap_error_abort">रोकें</string>
     <string name="bootstrap_error_body">&TERMUX_APP_NAME; बूटस्ट्रैप पैकेज इंस्टॉल नहीं कर सका।</string>
     <string name="bootstrap_error_installed_on_portable_sd">&TERMUX_APP_NAME; को आपके डिवाइस के पोर्टेबल/बाहरी/हटाने योग्य SD कार्ड पर इंस्टॉल नहीं किया जा सकता।\n&TERMUX_APP_NAME; के लिए संकलित बूटस्ट्रैप बाइनरी में $PREFIX पथ हार्डकोड किया गया है और इसे इस पथ के अलावा कहीं इंस्टॉल नहीं किया जा सकता:\n%1$s.</string>
     <string name="bootstrap_error_not_primary_user_message">&TERMUX_APP_NAME; केवल मुख्य उपयोगकर्ता के रूप में चल सकता है।\n&TERMUX_APP_NAME; के लिए संकलित बूटस्ट्रैप बाइनरी में $PREFIX पथ हार्डकोड किया गया है और इसे इस पथ के अलावा कहीं इंस्टॉल नहीं किया जा सकता:\n%1$s.</string>
@@ -91,13 +91,13 @@
     <string name="color_scheme_light_summary">जब ऐप थीम लाइट हो तब लागू होने वाली रंग योजना</string>
     <string name="color_scheme_dark_title">टर्मिनल रंग योजना (डार्क थीम)</string>
     <string name="color_scheme_dark_summary">जब ऐप थीम डार्क हो तब लागू होने वाली रंग योजना</string>
-    <string name="directory_history_clear_confirm">क्या संपूर्ण निर्देशिका इतिहास साफ़ करें? इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="directory_history_clear_confirm">क्या संपूर्ण निर्देशिका इतिहास साफ़ किया जाए? इसे पूर्ववत नहीं किया जा सकता।</string>
     <string name="directory_history_clear_dialog_title">निर्देशिका इतिहास साफ़ करें</string>
     <string name="directory_history_cleared">निर्देशिका इतिहास साफ़ कर दिया गया</string>
     <string name="directory_history_max_title">इतिहास में अधिकतम कार्य निर्देशिकाएँ</string>
     <string name="directory_history_title">निर्देशिका इतिहास</string>
     <string name="donate_preference_title">दान करें</string>
-    <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Android &gt;= 10 पर बैकग्राउंड से टर्मिनल सत्र शुरू करने के लिए &TERMUX_APP_NAME; को “दूसरे ऐप्स पर दिखाएँ” अनुमति आवश्यक है। सेटिंग्स → ऐप्स → &TERMUX_APP_NAME; → उन्नत में जाकर अनुमति प्रदान करें।</string>
+    <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Android &gt;= 10 पर पृष्ठभूमि से टर्मिनल सत्र शुरू करने के लिए &TERMUX_APP_NAME; को “दूसरे ऐप्स पर दिखाएँ” अनुमति चाहिए। सेटिंग्स → ऐप्स → &TERMUX_APP_NAME; → उन्नत में जाकर अनुमति दें।</string>
     <string name="error_font_apply_failed">फ़ॉन्ट लागू करने में विफल</string>
     <string name="error_run_command_service_api_help">RUN_COMMAND इंटेंट उपयोग की अधिक जानकारी के लिए %1$s पर जाएँ।</string>
     <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService के लिए अमान्य निष्पादन कमांड निष्पादक: `%1$s`</string>
@@ -111,59 +111,59 @@
     <string name="error_termux_service_unsupported_execution_command_runner">TermuxService के लिए असमर्थित निष्पादन कमांड निष्पादक: `%1$s`</string>
     <string name="error_termux_service_unsupported_execution_command_shell_create_mode">TermuxService के लिए असमर्थित निष्पादन कमांड शेल निर्माण मोड: `%1$s`</string>
     <string name="file_receiver_error_cannot_create_dir">निर्देशिका नहीं बनाई जा सकती: %s</string>
-    <string name="file_receiver_error_cannot_open">फ़ाइल नहीं खुल सकती: %s</string>
+    <string name="file_receiver_error_cannot_open">फ़ाइल खोली नहीं जा सकती: %s</string>
     <string name="file_receiver_error_cannot_receive">कोई फ़ाइल या URL प्राप्त करने में असमर्थ।</string>
     <string name="file_receiver_error_empty_name">फ़ाइल का नाम null या खाली नहीं हो सकता</string>
     <string name="file_receiver_error_handle_shared">साझा की गई सामग्री को संभालने में असमर्थ:\n\n%s</string>
     <string name="file_receiver_error_invalid_path">डेटा URI से फ़ाइल पथ null, खाली या अमान्य है।</string>
     <string name="file_receiver_error_no_content">सामग्री के बिना भेजने की क्रिया — सहेजने के लिए कुछ नहीं है।</string>
     <string name="file_receiver_error_no_data_uri">डेटा URI प्राप्त नहीं हुई।</string>
-    <string name="file_receiver_error_no_editor">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-file-editor\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे प्राप्त फ़ाइल को एकमात्र तर्क के रूप में पास किया जाएगा।</string>
-    <string name="file_receiver_error_no_url_opener">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-url-opener\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे साझा किए गए URL को पहले तर्क के रूप में पास किया जाएगा।</string>
+    <string name="file_receiver_error_no_editor">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-file-editor\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे प्राप्त फ़ाइल एकमात्र तर्क के रूप में पास की जाएगी।</string>
+    <string name="file_receiver_error_no_url_opener">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-url-opener\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे साझा किया गया URL पहले तर्क के रूप में पास किया जाएगा।</string>
     <string name="file_receiver_error_saving_file">फ़ाइल सहेजने में त्रुटि:\n\n%s</string>
     <string name="font_picker_title">एक फ़ॉन्ट चुनें (.ttf)</string>
     <string name="input_history_clear">साफ़ करें</string>
     <string name="input_history_clear_all">इतिहास साफ़ करें…</string>
     <string name="input_history_clear_all_button">सभी</string>
     <string name="input_history_clear_all_question">इससे सभी सहेजे गए इनपुट स्थायी रूप से हटा दिए जाएँगे।</string>
-    <string name="input_history_clear_confirm_all">क्या संपूर्ण इनपुट इतिहास साफ़ करें? इसे पूर्ववत नहीं किया जा सकता।</string>
-    <string name="input_history_clear_confirm_current">क्या वर्तमान निर्देशिका के लिए सभी सहेजे गए इनपुट साफ़ करें? इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="input_history_clear_confirm_all">क्या संपूर्ण इनपुट इतिहास साफ़ किया जाए? इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="input_history_clear_confirm_current">क्या वर्तमान निर्देशिका के लिए सभी सहेजे गए इनपुट साफ़ किए जाएँ? इसे पूर्ववत नहीं किया जा सकता।</string>
     <string name="input_history_clear_current_only_question">केवल वर्तमान निर्देशिका का इनपुट इतिहास साफ़ करें?</string>
     <string name="input_history_clear_dialog_title">इनपुट इतिहास साफ़ करें</string>
     <string name="input_history_clear_ok">ठीक है</string>
     <string name="input_history_clear_question">इनपुट इतिहास साफ़ करें?</string>
     <string name="input_history_cleared">इनपुट इतिहास साफ़ कर दिया गया</string>
     <string name="input_history_empty">कोई इनपुट इतिहास नहीं</string>
-    <string name="input_history_max_title">इतिहास में अधिकतम सहेजे गए इनपुट</string>
+    <string name="input_history_max_title">इतिहास में अधिकतम सहेजे गए इनपुट की संख्या</string>
     <string name="input_history_title">इनपुट इतिहास</string>
     <string name="msg_add_termux_debug_info">रिपोर्ट में Termux डीबग जानकारी जोड़ें?</string>
     <string name="msg_terminal_panel_disabling">टर्मिनल पैनल अक्षम हो रहा है</string>
     <string name="msg_terminal_panel_enabling">टर्मिनल पैनल सक्षम हो रहा है</string>
     <string name="msg_extra_keys_create_failed">डिफ़ॉल्ट अतिरिक्त कुंजियाँ नहीं बनाई जा सकीं</string>
-    <string name="msg_extra_keys_load_failed">गुण फ़ाइल से “%1$s” गुण लोड और सेट नहीं किया जा सका: %2$s</string>
-    <string name="msg_generating_report">रिपोर्ट बनाई जा रही है</string>
+    <string name="msg_extra_keys_load_failed">प्रॉपर्टी फ़ाइल से “%1$s” प्रॉपर्टी लोड और सेट नहीं की जा सकी: %2$s</string>
+    <string name="msg_generating_report">रिपोर्ट तैयार की जा रही है…</string>
     <string name="msg_max_terminals_reached">नया बनाने से पहले मौजूदा टर्मिनल बंद करें।</string>
     <string name="msg_select_url_copied_to_clipboard">URL क्लिपबोर्ड पर कॉपी हो गया</string>
     <string name="msg_terminal_font_applied">फ़ॉन्ट लागू किया गया</string>
     <string name="msg_terminal_reset">टर्मिनल रीसेट कर दिया गया</string>
     <string name="notification_action_exit">बाहर निकलें</string>
-    <string name="notification_action_wake_lock">वेक लॉक प्राप्त करें</string>
-    <string name="notification_action_wake_unlock">वेक लॉक छोड़ें</string>
+    <string name="notification_action_wake_lock">वेक लॉक सक्षम करें</string>
+    <string name="notification_action_wake_unlock">वेक लॉक अक्षम करें</string>
     <string name="notification_wake_lock_held"> (वेक लॉक सक्रिय)</string>
     <string name="panel_transparency_title">पैनल पारदर्शिता</string>
     <string name="per_directory_input_history_summary">प्रत्येक कार्य निर्देशिका के लिए अलग इनपुट इतिहास रखें। अक्षम होने पर सभी सत्र एक साझा इतिहास का उपयोग करते हैं।</string>
-    <string name="input_history_save_cleared_title">साफ़ किए गए इनपुट सहेजें</string>
+    <string name="input_history_save_cleared_title">साफ़ किया गया टेक्स्ट इतिहास में सहेजें</string>
     <string name="input_history_save_cleared_summary">इनपुट फ़ील्ड से साफ़ किए गए टेक्स्ट को इतिहास में सहेजें।</string>
     <string name="per_directory_input_history_title">निर्देशिका-वार इनपुट इतिहास</string>
-    <string name="permission_run_command_description">Termux वातावरण में कोई भी कमांड चलाएँ और फ़ाइलों तक पहुँचें</string>
-    <string name="permission_run_command_label">Termux वातावरण में कमांड चलाएँ</string>
+    <string name="permission_run_command_description">Termux वातावरण में कोई भी कमांड चलाना और फ़ाइलों तक पहुँचना</string>
+    <string name="permission_run_command_label">Termux वातावरण में कमांड चलाना</string>
     <string name="restore_preference_title">Termux कंटेनर पुनर्स्थापित करें</string>
     <string name="restore_tabs_summary">ऐप शुरू होने पर सभी टैब और उनकी निर्देशिकाएँ पुनः खोलें</string>
     <string name="restore_tabs_title">लॉन्च पर टैब पुनर्स्थापित करें</string>
     <string name="screen_orientation_summary">“सेंसर का पालन करें” विकल्प दो अभिमुखताओं के बीच स्विच करते हैं (जैसे 0°/180° पोर्ट्रेट)।</string>
     <string name="screen_orientation_title">स्क्रीन अभिमुखता</string>
     <string name="session_default_title">टर्मिनल</string>
-    <string name="session_null_title">null सत्र</string>
+    <string name="session_null_title">नामहीन सत्र</string>
     <string name="new_tab_placeholder_hint">नया सत्र</string>
     <string name="session_tabs_title">सत्र टैब</string>
     <string name="swipe_rightmost_new_tab_title">नए सत्र के लिए अंतिम टैब पर स्वाइप करें</string>
@@ -186,7 +186,7 @@
     <string name="keyboard_state_follow_tab_switch_title">टैब बदलते समय कीबोर्ड की स्थिति</string>
     <string name="keyboard_state_follow_tab_switch_on">टैब बदलते समय, प्रत्येक टैब के लिए कीबोर्ड की स्थिति वैसी ही बहाल की जाती है जैसी उससे हटते समय थी।</string>
     <string name="keyboard_state_follow_tab_switch_off">टैब बदलने पर कीबोर्ड की स्थिति नहीं बदलती। यदि आप छिपे हुए कीबोर्ड वाले टैब से खुले इनपुट पैनल वाले टैब पर स्विच करते हैं, तो पैनल छिप जाएगा।</string>
-    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">हार्डवेयर कीबोर्ड कनेक्ट होने पर छिपाएँ</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">हार्डवेयर कीबोर्ड कनेक्ट होने पर स्क्रीन कीबोर्ड छिपाएँ</string>
     <string name="termux_keyboard_header">कीबोर्ड</string>
     <string name="system_buttons_category_title">सिस्टम बटन</string>
     <string name="input_additional_category_title">अतिरिक्त</string>
@@ -195,7 +195,7 @@
     <string name="termux_terminal_io_preferences_summary">टर्मिनल I/O के लिए प्राथमिकताएँ</string>
     <string name="termux_terminal_io_preferences_title">टर्मिनल I/O</string>
     <string name="termux_terminal_view_key_logging_enabled_off">लॉग में टर्मिनल दृश्य कुंजियों की प्रविष्टियाँ नहीं होंगी।</string>
-    <string name="termux_terminal_view_key_logging_enabled_on">लॉगकैट लॉग में टर्मिनल दृश्य कुंजियों की प्रविष्टियाँ होंगी। ये बहुत विस्तृत हैं और सामान्य परिस्थितियों में अक्षम होनी चाहिए, नहीं तो प्रदर्शन संबंधी समस्याएँ हो सकती हैं।</string>
+    <string name="termux_terminal_view_key_logging_enabled_on">लॉगकैट में टर्मिनल दृश्य कुंजियों की प्रविष्टियाँ होंगी। ये बहुत विस्तृत होती हैं और सामान्य उपयोग में अक्षम रहनी चाहिए, अन्यथा प्रदर्शन संबंधी समस्याएँ हो सकती हैं।</string>
     <string name="termux_terminal_view_key_logging_enabled_title">टर्मिनल दृश्य कुंजी लॉगिंग</string>
     <string name="termux_terminal_view_preferences_summary">टर्मिनल दृश्य के लिए प्राथमिकताएँ</string>
     <string name="termux_terminal_view_preferences_title">टर्मिनल दृश्य</string>
@@ -238,14 +238,14 @@
     <string name="title_confirm_kill_process">क्या वाकई यह सत्र समाप्त करें?</string>
     <string name="title_create_named_session">नया नामित सत्र</string>
     <string name="title_file_received_save">~/downloads/ में फ़ाइल सहेजें</string>
-    <string name="title_max_terminals_reached">अधिकतम टर्मिनल संख्या पहुँच गई</string>
+    <string name="title_max_terminals_reached">टर्मिनलों की अधिकतम संख्या पहुँच गई</string>
     <string name="title_rename_session">सत्र का नाम सेट करें</string>
     <string name="title_select_url_dialog">URL कॉपी करने के लिए टैप करें, खोलने के लिए देर तक दबाएँ</string>
     <string name="title_select_url_none_found">टर्मिनल में कोई URL नहीं मिला।</string>
-    <string name="title_share_selected_text">टर्मिनल पाठ</string>
+    <string name="title_share_selected_text">टर्मिनल टेक्स्ट</string>
     <string name="title_share_selected_text_with">चयनित पाठ को भेजें:</string>
     <string name="title_share_transcript">टर्मिनल लॉग</string>
-    <string name="title_share_transcript_with">लॉग भेजें:</string>
+    <string name="title_share_transcript_with">टर्मिनल लॉग भेजें:</string>
     <plurals name="notification_sessions">
         <item quantity="one">%d सत्र</item>
         <item quantity="other">%d सत्र</item>
@@ -258,9 +258,9 @@
     
     <string name="locale_override_title">ऐप भाषा</string>
     <string name="locale_override_summary">ऐप भाषा ओवरराइड करें</string>
-    <string name="locale_override_entry_system">सिस्टम भाषा</string>
+    <string name="locale_override_entry_system">सिस्टम भाषा (सवचालित अनुवाद अशुद्ध हो सकता है)</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">कीबोर्ड से अतिरिक्त कुंजियाँ छिपाएँ</string>
+    <string name="hide_extra_keys_with_keyboard_title">कीबोर्ड के साथ अतिरिक्त कुंजियाँ छिपाएँ</string>
     <string name="hide_extra_keys_with_keyboard_summary">कीबोर्ड बंद होने पर अतिरिक्त बटन छिपाएँ, खुलने पर दिखाएँ</string>
 
     
@@ -279,7 +279,7 @@
     <string name="diagnostics_preferences_summary">लॉगिंग और त्रुटि सूचनाएँ</string>
     <string name="input_preferences_title">इनपुट</string>
     <string name="input_preferences_summary">अतिरिक्त कुंजियाँ, इनपुट पैनल, कीबोर्ड, शॉर्टकट, सिस्टम बटन</string>
-    <string name="display_preferences_title">प्रदर्शन</string>
+    <string name="display_preferences_title">डिस्प्ले</string>
     <string name="display_preferences_summary">दिखावट, टैब, टर्मिनल, विंडो</string>
     <string name="terminal_advanced_title">उन्नत</string>
     <string name="terminal_advanced_summary">सत्र, ध्वनि और सूचनाएँ, बाहरी ऐप्स, ऐड-ऑन, डीबगिंग</string>
@@ -291,7 +291,7 @@
     <string name="extra_keys_header">अतिरिक्त कुंजियाँ</string>
     <string name="extra_keys_category_title">अतिरिक्त कुंजियाँ</string>
     <string name="extra_keys_layout_title">कुंजियों का लेआउट</string>
-    <string name="extra_keys_layout_summary">अतिरिक्त कुंजियों की पंक्तियों और उनके पॉपअप को परिभाषित करने वाला JSON मैट्रिक्स।</string>
+    <string name="extra_keys_layout_summary">अतिरिक्त कुंजियों की पंक्तियों और उनके पॉपअप मानों को परिभाषित करने वाला JSON मैट्रिक्स।</string>
     <string name="extra_keys_style_title">कुंजियों की शैली</string>
     <string name="extra_keys_style_summary">कुंजियों पर विशेष वर्णों को कैसे प्रदर्शित किया जाता है।</string>
     <string name="extra_keys_style_default">डिफ़ॉल्ट</string>
@@ -334,18 +334,18 @@
 
     
     <string name="extra_keys_editor_title">अतिरिक्त कुंजियाँ संपादक</string>
-    <string name="extra_keys_editor_summary">अतिरिक्त कुंजी पैनल को दृश्य रूप में बनाएँ: पंक्तियाँ और स्तंभ सेट करें, फिर सिग्नल असाइन करने के लिए एक कुंजी दबाएँ।</string>
+    <string name="extra_keys_editor_summary">अतिरिक्त कुंजी पैनल को दृश्य रूप में बनाएँ: पंक्तियाँ और स्तंभ सेट करें, फिर क्रिया असाइन करने के लिए किसी कुंजी को टैप करें।</string>
     <string name="extra_keys_editor_columns_title">स्तंभ</string>
     <string name="extra_keys_editor_rows_title">पंक्तियाँ</string>
     <string name="extra_keys_editor_preview_title">पूर्वावलोकन</string>
-    <string name="extra_keys_editor_preview_summary">लाइव पैनल — किसी भी कुंजी का सिग्नल बदलने के लिए उसे टैप करें।</string>
-    <string name="extra_keys_editor_signal_dialog_title">सिग्नल असाइन करें</string>
+    <string name="extra_keys_editor_preview_summary">लाइव पैनल — किसी भी कुंजी की क्रिया बदलने के लिए उसे टैप करें।</string>
+    <string name="extra_keys_editor_signal_dialog_title">क्रिया असाइन करें</string>
     <string name="extra_keys_editor_custom_text_message">बाइंड करने के लिए कोई भी कुंजी प्रेस करें:</string>
     <string name="extra_keys_editor_apply_title">अतिरिक्त कुंजियों पर लागू करें</string>
     <string name="extra_keys_editor_apply_summary">इस लेआउट को अतिरिक्त कुंजियों की सेटिंग में सहेजें।</string>
     <string name="extra_keys_editor_empty">(खाली)</string>
-    <string name="extra_keys_editor_max_signals">अधिकतम 8 सिग्नल प्रति बटन</string>
-    <string name="extra_keys_editor_custom_text_no_space">खाली स्थान वाला कस्टम टेक्स्ट संयोजन में समर्थित नहीं है</string>
+    <string name="extra_keys_editor_max_signals">अधिकतम 8 क्रियाएँ प्रति बटन</string>
+    <string name="extra_keys_editor_custom_text_no_space">संयोजनों में खाली स्थान वाला कस्टम टेक्स्ट समर्थित नहीं है</string>
     <string name="extra_keys_editor_done">हो गया</string>
     <string name="extra_keys_editor_open_editor">अतिरिक्त कुंजियाँ संपादित करें</string>
     <string name="extra_keys_editor_open_editor_summary">लेआउट, आकार और कुंजी बाइंडिंग कॉन्फ़िगर करें</string>
@@ -367,15 +367,15 @@
     <string name="extra_keys_editor_profile_name_hint">प्रोफ़ाइल का नाम</string>
     <string name="extra_keys_editor_profile_exists">इस नाम वाली प्रोफ़ाइल पहले से मौजूद है</string>
     <string name="extra_keys_editor_profile_delete_title">प्रोफ़ाइल हटाएँ</string>
-    <string name="extra_keys_editor_profile_delete_confirm">क्या आप प्रोफ़ाइल “%1$s” हटाना चाहते हैं? इसके सत्र उपसर्ग अब इस लेआउट को सक्रिय नहीं करेंगे।</string>
+    <string name="extra_keys_editor_profile_delete_confirm">क्या आप प्रोफ़ाइल “%1$s” हटाना चाहते हैं? इस प्रोफ़ाइल के सत्र उपसर्ग अब इस लेआउट को सक्रिय नहीं करेंगे।</string>
     <string name="extra_keys_editor_profile_prefix_title">सत्र उपसर्ग</string>
     <string name="extra_keys_editor_profile_prefix_hint">जैसे nano, vim, htop</string>
 
     <!-- Extra Keys Editor: single profile export/import -->
     <string name="extra_keys_editor_profile_export">प्रोफ़ाइल निर्यात करें</string>
     <string name="extra_keys_editor_profile_import">प्रोफ़ाइल आयात करें</string>
-    <string name="extra_keys_editor_profile_export_progress">प्रोफ़ाइल निर्यात हो रही है…</string>
-    <string name="extra_keys_editor_profile_import_progress">प्रोफ़ाइल आयात हो रही है…</string>
+    <string name="extra_keys_editor_profile_export_progress">प्रोफ़ाइल निर्यात किया जा रहा है…</string>
+    <string name="extra_keys_editor_profile_import_progress">प्रोफ़ाइल आयात किया जा रहा है…</string>
     <string name="extra_keys_editor_profile_export_success">प्रोफ़ाइल सफलतापूर्वक निर्यात हो गई</string>
     <string name="extra_keys_editor_profile_import_success">प्रोफ़ाइल “%1$s” सफलतापूर्वक आयात हुई</string>
     <string name="extra_keys_editor_profile_export_failed">निर्यात विफल</string>
@@ -393,7 +393,7 @@
     <string name="extra_keys_editor_signal_quote">कोट (\")</string>
     <string name="extra_keys_editor_signal_apostrophe">एपॉस्ट्रॉफ़ी (\')</string>
     <string name="report_issue_title">Termux — समस्या की रिपोर्ट करें</string>
-    <string name="report_issue_transcript_header">## लॉग\n</string>
+    <string name="report_issue_transcript_header">## टर्मिनल लॉग\n</string>
     <string name="backup_error_open_output">आउटपुट फ़ाइल खोलने में विफल</string>
     <string name="invalid_number">कृपया एक मान्य संख्या दर्ज करें।</string>
     <string name="terminal_category_title">टर्मिनल</string>
@@ -526,7 +526,7 @@
     <string name="bootstrap_install_progress_verify_sha">चेकसम सत्यापित किया जा रहा है</string>
     <string name="bootstrap_install_progress_verify_manifest">पैकेज मेनिफ़ेस्ट सत्यापित किया जा रहा है</string>
     <string name="bootstrap_install_progress_extract">पैकेज निकाले जा रहे हैं</string>
-    <string name="bootstrap_install_progress_finalize">इंस्टॉलेशन अंतिम रूप दिया जा रहा है</string>
+    <string name="bootstrap_install_progress_finalize">इंस्टॉलेशन को अंतिम रूप दिया जा रहा है</string>
     <string name="bootstrap_install_progress_write_variant">वैरिएंट मार्कर लिखा जा रहा है</string>
     <string name="bootstrap_install_progress_done">पूर्ण</string>
     <string name="extra_keys_editor_delay_format">⏱ %d मि.से.</string>
@@ -604,7 +604,7 @@
     <string name="error_abi_unknown">अज्ञात ABI: %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">बूटस्ट्रैप zip में BOOTSTRAP_INFO गायब है</string>
+    <string name="error_bootstrap_manifest_missing_info">बूटस्ट्रैप zip में BOOTSTRAP_INFO मौजूद नहीं है</string>
     <string name="error_bootstrap_manifest_missing_variant">BOOTSTRAP_INFO में \'variant\' गायब है</string>
     <string name="error_bootstrap_manifest_missing_arch">BOOTSTRAP_INFO में \'arch\' गायब है</string>
 
@@ -619,7 +619,7 @@
     <string name="error_bootstrap_directory_metadata_entry">मेटाडेटा नाम वाली निर्देशिका प्रविष्टि: %1$s</string>
     <string name="error_bootstrap_failed_mkdir">निर्देशिका बनाने में विफल: %1$s</string>
     <string name="error_bootstrap_entry_too_large">प्रविष्टि बहुत बड़ी है: %1$s (%2$s बाइट)</string>
-    <string name="error_bootstrap_compression_ratio">संपीड़न अनुपात पार हो गया: %1$s</string>
+    <string name="error_bootstrap_compression_ratio">संपीड़न अनुपात सीमा से अधिक है: %1$s</string>
     <string name="error_bootstrap_total_size_exceeded">कुल असंपीड़ित आकार सीमा से अधिक है</string>
     <string name="error_bootstrap_too_many_entries">बहुत अधिक zip प्रविष्टियाँ</string>
     <string name="error_bootstrap_symlink_parent_dir">सिमलिंक के लिए पैरेंट निर्देशिका बनाने में विफल: %1$s</string>
@@ -632,7 +632,7 @@
     <string name="error_bootstrap_symlink_escapes_root">सिमलिंक निष्कर्षण रूट से बाहर जाता है: %1$s -&gt; %2$s</string>
     <string name="error_bootstrap_path_traversal">Zip प्रविष्टि पथ ट्रैवर्सल का पता चला: %1$s</string>
     <string name="error_bootstrap_no_symlinks">कोई SYMLINKS.txt नहीं मिला</string>
-    <string name="error_bootstrap_move_prefix">Termux प्रीफ़िक्स स्टेजिंग को प्रीफ़िक्स निर्देशिका में ले जाना विफल</string>
+    <string name="error_bootstrap_move_prefix">Termux प्रीफ़िक्स स्टेजिंग को प्रीफ़िक्स निर्देशिका में ले जाना विफल रहा</string>
     <string name="error_bootstrap_embedded_lib">एम्बेडेड बूटस्ट्रैप लाइब्रेरी उपलब्ध नहीं है</string>
 
     <!-- BootstrapDownloadService error messages -->
@@ -640,17 +640,17 @@
     <string name="error_bootstrap_download_read_uri">URI नहीं पढ़ सकता - अनुमति रद्द की जा सकती है</string>
     <string name="error_bootstrap_download_storage">अपर्याप्त स्टोरेज। कम से कम %1$s खाली चाहिए, उपलब्ध है %2$s</string>
     <string name="error_bootstrap_download_https">केवल HTTPS URL की अनुमति है</string>
-    <string name="error_bootstrap_download_http">HTTP %1$d, %2$s के लिए</string>
+    <string name="error_bootstrap_download_http">%2$s के लिए HTTP %1$d</string>
     <string name="error_bootstrap_download_sha_mismatch">SHA-256 बेमेल। अपेक्षित %1$s, प्राप्त %2$s</string>
     <string name="error_bootstrap_download_rename">अस्थायी फ़ाइल का नाम बदलने में विफल</string>
 
     <!-- TermuxBackupUtils error messages -->
-    <string name="error_tar_health_check_exit">tar बाइनरी स्वास्थ्य जाँच विफल (बाहर निकास %1$d)</string>
+    <string name="error_tar_health_check_exit">tar बाइनरी स्वास्थ्य जाँच विफल (निकास कोड %1$d)</string>
     <string name="error_tar_health_check">tar बाइनरी स्वास्थ्य जाँच विफल: %1$s</string>
     <string name="error_backup_recreate_dir">%1$s को पुनः बनाने में विफल</string>
     <string name="error_restore_io">पुनर्स्थापना I/O त्रुटि: %1$s</string>
     <string name="error_backup_io">I/O त्रुटि: %1$s</string>
-    <string name="error_tar_exit_code">tar कोड %1$d के साथ बाहर निकला</string>
+    <string name="error_tar_exit_code">tar निकास कोड %1$d के साथ समाप्त हुआ</string>
 
 
     <!-- TermuxBootstrapState -->
