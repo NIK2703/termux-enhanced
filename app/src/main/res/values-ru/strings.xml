@@ -401,7 +401,7 @@
     <string name="sessions_history_preferences_title">Сессии</string>
     <string name="sessions_history_preferences_summary">Настройки сессий, вкладок и истории</string>
     <string name="backup_restore_preferences_title">Резервное копирование и восстановление</string>
-    <string name="backup_restore_preferences_summary">Создать или восстановить данные Termux</string>
+    <string name="backup_restore_preferences_summary">Контейнер Termux, настройки приложения</string>
     <string name="diagnostics_preferences_title">Диагностика</string>
     <string name="diagnostics_preferences_summary">Журналирование и уведомления об ошибках</string>
     <string name="plugin_logging_category_title">Журналирование</string>
