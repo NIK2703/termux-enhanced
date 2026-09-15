@@ -212,6 +212,26 @@ public final class TerminalView extends View {
     /** Last fling position in whole rows (px axis / row height), used in delta mode. */
     private int mFlingLastRowPx;
 
+    /**
+     * Output shift already folded into the fling's px axis, in px (0 or negative).
+     *
+     * <p>{@code mTopRow} is an <em>address</em> whose origin is the live bottom: when the program
+     * prints N lines, every old row's address moves N rows deeper into history
+     * ({@code mTopRow -= N} keeps the same text on screen). The fling, however, is a single
+     * absolute {@link OverScroller} whose bounds were snapshotted at gesture start, so an address
+     * that stays put while output arrives silently loses N rows of travel: the fling lands N rows
+     * short of the end it was heading for.</p>
+     *
+     * <p>The fix is to move <em>both</em> sides by the same amount: this field accumulates the
+     * shift in the scroller's own px space, and {@code mTopRow} is moved by the same number of
+     * rows in {@link #anchorFlingToContent(int)}. {@code diff = newRow - mTopRow} is therefore
+     * unchanged by output, so the scroller never fights the compensation, and the frozen
+     * {@code minPx} becomes correct again — in the shifted axis the oldest line is always at
+     * {@code -T0 * rowHeight}. Only applied while the fling heads into history: the other end, the
+     * live bottom, is anchored to "now", not to content, and must NOT recede.</p>
+     */
+    private int mFlingAnchorShiftPx;
+
     /** True when the current fling ends exactly at an edge (then no tail-cut, land precisely). */
     private boolean mFlingEndsAtEdge;
 
@@ -920,10 +940,16 @@ public final class TerminalView extends View {
             mEmulator.setAutoScrollDisabled(mTopRow != 0);
         } else if (isFlingActive()) {
             // During a fling the OverScroller owns mTopRow exclusively (runFlingFrame applies
-            // absolute row targets). The follow-text compensation below would fight the scroller
-            // and jitter, so it is skipped; the snap-to-bottom further down is skipped too via
-            // skipScrolling. The scroll counter is still consumed at the end of this method,
-            // meaning text under the viewport simply drifts with the output until the fling ends.
+            // absolute row targets), so the follow-text branch below must not move it on its own —
+            // that would fight the scroller and jitter. The compensation is still applied, but to
+            // BOTH sides at once (anchorFlingToContent): mTopRow and the scroller's row target
+            // shift by the same number of rows, so `diff = newRow - mTopRow` — the only thing the
+            // fling actually applies — is untouched. Without it the fling flies over buffer
+            // addresses that the output renumbered underneath it and lands exactly `rowShift` rows
+            // short of the end it was heading for.
+            final int rowShift = mEmulator.getScrollCounter();
+            if (rowShift != 0 && !mFlingDeltaMode) anchorFlingToContent(rowShift);
+            // The snap-to-bottom further down is skipped too via skipScrolling.
             skipScrolling = true;
         } else if (isSelectingText() || mEmulator.isAutoScrollDisabled()) {
 
@@ -1396,6 +1422,7 @@ public final class TerminalView extends View {
         mFlingRawVelocity = 0f;
         mFlingDeltaMode = false;
         mFlingLastRowPx = 0;
+        mFlingAnchorShiftPx = 0;
         mFlingEndsAtEdge = false;
         mFlingAbsorbedAtEdge = false;
         recycleFlingEvent();
@@ -1446,8 +1473,35 @@ public final class TerminalView extends View {
         if (mFlingDeltaMode) return; // delta mode has no absolute position to derive it from
         final int rowHeight = mRenderer != null ? mRenderer.mFontLineSpacing : 0;
         if (rowHeight <= 0) return;
-        final int currPx = mScroller.getCurrY();
+        // The remainder belongs to the content axis, not to the raw scroller axis.
+        final int currPx = mScroller.getCurrY() + mFlingAnchorShiftPx;
         mScrollRemainder = currPx - pxToRows(currPx, rowHeight) * rowHeight;
+    }
+
+    /**
+     * Fold {@code rowShift} rows of new output into an in-flight fling: move the viewport and the
+     * fling's row target by the same amount, so the fling keeps flying over the <em>content</em>
+     * instead of over buffer addresses that the output just renumbered.
+     *
+     * <p>Only done while the fling heads INTO HISTORY. The two ends of the scroll range are
+     * anchored differently and no single absolute axis can serve both: the top of the history is
+     * anchored to content (the oldest line stays the oldest line, its address just gets deeper),
+     * the live bottom is anchored to "now" (it is the newest row, wherever that is). So a fling
+     * towards the bottom must keep following the output and is left alone — that is also what
+     * makes it reach the bottom.</p>
+     */
+    private void anchorFlingToContent(int rowShift) {
+        if (rowShift <= 0) return;
+        // mFlingRawVelocity > 0 == into history (see the sign convention on startFling()).
+        if (mFlingRawVelocity <= 0f) return;
+        final int rowHeight = mRenderer != null ? mRenderer.mFontLineSpacing : 0;
+        if (rowHeight <= 0) return;
+        final int transcriptRows = mEmulator.getScreen().getActiveTranscriptRows();
+        final int newTop = Math.max(-transcriptRows, mTopRow - rowShift);
+        final int applied = mTopRow - newTop; // rows the viewport really moved (clamped)
+        if (applied <= 0) return;
+        mTopRow = newTop;
+        mFlingAnchorShiftPx -= applied * rowHeight;
     }
 
     private void interruptFlingForNewTouch() {
@@ -1558,6 +1612,7 @@ public final class TerminalView extends View {
         }
         mFlingDeltaMode = appScrolled;
         mFlingLastRowPx = pxToRows(startPx, rowHeight);
+        mFlingAnchorShiftPx = 0;
         mFlingRawVelocity = rawVelocity;
         mFlingEvent = newFlingEvent;
         mScroller.fling(0, startPx, 0, -Math.round(rawVelocity), 0, 0, minPx, maxPx);
@@ -1591,7 +1646,10 @@ public final class TerminalView extends View {
         boolean more = mScroller.computeScrollOffset();
         final int rowHeight = mRenderer.mFontLineSpacing;
         final int currPx = mScroller.getCurrY();
-        int newRow = pxToRows(currPx, rowHeight);
+        // Content axis, not the raw scroller axis: every row of output that arrived since the
+        // gesture started is folded in here (and into mTopRow), so the row target follows the text.
+        final int posPx = currPx + mFlingAnchorShiftPx;
+        int newRow = pxToRows(posPx, rowHeight);
 
         int diff;
         if (mFlingDeltaMode) {
@@ -1615,11 +1673,11 @@ public final class TerminalView extends View {
             float v = mScroller.getCurrVelocity();
             if (v > mMinFlingVelocity) {
                 int transcriptPx = mEmulator.getScreen().getActiveTranscriptRows() * rowHeight;
-                if (currPx <= -transcriptPx && mEdgeGlowTop != null) {
+                if (posPx <= -transcriptPx && mEdgeGlowTop != null) {
                     mEdgeGlowTop.onAbsorb((int) v);
                     mFlingAbsorbedAtEdge = true;
                     invalidate();
-                } else if (currPx >= 0 && mEdgeGlowBottom != null) {
+                } else if (posPx >= 0 && mEdgeGlowBottom != null) {
                     mEdgeGlowBottom.onAbsorb((int) v);
                     mFlingAbsorbedAtEdge = true;
                     invalidate();
