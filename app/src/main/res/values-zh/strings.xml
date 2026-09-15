@@ -76,7 +76,7 @@
     <string name="notification_action_wake_lock">获取唤醒锁</string>
     <string name="notification_action_wake_unlock">释放唤醒锁</string>
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">&TERMUX_APP_NAME; 需要
-        “显示在其他应用上层”权限，才能在 Android &gt;= 10 从后台启动终端会话。
+        “显示在其他应用上层”权限，才能在 Android &gt;= 10 上从后台启动终端会话。
         请到“设置 → 应用 → &TERMUX_APP_NAME; → 高级”中授予该权限。</string>
     <string name="error_termux_service_invalid_execution_command_runner">TermuxService 的命令执行器无效：`%1$s`</string>
     <string name="error_termux_service_unsupported_execution_command_runner">TermuxService 不支持的命令执行器：`%1$s`</string>
@@ -85,7 +85,7 @@
 
     <string name="error_run_command_service_invalid_intent_action">RunCommandService 的 Intent 操作无效：`%1$s`</string>
     <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService 的命令执行器无效：`%1$s`</string>
-    <string name="error_run_command_service_mandatory_extra_missing">RunCommandService 缺少必需的额外参数：“%1$s”</string>
+    <string name="error_run_command_service_mandatory_extra_missing">RunCommandService 缺少必需的附加参数：“%1$s”</string>
     <string name="error_run_command_service_api_help">访问 %1$s 获取有关 RUN_COMMAND Intent 用法的更多信息。</string>
     <string name="title_file_received_save">将文件保存到 ~/downloads/</string>
     <string name="action_file_received_edit">编辑</string>
@@ -443,7 +443,7 @@
     <string name="terminal_cursor_blink_enabled_title">光标闪烁</string>
 
     <string name="bell_character_title">响铃行为</string>
-    <string name="bell_character_summary">终端收到响铃（BEL）字符时的行为。</string>
+    <string name="bell_character_summary">终端收到响铃字符（BEL）时的行为。</string>
     <string name="bell_character_vibrate">震动</string>
     <string name="bell_character_beep">蜂鸣</string>
     <string name="bell_character_ignore">忽略</string>
@@ -456,7 +456,7 @@
     <string name="terminal_background_transparency_title">终端背景透明度</string>
 
     <string name="terminal_background_blur_radius_title">背景模糊半径</string>
-    <string name="terminal_background_blur_radius_summary">模糊半径较高且使用动态背景时可能增加耗电量；使用静态背景时，耗电量影响可忽略不计。</string>
+    <string name="terminal_background_blur_radius_summary">模糊半径较高且使用动态背景时可能增加耗电量；使用静态背景时，对耗电量的影响可忽略不计。</string>
 
     <string name="terminal_toolbar_scale_title">面板缩放</string>
 
@@ -667,7 +667,7 @@
     <!-- BootstrapDownloadService error messages -->
     <string name="error_bootstrap_download_cache_dir">无法创建缓存目录</string>
     <string name="error_bootstrap_download_read_uri">无法读取 URI——权限可能已被撤销</string>
-    <string name="error_bootstrap_download_storage">存储空间不足。至少需要 %1$s 可用，现有 %2$s</string>
+    <string name="error_bootstrap_download_storage">存储空间不足。至少需要 %1$s 可用空间，现有 %2$s</string>
     <string name="error_bootstrap_download_https">仅允许 HTTPS URL</string>
     <string name="error_bootstrap_download_http">请求 %2$s 时返回 HTTP %1$d</string>
     <string name="error_bootstrap_download_sha_mismatch">SHA-256 不匹配。期望 %1$s，实际 %2$s</string>
