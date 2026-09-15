@@ -506,6 +506,7 @@
     <string name="locale_entry_ru" translatable="false">Русский</string>
     <string name="locale_entry_tr" translatable="false">Türkçe</string>
     <string name="locale_entry_zh" translatable="false">中文</string>
+    <string name="locale_entry_zh_hant" translatable="false">繁體中文</string>
 
     <string name="extra_keys_visibility_title">Show extra keys panel</string>
     <string name="extra_keys_visibility_summary">Choose when the extra keys panel is shown.</string>

@@ -1,0 +1,724 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!DOCTYPE resources [
+    <!ENTITY TERMUX_PACKAGE_NAME "com.termux">
+    <!ENTITY TERMUX_APP_NAME "Termux">
+    <!ENTITY TERMUX_API_APP_NAME "Termux:API">
+    <!ENTITY TERMUX_BOOT_APP_NAME "Termux:Boot">
+    <!ENTITY TERMUX_FLOAT_APP_NAME "Termux:Float">
+    <!ENTITY TERMUX_STYLING_APP_NAME "Termux:Styling">
+    <!ENTITY TERMUX_TASKER_APP_NAME "Termux:Tasker">
+    <!ENTITY TERMUX_WIDGET_APP_NAME "Termux:Widget">
+    ]>
+
+<resources>
+
+    <string name="application_name">Termux 增強版</string>
+    <string name="shared_user_label">Termux 使用者</string>
+    <string name="permission_run_command_label">在 Termux 環境中執行指令</string>
+    <string name="permission_run_command_description">在 Termux 環境中執行任意指令並存取檔案</string>
+    <string name="bootstrap_installer_body">正在安裝啟動套件…</string>
+    <string name="bootstrap_error_title">無法安裝啟動套件</string>
+    <string name="bootstrap_error_body">&TERMUX_APP_NAME; 無法安裝啟動套件。</string>
+    <string name="bootstrap_error_abort">中止</string>
+    <string name="bootstrap_error_try_again">重試</string>
+    <string name="bootstrap_error_not_primary_user_message">&TERMUX_APP_NAME; 只能以主要使用者身分執行。
+        \n為 &TERMUX_APP_NAME; 編譯的二進位檔案硬編碼了 $PREFIX 路徑，只能安裝到以下路徑：\n%1$s。</string>
+    <string name="bootstrap_error_installed_on_portable_sd">&TERMUX_APP_NAME; 無法安裝在裝置的便攜式/外接式/可移除式 SD 卡上。
+        \n為 &TERMUX_APP_NAME; 編譯的二進位檔案硬編碼了 $PREFIX 路徑，只能安裝到以下路徑：\n%1$s。</string>
+    <string name="action_new_session">新增工作階段</string>
+    <string name="action_failsafe_mode">故障安全模式</string>
+    <string name="new_tab_placeholder_hint">新增工作階段</string>
+    <string name="session_tabs_title">工作階段分頁</string>
+    <string name="swipe_rightmost_new_tab_title">滑動最右側分頁以新增工作階段</string>
+    <string name="swipe_rightmost_new_tab_summary">在最後一個分頁上向右滑動以開啟新的終端機工作階段</string>
+    <string name="title_max_terminals_reached">終端機數量已達上限</string>
+    <string name="msg_max_terminals_reached">請先關閉現有終端機，再建立新終端機。</string>
+    <string name="title_rename_session">設定工作階段名稱</string>
+    <string name="action_rename_session_confirm">設定</string>
+    <string name="title_create_named_session">新增具名工作階段</string>
+    <string name="action_create_named_session_confirm">建立</string>
+    <string name="action_toggle_soft_keyboard">鍵盤</string>
+    <string name="action_toggle_text_input">文字輸入</string>
+    <string name="msg_terminal_panel_enabling">正在啟用終端機面板</string>
+    <string name="msg_terminal_panel_disabling">正在停用終端機面板</string>
+    <string name="action_select_url">選擇連結</string>
+    <string name="title_select_url_dialog">輕觸連結即可複製，長按即可開啟</string>
+    <string name="title_select_url_none_found">終端機中未找到連結。</string>
+    <string name="msg_select_url_copied_to_clipboard">連結已複製到剪貼簿</string>
+    <string name="action_share_transcript">分享終端機紀錄</string>
+    <string name="title_share_transcript">終端機紀錄</string>
+    <string name="title_share_transcript_with">傳送紀錄到：</string>
+
+    <string name="action_share_selected_text">分享選取的文字</string>
+    <string name="title_share_selected_text">終端機文字</string>
+    <string name="title_share_selected_text_with">傳送選取文字到：</string>
+    <string name="action_autofill_username">自動填入使用者名稱</string>
+    <string name="action_autofill_password">自動填入密碼</string>
+    <string name="action_reset_terminal">重設</string>
+    <string name="msg_terminal_reset">終端機已重設</string>
+    <string name="msg_terminal_font_applied">字型已套用</string>
+    <string name="action_kill_process">終止程序 (%d)</string>
+    <string name="title_confirm_kill_process">確定要終止此工作階段？</string>
+    <string name="action_style_terminal">樣式</string>
+    <string name="action_font_terminal">字型</string>
+    <string name="font_picker_title">選擇字型 (.ttf)</string>
+    <string name="error_font_apply_failed">套用字型失敗</string>
+    <string name="action_toggle_keep_screen_on">保持螢幕恆亮</string>
+    <string name="action_open_help">說明</string>
+    <string name="action_open_settings">設定</string>
+    <string name="action_report_issue">回報問題</string>
+    <string name="msg_generating_report">正在產生報告</string>
+    <string name="msg_add_termux_debug_info">是否將 Termux 偵錯資訊新增至報告？</string>
+    <string name="error_styling_not_installed">未安裝 Termux:Styling 外掛程式。</string>
+    <string name="action_styling_install">安裝</string>
+    <string name="notification_action_exit">離開</string>
+    <string name="notification_action_wake_lock">取得喚醒鎖</string>
+    <string name="notification_action_wake_unlock">釋放喚醒鎖</string>
+    <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">&TERMUX_APP_NAME; 需要
+        「顯示在其他應用程式上層」權限，才能在 Android &gt;= 10 上從背景啟動終端機工作階段。
+        請到「設定 → 應用程式 → &TERMUX_APP_NAME; → 進階」中授予該權限。</string>
+    <string name="error_termux_service_invalid_execution_command_runner">TermuxService 的指令執行器無效：`%1$s`</string>
+    <string name="error_termux_service_unsupported_execution_command_runner">TermuxService 不支援的指令執行器：`%1$s`</string>
+    <string name="error_termux_service_unsupported_execution_command_shell_create_mode">TermuxService 不支援的 shell 建立模式：`%1$s`</string>
+    <string name="error_termux_service_execution_command_shell_name_unset">未設定 shell 名稱，但傳入了 `%1$s` shell 建立模式</string>
+
+    <string name="error_run_command_service_invalid_intent_action">RunCommandService 的 Intent 動作無效：`%1$s`</string>
+    <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService 的指令執行器無效：`%1$s`</string>
+    <string name="error_run_command_service_mandatory_extra_missing">RunCommandService 缺少必要的附加參數：「%1$s」</string>
+    <string name="error_run_command_service_api_help">造訪 %1$s 取得有關 RUN_COMMAND Intent 用法的更多資訊。</string>
+    <string name="title_file_received_save">將檔案儲存到 ~/downloads/</string>
+    <string name="action_file_received_edit">編輯</string>
+    <string name="action_file_received_open_directory">開啟目錄</string>
+    <string name="error_termux_service_start_failed_general">啟動 TermuxService 失敗。請檢查 logcat 中的例外訊息。</string>
+    <string name="error_termux_service_start_failed_bg">由於 Android 背景限制，應用程式在背景時啟動 TermuxService 失敗。</string>
+    <string name="title_activity_termux_settings">Termux 設定</string>
+    <string name="appearance_preferences_title">外觀</string>
+    <string name="appearance_preferences_summary">應用程式外觀與面板透明度設定</string>
+    <string name="theme_title">主題</string>
+    <string name="panel_transparency_title">面板透明度</string>
+    <string name="termux_preferences_summary">Termux 應用程式設定</string>
+    <string name="termux_debugging_preferences_title">偵錯</string>
+    <string name="termux_debugging_preferences_summary">偵錯設定</string>
+    <string name="termux_log_level_title">記錄層級</string>
+    <string name="termux_terminal_view_key_logging_enabled_title">終端機按鍵記錄</string>
+    <string name="termux_terminal_view_key_logging_enabled_off">記錄中不會包含終端機按鍵記錄。</string>
+    <string name="termux_terminal_view_key_logging_enabled_on">Logcat 記錄將包含終端機按鍵記錄。這些記錄非常詳細，正常使用時應保持停用，否則可能導致效能問題。</string>
+    <string name="termux_plugin_error_notifications_enabled_title">外掛程式錯誤通知</string>
+    <string name="termux_crash_report_notifications_enabled_title">當機報告通知</string>
+
+    <string name="termux_terminal_io_preferences_title">終端機輸入/輸出</string>
+    <string name="termux_terminal_io_preferences_summary">終端機輸入/輸出設定</string>
+    <string name="termux_keyboard_header">鍵盤</string>
+    <string name="system_buttons_category_title">系統按鍵</string>
+    <string name="input_additional_category_title">附加</string>
+    <string name="termux_soft_keyboard_enabled_title">螢幕鍵盤</string>
+    <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">連接實體鍵盤時隱藏螢幕鍵盤</string>
+
+    <!-- Keyboard State On Tab Switch -->
+    <string name="keyboard_state_follow_tab_switch_title">切換分頁時的鍵盤狀態</string>
+    <string name="keyboard_state_follow_tab_switch_on">切換分頁時，還原每個分頁離開時的鍵盤狀態。</string>
+    <string name="keyboard_state_follow_tab_switch_off">切換分頁時不改變鍵盤狀態。若從鍵盤已隱藏的分頁切換至輸入面板已開啟的分頁，輸入面板將被隱藏。</string>
+    <string name="termux_terminal_view_preferences_title">終端機檢視</string>
+    <string name="termux_terminal_view_preferences_summary">終端機檢視設定</string>
+    <string name="termux_terminal_view_view_header">檢視</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">非作用中元素背景透明度</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">作用中元素背景透明度</string>
+    <string name="termux_api_preferences_title">Termux:API</string>
+    <string name="termux_api_preferences_summary">Termux:API 應用程式設定</string>
+    <string name="termux_float_preferences_title">Termux:Float</string>
+    <string name="termux_float_preferences_summary">Termux:Float 應用程式設定</string>
+    <string name="termux_tasker_preferences_title">Termux:Tasker</string>
+    <string name="termux_tasker_preferences_summary">Termux:Tasker 應用程式設定</string>
+    <string name="termux_widget_preferences_title">Termux:Widget</string>
+    <string name="termux_widget_preferences_summary">Termux:Widget 應用程式設定</string>
+    <string name="about_preference_title">關於</string>
+    <string name="theme_mode_title">應用程式主題</string>
+    <string name="theme_mode_summary">選擇應用程式和終端機主題</string>
+    <string name="color_scheme_dialog_title">終端機配色方案</string>
+    <string name="color_scheme_light_title">終端機配色方案（淺色主題）</string>
+    <string name="color_scheme_light_summary">淺色應用程式主題下使用的配色方案</string>
+    <string name="color_scheme_dark_title">終端機配色方案（深色主題）</string>
+    <string name="color_scheme_dark_summary">深色應用程式主題下使用的配色方案</string>
+
+    <string name="input_history_title">輸入紀錄</string>
+    <string name="input_history_max_title">輸入紀錄的最大項目數</string>
+    <string name="per_directory_input_history_title">依目錄分別儲存輸入紀錄</string>
+    <string name="per_directory_input_history_summary">為每個工作目錄分別儲存輸入紀錄。關閉後，所有工作階段共用同一個全域紀錄。</string>
+    <string name="input_history_save_cleared_title">儲存已清空的輸入內容</string>
+    <string name="input_history_save_cleared_summary">將已從輸入框清空的輸入內容儲存到紀錄。</string>
+    <string name="text_input_append_enter_title">傳送時附加 Enter</string>
+    <string name="directory_history_title">工作目錄紀錄</string>
+    <string name="directory_history_max_title">工作目錄紀錄的最大項目數</string>
+    <string name="restore_tabs_title">啟動時還原分頁</string>
+    <string name="restore_tabs_summary">應用程式啟動時重新開啟所有分頁及其目錄</string>
+    <string name="screen_orientation_title">螢幕方向</string>
+    <string name="screen_orientation_summary">「跟隨感應器」選項會在兩種方向之間切換（例如直向的 0°/180°）。</string>
+
+    <string name="donate_preference_title">捐款</string>
+    <string name="backup_preference_title">備份 Termux 容器</string>
+    <string name="restore_preference_title">還原 Termux 容器</string>
+    <string name="backup_restore_dialog_title">Termux 資料備份 / 還原</string>
+    <string name="backup_restore_warning_backup">將為您的 Termux 資料目錄（已安裝的套件、環境以及主目錄）建立壓縮封存檔。\n\n請選擇用於儲存備份的目標檔案。</string>
+
+    <string name="backup_restore_warning_restore">還原操作將用所選備份檔案的內容覆寫目前 Termux 資料目錄（已安裝的套件和主目錄）。現有資料將會遺失。\n\n⚠ 如果還原失敗——例如備份檔案損毀、不完整，或還原過程被中斷——您的 Termux 環境將為空，且無法復原原始資料。\n\n此操作無法復原。強烈建議先建立備份，並驗證備份檔案有效。</string>
+    <string name="backup_restore_backup_started">正在建立備份…</string>
+    <string name="backup_restore_restore_started">正在從備份還原…</string>
+    <string name="backup_restore_backup_success">備份建立成功</string>
+    <string name="backup_restore_restore_success">資料還原成功</string>
+    <string name="backup_restore_failed_title">操作失敗</string>
+    <string name="backup_restore_tar_not_found">未找到 Termux 的 tar 二進位檔案。請至少開啟一次 Termux，以完成容器初始化。</string>
+    <string name="backup_restore_choose_backup">選擇要還原的 .tar.gz 備份檔案</string>
+    <string name="backup_service_channel_name">Termux 備份 / 還原</string>
+    <string name="backup_service_notification_title">Termux 資料備份</string>
+    <string name="backup_service_notification_restore_title">Termux 資料還原</string>
+    <string name="backup_service_notification_success">備份建立成功</string>
+    <string name="backup_service_notification_restore_success">資料還原成功</string>
+    <string name="backup_service_notification_failed">備份失敗</string>
+    <string name="backup_service_notification_restore_failed">還原失敗</string>
+    <string name="backup_dialog_run_in_background">背景執行</string>
+    <string name="backup_dialog_cancel">取消</string>
+    <string name="backup_service_notification_cancel">取消</string>
+    <string name="backup_restore_cancelled">操作已取消</string>
+    <!-- Settings Backup / Restore -->
+    <string name="backup_restore_full_data_category_title">Termux 容器</string>
+    <string name="backup_restore_settings_category_title">應用程式設定</string>
+    <string name="backup_settings_title">備份應用程式設定</string>
+    <string name="restore_settings_title">還原應用程式設定</string>
+    <string name="settings_backup_warning">將把 Termux 應用程式設定（設定項目、配色方案、字型、額外按鍵配置）儲存到備份檔案中。\n\n請選擇目標檔案。</string>
+    <string name="settings_restore_warning">這將從備份檔案還原您的 Termux 應用程式設定。目前設定將被覆寫。</string>
+    <string name="settings_backup_progress">正在備份設定…</string>
+    <string name="settings_restore_progress">正在還原設定…</string>
+    <string name="settings_backup_success">設定備份成功</string>
+    <string name="settings_restore_success">設定還原成功</string>
+    <string name="settings_restart_required">請重新啟動 Termux 以使所有還原的設定生效</string>
+    <string name="settings_backup_failed">設定備份失敗</string>
+    <string name="settings_restore_failed">設定還原失敗</string>
+    <string name="settings_backup_filename">termux-settings-backup.zip</string>
+    <string name="backup_include_tmp_checkbox">包含 tmp 目錄 (usr/tmp/)</string>
+    <string name="error_settings_backup_format_version">不支援的備份格式版本：%1$s</string>
+    <string name="error_settings_backup_missing_manifest">備份檔案中缺少 manifest.properties</string>
+    <string name="error_settings_restore_open_input">無法開啟要讀取的檔案</string>
+    <string name="tab_close_description">關閉分頁</string>
+    <string name="session_default_title">終端機</string>
+    <string name="text_input_toggle_button_title">輸入面板切換按鈕</string>
+    <string name="text_input_hide_on_send_title">傳送後隱藏輸入面板</string>
+    <string name="text_input_hide_on_send_summary">啟用後，輸入面板將在傳送後關閉，焦點返回終端機；停用後，面板保持開啟，便於連續輸入指令。</string>
+
+    <string name="text_input_hide_keyboard_on_send_title">傳送後隱藏螢幕鍵盤</string>
+    <string name="text_input_hide_keyboard_on_send_summary">啟用後，從輸入框傳送文字（例如按下 Enter）時會隱藏螢幕鍵盤。輸入面板和鍵盤分別獨立控制。</string>
+    <string name="text_input_action_on_send_title">傳送動作</string>
+    <string name="text_input_action_on_send_summary">從輸入框傳送文字後執行的動作：無動作、隱藏輸入面板，或隱藏輸入面板和鍵盤。</string>
+    <string-array name="text_input_action_on_send_entries">
+        <item>無動作</item>
+        <item>隱藏輸入面板</item>
+        <item>隱藏輸入面板和鍵盤</item>
+    </string-array>
+    <string-array name="text_input_action_on_send_values">
+        <item>none</item>
+        <item>hide_panel</item>
+        <item>hide_keyboard</item>
+    </string-array>
+    <string name="text_input_restore_mode_title">從紀錄還原文字的行為</string>
+    <string name="text_input_restore_mode_summary">輕觸以選擇：插入到游標位置或取代整個輸入框</string>
+    <string name="text_input_restore_mode_dialog_title">從紀錄還原模式</string>
+    <string name="text_input_restore_mode_option_insert">在游標處插入</string>
+    <string name="text_input_restore_mode_option_replace">取代整個輸入框</string>
+    <string name="input_history_empty">沒有輸入紀錄</string>
+    <string name="input_history_clear_all">清除紀錄…</string>
+    <string name="input_history_clear">清除</string>
+    <string name="input_history_clear_dialog_title">清除輸入紀錄</string>
+    <string name="input_history_clear_question">清除輸入紀錄？</string>
+    <string name="input_history_clear_confirm_current">確定要清除目前目錄儲存的所有輸入紀錄嗎？此操作無法復原。</string>
+    <string name="input_history_clear_confirm_all">確定要清除全部輸入紀錄嗎？此操作無法復原。</string>
+    <string name="input_history_clear_ok">確定</string>
+    <string name="input_history_clear_all_button">全部</string>
+    <string name="input_history_clear_current_only_question">僅清除目前目錄的輸入紀錄？</string>
+    <string name="input_history_clear_all_question">這將永久刪除所有已儲存的輸入紀錄。</string>
+    <string name="input_history_cleared">輸入紀錄已清除</string>
+    <string name="directory_history_clear_dialog_title">清除工作目錄紀錄</string>
+    <string name="directory_history_clear_confirm">確定要清除整個工作目錄紀錄嗎？此操作無法復原。</string>
+    <string name="directory_history_cleared">工作目錄紀錄已清除</string>
+    <string name="file_receiver_error_no_content">傳送動作沒有內容——沒有可儲存的內容。</string>
+    <string name="file_receiver_error_no_data_uri">未傳遞資料 URI。</string>
+    <string name="file_receiver_error_invalid_path">資料 URI 的檔案路徑為 null、為空或無效。</string>
+    <string name="file_receiver_error_cannot_open">無法開啟檔案：%s</string>
+    <string name="file_receiver_error_cannot_receive">無法接收檔案或 URL。</string>
+    <string name="file_receiver_error_handle_shared">無法處理共用內容：\n\n%s</string>
+    <string name="file_receiver_error_no_editor">以下檔案不存在：\n$HOME/bin/termux-file-editor\n\n請建立此檔案（指令碼或符號連結）。收到檔案時，會以收到的檔案作為唯一參數呼叫它。</string>
+    <string name="file_receiver_error_no_url_opener">以下檔案不存在：\n$HOME/bin/termux-url-opener\n\n請建立此檔案（指令碼或符號連結）。共用 URL 時，會以該 URL 作為第一個參數呼叫它。</string>
+    <string name="file_receiver_error_empty_name">檔案名稱不能為 null 或為空</string>
+    <string name="file_receiver_error_cannot_create_dir">無法建立目錄：%s</string>
+    <string name="file_receiver_error_saving_file">儲存檔案時發生錯誤：\n\n%s</string>
+    <plurals name="notification_sessions">
+        <item quantity="other">%d 個工作階段</item>
+    </plurals>
+    <plurals name="notification_tasks_separator">
+        <item quantity="other">，%d 個任務</item>
+    </plurals>
+    <string name="notification_wake_lock_held">（已持有喚醒鎖）</string>
+    <string name="session_null_title">空工作階段</string>
+    <string name="msg_extra_keys_load_failed">無法從屬性檔案載入並設定屬性「%1$s」：%2$s</string>
+    <string name="msg_extra_keys_create_failed">無法建立預設額外按鍵</string>
+
+
+    
+    <string name="locale_override_title">應用程式語言</string>
+    <string name="locale_override_summary">覆寫應用程式的語言設定</string>
+    <string name="locale_override_entry_system">跟隨系統</string>
+    
+    <string name="hide_extra_keys_with_keyboard_title">隨鍵盤隱藏額外按鍵</string>
+    <string name="hide_extra_keys_with_keyboard_summary">鍵盤關閉時自動隱藏額外按鍵，開啟時顯示</string>
+
+    
+    <string name="termux_tab_height_mode_title">分頁高度</string>
+    <string name="termux_tab_height_mode_single">單行</string>
+    <string name="termux_tab_height_mode_double">兩行</string>
+    <string name="termux_tab_panel_position_title">分頁面板位置</string>
+    <string name="termux_tab_panel_position_top">頂部</string>
+    <string name="termux_tab_panel_position_bottom">底部</string>
+
+    
+    <string name="suggestions_max_count_title">自動補全建議的最大數量</string>
+
+    <string name="language_category_title">語言</string>
+    <string name="appearance_category_title">外觀</string>
+    <string name="input_preferences_title">輸入</string>
+    <string name="input_preferences_summary">額外按鍵、輸入面板、鍵盤、快捷鍵、系統按鍵</string>
+    <string name="extra_keys_preferences_title">額外按鍵</string>
+    <string name="extra_keys_preferences_summary">額外按鍵面板設定</string>
+    <string name="display_preferences_title">顯示</string>
+    <string name="display_preferences_summary">外觀、分頁、終端機、視窗</string>
+    <string name="terminal_advanced_title">進階</string>
+    <string name="terminal_advanced_summary">工作階段、聲音與通知、外部應用程式、附加功能、偵錯</string>
+    <string name="extra_keys_corner_radius_title">按鍵圓角半徑</string>
+    <string name="sessions_preferences_title">工作階段</string>
+    <string name="sessions_history_preferences_summary">工作階段、分頁和紀錄設定</string>
+    <string name="backup_restore_preferences_title">備份與還原</string>
+    <string name="backup_restore_preferences_summary">Termux 容器、應用程式設定</string>
+    <string name="diagnostics_preferences_title">診斷</string>
+    <string name="diagnostics_preferences_summary">記錄和錯誤通知</string>
+    <string name="plugin_logging_category_title">記錄</string>
+    <string name="extra_keys_special_button_mode_title">特殊按鍵行為</string>
+    <string name="extra_keys_special_button_mode_summary">修飾鍵（CTRL、ALT、SHIFT、FN）對觸控的回應方式。黏滯：輕觸切換，長按鎖定；按住：僅在按住時生效。</string>
+    <string name="extra_keys_special_button_mode_sticky">黏滯（切換/鎖定）</string>
+    <string name="extra_keys_special_button_mode_hold">按住（按住時生效）</string>
+    <string name="extra_keys_header">額外按鍵</string>
+    <string name="extra_keys_category_title">額外按鍵</string>
+    <string name="extra_keys_layout_title">按鍵配置</string>
+    <string name="extra_keys_layout_summary">用於定義額外按鍵各行及其彈出內容的 JSON 矩陣。</string>
+    <string name="extra_keys_style_title">按鍵樣式</string>
+    <string name="extra_keys_style_summary">特殊字元在按鍵上的顯示方式。</string>
+    <string name="extra_keys_style_default">預設</string>
+    <string name="extra_keys_style_arrows_only">僅箭頭</string>
+    <string name="extra_keys_style_arrows_all">全部箭頭</string>
+    <string name="extra_keys_style_all">全部</string>
+    <string name="extra_keys_style_none">無</string>
+    <string name="extra_keys_text_all_caps_title">按鍵標籤全大寫</string>
+    <string name="view_category_title">檢視</string>
+    <string name="window_category_title">視窗</string>
+    <string name="history_category_title">紀錄</string>
+    <string name="tabs_category_title">分頁</string>
+    <string name="input_panel_title">輸入面板</string>
+
+    <string name="theme_mode_entry_dark">深色</string>
+    <string name="theme_mode_entry_light">淺色</string>
+    <string name="theme_mode_entry_system">跟隨系統</string>
+    <string name="screen_orientation_entry_follow_sensor">跟隨感應器</string>
+    <string name="screen_orientation_entry_portrait_follow_sensor">直向（跟隨感應器）</string>
+    <string name="screen_orientation_entry_landscape_follow_sensor">橫向（跟隨感應器）</string>
+    <string name="screen_orientation_entry_portrait">直向</string>
+    <string name="screen_orientation_entry_landscape">橫向</string>
+
+    
+    <string name="extra_keys_visibility_title">顯示額外按鍵面板</string>
+    <string name="extra_keys_visibility_summary">控制額外按鍵面板的顯示時機。</string>
+    <string name="extra_keys_visibility_always">總是顯示</string>
+    <string name="extra_keys_visibility_keyboard">僅鍵盤開啟時</string>
+    <string name="extra_keys_visibility_never">從不顯示</string>
+
+    
+    <string name="extra_keys_invalid_json">額外按鍵的 JSON 格式無效，變更未儲存。</string>
+
+    
+    <string name="extra_keys_haptic_title">觸覺回饋</string>
+    <string name="extra_keys_haptic_summary">與額外按鍵面板互動時震動</string>
+    <string name="extra_keys_haptic_all">輕觸與手勢</string>
+    <string name="extra_keys_haptic_gestures">僅手勢</string>
+    <string name="extra_keys_haptic_off">已停用</string>
+
+    
+    <string name="extra_keys_editor_title">額外按鍵編輯器</string>
+    <string name="extra_keys_editor_summary">視覺化建構額外按鍵面板：設定行數和欄數，然後輕觸按鍵分配訊號。</string>
+    <string name="extra_keys_editor_columns_title">欄數</string>
+    <string name="extra_keys_editor_rows_title">行數</string>
+    <string name="extra_keys_editor_preview_title">預覽</string>
+    <string name="extra_keys_editor_preview_summary">即時面板——輕觸任意按鍵即可變更其訊號。</string>
+    <string name="extra_keys_editor_signal_dialog_title">分配訊號</string>
+    <string name="extra_keys_editor_custom_text_title">符號/文字</string>
+    <string name="extra_keys_editor_custom_text_message">按下任意鍵以綁定：</string>
+    <string name="extra_keys_editor_apply_title">套用到額外按鍵</string>
+    <string name="extra_keys_editor_apply_summary">將此配置儲存到額外按鍵設定。</string>
+    <string name="extra_keys_editor_empty">（空）</string>
+    <string name="extra_keys_editor_max_signals">每個按鍵最多 8 個訊號</string>
+    <string name="extra_keys_editor_custom_text_no_space">組合鍵中不支援含空格的文字</string>
+    <string name="extra_keys_editor_done">完成</string>
+    <string name="extra_keys_editor_open_editor">編輯額外按鍵</string>
+    <string name="extra_keys_editor_open_editor_summary">設定配置、縮放和按鍵綁定</string>
+    <string name="extra_keys_edge_indicators_title">手勢方向指示器</string>
+    <string name="extra_keys_editor_hint">輕觸分配主要動作。\n向上、向下、向左或向右滑動，為相應手勢分配動作。\n長按任意按鍵可設定標籤。</string>
+    <string name="extra_keys_editor_mode_assign">分配</string>
+    <string name="extra_keys_editor_mode_move">移動</string>
+    <string name="extra_keys_editor_hint_move">將按鍵拖曳到其他儲存格，以移動或交換其所有動作</string>
+    <string name="extra_keys_editor_label_dialog_title">標籤</string>
+
+    <!-- Extra Keys Editor: session profiles -->
+    <string name="extra_keys_editor_profile_default">預設</string>
+    <string name="extra_keys_editor_profile_add">新增設定檔</string>
+    <string name="extra_keys_editor_profile_delete">刪除設定檔</string>
+    <string name="extra_keys_editor_profile_add_title">新增額外按鍵設定檔</string>
+    <string name="extra_keys_editor_profile_name_hint">設定檔名稱</string>
+    <string name="extra_keys_editor_profile_exists">已存在同名設定檔</string>
+    <string name="extra_keys_editor_profile_delete_title">刪除設定檔</string>
+    <string name="extra_keys_editor_profile_delete_confirm">確定刪除設定檔「%1$s」？刪除後，與該設定檔關聯的工作階段前綴將不再啟用此配置。</string>
+    <string name="extra_keys_editor_profile_prefix_title">工作階段前綴</string>
+    <string name="extra_keys_editor_profile_prefix_hint">例如：nano、vim、htop</string>
+    <string name="extra_keys_editor_profile_export">匯出設定檔</string>
+    <string name="extra_keys_editor_profile_import">匯入設定檔</string>
+    <string name="extra_keys_editor_profile_export_progress">正在匯出設定檔…</string>
+    <string name="extra_keys_editor_profile_import_progress">正在匯入設定檔…</string>
+    <string name="extra_keys_editor_profile_export_success">設定檔匯出成功</string>
+    <string name="extra_keys_editor_profile_import_success">設定檔「%1$s」匯入成功</string>
+    <string name="extra_keys_editor_profile_export_failed">匯出失敗</string>
+    <string name="extra_keys_editor_profile_import_failed">匯入失敗</string>
+    <string name="extra_keys_editor_profile_import_default_name">已匯入</string>
+
+    
+    <string name="extra_keys_editor_signal_keyboard">鍵盤切換</string>
+    <string name="extra_keys_editor_signal_paste">貼上</string>
+    <string name="extra_keys_editor_signal_scroll_lock">捲動鎖定</string>
+    <string name="extra_keys_editor_signal_space">空格</string>
+    <string name="extra_keys_editor_signal_up">向上</string>
+    <string name="extra_keys_editor_signal_left">向左</string>
+    <string name="extra_keys_editor_signal_right">向右</string>
+    <string name="extra_keys_editor_signal_down">向下</string>
+    <string name="extra_keys_editor_signal_backslash">反斜線（\\）</string>
+    <string name="extra_keys_editor_signal_quote">引號（\"）</string>
+    <string name="extra_keys_editor_signal_apostrophe">撇號（\'）</string>
+    <string name="extra_keys_editor_signal_custom">符號/文字…</string>
+
+    <string name="terminal_category_title">終端機</string>
+    <string name="key_behaviour_category_title">按鍵行為</string>
+    <string name="screen_category_title">螢幕</string>
+    <string name="shortcuts_category_title">快捷鍵</string>
+    <string name="addons_category_title">附加功能</string>
+    <string name="misc_category_title">雜項</string>
+    <string name="external_apps_category_title">外部應用程式</string>
+    <string name="sound_category_title">聲音與通知</string>
+    <string name="session_category_title">工作階段</string>
+    <string name="empty_value_summary">未設定</string>
+    <string name="shortcut_empty_summary">未設定</string>
+    <string name="session_shortcut_needs_modifier">請設定包含 Ctrl、Alt、Shift 或 Fn 修飾鍵的快捷鍵。</string>
+    <string name="session_shortcut_needs_key">請新增要套用修飾鍵的按鍵。</string>
+    <string name="shortcut_create_session_title">新增工作階段</string>
+    <string name="shortcut_next_session_title">下一個工作階段</string>
+    <string name="shortcut_previous_session_title">上一個工作階段</string>
+    <string name="shortcut_rename_session_title">重新命名工作階段</string>
+
+    <string name="terminal_transcript_rows_title">捲動緩衝區行數</string>
+    <string name="terminal_transcript_rows_summary">儲存在捲動緩衝區中的行數。</string>
+
+    <string name="delete_tmpdir_files_older_than_x_days_on_exit_title">離開時刪除舊的 TMPDIR 檔案</string>
+    <string name="delete_tmpdir_files_older_than_x_days_on_exit_summary">離開時刪除工作階段 TMPDIR 中超過 N 天的檔案（-1 表示從不刪除）。</string>
+
+    <string name="invalid_number">請輸入有效數字。</string>
+
+    <string name="terminal_cursor_style_title">游標樣式</string>
+    <string name="terminal_cursor_style_summary">終端機游標的繪製方式。</string>
+    <string name="terminal_cursor_style_block">方塊</string>
+    <string name="terminal_cursor_style_underline">底線</string>
+    <string name="terminal_cursor_style_bar">豎線</string>
+    <string name="terminal_cursor_blink_rate_title">游標閃爍頻率</string>
+    <string name="terminal_cursor_blink_rate_summary">游標閃爍頻率（毫秒）。</string>
+    <string name="terminal_cursor_blink_enabled_title">游標閃爍</string>
+
+    <string name="bell_character_title">響鈴行為</string>
+    <string name="bell_character_summary">終端機收到響鈴字元（BEL）時的行為。</string>
+    <string name="bell_character_vibrate">震動</string>
+    <string name="bell_character_beep">蜂鳴聲</string>
+    <string name="bell_character_ignore">忽略</string>
+
+    <string name="terminal_margin_left_title">左邊距</string>
+    <string name="terminal_margin_top_title">上邊距</string>
+    <string name="terminal_margin_right_title">右邊距</string>
+    <string name="terminal_margin_bottom_title">下邊距</string>
+
+    <string name="terminal_background_transparency_title">終端機背景透明度</string>
+
+    <string name="terminal_background_blur_radius_title">背景模糊半徑</string>
+    <string name="terminal_background_blur_radius_summary">模糊半徑較高且使用動態背景時可能增加耗電量；使用靜態背景時，對耗電量的影響可忽略不計。</string>
+
+    <string name="terminal_toolbar_scale_title">面板縮放</string>
+
+    <string name="default_working_directory_title">預設工作目錄</string>
+    <string name="default_working_directory_summary">新建工作階段時開啟的目錄（留空則使用主目錄）。</string>
+
+    <string name="back_key_sends_escape_title">返回鍵傳送 Esc</string>
+
+    <string name="volume_keys_title">音量鍵作為修飾鍵</string>
+    <string name="volume_keys_summary">按住裝置的音量減小鍵或音量增大鍵時，將分別作為 Ctrl 或 Fn 使用。在此模式下，如需開啟音量面板，請使用 Fn + v。</string>
+
+    <string name="soft_keyboard_toggle_behaviour_title">螢幕鍵盤切換行為</string>
+    <string name="soft_keyboard_toggle_behaviour_summary">選擇螢幕鍵盤切換按鈕的行為：顯示/隱藏螢幕鍵盤，或啟用/停用螢幕鍵盤。</string>
+    <string name="soft_keyboard_toggle_show_hide">顯示/隱藏</string>
+    <string name="soft_keyboard_toggle_enable_disable">啟用/停用</string>
+
+    <string name="ctrl_space_workaround_title">Ctrl+Space 變通方案</string>
+    <string name="ctrl_space_workaround_summary">使用變通方案，確保正確傳送 Ctrl+Space。</string>
+
+    <string name="enforce_char_based_input_title">依位元組傳送輸入</string>
+    <string name="enforce_char_based_input_summary">一次傳送一個位元組。</string>
+
+    <string name="disable_hardware_keyboard_shortcuts_title">停用實體鍵盤快捷鍵</string>
+    <string name="disable_hardware_keyboard_shortcuts_summary">忽略來自實體/外部鍵盤的快捷鍵。</string>
+
+    <string name="disable_terminal_session_change_toast_title">不顯示工作階段切換提示</string>
+    <string name="disable_terminal_session_change_toast_summary">切換終端機工作階段時不顯示提示。</string>
+
+    <string name="scroll_on_new_output_title">新輸出時自動捲動</string>
+    <string name="scroll_on_new_output_summary">當終端機有新輸出時自動捲動到底部。</string>
+
+    <string name="terminal_onclick_url_open_title">輕觸開啟連結</string>
+    <string name="terminal_onclick_url_open_summary">輕觸終端機緩衝區中的連結時開啟。</string>
+
+    <string name="fullscreen_title">全螢幕</string>
+    <string name="fullscreen_summary">以全螢幕模式執行 Termux。</string>
+
+
+    <string name="night_mode_legacy_title">夜間模式（舊版）</string>
+    <string name="night_mode_legacy_summary">控制舊版夜間模式屬性。建議在「顯示」頁面使用主題設定。</string>
+    <string name="night_mode_true">深色</string>
+    <string name="night_mode_false">淺色</string>
+    <string name="night_mode_system">跟隨系統</string>
+
+    <string name="allow_external_apps_title">允許外部指令</string>
+    <string name="allow_external_apps_summary">允許其他應用程式透過 RUN_COMMAND 啟動 Termux 指令。</string>
+
+    <string name="disable_file_share_receiver_title">停用接收共用檔案</string>
+
+    <string name="disable_file_view_receiver_title">停用檔案檢視</string>
+
+    <string name="run_termux_am_socket_server_title">啟動 termux-am 通訊端伺服器</string>
+
+    <string name="hide_soft_keyboard_on_startup_title">啟動時隱藏螢幕鍵盤</string>
+    <string name="hide_soft_keyboard_on_startup_summary">啟動 Termux 時保持螢幕鍵盤隱藏。</string>
+
+    <string name="extra_keys_button_margin_title">按鍵間距</string>
+
+    <string name="extra_keys_dynamic_font_size_title">動態字型大小</string>
+    <string name="extra_keys_dynamic_font_size_summary">欄數增加或為主要動作綁定巨集時減小字型大小</string>
+
+    <string name="extra_keys_font_size_title">基本字型大小</string>
+    <string name="extra_keys_editor_tap_suffix"> (輕觸)</string>
+
+    <string name="extra_keys_editor_remove_signal">刪除 %s</string>
+
+    <string name="backup_error_open_output">無法開啟輸出檔案</string>
+
+    <string name="report_issue_title">Termux — 回報問題</string>
+    <string name="report_issue_transcript_header">## 終端機紀錄\n</string>
+    <string name="termux_api_debugging_title">Termux:API 偵錯</string>
+    <string name="termux_float_debugging_title">Termux:Float 偵錯</string>
+    <string name="termux_tasker_debugging_title">Termux:Tasker 偵錯</string>
+    <string name="termux_widget_debugging_title">Termux:Widget 偵錯</string>
+
+    <!-- Bootstrap Selector Activity -->
+    <string name="bootstrap_selector_error_load_sources">無法載入來源</string>
+    <string name="bootstrap_selector_install_local_title">安裝本機啟動套件？</string>
+    <string name="bootstrap_selector_install_local_message">安裝本機啟動套件 .zip 檔案時可能會執行任意程式碼。請僅在信任此檔案時繼續。</string>
+    <string name="bootstrap_selector_install">安裝</string>
+    <string name="bootstrap_selector_cancel">取消</string>
+
+    <!-- Bootstrap Download Service -->
+    <string name="bootstrap_download_status_idle">等待中</string>
+    <string name="bootstrap_download_status_connecting">正在連線</string>
+    <string name="bootstrap_download_progress_preparing">正在準備下載</string>
+    <string name="bootstrap_download_status_installing">正在安裝</string>
+    <string name="bootstrap_download_progress_extracting">正在解壓縮啟動套件</string>
+    <string name="bootstrap_download_status_done">完成</string>
+    <string name="bootstrap_download_status_installed">啟動套件已安裝</string>
+    <string name="bootstrap_download_status_failed">失敗</string>
+    <string name="bootstrap_download_progress_copying_local">正在複製本機檔案</string>
+    <string name="bootstrap_download_progress_copying_internal">正在複製到內部儲存空間</string>
+    <string name="bootstrap_download_status_downloading">正在下載</string>
+    <string name="bootstrap_download_status_verifying">正在驗證</string>
+    <string name="bootstrap_download_progress_checking_sha">正在檢查 SHA-256</string>
+    <string name="bootstrap_download_notification_starting">正在啟動</string>
+    <string name="bootstrap_download_channel_name">Termux 啟動套件下載器</string>
+    <string name="bootstrap_download_notification_title_success">啟動套件已安裝</string>
+    <string name="bootstrap_download_notification_text_success">輕觸開啟 Termux</string>
+    <string name="bootstrap_download_notification_title_failed">啟動套件安裝失敗</string>
+
+
+    <!-- File Receiver -->
+    <string name="file_receiver_bootstrap_not_installed">啟動套件未安裝。請先開啟 Termux 應用程式。</string>
+
+    <!-- Run Command Service -->
+    <string name="run_command_bootstrap_not_installed">啟動套件未安裝。請先開啟 Termux 應用程式以進行安裝。</string>
+
+
+    <!-- Bootstrap install progress (TermuxInstaller) -->
+    <string name="bootstrap_install_progress_verify_sha">正在驗證總和檢查碼</string>
+    <string name="bootstrap_install_progress_verify_manifest">正在驗證套件資訊清單</string>
+    <string name="bootstrap_install_progress_extract">正在解壓縮啟動套件</string>
+    <string name="bootstrap_install_progress_finalize">正在完成安裝</string>
+    <string name="bootstrap_install_progress_write_variant">正在寫入變體標記</string>
+    <string name="bootstrap_install_progress_done">完成</string>
+
+    <string name="extra_keys_editor_delay_format">⏱ %d 毫秒</string>
+    <string name="extra_keys_editor_delay_hint">延遲</string>
+    <string name="extra_keys_editor_delay_presets">快速選擇：</string>
+
+    <!-- Termux App Preferences -->
+    <string name="termux_preferences_title">Termux</string>
+
+    <!-- Extra keys editor swipe suffixes -->
+    <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>
+    <string name="extra_keys_editor_swipe_down_suffix"> (↓)</string>
+    <string name="extra_keys_editor_swipe_left_suffix"> (←)</string>
+    <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
+
+    <!-- Backup -->
+    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
+    <string name="backup_service_notification_progress">%1$d%%</string>
+    <string name="backup_progress_calculating_size">正在計算備份大小…</string>
+
+    <!-- Report Issue -->
+    <string name="report_issue_transcript_footer">\n##\n</string>
+
+    <!-- Extra keys editor signal entries -->
+    <string name="extra_keys_editor_signal_ctrl">CTRL</string>
+    <string name="extra_keys_editor_signal_alt">ALT</string>
+    <string name="extra_keys_editor_signal_shift">SHIFT</string>
+    <string name="extra_keys_editor_signal_fn">FN</string>
+    <string name="extra_keys_editor_signal_esc">Esc</string>
+    <string name="extra_keys_editor_signal_tab">Tab</string>
+    <string name="extra_keys_editor_signal_home">Home</string>
+    <string name="extra_keys_editor_signal_end">End</string>
+    <string name="extra_keys_editor_signal_page_up">Page Up</string>
+    <string name="extra_keys_editor_signal_page_down">Page Down</string>
+    <string name="extra_keys_editor_signal_insert">Insert</string>
+    <string name="extra_keys_editor_signal_delete">Delete</string>
+    <string name="extra_keys_editor_signal_backspace">Backspace</string>
+    <string name="extra_keys_editor_signal_enter">Enter</string>
+    <!-- F1-F12 -->
+    <string name="extra_keys_editor_signal_f1">F1</string>
+    <string name="extra_keys_editor_signal_f2">F2</string>
+    <string name="extra_keys_editor_signal_f3">F3</string>
+    <string name="extra_keys_editor_signal_f4">F4</string>
+    <string name="extra_keys_editor_signal_f5">F5</string>
+    <string name="extra_keys_editor_signal_f6">F6</string>
+    <string name="extra_keys_editor_signal_f7">F7</string>
+    <string name="extra_keys_editor_signal_f8">F8</string>
+    <string name="extra_keys_editor_signal_f9">F9</string>
+    <string name="extra_keys_editor_signal_f10">F10</string>
+    <string name="extra_keys_editor_signal_f11">F11</string>
+    <string name="extra_keys_editor_signal_f12">F12</string>
+    <string name="extra_keys_editor_signal_add_delay">延遲…</string>
+    <string name="extra_keys_editor_delay_dialog_title">延遲</string>
+
+    <!-- AbiUtils error messages -->
+    <string name="error_abi_no_supported_abis">裝置沒有支援的 ABI</string>
+    <string name="error_abi_arch_mismatch">啟動套件架構「%1$s」與裝置架構「%2$s」不相符。可用 ABI：%3$s</string>
+    <string name="error_abi_unknown">未知 ABI：%1$s</string>
+
+    <!-- BootstrapManifest error messages -->
+    <string name="error_bootstrap_manifest_missing_info">啟動套件 zip 中缺少 BOOTSTRAP_INFO</string>
+    <string name="error_bootstrap_manifest_missing_variant">BOOTSTRAP_INFO 中缺少「variant」</string>
+    <string name="error_bootstrap_manifest_missing_arch">BOOTSTRAP_INFO 中缺少「arch」</string>
+
+    <!-- TermuxInstaller error messages -->
+    <string name="error_bootstrap_install_in_progress">啟動套件安裝已在進行中</string>
+    <string name="error_bootstrap_zip_not_found">未找到啟動套件 zip：%1$s</string>
+    <string name="error_bootstrap_create_temp_dir">無法建立暫存目錄：%1$s</string>
+    <string name="error_bootstrap_rename_prefix">無法將現有前綴重新命名為備份</string>
+    <string name="error_bootstrap_rename_temp">無法將暫存目錄重新命名為前綴</string>
+    <string name="error_bootstrap_invalid_zip_entry">無效的 zip 項目名稱：%1$s</string>
+    <string name="error_bootstrap_duplicate_zip_entry">重複的 zip 項目：%1$s</string>
+    <string name="error_bootstrap_directory_metadata_entry">目錄項目使用了中繼資料名稱：%1$s</string>
+    <string name="error_bootstrap_failed_mkdir">無法建立目錄：%1$s</string>
+    <string name="error_bootstrap_entry_too_large">項目過大：%1$s（%2$s 位元組）</string>
+    <string name="error_bootstrap_compression_ratio">壓縮率超出限制：%1$s</string>
+    <string name="error_bootstrap_total_size_exceeded">解壓縮後的總大小超出限制</string>
+    <string name="error_bootstrap_too_many_entries">zip 項目過多</string>
+    <string name="error_bootstrap_symlink_parent_dir">無法建立符號連結的父目錄：%1$s</string>
+    <string name="error_bootstrap_symlink_create">無法建立符號連結：%1$s -&gt; %2$s</string>
+    <string name="error_bootstrap_symlink_line">無效的符號連結行：%1$s</string>
+    <string name="error_bootstrap_unsupported_file_type">不支援的檔案類型：%1$s</string>
+    <string name="error_bootstrap_symlink_target_empty">符號連結目標為空：%1$s</string>
+    <string name="error_bootstrap_symlink_absolute">不允許絕對符號連結路徑：%1$s</string>
+    <string name="error_bootstrap_symlink_no_parent">符號連結沒有父目錄：%1$s</string>
+    <string name="error_bootstrap_symlink_escapes_root">符號連結指向解壓縮根目錄之外：%1$s -&gt; %2$s</string>
+    <string name="error_bootstrap_path_traversal">偵測到 zip 項目存在路徑遍歷：%1$s</string>
+    <string name="error_bootstrap_no_symlinks">未找到 SYMLINKS.txt 檔案</string>
+    <string name="error_bootstrap_move_prefix">無法將 Termux 前綴暫存目錄移動到前綴目錄</string>
+    <string name="error_bootstrap_embedded_lib">內建啟動套件程式庫無法使用</string>
+
+    <!-- BootstrapDownloadService error messages -->
+    <string name="error_bootstrap_download_cache_dir">無法建立快取目錄</string>
+    <string name="error_bootstrap_download_read_uri">無法讀取 URI——權限可能已被撤銷</string>
+    <string name="error_bootstrap_download_storage">儲存空間不足。至少需要 %1$s 可用空間，現有 %2$s</string>
+    <string name="error_bootstrap_download_https">僅允許 HTTPS URL</string>
+    <string name="error_bootstrap_download_http">請求 %2$s 時傳回 HTTP %1$d</string>
+    <string name="error_bootstrap_download_sha_mismatch">SHA-256 不相符。預期 %1$s，實際 %2$s</string>
+    <string name="error_bootstrap_download_rename">重新命名暫存檔案失敗</string>
+
+    <!-- TermuxBackupUtils error messages -->
+    <string name="error_tar_health_check_exit">tar 健康檢查失敗（結束代碼 %1$d）</string>
+    <string name="error_tar_health_check">tar 健康檢查失敗：%1$s</string>
+    <string name="error_backup_recreate_dir">無法重新建立 %1$s</string>
+    <string name="error_restore_io">還原時發生 I/O 錯誤：%1$s</string>
+    <string name="error_backup_io">I/O 錯誤：%1$s</string>
+    <string name="error_tar_exit_code">tar 以結束代碼 %1$d 結束</string>
+
+
+    <!-- TermuxBootstrapState -->
+    <string name="error_bootstrap_state_create_dir">無法建立 etc/termux 目錄</string>
+
+    <!-- Sha256 -->
+    <string name="error_sha256_not_available">SHA-256 無法使用</string>
+
+    <!-- TermuxServiceConnectionManager -->
+    <string name="error_bind_service">bindService() 失敗</string>
+
+    <!-- TermuxOpenReceiver -->
+    <string name="error_invalid_path">無效路徑：%1$s</string>
+
+    <!-- Bootstrap crash notification -->
+    <string name="notification_bootstrap_crash_title">啟動套件錯誤</string>
+    <string name="notification_bootstrap_crash_body">## 啟動套件錯誤\n\n%1$s</string>
+
+    <!-- Bootstrap/backup strings added for i18n completeness -->
+    <string name="bootstrap_selector_title">Termux 啟動套件安裝</string>
+    <string name="bootstrap_selector_status_default">選擇要安裝的啟動套件來源：</string>
+    <string name="bootstrap_selector_source_label">來源：</string>
+    <string name="bootstrap_selector_download">下載推薦的啟動套件</string>
+    <string name="bootstrap_selector_pick_zip">選擇本機 .zip 檔案</string>
+    <string name="bootstrap_selector_retry">重試</string>
+    <string name="bootstrap_selector_offline">安裝最小離線版本（基礎 shell）</string>
+    <string name="bootstrap_progress_title">正在安裝啟動套件</string>
+    <string name="human_size_format" formatted="false">%.1f %s</string>
+    <string name="human_size_progress_format">%1$s / %2$s</string>
+    <string-array name="human_size_units">
+        <item>B</item>
+        <item>KB</item>
+        <item>MB</item>
+        <item>GB</item>
+    </string-array>
+
+    <!-- Terminal font size (Display > Appearance). The same value, the same bounds
+         and the same step the pinch gesture uses — see
+         TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
+    <string name="terminal_font_size_title" formatted="false">字型大小</string>
+    <string name="terminal_font_size_summary" formatted="false">此值與在終端機中透過雙指縮放手勢調整的字型大小相同</string>
+</resources>
