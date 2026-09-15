@@ -217,7 +217,7 @@
     <string name="per_directory_input_history_title">История введённых текстов по директориям</string>
     <string name="per_directory_input_history_summary">Вести отдельную историю введённых текстов для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
     <string name="input_history_save_cleared_title">Очищаемые в истории</string>
-    <string name="input_history_save_cleared_summary">Сохранять в историю очищаемые из поля ввода введённые тексты.</string>
+    <string name="input_history_save_cleared_summary">Сохранять в историю очищаемые из поля ввода тексты.</string>
 
     
     <string name="input_panel_title">Панель ввода</string>
