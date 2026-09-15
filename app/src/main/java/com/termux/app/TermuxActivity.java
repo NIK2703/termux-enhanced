@@ -3463,7 +3463,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     @Override
     public void reportIssueFromTranscript() {
-        ActivityUtils.startActivity(this, new Intent(this, ReportActivity.class));
+        // Must go through the view client: it builds the ReportInfo (transcript + debug info) that
+        // ReportActivity requires. Starting ReportActivity with a bare intent makes it call
+        // finish() in updateUI() (mBundle == null), so the window only flashes and closes.
+        if (mTermuxTerminalViewClient != null) mTermuxTerminalViewClient.reportIssueFromTranscript();
     }
 
     @Override

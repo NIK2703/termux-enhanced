@@ -61,9 +61,9 @@ public class TermuxSessionSnapshotManager {
         return mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
     }
 
-    /** Whether restoring open tabs on launch is enabled (default: on). */
+    /** Whether restoring open tabs on launch is enabled (default: off). */
     public boolean isRestoreSessionsEnabled() {
-        return getPrefs().getBoolean(PREF_RESTORE_SESSIONS, true);
+        return getPrefs().getBoolean(PREF_RESTORE_SESSIONS, false);
     }
 
     /**

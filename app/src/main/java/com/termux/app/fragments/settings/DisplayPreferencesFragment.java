@@ -551,7 +551,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         final SharedPreferences termuxPrefs =
                 requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
         pref.setPersistent(false);
-        pref.setChecked(termuxPrefs.getBoolean("restore_sessions", true));
+        pref.setChecked(termuxPrefs.getBoolean("restore_sessions", false));
 
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
             termuxPrefs.edit().putBoolean("restore_sessions", (Boolean) newValue).apply();

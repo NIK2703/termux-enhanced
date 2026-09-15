@@ -1,9 +1,12 @@
 package com.termux.shared.interact;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.view.ContextThemeWrapper;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.termux.shared.R;
 
 
 
@@ -45,7 +48,15 @@ public class MessageDialogUtils {
                                     final DialogInterface.OnClickListener onNegativeButton,
                                     final DialogInterface.OnDismissListener onDismiss) {
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(context, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog);
+        // Theme the dialog with ThemeOverlay.BaseDialog.DayNight instead of the raw context: the
+        // scheme-wrapped activity theme's on-surface colour is a runtime scheme placeholder that
+        // can resolve to white for a dialog title/buttons in light mode (white-on-white, which is
+        // exactly what the "Report issue" confirmation dialog used to do). The overlay pins the
+        // surface + title/message colours per light/dark mode, matching every other dialog in the
+        // app (see TextInputDialogUtils for the same fix).
+        Context dialogContext = new ContextThemeWrapper(context, R.style.ThemeOverlay_BaseDialog_DayNight);
+
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(dialogContext);
         builder.setTitle(titleText);
         builder.setMessage(messageText);
 
@@ -59,8 +70,7 @@ public class MessageDialogUtils {
         if (onDismiss != null)
             builder.setOnDismissListener(onDismiss);
 
-        AlertDialog dialog = builder.create();
-        dialog.show();
+        builder.show();
     }
 
     public static void exitAppWithErrorMessage(Context context, String titleText, String messageText) {

@@ -108,7 +108,7 @@
         <SwitchPreferenceCompat
             app:key="restore_sessions"
             app:title="@string/restore_tabs_title"
-            app:defaultValue="true"
+            app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
         <SeekBarPreference
