@@ -46,7 +46,8 @@ public class SignalPickerDialogFragment extends DialogFragment {
     /** Picker for one binding of an extra-keys button. */
     public static final String MODE_EXTRA_KEY = "extra_key";
     /** Picker for a session shortcut combination; the delay entry and the action-only buttons
-     *  (KEYBOARD/PASTE/SCROLL) are hidden, since there is no key to press for any of them. */
+     *  (KEYBOARD/PASTE/SCROLL/AUTOFILL_*) are hidden, since there is no key to press for any of
+     *  them — a session shortcut has to be a modifier+key combination. */
     public static final String MODE_SESSION_SHORTCUT = "session_shortcut";
 
     private static final String ARG_ROW = "row";
@@ -65,7 +66,8 @@ public class SignalPickerDialogFragment extends DialogFragment {
     public static final String RESULT_REQUEST_ID = "request_id";
 
     private static final Set<String> SESSION_SHORTCUT_HIDDEN_VALUES = new HashSet<>(Arrays.asList(
-        "__DELAY_PICKER__", "KEYBOARD", "PASTE", "SCROLL"));
+        "__DELAY_PICKER__", "KEYBOARD", "PASTE", "SCROLL",
+        "AUTOFILL_USERNAME", "AUTOFILL_PASSWORD"));
 
     public enum BindTarget { TAP, SWIPE_UP, SWIPE_DOWN, SWIPE_LEFT, SWIPE_RIGHT }
 

@@ -175,8 +175,38 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
             TerminalView terminalView = mTermuxTerminalViewClient.getActivity().getActiveTerminalView();
             if (terminalView != null && terminalView.mEmulator != null)
                 terminalView.mEmulator.toggleAutoScrollDisabled();
+        } else if ("AUTOFILL_USERNAME".equals(key) || "AUTOFILL_PASSWORD".equals(key)) {
+            requestAutoFill(key);
         } else {
             super.onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
+        }
+    }
+
+    /**
+     * Trigger Android's AutoFill UI for the terminal the pressed button belongs to.
+     *
+     * <p>These bindings carry no key, so they must be intercepted here before {@code super}:
+     * otherwise the action name would be typed into the terminal as literal text, exactly like
+     * KEYBOARD/PASTE/SCROLL above.</p>
+     *
+     * <p>AutoFill is a system feature. When it is switched off in the device settings
+     * {@code requestAutoFill*()} is a silent no-op, which on a button would look like a broken
+     * binding — so say why nothing happened instead.</p>
+     */
+    private void requestAutoFill(@NonNull String key) {
+        TerminalView terminalView = getTerminalViewForInput();
+        if (terminalView == null) return;
+
+        if (!terminalView.isAutoFillEnabled()) {
+            Logger.showToast(mActivity,
+                mActivity.getString(com.termux.R.string.msg_autofill_unavailable), true);
+            return;
+        }
+
+        if ("AUTOFILL_USERNAME".equals(key)) {
+            terminalView.requestAutoFillUsername();
+        } else {
+            terminalView.requestAutoFillPassword();
         }
     }
 
