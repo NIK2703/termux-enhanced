@@ -62,8 +62,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     /** Keeping track of the special keys acting as Ctrl and Fn for the soft keyboard and other hardware keys. */
     boolean mVirtualControlKeyDown, mVirtualFnKeyDown;
 
-    private Runnable mShowSoftKeyboardRunnable;
-
     /**
      * {@link TermuxActivity#updateFloatingButtonMargin()}, posted from {@link #onEmulatorSet}.
      *
@@ -72,8 +70,12 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      */
     private final Runnable mUpdateFloatingButtonMargin;
 
-    private boolean mShowSoftKeyboardIgnoreOnce;
-    private boolean mShowSoftKeyboardWithDelayOnce;
+    /**
+     * Set when the soft keyboard was disabled for Termux by the time {@link #setSoftKeyboardState}
+     * ran at startup: the next KEYBOARD toggle must (re)show the keyboard rather than just clear
+     * the disable flags, because nothing requested a show while it was disabled (see #2112).
+     */
+    private boolean mShowSoftKeyboardOnTogglePending;
 
     /**
      * Set on a true cold start (first {@link TermuxActivity#onResume()} after {@code onCreate}) when
@@ -104,57 +106,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private static final int STARTUP_HIDE_REASSERT_MAX = 4;
     private final Runnable mStartupHideReassertRunnable = this::reassertStartupSoftKeyboardHide;
     private int mStartupHideReassertsLeft;
-
-    /**
-     * Auto-clear runnable for {@link #mShowSoftKeyboardIgnoreOnce}. Bounds the latch lifetime
-     * so that a stale latch (set, but never consumed because requestFocus() was a no-op on an
-     * already-focused view) cannot swallow a later legitimate keyboard show.
-     */
-    private Runnable mIgnoreOnceAutoClearRunnable;
-
-    /**
-     * Set to ignore the next soft keyboard show request triggered by terminal view focus change.
-     * Used when hiding the text input panel to prevent keyboard from reopening on terminal focus.
-     *
-     * The latch self-clears after 1 second: if the expected focus change never happens
-     * (the view was already focused and requestFocus() did not fire onFocusChange), the latch
-     * must not linger and eat a later legitimate show.
-     */
-    public void ignoreOnceSoftKeyboardOnFocus() {
-        mShowSoftKeyboardIgnoreOnce = true;
-        final TerminalView tv = mActivity.getTerminalView();
-        if (tv != null) {
-            if (mIgnoreOnceAutoClearRunnable != null)
-                tv.removeCallbacks(mIgnoreOnceAutoClearRunnable);
-            mIgnoreOnceAutoClearRunnable = () -> mShowSoftKeyboardIgnoreOnce = false;
-            tv.postDelayed(mIgnoreOnceAutoClearRunnable, 1000);
-        }
-    }
-
-    /** Clear the ignore-once latch and its auto-clear timer (used before an intended show). */
-    public void clearIgnoreOnceSoftKeyboardOnFocus() {
-        mShowSoftKeyboardIgnoreOnce = false;
-        removeIgnoreOnceAutoClear();
-    }
-
-    private void removeIgnoreOnceAutoClear() {
-        final TerminalView tv = mActivity.getTerminalView();
-        if (tv != null && mIgnoreOnceAutoClearRunnable != null) {
-            tv.removeCallbacks(mIgnoreOnceAutoClearRunnable);
-        }
-    }
-
-    /**
-     * Cancel any pending delayed keyboard-show runnable posted to the active terminal view.
-     * Used on the "keep hidden" paths so a previously scheduled +500ms show cannot pop the
-     * keyboard back after we explicitly hid it.
-     */
-    public void cancelPendingSoftKeyboardShow() {
-        final TerminalView tv = mActivity.getTerminalView();
-        if (tv != null) {
-            tv.removeCallbacks(getShowSoftKeyboardRunnable());
-        }
-    }
 
     private boolean mTerminalCursorBlinkerStateAlreadySet;
 
@@ -870,10 +821,14 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 // Clear SOFT_INPUT_STATE_ALWAYS_HIDDEN (may be left by a resume-with-hidden-intent)
                 // so the show below is not silently ignored.
                 KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
-                if(mShowSoftKeyboardWithDelayOnce) {
-                    mShowSoftKeyboardWithDelayOnce = false;
-                    terminalView.postDelayed(getShowSoftKeyboardRunnable(), 500);
+                if (mShowSoftKeyboardOnTogglePending) {
+                    mShowSoftKeyboardOnTogglePending = false;
+                    // We may have just come back from another app and the window is not focused
+                    // yet, so a single immediate show can be silently ignored. Ask again while the
+                    // IME is still down instead of parking a blind 500 ms timer (see #2112).
                     terminalView.requestFocus();
+                    com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(terminalView,
+                            mActivity::computeImeVisibility);
                 } else
                     KeyboardUtils.showSoftKeyboard(mActivity, terminalView);
             }
@@ -924,7 +879,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // double back press, not when Termux app is switched back from another app and keyboard
             // toggle is pressed to enable keyboard
             if (isStartup && mActivity.isOnResumeAfterOnCreate())
-                mShowSoftKeyboardWithDelayOnce = true;
+                mShowSoftKeyboardOnTogglePending = true;
         } else {
             // Set flag to automatically push up TerminalView when keyboard is opened instead of showing over it
             KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
@@ -950,9 +905,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
                 terminalView.requestFocus();
                 noShowKeyboard = true;
-                // Required to keep keyboard hidden on app startup. Use the self-clearing
-                // variant so a no-op focus change cannot leave the latch stuck forever.
-                ignoreOnceSoftKeyboardOnFocus();
+                // No focus-triggered show to swallow any more: the focus listener does not schedule
+                // shows (see registerTerminalViewFocusListener), and the view-independent
+                // ALWAYS_HIDDEN flag above keeps the platform from auto-showing the IME here.
                 // Record the intent as hidden so any later startup reconcile agrees with the
                 // hide instead of restoring the default "visible" intent (see onResume()).
                 mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
@@ -962,26 +917,21 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // Do not force show soft keyboard if termux-reload-settings command was run with hardware keyboard
         // or soft keyboard is to be hidden or is disabled
         if (!isReloadTermuxProperties && !noShowKeyboard) {
-            // Request focus for TerminalView.
-            // On a resume/recreate this requestFocus() may fire the per-page focus listener, but
-            // onResume() raises mRestoringKeyboard BEFORE calling this method, so the listener
-            // early-returns and no +500ms show is scheduled here.
+            // Request focus for TerminalView. On a resume/recreate this requestFocus() may fire the
+            // per-page focus listener, but onResume() raises mRestoringKeyboard BEFORE calling this
+            // method, so the listener early-returns and nothing happens here.
             Logger.logVerbose(LOG_TAG, "Requesting TerminalView focus and showing soft keyboard");
             boolean restoreFromState = !mActivity.isOnResumeAfterOnCreate() || mActivity.isActivityRecreated();
-            boolean kbIntent = mActivity.getTextInputState().isSoftKeyboardVisibleIntent();
             terminalView.requestFocus();
             // On resume-after-background / recreate the keyboard RESTORE path (runKeyboardRestore)
-            // is the single authority for the IME; do not schedule any show here. When the
-            // persisted intent is hidden, also cancel a stale pending show so a stray
-            // requestFocus-triggered runnable cannot pop the keyboard after the restore hides it.
+            // is the single authority for the IME — no show is requested here.
             // Cold start (first resume after onCreate) keeps the historical always-show behaviour
             // (also covers opening a URL via the "Select URL" long press and returning: #2111).
-            if (restoreFromState) {
-                if (!kbIntent) {
-                    terminalView.removeCallbacks(getShowSoftKeyboardRunnable());
-                }
-            } else {
-                terminalView.postDelayed(getShowSoftKeyboardRunnable(), 300);
+            // The show is asked for immediately and re-asked only while the IME is genuinely still
+            // down (the window may not be focused yet on a cold start): no blind delay.
+            if (!restoreFromState) {
+                com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(terminalView,
+                        mActivity::computeImeVisibility);
             }
         }
     }
@@ -1039,9 +989,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(mActivity);
         KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
         terminalView.requestFocus();
-        // Suppress the focus-change show that requestFocus() would otherwise schedule.
-        ignoreOnceSoftKeyboardOnFocus();
-        cancelPendingSoftKeyboardShow();
+        // No focus-triggered show to swallow and no queued show to drop: nothing schedules IME
+        // shows any more (see registerTerminalViewFocusListener), and the ALWAYS_HIDDEN window
+        // flag above keeps the platform from auto-showing one here.
 
         mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
         TerminalSession session = mActivity.getCurrentSession();
@@ -1113,18 +1063,20 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                     return;
                 }
 
-                // Force show soft keyboard if TerminalView or toolbar text input view has
-                // focus and close it if they don't
+                // This listener deliberately does NOT schedule a keyboard show. It used to answer a
+                // focus change with a show delayed by 500 ms (KeyboardUtils.setSoftKeyboardVisibility,
+                // now removed), i.e. a blind timer that could only be cancelled, never reasoned
+                // about — and any "keep hidden" path that forgot the cancel left the keyboard
+                // popping up after the user had already closed the input panel.
+                // Every show in this app is now requested explicitly by the path that owns the
+                // intent (panel open, tap on the terminal, tab-switch reconcile, resume restore,
+                // KEYBOARD toggle), so a focus change only keeps the focus/panel bookkeeping in
+                // sync and hides the IME when neither the terminal nor the input panel wants it.
                 boolean textInputViewHasFocus = false;
                 final EditText textInputView =  mActivity.findViewById(R.id.terminal_toolbar_text_input);
                 if (textInputView != null) textInputViewHasFocus = textInputView.hasFocus();
 
                 if (hasFocus || textInputViewHasFocus) {
-                    if (mShowSoftKeyboardIgnoreOnce) {
-                        mShowSoftKeyboardIgnoreOnce = false;
-                        removeIgnoreOnceAutoClear();
-                        return;
-                    }
                     // Terminal got focus (not the panel): remember input goes to terminal.
                     if (hasFocus && !textInputViewHasFocus) {
                         mActivity.setFocusOnInputForCurrentSession(false);
@@ -1141,48 +1093,29 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                             mActivity.updateToggleTextInputButtonIcon();
                         }
                     }
-                    Logger.logVerbose(LOG_TAG, "Showing soft keyboard on focus change");
-                } else {
-                    Logger.logVerbose(LOG_TAG, "Hiding soft keyboard on focus change");
-                }
-
-                boolean showKeyboard = hasFocus || textInputViewHasFocus;
-                if (!showKeyboard && terminalView != mActivity.getTerminalView()) {
+                    Logger.logVerbose(LOG_TAG, "Focus moved to the terminal or the input panel");
+                } else if (terminalView != mActivity.getTerminalView()) {
                     // Fallback guard for the non-switching case (e.g. a detached/recycled page
                     // losing focus outside a tracked switch): skip the hide when the losing view
                     // is no longer the activity's active page.
                     Logger.logVerbose(LOG_TAG, "Skipping soft keyboard hide on focus change: page no longer active (switched)");
                 } else {
-                    KeyboardUtils.setSoftKeyboardVisibility(getShowSoftKeyboardRunnable(), mActivity, terminalView, showKeyboard);
+                    Logger.logVerbose(LOG_TAG, "Hiding soft keyboard on focus change");
+                    KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
                 }
             }
         });
     }
 
-    private Runnable getShowSoftKeyboardRunnable() {
-        if (mShowSoftKeyboardRunnable == null) {
-            mShowSoftKeyboardRunnable = () -> {
-                TerminalView tv = mActivity.getTerminalView();
-                if (tv != null) KeyboardUtils.showSoftKeyboard(mActivity, tv);
-            };
-        }
-        return mShowSoftKeyboardRunnable;
-    }
-
     /**
      * Dismiss the soft keyboard after text was sent from the input field.
      *
-     * This is independent of whether the input panel itself stays open. When the
-     * "Hide input panel after send" option is also enabled, focus hands off to the
-     * terminal which (via the focus-change listener) schedules a delayed keyboard
-     * show (~500ms). We cancel that pending show so our hide actually sticks, then
-     * hide immediately. If the panel stays open (focus remains in the input field)
-     * no show was scheduled, so we just hide right away.
+     * <p>Independent of whether the input panel itself stays open: hiding is unconditional, and
+     * nothing re-shows the IME behind our back (the focus listener does not schedule shows).
      */
     public void hideSoftKeyboardAfterSend() {
         TerminalView terminalView = mActivity.getTerminalView();
         if (terminalView == null) return;
-        terminalView.removeCallbacks(getShowSoftKeyboardRunnable());
         KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
     }
 

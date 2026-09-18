@@ -10,7 +10,6 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.view.WindowInsetsCompat;
 
@@ -19,17 +18,6 @@ import com.termux.shared.logger.Logger;
 public class KeyboardUtils {
 
     private static final String LOG_TAG = "KeyboardUtils";
-
-    public static void setSoftKeyboardVisibility(@NonNull final Runnable showSoftKeyboardRunnable, final Activity activity, final View view, final boolean visible) {
-        if (visible) {
-            // A Runnable with a delay is used, otherwise soft keyboard may not automatically open
-            // on some devices, but still may fail
-            view.postDelayed(showSoftKeyboardRunnable, 500);
-        } else {
-            view.removeCallbacks(showSoftKeyboardRunnable);
-            hideSoftKeyboard(activity, view);
-        }
-    }
 
     /**
      * Toggle the soft keyboard. The {@link InputMethodManager#SHOW_FORCED} is passed as

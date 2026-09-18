@@ -1327,12 +1327,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // (2) Wait for the target to have real sizes, THEN focus + keyboard.
         whenViewLaidOut(target, () -> {
-            // Drop a stale ignore-once latch so it cannot swallow the show we are about to
-            // request (and cannot survive to eat a later legitimate show).
-            if (mTermuxTerminalViewClient != null) {
-                mTermuxTerminalViewClient.clearIgnoreOnceSoftKeyboardOnFocus();
-            }
-
             // Respect a user-disabled soft keyboard: never attempt to show it.
             final boolean kbDisabled = KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
                     mPreferences.isSoftKeyboardEnabled(),
@@ -1358,12 +1352,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 target.postDelayed(mEndKeyboardRestoreRunnable, 800);   // safety net
             } else {
                 // The user hid the keyboard before backgrounding (or it is disabled): keep it
-                // hidden. Swallow the focus-triggered show AND cancel any stray pending show
-                // so the hide sticks even against a previously scheduled +500ms show runnable.
-                if (mTermuxTerminalViewClient != null) {
-                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
-                    mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
-                }
+                // hidden. Nothing schedules an IME show any more, so the hide below simply sticks.
                 target.requestFocus();
                 KeyboardUtils.hideSoftKeyboard(this, target);
                 target.removeCallbacks(mEndKeyboardRestoreRunnable);
@@ -4149,9 +4138,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // time (the general guard skips saves while the panel is hidden — that
                 // guard is for the shared-EditText-is-stale case, not this one).
                 saveTextInputForCurrentSession(true);
-                // Focus on terminal view without reopening the keyboard
-                if (mTermuxTerminalViewClient != null)
-                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                // Focus on terminal view without reopening the keyboard. The focus listener does
+                // not schedule any show (see registerTerminalViewFocusListener), so this focus
+                // change cannot pop the IME by itself — nothing is left queued to cancel.
                 if (mTerminalView != null) {
                     mTerminalView.requestFocus();
                 }
@@ -4309,13 +4298,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             // whatever the IME was doing when the tab was created, which is the
                             // inherited state this branch is meant to preserve.
                         } else {
-                            // Keyboard must stay hidden on this session: swallow the
-                            // focus-triggered show and cancel any stray pending show so a
-                            // previously scheduled runnable cannot pop it back.
-                            if (mTermuxTerminalViewClient != null) {
-                                mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
-                                mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
-                            }
+                            // Keyboard must stay hidden on this session. Nothing schedules IME
+                            // shows any more, so the hide below simply sticks.
                             KeyboardUtils.hideSoftKeyboard(TermuxActivity.this, textInput);
                         }
                     }, 6);
@@ -4329,8 +4313,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // across page switches when the user was typing into it.
             final EditText currentInput = getTerminalToolbarTextInput();
             if (currentInput == null || !currentInput.hasFocus()) {
-                if (mTermuxTerminalViewClient != null)
-                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
+                // Nothing schedules a show on focus any more (see
+                // registerTerminalViewFocusListener), so focusing the terminal here cannot pop the
+                // IME on its own — and no queued show can land after this reconcile either.
                 if (mTerminalView != null) {
                     mTerminalView.requestFocus();
                 }
@@ -4348,18 +4333,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             boolean imeVisibleNow = computeImeVisibility();
             if (!followKbOnSwitch) {
             } else if (!showKeyboardIfFocused && imeVisibleNow) {
-                if (mTermuxTerminalViewClient != null) {
-                    mTermuxTerminalViewClient.ignoreOnceSoftKeyboardOnFocus();
-                    mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
-                }
                 KeyboardUtils.hideSoftKeyboard(this, currentInput != null ? currentInput : mTerminalView);
             } else if (showKeyboardIfFocused && !imeVisibleNow
                     && !KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
                             mPreferences.isSoftKeyboardEnabled(),
                             mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware())) {
-                if (mTermuxTerminalViewClient != null) {
-                    mTermuxTerminalViewClient.cancelPendingSoftKeyboardShow();
-                }
                 // SHOW_IMPLICIT is ignored while SOFT_INPUT_STATE_ALWAYS_HIDDEN is set;
                 // an open-intent is an explicit user intent — make the window showable first.
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
