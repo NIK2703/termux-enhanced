@@ -939,9 +939,18 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // can detach the served IME target, and the system's resulting IME HIDE must not be
         // recorded as a keyboard intent (see TermuxActivity.beginSessionUiChurn).
         mActivity.beginSessionUiChurn(SESSION_UI_CHURN_MS);
+        // Mark the create itself as in flight. The reconcile that runs INSIDE the call below sees
+        // the new session as current while it still has no per-session record, and both the panel
+        // fallback and the "keyboard state follows tab switch = OFF" correction would misread that
+        // as "this tab has no open panel / no open keyboard" (see
+        // TermuxActivity.isKbStateCreateInProgress). The window closes with the churn runnable.
+        mActivity.beginKbStateCreate();
 
         TermuxSession newTermuxSession = service.createTermuxSession(null, null, null, workingDirectory, isFailSafe, sessionName);
-        if (newTermuxSession == null) return null;
+        if (newTermuxSession == null) {
+            mActivity.endKbStateCreate();
+            return null;
+        }
         TerminalSession newTerminalSession = newTermuxSession.getTerminalSession();
         // Seed the new tab with the captured state, so the reconcile authority
         // (applyTextInputVisibilityForSession) has a per-session record that matches what the user
@@ -950,6 +959,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         mActivity.getTextInputState().setVisible(newTerminalSession.mHandle, inheritedPanel);
         mActivity.getTextInputState().setFocusOnInput(newTerminalSession,
                 inheritedPanel && inheritedFocusOnInput);
+        // The new tab mirrors the live state by construction, so exempt it from the
+        // "keyboard state follows tab switch = OFF" correction while the create rebuild settles:
+        // that correction reads the live IME, which reports "hidden" while the pager has the
+        // served view detached, and closed the inherited open keyboard on every new tab.
+        mActivity.setKbStateInheritedFromCreate(newTerminalSession);
         // CALLER_MANAGED (right-swipe gesture): the caller handles selection / pager bookkeeping /
         // its own end-scroll, so just hand back the session.
         if (selectMode == NewSessionSelectMode.CALLER_MANAGED) {

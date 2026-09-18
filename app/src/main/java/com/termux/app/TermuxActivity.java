@@ -430,11 +430,51 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      * the close path (there it protects the LANDED session's memory).
      */
     private boolean mSessionUiChurn = false;
-    private final Runnable mEndSessionUiChurnRunnable = () -> mSessionUiChurn = false;
+    private final Runnable mEndSessionUiChurnRunnable = () -> {
+        mSessionUiChurn = false;
+        // The create-specific exemptions live exactly as long as the rebuild window: past it the
+        // tab's panel / focus / keyboard state is its own, not something it inherited.
+        mKbStateCreateInProgress = false;
+        mKbStateInheritedSessionHandle = null;
+    };
 
     /** Whether a tab create/close rebuild window is suppressing keyboard-intent recording. */
     public boolean isSessionUiChurnActive() {
         return mSessionUiChurn;
+    }
+
+    /**
+     * True from just before a session is added ({@code createNewSession()}) until the create
+     * rebuild window closes — i.e. while the pager is still absorbing the new page.
+     *
+     * <p>Two things go wrong inside that window and both need to know a create is in flight:
+     * <ul>
+     * <li>{@link #applyTextInputVisibilityForSession} resolves a session with no recorded panel
+     *     state from the CURRENT session's record, but by the time the create reconcile runs
+     *     {@link #getCurrentSession()} already points at the new, unrecorded session — so the
+     *     fallback reads "hidden" and CLOSES the panel the user was typing in, which takes the
+     *     IME down with it (the focused EditText inside the container goes GONE).</li>
+     * <li>The "keyboard state follows tab switch = OFF" correction must not treat the newly
+     *     created tab as a switch at all (see {@link #mKbStateInheritedSessionHandle}).</li>
+     * </ul>
+     * The flag is raised by {@code TermuxTerminalSessionActivityClient.createNewSession()} and
+     * lowered by {@link #mEndSessionUiChurnRunnable}, so a missed teardown cannot strand it.
+     */
+    private boolean mKbStateCreateInProgress = false;
+
+    /** Raise the tab-create window (see {@link #mKbStateCreateInProgress}). */
+    public void beginKbStateCreate() {
+        mKbStateCreateInProgress = true;
+    }
+
+    /** Whether a tab is currently being added and its rebuild has not settled yet. */
+    public boolean isKbStateCreateInProgress() {
+        return mKbStateCreateInProgress;
+    }
+
+    /** Drop the tab-create window early (create aborted before a session was produced). */
+    public void endKbStateCreate() {
+        mKbStateCreateInProgress = false;
     }
 
     /**
@@ -452,6 +492,43 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
             decor.removeCallbacks(mEndSessionUiChurnRunnable);
             decor.postDelayed(mEndSessionUiChurnRunnable, timeoutMs);
         }
+    }
+
+    /**
+     * Handle of the session whose panel / focus / keyboard state was just seeded from the LIVE
+     * state by {@code TermuxTerminalSessionActivityClient.createNewSession()} — a tab that was
+     * created a moment ago and deliberately mirrors what the user was looking at.
+     *
+     * <p>Read by {@link #applyTextInputVisibilityForSession}: the "keyboard state follows tab
+     * switch = OFF" correction below must not second-guess an inherited state, because it is not
+     * a switch at all — the new tab already IS the state that was on screen. The correction
+     * consults the live IME reading, and inside the tab-create rebuild that reading is taken while
+     * the pager has detached the served view, so a keyboard that is in fact still up reads as
+     * down; acting on it closed the open keyboard on every new tab with the option OFF.</p>
+     */
+    @Nullable
+    private String mKbStateInheritedSessionHandle = null;
+
+    /**
+     * Mark {@code session} as having inherited the live panel / focus / keyboard state from a tab
+     * create, exempting it from the "keyboard state follows tab switch = OFF" correction until the
+     * rebuild has settled (see {@link #mKbStateInheritedSessionHandle}).
+     */
+    public void setKbStateInheritedFromCreate(@Nullable TerminalSession session) {
+        mKbStateInheritedSessionHandle = session != null ? session.mHandle : null;
+    }
+
+    /**
+     * Retire the inherited-state exemption once it has served its purpose, so a later switch back
+     * to that tab goes through the normal correction again. It lives exactly as long as the
+     * tab-create window: a reconcile for a DIFFERENT session retires it immediately, and so does
+     * a reconcile for the inherited session itself once the rebuild has settled — past that point
+     * the tab's state is its own, not something it inherited.
+     */
+    private void retireKbStateInheritance(@Nullable TerminalSession session) {
+        if (mKbStateInheritedSessionHandle == null) return;
+        boolean inherited = session != null && session.mHandle.equals(mKbStateInheritedSessionHandle);
+        if (!inherited || !mSessionUiChurn) mKbStateInheritedSessionHandle = null;
     }
 
     /**
@@ -4138,9 +4215,22 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         boolean enabled = isTextInputEnabled();
         boolean hasRecorded = session != null && mTextInputState.hasVisible(session.mHandle);
-        boolean visible = enabled && (hasRecorded
-                ? mTextInputState.isVisible(session.mHandle)
-                : isTextInputVisible());
+        // Sessions with no recorded panel state fall back to the CURRENT session's record. Inside a
+        // tab create that fallback is wrong twice over: getCurrentSession() already points at the
+        // new, unrecorded session, so isTextInputVisible() reads "hidden" — and the reconcile then
+        // CLOSES the panel the user was typing in, which also drops the IME (the focused EditText
+        // inside the container goes GONE). Resolve from what is actually on screen instead, so the
+        // create reconcile is a no-op for the panel and the seeded state has the last word.
+        boolean visible;
+        if (!enabled) {
+            visible = false;
+        } else if (hasRecorded) {
+            visible = mTextInputState.isVisible(session.mHandle);
+        } else if (mKbStateCreateInProgress) {
+            visible = textInputContainer.getVisibility() == View.VISIBLE;
+        } else {
+            visible = isTextInputVisible();
+        }
 
         // Startup / tab switch restore: just set the slot state (no animation).
         // Record the resolved per-session visibility so isTextInputVisible() and
@@ -4166,12 +4256,33 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // state must not change on a tab switch — and per the toggle semantics, switching
             // from a hidden-keyboard tab to a session whose input panel was open CLOSES that
             // panel instead of opening it without a keyboard.
-            boolean followKbOnSwitch = mPreferences.isKeyboardStateFollowTabSwitch();
-            if (!followKbOnSwitch && visible && isFocusOnInputForSession(session)
-                    && !computeImeVisibility()) {
+            //
+            // Exception: a tab created a moment ago inherited the live state on purpose
+            // (createNewSession seeds panel + focus + keyboard intent from what was on screen),
+            // so there is nothing for the OFF rule to correct — and the IME reading it would use
+            // is taken while the create rebuild has the served view detached, which reports
+            // "hidden" for a keyboard that is still up. Without this exemption, creating a tab
+            // with the option OFF closed the open keyboard.
+            final boolean followKbOnSwitch = mPreferences.isKeyboardStateFollowTabSwitch();
+            final boolean inheritedFromCreate = mKbStateCreateInProgress
+                    || (session != null && session.mHandle.equals(mKbStateInheritedSessionHandle));
+            retireKbStateInheritance(session);
+            if (!followKbOnSwitch && !inheritedFromCreate && visible
+                    && isFocusOnInputForSession(session) && !computeImeVisibility()) {
                 visible = false;
                 if (session != null) mTextInputState.setVisible(session.mHandle, false);
                 setTextInputSlotVisible(false);
+            }
+            // A tab that inherited an OPEN keyboard must still have one once the rebuild settles:
+            // adding the session detaches the served IME target, so the system drops the IME by
+            // itself a moment AFTER this reconcile ran (see scheduleSwitchKeyboardReassert). With
+            // the toggle ON the branch below re-shows it; with the toggle OFF that branch is
+            // deliberately skipped, which is why creating a tab used to leave the keyboard closed.
+            // "The keyboard state must not change on a tab switch" is honoured by restoring exactly
+            // the state this create inherited — nothing is opened that was not open before.
+            if (inheritedFromCreate && !followKbOnSwitch && showKeyboardIfFocused) {
+                scheduleSwitchKeyboardReassert(mTerminalView != null
+                        ? mTerminalView : getTerminalToolbarTextInput());
             }
             // On switch, restore where focus was last for this session:
             // on the panel (with keyboard) or on the terminal.
@@ -4193,8 +4304,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             }
                         } else if (!followKbOnSwitch) {
                             // Toggle OFF: the keyboard state must not change — leave the IME
-                            // exactly as it is (it is up in this branch, otherwise the panel
-                            // was closed above).
+                            // exactly as it is. Usually it is up here (otherwise the panel was
+                            // closed above); on a freshly created tab the panel is open with
+                            // whatever the IME was doing when the tab was created, which is the
+                            // inherited state this branch is meant to preserve.
                         } else {
                             // Keyboard must stay hidden on this session: swallow the
                             // focus-triggered show and cancel any stray pending show so a
