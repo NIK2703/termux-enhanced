@@ -15,6 +15,7 @@
 
     <string name="about_preference_title">앱 정보</string>
     <string name="action_autofill_password">비밀번호 자동 입력</string>
+    <string name="msg_autofill_unavailable">자동 입력이 시스템 설정에서 꺼져 있습니다</string>
     <string name="action_autofill_username">사용자 이름 자동 입력</string>
     <string name="action_create_named_session_confirm">생성</string>
     <string name="action_file_received_edit">편집</string>
@@ -208,8 +209,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">탭 전환 시 키보드 상태</string>
-    <string name="keyboard_state_follow_tab_switch_on">탭을 전환할 때 각 탭에서 마지막으로 떠날 때의 키보드 상태를 복원합니다.</string>
-    <string name="keyboard_state_follow_tab_switch_off">탭을 전환해도 키보드 상태는 바뀌지 않습니다. 키보드가 숨겨진 탭에서 입력 패널이 열린 탭으로 전환하면 패널이 숨겨집니다.</string>
+    <string name="keyboard_state_follow_tab_switch_summary">탭을 전환할 때 각 탭에서 마지막으로 떠날 때의 키보드 상태를 복원합니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">하드웨어 키보드 연결 시 소프트 키보드 숨기기</string>
     <string name="termux_soft_keyboard_enabled_title">소프트 키보드 사용</string>
     <string name="termux_tasker_preferences_summary">Termux:Tasker 앱 설정</string>

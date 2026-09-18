@@ -154,12 +154,14 @@
             app:title="@string/termux_soft_keyboard_enabled_only_if_no_hardware_title"
             app:iconSpaceReserved="false" />
 
+        <!-- One static summary. The row used to carry a summaryOn/summaryOff pair, so its text
+             changed under the user's finger on every toggle; the option is described once
+             instead, and that single sentence stays put in both switch states. -->
         <SwitchPreferenceCompat
             app:key="keyboard_state_follow_tab_switch"
             app:dependency="soft_keyboard_enabled"
             app:defaultValue="true"
-            app:summaryOff="@string/keyboard_state_follow_tab_switch_off"
-            app:summaryOn="@string/keyboard_state_follow_tab_switch_on"
+            app:summary="@string/keyboard_state_follow_tab_switch_summary"
             app:title="@string/keyboard_state_follow_tab_switch_title"
             app:iconSpaceReserved="false" />
 

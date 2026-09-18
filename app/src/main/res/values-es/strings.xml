@@ -48,6 +48,7 @@
     <string name="title_share_selected_text_with">Enviar texto seleccionado a:</string>
     <string name="action_autofill_username">Autocompletar nombre de usuario</string>
     <string name="action_autofill_password">Autocompletar contraseña</string>
+    <string name="msg_autofill_unavailable">El autocompletado está desactivado en los ajustes del sistema</string>
     <string name="action_reset_terminal">Restablecer</string>
     <string name="msg_terminal_reset">Terminal restablecido</string>
     <string name="msg_terminal_font_applied">Fuente aplicada</string>
@@ -106,8 +107,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Estado del teclado al cambiar de pestaña</string>
-    <string name="keyboard_state_follow_tab_switch_on">Al cambiar de pestaña, se restaura el estado del teclado de cada pestaña tal como estaba al salir de ella.</string>
-    <string name="keyboard_state_follow_tab_switch_off">Al cambiar de pestaña, el estado del teclado no cambia. Si pasa de una pestaña con el teclado oculto a otra con el panel de entrada abierto, el panel se ocultará.</string>
+    <string name="keyboard_state_follow_tab_switch_summary">Al cambiar de pestaña, se restaura el estado del teclado de cada pestaña tal como estaba al salir de ella.</string>
     <string name="termux_terminal_view_preferences_title">Vista del terminal</string>
     <string name="termux_terminal_view_preferences_summary">Preferencias de la vista del terminal</string>
     <string name="termux_terminal_view_view_header">Vista</string>

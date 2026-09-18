@@ -51,6 +51,7 @@
 <string name="title_share_selected_text_with">Seçili metni gönder:</string>
 <string name="action_autofill_username">Kullanıcı adını otomatik doldur</string>
 <string name="action_autofill_password">Şifreyi otomatik doldur</string>
+<string name="msg_autofill_unavailable">Otomatik doldurma sistem ayarlarında kapalı</string>
 <string name="action_reset_terminal">Sıfırla</string>
 <string name="msg_terminal_reset">Terminal sıfırlandı</string>
 <string name="msg_terminal_font_applied">Yazı tipi uygulandı</string>
@@ -124,8 +125,7 @@
 
                     <!-- Keyboard State On Tab Switch -->
                     <string name="keyboard_state_follow_tab_switch_title">Sekme değiştirirken klavye durumu</string>
-                    <string name="keyboard_state_follow_tab_switch_on">Sekmeler arasında geçiş yaparken, her sekmenin klavye durumu o sekmeden ayrıldığınızdaki hâliyle geri yüklenir.</string>
-                    <string name="keyboard_state_follow_tab_switch_off">Sekme değiştirirken klavye durumu değişmez. Klavyenin gizli olduğu bir sekmeden giriş paneli açık olan bir sekmeye geçerseniz, panel gizlenir.</string>
+                    <string name="keyboard_state_follow_tab_switch_summary">Sekmeler arasında geçiş yaparken, her sekmenin klavye durumu o sekmeden ayrıldığınızdaki hâliyle geri yüklenir.</string>
 <string name="termux_terminal_view_preferences_title">Terminal görünümü</string>
 <string name="termux_terminal_view_preferences_summary">Terminal görünümü için tercihler</string>
 <string name="termux_terminal_view_view_header">Görünüm</string>

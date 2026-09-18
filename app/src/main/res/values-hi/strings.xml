@@ -15,6 +15,7 @@
 
     <string name="about_preference_title">ऐप के बारे में</string>
     <string name="action_autofill_password">पासवर्ड ऑटोफ़िल करें</string>
+    <string name="msg_autofill_unavailable">सिस्टम सेटिंग्स में ऑटोफ़िल बंद है</string>
     <string name="action_autofill_username">उपयोगकर्ता नाम ऑटोफ़िल करें</string>
     <string name="action_create_named_session_confirm">बनाएँ</string>
     <string name="action_file_received_edit">संपादित करें</string>
@@ -184,8 +185,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">टैब बदलते समय कीबोर्ड की स्थिति</string>
-    <string name="keyboard_state_follow_tab_switch_on">टैब बदलते समय, प्रत्येक टैब के लिए कीबोर्ड की स्थिति वैसी ही बहाल की जाती है जैसी उससे हटते समय थी।</string>
-    <string name="keyboard_state_follow_tab_switch_off">टैब बदलने पर कीबोर्ड की स्थिति नहीं बदलती। यदि आप छिपे हुए कीबोर्ड वाले टैब से खुले इनपुट पैनल वाले टैब पर स्विच करते हैं, तो पैनल छिप जाएगा।</string>
+    <string name="keyboard_state_follow_tab_switch_summary">टैब बदलते समय, प्रत्येक टैब के लिए कीबोर्ड की स्थिति वैसी ही बहाल की जाती है जैसी उससे हटते समय थी।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">हार्डवेयर कीबोर्ड कनेक्ट होने पर स्क्रीन कीबोर्ड छिपाएँ</string>
     <string name="termux_keyboard_header">कीबोर्ड</string>
     <string name="system_buttons_category_title">सिस्टम बटन</string>

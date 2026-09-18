@@ -94,6 +94,15 @@ public class ExtraKeysConstants {
             put("KEYBOARD", "⌨"); // U+2328 ⌨ KEYBOARD not well known but easy to understand
             put("PASTE", "⎘"); // U+2398
             put("SCROLL", "⇳"); // U+21F3
+            // Autofill labels are drawn MONOCHROME on purpose, so they match the rest of the panel
+            // (⌨ ⎘ ⇳) instead of standing out as colour emoji. Their obvious glyphs — U+1F464 👤 and
+            // U+1F511 🔑 — are emoji-only: they exist in NotoColorEmoji.ttf and in NO text font on the
+            // device (verified against the system fonts' cmap tables), so appending U+FE0E (VS15)
+            // cannot make them monochrome either; the platform keeps the colour glyph. The codepoints
+            // below are carried by NotoSansSymbols-Regular-Subsetted.ttf, which has no colour twin for
+            // them, so they always render as plain monochrome outlines:
+            put("AUTOFILL_USERNAME", "☻"); // U+263B ☻ BLACK SMILING FACE (NotoSansSymbols, no emoji twin)
+            put("AUTOFILL_PASSWORD", "⚿"); // U+26BF ⚿ SQUARED KEY (NotoSansSymbols, no emoji twin)
         }};
 
         public static final ExtraKeyDisplayMap LESS_KNOWN_CHARACTERS_DISPLAY = new ExtraKeyDisplayMap() {{

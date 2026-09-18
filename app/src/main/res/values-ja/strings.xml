@@ -46,6 +46,7 @@
 <string name="title_share_selected_text_with">選択テキストの送信先:</string>
 <string name="action_autofill_username">ユーザー名を自動入力</string>
 <string name="action_autofill_password">パスワードを自動入力</string>
+<string name="msg_autofill_unavailable">自動入力はシステム設定で無効になっています</string>
 <string name="action_reset_terminal">リセット</string>
 <string name="msg_terminal_reset">ターミナルをリセットしました</string>
 <string name="msg_terminal_font_applied">フォントを適用しました</string>
@@ -113,8 +114,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">タブ切り替え時のキーボード状態</string>
-    <string name="keyboard_state_follow_tab_switch_on">タブを切り替えるとき、各タブのキーボード状態を、そのタブから離れたときの状態に復元します。</string>
-    <string name="keyboard_state_follow_tab_switch_off">タブを切り替えてもキーボードの状態は変わりません。キーボードが非表示のタブから入力パネルが開いているタブに切り替えると、パネルは非表示になります。</string>
+    <string name="keyboard_state_follow_tab_switch_summary">タブを切り替えるとき、各タブのキーボード状態を、そのタブから離れたときの状態に復元します。</string>
 <string name="termux_terminal_view_preferences_title">ターミナル表示</string>
 <string name="termux_terminal_view_preferences_summary">ターミナル表示の設定</string>
 <string name="termux_terminal_view_view_header">表示</string>

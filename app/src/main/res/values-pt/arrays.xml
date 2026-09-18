@@ -81,6 +81,8 @@
         <item>@string/extra_keys_editor_signal_keyboard</item>
         <item>@string/extra_keys_editor_signal_paste</item>
         <item>@string/extra_keys_editor_signal_scroll_lock</item>
+        <item>@string/action_autofill_username</item>
+        <item>@string/action_autofill_password</item>
         <item>@string/extra_keys_editor_signal_esc</item>
         <item>@string/extra_keys_editor_signal_tab</item>
         <item>@string/extra_keys_editor_signal_home</item>

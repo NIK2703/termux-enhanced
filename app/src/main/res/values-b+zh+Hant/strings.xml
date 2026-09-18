@@ -55,6 +55,7 @@
     <string name="title_share_selected_text_with">傳送選取文字到：</string>
     <string name="action_autofill_username">自動填入使用者名稱</string>
     <string name="action_autofill_password">自動填入密碼</string>
+    <string name="msg_autofill_unavailable">系統設定中已關閉自動填入</string>
     <string name="action_reset_terminal">重設</string>
     <string name="msg_terminal_reset">終端機已重設</string>
     <string name="msg_terminal_font_applied">字型已套用</string>
@@ -117,8 +118,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">切換分頁時的鍵盤狀態</string>
-    <string name="keyboard_state_follow_tab_switch_on">切換分頁時，還原每個分頁離開時的鍵盤狀態。</string>
-    <string name="keyboard_state_follow_tab_switch_off">切換分頁時不改變鍵盤狀態。若從鍵盤已隱藏的分頁切換至輸入面板已開啟的分頁，輸入面板將被隱藏。</string>
+    <string name="keyboard_state_follow_tab_switch_summary">切換分頁時，還原每個分頁離開時的鍵盤狀態。</string>
     <string name="termux_terminal_view_preferences_title">終端機檢視</string>
     <string name="termux_terminal_view_preferences_summary">終端機檢視設定</string>
     <string name="termux_terminal_view_view_header">檢視</string>

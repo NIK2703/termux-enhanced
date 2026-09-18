@@ -11,6 +11,13 @@
   `ExtraTranslation` выключен.
 - Песочница рубит **запись** в `build/intermediates` и в `~/.gradle/caches/**.lock` —
   это ложное падение; ориентир — строка `BUILD SUCCESSFUL`, а не exit code.
+- **Рабочий обход:** `--no-daemon` + запуск с `dangerouslyDisableSandbox` (18.09). Без
+  `--no-daemon` падение стабильное и воспроизводимое: каждый прогон создаёт новый
+  `transforms/<hash>/<hash>.lock` и падает на нём `FileNotFoundException … Отказано в
+  доступе` — то на `mapReleaseSourceSetPaths`, то на `processReleaseResources`. Демон при
+  этом не запущен, а `touch` в тот же каталог из bash проходит, т.е. это не ACL на
+  каталог. Остановка демонов + удаление залипших `transforms/<hash>` **не помогает**.
+  С `--no-daemon` те же задачи дают `BUILD SUCCESSFUL` и реально исполняются.
 - Gradle **врёт про свежесть** (`UP-TO-DATE` при реально изменённом файле) ⇒ всегда
   `--rerun -Dorg.gradle.caching=false`.
 

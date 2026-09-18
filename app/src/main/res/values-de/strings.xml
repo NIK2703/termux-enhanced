@@ -13,6 +13,7 @@
 
 <resources>
 <string name="action_autofill_password">Passwort automatisch ausfüllen</string>
+<string name="msg_autofill_unavailable">Automatisches Ausfüllen ist in den Systemeinstellungen deaktiviert</string>
     <string name="action_autofill_username">Benutzernamen automatisch ausfüllen</string>
     <string name="action_create_named_session_confirm">Erstellen</string>
     <string name="action_file_received_edit">Bearbeiten</string>
@@ -196,8 +197,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Tastaturzustand beim Tab-Wechsel</string>
-    <string name="keyboard_state_follow_tab_switch_on">Beim Tab-Wechsel wird der Tastaturzustand jedes Tabs so wiederhergestellt, wie er beim Verlassen war.</string>
-    <string name="keyboard_state_follow_tab_switch_off">Beim Tab-Wechsel ändert sich der Tastaturzustand nicht. Wenn Sie von einem Tab mit ausgeblendeter Tastatur zu einem Tab mit geöffneter Eingabeleiste wechseln, wird die Eingabeleiste ausgeblendet.</string>
+    <string name="keyboard_state_follow_tab_switch_summary">Beim Tab-Wechsel wird der Tastaturzustand jedes Tabs so wiederhergestellt, wie er beim Verlassen war.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Bildschirmtastatur bei angeschlossener Hardware-Tastatur ausblenden</string>
     <string name="termux_soft_keyboard_enabled_title">Bildschirmtastatur verwenden</string>
     <string name="termux_tasker_preferences_summary">Einstellungen für die Termux:Tasker-App</string>

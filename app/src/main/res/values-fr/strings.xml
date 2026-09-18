@@ -47,6 +47,7 @@
     <string name="title_share_selected_text_with">Envoyer le texte sélectionné à :</string>
     <string name="action_autofill_username">Remplir automatiquement le nom d\'utilisateur</string>
     <string name="action_autofill_password">Remplir automatiquement le mot de passe</string>
+    <string name="msg_autofill_unavailable">Le remplissage automatique est désactivé dans les paramètres système</string>
     <string name="action_reset_terminal">Réinitialiser</string>
     <string name="msg_terminal_reset">Terminal réinitialisé</string>
     <string name="msg_terminal_font_applied">Police appliquée</string>
@@ -110,8 +111,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">État du clavier lors du changement d\'onglet</string>
-    <string name="keyboard_state_follow_tab_switch_on">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était au moment de le quitter.</string>
-    <string name="keyboard_state_follow_tab_switch_off">Lors du changement d\'onglet, l\'état du clavier ne change pas. Si vous passez d\'un onglet avec clavier masqué à un onglet avec le panneau de saisie ouvert, le panneau sera masqué.</string>
+    <string name="keyboard_state_follow_tab_switch_summary">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était au moment de le quitter.</string>
     <string name="termux_terminal_view_preferences_title">Vue du terminal</string>
     <string name="termux_terminal_view_preferences_summary">Préférences de la vue du terminal</string>
     <string name="termux_terminal_view_view_header">Vue</string>

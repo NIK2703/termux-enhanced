@@ -55,6 +55,7 @@
     <string name="title_share_selected_text_with">发送选中文本到：</string>
     <string name="action_autofill_username">自动填充用户名</string>
     <string name="action_autofill_password">自动填充密码</string>
+    <string name="msg_autofill_unavailable">系统设置中已关闭自动填充</string>
     <string name="action_reset_terminal">重置</string>
     <string name="msg_terminal_reset">终端已重置</string>
     <string name="msg_terminal_font_applied">字体已应用</string>
@@ -117,8 +118,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">切换标签页时的键盘状态</string>
-    <string name="keyboard_state_follow_tab_switch_on">切换标签页时，恢复每个标签页离开时的键盘状态。</string>
-    <string name="keyboard_state_follow_tab_switch_off">切换标签页时不改变键盘状态。如果从键盘隐藏的标签页切换到输入面板打开的标签页，面板将被隐藏。</string>
+    <string name="keyboard_state_follow_tab_switch_summary">切换标签页时，恢复每个标签页离开时的键盘状态。</string>
     <string name="termux_terminal_view_preferences_title">终端视图</string>
     <string name="termux_terminal_view_preferences_summary">终端视图设置</string>
     <string name="termux_terminal_view_view_header">视图</string>

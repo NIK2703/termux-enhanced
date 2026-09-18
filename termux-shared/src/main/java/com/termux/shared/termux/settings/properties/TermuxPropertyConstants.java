@@ -364,7 +364,11 @@ public final class TermuxPropertyConstants {
     /** Defines the key for extra keys */
     public static final String KEY_EXTRA_KEYS =  "extra-keys"; // Default: "extra-keys"
     //public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[[ESC, TAB, CTRL, ALT, {key: '-', popup: '|'}, DOWN, UP]]"; // Single row
-    public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME','UP','END','PGUP'], ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN']]"; // Double row
+    // Double row. Two gestures are bound out of the box, both as macros so a single swipe
+    // reproduces a whole key combination: swipe DOWN on CTRL sends Ctrl+C (interrupt), and
+    // swipe UP on UP sends UP then ENTER (recall the previous history entry and run it). The
+    // remaining gestures stay unbound, so the panel is unchanged for anyone who does not swipe.
+    public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME',{key: 'UP', swipeUp: {macro: 'UP ENTER'}},'END','PGUP'], ['TAB',{key: 'CTRL', swipeDown: {macro: 'CTRL C'}},'ALT','LEFT','DOWN','RIGHT','PGDN']]"; // Double row
 
     /** Defines the key for extra keys style */
     public static final String KEY_EXTRA_KEYS_STYLE =  "extra-keys-style"; // Default: "extra-keys-style"

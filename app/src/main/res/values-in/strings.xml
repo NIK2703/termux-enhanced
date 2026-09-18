@@ -14,6 +14,7 @@
 <resources>
 <string name="about_preference_title">Tentang</string>
 <string name="action_autofill_password">Isi otomatis kata sandi</string>
+<string name="msg_autofill_unavailable">Isi otomatis dinonaktifkan di pengaturan sistem</string>
 <string name="action_autofill_username">Isi otomatis nama pengguna</string>
 <string name="action_create_named_session_confirm">Buat</string>
 <string name="action_file_received_edit">Edit</string>
@@ -194,8 +195,7 @@
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Status keyboard saat berganti tab</string>
-    <string name="keyboard_state_follow_tab_switch_on">Saat berganti tab, status keyboard setiap tab dipulihkan sesuai keadaan saat Anda meninggalkan tab tersebut.</string>
-    <string name="keyboard_state_follow_tab_switch_off">Saat berganti tab, status keyboard tidak berubah. Jika Anda berpindah dari tab dengan keyboard tersembunyi ke tab dengan panel input terbuka, panel akan disembunyikan.</string>
+    <string name="keyboard_state_follow_tab_switch_summary">Saat berganti tab, status keyboard setiap tab dipulihkan sesuai keadaan saat Anda meninggalkan tab tersebut.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Sembunyikan saat keyboard fisik terhubung</string>
 <string name="termux_soft_keyboard_enabled_title">Keyboard lunak</string>
 <string name="termux_tasker_preferences_summary">Pengaturan aplikasi Termux:Tasker</string>

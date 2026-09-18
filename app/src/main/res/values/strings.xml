@@ -67,6 +67,7 @@
 
     <string name="action_autofill_username">Autofill username</string>
     <string name="action_autofill_password">Autofill password</string>
+    <string name="msg_autofill_unavailable">Autofill is disabled in system settings</string>
 
     <string name="action_reset_terminal">Reset</string>
     <string name="msg_terminal_reset">Terminal reset</string>
@@ -239,8 +240,7 @@
 
                 <!-- Keyboard State On Tab Switch -->
                 <string name="keyboard_state_follow_tab_switch_title">Keyboard state when switching tabs</string>
-                <string name="keyboard_state_follow_tab_switch_on">When switching tabs, restore each tab’s keyboard state to what it was when you switched away.</string>
-                <string name="keyboard_state_follow_tab_switch_off">The keyboard state does not change when switching tabs. If you switch from a tab with a hidden keyboard to a tab with an open input panel, the panel will remain hidden.</string>
+                <string name="keyboard_state_follow_tab_switch_summary">When switching tabs, restore each tab’s keyboard state to what it was when you switched away.</string>
 
         <!-- Terminal View Preferences -->
         <string name="termux_terminal_view_preferences_title">Terminal view</string>
