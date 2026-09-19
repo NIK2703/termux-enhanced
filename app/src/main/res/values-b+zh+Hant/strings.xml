@@ -122,8 +122,8 @@
     <string name="termux_terminal_view_preferences_title">終端機檢視</string>
     <string name="termux_terminal_view_preferences_summary">終端機檢視設定</string>
     <string name="termux_terminal_view_view_header">檢視</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">非作用中元素背景透明度</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">作用中元素背景透明度</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">非作用中元素背景不透明度</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">作用中元素背景不透明度</string>
     <string name="termux_api_preferences_title">Termux:API</string>
     <string name="termux_api_preferences_summary">Termux:API 應用程式設定</string>
     <string name="termux_float_preferences_title">Termux:Float</string>

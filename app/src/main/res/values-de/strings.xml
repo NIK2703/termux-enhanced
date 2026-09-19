@@ -177,8 +177,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="shared_user_label">Termux-Benutzer</string>
     <string name="tab_close_description">Tab schließen</string>
     <string name="termux_api_preferences_summary">Einstellungen für die Termux:API-App</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">Hintergrundtransparenz aktiver Elemente</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Hintergrundtransparenz inaktiver Elemente</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">Hintergrunddeckkraft aktiver Elemente</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Hintergrunddeckkraft inaktiver Elemente</string>
         <!-- ORPHANED: <string name="termux_crash_report_notifications_enabled_off">Benachrichtigungen für Absturzberichte deaktivieren.</string> -->
         <!-- ORPHANED: <string name="termux_crash_report_notifications_enabled_on">Benachrichtigungen für Absturzberichte anzeigen.</string> -->
     <string name="termux_crash_report_notifications_enabled_title">Benachrichtigungen für Absturzberichte</string>

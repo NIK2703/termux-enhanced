@@ -32,43 +32,47 @@
              (re)applied from code in DisplayPreferencesFragment, because the lower bound is derived
              from the display density (4dp) and cannot be written as a literal here; app:min /
              android:max only need to form a valid range so the preference inflates. -->
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-font-size"
             app:title="@string/terminal_font_size_title"
             app:min="1"
             android:max="256"
             app:showSeekBarValue="true"
+            app:valueUnit="px"
             app:iconSpaceReserved="false" />
 
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="button_bg_inactive_alpha"
             app:title="@string/termux_button_bg_inactive_alpha_title"
             app:defaultValue="5"
             app:showSeekBarValue="true"
+            app:valueUnit="%"
             app:iconSpaceReserved="false" />
 
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="button_bg_active_alpha"
             app:title="@string/termux_button_bg_active_alpha_title"
             app:defaultValue="12"
             app:showSeekBarValue="true"
+            app:valueUnit="%"
             app:iconSpaceReserved="false" />
 
         <!-- 0% = wallpaper disabled (the default, and today's behaviour); 40% = maximum. -->
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-background-transparency"
             app:title="@string/terminal_background_transparency_title"
             app:min="0"
             android:max="40"
             app:defaultValue="0"
             app:showSeekBarValue="true"
+            app:valueUnit="%"
             app:iconSpaceReserved="false" />
 
         <!-- Android 12+ system blur (FLAG_BLUR_BEHIND) of the wallpaper above. The blur is
              controlled by this radius slider alone: a radius of 0 disables the blur (sharp
              wallpaper) and any positive value enables it. Disabled by the fragment below API 31
              and whenever the background transparency is 0%. -->
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-background-blur-radius"
             app:title="@string/terminal_background_blur_radius_title"
             app:summary="@string/terminal_background_blur_radius_summary"
@@ -76,6 +80,7 @@
             android:max="90"
             app:defaultValue="0"
             app:showSeekBarValue="true"
+            app:valueUnit="px"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
@@ -159,40 +164,44 @@
             app:summary="@string/terminal_cursor_blink_rate_summary"
             app:iconSpaceReserved="false" />
 
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-margin-left"
             app:title="@string/terminal_margin_left_title"
             app:min="0"
             android:max="20"
             app:defaultValue="2"
             app:showSeekBarValue="true"
+            app:valueUnit="dp"
             app:iconSpaceReserved="false" />
 
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-margin-top"
             app:title="@string/terminal_margin_top_title"
             app:min="0"
             android:max="20"
             app:defaultValue="0"
             app:showSeekBarValue="true"
+            app:valueUnit="dp"
             app:iconSpaceReserved="false" />
 
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-margin-right"
             app:title="@string/terminal_margin_right_title"
             app:min="0"
             android:max="20"
             app:defaultValue="2"
             app:showSeekBarValue="true"
+            app:valueUnit="dp"
             app:iconSpaceReserved="false" />
 
-        <SeekBarPreference
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-margin-bottom"
             app:title="@string/terminal_margin_bottom_title"
             app:min="0"
             android:max="20"
             app:defaultValue="0"
             app:showSeekBarValue="true"
+            app:valueUnit="dp"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>

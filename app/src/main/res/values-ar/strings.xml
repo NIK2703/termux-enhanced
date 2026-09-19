@@ -202,8 +202,8 @@
     <string name="termux_tab_panel_position_top">أعلى</string>
     <string name="termux_tab_panel_position_bottom">أسفل</string>
     <string name="termux_api_preferences_summary">تفضيلات تطبيق Termux:API</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">شفافية خلفية العناصر النشطة</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">شفافية خلفية العناصر غير النشطة</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">عتامة خلفية العناصر النشطة</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">عتامة خلفية العناصر غير النشطة</string>
     <string name="extra_keys_corner_radius_title">نصف قطر زاوية المفاتيح</string>
     <string name="termux_crash_report_notifications_enabled_off">تعطيل الإشعارات لتقارير الأعطال.</string>
     <string name="termux_crash_report_notifications_enabled_on">عرض الإشعارات لتقارير الأعطال.</string>

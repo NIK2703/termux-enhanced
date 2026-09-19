@@ -27,42 +27,51 @@
         app:showSeekBarValue="true"
         app:iconSpaceReserved="false" />
 
-    <SeekBarPreference
+    <!-- Slider values are shown with the unit they are actually applied in: the toolbar height is a
+         scale factor in percent (100 = stock height), the corner radius and the button margin are
+         dp (the margin slider counts tenths of a dp, hence valueDivisor), and the base font size is
+         applied with COMPLEX_UNIT_SP. See UnitSeekBarPreference. -->
+    <com.termux.app.fragments.settings.UnitSeekBarPreference
         app:key="terminal-toolbar-height"
         app:title="@string/terminal_toolbar_scale_title"
         app:min="50"
         android:max="200"
         app:defaultValue="100"
         app:showSeekBarValue="true"
+        app:valueUnit="%"
         app:iconSpaceReserved="false"
         android:persistent="false" />
 
-    <SeekBarPreference
+    <com.termux.app.fragments.settings.UnitSeekBarPreference
         app:key="extra-keys-corner-radius"
         app:title="@string/extra_keys_corner_radius_title"
         app:min="0"
         android:max="24"
         app:defaultValue="12"
         app:showSeekBarValue="true"
+        app:valueUnit="dp"
         app:iconSpaceReserved="false" />
 
-    <SeekBarPreference
+    <com.termux.app.fragments.settings.UnitSeekBarPreference
         app:key="extra-keys-button-margin"
         app:title="@string/extra_keys_button_margin_title"
         app:min="1"
         android:max="40"
         app:defaultValue="20"
         app:showSeekBarValue="true"
+        app:valueUnit="dp"
+        app:valueDivisor="10"
         app:iconSpaceReserved="false"
         android:persistent="false" />
 
-    <SeekBarPreference
+    <com.termux.app.fragments.settings.UnitSeekBarPreference
         app:key="extra-keys-font-size"
         app:title="@string/extra_keys_font_size_title"
         app:min="12"
         android:max="16"
         app:defaultValue="14"
         app:showSeekBarValue="true"
+        app:valueUnit="sp"
         app:iconSpaceReserved="false"
         android:persistent="false" />
 

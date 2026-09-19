@@ -172,8 +172,8 @@
 <string name="termux_tab_panel_position_bottom">Bawah</string>
 <string name="tab_close_description">Tutup tab</string>
 <string name="termux_api_preferences_summary">Pengaturan aplikasi Termux:API</string>
-<string name="termux_button_bg_active_alpha_title" formatted="false">Transparansi latar belakang elemen aktif</string>
-<string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparansi latar belakang elemen tidak aktif</string>
+<string name="termux_button_bg_active_alpha_title" formatted="false">Opasitas latar belakang elemen aktif</string>
+<string name="termux_button_bg_inactive_alpha_title" formatted="false">Opasitas latar belakang elemen tidak aktif</string>
 <string name="termux_crash_report_notifications_enabled_off">Nonaktifkan notifikasi laporan kerusakan.</string>
 <string name="termux_crash_report_notifications_enabled_on">Tampilkan notifikasi laporan kerusakan.</string>
 <string name="termux_crash_report_notifications_enabled_title">Notifikasi laporan kerusakan</string>

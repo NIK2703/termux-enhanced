@@ -115,8 +115,8 @@
     <string name="termux_terminal_view_preferences_title">Vue du terminal</string>
     <string name="termux_terminal_view_preferences_summary">Préférences de la vue du terminal</string>
     <string name="termux_terminal_view_view_header">Vue</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparence du fond des éléments inactifs</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">Transparence du fond des éléments actifs</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Opacité du fond des éléments inactifs</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">Opacité du fond des éléments actifs</string>
     <string name="termux_api_preferences_summary">Préférences de l\'application Termux:API</string>
     <string name="termux_float_preferences_summary">Préférences de l\'application Termux:Float</string>
     <string name="termux_tasker_preferences_summary">Préférences de l\'application Termux:Tasker</string>

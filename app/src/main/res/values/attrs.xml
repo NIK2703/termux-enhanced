@@ -5,4 +5,14 @@
     <attr name="extraKeysButtonTextColor" format="color" />
     <attr name="extraKeysButtonBackgroundColor" format="color" />
     <attr name="extraKeysButtonActiveBackgroundColor" format="color" />
+
+    <!-- Unit shown after a slider's numeric value, e.g. app:valueUnit="px" renders "42 px".
+         A unit that starts with a letter gets a space before it, a symbol unit ("%") does not.
+         Read by UnitSeekBarPreference; a slider without this attribute keeps the stock bare number. -->
+    <attr name="valueUnit" format="string" />
+
+    <!-- Integer divisor applied to the slider value before the unit is appended. The extra-keys
+         button-margin slider counts tenths of a dp, so app:valueDivisor="10" renders 15 as "1.5 dp".
+         Default 1 (no scaling); only meaningful together with app:valueUnit. -->
+    <attr name="valueDivisor" format="integer" />
 </resources>

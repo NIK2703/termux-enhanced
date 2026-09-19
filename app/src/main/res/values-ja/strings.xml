@@ -118,8 +118,8 @@
 <string name="termux_terminal_view_preferences_title">ターミナル表示</string>
 <string name="termux_terminal_view_preferences_summary">ターミナル表示の設定</string>
 <string name="termux_terminal_view_view_header">表示</string>
-<string name="termux_button_bg_inactive_alpha_title" formatted="false">非アクティブ項目の背景透明度</string>
-<string name="termux_button_bg_active_alpha_title" formatted="false">アクティブ項目の背景透明度</string>
+<string name="termux_button_bg_inactive_alpha_title" formatted="false">非アクティブ項目の背景不透明度</string>
+<string name="termux_button_bg_active_alpha_title" formatted="false">アクティブ項目の背景不透明度</string>
 <string name="extra_keys_corner_radius_title">ボタンの角の丸み</string>
 <string name="termux_api_preferences_summary">Termux:API アプリの設定</string>
 <string name="termux_float_preferences_summary">Termux:Float アプリの設定</string>

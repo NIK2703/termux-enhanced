@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Settings slider (SeekBarPreference) row. Copied from the AndroidX
-  preference_widget_seekbar_material layout with exactly one change: the title TextView is allowed
-  to wrap.
+  preference_widget_seekbar_material layout with exactly two changes:
+
+    1. the title TextView is allowed to wrap (see below);
+    2. the value label gets a fixed width instead of the library's 36dp minimum, so that every
+       slider reserves the same label box and draws the same track length (see the comment on
+       seekbar_value further down).
+
+  Everything else (paddings, minHeight, seekbar row) is kept byte-for-byte identical to the
+  library layout so the row keeps its stock look and touch target.
 
   Why: the AndroidX original declares the title as singleLine + ellipsize="marquee". A marquee only
   animates while the TextView is focused/selected, and the layout backing it is built with
@@ -11,8 +18,8 @@
   screens). Dropping singleLine/ellipsize lets the title flow onto a second line instead, and the
   summary follows it down on its own because it is anchored with layout_below="@android:id/title".
 
-  Everything else (paddings, minHeight, seekbar row, seekbar_value) is kept byte-for-byte identical
-  to the library layout so the row keeps its stock look and touch target.
+  Everything else (paddings, minHeight, seekbar row) is kept byte-for-byte identical to the
+  library layout so the row keeps its stock look and touch target.
 
   Wired in via Preference.SeekBarPreference.Settings -> seekBarPreferenceStyle on
   Theme.TermuxApp.Settings, so it applies to every slider on every settings screen.
@@ -112,12 +119,22 @@
                 android:paddingBottom="@dimen/preference_seekbar_padding_vertical"
                 android:background="@null"/>
 
-            <!-- If the value is shown, we reserve a minimum width of 36dp to allow for consistent
-            seekbar width for smaller values. If the value is ~4 or more digits, it will expand
-            into the seekbar width. -->
+            <!-- The value label gets a FIXED width so that every slider reserves the same label
+            box and therefore draws the same track length. Left as wrap_content on top of the
+            library's 36dp minimum, a label carrying a unit ("0.1 dp", "20 dp", "200%") widened
+            only its own row and squeezed that row's SeekBar, so the sliders did not line up.
+
+            minWidth rather than a hard layout_width on purpose: minWidth already yields the fixed
+            width for every label that fits (all of them do at the default font scale, so every
+            row is exactly preference_seekbar_value_width wide), while a large system font scale
+            grows the box instead of clipping the number. A hard layout_width would cut digits off
+            for anyone who has raised the system font size.
+
+            The value is right-aligned (gravity="right"), so all the slack of a short label lands
+            between the track and the number, and the right edge of every value stays aligned. -->
             <TextView
                 android:id="@+id/seekbar_value"
-                android:minWidth="@dimen/preference_seekbar_value_minWidth"
+                android:minWidth="@dimen/preference_seekbar_value_width"
                 android:paddingLeft="8dp"
                 android:paddingStart="8dp"
                 android:paddingRight="0dp"

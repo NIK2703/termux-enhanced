@@ -181,8 +181,8 @@
     <string name="termux_tab_panel_position_bottom">Inferior</string>
     <string name="termux_api_preferences_title">Termux:API</string>
     <string name="termux_api_preferences_summary">Preferências para o aplicativo Termux:API</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">Transparência do fundo dos elementos ativos</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparência do fundo dos elementos inativos</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">Opacidade do fundo dos elementos ativos</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Opacidade do fundo dos elementos inativos</string>
     <string name="termux_crash_report_notifications_enabled_title">Notificações de relatório de falha</string>
     <string name="termux_debugging_preferences_summary">Preferências de depuração</string>
     <string name="termux_debugging_preferences_title">Depuração</string>

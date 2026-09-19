@@ -122,8 +122,8 @@
     <string name="termux_terminal_view_preferences_title">终端视图</string>
     <string name="termux_terminal_view_preferences_summary">终端视图设置</string>
     <string name="termux_terminal_view_view_header">视图</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">非活动元素背景透明度</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">活动元素背景透明度</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">非活动元素背景不透明度</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">活动元素背景不透明度</string>
     <string name="termux_api_preferences_title">Termux:API</string>
     <string name="termux_api_preferences_summary">Termux:API 应用设置</string>
     <string name="termux_float_preferences_title">Termux:Float</string>

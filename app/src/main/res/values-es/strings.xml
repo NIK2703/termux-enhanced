@@ -111,8 +111,8 @@
     <string name="termux_terminal_view_preferences_title">Vista del terminal</string>
     <string name="termux_terminal_view_preferences_summary">Preferencias de la vista del terminal</string>
     <string name="termux_terminal_view_view_header">Vista</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Transparencia del fondo de los elementos inactivos</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">Transparencia del fondo de los elementos activos</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">Opacidad del fondo de los elementos inactivos</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">Opacidad del fondo de los elementos activos</string>
     <string name="extra_keys_corner_radius_title">Radio de redondeo de los botones</string>
     <string name="termux_api_preferences_summary">Preferencias de la aplicación Termux:API</string>
     <string name="termux_float_preferences_summary">Preferencias de la aplicación Termux:Float</string>

@@ -179,10 +179,10 @@
             <string name="termux_terminal_view_view_header">Вид</string>
 
                 
-                <string name="termux_button_bg_inactive_alpha_title" formatted="false">Прозрачность фона неактивных элементов</string>
+                <string name="termux_button_bg_inactive_alpha_title" formatted="false">Непрозрачность фона неактивных элементов</string>
 
                 
-                <string name="termux_button_bg_active_alpha_title" formatted="false">Прозрачность фона активных элементов</string>
+                <string name="termux_button_bg_active_alpha_title" formatted="false">Непрозрачность фона активных элементов</string>
 
                 
 

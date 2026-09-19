@@ -252,10 +252,10 @@
             <string name="window_category_title">Window</string>
 
                 <!-- Button Background Inactive Alpha -->
-                <string name="termux_button_bg_inactive_alpha_title" formatted="false">Inactive element transparency</string>
+                <string name="termux_button_bg_inactive_alpha_title" formatted="false">Inactive element opacity</string>
 
                 <!-- Button Background Active Alpha -->
-                <string name="termux_button_bg_active_alpha_title" formatted="false">Active element transparency</string>
+                <string name="termux_button_bg_active_alpha_title" formatted="false">Active element opacity</string>
 
 
                 <!-- Extra Keys Corner Radius -->

@@ -18,7 +18,8 @@ app/src/main/res/xml/*.xml it resolves
 
 and then loads that layout (from the app module, or from the androidx.preference AAR in the Gradle
 cache for library layouts) and reports whether its @android:id/title is single-line / ellipsized.
-Both the day and the night (values-night) theme are checked.
+Both the day and the night (values-night) theme are checked. It also fails if app:valueUnit is
+declared on anything other than UnitSeekBarPreference (the unit would be silently ignored there).
 
     python scripts/check_preference_title_wrapping.py     # exit 0 = every row type wraps
 """
@@ -47,6 +48,8 @@ ELEMENT_STYLE_ATTR = {
     "MultiSelectListPreference": "dialogPreferenceStyle",
     "DropDownPreference": "dropdownPreferenceStyle",
     "SeekBarPreference": "seekBarPreferenceStyle",
+    # App-local subclass (value label with a unit); still a SeekBarPreference for styling purposes.
+    "UnitSeekBarPreference": "seekBarPreferenceStyle",
 }
 
 THEME = "Theme.TermuxApp.Settings"
@@ -129,19 +132,45 @@ def title_state(xml):
 
 
 def rows_in_use():
-    """{(element, explicit layout or None)} found in the app's preference XMLs."""
+    """{(element, explicit layout or None, unit or None)} found in the app's preference XMLs."""
     found = {}
     for path in sorted(glob.glob(os.path.join(APP_RES, "xml", "*.xml"))):
         text = open(path, encoding="utf-8").read()
         if "<PreferenceScreen" not in text:
             continue
         for closing, tag, attrs in TAG_RE.findall(text):
-            if closing or tag not in ELEMENT_STYLE_ATTR:
+            if closing:
+                continue
+            element = tag.rsplit(".", 1)[-1]        # custom classes are written fully qualified
+            if element not in ELEMENT_STYLE_ATTR:
                 continue
             lay = re.search(r'(?:app|android):layout="(@?[^"]+)"', attrs)
-            found.setdefault((tag, lay.group(1) if lay else None), set()).add(
-                os.path.basename(path))
+            unit = re.search(r'app:valueUnit="([^"]*)"', attrs)
+            divisor = re.search(r'app:valueDivisor="([^"]*)"', attrs)
+            label = unit.group(1) if unit else None
+            if divisor is not None:
+                label = "%s /%s" % (label or "", divisor.group(1))
+            key = (element, lay.group(1) if lay else None, label)
+            found.setdefault(key, set()).add(os.path.basename(path))
     return found
+
+
+def unit_support_failures():
+    """app:valueUnit / app:valueDivisor on anything but UnitSeekBarPreference would be a no-op."""
+    bad = []
+    for path in sorted(glob.glob(os.path.join(APP_RES, "xml", "*.xml"))):
+        text = open(path, encoding="utf-8").read()
+        if "<PreferenceScreen" not in text:
+            continue
+        for closing, tag, attrs in TAG_RE.findall(text):
+            element = tag.rsplit(".", 1)[-1]
+            if closing or element == "UnitSeekBarPreference":
+                continue
+            for attr in ("valueUnit", "valueDivisor"):
+                found = re.search(r'app:%s="([^"]*)"' % attr, attrs)
+                if found:
+                    bad.append((element, attr, found.group(1), os.path.basename(path)))
+    return bad
 
 
 def main():
@@ -171,22 +200,23 @@ def main():
             failures += 1
             continue
         print("=== %s ===" % variant)
-        print("%-24s %-52s %-30s %s" % ("row type", "style", "layout", "title"))
-        for (element, explicit), _sources in sorted(
-                rows_in_use().items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+        print("%-24s %-6s %-46s %-30s %s" % ("row type", "unit", "style", "layout", "title"))
+        for (element, explicit, unit), _sources in sorted(
+                rows_in_use().items(), key=lambda kv: (kv[0][0], kv[0][1] or "", kv[0][2] or "")):
             if explicit:
                 name, style = explicit.split("/")[-1], "(app:layout in xml)"
             else:
                 attr = ELEMENT_STYLE_ATTR[element]
                 style_ref, _ = resolve(styles, THEME, attr)
                 if not style_ref:
-                    print("%-24s %-52s %-30s %s" % (element, attr + " -> (unset)", "-", "??"))
+                    print("%-24s %-6s %-46s %-30s %s" % (element, unit or "-",
+                                                         attr + " -> (unset)", "-", "??"))
                     failures += 1
                     continue
                 style = style_ref.split("/")[-1]
                 layout_ref, _ = resolve(styles, style, "android:layout")
                 if not layout_ref:
-                    print("%-24s %-52s %-30s %s" % (element, style, "(none)", "??"))
+                    print("%-24s %-6s %-46s %-30s %s" % (element, unit or "-", style, "(none)", "??"))
                     failures += 1
                     continue
                 name = layout_ref.split("/")[-1]
@@ -195,14 +225,21 @@ def main():
             status = "OK   " if ok else ("N/A  " if ok is None else "FAIL ")
             if ok is False:
                 failures += 1
-            print("%-24s %-52s %-30s %s%s" % (element, style, name, status, note))
+            print("%-24s %-6s %-46s %-30s %s%s" % (element, unit or "-", style, name, status, note))
             if ok is None and not explicit:
                 print("%-24s   ^ %s" % ("", source or "missing"))
         print()
+
+    for element, attr, value, source in unit_support_failures():
+        print("FAIL: app:%s=\"%s\" on <%s> (%s) would be ignored - only UnitSeekBarPreference "
+              "renders a unit." % (attr, value, element, source))
+        failures += 1
+
     if failures:
-        print("FAILED: %d row type(s) still truncate their title." % failures)
+        print("FAILED: %d problem(s)." % failures)
         return 1
-    print("OK: every preference row type used in the settings screens has a wrapping title.")
+    print("OK: every preference row type used in the settings screens has a wrapping title, and "
+          "every app:valueUnit is on a UnitSeekBarPreference.")
     return 0
 
 

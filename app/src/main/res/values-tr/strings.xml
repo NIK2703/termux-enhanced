@@ -129,8 +129,8 @@
 <string name="termux_terminal_view_preferences_title">Terminal görünümü</string>
 <string name="termux_terminal_view_preferences_summary">Terminal görünümü için tercihler</string>
 <string name="termux_terminal_view_view_header">Görünüm</string>
-<string name="termux_button_bg_inactive_alpha_title" formatted="false">Etkin olmayan ögelerin arka plan saydamlığı</string>
-<string name="termux_button_bg_active_alpha_title" formatted="false">Etkin ögelerin arka plan saydamlığı</string>
+<string name="termux_button_bg_inactive_alpha_title" formatted="false">Etkin olmayan ögelerin arka plan opaklığı</string>
+<string name="termux_button_bg_active_alpha_title" formatted="false">Etkin ögelerin arka plan opaklığı</string>
 <string name="extra_keys_corner_radius_title">Düğme köşe yarıçapı</string>
 <string name="termux_api_preferences_summary">&TERMUX_API_APP_NAME; uygulaması tercihleri</string>
 <string name="termux_float_preferences_summary">&TERMUX_FLOAT_APP_NAME; uygulaması tercihleri</string>

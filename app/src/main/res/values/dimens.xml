@@ -34,4 +34,21 @@
     <!-- Message history popup dimensions -->
     <dimen name="message_history_popup_max_height">520dp</dimen>
     <dimen name="message_history_popup_gap">24dp</dimen>
+
+    <!-- Width of the value label on a settings slider row (preference_seekbar_settings.xml).
+
+         Without this the label is wrap_content on top of the library's 36dp
+         preference_seekbar_value_minWidth, so a label that does not fit (any value carrying a
+         unit: "0.1 dp", "20 dp", "200%") widens its own row and squeezes that row's SeekBar -
+         every slider then ends its track at a different x.
+
+         Pinned here so every slider reserves the same label box and therefore draws the same
+         track length. Sized from real font metrics, not guessed: the widest label any slider can
+         produce is "0.1 dp" (the extra-keys button margin slider at its minimum of 1, divided by
+         10), which measures 44.9dp in the system font at the 16sp of
+         ?android:attr/textAppearanceListItem, plus the label's 8dp start padding = 52.9dp. 60dp
+         leaves ~7dp of slack, which also absorbs a device whose default font is wider than
+         Roboto. The other worst cases, for reference: "20 dp"/"24 dp" 40.7dp, "16 sp" 39.9dp,
+         "40 px"/"90 px" 39.5dp, "200%" 39.5dp. -->
+    <dimen name="preference_seekbar_value_width">60dp</dimen>
 </resources>

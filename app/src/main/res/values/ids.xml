@@ -10,4 +10,8 @@
     <!-- Cached per-tab render state (TabRenderState): makes a title-only refresh a pure
          diff — no attribute is re-applied unless it actually changed. -->
     <item name="session_tab_render_state_tag" type="id" />
+    <!-- The TextWatcher currently installed on a slider's value label (UnitSeekBarPreference).
+         Kept as a tag because that label view is recycled across preference rows, so a new bind has
+         to detach the previous watcher before installing its own. -->
+    <item name="seekbar_value_watcher_tag" type="id" />
 </resources>

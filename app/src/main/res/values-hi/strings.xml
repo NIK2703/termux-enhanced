@@ -172,8 +172,8 @@
     <string name="shared_user_label">Termux उपयोगकर्ता</string>
     <string name="tab_close_description">टैब बंद करें</string>
     <string name="termux_api_preferences_summary">Termux:API ऐप के लिए प्राथमिकताएँ</string>
-    <string name="termux_button_bg_active_alpha_title" formatted="false">सक्रिय तत्वों की पृष्ठभूमि पारदर्शिता</string>
-    <string name="termux_button_bg_inactive_alpha_title" formatted="false">निष्क्रिय तत्वों की पृष्ठभूमि पारदर्शिता</string>
+    <string name="termux_button_bg_active_alpha_title" formatted="false">सक्रिय तत्वों की पृष्ठभूमि अपारदर्शिता</string>
+    <string name="termux_button_bg_inactive_alpha_title" formatted="false">निष्क्रिय तत्वों की पृष्ठभूमि अपारदर्शिता</string>
     <string name="termux_crash_report_notifications_enabled_title">क्रैश रिपोर्ट सूचनाएँ</string>
     <string name="termux_debugging_preferences_summary">डीबगिंग के लिए प्राथमिकताएँ</string>
     <string name="termux_debugging_preferences_title">डीबगिंग</string>
