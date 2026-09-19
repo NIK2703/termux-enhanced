@@ -7,6 +7,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.termux.R;
@@ -75,15 +76,40 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     /** Whether the trailing placeholder page is currently appended. */
     private boolean mPlaceholderActive = false;
 
-    /** Maps a page position to its currently-bound TerminalView.
-     *  Kept in sync in onBindViewHolder / onViewRecycled so the activity can resolve the
-     *  active page's view reliably even when RecyclerView.findViewHolderForAdapterPosition()
-     *  returns null mid-swipe (ViewHolder not yet laid out). This is what makes the
-     *  mTerminalView pointer and extra-keys target track the visible page instead of lagging
-     *  a frame behind and routing input to the wrong session. A {@link android.util.SparseArray}
-     *  avoids the {@code int→Integer} boxing of a HashMap and lets {@code onViewRecycled} drop an
-     *  entry in O(1) via the bound position stored on the ViewHolder. */
-    private final android.util.SparseArray<TerminalView> mAttachedViews = new android.util.SparseArray<>();
+    /**
+     * Maps a live {@link TerminalSession} to the {@link TerminalView} currently displaying it.
+     *
+     * <p>Keyed by <b>session</b>, not by adapter position. A position is only the current rendering
+     * of the ordered list: when a middle session is closed every later page shifts down by one and
+     * its ViewHolder is <em>not</em> rebound (there is no {@code notifyItemChanged} for a shifted
+     * holder). A position-keyed map therefore has to be shifted by hand on every structural change,
+     * and any slot that shift misses resolves to null — or, worse, to a stale view — for a session
+     * that really is on screen. With a session key the mapping survives insertions, removals and
+     * reorders untouched: the view is still showing that session, so the entry is still correct.
+     *
+     * <p>{@link java.util.IdentityHashMap} is deliberate — session identity, not equality.
+     */
+    private final java.util.IdentityHashMap<TerminalSession, TerminalView> mSessionViews =
+            new java.util.IdentityHashMap<>();
+
+    /**
+     * Fired from {@link #onBindViewHolder} — the one moment at which "this page now has a view" is
+     * known for certain. The pager uses it to re-point the activity's active TerminalView when the
+     * active page is bound late (beyond {@code offscreenPageLimit}).
+     *
+     * <p>This is the event-driven replacement for the old recovery path that waited for a child
+     * attach with a {@code post} fallback and a 300 ms safety net: that path could never fire for a
+     * view that was already attached, so the activity kept routing input to a dead session.
+     */
+    public interface OnPageBoundListener {
+        void onPageBound(@NonNull TerminalSession session, @NonNull TerminalView view);
+    }
+
+    private OnPageBoundListener mOnPageBoundListener;
+
+    public void setOnPageBoundListener(@Nullable OnPageBoundListener listener) {
+        mOnPageBoundListener = listener;
+    }
 
     /** The movable "New tab" hint content inside the placeholder page, or null if the placeholder
      *  is not currently bound. Translated horizontally during a drag so the hint stays centered in
@@ -210,11 +236,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // real-session list (getItemCount() must reflect only the real sessions during the diff).
         if (mPlaceholderActive) {
             mPlaceholderActive = false;
-            // Drop the placeholder's own entry too: mAttachedViews is keyed by position, and the
-            // slot that is going away is exactly the one the placeholder occupied. Leaving the
-            // entry behind would make getAttachedView() hand out a dead placeholder view for that
-            // position until some later bind overwrote it.
-            mAttachedViews.remove(mSessions.size());
+            // The placeholder page has no session, so it holds no mSessionViews entry — nothing to
+            // drop here. (With the old position-keyed map this had to remove the placeholder slot
+            // by hand, or a lookup by position would hand out the dead placeholder view.)
             notifyItemRemoved(mSessions.size());
         }
 
@@ -234,31 +258,10 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
                     mSessions = new java.util.ArrayList<>(serviceSessions);
                     int removeStart = i;
 
-                    // Shift mAttachedViews keys for items that moved down.
-                    // notifyItemRangeRemoved causes RecyclerView to update its own position tracking,
-                    // but our mAttachedViews map — keyed by position — is NOT updated when an
-                    // existing ViewHolder shifts to a lower slot.  Without this shift,
-                    // getAttachedView() returns null for the slot that the shifted page now occupies,
-                    // which makes onTerminalPageSelected() exit via the "pageView == null" deferred
-                    // path — and that deferred path's fallback (post + getAttachedView) never
-                    // recovers, because the stale key is never fixed.  The result: mTerminalView is
-                    // never re-pointed after closing a non-last tab, and updateTabs() finds the
-                    // dead session (currentSessionIndex = -1), so no tab is highlighted.
-                    if (mAttachedViews.size() > 0) {
-                        android.util.SparseArray<TerminalView> shifted = new android.util.SparseArray<>();
-                        int threshold = removeStart + removedCount;
-                        for (int k = 0; k < mAttachedViews.size(); k++) {
-                            int pos = mAttachedViews.keyAt(k);
-                            if (pos >= threshold)
-                                shifted.put(pos - removedCount, mAttachedViews.valueAt(k));
-                            else if (pos < removeStart)
-                                shifted.put(pos, mAttachedViews.valueAt(k));
-                            // pos in [removeStart, threshold) was the removed item — dropped.
-                        }
-                        mAttachedViews.clear();
-                        for (int k = 0; k < shifted.size(); k++)
-                            mAttachedViews.put(shifted.keyAt(k), shifted.valueAt(k));
-                    }
+                    // No key bookkeeping needed: mSessionViews is keyed by session, so the pages
+                    // that shift down keep pointing at the sessions they are already displaying.
+                    // (The old position-keyed map had to be shifted by hand here, and any slot the
+                    // shift missed stranded the activity's terminal view on a dead session.)
 
                     notifyItemRangeRemoved(removeStart, removedCount);
                     return;
@@ -266,12 +269,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             }
             // No mismatch found in the shared portion → last item(s) were removed.
             mSessions = new java.util.ArrayList<>(serviceSessions);
-            // Remove the old tail positions from mAttachedViews (they are gone).
-            for (int k = mAttachedViews.size() - 1; k >= 0; k--) {
-                if (mAttachedViews.keyAt(k) >= newSize) {
-                    mAttachedViews.removeAt(k);
-                }
-            }
+            // Entries for the removed sessions are dropped in onViewRecycled() when their
+            // ViewHolders go back to the pool; nothing positional to clean up here.
             notifyItemRangeRemoved(oldSize - removedCount, removedCount);
         }
         // Same size — no structural change; tab titles etc. handled by updateTabs().
@@ -293,8 +292,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         mMarginTopDp = topDp;
         mMarginRightDp = rightDp;
         mMarginBottomDp = bottomDp;
-        for (int i = 0; i < mAttachedViews.size(); i++) {
-            applyTerminalMargins(mAttachedViews.valueAt(i));
+        for (TerminalView view : mSessionViews.values()) {
+            applyTerminalMargins(view);
         }
     }
 
@@ -314,8 +313,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
      */
     public void setTerminalBackgroundTransparency(int percent) {
         mBackgroundTransparencyPercent = percent;
-        for (int i = 0; i < mAttachedViews.size(); i++) {
-            applyTerminalTransparency(mAttachedViews.valueAt(i));
+        for (TerminalView view : mSessionViews.values()) {
+            applyTerminalTransparency(view);
         }
     }
 
@@ -488,10 +487,16 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // current theme (covers both initial bind and re-bind after the adapter was rebuilt).
         mActivity.getTermuxTerminalSessionClient().checkForFontAndColorsForView(terminalView);
 
-        // Remember this position->view mapping so the activity can resolve the active page's
-        // view even when RecyclerView.findViewHolderForAdapterPosition() is still null mid-swipe.
+        // Remember this session->view mapping so the activity can resolve the active page's view
+        // even when RecyclerView.findViewHolderForAdapterPosition() is still null mid-swipe. Keyed
+        // by session, so a page that shifts position (a middle tab closed) needs no bookkeeping.
         holder.boundPosition = position;
-        mAttachedViews.put(position, terminalView);
+        holder.boundSession = session;
+        mSessionViews.put(session, terminalView);
+        // Event-driven re-point of the activity's active view: if this page is the active one, the
+        // activity picks it up right now instead of waiting for some later (possibly never-coming)
+        // event. No timers, no posts.
+        if (mOnPageBoundListener != null) mOnPageBoundListener.onPageBound(session, terminalView);
     }
 
     /**
@@ -508,11 +513,34 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         onBindViewHolder(holder, position);
     }
 
-    /** @return the TerminalView currently bound to {@code position}, or null if not bound. */
-    @androidx.annotation.Nullable
-    public TerminalView getAttachedView(int position) {
-        return mAttachedViews.get(position);
+    /**
+     * @return the {@link TerminalView} currently displaying {@code session}, or null when that
+     *         session has no attached page (not bound yet, or beyond {@code offscreenPageLimit}).
+     */
+    @Nullable
+    public TerminalView getViewForSession(@Nullable TerminalSession session) {
+        if (session == null) return null;
+        TerminalView view = mSessionViews.get(session);
+        // A detached view is no longer on any page (recycled, or shifted out of the window): treat
+        // it as absent so callers fall back to the live RecyclerView instead of routing input to a
+        // page that is not on screen.
+        return (view != null && view.isAttachedToWindow()) ? view : null;
     }
+
+    /** @return the number of REAL session pages — the trailing placeholder is not counted. */
+    public int getSessionCount() {
+        return mSessions.size();
+    }
+
+    /** @return true when the adapter already backs exactly this sequence of sessions. */
+    public boolean sameSessions(@NonNull List<TermuxSession> sessions) {
+        if (mSessions.size() != sessions.size()) return false;
+        for (int i = 0; i < sessions.size(); i++) {
+            if (mSessions.get(i) != sessions.get(i)) return false;
+        }
+        return true;
+    }
+
 
     @Override
     public void onViewRecycled(@NonNull TerminalPageViewHolder holder) {
@@ -555,22 +583,16 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             // listener and only the active page serves the terminal menu.
             mActivity.unregisterForContextMenu(holder.mTerminalView);
         }
-        // Drop any stale position->view entry so getAttachedView() never returns a
-        // recycled (detached) view for a position that has moved on. The ViewHolder carries the
-        // last bound position, so a direct removal is O(1); the (rare) case where it drifted is
-        // covered by the linear fallback.
-        final int pos = holder.boundPosition;
-        if (pos >= 0 && mAttachedViews.get(pos) == holder.mTerminalView) {
-            mAttachedViews.remove(pos);
-        } else {
-            for (int k = 0; k < mAttachedViews.size(); k++) {
-                if (mAttachedViews.valueAt(k) == holder.mTerminalView) {
-                    mAttachedViews.removeAt(k);
-                    break;
-                }
-            }
+        // Drop the session->view entry: the recycled holder's view is no longer displaying that
+        // session. Keyed by session, so the removal is exact regardless of what shifted.
+        final TerminalSession bound = holder.boundSession;
+        if (bound != null && mSessionViews.get(bound) == holder.mTerminalView) {
+            mSessionViews.remove(bound);
+        } else if (holder.mTerminalView != null) {
+            mSessionViews.values().remove(holder.mTerminalView);
         }
         holder.boundPosition = -1;
+        holder.boundSession = null;
     }
 
     @Override
@@ -616,7 +638,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         if (active) {
             notifyItemInserted(mSessions.size());
         } else {
-            mAttachedViews.remove(mSessions.size());
+            // The placeholder never had a session, so there is no mSessionViews entry to drop.
             notifyItemRemoved(mSessions.size());
         }
     }
@@ -904,9 +926,11 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         public final View mHintContent;
         /** Canvas surface the right-swipe directory list is painted onto (placeholder page only). */
         public final DirectoryPickerView mPickerView;
-        /** The adapter position this ViewHolder was last bound to; lets onViewRecycled()
-         *  drop the mAttachedViews entry in O(1) without a linear scan. -1 when unbound. */
+        /** The adapter position this ViewHolder was last bound to; -1 when unbound. */
         public int boundPosition = -1;
+        /** The session this ViewHolder's TerminalView is currently displaying; null when unbound.
+         *  Lets onViewRecycled() drop the session->view entry without a scan. */
+        public TerminalSession boundSession = null;
         /**
          * Foreground colour last applied to {@link #mHintPlus} / {@link #mHintText}, and whether it
          * has been applied at all. Guards the two framework-side allocations in

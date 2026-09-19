@@ -9,6 +9,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
 import com.termux.R;
+import com.termux.app.terminal.SessionPagerManager;
 import com.termux.app.terminal.io.SessionUiStateStore;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.view.KeyboardUtils;
@@ -40,6 +41,9 @@ import com.termux.terminal.TerminalSession;
  *   switch tab <i>  - switch the pager to session index i (same path as tab click)
  *   new tab      - add a new session (same path as the "+" button)
  *   close tab    - remove the current session (same path as the tab close button)
+ *   pagedump     - snapshot of every "which page is active" state (pager item, active index,
+ *                   adapter counts, placeholder, per-page bound view, mTerminalView's session,
+ *                   highlighted tab) — for the tab-close invariant check (tag TIPanelCmd)
  *   session count- log the number of live sessions
  *   dumpsess     - log per-session handles in service order (for re-key verification)
  */
@@ -229,6 +233,15 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                 case "session count": {
                     TermuxService svc = activity.getTermuxService();
                     log("session count: " + (svc == null ? -1 : svc.getTermuxSessionsSize()));
+                    break;
+                }
+                case "pagedump": {
+                    // Snapshot of every piece of "which page is active" state. The invariant to
+                    // check: active == tv's session == the highlighted tab == a LIVE session.
+                    activity.runOnUiThread(() -> {
+                        SessionPagerManager pm = activity.getSessionPagerManager();
+                        log(pm == null ? "PAGEDUMP no-pager-manager" : pm.dumpPageState());
+                    });
                     break;
                 }
                 case "dumpsess": {

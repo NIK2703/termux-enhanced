@@ -603,6 +603,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // should be a perfectly valid session-switch request (e.g. clicking the already-visible
         // tab). Handle it inline so bookkeeping runs and the flag is cleared.
         if (index == pager.getCurrentItem()) {
+            // Same-index switch: fix the active index too. Nothing else will, because the pager
+            // fires no callback for it — and the active index is what "which session is current"
+            // resolves from everywhere else.
+            SessionPagerManager pagerManager = mActivity.getSessionPagerManager();
+            if (pagerManager != null) pagerManager.setActiveIndex(index);
             onSessionPageSelected(session);
             mActivity.setTerminalPageSwitchInProgress(false);
             if (showToast) notifyOfSessionChange();
@@ -1144,36 +1149,36 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // HIDE caused by detaching the closed page's view.
         mActivity.beginSessionUiChurn(SESSION_UI_CHURN_MS);
 
-        int index = service.removeTermuxSession(finishedSession);
+        // Decide WHO takes over BEFORE the removal, while the list still contains both the closing
+        // session and its neighbours. The index returned by removeTermuxSession() is an index in the
+        // OLD list and is meaningless once the list has shifted; deriving the target from it (and
+        // clamping a number that no longer refers to anything) is what made landing after a close
+        // wrong, and every fix layered on top of it was another guess.
+        final TerminalSession heir = pickHeir(service, finishedSession);
+
+        // Step the pager off the page that is about to disappear BEFORE the list changes — but only
+        // when the page going away is the one on screen. Removing the page the pager is anchored on
+        // is what leaves the dead ViewHolder on screen and the parked index stale; see
+        // SessionPagerManager.parkOnSessionBeforeRemoval() for the measured evidence. With the
+        // left-neighbour policy the heir's index does not shift when the item to its right is
+        // removed, so after this call the parked index is already the right one and the sync below
+        // only has to re-point the active state. A background tab that exits on its own must not
+        // move the user at all.
+        SessionPagerManager pagerManager = mActivity.getSessionPagerManager();
+        if (pagerManager != null && mActivity.getCurrentSession() == finishedSession) {
+            pagerManager.parkOnSessionBeforeRemoval(heir);
+        }
+
+        service.removeTermuxSession(finishedSession);
 
         int size = service.getTermuxSessionsSize();
         if (size == 0) {
             // There are no sessions to show, so finish the activity.
             mActivity.finishActivityIfNotFinishing();
         } else {
-            if (index >= size) {
-                index = size - 1;
-            }
-            // Sync pager and tabs. The pager sync inside termuxSessionListNotifyUpdated() already
-            // handles session restoration via its restoreIndex logic:
-            //   - If the removed session was the current one: falls back to the pager's old current
-            //     item index (clamped to the new list bounds), which selects the session that shifted
-            //     into that position or the last session.
-            //   - If the removed session was NOT the current one: finds the current session's new
-            //     index in the updated list and stays on it.
-            // Then onTerminalPageSelected() re-points mTerminalView and runs per-session bookkeeping.
-            //
-            // IMPORTANT: Do NOT add a setCurrentSession() call here using the stale <index> returned
-            // by removeTermuxSession().  That index was the removed session's position in the OLD
-            // list and is meaningless in the new list.  Using it to look up a "fallback" session
-            // causes two regressions:
-            //   (a) Scenario #8 (close tab + new tab race): list [A,B,C,D] → [A,C,D], index=1 (B's
-            //       old slot), getTermuxSession(1)=C → switches from D to C.
-            //   (b) Non-current session finishes: list [A,B,C] → [A,C], index=1 (B's old slot),
-            //       getTermuxSession(1)=C → switches from A to C.
-            // In both cases the pager sync already restored the correct session; the stale-index
-            // lookup overrides it.
-            termuxSessionListNotifyUpdated(index);
+            // Sync pager and tabs. The heir is a SESSION, so the pager resolves its position in the
+            // NEW list — correct by construction, no stale index and no clamp.
+            termuxSessionListNotifyUpdated(heir);
         }
 
         // The deferred page-switch bookkeeping (onTerminalPageSelected ->
@@ -1185,11 +1190,48 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     public void termuxSessionListNotifyUpdated() {
-        mActivity.termuxSessionListNotifyUpdated(-1);
+        mActivity.termuxSessionListNotifyUpdated();
     }
 
-    public void termuxSessionListNotifyUpdated(int removedIndex) {
-        mActivity.termuxSessionListNotifyUpdated(removedIndex);
+    public void termuxSessionListNotifyUpdated(@androidx.annotation.Nullable TerminalSession heir) {
+        mActivity.termuxSessionListNotifyUpdated(heir);
+    }
+
+    /**
+     * Which session becomes active when {@code closingSession} goes away: the <b>LEFT</b>
+     * neighbour (the tab that visually slides into the freed slot), or the RIGHT one when the
+     * closed tab was the first and has no left neighbour.
+     *
+     * <p>Must be called <b>before</b> the session is removed from the service list, while both
+     * neighbours are still where the user sees them. Returning a session (never an index) is the
+     * point: the pager resolves its position after the removal, so nothing downstream has to
+     * interpret a number that referred to the old list.
+     *
+     * <p><b>Why the left neighbour.</b> That is the behaviour the app has always shown in practice
+     * (the tab strip collapses the closed tab and the selection steps back one), and it is what the
+     * user expects: with tabs 1,2,3,4, closing 3 lands on 2, and closing 2 then has to land on 1.
+     * The previous "right neighbour" intent was never actually achieved — the pager's own layout
+     * always won and produced the left one — so making it explicit changes nothing the user sees,
+     * it only makes the result deterministic. It is also the cheapest case for the pager: the
+     * heir's index does not shift when an item to its right is removed, so no re-scroll is needed
+     * after the removal (see {@link #removeFinishedSession}).
+     *
+     * <p>This is the single place where the "which tab do I land on after closing one" policy lives.
+     */
+    @androidx.annotation.Nullable
+    private static TerminalSession pickHeir(@androidx.annotation.NonNull TermuxService service,
+                                            @androidx.annotation.NonNull TerminalSession closingSession) {
+        final int removedIndex = service.getIndexOfSession(closingSession);
+        if (removedIndex < 0) return null;
+        if (removedIndex - 1 >= 0) {
+            TermuxSession left = service.getTermuxSession(removedIndex - 1);
+            if (left != null) return left.getTerminalSession();
+        }
+        if (removedIndex + 1 < service.getTermuxSessionsSize()) {
+            TermuxSession right = service.getTermuxSession(removedIndex + 1);
+            if (right != null) return right.getTerminalSession();
+        }
+        return null;
     }
 
     public void checkAndScrollToSession(TerminalSession session) {

@@ -245,7 +245,7 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
         // freshly-created tabs controller still has only the (+) button. Without this call
         // the tabs stay empty until a new session is added via the (+) button.
         if (mTermuxService != null && !mTermuxService.isTermuxSessionsEmpty()) {
-            mActivity.termuxSessionListNotifyUpdated(-1);
+            mActivity.termuxSessionListNotifyUpdated();
         }
     }
 

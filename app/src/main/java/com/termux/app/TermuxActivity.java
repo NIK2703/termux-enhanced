@@ -147,6 +147,12 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
         return mSessionPagerManager != null && mSessionPagerManager.isColdStartSessionPending();
     }
 
+    /** The pager manager — the owner of "which page is active". Null until the pager is set up. */
+    @Nullable
+    public SessionPagerManager getSessionPagerManager() {
+        return mSessionPagerManager;
+    }
+
     /**
      * Populate the pager with the live session list and select the initial page. Called from
      * {@link #onServiceConnected} once sessions exist. Honours a pending session requested earlier
@@ -3653,35 +3659,34 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * No-arg overload — delegates to the indexed version with -1.
      */
     public void termuxSessionListNotifyUpdated() {
-        termuxSessionListNotifyUpdated(-1);
+        termuxSessionListNotifyUpdated((TerminalSession) null);
     }
 
     /**
      * Sync the pager adapter and tab strip with the live session list.
      *
-     * @param preferredIndex When a tab has just been removed, the position of the removed tab in
-     *                       the OLD list; the method selects the session that shifted into this
-     *                       slot (the RIGHT neighbor).  Pass -1 for non-removal updates, which
-     *                       falls back to restoring the current session's position.
+     * @param heir The session that must become active after a removal (chosen by the caller before
+     *             the removal, resolved to an index afterwards). null for non-removal updates,
+     *             which keep the current session.
      */
-    public void termuxSessionListNotifyUpdated(int preferredIndex) {
+    public void termuxSessionListNotifyUpdated(@Nullable TerminalSession heir) {
         // The horizontal pager sync (adapter rebuild + page re-selection + per-session bookkeeping)
-        // now lives in SessionPagerManager. It re-points mTerminalView to the correct page; we then
-        // refresh the tab strip and snapshot below.
+        // now lives in SessionPagerManager. It fixes the active index and re-points mTerminalView to
+        // the correct page; we then refresh the tab strip and snapshot below.
         //
         // NOTE: updateTabs() runs BEFORE the pager sync so that scrollStripToEnd() (called when
         // newCount > sessionCount) sets mEndScrollActive=true before onScrollFinished() fires from
         // the pager's setCurrentItem(false). This prevents snapToTabCenter() from centering the
         // new tab just before the end-scroll scrolls to the right edge — which was the root cause of
-        // the jerky "double movement" on tab creation. getCurrentSession() during updateTabs() may
-        // return the old session, but the selection is corrected by setCurrentSession() inside
-        // onTerminalPageSelected() before any frame renders.
+        // the jerky "double movement" on tab creation. The tab strip no longer depends on that
+        // ordering for correctness: getCurrentSession() always resolves to a LIVE session now (see
+        // there), and the pager sync finishes by highlighting the landed session by reference.
         if (mTermuxSessionTabsController != null && mServiceConnectionManager.getTermuxService() != null) {
             mTermuxSessionTabsController.updateTabs(mServiceConnectionManager.getTermuxService().getTermuxSessions());
         }
 
         if (mSessionPagerManager != null)
-            mSessionPagerManager.termuxSessionListNotifyUpdated(preferredIndex);
+            mSessionPagerManager.termuxSessionListNotifyUpdated(heir);
 
         // Keep the open-tabs snapshot fresh while sessions are alive, so a later
         // exit (e.g. the notification's Exit action, which kills sessions before
@@ -3854,12 +3859,30 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mTermuxTerminalSessionActivityClient.onResetTerminalSession();
     }
 
+    /**
+     * The session the user is currently on.
+     *
+     * <p>Reads the cached {@link #mTerminalView} exactly as it always has — that is the value every
+     * caller during a page transition expects (tab-strip rebuild, text-input restore, the new-tab
+     * create path), and re-ordering that resolution for those callers changed the transition.
+     *
+     * <p>The one thing the plain cache got wrong: it has no liveness check, so after a tab close it
+     * kept returning the session that had just been killed — which is how the app could keep
+     * displaying a terminal with the {@code signal 9} line in it while the tab strip highlighted a
+     * different tab. So when — and only when — the cached session is no longer in the service's
+     * session list, fall back to the pager's active index resolved against the live list. In every
+     * normal case this method returns precisely what it returned before.
+     */
     @Nullable
     public TerminalSession getCurrentSession() {
-        if (mTerminalView != null)
-            return mTerminalView.getCurrentSession();
-        else
-            return null;
+        if (mTerminalView != null) {
+            TerminalSession cached = mTerminalView.getCurrentSession();
+            if (cached != null
+                    && (mSessionPagerManager == null || mSessionPagerManager.isSessionLive(cached)))
+                return cached;
+        }
+        if (mSessionPagerManager != null) return mSessionPagerManager.getActiveSession();
+        return mTerminalView != null ? mTerminalView.getCurrentSession() : null;
     }
 
     public TermuxAppSharedPreferences getPreferences() {

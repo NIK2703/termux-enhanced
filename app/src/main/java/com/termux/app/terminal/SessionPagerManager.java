@@ -62,6 +62,144 @@ public final class SessionPagerManager {
         mPendingInitialSession = session;
     }
 
+    /**
+     * The index of the page the user is on — <b>the single authority for "which session is
+     * active"</b> for everything that is not a finger gesture.
+     *
+     * <p>Everything else is a view of this number:
+     * <ul>
+     *   <li>a gesture writes it from {@code onPageSelected};</li>
+     *   <li>the activity's {@code mTerminalView} is a <em>cache of the view</em> for it, and is
+     *       allowed to be null (the page may not be bound yet);</li>
+     *   <li>the tab strip highlights the session it resolves to.</li>
+     * </ul>
+     *
+     * <p>It is deliberately <b>not</b> derived from {@code mTerminalView.getCurrentSession()}: that
+     * cache has no liveness check, so after a tab close it happily keeps returning the session that
+     * was just killed (the "still showing the closed terminal with the signal 9 line" bug). Reading
+     * the index and resolving it against the live service list makes a dead active session
+     * impossible by construction.
+     *
+     * <p>-1 means "not resolved yet"; {@link #getActiveIndex()} self-heals in that case.
+     */
+    private int mActiveIndex = -1;
+
+    /**
+     * Resolve the active page index, repairing it if it drifted out of range (a session was closed
+     * or the pager has not been populated yet).
+     *
+     * @return a valid index into the live session list, or -1 when there are no sessions.
+     */
+    public int getActiveIndex() {
+        TermuxService service = mActivity.getTermuxService();
+        int size = (service == null) ? 0 : service.getTermuxSessionsSize();
+        if (size == 0) {
+            mActiveIndex = -1;
+            return -1;
+        }
+        if (mActiveIndex < 0 || mActiveIndex >= size) {
+            // Self-heal. Prefer the pager's own parked index (it is what the user is looking at),
+            // then the session of the view the activity currently points at. Never fall back to a
+            // raw index without checking it, and never leave the old out-of-range value in place.
+            int idx = (mTerminalPager != null) ? mTerminalPager.getCurrentItem() : -1;
+            if (idx < 0 || idx >= size) {
+                TerminalView view = mActivity.getTerminalView();
+                TerminalSession shown = (view != null) ? view.getCurrentSession() : null;
+                idx = (shown != null) ? service.getIndexOfSession(shown) : -1;
+            }
+            mActiveIndex = (idx >= 0 && idx < size) ? idx : size - 1;
+        }
+        return mActiveIndex;
+    }
+
+    /** Record the active page index. The only way anything may move the active page. */
+    public void setActiveIndex(int index) {
+        mActiveIndex = index;
+    }
+
+    /**
+     * @return true while {@code session} is still in the service's live session list.
+     *
+     * <p>Used to tell a still-valid cached view apart from one that is showing a session that has
+     * just been killed. That distinction is the whole difference between "the tab strip highlights
+     * the wrong tab" and "the tab strip highlights nothing".
+     */
+    public boolean isSessionLive(@Nullable TerminalSession session) {
+        if (session == null) return false;
+        TermuxService service = mActivity.getTermuxService();
+        return service != null && service.getIndexOfSession(session) >= 0;
+    }
+
+    /**
+     * @return the session the user is on, or null when there is none.
+     *
+     * <p>Always a <b>live</b> session: it is resolved from {@link #getActiveIndex()} against the
+     * service's current list, never read off the cached {@code mTerminalView}.
+     */
+    @Nullable
+    public TerminalSession getActiveSession() {
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null) {
+            // Pager/service not ready yet — fall back to the view cache, exactly like before.
+            TerminalView view = mActivity.getTerminalView();
+            return (view != null) ? view.getCurrentSession() : null;
+        }
+        int index = getActiveIndex();
+        if (index >= 0) {
+            TermuxSession termuxSession = service.getTermuxSession(index);
+            if (termuxSession != null) return termuxSession.getTerminalSession();
+        }
+        // Last resort: the view cache, but only while the session it shows is still alive.
+        TerminalView view = mActivity.getTerminalView();
+        TerminalSession shown = (view != null) ? view.getCurrentSession() : null;
+        if (shown != null && service.getIndexOfSession(shown) >= 0) return shown;
+        return null;
+    }
+
+    /**
+     * Move the pager onto {@code session} <b>before</b> the page it is currently showing is removed
+     * from the adapter, and without any animation.
+     *
+     * <h2>Why this exists</h2>
+     * Removing the page the pager is currently anchored on is the one case {@code ViewPager2} +
+     * {@code RecyclerView} handle badly. Measured on the device (trace {@code PAGERDBG}, 3 tabs,
+     * closing the active one):
+     * <pre>
+     *   SLNU old=3 new=2 heir=… restore=1 curBefore=1
+     *   SLNU afterSync cur=1 (setCurrentItem target was 1)   &lt;- setCurrentItem() was a NO-OP
+     *   OTPS done pos=1 tv=&lt;heir&gt;                            &lt;- our state landed correctly…
+     *   PAGEDUMP … |child0 pos=0 x=-1080 |child1 pos=-1 x=0 |child2 pos=1 x=1080
+     * </pre>
+     * {@code pos=-1} is the removed page's ViewHolder, still attached and still occupying the
+     * middle of the screen, with the pager's own page pushed off to the right: the layout kept the
+     * dead child as its anchor and never corrected itself. The activity's state was right, the
+     * screen was wrong — exactly the reported bug (the closed terminal stays visible, the tab strip
+     * highlights the closed tab, and the first scroll snaps everything into place at once).
+     *
+     * <p>{@code setCurrentItem()} cannot repair that afterwards: it returns early when the target
+     * equals {@code mCurrentItem} and the pager is idle (verified in the ViewPager2 1.1.0 bytecode,
+     * {@code setCurrentItemInternal}), which is precisely the case after a close — the parked index
+     * is still the dead page's index.
+     *
+     * <p>Moving off the doomed page first turns the removal into the well-behaved case: the page
+     * under the viewport is one that survives, so the adapter change is a plain "content shifted
+     * under a stable anchor" and no {@code ViewHolder} is left behind. It also guarantees the
+     * following {@code setCurrentItem(restoreIndex, false)} is <em>not</em> a silent no-op, because
+     * the target is a different page than the one just parked on.
+     *
+     * <p>No bookkeeping runs here on purpose: the caller removes the session immediately afterwards
+     * and the normal landing ({@link #onTerminalPageSelected}) does the re-pointing, once, against
+     * the new list.
+     */
+    public void parkOnSessionBeforeRemoval(@Nullable TerminalSession session) {
+        if (session == null || mTerminalPager == null) return;
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null) return;
+        final int index = service.getIndexOfSession(session);
+        if (index < 0 || index == mTerminalPager.getCurrentItem()) return;
+        mTerminalPager.setCurrentItem(index, false);
+    }
+
     @Nullable
     private RecyclerView getPagerRecyclerView() {
         if (mTerminalPager == null) return null;
@@ -321,6 +459,11 @@ public final class SessionPagerManager {
                     new java.util.ArrayList<>());
         }
         mTerminalPager.setAdapter(mTerminalPagerAdapter);
+        // Event-driven re-point of the activity's active TerminalView: whenever a page gets bound,
+        // the manager re-asserts the active page if that is the page being bound. This replaces the
+        // old "wait for attach with a post and a 300 ms safety net" recovery, which could never fire
+        // for an already-attached view and therefore stranded the activity on a dead session.
+        mTerminalPagerAdapter.setOnPageBoundListener(this::onPageBound);
         // With fewer than two sessions there is nothing to swipe between, so disable user input
         // to suppress the stretch/bounce edge-effect animation on a horizontal drag.
         updatePagerUserInputEnabled();
@@ -628,6 +771,27 @@ public final class SessionPagerManager {
     }
 
     /**
+     * True while {@link #commitPlaceholderToSession()} is creating the session that fills the
+     * placeholder slot.
+     *
+     * <p>The commit <b>owns</b> the adapter update for the session it creates — it calls
+     * {@link TerminalPagerAdapter#commitPlaceholder} itself, in place, precisely so the page the
+     * user is watching becomes the new terminal without the pager moving. But creating the session
+     * makes the service fire {@link #termuxSessionListNotifyUpdated()} from inside the commit, and
+     * that path is the opposite of what the commit needs: it drops the placeholder page, stops the
+     * scroll and jumps with {@code setCurrentItem(..., false)}. Doing it mid-commit removes the
+     * page the settle is travelling to and replaces the animated arrival with an instant jump —
+     * the "new tab opens with no animation" regression.
+     *
+     * <p>So the sync is muted for the duration of the create call. It is not a "skip because the
+     * size happens to match" heuristic (the old guard relied on the placeholder inflating
+     * {@code getItemCount()}, which also silently swallowed the sync for a tab added by the "+"
+     * button); it is an explicit statement that the commit is the only writer of the adapter in
+     * that window.
+     */
+    private boolean mPlaceholderCommitInFlight = false;
+
+    /**
      * The swipe settled onto the placeholder page: replace it with a real new session and keep the
      * pager parked on that slot (no jump). Re-arms the placeholder afterwards if still eligible so
      * the gesture is repeatable.
@@ -657,7 +821,12 @@ public final class SessionPagerManager {
         // Consume the pick now: endPickerGesture() at the end of the settle must be free to release
         // the overlay, and the posted forceCommitOntoPlaceholder() must see the job as done.
         clearForcedPick();
+        // Mute the session-list sync for the create call only: it notifies synchronously, and the
+        // commit owns the adapter update (see mPlaceholderCommitInFlight). Nothing after this line
+        // can re-enter, so no try/finally is needed to keep the flag balanced.
+        mPlaceholderCommitInFlight = true;
         TermuxSession newSession = client.createSessionForPlaceholder(false, null, directory);
+        mPlaceholderCommitInFlight = false;
         if (newSession == null) { cancelPlaceholder(); return; }
 
         // The rows the gesture did not pick start leaving here, on the settle's first frame: 50 ms,
@@ -966,31 +1135,69 @@ public final class SessionPagerManager {
     }
 
     /**
-     * Called when the user settles on a pager page (swipe or tab/keyboard switch). Re-points the
-     * activity's active {@link TerminalView} to the selected page's TerminalView and runs the
-     * per-session bookkeeping (text input restore, tab highlight, toasts) that the rest of the app
-     * expects.
+     * Run the "we are now on page {@code position}" bookkeeping: fix the active index, re-point the
+     * activity's active {@link TerminalView}, move the tab highlight and run the per-session setup.
+     *
+     * <p><b>Total and idempotent.</b> It must produce a consistent state for any input — including
+     * an index that is out of range because a session was closed under us — and it must be safe to
+     * run twice for the same page. Both properties are load-bearing:
+     * <ul>
+     *   <li>after a tab close {@code ViewPager2.setCurrentItem()} is a <b>silent no-op</b> when the
+     *       target equals the current item (verified in the 1.1.0 bytecode:
+     *       {@code if (item == mCurrentItem && isIdle()) return;}), so no {@code onPageSelected}
+     *       arrives and this manual call is the <em>only</em> thing that moves the active state.
+     *       The old {@code if (selected == null) return;} turned exactly that call into a no-op
+     *       and left the activity pointing at the killed session. (The close path now also parks
+     *       the pager on the heir before removing the page — see
+     *       {@link #parkOnSessionBeforeRemoval} — but that is about which page is <em>laid out</em>,
+     *       not about the active state.)</li>
+     *   <li>{@code ViewPager2} may resolve the settled page one layout pass later
+     *       ({@code mCurrentItemDirty} + {@code updateCurrentItem()} in {@code onLayout}) and then
+     *       deliver {@code onPageSelected} late — so a repeat run has to be harmless.</li>
+     * </ul>
+     *
+     * <p>There is deliberately <b>no recovery path with a delay</b>. If the page's view is not bound
+     * yet, the active view is set to null (input routing falls back to
+     * {@link TermuxActivity#getActiveTerminalView()}) and {@link #onPageBound} re-points it the
+     * moment the page is bound. The old code instead waited on a child-attach listener with a
+     * {@code post} fallback and a 300 ms safety net — and both of those waited for something that
+     * provably could not happen for a view that was already attached.
      */
     private void onTerminalPageSelected(int position) {
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return;
 
-        TerminalSession selected = null;
-        TermuxSession termuxSession = service.getTermuxSession(position);
-        if (termuxSession != null) {
-            selected = termuxSession.getTerminalSession();
+        final int size = service.getTermuxSessionsSize();
+        if (size == 0) {
+            // No session left to be "on": clear every derived view of the active state instead of
+            // leaving them pointing at whatever was last selected.
+            mActiveIndex = -1;
+            mActivity.setTerminalView(null);
+            withTabsController(TermuxSessionTabsController::clearSelection);
+            mActivity.setTerminalPageSwitchInProgress(false);
+            return;
         }
+        // Clamp instead of bailing out. An out-of-range index means the list shrank under us — the
+        // one case where landing on a live page matters most.
+        if (position < 0) position = 0;
+        if (position >= size) position = size - 1;
+
+        TermuxSession termuxSession = service.getTermuxSession(position);
+        if (termuxSession == null) return;
+        final TerminalSession selected = termuxSession.getTerminalSession();
         if (selected == null) return;
 
-        // Persist the scroll position of the page we are LEAVING while its TerminalView
-        // is still live. Guarded so the initial/self-selection (view == incoming page)
-        // does not clobber the freshly bound page's state with its pre-layout mTopRow.
-        TerminalView leavingView = mActivity.getTerminalView();
-        TerminalView incomingView = getPagerPageView(position);
-        if (leavingView != null && leavingView != incomingView) {
-            TerminalSession leavingSession = leavingView.getCurrentSession();
-            if (leavingSession != null) {
-                mActivity.getTextInputState().setScrollState(leavingSession,
+        // The session we are LEAVING, captured before the active index moves. It may be a session
+        // that was just killed — persisting its state is then a harmless no-op, which is vastly
+        // better than skipping the whole landing because of it.
+        final TerminalSession leaving = getActiveSession();
+
+        // Persist the scroll position of the page we are LEAVING while its TerminalView is still
+        // live. Keyed by session, so a repeat run for the same page is a no-op (leaving == selected).
+        if (leaving != null && leaving != selected) {
+            TerminalView leavingView = mActivity.getTerminalView();
+            if (leavingView != null && leavingView.getCurrentSession() == leaving) {
+                mActivity.getTextInputState().setScrollState(leaving,
                         leavingView.getTopRow(), leavingView.getScrollTranscriptRows());
             }
         }
@@ -1009,7 +1216,13 @@ public final class SessionPagerManager {
         // session's saved text. The programmatic setCurrentSession() path already saves here, but a
         // plain swipe goes straight through onTerminalPageSelected() and would otherwise drop the
         // leaving session's in-progress input (#InputPanel8).
+        // NOTE: still called while the active index points at the LEAVING session, so the shared
+        // field's content is persisted to that session (guarded internally by mTiBoundSession).
         mActivity.saveTextInputForCurrentSession();
+
+        // The active page moves here — before anything reads it back. Everything below reads state,
+        // so a late, duplicate onPageSelected is harmless.
+        mActiveIndex = position;
 
         // If the text input panel currently holds focus, carry that focus intent over to the
         // incoming session so applyTextInputVisibilityForSession() restores focus onto the panel
@@ -1023,72 +1236,14 @@ public final class SessionPagerManager {
 
         // Point the shared "active terminal view" at this page's view so that getTerminalView()
         // (used by IME, extra keys, context menu, selection, etc.) routes to the visible session.
-        TerminalView pageView = getPagerPageView(position);
-        if (pageView == null) {
-            // The pager has not bound the ViewHolder for this position yet. This is expected when a
-            // keyboard shortcut jumps two or more pages in a single smooth scroll: with
-            // offscreenPageLimit == 1 (see setup) only the neighbouring pages are attached, so the
-            // destination (e.g. page 2 when starting from page 0) is not created until the pager
-            // scrolls far enough to bind it. We must NOT leave the activity's active terminal view /
-            // the extra-keys target pointing at the previous session, otherwise input, IME and extra
-            // keys would be routed to the wrong terminal for the whole animation — and, on a quick
-            // back-and-forth switch, the old `getCurrentItem() == pos` guard could cancel the
-            // pending update and strand the old view forever. Wait for the destination page to
-            // actually attach, then run the real bookkeeping, keying off the adapter position
-            // (not just the pager's target index) so a superseded switch does not re-assert it.
-            final int pos = position;
-            if (mTerminalPager != null) {
-                final RecyclerView rv = getPagerRecyclerView();
-                if (rv != null) {
-                    // Single-fire guard: either the attach listener OR the fallback post may run,
-                    // never both, so the per-session bookkeeping below runs exactly once.
-                    final boolean[] done = { false };
-                    final RecyclerView.OnChildAttachStateChangeListener listener =
-                        new RecyclerView.OnChildAttachStateChangeListener() {
-                            @Override
-                            public void onChildViewAttachedToWindow(@NonNull android.view.View view) {
-                                if (!done[0] && rv.getChildAdapterPosition(view) == pos
-                                        && mTerminalPager.getCurrentItem() == pos) {
-                                    done[0] = true;
-                                    rv.removeOnChildAttachStateChangeListener(this);
-                                    onTerminalPageSelected(pos);
-                                }
-                            }
-                            @Override
-                            public void onChildViewDetachedFromWindow(@NonNull android.view.View view) {}
-                        };
-                    rv.addOnChildAttachStateChangeListener(listener);
-                    // Fallback: if the page is already attached by the time we register (the
-                    // listener will not re-fire for an already-attached view), re-check next frame.
-                    mTerminalPager.post(() -> {
-                        if (!done[0] && mTerminalPager.getCurrentItem() == pos
-                                && getPagerPageView(pos) != null) {
-                            done[0] = true;
-                            rv.removeOnChildAttachStateChangeListener(listener);
-                            onTerminalPageSelected(pos);
-                        }
-                    });
-                    // Safety net: if neither the attach listener nor the single-frame post recovers
-                    // (e.g. the page was already attached before the listener was registered and the
-                    // post ran one frame too early), force the switch flag down so we never strand
-                    // IME suppression / input routing on the old session.
-                    mTerminalPager.postDelayed(() -> {
-                        if (!done[0]) {
-                            rv.removeOnChildAttachStateChangeListener(listener);
-                            mActivity.setTerminalPageSwitchInProgress(false);
-                        }
-                    }, 300);
-                }
-            }
-            return;
-        }
-
-        // Keep the activity's active-view pointer in sync with the page the user is actually
-        // looking at, otherwise input / IME / context menu would hit the previously selected
-        // session after a swipe. TermuxTerminalExtraKeys resolves the active view lazily via
-        // TermuxActivity.getActiveTerminalView(), so re-pointing mTerminalView is all that is
-        // needed for extra keys to follow along.
-        mActivity.setTerminalView(pageView);
+        //
+        // null is a legitimate, deliberate outcome: the page may not be bound yet (a jump of two or
+        // more pages with offscreenPageLimit == 1). Leaving the activity pointing at the PREVIOUS
+        // session's view is what routed input, IME and extra keys into a dead terminal, so we clear
+        // it instead — callers that need a view go through
+        // TermuxActivity.getActiveTerminalView(), and onPageBound() re-points it as soon as the
+        // page is bound. Recovery is an event, not a timer.
+        mActivity.setTerminalView(getPagerPageView(position));
 
         // NOTE: no defensive clear of the shared text-input EditText here anymore. The
         // field is bound per-session by restoreTextInputForSession() (converged to the
@@ -1100,7 +1255,11 @@ public final class SessionPagerManager {
         // (NOT updateTabs()) because updateTabs() does removeAllViews() + recreate every tab,
         // which would thrash on every swipe; setCurrentSession() only flips the selection
         // state / close-button visibility on the EXISTING tab views.
-        withTabsController(tabs -> tabs.setCurrentSession(position));
+        //
+        // The final copy exists only because this method clamps {@code position} (an out-of-range
+        // index means the list shrank under us); the call itself is exactly the one above.
+        final int landedIndex = position;
+        withTabsController(tabs -> tabs.setCurrentSession(landedIndex));
 
         // Mirror the existing setCurrentSession() side effects for the newly-visible session so
         // per-session text input, tab highlight and background colour stay consistent. We avoid
@@ -1190,17 +1349,27 @@ public final class SessionPagerManager {
         return mActivity.computeSettledFloatingButtonMarginEnd(view);
     }
 
-    /** Returns the {@link TerminalView} for the pager page at {@code position}, or null if not bound. */
+    /**
+     * Returns the {@link TerminalView} for the pager page at {@code position}, or null if not bound.
+     *
+     * <p>Resolved through the session at that position ({@link TerminalPagerAdapter#getViewForSession}),
+     * not through a position-keyed cache. That matters after a structural change: when a middle tab
+     * is closed the following pages shift down <em>without</em> being rebound, so the view showing
+     * the session that is now at {@code position} is found by asking for that session — no manual
+     * key shifting, and no possibility of resolving to a page that is no longer on screen.
+     */
     @Nullable
     public TerminalView getPagerPageView(int position) {
         if (mTerminalPager == null || mTerminalPagerAdapter == null) return null;
-        // Prefer the adapter's own position->view map: it is populated in onBindViewHolder and
-        // survives the window where RecyclerView.findViewHolderForAdapterPosition() still
-        // returns null (ViewHolder not yet laid out during a swipe). This is what keeps
-        // the activity's terminal view / extra-keys / input routing locked onto the visible page
-        // instead of lagging a frame behind and hitting the wrong session.
-        TerminalView attached = mTerminalPagerAdapter.getAttachedView(position);
-        if (attached != null) return attached;
+        TermuxService service = mActivity.getTermuxService();
+        if (service != null) {
+            TermuxSession termuxSession = service.getTermuxSession(position);
+            if (termuxSession != null) {
+                TerminalView bySession = mTerminalPagerAdapter.getViewForSession(
+                        termuxSession.getTerminalSession());
+                if (bySession != null) return bySession;
+            }
+        }
         // Fallback for the rare case the map entry was dropped but the holder exists.
         RecyclerView rv = getPagerRecyclerView();
         if (rv == null) return null;
@@ -1212,116 +1381,209 @@ public final class SessionPagerManager {
     }
 
     /**
-     * Sync the pager adapter and tab strip with the live session list.
+     * Called by the adapter the moment a page's {@link TerminalView} is bound to a session
+     * ({@link TerminalPagerAdapter.OnPageBoundListener}).
      *
-     * @param preferredIndex When a tab has just been removed, the position of the removed tab in
-     *                       the OLD list; selects the session that shifted into this slot (the RIGHT
-     *                       neighbor).  Pass -1 for non-removal updates, which falls back to
-     *                       restoring the current session's position.  After the pager sync, the
-     *                       activity refreshes the tab strip and saves the session snapshot.
+     * <p>If that session is the active one, re-point the activity's active view now. This is what
+     * covers the case the old code could not: a page beyond {@code offscreenPageLimit} that gets
+     * bound a frame (or several) after the switch was requested. It is a plain callback from the
+     * bind — no timers, no posted retries, nothing that can be missed.
      */
-    public void termuxSessionListNotifyUpdated(int preferredIndex) {
+    private void onPageBound(@NonNull TerminalSession session, @NonNull TerminalView view) {
+        TerminalSession active = getActiveSession();
+        if (active == session) {
+            mActivity.setTerminalView(view);
+        }
+    }
+
+    /** No specific target session: keep the active page (or land on the newly added one). */
+    public void termuxSessionListNotifyUpdated() {
+        termuxSessionListNotifyUpdated((TerminalSession) null);
+    }
+
+    /**
+     * Sync the pager adapter with the live session list and land on the right page.
+     *
+     * @param heir The session that must become active after a removal — chosen by the caller
+     *             <b>before</b> the removal and resolved to an index here, <b>after</b> it. Passing
+     *             a stale "index in the old list" instead is what made post-close landing wrong: it
+     *             is meaningless once the list has shifted, and every clamp applied to it was a
+     *             guess. null for non-removal updates (add, restore, title changes).
+     */
+    public void termuxSessionListNotifyUpdated(@Nullable TerminalSession heir) {
         // Keep the horizontal pager in sync with the live session list. Re-point the adapter at the
         // current list and refresh. We preserve the selected page by re-selecting the index of the
         // pending/active session afterwards, so adding/removing a tab does not snap the user to
-        // page 0. onPageSelected() then keeps the activity's terminal view (and extra keys) pointed
-        // at the active session.
+        // page 0.
         //
-        // IMPORTANT: notifyDataSetChanged() + setCurrentItem(..., false) must ONLY run when the
-        // number of sessions actually changed (add/remove). On a plain swipe the size is unchanged,
-        // and rebuilding the adapter there destroys the page ViewHolder mid-animation and the
-        // setCurrentItem(false) snaps without the smooth settle — that is what read as an
-        // "abrupt" page switch. So we skip the adapter rebuild on a same-size update.
-        //
-        // NOTE: pager sync is done BEFORE updateTabs() so that onTerminalPageSelected — which fires
-        // during the sync — re-points the activity's terminal view to the correct page. If
-        // updateTabs() ran first, getCurrentSession() would still return the closed session and no
-        // tab would be highlighted.
+        // IMPORTANT: the adapter rebuild + setCurrentItem(..., false) must ONLY run when the session
+        // list actually changed (add/remove). On a plain swipe the list is unchanged, and rebuilding
+        // the adapter there destroys the page ViewHolder mid-animation and the setCurrentItem(false)
+        // snaps without the smooth settle — that is what read as an "abrupt" page switch.
         TermuxService service = mActivity.getTermuxService();
-        if (mTerminalPager != null && mTerminalPagerAdapter != null && service != null) {
-            int newSize = service.getTermuxSessionsSize();
-            if (mTerminalPagerAdapter.getItemCount() != newSize) {
-                int oldSize = mTerminalPagerAdapter.getItemCount();
-                int restoreIndex;
-                if (mPendingInitialSession != null) {
-                    restoreIndex = service.getIndexOfSession(mPendingInitialSession);
-                    mPendingInitialSession = null;
-                } else if (newSize > oldSize) {
-                    // A session was just added at the end of the list. Jump to its index so the
-                    // new tab becomes active immediately. Previously we restored the index of the
-                    // *current* session, leaving the pager parked on the old page with the terminal
-                    // view still pointing at the old session. Because the freshly-added page sits
-                    // beyond offscreenPageLimit(1) it is not yet bound, so a later click/swipe on
-                    // the new tab hit the pageView==null early-return in onTerminalPageSelected() and
-                    // — if its attach never lined up with the recovery guard — never re-pointed the
-                    // terminal view, making the new tab appear un-switchable.
-                    restoreIndex = newSize - 1;
-                } else if (preferredIndex >= 0) {
-                    // A tab was just removed — select the session at the removed tab's old position.
-                    // Everything after it shifted left by 1, so this slot now holds the RIGHT
-                    // neighbour of the closed tab. For the last tab (no right neighbour), the
-                    // caller (removeFinishedSession) already clamped index to newSize - 1, so this
-                    // selects the new last tab (left neighbour, which is the only option).
-                    restoreIndex = preferredIndex;
-                } else {
-                    TerminalSession current = mActivity.getCurrentSession();
-                    restoreIndex = (current != null) ? service.getIndexOfSession(current) : mTerminalPager.getCurrentItem();
-                }
-                if (restoreIndex < 0) restoreIndex = mTerminalPager.getCurrentItem();
-                // Clamp to the new upper bound (e.g. closing the last tab should select the
-                // new last tab, not leave the pager on a stale out-of-range position).
-                if (restoreIndex >= newSize) restoreIndex = newSize - 1;
+        if (mTerminalPager == null || mTerminalPagerAdapter == null || service == null) return;
+        // A placeholder commit is mid-flight and owns the adapter update for the session it just
+        // created — see mPlaceholderCommitInFlight. Running the structural sync here would drop the
+        // placeholder page out from under the settle and jump the pager without the animation.
+        if (mPlaceholderCommitInFlight) return;
 
-                // Sync the adapter with the live session list using incremental
-                // notifications (notifyItemRangeInserted / notifyItemRangeRemoved)
-                // instead of notifyDataSetChanged.  Incremental notifications properly
-                // update RecyclerView's internal state (including GapWorker prefetch
-                // tasks), so there is no race with ViewFlinger or the GapWorker —
-                // no more "Inconsistency detected" / "Invalid item position" crashes.
-                // stopScroll() + setUserInputEnabled(false) still fire as a safety net
-                // to suppress touch and smooth-scroll animations during the update.
-                final RecyclerView pagerRv = getPagerRecyclerView();
-                if (pagerRv != null) pagerRv.stopScroll();
-                mTerminalPager.setUserInputEnabled(false);
-                // stopScroll() does not release the edge effects, so an over-drag held at this
-                // moment would survive the rebuild with the pager still displaced. The session
-                // list is about to change shape anyway — drop the displacement.
-                if (mOverscroll != null) mOverscroll.reset();
+        int newSize = service.getTermuxSessionsSize();
+        // Compare REAL session counts — getItemCount() also counts the trailing placeholder page,
+        // so comparing it against the live session count is wrong in both directions (it can skip a
+        // sync that is needed and run one that is not).
+        int oldSize = mTerminalPagerAdapter.getSessionCount();
+        if (oldSize == newSize && mTerminalPagerAdapter.sameSessions(service.getTermuxSessions())) {
+            return;
+        }
 
-                mTerminalPagerAdapter.syncWithServiceList(service.getTermuxSessions());
+        int restoreIndex;
+        if (mPendingInitialSession != null) {
+            restoreIndex = service.getIndexOfSession(mPendingInitialSession);
+            mPendingInitialSession = null;
+        } else if (newSize > oldSize) {
+            // A session was just added at the end of the list. Jump to its index so the new tab
+            // becomes active immediately. Previously we restored the index of the *current*
+            // session, leaving the pager parked on the old page with the terminal view still
+            // pointing at the old session, so the new tab read as un-switchable.
+            restoreIndex = newSize - 1;
+        } else if (heir != null) {
+            // A tab was just removed. Resolve the heir's index in the NEW list — correct by
+            // construction, and immune to the clamping mistakes the old stale-index logic needed.
+            restoreIndex = service.getIndexOfSession(heir);
+        } else {
+            // Non-removal update: keep the active page.
+            restoreIndex = getActiveIndex();
+        }
+        if (restoreIndex < 0) restoreIndex = mTerminalPager.getCurrentItem();
+        if (restoreIndex < 0) restoreIndex = 0;
+        // Clamp to the new upper bound (e.g. closing the last tab should select the new last tab,
+        // not leave the pager on a stale out-of-range position).
+        if (restoreIndex >= newSize) restoreIndex = newSize - 1;
 
-                if (restoreIndex >= 0 && restoreIndex < service.getTermuxSessionsSize()) {
-                    mTerminalPager.setCurrentItem(restoreIndex, false);
-                }
+        // Sync the adapter with the live session list using incremental
+        // notifications (notifyItemRangeInserted / notifyItemRangeRemoved)
+        // instead of notifyDataSetChanged.  Incremental notifications properly
+        // update RecyclerView's internal state (including GapWorker prefetch
+        // tasks), so there is no race with ViewFlinger or the GapWorker —
+        // no more "Inconsistency detected" / "Invalid item position" crashes.
+        // stopScroll() + setUserInputEnabled(false) still fire as a safety net
+        // to suppress touch and smooth-scroll animations during the update.
+        final RecyclerView pagerRv = getPagerRecyclerView();
+        if (pagerRv != null) pagerRv.stopScroll();
+        mTerminalPager.setUserInputEnabled(false);
+        // stopScroll() does not release the edge effects, so an over-drag held at this
+        // moment would survive the rebuild with the pager still displaced. The session
+        // list is about to change shape anyway — drop the displacement.
+        if (mOverscroll != null) mOverscroll.reset();
 
-                // Re-enable swipe only when there are ≥2 sessions — with a single tab a
-                // horizontal drag should not show the stretch/bounce edge-effect animation.
-                updatePagerUserInputEnabled();
+        mTerminalPagerAdapter.syncWithServiceList(service.getTermuxSessions());
 
-                // Re-point the active page after adapter rebuild (same-index guard).
-                int activeIndex = mTerminalPager.getCurrentItem();
-                onTerminalPageSelected(activeIndex);
+        if (restoreIndex >= 0 && restoreIndex < service.getTermuxSessionsSize()) {
+            // On a close this is normally a SILENT NO-OP — the caller already parked the pager on
+            // the heir before the removal (parkOnSessionBeforeRemoval) and, with the left-neighbour
+            // policy, the heir's index does not shift, so the parked item IS the target. It only
+            // does real work when the heir was to the RIGHT of the removed page (closing the first
+            // tab), where the target index is one lower than the parked one. Either way the
+            // explicit landing call below is what moves the active state.
+            mTerminalPager.setCurrentItem(restoreIndex, false);
+        }
 
-                // syncWithServiceList() above drops the trailing placeholder page (it must, so the
-                // diff operates on a clean real-session list). On a foreground-from-background this
-                // path runs from onStart() WITHOUT a follow-up managePlaceholderForPosition() (the
-                // re-selected page is the same index, so onPageSelected never fires — that callback
-                // is what normally re-arms the placeholder). Without re-arming here, the rightmost
-                // tab's right-swipe stays dead (the last real tab just stretches) until the user
-                // switches tabs. Re-arm based on where we settled.
-                managePlaceholderForPosition(activeIndex);
+        // Re-enable swipe only when there are ≥2 sessions — with a single tab a
+        // horizontal drag should not show the stretch/bounce edge-effect animation.
+        updatePagerUserInputEnabled();
 
-                // managePlaceholderForPosition() may have (re-)inserted the placeholder page, so the
-                // effective page count is now one higher than the real-session count used by the
-                // updatePagerUserInputEnabled() call above (which ran while the placeholder was still
-                // dropped). With a single real session this left setUserInputEnabled(false) even
-                // though the placeholder now provides a real "next page" to swipe into, killing the
-                // right-swipe entirely after resume. Re-evaluate input now that the placeholder is
-                // back in the count.
-                updatePagerUserInputEnabled();
+        // Re-point the active page: fix the active index, the active view, the tab highlight and
+        // the per-session bookkeeping. Needed precisely because setCurrentItem() above may have
+        // done nothing at all.
+        int activeIndex = mTerminalPager.getCurrentItem();
+        onTerminalPageSelected(activeIndex);
+
+        // syncWithServiceList() above drops the trailing placeholder page (it must, so the
+        // diff operates on a clean real-session list). On a foreground-from-background this
+        // path runs from onStart() WITHOUT a follow-up managePlaceholderForPosition() (the
+        // re-selected page is the same index, so onPageSelected never fires — that callback
+        // is what normally re-arms the placeholder). Without re-arming here, the rightmost
+        // tab's right-swipe stays dead (the last real tab just stretches) until the user
+        // switches tabs. Re-arm based on where we settled.
+        managePlaceholderForPosition(activeIndex);
+
+        // managePlaceholderForPosition() may have (re-)inserted the placeholder page, so the
+        // effective page count is now one higher than the real-session count used by the
+        // updatePagerUserInputEnabled() call above (which ran while the placeholder was still
+        // dropped). With a single real session this left setUserInputEnabled(false) even
+        // though the placeholder now provides a real "next page" to swipe into, killing the
+        // right-swipe entirely after resume. Re-evaluate input now that the placeholder is
+        // back in the count.
+        updatePagerUserInputEnabled();
+
+        // Arming/dropping the placeholder changes the page count, and dropping it while parked on it
+        // moves the parked index. Re-land if that happened — onTerminalPageSelected is idempotent.
+        final int settledIndex = mTerminalPager.getCurrentItem();
+        if (settledIndex != activeIndex) onTerminalPageSelected(settledIndex);
+    }
+
+    /**
+     * Debug oracle: one machine-parseable snapshot of every piece of "which page is active" state.
+     * Logged by the {@code pagedump} debug command (tag {@code TIPanelCmd}).
+     *
+     * <p>The invariant to check after any add/close is that {@code active}, the session of
+     * {@code tv}, the highlighted tab and the life session list all agree. None of this is visible
+     * in {@code uistate} or {@code dumpsys input_method} — see docs/tab-close-architectural-fix.md.
+     */
+    public String dumpPageState() {
+        StringBuilder sb = new StringBuilder("PAGEDUMP");
+        TermuxService service = mActivity.getTermuxService();
+        int sessions = (service == null) ? 0 : service.getTermuxSessionsSize();
+        sb.append(" sessions=").append(sessions);
+        sb.append(" pager=").append(mTerminalPager != null ? mTerminalPager.getCurrentItem() : -1);
+        sb.append(" active=").append(getActiveIndex());
+        sb.append(" adapterSessions=").append(mTerminalPagerAdapter != null
+                ? mTerminalPagerAdapter.getSessionCount() : -1);
+        sb.append(" adapterItems=").append(mTerminalPagerAdapter != null
+                ? mTerminalPagerAdapter.getItemCount() : -1);
+        sb.append(" placeholder=").append(mTerminalPagerAdapter != null
+                && mTerminalPagerAdapter.isPlaceholderActive()
+                ? mTerminalPagerAdapter.getPlaceholderIndex() : -1);
+        TerminalSession activeSession = getActiveSession();
+        sb.append(" activeSession=").append(id(activeSession));
+        TerminalView tv = mActivity.getTerminalView();
+        sb.append(" tv=").append(tv == null ? "null" : id(tv.getCurrentSession()));
+        sb.append(" tvAttached=").append(tv != null && tv.isAttachedToWindow() ? 1 : 0);
+        TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
+        sb.append(" tabSel=").append(tabs != null ? tabs.getCurrentSessionIndex() : -2);
+        sb.append(" tabSelSession=").append(tabs != null ? id(tabs.getSelectedSession()) : "null");
+        // What the RecyclerView is ACTUALLY showing: scroll offset and, for every attached page
+        // child, its adapter position and the session its TerminalView displays. This is the only
+        // way to see "the closed session's page is still the one on screen" — every field above
+        // reports what the app BELIEVES is active.
+        RecyclerView rv = getPagerRecyclerView();
+        sb.append(" scrollX=").append(mTerminalPager != null ? mTerminalPager.getScrollX() : -1);
+        if (rv != null) {
+            for (int i = 0; i < rv.getChildCount(); i++) {
+                android.view.View child = rv.getChildAt(i);
+                RecyclerView.ViewHolder vh = rv.getChildViewHolder(child);
+                int pos = (vh == null) ? RecyclerView.NO_POSITION : vh.getAdapterPosition();
+                TerminalView ctv = (vh instanceof TerminalPagerAdapter.TerminalPageViewHolder)
+                        ? ((TerminalPagerAdapter.TerminalPageViewHolder) vh).mTerminalView : null;
+                sb.append(" |child").append(i).append(" pos=").append(pos)
+                  .append(" x=").append(child.getLeft())
+                  .append(" s=").append(ctv == null ? "null" : id(ctv.getCurrentSession()));
             }
         }
+        for (int i = 0; i < sessions; i++) {
+            TermuxSession ts = service.getTermuxSession(i);
+            TerminalSession s = (ts == null) ? null : ts.getTerminalSession();
+            sb.append(" |s").append(i).append("=").append(id(s));
+            sb.append(" view=").append(mTerminalPagerAdapter != null
+                    && mTerminalPagerAdapter.getViewForSession(s) != null ? 1 : 0);
+        }
+        return sb.toString();
     }
+
+    private static String id(@Nullable TerminalSession session) {
+        return session == null ? "null" : Integer.toHexString(System.identityHashCode(session));
+    }
+
 
     /** Resolve the {@link TerminalView} of the currently active pager page, resolving it live. */
     @Nullable

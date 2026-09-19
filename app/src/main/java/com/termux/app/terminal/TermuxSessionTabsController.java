@@ -1096,6 +1096,29 @@ public class TermuxSessionTabsController {
         if (addBtn != null) setAddButtonBackground(addBtn);
     }
 
+    /** @return the index of the currently highlighted tab, or -1 when none is highlighted. */
+    public int getCurrentSessionIndex() {
+        return mCurrentSessionIndex;
+    }
+
+    /** @return the session mapped to the currently highlighted tab, or null. */
+    @Nullable
+    public TerminalSession getSelectedSession() {
+        if (mTabsContainer == null || mCurrentSessionIndex < 0) return null;
+        if (mCurrentSessionIndex >= getTabCount()) return null;
+        View child = getTabAt(mCurrentSessionIndex);
+        if (child == null) return null;
+        Object tag = child.getTag(R.id.session_tab_session_tag);
+        return tag instanceof TerminalSession ? (TerminalSession) tag : null;
+    }
+
+    /** Drop the highlight from every tab. Used when there is no active session to highlight. */
+    public void clearSelection() {
+        if (mTabsContainer == null) return;
+        applyTabSelectionState(-1);
+        mCurrentSessionIndex = -1;
+    }
+
     public void setCurrentSession(int index) {        if (mTabsContainer == null) return;
         if (index < 0 || index >= mTabsContainer.getChildCount() - 1) return;
 
