@@ -45,28 +45,22 @@ import java.util.List;
 public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPagerAdapter.TerminalPageViewHolder> {
 
     /**
-     * Base for placeholder-page ids. Chosen in the high range so it can never collide with a real
-     * session id (which are sign-extended 32-bit {@code hashCode()} values).
+     * This adapter deliberately does <b>not</b> enable stable ids.
      *
-     * <p>A placeholder does not carry this constant directly: every time the trailing page is armed
-     * it is handed a FRESH id ({@link #mPlaceholderId}), and the session that later takes the slot
-     * over inherits that same id (see {@link #commitPlaceholder}). Both rules matter — two pages
-     * must never report the same id, and a slot must not change id across the commit.
+     * <p>Nothing here needs item identity: ViewPager2 addresses pages by position, the item
+     * animator is disabled, and {@code notifyDataSetChanged()} is never used. With stable ids on,
+     * every rebind is additionally subject to RecyclerView's id validation
+     * ({@code validateViewHolderForOffsetPosition}): a holder whose recorded id no longer matches
+     * {@code getItemId(position)} is flagged invalid, recycled and <em>recreated</em>. That is
+     * actively harmful on the placeholder-commit path, because the holder that is on screen is
+     * bound directly (see {@link #commitPlaceholder}) and therefore keeps the id it was bound
+     * with — so keeping ids consistent means hand-maintaining, per slot, an alias from session to
+     * id. Any slot whose alias is lost gets a brand-new {@code TerminalView} on the next layout
+     * pass, and detaching the focused view is exactly what makes the IME drop and then re-open.
+     *
+     * <p>Without stable ids, "the same ViewHolder" is structural: holders are matched by position,
+     * so a page that stays at its position keeps its view and its focus.
      */
-    private static final long PLACEHOLDER_ID_BASE = 0x4000000000000000L;
-
-    /** Id of the currently armed placeholder page. Bumped on every arming so ids stay unique. */
-    private long mPlaceholderId = PLACEHOLDER_ID_BASE;
-
-    /**
-     * The session a placeholder slot was converted into, together with the id that slot still
-     * reports. Kept because the ViewHolder on screen was bound while the slot was still the
-     * placeholder, i.e. with that id — and RecyclerView compares ids when it re-validates a
-     * scrapped holder. See {@link #getItemId}.
-     */
-    private TermuxSession mCommittedSession = null;
-    private long mCommittedId = RecyclerView.NO_ID;
-
     private final TermuxActivity mActivity;
     private final TermuxTerminalViewClient mViewClient;
     private List<TermuxSession> mSessions;
@@ -173,7 +167,6 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         this.mViewClient = viewClient;
         this.mSessions = sessions;
         this.mDirectoryPicker = new DirectoryPickerController(activity);
-        setHasStableIds(true);
     }
 
     /**
@@ -217,6 +210,11 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // real-session list (getItemCount() must reflect only the real sessions during the diff).
         if (mPlaceholderActive) {
             mPlaceholderActive = false;
+            // Drop the placeholder's own entry too: mAttachedViews is keyed by position, and the
+            // slot that is going away is exactly the one the placeholder occupied. Leaving the
+            // entry behind would make getAttachedView() hand out a dead placeholder view for that
+            // position until some later bind overwrote it.
+            mAttachedViews.remove(mSessions.size());
             notifyItemRemoved(mSessions.size());
         }
 
@@ -277,23 +275,6 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             notifyItemRangeRemoved(oldSize - removedCount, removedCount);
         }
         // Same size — no structural change; tab titles etc. handled by updateTabs().
-    }
-
-    @Override
-    public long getItemId(int position) {
-        if (position >= 0 && position < mSessions.size()) {
-            // A slot that used to be the placeholder keeps reporting the placeholder's id. The
-            // ViewHolder currently on screen was bound while the slot was still the placeholder —
-            // i.e. with that id — and RecyclerView's stable-id validation
-            // (validateViewHolderForOffsetPosition) compares holder id against getItemId() on every
-            // layout. If the id changed here the on-screen page would be rejected and recycled on
-            // the very next layout pass, which cuts the commit fade after a single frame.
-            if (mSessions.get(position) == mCommittedSession) return mCommittedId;
-            TerminalSession session = mSessions.get(position).getTerminalSession();
-            return session == null ? RecyclerView.NO_ID : (long) session.mHandle.hashCode();
-        }
-        if (mPlaceholderActive && position == mSessions.size()) return mPlaceholderId;
-        return RecyclerView.NO_ID;
     }
 
     /**
@@ -633,11 +614,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         if (active == mPlaceholderActive) return;
         mPlaceholderActive = active;
         if (active) {
-            // A fresh id for every arming: the previous one now belongs to the session that took
-            // that slot over (see commitPlaceholder), and two pages must never share an id.
-            mPlaceholderId++;
             notifyItemInserted(mSessions.size());
         } else {
+            mAttachedViews.remove(mSessions.size());
             notifyItemRemoved(mSessions.size());
         }
     }
@@ -658,31 +637,22 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
      */
     public void commitPlaceholder(@NonNull List<TermuxSession> serviceSessions, int placeholderIndex) {
         mSessions = new java.util.ArrayList<>(serviceSessions);
-        // Hand the slot's id to the session that now occupies it, so the slot does not change id
-        // across the commit (see getItemId). The placeholder is re-armed one frame later and gets a
-        // fresh id, so this one remains unique.
-        mCommittedSession = (placeholderIndex >= 0 && placeholderIndex < mSessions.size())
-                ? mSessions.get(placeholderIndex) : null;
-        mCommittedId = mPlaceholderId;
         mPlaceholderActive = false;
 
         // Hand the new session to the ViewHolder that is ALREADY on screen, by binding it directly.
         //
-        // notifyItemChanged() cannot do this job, and using it was the bug: this adapter has stable
-        // ids, and RecyclerView resolves a *changed* ViewHolder out of mChangedScrap BY ITEM ID
-        // (getChangedScrapViewForPosition). The placeholder page carries PLACEHOLDER_ID, but the
-        // session that replaces it carries its session-handle hash — so the lookup misses, the
-        // on-screen page is recycled, and a DIFFERENT ViewHolder is pulled from the pool for the
-        // slot. That has two visible consequences:
+        // notifyItemChanged() cannot do this job, and using it was the bug: RecyclerView resolves a
+        // *changed* ViewHolder out of mChangedScrap, and the placeholder page is not guaranteed to
+        // be found there for the slot the session now occupies — so the on-screen page is recycled
+        // and a DIFFERENT ViewHolder is pulled from the pool for the slot. That has two visible
+        // consequences:
         //   1. the replacement page's overlay is freshly inflated (GONE, alpha 1), so the
         //      placeholder content is cut in a single frame;
         //   2. the 150 ms fade-out runs on the recycled view, off screen — which is why the fade
         //      was never seen, and why the placeholder and the new tab read as two different pages.
         //
-        // Binding directly keeps the very same ViewHolder. RecyclerView only ever re-resolves it
-        // from mAttachedScrap, which is matched BY POSITION (no id check), so the later layout pass
-        // that re-arms the trailing placeholder keeps it too — and since it is still bound and not
-        // flagged for update, it is not rebound again.
+        // Binding directly keeps the very same ViewHolder, at the same position, with the same
+        // TerminalView — so the page keeps its focus and its IME connection across the commit.
         TerminalPageViewHolder holder = (mPagerRv == null) ? null
                 : (TerminalPageViewHolder) mPagerRv.findViewHolderForAdapterPosition(placeholderIndex);
         if (holder != null) {
