@@ -94,15 +94,42 @@ public class ExtraKeysConstants {
             put("KEYBOARD", "⌨"); // U+2328 ⌨ KEYBOARD not well known but easy to understand
             put("PASTE", "⎘"); // U+2398
             put("SCROLL", "⇳"); // U+21F3
-            // Autofill labels are plain ASCII text, not glyphs: "@" is the universally understood
-            // username marker, and "***" reads as a masked password. This also sidesteps the font
-            // trap entirely — the obvious symbols for these actions, U+1F464 👤 and U+1F511 🔑, are
-            // emoji-only (present in NotoColorEmoji.ttf and in NO text font on the device, verified
-            // against the system fonts' cmap tables), and appending U+FE0E (VS15) cannot make them
-            // monochrome either. Earlier revisions used the monochrome stand-ins U+263B ☻ and
-            // U+26BF ⚿; plain text is more self-explanatory and cannot regress into colour.
-            put("AUTOFILL_USERNAME", "@"); // username marker
-            put("AUTOFILL_PASSWORD", "***"); // masked password
+            // Autofill labels speak the panel's own language: every other action key here is a
+            // single symbol from the ISO 9995 / Unicode keyboard set (↲ ↹ ⌫ ⌦ ☰ ⌨ ⎘ ⇳ ⎈ ⎇ ⎋). A
+            // plain "@" or "***" instead reads as a character key, which these buttons are not -
+            // pressing one summons the autofill popup, it does not type anything. Both labels are
+            // therefore one codepoint each, which also keeps them on the base-font-size path in
+            // ExtraKeysView (isSingleChar); a multi-character label takes the shrink/ellipsize
+            // path and caps out at ~3-4 narrow characters.
+            //
+            // The obvious glyphs, U+1F464 👤 and U+1F511 🔑, are emoji-only: present in
+            // NotoColorEmoji.ttf and in NO text font on the device (verified against the system
+            // fonts' cmap tables), and U+FE0E (VS15) cannot rescue them because no text
+            // presentation exists for the platform to select. So:
+            //
+            //   U+26BF ⚿ SQUARED KEY - the only monochrome key glyph on the device, covered by
+            //            NotoSansSymbols-Regular-Subsetted.ttf and absent from NotoColorEmoji, so
+            //            it cannot regress into colour.
+            //   U+263A ☺ WHITE SMILING FACE, followed by U+FE0E (VS15) - the unfilled counterpart
+            //            of U+263B ☻, standing in for "who you are" because no user/person
+            //            silhouette exists in any text font.
+            //
+            // Why the variation selector is not optional here. Font fallback on Android 13 walks
+            // the families in /system/etc/fonts.xml IN ORDER and takes the first that covers the
+            // codepoint, and that file lists the emoji families BEFORE the second symbols subset:
+            //
+            //     <family>          NotoSansSymbols-Regular-Subsetted.ttf    (before emoji)
+            //     <family und-Zsye> NotoColorEmoji.ttf                      (emoji)
+            //     <family und-Zsym> NotoSansSymbols-Regular-Subsetted2.ttf  (AFTER emoji)
+            //
+            // U+263A is covered only by that second subset plus NotoColorEmoji, so without a
+            // selector it resolves to the emoji font and paints a YELLOW smiley (confirmed on
+            // device). U+FE0E asks for the text presentation, which routes it back to the symbols
+            // subset. U+263B ☻ needs no selector because it lives in the FIRST subset, ahead of
+            // the emoji families. If a future ROM stops honouring VS15, drop the selector and go
+            // back to the filled U+263B ☻, which is monochrome without any help.
+            put("AUTOFILL_USERNAME", "☺\uFE0E"); // U+263A ☺ + U+FE0E, unfilled, forced text
+            put("AUTOFILL_PASSWORD", "⚿"); // U+26BF ⚿ SQUARED KEY
         }};
 
         public static final ExtraKeyDisplayMap LESS_KNOWN_CHARACTERS_DISPLAY = new ExtraKeyDisplayMap() {{

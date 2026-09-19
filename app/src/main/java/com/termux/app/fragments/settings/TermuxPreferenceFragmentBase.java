@@ -45,7 +45,7 @@ public abstract class TermuxPreferenceFragmentBase extends PreferenceFragmentCom
             logLevelListPreference = new ListPreference(context);
 
         CharSequence[] logLevels = Logger.getLogLevelsArray();
-        CharSequence[] logLevelLabels = Logger.getLogLevelLabelsArray(context, logLevels, true);
+        CharSequence[] logLevelLabels = Logger.getLogLevelLabelsArray(context, logLevels);
 
         logLevelListPreference.setEntryValues(logLevels);
         logLevelListPreference.setEntries(logLevelLabels);

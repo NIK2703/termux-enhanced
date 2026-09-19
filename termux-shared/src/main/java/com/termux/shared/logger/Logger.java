@@ -437,32 +437,26 @@ public class Logger {
         };
     }
 
-    public static CharSequence[] getLogLevelLabelsArray(Context context, CharSequence[] logLevels, boolean addDefaultTag) {
+    public static CharSequence[] getLogLevelLabelsArray(Context context, CharSequence[] logLevels) {
         if (logLevels == null) return null;
 
         CharSequence[] logLevelLabels = new CharSequence[logLevels.length];
 
         for(int i=0; i<logLevels.length; i++) {
-            logLevelLabels[i] = getLogLevelLabel(context, Integer.parseInt(logLevels[i].toString()), addDefaultTag);
+            logLevelLabels[i] = getLogLevelLabel(context, Integer.parseInt(logLevels[i].toString()));
         }
 
         return logLevelLabels;
     }
 
-    public static String getLogLevelLabel(final Context context, final int logLevel, final boolean addDefaultTag) {
-        String logLabel;
+    public static String getLogLevelLabel(final Context context, final int logLevel) {
         switch (logLevel) {
-            case LOG_LEVEL_OFF: logLabel = context.getString(R.string.log_level_off); break;
-            case LOG_LEVEL_NORMAL: logLabel = context.getString(R.string.log_level_normal); break;
-            case LOG_LEVEL_DEBUG: logLabel = context.getString(R.string.log_level_debug); break;
-            case LOG_LEVEL_VERBOSE: logLabel = context.getString(R.string.log_level_verbose); break;
-            default: logLabel = context.getString(R.string.log_level_unknown); break;
+            case LOG_LEVEL_OFF: return context.getString(R.string.log_level_off);
+            case LOG_LEVEL_NORMAL: return context.getString(R.string.log_level_normal);
+            case LOG_LEVEL_DEBUG: return context.getString(R.string.log_level_debug);
+            case LOG_LEVEL_VERBOSE: return context.getString(R.string.log_level_verbose);
+            default: return context.getString(R.string.log_level_unknown);
         }
-
-        if (addDefaultTag && logLevel == DEFAULT_LOG_LEVEL)
-            return logLabel + " (default)";
-        else
-            return logLabel;
     }
 
 
@@ -488,7 +482,7 @@ public class Logger {
             CURRENT_LOG_LEVEL = DEFAULT_LOG_LEVEL;
 
         if (context != null)
-            showToast(context, context.getString(R.string.log_level_value, getLogLevelLabel(context, CURRENT_LOG_LEVEL, false)),true);
+            showToast(context, context.getString(R.string.log_level_value, getLogLevelLabel(context, CURRENT_LOG_LEVEL)),true);
 
         return CURRENT_LOG_LEVEL;
     }

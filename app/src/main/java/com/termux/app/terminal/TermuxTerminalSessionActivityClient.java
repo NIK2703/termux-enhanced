@@ -1158,7 +1158,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // so nothing downstream has to interpret a number that referred to the old list.
         //
         // Two cases, and the difference is load-bearing:
-        //   - the closing tab IS the one on screen -> land on its left neighbour (pickHeir());
+        //   - the closing tab IS the one on screen -> land on its right neighbour (pickHeir());
         //   - the closing tab is a BACKGROUND one (its X was clicked, or its shell exited on its
         //     own) -> the target is the session the user is already on. It survives the removal, so
         //     the pager must not move to another session at all. Passing the heir here instead
@@ -1172,9 +1172,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // when the page going away is the one on screen. Removing the page the pager is anchored on
         // is what leaves the dead ViewHolder on screen and the parked index stale; see
         // SessionPagerManager.parkOnSessionBeforeRemoval() for the measured evidence. With the
-        // left-neighbour policy the heir's index does not shift when the item to its right is
-        // removed, so after this call the parked index is already the right one and the sync below
-        // only has to re-point the active state.
+        // right-neighbour policy the heir sits at removedIndex+1 before the removal and at
+        // removedIndex after it, so the park lands one page PAST the final target; the sync below
+        // then steps back one page (a real move, not the no-op it is when the heir is the left
+        // neighbour). The park's job is only to get off the doomed page — where it lands exactly is
+        // the sync's business.
         SessionPagerManager pagerManager = mActivity.getSessionPagerManager();
         if (closingIsActive && pagerManager != null) {
             pagerManager.parkOnSessionBeforeRemoval(target);
@@ -1210,9 +1212,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Which session becomes active when {@code closingSession} goes away: the <b>LEFT</b>
-     * neighbour (the tab that visually slides into the freed slot), or the RIGHT one when the
-     * closed tab was the first and has no left neighbour.
+     * Which session becomes active when {@code closingSession} goes away: the <b>RIGHT</b>
+     * neighbour (the tab that slides left into the freed slot), or the LEFT one when the closed tab
+     * was the last and has no right neighbour.
      *
      * <p>Must be called <b>before</b> the session is removed from the service list, while both
      * neighbours are still where the user sees them. Returning a session (never an index) is the
@@ -1224,14 +1226,21 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * removal — so {@link #removeFinishedSession} does not use this method's result at all. This
      * method has no opinion about that case: it only answers "who takes over the freed slot".
      *
-     * <p><b>Why the left neighbour.</b> That is the behaviour the app has always shown in practice
-     * (the tab strip collapses the closed tab and the selection steps back one), and it is what the
-     * user expects: with tabs 1,2,3,4, closing 3 lands on 2, and closing 2 then has to land on 1.
-     * The previous "right neighbour" intent was never actually achieved — the pager's own layout
-     * always won and produced the left one — so making it explicit changes nothing the user sees,
-     * it only makes the result deterministic. It is also the cheapest case for the pager: the
-     * heir's index does not shift when an item to its right is removed, so no re-scroll is needed
-     * after the removal (see {@link #removeFinishedSession}).
+     * <p><b>Why the right neighbour.</b> With tabs 1,2,3,4, closing 3 lands on 4; the tab that was
+     * to the right slides into the freed slot and keeps its content position relative to the user's
+     * eye. Only closing the LAST tab falls back to the left, because there is no right neighbour.
+     * The app used to show the left neighbour instead; that was not a deliberate policy but the
+     * pager's own layout winning (the pre-session-target code clamped a stale "index in the old
+     * list", see {@link #removeFinishedSession}), so the intent never reached the screen.
+     *
+     * <p><b>Cost note.</b> The right neighbour sits at {@code removedIndex + 1} before the removal
+     * and at {@code removedIndex} after it, so the pre-removal park (see
+     * {@link SessionPagerManager#parkOnSessionBeforeRemoval}) lands one page PAST the final target
+     * and the sync's own {@code setCurrentItem(restoreIndex, false)} really steps back one page
+     * instead of being a no-op. That is the same shape as the previously measured "close the first
+     * tab" case, which lands correctly — the park still gets the pager off the doomed page, which
+     * is the only thing that matters (see {@link SessionPagerManager#parkOnSessionBeforeRemoval}).
+     * Closing the last tab (left fallback) keeps the cheaper no-op path.
      *
      * <p>This is the single place where the "which tab do I land on after closing one" policy lives.
      */
@@ -1240,13 +1249,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                                             @androidx.annotation.NonNull TerminalSession closingSession) {
         final int removedIndex = service.getIndexOfSession(closingSession);
         if (removedIndex < 0) return null;
-        if (removedIndex - 1 >= 0) {
-            TermuxSession left = service.getTermuxSession(removedIndex - 1);
-            if (left != null) return left.getTerminalSession();
-        }
         if (removedIndex + 1 < service.getTermuxSessionsSize()) {
             TermuxSession right = service.getTermuxSession(removedIndex + 1);
             if (right != null) return right.getTerminalSession();
+        }
+        if (removedIndex - 1 >= 0) {
+            TermuxSession left = service.getTermuxSession(removedIndex - 1);
+            if (left != null) return left.getTerminalSession();
         }
         return null;
     }

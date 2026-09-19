@@ -186,8 +186,10 @@ public final class SessionPagerManager {
      * under a stable anchor" and no {@code ViewHolder} is left behind. The {@code setCurrentItem()}
      * here is <em>not</em> the no-op described above, because its target is a different page than the
      * one the pager is parked on — the pager really moves. (The sync's own
-     * {@code setCurrentItem(restoreIndex, false)} afterwards <em>is</em> normally a no-op: with the
-     * left-neighbour policy the parked page is already the target.)
+     * {@code setCurrentItem(restoreIndex, false)} afterwards may be a no-op or a single-page step
+     * back, depending on which neighbour was chosen: with the right-neighbour policy the heir's
+     * index drops by one when the page to its left is removed, so the sync steps back once. Either
+     * way the landing itself is done explicitly by {@link #onTerminalPageSelected}.)
      *
      * <p><b>This DOES run a landing.</b> {@code setCurrentItem(target, false)} with a target
      * different from the current page dispatches {@code onPageSelected(target)} <em>synchronously</em>
@@ -1461,7 +1463,7 @@ public final class SessionPagerManager {
      * Sync the pager adapter with the live session list and land on the right page.
      *
      * @param target The session that must be active after this update. On a removal the caller
-     *               chooses it <b>before</b> the removal (the closed tab's left neighbour when the
+     *               chooses it <b>before</b> the removal (the closed tab's right neighbour when the
      *               closed tab was the active one, otherwise the session the user is on) and this
      *               method resolves it to a position in the <b>new</b> list. Passing a stale "index
      *               in the old list" instead is what made post-close landing wrong: it is meaningless
@@ -1537,11 +1539,13 @@ public final class SessionPagerManager {
         mTerminalPagerAdapter.syncWithServiceList(service.getTermuxSessions());
 
         if (restoreIndex >= 0 && restoreIndex < service.getTermuxSessionsSize()) {
-            // Closing the ACTIVE tab: normally a SILENT NO-OP — the caller already parked the pager
-            // on the heir before the removal (parkOnSessionBeforeRemoval) and, with the left-neighbour
-            // policy, the heir's index does not shift, so the parked item IS the target. It does real
-            // work only when the heir was to the RIGHT of the removed page (closing the first tab),
-            // where the target index is one lower than the parked one.
+            // Closing the ACTIVE tab: the caller already parked the pager on the heir before the
+            // removal (parkOnSessionBeforeRemoval), so this call only has to correct the parked
+            // index to the heir's index in the NEW list. With the right-neighbour policy the heir
+            // sat at removedIndex+1 and now sits at removedIndex, so this is a real single-page step
+            // back — the same shape as closing the first tab, which has always landed correctly.
+            // Closing the LAST tab falls back to the left neighbour, whose index does not shift:
+            // there this call is a silent no-op.
             //
             // Closing a BACKGROUND tab: nothing was parked, so this call re-anchors the pager on the
             // page that already shows the target session — the user's page may have shifted index
