@@ -15,9 +15,24 @@ DEBUG и RELEASE компилируются.
 
 Отклонение от плана: шаг F (перенос `updateTabs()` после пейджерного синкa) **не сделан**
 сознательно. После шага A `getCurrentSession()` всегда возвращает живую сессию, а финальную
-подсветку всё равно ставит пейджерный синк (`setCurrentSessionForSession`), так что корректность
-от порядка больше не зависит; а перенос ломает резервацию end-scroll (комментарий
-`TermuxActivity:3672`) и вернул бы «двойное движение» панели при создании вкладки.
+подсветку всё равно ставит пейджерный синк (позиционно, из живого списка — см. ниже про шаг H),
+так что корректность от порядка больше не зависит; а перенос ломает резервацию end-scroll
+(комментарий `TermuxActivity:3672`) и вернул бы «двойное движение» панели при создании вкладки.
+
+Отклонение от плана: шаг H (подсветка вкладок **по сессии**) **не сделан** — в коде остался
+позиционный `tabs.setCurrentSession(landedIndex)`. Причина: session-вариант обходил гард
+`if (mEndScrollActive) return;` из `setCurrentSession(int)`, из-за чего подсветка новой вкладки
+применялась во время коммита плейсхолдера и вкладка «появлялась мгновенно», без анимации раскрытия
+(итерация 3, `.workbuddy-ai/memory/2026-09-19.md`). Сейчас корректность держится на порядке вызовов
+(`updateTabs()` перестраивает панель из живого списка ДО пейджерного синка, поэтому индекс и сессия
+совпадают), а не на типе ключа. Если возвращать шаг H — только вместе с тем же гардом
+`mEndScrollActive`. Разбор: `docs/tab-close-fix-optimality-review.md`, O2.
+
+Отклонение от плана: цель синка — не всегда наследница. При закрытии **фоновой** вкладки (крестик на
+неактивной или `exit` в ней) активной должна остаться сессия, на которой стоит пользователь, поэтому
+`removeFinishedSession()` передаёт в синк «наследницу, если закрыли активную вкладку, иначе текущую
+сессию». Раньше наследница передавалась безусловно, и закрытие фоновой вкладки уводило пользователя
+на её соседку. Разбор: `docs/tab-close-fix-optimality-review.md`, O1.
 
 ## 1. Симптом
 
@@ -345,7 +360,7 @@ private void onTerminalPageSelected(int position) {
     // а перепривязка придёт из onPageBound(). Старую (мёртвую) вью НЕ оставляем.
     mActivity.setTerminalView(getViewForSessionSafe(selected));   // может быть null
 
-    withTabsController(tabs -> tabs.setCurrentSessionForSession(selected));   // по сессии
+    withTabsController(tabs -> tabs.setCurrentSession(landedIndex));   // по позиции, см. §H
     mActivity.getTermuxTerminalSessionClient().onSessionPageSelected(selected);
 
     mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
@@ -453,10 +468,21 @@ saveSessionSnapshot();
 onTerminalPageSelected(mTerminalPager.getCurrentItem());   // повторная фиксация — безопасно
 ```
 
-### H. Подсветка вкладок по сессии
+### H. Подсветка вкладок по сессии — **НЕ СДЕЛАНО** (отклонено сознательно)
+
+В коде остался **позиционный** вызов `tabs.setCurrentSession(landedIndex)`, потому что
+session-вариант ниже обходит гард `if (mEndScrollActive) return;` из `setCurrentSession(int)`:
+подсветка новой вкладки применялась прямо во время коммита плейсхолдера (end-scroll ещё
+зарезервирован) и вкладка «появлялась мгновенно», без анимации раскрытия — регрессия §3.8.
+Если возвращать — только вместе с тем же гардом. Разбор: `docs/tab-close-fix-optimality-review.md`, O2.
+
+Что сейчас обеспечивает корректность позиционной подсветки: `updateTabs()` перестраивает панель из
+живого списка сессий **до** пейджерного синка, а `landedIndex` берётся из того же живого списка —
+поэтому индекс и сессия совпадают. Ключ другой (позиция, а не сессия), но расхождения, описанного
+в §3.4, больше нет: `getCurrentSession()` уже не возвращает мёртвую сессию.
 
 ```java
-// TermuxSessionTabsController
+// TermuxSessionTabsController — вариант, который НЕ применялся (нужен гард mEndScrollActive)
 public void setCurrentSessionForSession(@Nullable TerminalSession session) {
     if (mTabsContainer == null) return;
     for (int i = 0, n = getTabCount(); i < n; i++) {

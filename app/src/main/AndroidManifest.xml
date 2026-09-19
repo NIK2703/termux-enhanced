@@ -102,10 +102,29 @@
             android:resizeableActivity="true"
             tools:targetApi="n" />
 
+        <!-- android:screenOrientation="behind" is what keeps this screen from visibly rotating on
+             open. The requested orientation is a per-activity property and it is user-configurable
+             (Display > Screen orientation), so it cannot be a literal here; "behind" means "use the
+             orientation of the activity immediately below in the stack", which is TermuxActivity —
+             i.e. the app's own orientation, already applied and already on screen. Without it this
+             activity is UNSPECIFIED, so the system recomputes the display orientation from *this*
+             newly launched activity (falling back to the device/sensor orientation) and only then
+             does SettingsActivity.onCreate request the real value — one visible rotation to the
+             "wrong" orientation and back. With "behind" the first frame is already correct.
+             The runtime call in SettingsActivity.onCreate stays as the authority for the remaining
+             cases: launched from a launcher shortcut (no activity below), or the user changing the
+             setting from the Display screen while this activity is alive.
+
+             configChanges mirrors TermuxActivity: an actual orientation change then resizes this
+             activity instead of destroying and recreating it, so the preference list keeps its
+             scroll position and the screen does not blink. uiMode/locale are deliberately NOT
+             listed, so theme and language changes still recreate as before. -->
         <activity
             android:name=".app.activities.SettingsActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|keyboard|keyboardHidden|navigation"
             android:exported="true"
             android:label="@string/title_activity_termux_settings"
+            android:screenOrientation="behind"
             android:theme="@style/Theme.TermuxApp.Settings" />
 
         <!-- Transparent host for the backup/restore progress dialog, launched by tapping the

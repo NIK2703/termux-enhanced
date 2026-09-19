@@ -9,6 +9,15 @@
 пользователя подтверждается на устройстве командой `pagedump` (см. §6). Устройство в момент разбора
 подключено не было.
 
+> **Документ промежуточной итерации.** Он описывает первый заход (единый владелец активной страницы
+> + перепривязка вью по сессии). Часть перечисленного в §4.1 в финальном коде **отсутствует**:
+> `reconcileActivePage()`, `shiftAttachedViewsAfterRemoval()`, `recoverUnresolvedPage()`,
+> `getDisplayedView()`, `setCurrentSessionForSession()`. Итоговое состояние и все отклонения от плана —
+> в `docs/tab-close-architectural-fix.md`; аудит оптимальности — в
+> `docs/tab-close-fix-optimality-review.md`. Настоящая причина симптома (раскладка `RecyclerView`
+> держит `ViewHolder` удалённой страницы на экране) найдена только во второй итерации — §3.7-бис
+> и §5-J того документа.
+
 ---
 
 ## 1. Что доказывает маркер «signal 9»
@@ -122,9 +131,9 @@ if (msg.what == MSG_PROCESS_EXITED) {
 |---|---|---|
 | F1 | `TerminalPagerAdapter` | `syncWithServiceList(list, removedIndex)` — точный индекс удалённой страницы из `TermuxService.removeTermuxSession()` вместо угадывания по диффу; ветка «несовпадений нет ⇒ хвост» осталась только как fallback. Карта `mAttachedViews` переиндексируется одним помощником `shiftAttachedViewsAfterRemoval()` |
 | F2 | `TerminalPagerAdapter` | `getDisplayedView(position)` — вьюха, которую RecyclerView **реально разложил** (авторитетный ответ «что видит пользователь»); `rebindPage(position)` — принудительный полный rebind слота (payload-перегрузка `onBindViewHolder` всегда выполняет полную привязку, поэтому уведомление не «съедается») |
-| F3 | `TermuxSessionTabsController` | `setCurrentSessionForSession(session)` — подсветка по **сессии** (индекс берётся из живого списка), а не по позиции. Позиционная подсветка физически больше не может встать на чужую вкладку |
+| F3 | `TermuxSessionTabsController` | `setCurrentSessionForSession(session)` — подсветка по **сессии** (индекс берётся из живого списка), а не по позиции. Позиционная подсветка физически больше не может встать на чужую вкладку — **НЕ ВНЕДРЕНО** (обходило гард `mEndScrollActive` и убивало анимацию новой вкладки; в коде позиционный `setCurrentSession(landedIndex)`, см. баннер выше) |
 | F4 | `SessionPagerManager` | `reconcileActivePage(preferredIndex)` — страж инварианта (см. ниже); вызывается в конце `termuxSessionListNotifyUpdated()`, т.е. после каждого add/remove |
-| F5 | `SessionPagerManager` | Пейджерный путь подсветки переведён на `setCurrentSessionForSession(selected)` |
+| F5 | `SessionPagerManager` | Пейджерный путь подсветки переведён на `setCurrentSessionForSession(selected)` — **НЕ ВНЕДРЕНО** (в коде `setCurrentSession(landedIndex)`, см. F3) |
 | F6 | `SessionPagerManager` | Страховка отложенного пути (`pageView == null`, 300 мс) вместо «погасить флаг» вызывает `recoverUnresolvedPage(pos)`: принудительный rebind слота + повторная перепривязка, как только вьюха появилась |
 | F7 | `TermuxDebugCommandReceiver` (debug) | Команда `pagedump` — оракул инварианта |
 

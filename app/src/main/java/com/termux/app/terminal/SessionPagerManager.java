@@ -183,13 +183,21 @@ public final class SessionPagerManager {
      *
      * <p>Moving off the doomed page first turns the removal into the well-behaved case: the page
      * under the viewport is one that survives, so the adapter change is a plain "content shifted
-     * under a stable anchor" and no {@code ViewHolder} is left behind. It also guarantees the
-     * following {@code setCurrentItem(restoreIndex, false)} is <em>not</em> a silent no-op, because
-     * the target is a different page than the one just parked on.
+     * under a stable anchor" and no {@code ViewHolder} is left behind. The {@code setCurrentItem()}
+     * here is <em>not</em> the no-op described above, because its target is a different page than the
+     * one the pager is parked on — the pager really moves. (The sync's own
+     * {@code setCurrentItem(restoreIndex, false)} afterwards <em>is</em> normally a no-op: with the
+     * left-neighbour policy the parked page is already the target.)
      *
-     * <p>No bookkeeping runs here on purpose: the caller removes the session immediately afterwards
-     * and the normal landing ({@link #onTerminalPageSelected}) does the re-pointing, once, against
-     * the new list.
+     * <p><b>This DOES run a landing.</b> {@code setCurrentItem(target, false)} with a target
+     * different from the current page dispatches {@code onPageSelected(target)} <em>synchronously</em>
+     * ({@code ScrollEventAdapter.notifyProgrammaticScroll}, offsets 42-48 of the 1.1.0 bytecode:
+     * {@code if (hasNewTarget) dispatchSelected(item)}), so the full
+     * {@link #onTerminalPageSelected} bookkeeping runs here — with the doomed session still in the
+     * list — and runs again after the removal. That is safe only because the landing is total and
+     * idempotent, and it is what re-points the active view off the page that is about to die. Do not
+     * "optimise" it away by suppressing the callback without measuring: leaving the activity on the
+     * doomed page's view is the bug this whole mechanism exists to fix.
      */
     public void parkOnSessionBeforeRemoval(@Nullable TerminalSession session) {
         if (session == null || mTerminalPager == null) return;
@@ -822,11 +830,17 @@ public final class SessionPagerManager {
         // the overlay, and the posted forceCommitOntoPlaceholder() must see the job as done.
         clearForcedPick();
         // Mute the session-list sync for the create call only: it notifies synchronously, and the
-        // commit owns the adapter update (see mPlaceholderCommitInFlight). Nothing after this line
-        // can re-enter, so no try/finally is needed to keep the flag balanced.
+        // commit owns the adapter update (see mPlaceholderCommitInFlight). The window is closed in a
+        // finally: nothing re-enters it, but createSessionForPlaceholder() can throw (it forks a
+        // process), and a flag stranded at true would mute EVERY later sync — the tab strip and the
+        // pager would silently stop tracking the session list, with nothing pointing at the cause.
+        final TermuxSession newSession;
         mPlaceholderCommitInFlight = true;
-        TermuxSession newSession = client.createSessionForPlaceholder(false, null, directory);
-        mPlaceholderCommitInFlight = false;
+        try {
+            newSession = client.createSessionForPlaceholder(false, null, directory);
+        } finally {
+            mPlaceholderCommitInFlight = false;
+        }
         if (newSession == null) { cancelPlaceholder(); return; }
 
         // The rows the gesture did not pick start leaving here, on the settle's first frame: 50 ms,
@@ -1404,13 +1418,15 @@ public final class SessionPagerManager {
     /**
      * Sync the pager adapter with the live session list and land on the right page.
      *
-     * @param heir The session that must become active after a removal — chosen by the caller
-     *             <b>before</b> the removal and resolved to an index here, <b>after</b> it. Passing
-     *             a stale "index in the old list" instead is what made post-close landing wrong: it
-     *             is meaningless once the list has shifted, and every clamp applied to it was a
-     *             guess. null for non-removal updates (add, restore, title changes).
+     * @param target The session that must be active after this update. On a removal the caller
+     *               chooses it <b>before</b> the removal (the closed tab's left neighbour when the
+     *               closed tab was the active one, otherwise the session the user is on) and this
+     *               method resolves it to a position in the <b>new</b> list. Passing a stale "index
+     *               in the old list" instead is what made post-close landing wrong: it is meaningless
+     *               once the list has shifted, and every clamp applied to it was a guess. null for
+     *               non-removal updates (add, restore, title changes), which keep the current page.
      */
-    public void termuxSessionListNotifyUpdated(@Nullable TerminalSession heir) {
+    public void termuxSessionListNotifyUpdated(@Nullable TerminalSession target) {
         // Keep the horizontal pager in sync with the live session list. Re-point the adapter at the
         // current list and refresh. We preserve the selected page by re-selecting the index of the
         // pending/active session afterwards, so adding/removing a tab does not snap the user to
@@ -1446,10 +1462,10 @@ public final class SessionPagerManager {
             // session, leaving the pager parked on the old page with the terminal view still
             // pointing at the old session, so the new tab read as un-switchable.
             restoreIndex = newSize - 1;
-        } else if (heir != null) {
-            // A tab was just removed. Resolve the heir's index in the NEW list — correct by
+        } else if (target != null) {
+            // A tab was just removed. Resolve the target's index in the NEW list — correct by
             // construction, and immune to the clamping mistakes the old stale-index logic needed.
-            restoreIndex = service.getIndexOfSession(heir);
+            restoreIndex = service.getIndexOfSession(target);
         } else {
             // Non-removal update: keep the active page.
             restoreIndex = getActiveIndex();
@@ -1479,12 +1495,17 @@ public final class SessionPagerManager {
         mTerminalPagerAdapter.syncWithServiceList(service.getTermuxSessions());
 
         if (restoreIndex >= 0 && restoreIndex < service.getTermuxSessionsSize()) {
-            // On a close this is normally a SILENT NO-OP — the caller already parked the pager on
-            // the heir before the removal (parkOnSessionBeforeRemoval) and, with the left-neighbour
-            // policy, the heir's index does not shift, so the parked item IS the target. It only
-            // does real work when the heir was to the RIGHT of the removed page (closing the first
-            // tab), where the target index is one lower than the parked one. Either way the
-            // explicit landing call below is what moves the active state.
+            // Closing the ACTIVE tab: normally a SILENT NO-OP — the caller already parked the pager
+            // on the heir before the removal (parkOnSessionBeforeRemoval) and, with the left-neighbour
+            // policy, the heir's index does not shift, so the parked item IS the target. It does real
+            // work only when the heir was to the RIGHT of the removed page (closing the first tab),
+            // where the target index is one lower than the parked one.
+            //
+            // Closing a BACKGROUND tab: nothing was parked, so this call re-anchors the pager on the
+            // page that already shows the target session — the user's page may have shifted index
+            // (the closed tab was to its left) without the user's session changing at all.
+            //
+            // Either way the explicit landing call below is what moves the active state.
             mTerminalPager.setCurrentItem(restoreIndex, false);
         }
 

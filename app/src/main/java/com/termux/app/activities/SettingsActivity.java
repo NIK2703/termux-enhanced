@@ -11,6 +11,7 @@ import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 
 import com.termux.R;
+import com.termux.app.TermuxActivityUtils;
 import com.termux.app.TermuxLocaleUtils;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
 import com.termux.shared.activities.ReportActivity;
@@ -35,6 +36,21 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Honour Display > "Screen orientation" on this screen. The requested orientation is a
+        // per-activity property, so TermuxActivity locking itself to portrait (or landscape, or one
+        // of the sensor variants) has no effect here: without this call the Settings screen would
+        // keep following the system rotation and contradict the setting the user just picked.
+        //
+        // This call is NOT what makes the screen open in the right orientation — the window's
+        // initial orientation is decided by the system before any of our code runs, and only the
+        // manifest can inform it: android:screenOrientation="behind" (see AndroidManifest.xml) tells
+        // the system to use the orientation of TermuxActivity below, so there is no rotation on open.
+        // This call is the authority for every other case: launched from a launcher shortcut (no
+        // activity below), a stale value, or the user changing the setting from the Display screen
+        // while this activity is alive. Applied before setContentView() so a change takes effect
+        // before the first layout instead of flipping after it is shown.
+        TermuxActivityUtils.applyScreenOrientation(this);
 
         AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);
 

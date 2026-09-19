@@ -490,7 +490,6 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // Remember this session->view mapping so the activity can resolve the active page's view
         // even when RecyclerView.findViewHolderForAdapterPosition() is still null mid-swipe. Keyed
         // by session, so a page that shifts position (a middle tab closed) needs no bookkeeping.
-        holder.boundPosition = position;
         holder.boundSession = session;
         mSessionViews.put(session, terminalView);
         // Event-driven re-point of the activity's active view: if this page is the active one, the
@@ -591,7 +590,6 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         } else if (holder.mTerminalView != null) {
             mSessionViews.values().remove(holder.mTerminalView);
         }
-        holder.boundPosition = -1;
         holder.boundSession = null;
     }
 
@@ -926,8 +924,6 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         public final View mHintContent;
         /** Canvas surface the right-swipe directory list is painted onto (placeholder page only). */
         public final DirectoryPickerView mPickerView;
-        /** The adapter position this ViewHolder was last bound to; -1 when unbound. */
-        public int boundPosition = -1;
         /** The session this ViewHolder's TerminalView is currently displaying; null when unbound.
          *  Lets onViewRecycled() drop the session->view entry without a scan. */
         public TerminalSession boundSession = null;

@@ -3656,20 +3656,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /**
      * Sync the pager adapter and tab strip with the live session list.
-     * No-arg overload — delegates to the indexed version with -1.
+     * No-arg overload — delegates to the session-target version with null ("keep the current page").
      */
     public void termuxSessionListNotifyUpdated() {
-        termuxSessionListNotifyUpdated((TerminalSession) null);
+        termuxSessionListNotifyUpdated(null);
     }
 
     /**
      * Sync the pager adapter and tab strip with the live session list.
      *
-     * @param heir The session that must become active after a removal (chosen by the caller before
-     *             the removal, resolved to an index afterwards). null for non-removal updates,
-     *             which keep the current session.
+     * @param target The session that must become active after the update — chosen by the caller
+     *               <b>before</b> a removal, and resolved to its position in the <b>new</b> list
+     *               afterwards. null for non-removal updates, which keep the current session.
      */
-    public void termuxSessionListNotifyUpdated(@Nullable TerminalSession heir) {
+    public void termuxSessionListNotifyUpdated(@Nullable TerminalSession target) {
         // The horizontal pager sync (adapter rebuild + page re-selection + per-session bookkeeping)
         // now lives in SessionPagerManager. It fixes the active index and re-points mTerminalView to
         // the correct page; we then refresh the tab strip and snapshot below.
@@ -3680,13 +3680,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // new tab just before the end-scroll scrolls to the right edge — which was the root cause of
         // the jerky "double movement" on tab creation. The tab strip no longer depends on that
         // ordering for correctness: getCurrentSession() always resolves to a LIVE session now (see
-        // there), and the pager sync finishes by highlighting the landed session by reference.
+        // there), and the pager sync re-highlights the landed tab from the live session list.
         if (mTermuxSessionTabsController != null && mServiceConnectionManager.getTermuxService() != null) {
             mTermuxSessionTabsController.updateTabs(mServiceConnectionManager.getTermuxService().getTermuxSessions());
         }
 
         if (mSessionPagerManager != null)
-            mSessionPagerManager.termuxSessionListNotifyUpdated(heir);
+            mSessionPagerManager.termuxSessionListNotifyUpdated(target);
 
         // Keep the open-tabs snapshot fresh while sessions are alive, so a later
         // exit (e.g. the notification's Exit action, which kills sessions before

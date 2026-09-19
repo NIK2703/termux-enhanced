@@ -18,6 +18,13 @@
   этом не запущен, а `touch` в тот же каталог из bash проходит, т.е. это не ACL на
   каталог. Остановка демонов + удаление залипших `transforms/<hash>` **не помогает**.
   С `--no-daemon` те же задачи дают `BUILD SUCCESSFUL` и реально исполняются.
+- **19.09, новый случай:** тот же `FileNotFoundException … Отказано в доступе` прилетел уже
+  **с** `--no-daemon` (и даже при `dangerouslyDisableSandbox`) — но не на `transforms/<hash>`,
+  а на `~/.gradle/caches/journal-1/journal-1.lock` («Could not create service of type
+  FileAccessTimeJournal»). `touch` любого файла (включая `.lock`) в этом каталоге проходит, java-
+  процессов нет ⇒ это залипший lock, а не ACL. **Лечение:** отодвинуть его (`mv journal-1.lock
+  journal-1.lock.bak`) и повторить — Gradle создаёт новый, `BUILD SUCCESSFUL` (проверено,
+  `:app:compileReleaseJavaWithJavac`, 1 мин). Стоит пробовать это ПЕРВЫМ, до `--max-workers=1`.
 - Gradle **врёт про свежесть** (`UP-TO-DATE` при реально изменённом файле) ⇒ всегда
   `--rerun -Dorg.gradle.caching=false`.
 
