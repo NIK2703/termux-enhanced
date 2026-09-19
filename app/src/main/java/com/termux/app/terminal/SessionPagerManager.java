@@ -374,6 +374,9 @@ public final class SessionPagerManager {
                             // gesture is enough while the pager itself is not moving.
                             mPagerLocationValid = false;
                             mFingerRawY = e.getRawY();
+                            // Make the directory history complete BEFORE the menu is built from it —
+                            // see recordCurrentDirectoryForPicker().
+                            recordCurrentDirectoryForPicker();
                             break;
                         case MotionEvent.ACTION_MOVE:
                             mFingerRawY = e.getRawY();
@@ -1134,6 +1137,45 @@ public final class SessionPagerManager {
         if (picker != null) {
             picker.show(rawToPageY(mFingerRawY), mTerminalPager.getHeight());
         }
+    }
+
+    /**
+     * Make the directory history complete before the picker builds its list from it.
+     *
+     * <p>The history is otherwise appended to only when a session <em>becomes</em> current (a tab
+     * switch, see {@code TermuxTerminalSessionActivityClient#onSessionPageSelected}) or when the "+"
+     * button's popup is opened. That records where each tab was when the user <em>arrived</em> in it,
+     * so a {@code cd} performed afterwards was invisible to the picker: the swipe offered the
+     * directories of that earlier switch, and the new one only turned up once a tab had been created
+     * through the picker — which is itself a session change. That held for every tab before the last
+     * one, however the user got there: the cwd of a tab the user is not standing on is never read by
+     * the arrival-only capture.
+     *
+     * <p>So the capture here reads <em>every</em> live session ({@link
+     * TermuxActivity#recordAllSessionDirectories}) rather than just the current one, which makes the
+     * list complete at the single moment it is used — the last real page, where the placeholder page
+     * (and therefore the picker) can actually be reached. Deliberately <em>synchronous</em>, unlike
+     * the tab-switch capture ({@link TermuxActivity#getCurrentSessionCwdAsync}, which exists to keep
+     * a /proc readlink off the settle's frames): the picker builds its rows on the first frame that
+     * reveals the placeholder, a couple of frames after this one, so an asynchronous round-trip out
+     * to a background thread and back could land after the list had already been built — the very
+     * staleness this removes. A finger-down with the pager at rest has no animation to protect, and
+     * each read is a procfs lookup. The "+" button's popup makes the same synchronous call on the
+     * same thread for the same reason (see {@code DirectoryHistoryPopupController#show}).
+     *
+     * <p>Gated on the gesture actually being able to open the picker: the trailing placeholder must be
+     * armed and the pager must be sitting on the last real page — the placeholder is the page after
+     * it, so a touch anywhere else has nothing to refresh for, and the per-session reads are skipped.
+     */
+    private void recordCurrentDirectoryForPicker() {
+        if (mTerminalPagerAdapter == null || mTerminalPager == null) return;
+        if (!mTerminalPagerAdapter.isPlaceholderActive()) return;
+        if (mTerminalPager.getCurrentItem() != mTerminalPagerAdapter.getSessionCount() - 1) return;
+        mActivity.recordAllSessionDirectories();
+        // Re-read the (now updated) history and pre-measure the labels while nothing is animating:
+        // show() installs the rows a couple of frames later, on the gesture's critical frame.
+        final DirectoryPickerController picker = getDirectoryPicker();
+        if (picker != null) picker.refreshItems();
     }
 
     /**

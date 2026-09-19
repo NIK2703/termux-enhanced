@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings preference row (non-slider). Copied from the AndroidX preference_material layout with
+  exactly one change: the title TextView is allowed to wrap.
+
+  Why: the AndroidX original declares the title as singleLine + ellipsize="marquee". A marquee only
+  animates while the TextView is focused/selected and the layout backing it is built with
+  TruncateAt.END, so in a scrolling list every title that does not fit the row width is cut off with
+  a trailing "…". AndroidX has a per-style opt-out for this (singleLineTitle=false, honoured only
+  when the attribute is explicitly declared - see Preference.onBindViewHolder, which calls
+  setSingleLine() only when mHasSingleLineTitleAttr is set), but it is declared inconsistently:
+  Preference.Material / SwitchPreference.Material / EditTextPreference.Material set it to false,
+  while SwitchPreferenceCompat.Material, DialogPreference.Material and SeekBarPreference.Material do
+  not. Rather than patch that per style, the layout itself no longer asks for a single line, so the
+  title wraps onto as many lines as it needs for every row type. The summary follows it down on its
+  own because it is anchored with layout_below="@android:id/title".
+
+  Everything else (paddings, minHeight, widget_frame, summary) is kept byte-for-byte identical to
+  the library layout, and the title keeps the library's wrap_content height, so the row simply grows
+  when the title takes a second line.
+
+  Wired in via the per-row-type Preference.*.Settings styles -> Theme.TermuxApp.Settings, so it
+  applies to every row on every settings screen.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="?android:attr/listPreferredItemHeightSmall"
+    android:gravity="center_vertical"
+    android:paddingLeft="?android:attr/listPreferredItemPaddingLeft"
+    android:paddingStart="?android:attr/listPreferredItemPaddingStart"
+    android:paddingRight="?android:attr/listPreferredItemPaddingRight"
+    android:paddingEnd="?android:attr/listPreferredItemPaddingEnd"
+    android:background="?android:attr/selectableItemBackground"
+    android:clipToPadding="false"
+    android:baselineAligned="false">
+
+    <include layout="@layout/image_frame"/>
+
+    <RelativeLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
+
+        <!-- Title: wraps to as many lines as it needs (no singleLine, no ellipsize). match_parent
+             (instead of the library's wrap_content) is what makes the wrapping deterministic: the
+             row's text column is measured exactly once, against the width left over by the widget
+             (switch/checkbox) on the right. -->
+        <TextView
+            android:id="@android:id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceListItem"/>
+
+        <TextView
+            android:id="@android:id/summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@android:id/title"
+            android:layout_alignLeft="@android:id/title"
+            android:layout_alignStart="@android:id/title"
+            android:layout_gravity="start"
+            android:textAlignment="viewStart"
+            android:textColor="?android:attr/textColorSecondary"
+            android:maxLines="10"
+            style="@style/PreferenceSummaryTextStyle"/>
+
+    </RelativeLayout>
+
+    <!-- Preference should place its actual preference widget here. -->
+    <LinearLayout
+        android:id="@android:id/widget_frame"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="end|center_vertical"
+        android:paddingLeft="16dp"
+        android:paddingStart="16dp"
+        android:paddingRight="0dp"
+        android:paddingEnd="0dp"
+        android:orientation="vertical"/>
+
+</LinearLayout>

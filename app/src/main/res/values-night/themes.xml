@@ -42,6 +42,16 @@
 
     <style name="Theme.TermuxApp.Settings" parent="Theme.TermuxApp.DayNight.NoActionBar">
         <item name="preferenceCategoryStyle">@style/Preference.Category.Settings</item>
+        <!-- Same preference-row redirection as the day variant in values/themes.xml: every row type
+             gets a layout whose title wraps instead of being ellipsized with "…". -->
+        <item name="preferenceStyle">@style/Preference.Settings</item>
+        <item name="switchPreferenceStyle">@style/Preference.SwitchPreference.Settings</item>
+        <item name="switchPreferenceCompatStyle">@style/Preference.SwitchPreferenceCompat.Settings</item>
+        <item name="checkBoxPreferenceStyle">@style/Preference.CheckBoxPreference.Settings</item>
+        <item name="dialogPreferenceStyle">@style/Preference.DialogPreference.Settings</item>
+        <item name="editTextPreferenceStyle">@style/Preference.DialogPreference.EditTextPreference.Settings</item>
+        <item name="preferenceScreenStyle">@style/Preference.PreferenceScreen.Settings</item>
+        <item name="seekBarPreferenceStyle">@style/Preference.SeekBarPreference.Settings</item>
         <!-- Inactive (disabled) preferences show grey text instead of pure white:
              @color/preference_text_primary grays the title out via its disabled state. -->
         <item name="android:textColorPrimary">@color/preference_text_primary</item>

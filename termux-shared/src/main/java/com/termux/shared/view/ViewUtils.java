@@ -277,6 +277,15 @@ public class ViewUtils {
     public static void setLayoutMarginsInPixels(@NonNull View view, int left, int top, int right, int bottom) {
         if (view.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+            // Identity early-out: setLayoutParams() ends in requestLayout(), i.e. a measure/layout
+            // traversal of the whole window for a set of margins that are already in force. The pager
+            // re-applies these on every page bind — including the trailing placeholder's re-arm, which
+            // lands inside the settle of the swipe that opened a tab — where the values are almost
+            // always the ones already set. Comparing four ints is free; the traversal is not.
+            if (params.leftMargin == left && params.topMargin == top
+                    && params.rightMargin == right && params.bottomMargin == bottom) {
+                return;
+            }
             params.setMargins(left, top, right, bottom);
             view.setLayoutParams(params);
         }

@@ -149,6 +149,27 @@ public final class DirectoryPickerController {
         }
     }
 
+    /**
+     * Re-read the directory history and pre-measure the labels, without touching the views.
+     *
+     * <p>Called when the history is known to have been refreshed outside the picker — currently from
+     * the gesture's {@code ACTION_DOWN}, right after the current directory was recorded (see
+     * {@code SessionPagerManager#recordCurrentDirectoryForPicker}). {@link #show} builds its rows a
+     * couple of frames later, on the gesture's critical frame, and a history that gained an entry
+     * since the last {@link #bind} is not a prefix of the measured labels — so without this the
+     * re-shaping of up to {@link #MAX_ITEMS} paths would land on the very frame that reveals the
+     * menu. Doing it at the finger-down moves that work to a moment where nothing is animating, and
+     * it costs nothing at all when the history did not change, which is the common case
+     * ({@code premeasure} early-outs on a matching prefix).
+     *
+     * <p>The views are deliberately left alone: nothing is on screen yet, and {@link #show} installs
+     * the rows itself.
+     */
+    public void refreshItems() {
+        buildItems();
+        if (mView != null) mView.premeasure(mItems);
+    }
+
     /** Drop the view references (page recycled / slot rebound to a real session). */
     public void unbind() {
         // The surfaces are going away, so a running fade can no longer be pushed to them — and the

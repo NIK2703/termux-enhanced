@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings slider (SeekBarPreference) row. Copied from the AndroidX
+  preference_widget_seekbar_material layout with exactly one change: the title TextView is allowed
+  to wrap.
+
+  Why: the AndroidX original declares the title as singleLine + ellipsize="marquee". A marquee only
+  animates while the TextView is focused/selected, and the layout backing it is built with
+  TruncateAt.END, so in a scrolling list every title that does not fit the row width is cut off with
+  a trailing "…" (Russian titles such as "Прозрачность фона неактивных элементов" hit this on narrow
+  screens). Dropping singleLine/ellipsize lets the title flow onto a second line instead, and the
+  summary follows it down on its own because it is anchored with layout_below="@android:id/title".
+
+  Everything else (paddings, minHeight, seekbar row, seekbar_value) is kept byte-for-byte identical
+  to the library layout so the row keeps its stock look and touch target.
+
+  Wired in via Preference.SeekBarPreference.Settings -> seekBarPreferenceStyle on
+  Theme.TermuxApp.Settings, so it applies to every slider on every settings screen.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="?android:attr/listPreferredItemHeightSmall"
+    android:gravity="center_vertical"
+    android:paddingLeft="?android:attr/listPreferredItemPaddingLeft"
+    android:paddingStart="?android:attr/listPreferredItemPaddingStart"
+    android:paddingRight="?android:attr/listPreferredItemPaddingRight"
+    android:paddingEnd="?android:attr/listPreferredItemPaddingEnd"
+    android:background="?android:attr/selectableItemBackground"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:baselineAligned="false">
+
+    <include layout="@layout/image_frame"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <!-- The title/summary block must be sized by its content: with the library's
+             layout_height="0dp" + layout_weight="1" its height comes from the vertical weight
+             distribution instead, which is not guaranteed to grow when the title takes a second
+             line - and a RelativeLayout clips its children, so the extra line would be cut off
+             rather than push the row taller. wrap_content is also what the non-slider row layout
+             (preference_material) uses for the same block. -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <!-- Title: wraps to as many lines as it needs (no singleLine, no ellipsize). -->
+            <TextView
+                android:id="@android:id/title"
+                android:labelFor="@id/seekbar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="?android:attr/textAppearanceListItem"/>
+
+            <TextView
+                android:id="@android:id/summary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@android:id/title"
+                android:layout_alignLeft="@android:id/title"
+                android:layout_alignStart="@android:id/title"
+                android:layout_gravity="start"
+                android:textAlignment="viewStart"
+                android:textColor="?android:attr/textColorSecondary"
+                android:maxLines="4"
+                style="@style/PreferenceSummaryTextStyle"/>
+
+        </RelativeLayout>
+
+        <!-- Using UnPressableLinearLayout as a workaround to disable the pressed state propagation
+        to the children of this container layout. Otherwise, the animated pressed state will also
+        play for the thumb in the AbsSeekBar in addition to the preference's ripple background.
+        The background of the SeekBar is also set to null to disable the ripple background -->
+        <androidx.preference.UnPressableLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:paddingLeft="0dp"
+            android:paddingStart="0dp"
+            android:paddingRight="16dp"
+            android:paddingEnd="16dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+
+            <!-- The total height of the Seekbar widget's area should be 48dp - this allows for an
+            increased touch area so you do not need to exactly tap the thumb to move it. However,
+            setting the Seekbar height directly causes the thumb and seekbar to be misaligned on
+            API 22 and 23 - so instead we just set 15dp padding above and below, to account for the
+            18dp default height of the Seekbar thumb for a total of 48dp.
+            Note: we set 0dp padding at the start and end of this seekbar to allow it to properly
+            fit into the layout, but this means that there's no leeway on either side for touch
+            input - this might be something we should reconsider down the line. -->
+            <SeekBar
+                android:id="@+id/seekbar"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:paddingLeft="@dimen/preference_seekbar_padding_horizontal"
+                android:paddingStart="@dimen/preference_seekbar_padding_horizontal"
+                android:paddingRight="@dimen/preference_seekbar_padding_horizontal"
+                android:paddingEnd="@dimen/preference_seekbar_padding_horizontal"
+                android:paddingTop="@dimen/preference_seekbar_padding_vertical"
+                android:paddingBottom="@dimen/preference_seekbar_padding_vertical"
+                android:background="@null"/>
+
+            <!-- If the value is shown, we reserve a minimum width of 36dp to allow for consistent
+            seekbar width for smaller values. If the value is ~4 or more digits, it will expand
+            into the seekbar width. -->
+            <TextView
+                android:id="@+id/seekbar_value"
+                android:minWidth="@dimen/preference_seekbar_value_minWidth"
+                android:paddingLeft="8dp"
+                android:paddingStart="8dp"
+                android:paddingRight="0dp"
+                android:paddingEnd="0dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="right"
+                android:singleLine="true"
+                android:textAppearance="?android:attr/textAppearanceListItem"
+                android:ellipsize="marquee"
+                android:fadingEdge="horizontal"
+                android:scrollbars="none"/>
+
+        </androidx.preference.UnPressableLinearLayout>
+    </LinearLayout>
+</LinearLayout>

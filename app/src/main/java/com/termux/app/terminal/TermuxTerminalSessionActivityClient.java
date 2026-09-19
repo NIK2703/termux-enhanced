@@ -18,6 +18,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.termux.R;
 import com.termux.shared.interact.ShareUtils;
@@ -1601,16 +1602,25 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * @param resyncScreen whether to also run {@link TerminalView#onScreenUpdated()} on each page.
-     *                     Must be {@code false} when the repaint is not caused by screen content
-     *                     (e.g. an OSC 4/11 palette change): onScreenUpdated() snaps a scrolled
-     *                     view back to the bottom ({@code mTopRow = 0}), which would silently
-     *                     throw away the user's scroll position in a background tab.
+     * @param resyncScreen whether to also run {@link TerminalView#onScreenUpdated()} on the
+     *                     <em>active</em> page. Must be {@code false} when the repaint is not caused
+     *                     by screen content (e.g. an OSC 4/11 palette change): onScreenUpdated() snaps
+     *                     a scrolled view back to the bottom ({@code mTopRow = 0}), which would
+     *                     silently throw away the user's scroll position.
      */
     private void invalidateAllTerminalViews(@Nullable Typeface typeface, boolean resyncScreen) {
+        final TerminalView active = mActivity.getTerminalView();
         forEachBoundTerminalView(terminalView -> {
             terminalView.invalidate();
-            if (resyncScreen) terminalView.onScreenUpdated();
+            // The resync is deliberately limited to the page the user is looking at. It is a
+            // screen-content resync, not a restyle: onScreenUpdated() re-clamps mTopRow and — for a
+            // view that is scrolled up and not in one of its protected states — snaps it back to the
+            // bottom. Running it on every page would throw away the scroll position of each scrolled
+            // background tab on a theme change, which is the failure mode the flag above already
+            // guards against for OSC palette changes. The repaint does not need it: the renderer
+            // clears the whole canvas to the current background and repaints every visible row on
+            // each onDraw(), so invalidate() alone is a complete repaint with the new scheme.
+            if (resyncScreen && terminalView == active) terminalView.onScreenUpdated();
             if (typeface != null) terminalView.setTypeface(typeface);
         });
     }
@@ -1636,12 +1646,19 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Run {@code action} for the active terminal view and for every other page the pager keeps
-     * bound — the one walk both {@link #invalidateAllTerminalViews} and
+     * Run {@code action} for the active terminal view and for every other page the adapter owns a
+     * view for — the one walk both {@link #invalidateAllTerminalViews} and
      * {@link #applyTerminalFontSizeToAllViews} need.
      *
-     * <p>The child counts are read once, before the loop, because an action may change the content
-     * of a page (a size change resizes its grid) while this walk has to stay a snapshot either way.
+     * <p>The pages come from the adapter, which enumerates the session pages it holds a view for plus
+     * the trailing placeholder page — see {@link TerminalPagerAdapter#forEachPageTerminalView} for
+     * why that set (and not a walk over the pager's children) is the complete one. This used to walk
+     * the pager's children and test {@code instanceof TerminalView}, which matched nothing at all:
+     * RecyclerView's children are the page <em>containers</em> (the root {@code FrameLayout} of
+     * {@code item_terminal_page.xml}), not the TerminalViews inside them. The loop was dead code, so
+     * a styling change reached only {@code mActivity.getTerminalView()} while every other page kept
+     * the previous palette (and font size) until its slot happened to be rebound — most visibly the
+     * placeholder page, whose slot is only rebound when the next tab is opened through it.
      */
     private void forEachBoundTerminalView(@NonNull TerminalViewAction action) {
         final TerminalView active = mActivity.getTerminalView();
@@ -1649,20 +1666,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
         androidx.viewpager2.widget.ViewPager2 pager = mActivity.getTerminalPager();
         if (pager == null) return;
-        final int pages = pager.getChildCount();
-        for (int i = 0; i < pages; i++) {
-            View child = pager.getChildAt(i);
-            if (!(child instanceof androidx.recyclerview.widget.RecyclerView)) continue;
-            androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) child;
-            final int count = rv.getChildCount();
-            for (int j = 0; j < count; j++) {
-                View v = rv.getChildAt(j);
-                if (!(v instanceof TerminalView)) continue;
-                TerminalView tv = (TerminalView) v;
-                if (tv == active) continue; // already handled above
-                action.apply(tv);
-            }
-        }
+        RecyclerView.Adapter<?> adapter = pager.getAdapter();
+        if (!(adapter instanceof TerminalPagerAdapter)) return;
+        ((TerminalPagerAdapter) adapter).forEachPageTerminalView(view -> {
+            if (view == active) return; // already handled above
+            action.apply(view);
+        });
     }
 
     /** The per-page action {@link #forEachBoundTerminalView} applies. */

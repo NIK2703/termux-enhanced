@@ -3026,6 +3026,41 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Record the working directory of EVERY live session into the directory history, the current
+     * session last so it ends up at the top of the list — "where I am now" is the directory the user
+     * is most likely to want back.
+     *
+     * <p>Used by the right-swipe directory picker, which offers a directory to open the new tab in.
+     * The history is otherwise appended to only when a session <em>becomes</em> current, so what it
+     * holds is where each tab was when the user arrived in it: a {@code cd} performed afterwards — in
+     * this tab or in any other — is not in the list at all, and the picker would offer the stale
+     * directory until a tab had been created through it (which is itself a session change). Reading
+     * every session here makes the list complete at the one moment it is used, whichever way the user
+     * reached the last tab (a swipe through the tabs, or a tap on the tab strip).
+     *
+     * <p>Each read is a {@code /proc/<pid>/cwd} readlink — a handful of syscalls against procfs, no
+     * disk I/O and no allocation beyond the path string. The caller runs it on a finger-down (see
+     * {@code SessionPagerManager#recordCurrentDirectoryForPicker}), i.e. with the pager at rest and no
+     * animation in flight, and only when the picker can actually open.
+     */
+    public void recordAllSessionDirectories() {
+        final TerminalSession current = getCurrentSession();
+        final TermuxService service = getTermuxService();
+        if (service != null) {
+            final int sessionCount = service.getTermuxSessionsSize();
+            for (int i = 0; i < sessionCount; i++) {
+                final com.termux.shared.termux.shell.command.runner.terminal.TermuxSession
+                        termuxSession = service.getTermuxSession(i);
+                final TerminalSession session =
+                        (termuxSession == null) ? null : termuxSession.getTerminalSession();
+                if (session == null || session == current) continue;
+                mDirectoryHistoryCtrl.recordCurrentDirectory(session);
+            }
+        }
+        if (current != null) mDirectoryHistoryCtrl.recordCurrentDirectory(current);
+    }
+
+    /**
      * Resolve the current session's working directory (a /proc readlink) once per
      * switch; null when no session or the read fails.
      */

@@ -21,6 +21,7 @@ import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalView;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * RecyclerView adapter backing the horizontal session pager (ViewPager2).
@@ -278,9 +279,11 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
     /**
      * Update the per-page terminal margins (settings "terminal-margin-left" / "terminal-margin-top" /
-     * "terminal-margin-right" / "terminal-margin-bottom"). Applied to the TerminalView of every
-     * attached page so the pager container itself stays full-bleed and a swipe reveals the
-     * neighbouring page edge-to-edge; each terminal screen keeps its own inset from the screen edges.
+     * "terminal-margin-right" / "terminal-margin-bottom"). Applied to the TerminalView of EVERY page —
+     * the trailing placeholder page included, and including one parked in RecyclerView's view cache,
+     * which no bind will ever revisit (see {@link #forEachPageTerminalView}) — so the pager container
+     * itself stays full-bleed and a swipe reveals the neighbouring page edge-to-edge; each terminal
+     * screen keeps its own inset from the screen edges.
      *
      * @param leftDp   left margin in dp.
      * @param topDp    top margin in dp.
@@ -292,9 +295,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         mMarginTopDp = topDp;
         mMarginRightDp = rightDp;
         mMarginBottomDp = bottomDp;
-        for (TerminalView view : mSessionViews.values()) {
-            applyTerminalMargins(view);
-        }
+        forEachPageTerminalView(this::applyTerminalMargins);
     }
 
     /** Apply the configured margins to one page's TerminalView (safe when null/not yet bound). */
@@ -305,23 +306,63 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
     }
 
     /**
-     * Push the configured background transparency to every attached page. Mirrors
-     * {@link #setTerminalMargins(int, int, int, int)}: the value is owned here (not in the
-     * individual views) so pages created later pick it up automatically.
+     * Push the configured background transparency to every page, the placeholder page included (it
+     * paints its own fill at this alpha — see {@link #forEachPageTerminalView}). Mirrors
+     * {@link #setTerminalMargins(int, int, int, int)}: the value is owned here (not in the individual
+     * views) so pages created later pick it up automatically.
      *
      * @param percent 0 (opaque, wallpaper disabled) .. 50 (maximum transparency).
      */
     public void setTerminalBackgroundTransparency(int percent) {
         mBackgroundTransparencyPercent = percent;
-        for (TerminalView view : mSessionViews.values()) {
-            applyTerminalTransparency(view);
-        }
+        forEachPageTerminalView(this::applyTerminalTransparency);
     }
 
     /** Apply the configured background transparency to one page (safe when null). */
     private void applyTerminalTransparency(@androidx.annotation.Nullable TerminalView terminalView) {
         if (terminalView != null)
             terminalView.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
+    }
+
+    /**
+     * Run {@code action} for the {@link TerminalView} of every page this adapter currently owns a
+     * view for: every page displaying a session, plus the trailing placeholder page.
+     *
+     * <p><b>Why not walk the pager's children.</b> RecyclerView's children are the page
+     * <em>containers</em> (the root {@code FrameLayout} of {@code item_terminal_page.xml}), not the
+     * TerminalViews inside them, so a walk testing {@code child instanceof TerminalView} matches
+     * nothing at all and silently degrades to "the active page only" — which is exactly how the
+     * "apply to every bound page" walk in {@code TermuxTerminalSessionActivityClient} became dead
+     * code (commit dddc8121), leaving a colour-scheme or font-size change visible on the current page
+     * while every other page kept the previous palette.
+     *
+     * <p><b>Why a cached page has to be included.</b> A holder parked in RecyclerView's view cache is
+     * detached, yet it is <em>not</em> rebound when it comes back: a cached holder that is still
+     * bound, not invalid and not needing an update is handed back for the same position with no
+     * {@code onBindViewHolder()} call at all ({@code RecyclerView.Recycler#
+     * tryGetViewHolderForPositionByDeadline}). A page that is pushed to only while it is attached, or
+     * only on a bind, therefore reappears with the previous scheme, font size or transparency — and a
+     * settings change made while the user is on another tab is precisely when the placeholder page
+     * sits in that cache. {@link #mSessionViews} keeps its entry through caching (it is dropped in
+     * {@link #onViewRecycled}, i.e. only when the holder is pooled and will therefore be rebound), so
+     * it is the complete set for session pages; {@link #mPlaceholderHolder} is the one page that has
+     * no session to be keyed by.
+     *
+     * <p>The placeholder page is a page like any other here: it paints its own background from the
+     * current colour scheme at the current transparency ({@code TerminalView#onDraw}'s
+     * {@code mEmulator == null} branch), so both a scheme change and a wallpaper/transparency change
+     * have to reach it — including while it is cached, because nothing else will.
+     *
+     * <p>Not a per-frame path: every caller is a settings change. Actions must tolerate a view that is
+     * not attached to a window, and — for the placeholder page — one that has no renderer yet (see
+     * {@code TerminalView#setTypeface}).
+     */
+    public void forEachPageTerminalView(@NonNull Consumer<TerminalView> action) {
+        for (TerminalView view : mSessionViews.values()) {
+            if (view != null) action.accept(view);
+        }
+        final TerminalPageViewHolder holder = mPlaceholderHolder;
+        if (holder != null && holder.mTerminalView != null) action.accept(holder.mTerminalView);
     }
 
     // NOTE: the placeholder page uses the SAME view type (and layout) as a normal terminal page.
@@ -419,6 +460,16 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             // Hand the picker its drawing surface for this binding. It stays invisible until a
             // gesture actually reveals the placeholder (DirectoryPickerController#show).
             mDirectoryPicker.bind(holder.mPickerView, hintContent);
+            // Carry the live per-page settings onto this page too — the same two writes the
+            // real-session branch below performs, for the same reason: this holder may come from the
+            // recycler pool, created while a different transparency/margin configuration was in
+            // force. Neither push path can reach it while it is pooled: mPlaceholderHolder was
+            // cleared when it was recycled (onViewRecycled) and the page has no mSessionViews entry
+            // (no session). Without this, a settings change made while the user was on another tab —
+            // where the placeholder page is not bound at all — stayed invisible until the slot
+            // happened to be created from scratch, i.e. until a tab had been opened through it.
+            applyTerminalMargins(holder.mTerminalView);
+            applyTerminalTransparency(holder.mTerminalView);
             // Nothing to bind — the TerminalView is intentionally left unbound (no session) and the
             // page blends with the themed window background. We still keep a valid TerminalView in
             // the holder so a commit can rebind it to a real session in place (no ViewHolder churn).

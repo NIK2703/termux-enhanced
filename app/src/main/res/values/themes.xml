@@ -18,6 +18,20 @@
          background as the header so they do not blend into the content. -->
     <style name="Theme.TermuxApp.Settings" parent="Theme.TermuxApp.DayNight.NoActionBar">
         <item name="preferenceCategoryStyle">@style/Preference.Category.Settings</item>
+        <!-- Every preference row is redirected to a layout whose title wraps instead of being cut
+             off with a trailing "…"; see @layout/preference_settings /
+             @layout/preference_seekbar_settings and the Preference.*.Settings styles below.
+             Each row type resolves its own style attribute (preferenceStyle for a plain <Preference>,
+             switchPreferenceCompatStyle for <SwitchPreferenceCompat>, ...), so every one of them has
+             to be listed here - redirecting only the slider is not enough. -->
+        <item name="preferenceStyle">@style/Preference.Settings</item>
+        <item name="switchPreferenceStyle">@style/Preference.SwitchPreference.Settings</item>
+        <item name="switchPreferenceCompatStyle">@style/Preference.SwitchPreferenceCompat.Settings</item>
+        <item name="checkBoxPreferenceStyle">@style/Preference.CheckBoxPreference.Settings</item>
+        <item name="dialogPreferenceStyle">@style/Preference.DialogPreference.Settings</item>
+        <item name="editTextPreferenceStyle">@style/Preference.DialogPreference.EditTextPreference.Settings</item>
+        <item name="preferenceScreenStyle">@style/Preference.PreferenceScreen.Settings</item>
+        <item name="seekBarPreferenceStyle">@style/Preference.SeekBarPreference.Settings</item>
         <!-- Inactive (disabled) preferences show grey text instead of pure black:
              @color/preference_text_primary grays the title out via its disabled state. -->
         <item name="android:textColorPrimary">@color/preference_text_primary</item>
@@ -28,6 +42,52 @@
 
     <style name="Preference.Category.Settings" parent="Preference.Category">
         <item name="android:layout">@layout/preference_category_settings</item>
+    </style>
+
+    <!--
+      Settings preference row styles. Each row type keeps its stock AndroidX material parent (so the
+      widget layout, dividers, icon space and seek bar value stay exactly as they are) and only
+      swaps the row layout for one whose title wraps.
+
+      Why the layout and not android:singleLineTitle: AndroidX honours singleLineTitle only when the
+      attribute is explicitly declared (Preference.onBindViewHolder calls setSingleLine() behind
+      mHasSingleLineTitleAttr), and the material styles declare it inconsistently - it is false in
+      Preference.Material / SwitchPreference.Material / EditTextPreference.Material but missing from
+      SwitchPreferenceCompat.Material, DialogPreference.Material and SeekBarPreference.Material,
+      which is exactly why switch and slider rows were the ones still cut off.
+    -->
+    <style name="Preference.Settings" parent="Preference.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <style name="Preference.SwitchPreference.Settings" parent="Preference.SwitchPreference.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <style name="Preference.SwitchPreferenceCompat.Settings" parent="Preference.SwitchPreferenceCompat.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <style name="Preference.CheckBoxPreference.Settings" parent="Preference.CheckBoxPreference.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <style name="Preference.DialogPreference.Settings" parent="Preference.DialogPreference.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <style name="Preference.DialogPreference.EditTextPreference.Settings" parent="Preference.DialogPreference.EditTextPreference.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <style name="Preference.PreferenceScreen.Settings" parent="Preference.PreferenceScreen.Material">
+        <item name="android:layout">@layout/preference_settings</item>
+    </style>
+
+    <!-- Sliders: identical to the AndroidX material seekbar style (adjustable, seek bar value,
+         dividers, icon space) except for the layout, where the title is allowed to wrap. -->
+    <style name="Preference.SeekBarPreference.Settings" parent="Preference.SeekBarPreference.Material">
+        <item name="android:layout">@layout/preference_seekbar_settings</item>
     </style>
 
     <!-- Fully transparent theme for overlay activities: they host their own dialog/view

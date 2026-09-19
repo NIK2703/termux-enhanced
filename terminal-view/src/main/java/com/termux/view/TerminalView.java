@@ -1313,7 +1313,16 @@ public final class TerminalView extends View {
      * the one caller that does need a repaint asks for it itself.
      */
     public void setTypeface(Typeface newTypeface) {
-        if (mRenderer != null && mRenderer.mTypeface == newTypeface) return;
+        // A view bound to no session — the pager's trailing placeholder page — has no renderer yet:
+        // the renderer is built here and in setTextSize(), and that page is never given a text size
+        // (it paints one scheme-coloured rectangle, see onDraw's mEmulator == null branch). There is
+        // therefore no size to build one from, and dereferencing mRenderer.mTextSize below would be
+        // a NullPointerException. Bailing out is safe: the placeholder draws no glyphs, and when its
+        // slot is rebound to a real session, onBindViewHolder() calls setTextSize() first (which
+        // builds the renderer) and checkForFontAndColorsForView() after it, so the typeface is
+        // applied for real on that bind.
+        if (mRenderer == null) return;
+        if (mRenderer.mTypeface == newTypeface) return;
         mRenderer = new TerminalRenderer(mRenderer.mTextSize, newTypeface);
         mRenderer.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
         updateSize();
