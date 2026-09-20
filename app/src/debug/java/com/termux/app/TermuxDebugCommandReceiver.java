@@ -259,6 +259,53 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     log(dsb.toString());
                     break;
                 }
+                case "tabs": {
+                    // Snapshot of the tab strip's scroll geometry plus the elastic over-drag
+                    // displacement. The invariant to check while a finger is dragging past an end:
+                    // range==0 or scrollX pinned at 0/range, AND tx != 0 (the strip is pulled).
+                    activity.runOnUiThread(() -> {
+                        android.view.View v = activity.findViewById(com.termux.R.id.session_tabs_scroll);
+                        android.view.View content = activity.findViewById(com.termux.R.id.session_tabs);
+                        if (v == null || content == null) { log("TABS no-strip"); return; }
+                        int range = Math.max(0, content.getWidth()
+                                - (v.getWidth() - v.getPaddingLeft() - v.getPaddingRight()));
+                        StringBuilder tb = new StringBuilder("TABS");
+                        tb.append(" cls=").append(v.getClass().getSimpleName());
+                        tb.append(" w=").append(v.getWidth());
+                        tb.append(" scrollX=").append(v.getScrollX());
+                        tb.append(" contentW=").append(content.getWidth());
+                        tb.append(" range=").append(range);
+                        tb.append(" tx=").append(content.getTranslationX());
+                        if (v instanceof com.termux.app.terminal.ElasticHorizontalScrollView) {
+                            tb.append(" disp=").append(
+                                    ((com.termux.app.terminal.ElasticHorizontalScrollView) v)
+                                            .getOverscrollDisplacementPx());
+                            tb.append(" | ").append(
+                                    ((com.termux.app.terminal.ElasticHorizontalScrollView) v)
+                                            .dumpOverscrollState());
+                        } else {
+                            tb.append(" disp=n/a");
+                        }
+                        log(tb.toString());
+                    });
+                    break;
+                }
+                case "tabs over": {
+                    // A/B switch for the elastic over-drag, so a run with it off is a true baseline.
+                    final String oa = intent.getStringExtra("arg");
+                    final boolean on = oa == null || !oa.equals("off");
+                    activity.runOnUiThread(() -> {
+                        android.view.View v = activity.findViewById(com.termux.R.id.session_tabs_scroll);
+                        if (!(v instanceof com.termux.app.terminal.ElasticHorizontalScrollView)) {
+                            log("tabs over: strip is not ElasticHorizontalScrollView");
+                            return;
+                        }
+                        ((com.termux.app.terminal.ElasticHorizontalScrollView) v)
+                                .setElasticOverscrollEnabled(on);
+                        log("tabs over: " + on);
+                    });
+                    break;
+                }
                 case "run": {
                     final String command = intent.getStringExtra("arg");
                     activity.runOnUiThread(() -> {

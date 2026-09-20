@@ -25,7 +25,10 @@
             android:paddingVertical="2dp"
             android:layout_alignParentTop="true">
 
-            <HorizontalScrollView
+            <!-- Elastic over-drag, matching the terminal pager's: dragging past either end of
+                 the list pulls the strip with a damped response and springs it back. See
+                 ElasticHorizontalScrollView. -->
+            <com.termux.app.terminal.ElasticHorizontalScrollView
                 android:id="@+id/session_tabs_scroll"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -53,7 +56,7 @@
 
                 </LinearLayout>
 
-            </HorizontalScrollView>
+            </com.termux.app.terminal.ElasticHorizontalScrollView>
 
         </LinearLayout>
 

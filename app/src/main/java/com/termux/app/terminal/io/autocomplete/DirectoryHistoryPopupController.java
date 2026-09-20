@@ -264,6 +264,22 @@ public final class DirectoryHistoryPopupController {
 
         mPopup = new PopupWindow(scroll, popupWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT, false);
+        // ── Open/dismiss animation ──
+        // The two tab-panel positions put this popup on OPPOSITE sides of its anchor,
+        // and the animation must follow:
+        //   • tab panel at the BOTTOM (!mInverted): the new-tab button sits near the
+        //     screen bottom, so the popup opens ABOVE it and has to grow out of its
+        //     BOTTOM edge (pivotY=100%) — exactly the animation the message-history
+        //     popup plays. PopupWindow resolves its window animation BEFORE it computes
+        //     mAboveAnchor (still false on this fresh instance), so without an explicit
+        //     style it would fall back to the "grow from the TOP" variant and the window
+        //     would visibly unfold downward, away from the button.
+        //   • tab panel at the TOP (mInverted): the popup hangs BELOW the button, where
+        //     that framework default ("grow from the top", Animation.DropDownDown) is
+        //     already the correct one — no style is set, so nothing changes there.
+        if (!mInverted) {
+            mPopup.setAnimationStyle(R.style.HistoryPopupGrowFromBottomAnimation);
+        }
         // Smooth elevation shadow — background drawable must be fully opaque for the
         // WindowManager to derive a valid Outline (GradientDrawable.getOutline bails
         // when alpha < 255).  The 10% visual transparency is applied to the ScrollView

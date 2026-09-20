@@ -3,10 +3,11 @@
      animation: Animation.DropDownUp -> @android:anim/shrink_fade_out_from_bottom
      (verified against /system/framework/framework-res.apk of the target device).
 
-     Mirror of message_history_enter: scale 1.0 -> 0.9 collapsing back into the bottom
+     Mirror of history_popup_enter: scale 1.0 -> 0.9 collapsing back into the bottom
      edge (pivotY=100%), decelerate_quint, 220 ms (config_activityDefaultDur);
-     alpha 1.0 -> 0.0, decelerate_cubic, 150 ms (config_activityShortDur) — i.e. the
-     exact same timing the directory-history popup uses. -->
+     alpha 1.0 -> 0.0, decelerate_cubic, 150 ms (config_activityShortDur).
+     Played by both history context popups when they sit ABOVE their anchor button —
+     see history_popup_enter.xml. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:shareInterpolator="false">
     <scale

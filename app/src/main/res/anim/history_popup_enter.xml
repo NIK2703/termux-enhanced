@@ -4,19 +4,23 @@
      (verified against /system/framework/framework-res.apk of the target device).
 
      Values, exactly as the framework defines them:
-       scale : 0.9 -> 1.0, pivotX=50%, pivotY=100% (bottom edge = the pencil button),
-               interpolator @android:interpolator/decelerate_quint (0x010c0005),
-               duration @integer/config_activityDefaultDur (0x010e000a) = 220 ms
+       scale : 0.9 -> 1.0, pivotX=50%, pivotY=100% (bottom edge = the button the
+               gesture started on), interpolator @android:interpolator/decelerate_quint
+               (0x010c0005), duration @integer/config_activityDefaultDur (0x010e000a) = 220 ms
        alpha : 0.0 -> 1.0,
                interpolator @android:interpolator/decelerate_cubic (0x010c0003),
                duration @integer/config_activityShortDur (0x010e000b) = 150 ms
 
      Those two framework integers are NOT public, so 220/150 are inlined as literals.
-     This is the very same window animation the directory-history popup plays (it uses
-     the PopupWindow default), so both popups now have identical duration and feel;
-     the explicit style is only needed because PopupWindow resolves its window
-     animation BEFORE it computes mAboveAnchor, and this popup is placed above the
-     pencil button with a negative showAsDropDown() y-offset. -->
+
+     Played by BOTH history context popups whenever they are placed ABOVE their anchor
+     button — the message-history popup (pencil button) and the directory-history popup
+     (new-tab button with the tab panel at the bottom). The explicit style is needed
+     because PopupWindow resolves its window animation BEFORE it computes mAboveAnchor,
+     so a popup shown with a negative showAsDropDown() y-offset (i.e. above the anchor)
+     falls back to the "grow from the TOP" variant and visibly unfolds downward instead
+     of growing out of the button.
+     See @style/HistoryPopupGrowFromBottomAnimation. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:shareInterpolator="false">
     <scale

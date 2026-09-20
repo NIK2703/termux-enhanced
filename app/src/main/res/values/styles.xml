@@ -14,16 +14,25 @@
         <item name="android:textColor">?attr/colorControlNormal</item>
     </style>
 
-    <!-- Message-history context popup: an EXACT replica of the framework's standard
+    <!-- Shared by BOTH history context popups, for the case where the popup is placed
+         ABOVE its anchor button: an EXACT replica of the framework's standard
          "above the anchor" dropdown pair — anim/grow_fade_in_from_bottom +
-         shrink_fade_out_from_bottom (Animation.DropDownUp), which is what the
-         directory-history popup plays — same scale/alpha, same interpolators and the
-         same 220 ms / 150 ms durations, so both popups are timed identically.
-         pivotY=100% pins the bottom edge (the pencil button) so the window grows
-         upward out of it; without this style PopupWindow picks the animation before it
-         resolves mAboveAnchor and plays the "grow from the TOP" variant instead. -->
-    <style name="MessageHistoryPopupAnimation" parent="@android:style/Animation">
-        <item name="android:windowEnterAnimation">@anim/message_history_enter</item>
-        <item name="android:windowExitAnimation">@anim/message_history_exit</item>
+         shrink_fade_out_from_bottom (Animation.DropDownUp) — same scale/alpha, same
+         interpolators and the same 220 ms / 150 ms durations, so both popups are timed
+         identically.
+         pivotY=100% pins the bottom edge (the button the gesture started on) so the
+         window grows upward out of it; without this style PopupWindow picks the
+         animation before it resolves mAboveAnchor and plays the "grow from the TOP"
+         variant instead.
+         Applied to:
+           • the message-history popup (always above the pencil button);
+           • the directory-history popup only when the tab panel is at the BOTTOM
+             (its new-tab button is then near the screen bottom, so the popup opens
+             above it). With the tab panel at the TOP the popup hangs BELOW the
+             button, where the framework default ("grow from the top") is already
+             correct and no style is set. -->
+    <style name="HistoryPopupGrowFromBottomAnimation" parent="@android:style/Animation">
+        <item name="android:windowEnterAnimation">@anim/history_popup_enter</item>
+        <item name="android:windowExitAnimation">@anim/history_popup_exit</item>
     </style>
 </resources>
