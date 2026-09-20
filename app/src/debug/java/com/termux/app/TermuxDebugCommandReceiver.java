@@ -345,6 +345,19 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         sb.append(" live_panel=").append(activity.isTextInputVisible() ? 1 : 0);
         sb.append(" live_termfocus=").append(
                 activity.getActiveTerminalView() != null && activity.getActiveTerminalView().hasFocus() ? 1 : 0);
+        // Who actually owns the window focus, and whether the activity's cached active view is set.
+        // Without this, "no view has focus" and "the focus sits on a tab" look identical, and the
+        // cached active view being null is invisible in every other field (live_termfocus resolves
+        // through the pager fallback on purpose, so it stays 1 even when the cache is null).
+        View focusOwner = activity.getCurrentFocus();
+        sb.append(" live_focus=").append(focusOwner == null ? "none"
+                : focusOwner.getClass().getSimpleName());
+        if (focusOwner != null && focusOwner.getId() != View.NO_ID) {
+            try {
+                sb.append("#").append(activity.getResources().getResourceEntryName(focusOwner.getId()));
+            } catch (Exception ignored) { }
+        }
+        sb.append(" actview=").append(activity.getTerminalView() == null ? 0 : 1);
         log(sb.toString());
     }
 

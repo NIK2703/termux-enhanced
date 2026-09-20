@@ -308,7 +308,17 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         if (currentSession == null) return;
         TerminalEmulator term = currentSession.getEmulator();
         if (term == null) return;
-        TerminalView terminalView = mActivity.getTerminalView();
+        // Resolve the view the IME must be shown for. The activity's cached active view is tried
+        // first (it is what the rest of the app routes to), but a tap must never depend on it being
+        // non-null: after a jump of two or more tabs it is null until the destination page is
+        // attached, and KeyboardUtils.showSoftKeyboard(context, null) is a silent no-op — which is
+        // the reported "tapping the terminal does not open the keyboard". TerminalView.onSingleTapUp()
+        // requests focus for the view that was tapped before calling this, so the focused view is
+        // the correct fallback.
+        TerminalView terminalView = mActivity.getActiveTerminalView();
+        if (terminalView == null && mActivity.getCurrentFocus() instanceof TerminalView) {
+            terminalView = (TerminalView) mActivity.getCurrentFocus();
+        }
 
         // Hide text input panel instantly when tapping on the terminal area,
         // instead of waiting for a keyboard focus change event.
@@ -1094,6 +1104,22 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                         }
                     }
                     Logger.logVerbose(LOG_TAG, "Focus moved to the terminal or the input panel");
+                } else if (mActivity.isKbStateCreateInProgress()) {
+                    // A tab is being created. Adding the session rebuilds the adapter, which detaches
+                    // the served IME target and makes the page being replaced lose focus — a spurious
+                    // focus change that must NOT hide the keyboard. The create inherits the live
+                    // keyboard state on purpose (see TermuxActivity.isKbStateCreateInProgress and
+                    // TermuxTerminalSessionActivityClient.createNewSession), so "the keyboard state
+                    // must not change" means this hide has to be suppressed.
+                    //
+                    // This is the ONLY difference between the "+"-button path and the right-swipe
+                    // path: the swipe commits the placeholder IN PLACE (no pager move), so no page
+                    // loses focus and the hide never fired there; the button selects the new page via
+                    // setCurrentSession(), which moves the pager and drops the old page's focus —
+                    // measured: `FOCUS HIDE kb (active view lost focus) switchInProg=false create=true`
+                    // followed by re-asserts whose target was the hidden panel EditText, so the
+                    // keyboard stayed down on every "+"-created tab.
+                    Logger.logVerbose(LOG_TAG, "Skipping soft keyboard hide: tab create in progress");
                 } else if (terminalView != mActivity.getTerminalView()) {
                     // Fallback guard for the non-switching case (e.g. a detached/recycled page
                     // losing focus outside a tracked switch): skip the hide when the losing view

@@ -423,6 +423,41 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     }
 
     /**
+     * The IME visibility observed when the current page switch was requested, and whether that
+     * reading is still valid (it is consumed by the first per-session reconcile of the switch).
+     *
+     * <p>Needed because the pager detaches the page it leaves ({@code offscreenPageLimit == 1}), so
+     * the system drops the IME by itself a moment after the switch — which means "do not change the
+     * keyboard state on a tab switch" (the follow-tab-switch toggle OFF) cannot be implemented by
+     * doing nothing: it has to be implemented by restoring exactly this reading.
+     */
+    private boolean mKbVisibleAtSwitchStart = false;
+    private boolean mKbStateAtSwitchStartValid = false;
+
+    /**
+     * Capture the IME state at the moment a page switch is requested. Must be called while the page
+     * being left is still attached (i.e. before the pager's layout pass), otherwise the reading is
+     * the torn "down" of a detach rather than what the user had on screen.
+     */
+    public void captureKeyboardStateForSwitch() {
+        mKbVisibleAtSwitchStart = computeImeVisibility();
+        mKbStateAtSwitchStartValid = true;
+    }
+
+    /**
+     * Read the captured pre-switch IME state and consume it, so it can only ever drive the
+     * reconcile of the switch that captured it. A stale "was visible" would otherwise let a later,
+     * unrelated reconcile resurrect a keyboard the user closed.
+     *
+     * @return true when the keyboard was up at the moment the switch was requested.
+     */
+    private boolean consumeKeyboardVisibleAtSwitchStart() {
+        final boolean visible = mKbStateAtSwitchStartValid && mKbVisibleAtSwitchStart;
+        mKbStateAtSwitchStartValid = false;
+        return visible;
+    }
+
+    /**
      * True for a bounded window while a tab is being CREATED. The adapter rebuild that carries the
      * new session detaches the served IME target, so the system fires an IME HIDE of its own — with
      * the new page already focused and attached, so the {@code systemDrop} heuristic in
@@ -4199,8 +4234,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // Focus on terminal view without reopening the keyboard. The focus listener does
                 // not schedule any show (see registerTerminalViewFocusListener), so this focus
                 // change cannot pop the IME by itself — nothing is left queued to cancel.
-                if (mTerminalView != null) {
-                    mTerminalView.requestFocus();
+                //
+                // Resolve the target LIVE (the pager's current page), not from the cached pointer:
+                // after a jump of two or more tabs the cached pointer is null at landing time, and
+                // then the panel's EditText keeps the focus while the panel itself is already
+                // hidden — the IME stays served to that invisible field, typing goes into it and
+                // its auto-complete popup floats over the terminal while the text lands nowhere
+                // visible. When no terminal view can be resolved at all, the invisible field must
+                // at least give the focus up so it cannot swallow input.
+                final TerminalView terminalTarget = getActiveTerminalView();
+                if (terminalTarget != null) {
+                    terminalTarget.requestFocus();
+                } else {
+                    final EditText hiddenInput = getTerminalToolbarTextInput();
+                    if (hiddenInput != null && hiddenInput.hasFocus()) hiddenInput.clearFocus();
                 }
             }
         }
@@ -4390,6 +4437,30 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // the whole reconcile (and the close-rebind re-assert below).
             boolean imeVisibleNow = computeImeVisibility();
             if (!followKbOnSwitch) {
+                // "The keyboard state must not change on a tab switch", implemented as: restore
+                // exactly the state that was live when the switch was requested. Doing nothing is
+                // NOT the same thing — the pager detaches the page being left (offscreenPageLimit
+                // == 1), which makes the system drop the IME by itself a moment after this
+                // reconcile ran, so a keyboard that was up before the switch ends up down. The
+                // landed session's memory is deliberately not consulted here: that is the toggle-ON
+                // behaviour, and it would change the very state this branch must preserve.
+                //
+                // Armed whenever the keyboard was up when the switch was requested, NOT only when
+                // it already reads as down here: at this point the page being left is still
+                // attached, so the drop has not happened yet and a "!imeVisibleNow" test would
+                // never arm anything. The re-assert is what makes the drop invisible, and it is a
+                // no-op when the keyboard survived (it re-reads the state when it fires). The
+                // negative direction stays intact: a keyboard that was DOWN at switch start is
+                // never opened.
+                //
+                // Skip a freshly-CREATED tab: it inherited the live keyboard state and is already
+                // re-asserted by scheduleSwitchKeyboardReassert() (gated on mKbStateCreateInProgress
+                // / mKbStateInheritedSessionHandle, above). Running the generic switch re-assert here
+                // force-shows the keyboard on a create and regresses the pre-fix behaviour; the
+                // create path alone preserves the state exactly as the last commit did.
+                if (!inheritedFromCreate && consumeKeyboardVisibleAtSwitchStart()) {
+                    scheduleKeyboardReassertOnActiveView(true);
+                }
             } else if (!showKeyboardIfFocused && imeVisibleNow) {
                 KeyboardUtils.hideSoftKeyboard(this, currentInput != null ? currentInput : mTerminalView);
             } else if (showKeyboardIfFocused && !imeVisibleNow
@@ -4442,9 +4513,89 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }, 300);
     }
 
+    /**
+     * Bounded post-switch re-assert that resolves its target when it fires, instead of being handed
+     * one now.
+     *
+     * <p>Necessary for a switch of two or more pages: at reconcile time the destination page does
+     * not exist yet, so there is no view to arm — the active view only becomes available when the
+     * page is attached (see {@link #onActivePageViewAvailable}). By the time this fires, that has
+     * happened and {@link #getActiveTerminalView()} resolves it.
+     *
+     * @param ignoreSessionIntent true when the caller is preserving an OBSERVED keyboard state
+     *                            (toggle OFF) rather than applying the landed session's own memory
+     *                            (toggle ON): the session's remembered intent must then not be able
+     *                            to veto the restore.
+     */
+    private void scheduleKeyboardReassertOnActiveView(final boolean ignoreSessionIntent) {
+        final TerminalSession armed = getCurrentSession();
+        final View anchor = getActiveTerminalView() != null
+                ? getActiveTerminalView() : getTerminalToolbarTextInput();
+        if (anchor == null) return;
+        anchor.postDelayed(() -> {
+            if (isFinishing() || mIsPaused) return;
+            TerminalSession current = getCurrentSession();
+            if (current == null || current != armed) return;                // switched elsewhere meanwhile
+            if (!ignoreSessionIntent && !mTextInputState.isSoftKeyboardIntent(current)) return;
+            if (computeImeVisibility()) return;                              // it survived — nothing to do
+            if (KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
+                    mPreferences.isSoftKeyboardEnabled(),
+                    mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware())) return;
+            View target = getActiveTerminalView();
+            if (target == null) target = getTerminalToolbarTextInput();
+            if (target == null) return;
+            KeyboardUtils.setSoftInputModeAdjustResize(this);
+            com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
+                    this::computeImeVisibility);
+        }, 300);
+    }
+
     /** Apply per-session panel visibility with focus move (tab switch). */
     public void applyTextInputVisibilityForSession(@Nullable TerminalSession session) {
         applyTextInputVisibilityForSession(session, true);
+    }
+
+    /**
+     * The active session's page view has just become available — bound, or attached back onto the
+     * screen. Hand it the focus, and with it the IME target, if the terminal is the intended focus
+     * owner for this session.
+     *
+     * <p>Why this cannot live in the switch's landing ({@link SessionPagerManager#onTerminalPageSelected}):
+     * a switch that lands two or more pages away has NO active view at landing time — the
+     * destination page does not exist yet ({@code offscreenPageLimit == 1}) and the page being left
+     * is detached immediately after, which clears the window's focus and makes
+     * {@code InputMethodManager} end the input session. The landing therefore cannot request focus
+     * on anything, and the window is left focus-less for the whole visit: tapping the terminal
+     * cannot open the keyboard (the show request is issued for a null view) and closing the input
+     * panel cannot move focus off its now hidden EditText. Only a positive signal — the page is
+     * here — can do the hand-off, which is what this method is for.
+     *
+     * <p>It only ever moves focus; it never shows or hides the IME (the focus listener is read-only
+     * w.r.t. the IME — see {@code registerTerminalViewFocusListener}), so it cannot resurrect a
+     * keyboard the user closed.
+     */
+    public void onActivePageViewAvailable(@NonNull TerminalView view) {
+        if (mIsPaused) return;
+        if (view.hasFocus()) return;
+        // The input panel owns the focus whenever it is on screen: never steal it. A long press on
+        // the panel must select a word, not open the terminal's context menu.
+        //
+        // Both tests are LIVE facts on purpose. The per-session "focus was on the input panel"
+        // record is not usable here: it is left set by a panel that has since been hidden (measured
+        // `t3focus=1` with `live_tifocus=0`), so gating on it would refuse the hand-off in exactly
+        // the state that needs it — the hidden panel still holding the IME target.
+        final EditText currentInput = getTerminalToolbarTextInput();
+        if (currentInput != null && currentInput.hasFocus()) return;
+        if (isTextInputVisible()) return;
+        // Focus only once the view can actually serve input: a zero-width view is not servable and
+        // the IME would refuse it.
+        whenViewLaidOut(view, () -> {
+            if (view.hasFocus() || !view.isAttachedToWindow()) return;
+            if (isTextInputVisible()) return;
+            final EditText input = getTerminalToolbarTextInput();
+            if (input != null && input.hasFocus()) return;
+            view.requestFocus();
+        }, 6);
     }
 
 

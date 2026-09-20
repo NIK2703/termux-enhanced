@@ -477,6 +477,32 @@ public final class SessionPagerManager {
         // old "wait for attach with a post and a 300 ms safety net" recovery, which could never fire
         // for an already-attached view and therefore stranded the activity on a dead session.
         mTerminalPagerAdapter.setOnPageBoundListener(this::onPageBound);
+        // The bind is NOT the only way a page becomes available, and on a jump of two or more
+        // pages it is not even the usual one: RecyclerView re-attaches a ViewHolder that comes back
+        // from its view cache WITHOUT re-binding it, so onPageBound never fires for that page. A
+        // far jump detaches the page it leaves (offscreenPageLimit == 1), so coming back to it
+        // later is exactly that case — measured on device: `PAGEDUMP … tv=null tvAttached=0` and
+        // `focus term` throwing a NullPointerException for the whole visit. Attach is delivered
+        // whatever brought the holder back, so it is the signal the active-view pointer must key on.
+        final RecyclerView attachRv = getPagerRecyclerView();
+        if (attachRv != null) {
+            attachRv.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+                @Override
+                public void onChildViewAttachedToWindow(@NonNull View child) {
+                    RecyclerView.ViewHolder vh = attachRv.getChildViewHolder(child);
+                    if (!(vh instanceof TerminalPagerAdapter.TerminalPageViewHolder)) return;
+                    TerminalView attachedView = ((TerminalPagerAdapter.TerminalPageViewHolder) vh).mTerminalView;
+                    if (attachedView == null) return;
+                    TerminalSession attachedSession = attachedView.getCurrentSession();
+                    // Idempotent: onPageBound only writes when this page IS the active one, and it
+                    // also runs the focus/IME hand-off for it.
+                    if (attachedSession != null) onPageBound(attachedSession, attachedView);
+                }
+
+                @Override
+                public void onChildViewDetachedFromWindow(@NonNull View child) { }
+            });
+        }
         // With fewer than two sessions there is nothing to swipe between, so disable user input
         // to suppress the stretch/bounce edge-effect animation on a horizontal drag.
         updatePagerUserInputEnabled();
@@ -1260,6 +1286,21 @@ public final class SessionPagerManager {
             }
         }
 
+        // Record the keyboard state as it is NOW, while the page being left is still attached and
+        // the IME reading is honest. With "keyboard state follows tab switch" OFF the landed
+        // session's memory must not be used (that is the ON behaviour), yet the pager detaches the
+        // page it leaves and the system then drops the IME by itself — so "the state must not
+        // change" can only be honoured by re-asserting THIS reading afterwards.
+        //
+        // Skipped for a tab CREATE: a freshly-added session inherited the live keyboard state and is
+        // re-asserted by the create path itself (scheduleSwitchKeyboardReassert, gated on
+        // mKbStateCreateInProgress / mKbStateInheritedSessionHandle). Capturing here would feed the
+        // generic switch re-assert below, which force-shows the keyboard on a create and regresses
+        // the pre-fix (last-commit) behaviour — the create already preserves the state on its own.
+        if (!mActivity.isKbStateCreateInProgress()) {
+            mActivity.captureKeyboardStateForSwitch();
+        }
+
         // Mark a page switch in progress so the per-page focus listener
         // (registerTerminalViewFocusListener) suppresses IME hide/show churn while the old page
         // loses focus and the new one gains it during a swipe / tab / hotkey switch. Cleared at the
@@ -1449,9 +1490,17 @@ public final class SessionPagerManager {
      */
     private void onPageBound(@NonNull TerminalSession session, @NonNull TerminalView view) {
         TerminalSession active = getActiveSession();
-        if (active == session) {
-            mActivity.setTerminalView(view);
-        }
+        if (active != session) return;
+        mActivity.setTerminalView(view);
+        // The active page's view exists again — hand it the focus, and with it the IME target.
+        // This is the only place that runs on a POSITIVE signal (the page is attached and bound),
+        // which is precisely what a landing on a page two or more tabs away does not have: at
+        // onPageSelected() time that page does not exist yet, and the page being left is detached
+        // right after, which clears the window's focus and makes InputMethodManager end the input
+        // session. Without this hand-off the window stays focus-less for the whole visit: tapping
+        // the terminal cannot open the keyboard (the show request is issued for a null view) and
+        // closing the input panel cannot move focus off its now hidden EditText.
+        mActivity.onActivePageViewAvailable(view);
     }
 
     /** No specific target session: keep the active page (or land on the newly added one). */
