@@ -3,6 +3,7 @@ package com.termux.app;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
@@ -46,6 +47,11 @@ import com.termux.terminal.TerminalSession;
  *                   highlighted tab) — for the tab-close invariant check (tag TIPanelCmd)
  *   session count- log the number of live sessions
  *   dumpsess     - log per-session handles in service order (for re-key verification)
+ *   tabs         - snapshot of the tab strip: geometry, scroll position, range, and the visible
+ *                  over-drag displacement, plus whatever the last `tabs watch` observed
+ *   tabs watch <ms> - sample the tab strip once per animation frame for <ms> (default 3000) and
+ *                  log the totals: frames, moved frames, frames pinned at an end, frames pinned
+ *                  at an end WHILE stretched (the bounce), and the peak displacement
  */
 public class TermuxDebugCommandReceiver extends BroadcastReceiver {
 
@@ -261,48 +267,40 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                 }
                 case "tabs": {
                     // Snapshot of the tab strip's scroll geometry plus the elastic over-drag
-                    // displacement. The invariant to check while a finger is dragging past an end:
-                    // range==0 or scrollX pinned at 0/range, AND tx != 0 (the strip is pulled).
+                    // displacement, all through public View API — see the watcher below for why.
                     activity.runOnUiThread(() -> {
                         android.view.View v = activity.findViewById(com.termux.R.id.session_tabs_scroll);
                         android.view.View content = activity.findViewById(com.termux.R.id.session_tabs);
                         if (v == null || content == null) { log("TABS no-strip"); return; }
-                        int range = Math.max(0, content.getWidth()
-                                - (v.getWidth() - v.getPaddingLeft() - v.getPaddingRight()));
-                        StringBuilder tb = new StringBuilder("TABS");
-                        tb.append(" cls=").append(v.getClass().getSimpleName());
-                        tb.append(" w=").append(v.getWidth());
-                        tb.append(" scrollX=").append(v.getScrollX());
-                        tb.append(" contentW=").append(content.getWidth());
-                        tb.append(" range=").append(range);
-                        tb.append(" tx=").append(content.getTranslationX());
-                        if (v instanceof com.termux.app.terminal.ElasticHorizontalScrollView) {
-                            tb.append(" disp=").append(
-                                    ((com.termux.app.terminal.ElasticHorizontalScrollView) v)
-                                            .getOverscrollDisplacementPx());
-                            tb.append(" | ").append(
-                                    ((com.termux.app.terminal.ElasticHorizontalScrollView) v)
-                                            .dumpOverscrollState());
-                        } else {
-                            tb.append(" disp=n/a");
-                        }
-                        log(tb.toString());
+                        final int range = stripRange(v, content);
+                        log("TABS cls=" + v.getClass().getSimpleName()
+                                + " w=" + v.getWidth()
+                                + " scrollX=" + v.getScrollX()
+                                + " contentW=" + content.getWidth()
+                                + " range=" + range
+                                // The displacement the user actually sees: the content child's
+                                // translationX is the elastic over-drag, by definition.
+                                + " tx=" + content.getTranslationX()
+                                + " | lastWatch[" + watchSummary() + "]");
                     });
                     break;
                 }
-                case "tabs over": {
-                    // A/B switch for the elastic over-drag, so a run with it off is a true baseline.
-                    final String oa = intent.getStringExtra("arg");
-                    final boolean on = oa == null || !oa.equals("off");
+                case "tabs watch": {
+                    // Per-frame observation of the strip for a few seconds. Armed here, consumed by
+                    // `tabs` — so the sequence is: tabs watch, do the gesture, tabs.
+                    final String wa = intent.getStringExtra("arg");
+                    long ms = 3000L;
+                    try {
+                        if (!TextUtils.isEmpty(wa)) ms = Long.parseLong(wa.trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                    final long windowMs = Math.max(200L, Math.min(15000L, ms));
                     activity.runOnUiThread(() -> {
                         android.view.View v = activity.findViewById(com.termux.R.id.session_tabs_scroll);
-                        if (!(v instanceof com.termux.app.terminal.ElasticHorizontalScrollView)) {
-                            log("tabs over: strip is not ElasticHorizontalScrollView");
-                            return;
-                        }
-                        ((com.termux.app.terminal.ElasticHorizontalScrollView) v)
-                                .setElasticOverscrollEnabled(on);
-                        log("tabs over: " + on);
+                        android.view.View content = activity.findViewById(com.termux.R.id.session_tabs);
+                        if (v == null || content == null) { log("tabs watch: no-strip"); return; }
+                        armStripWatch(v, content, stripRange(v, content), windowMs);
+                        log("tabs watch: armed for " + windowMs + "ms");
                     });
                     break;
                 }
@@ -701,6 +699,89 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
 
     private static String bounds(View v) {
         return "[" + v.getLeft() + "," + v.getTop() + "][" + v.getRight() + "," + v.getBottom() + "]";
+    }
+
+    // ── tab-strip watcher ──────────────────────────────────────────────────────────────────
+    //
+    // Why this lives here and not inside ElasticHorizontalScrollView: anything in src/main is part
+    // of the RELEASE, and R8 does not save us. app/proguard-rules.pro has -dontobfuscate and the
+    // build uses proguard-android.txt (which is -dontoptimize), so the shrinker removes an
+    // uncalled METHOD — dumpOverscrollState() was indeed stripped — but keeps a field that is only
+    // ever incremented, because `x++` READS it and the shrinker's reachability analysis counts
+    // that as a use. Deleting the increment is an optimization, and optimizations are off.
+    //
+    // So the strip is observed entirely through public View API instead. That is not a compromise:
+    // getChildAt(0).getTranslationX() IS the elastic displacement — the view writes exactly that
+    // value — so what is measured here is what the user sees, frame by frame.
+    private static View sWatchStrip;
+    private static View sWatchContent;
+    private static int sWatchRange;
+    private static int sWatchLastScrollX = Integer.MIN_VALUE;
+    private static long sWatchUntilMs;
+    private static int sWatchTicks;
+    private static int sWatchMovedTicks;
+    private static int sWatchEndTicks;
+    private static int sWatchBounceTicks;
+    private static float sWatchPeakTx;
+
+    private static final Runnable sWatchTick = new Runnable() {
+        @Override
+        public void run() {
+            final View strip = sWatchStrip;
+            final View content = sWatchContent;
+            if (strip == null || content == null) return;
+            final int scrollX = strip.getScrollX();
+            final float tx = content.getTranslationX();
+            sWatchTicks++;
+            if (scrollX != sWatchLastScrollX) {
+                sWatchMovedTicks++;
+                sWatchLastScrollX = scrollX;
+            }
+            if (Math.abs(tx) > sWatchPeakTx) sWatchPeakTx = Math.abs(tx);
+            // Pinned at one of the two ends of the range (with range==0 both ends are the same
+            // position, which is correct: a strip that cannot scroll is always at an end).
+            if (scrollX == 0 || scrollX == sWatchRange) {
+                sWatchEndTicks++;
+                // ...and displaced while pinned: this is the bounce actually visible on screen.
+                if (tx != 0f) sWatchBounceTicks++;
+            }
+            if (SystemClock.uptimeMillis() < sWatchUntilMs) {
+                strip.postOnAnimation(this);
+            } else {
+                log("WATCH " + watchSummary() + " scrollX=" + scrollX + " tx=" + tx);
+                sWatchStrip = null;
+                sWatchContent = null;
+            }
+        }
+    };
+
+    private static void armStripWatch(View strip, View content, int range, long windowMs) {
+        sWatchStrip = strip;
+        sWatchContent = content;
+        sWatchRange = range;
+        sWatchLastScrollX = Integer.MIN_VALUE;
+        sWatchUntilMs = SystemClock.uptimeMillis() + windowMs;
+        sWatchTicks = 0;
+        sWatchMovedTicks = 0;
+        sWatchEndTicks = 0;
+        sWatchBounceTicks = 0;
+        sWatchPeakTx = 0f;
+        strip.removeCallbacks(sWatchTick);
+        strip.postOnAnimation(sWatchTick);
+    }
+
+    private static String watchSummary() {
+        return "ticks=" + sWatchTicks
+                + " moved=" + sWatchMovedTicks
+                + " atEnd=" + sWatchEndTicks
+                + " bounced=" + sWatchBounceTicks
+                + " peakTx=" + sWatchPeakTx;
+    }
+
+    /** HorizontalScrollView's own range: content width minus the viewport. */
+    private static int stripRange(View strip, View content) {
+        return Math.max(0, content.getWidth()
+                - (strip.getWidth() - strip.getPaddingLeft() - strip.getPaddingRight()));
     }
 
     private static void log(String msg) {

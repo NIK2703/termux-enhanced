@@ -95,6 +95,22 @@ import com.termux.view.ElasticOverdrag;
  * impact.</b> That covers all three ways a fling can meet a wall — landing exactly on it, being
  * clamped back onto it, and starting on it — with one condition, and it cannot fire for a fling
  * that still has somewhere to go, because such a frame ends strictly between the two ends.
+ *
+ * <h2>4. Nothing diagnostic belongs in this class</h2>
+ * This file is in {@code src/main}, so everything in it ships. Do not add counters, dump methods
+ * or test toggles here, and in particular do not rely on R8 to take them out again: the release
+ * build uses {@code proguard-android.txt} (which is {@code -dontoptimize}) together with
+ * {@code -dontobfuscate}, so the shrinker removes an <em>uncalled method</em> — a
+ * {@code dumpOverscrollState()} here was stripped exactly that way — but keeps a field that is
+ * only ever incremented, because {@code x++} reads it and the shrinker's reachability analysis
+ * counts that read as a use. Removing such an increment is an optimisation, and optimisations are
+ * off.
+ *
+ * <p>The observation this class used to carry now lives in the debug source set
+ * ({@code TermuxDebugCommandReceiver}, commands {@code tabs} / {@code tabs watch}), reading the
+ * strip through public {@link android.view.View} API — which is the honest measurement anyway,
+ * since {@code getChildAt(0).getTranslationX()} is precisely the displacement written by
+ * {@link #setTranslation(float, float)}.
  */
 public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
@@ -125,8 +141,6 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     /** The fly-out of a fling impact (the band being stretched); null unless one is running. */
     @Nullable
     private ValueAnimator mImpact;
-
-    private boolean mElasticEnabled = true;
 
     // ── fling bookkeeping ──────────────────────────────────────────────────────────────────
     //
@@ -171,18 +185,6 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      * exactly the speed it left with.
      */
     private float mFlingLaunchVelocityPx;
-
-    // ── diagnostics ────────────────────────────────────────────────────────────────────────
-    // Counters behind dumpOverscrollState(), for the debug command receiver. They are four ints
-    // and a handful of increments, which is nothing next to the animators this class already
-    // drives; in exchange the fling path stops being a black box on a device you cannot attach a
-    // debugger to. (endFrames is the one that matters: it counts the frames the impulse rule
-    // actually fired on, so "the bounce did not happen" and "the bounce fired with no velocity"
-    // are distinguishable.)
-    private int mFlingFrameCount;
-    private int mFlingClampedCount;
-    private int mFlingEndFrameCount;
-    private int mAbsorbCount;
 
     /** Deferred {@link #settleNow()} — see {@link #ensureSettled()} for why it is posted. */
     private final Runnable mSettleRunnable = this::settleNow;
@@ -233,7 +235,7 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     protected boolean overScrollBy(int deltaX, int deltaY, int scrollX, int scrollY,
                                    int scrollRangeX, int scrollRangeY,
                                    int maxOverScrollX, int maxOverScrollY, boolean isTouchEvent) {
-        if (deltaX != 0 && mElasticEnabled) {
+        if (deltaX != 0) {
             final int wanted = scrollX + deltaX;
             final int clamped = Math.max(0, Math.min(scrollRangeX, wanted));
             // Where the list will actually stop. The difference is finger travel it had nowhere to
@@ -250,8 +252,7 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
                 if (unconsumedPx > 0) onDragDelta(direction, consumedPx, unconsumedPx);
                 else bleedIntoScroll(consumedPx);
             } else {
-                onFlingFrame(direction, Math.abs(deltaX), consumedPx, unconsumedPx,
-                        clamped, scrollRangeX);
+                onFlingFrame(direction, Math.abs(deltaX), consumedPx, clamped, scrollRangeX);
             }
         }
         return super.overScrollBy(deltaX, deltaY, scrollX, scrollY, scrollRangeX, scrollRangeY,
@@ -320,17 +321,14 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      *                         against.
      * @param requestedPx      the frame's step, always positive.
      * @param consumedPx       how much of it the list absorbed as real scroll.
-     * @param unconsumedPx     how much of it the list had nowhere to put.
      * @param clampedPosition  where the frame left the scroll position, i.e. after the clamp.
      * @param scrollRangeX     the scrollable range, so {@code clampedPosition} can be tested
      *                         against the ends without reading the view (which would be the
      *                         <em>old</em> position, not the one this frame is about to write).
      */
-    private void onFlingFrame(int direction, int requestedPx, int consumedPx, int unconsumedPx,
+    private void onFlingFrame(int direction, int requestedPx, int consumedPx,
                               int clampedPosition, int scrollRangeX) {
         mFlingFrameSeen = true;
-        mFlingFrameCount++;
-        if (unconsumedPx > 0) mFlingClampedCount++;
         armFlingLifetime();
 
         final long now = System.nanoTime();
@@ -355,7 +353,6 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         // position, and a flick on a strip that cannot scroll at all must still bounce.
         if (clampedPosition != 0 && clampedPosition != scrollRangeX) return;
 
-        mFlingEndFrameCount++;
         final float velocity = mFlingArrivalPxPerSec > 0f
                 ? mFlingArrivalPxPerSec
                 : Math.abs(mFlingLaunchVelocityPx);
@@ -416,9 +413,6 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         mFlingImpactSpent = false;
         mFlingFrameSeen = false;
         mFlingArmed = true;
-        mFlingFrameCount = 0;
-        mFlingClampedCount = 0;
-        mFlingEndFrameCount = 0;
         mLastFlingFrameNanos = 0L;
         armFlingLifetime();
         super.fling(velocityX);
@@ -461,40 +455,7 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         }
     }
 
-    // ── configuration / diagnostics ────────────────────────────────────────────────────────
-
-    /** Enable/disable the elastic over-drag (a disable also drops any displacement held). */
-    public void setElasticOverscrollEnabled(boolean enabled) {
-        mElasticEnabled = enabled;
-        if (!enabled) reset();
-    }
-
-    /** The displacement currently applied as the content's {@code translationX}, in px. */
-    public float getOverscrollDisplacementPx() {
-        return mTranslationPx;
-    }
-
-    /**
-     * A one-line snapshot of the whole over-drag state, for the debug command receiver. Exists
-     * because the fling half of this class is otherwise unobservable on a device: whether an
-     * impulse was ever absorbed, and with what velocity, is decided by frames the caller never
-     * sees.
-     */
-    public String dumpOverscrollState() {
-        return "disp=" + mTranslationPx
-                + " leftRaw=" + mLeftRawPx
-                + " rightRaw=" + mRightRawPx
-                + " spring=" + (mSpring != null)
-                + " impact=" + (mImpact != null)
-                + " flingFrames=" + mFlingFrameCount
-                + " clampedFrames=" + mFlingClampedCount
-                + " endFrames=" + mFlingEndFrameCount
-                + " absorbs=" + mAbsorbCount
-                + " spent=" + mFlingImpactSpent
-                + " dragAbsorbed=" + mDragPullAbsorbed
-                + " launchV=" + Math.round(mFlingLaunchVelocityPx)
-                + " arrivalV=" + Math.round(mFlingArrivalPxPerSec);
-    }
+    // ── lifecycle ──────────────────────────────────────────────────────────────────────────
 
     @Override
     protected void onDetachedFromWindow() {
@@ -559,7 +520,6 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      * @param velocityPxPerSec  always positive — the arrival speed measured in {@link #onFlingFrame}.
      */
     private void onEdgeAbsorb(int direction, float velocityPxPerSec) {
-        mAbsorbCount++;
         if (!(velocityPxPerSec > 0f) || !isFinite(velocityPxPerSec)) {
             onEdgeRelease();
             return;
@@ -747,7 +707,6 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     private void settleNow() {
         final boolean flingStillRunning = mFlingFrameSeen;
         mFlingFrameSeen = false;
-        if (!mElasticEnabled) return;
         if (mSpring != null || mImpact != null) return;
         if (flingStillRunning) {
             // A fling frame arrived since the last check, so the scroll is still in flight and
