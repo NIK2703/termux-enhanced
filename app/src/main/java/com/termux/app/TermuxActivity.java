@@ -829,6 +829,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mTermuxActivityRootView = findViewById(R.id.activity_termux_root_view);
         mTextInputPanel.setup(savedInstanceState, mTermuxActivityRootView);
+
+        // Keep the input panel under a third of the height it shares with the terminal (the rule
+        // itself lives in TextInputPanelController.applyPanelHeightLimitForContentView).
+        //
+        // The root view's layout is where every way that height can change converges: rotation,
+        // split-screen resize, a bubble being dragged, the keyboard resizing the window, and — when
+        // the keyboard covers the window without a resize — this view's own IME padding top-up,
+        // which changes the content box without changing the measured height. So one unconditional
+        // call per layout pass is complete, and there is deliberately no "only when the height
+        // changed" gate here: such a gate compares bounds and would miss the padding-only case.
+        // The controller is already a no-op when the height it computes is the one in place.
+        mTermuxActivityRootView.addOnLayoutChangeListener(
+            (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                mTextInputPanel.applyPanelHeightLimitForContentView(v));
         mViewHelper = new TermuxActivityViewHelper(this, getLayoutInflater());
         mViewHelper.setDirectoryHistoryPopupController(mDirectoryHistoryPopupCtrl);
 

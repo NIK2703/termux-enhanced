@@ -715,6 +715,8 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         if (ti != null) {
             sb.append(" tiFocus=").append(ti.hasFocus());
             sb.append(" tiBounds=").append(bounds(ti));
+            if (ti.getLayoutParams() != null)
+                sb.append(" tiLPH=").append(ti.getLayoutParams().height);
             sb.append(" tiText=").append(ti.getText().length()).append("ch");
         }
         if (term != null) sb.append(" termFocus=").append(term.hasFocus());
@@ -722,6 +724,16 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         View root = activity.findViewById(R.id.activity_termux_root_view);
         if (root != null && root.getLayoutParams() != null) {
             sb.append(" rootH=").append(root.getHeight());
+            // The input panel's height limit is a third of the root view's CONTENT BOX (height
+            // minus padding), so print the three numbers the rule is made of: the box, the cap it
+            // implies, and the field's current layout height (tiLPH above). This is the on-device
+            // oracle for TextInputPanelController.applyPanelHeightLimitForContentView — with the
+            // keyboard up it shows whether the padding top-up or a real resize reduced the box.
+            final int rootContentH = root.getHeight() - root.getPaddingTop() - root.getPaddingBottom();
+            sb.append(" rootPad=").append(root.getPaddingTop()).append("/").append(root.getPaddingBottom());
+            sb.append(" panelBoxH=").append(rootContentH);
+            sb.append(" panelCapH=").append(
+                com.termux.app.terminal.io.TextInputPanelController.maxPanelHeightForContentHeight(rootContentH));
             sb.append(" rootMB=").append(((android.view.ViewGroup.MarginLayoutParams) root.getLayoutParams()).bottomMargin);
         }
         View pager = activity.findViewById(R.id.terminal_view_pager);
