@@ -1,7 +1,5 @@
 package com.termux.shared.termux.extrakeys;
 
-import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -28,9 +26,10 @@ import java.util.List;
  * normal reading order, {@link Mode#COLUMNS} walks it column by column (top to bottom inside each
  * column).
  *
- * <p>Empty cells are dropped: only real buttons are carried over. A cell that carries swipe
- * bindings but no key is <b>not</b> empty — it looks blank but reacts to gestures, so dropping it
- * would silently lose a binding.
+ * <p><b>The fold is purely positional.</b> The content of a cell is never inspected: a cell that is
+ * empty in the stored layout stays an (empty) cell in the folded one, and a cell that carries only
+ * swipe bindings stays exactly where the reading order puts it. The folded panel therefore holds the
+ * same cells as the stored one — the same count, the same order — just spread over fewer rows.
  */
 public final class ExtraKeysCompaction {
 
@@ -117,13 +116,15 @@ public final class ExtraKeysCompaction {
             if (mode == Mode.ROWS) {
                 for (int row = from; row < to; row++) {
                     for (ExtraKeyButton button : matrix[row]) {
-                        if (!isEmpty(button)) sequence.add(button);
+                        sequence.add(button);
                     }
                 }
             } else {
                 for (int col = 0; col < maxCols; col++) {
                     for (int row = from; row < to; row++) {
-                        if (col < matrix[row].length && !isEmpty(matrix[row][col])) {
+                        // A jagged row simply has no cell at this index; skipping it is a statement
+                        // about the matrix shape, not about the content of a cell.
+                        if (col < matrix[row].length) {
                             sequence.add(matrix[row][col]);
                         }
                     }
@@ -137,20 +138,6 @@ public final class ExtraKeysCompaction {
 
         if (folded.isEmpty()) return null;
         return folded.toArray(new ExtraKeyButton[0][]);
-    }
-
-    /**
-     * Whether a cell is an unused slot: no key and no swipe binding at all.
-     *
-     * <p>A button that only carries swipes ({@code {swipeUp: …}} without {@code key}) is not empty.
-     */
-    public static boolean isEmpty(@Nullable ExtraKeyButton button) {
-        if (button == null) return true;
-        return TextUtils.isEmpty(button.getKey())
-            && button.getSwipeUp() == null
-            && button.getSwipeDown() == null
-            && button.getSwipeLeft() == null
-            && button.getSwipeRight() == null;
     }
 
     /** Longest row length of a matrix — mirrors {@code ExtraKeysView.maximumLength(Object[][])}. */
