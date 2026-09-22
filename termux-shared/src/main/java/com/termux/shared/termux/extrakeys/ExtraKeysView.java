@@ -321,6 +321,21 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     /** If true, font size is reduced when column count or macro bind count increases. */
     private boolean mDynamicFontSize = true;
 
+    /**
+     * Landscape compaction: when active, {@link #reload(ExtraKeysInfo, float)} folds the stored rows
+     * into one or two rows (see {@link ExtraKeysCompaction}). The flag lives on the view instead of
+     * being passed to {@code reload()} so that every reload path — the activity, the session-profile
+     * client and the editor preview — picks it up without changing its call signature.
+     */
+    private boolean mCompactLandscape;
+
+    /** Order of keys inside a folded row. Only meaningful while {@link #mCompactLandscape} is set. */
+    @NonNull
+    private ExtraKeysCompaction.Mode mCompactMode = ExtraKeysCompaction.Mode.ROWS;
+
+    /** Row count the grid was actually built with by the last {@link #reload(ExtraKeysInfo, float)}. */
+    private int mLastReloadedRowCount;
+
     /** The base font size in sp for button labels. Defaults to 14. */
     private int mBaseFontSizeSp = 14;
 
@@ -649,6 +664,45 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mBaseFontSizeSp = sp;
         mCachedFittedFontSp = -1f;
         post(this::applyDynamicFontAfterLayout);
+    }
+
+    /**
+     * Turn the landscape compaction on or off and pick the order of keys inside a folded row.
+     *
+     * <p>The flag is read by the next {@link #reload(ExtraKeysInfo, float)}; this method does not
+     * rebuild the grid itself, because the caller that changes the flag (the activity on a
+     * configuration change, the editor on a preference change) also decides when to reload.
+     *
+     * <p>The fitted-font cache is dropped: it was measured for the previous column count, and reusing
+     * it would render the first frame of the new layout with the wrong text size.
+     *
+     * @param active {@code true} to fold the rows, {@code false} to render the stored layout as-is
+     * @param mode   order of keys inside a folded row, must not be {@code null}
+     */
+    public void setLandscapeCompact(boolean active, @NonNull ExtraKeysCompaction.Mode mode) {
+        if (mCompactLandscape == active && mCompactMode == mode) return;
+        mCompactLandscape = active;
+        mCompactMode = mode;
+        mCachedFittedFontSp = -1f;
+    }
+
+    /** @return {@code true} if the next {@link #reload(ExtraKeysInfo, float)} will fold the rows. */
+    public boolean isLandscapeCompactActive() {
+        return mCompactLandscape;
+    }
+
+    /** @return the order of keys inside a folded row. */
+    @NonNull
+    public ExtraKeysCompaction.Mode getCompactMode() {
+        return mCompactMode;
+    }
+
+    /**
+     * @return the row count the grid was actually built with by the last successful
+     *         {@link #reload(ExtraKeysInfo, float)} — i.e. after compaction, not the stored count.
+     */
+    public int getReloadedRowCount() {
+        return mLastReloadedRowCount;
     }
 
     public void setButtonMargins(float dp) {
