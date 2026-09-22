@@ -263,4 +263,17 @@
       real terminal colors — lives in that module and must resolve the "Default" entry from the
       same source the terminal itself is themed with.
     -->
+
+    <!-- Fold order of the compact extra-keys panel. The entries are @string references, so every
+         locale renders them in its own language without a copy of this array: a resource reference
+         is resolved against the configuration the app runs in, not the one the array was taken
+         from. The values below are preference values and are never shown, hence not localised. -->
+    <string-array name="extra_keys_compact_mode_entries">
+        <item>@string/extra_keys_compact_mode_rows</item>
+        <item>@string/extra_keys_compact_mode_columns</item>
+    </string-array>
+    <string-array name="extra_keys_compact_mode_values">
+        <item>rows</item>
+        <item>columns</item>
+    </string-array>
 </resources>

@@ -872,4 +872,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Пузырёк</string>
     <string name="bubble_notification_channel_description">Плавающее окно терминала поверх других приложений</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">Компактная панель в ландшафтном режиме</string>
+    <string name="extra_keys_compact_landscape_summary">В ландшафтной ориентации 2-3 строки кнопок сворачиваются в одну, 4 - в две</string>
+    <string name="extra_keys_compact_mode_title">Порядок сворачивания</string>
+    <string name="extra_keys_compact_mode_rows">По строкам</string>
+    <string name="extra_keys_compact_mode_columns">По столбцам</string>
 </resources>

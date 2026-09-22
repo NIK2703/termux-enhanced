@@ -50,7 +50,7 @@
     <string name="backup_restore_settings_category_title">إعدادات التطبيق</string>
     <string name="backup_settings_title">نسخ إعدادات التطبيق احتياطيًا</string>
     <string name="restore_settings_title">استعادة إعدادات التطبيق</string>
-    <string name="settings_backup_warning">سيتم حفظ إعدادات تطبيق Termux (التفضيلات، نظام الألوان، الخط، تخطيط المفاتيح الإضافية) في ملف نسخ احتياطي.\n\nاختر ملف الوجهة.</string>
+    <string name="settings_backup_warning">سيتم حفظ إعدادات تطبيق Termux (التفضيلات، نظام الألوان، الخط، تخطيط الأزرار الإضافية) في ملف نسخ احتياطي.\n\nاختر ملف الوجهة.</string>
     <string name="settings_restore_warning">سيتم استعادة إعدادات تطبيق Termux من ملف النسخ الاحتياطي. سيتم استبدال الإعدادات الحالية.</string>
     <string name="settings_backup_progress">جارٍ نسخ الإعدادات احتياطيًا…</string>
     <string name="settings_restore_progress">جارٍ استعادة الإعدادات…</string>
@@ -147,7 +147,7 @@
     <string name="msg_add_termux_debug_info">إضافة معلومات تصحيح Termux إلى التقرير؟</string>
     <string name="msg_terminal_panel_disabling">جارٍ تعطيل لوحة الطرفية</string>
     <string name="msg_terminal_panel_enabling">جارٍ تمكين لوحة الطرفية</string>
-    <string name="msg_extra_keys_create_failed">لا يمكن إنشاء المفاتيح الإضافية الافتراضية</string>
+    <string name="msg_extra_keys_create_failed">لا يمكن إنشاء الأزرار الإضافية الافتراضية</string>
     <string name="msg_extra_keys_load_failed">تعذر تحميل وتعيين الخاصية \"%1$s\" من ملف الخصائص: %2$s</string>
     <string name="msg_generating_report">جارٍ إنشاء التقرير</string>
     <string name="msg_max_terminals_reached">أغلق الطرفيات الحالية قبل إنشاء طرفيات جديدة.</string>
@@ -204,7 +204,7 @@
     <string name="termux_api_preferences_summary">تفضيلات تطبيق Termux:API</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">عتامة خلفية العناصر النشطة</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">عتامة خلفية العناصر غير النشطة</string>
-    <string name="extra_keys_corner_radius_title">نصف قطر زاوية المفاتيح</string>
+    <string name="extra_keys_corner_radius_title">نصف قطر زاوية الأزرار</string>
     <string name="termux_crash_report_notifications_enabled_off">تعطيل الإشعارات لتقارير الأعطال.</string>
     <string name="termux_crash_report_notifications_enabled_on">عرض الإشعارات لتقارير الأعطال.</string>
     <string name="termux_crash_report_notifications_enabled_title">إشعارات تقارير الأعطال</string>
@@ -246,7 +246,7 @@
     <string name="text_input_append_enter_summary">عند الإرسال من حقل الإدخال، يُضاف سطر جديد تلقائيًا (الضغط على Enter). عطّل هذا الخيار لإرسال النص كما هو بدون سطر جديد في النهاية.</string>
     <string name="text_input_append_enter_title">إضافة Enter عند الإرسال</string>
     <string name="text_input_show_summary_off">حقل إدخال النص مخفي</string>
-    <string name="text_input_show_summary_on">حقل إدخال النص ظاهر فوق المفاتيح الإضافية</string>
+    <string name="text_input_show_summary_on">حقل إدخال النص ظاهر فوق الأزرار الإضافية</string>
     <string name="text_input_toggle_button_title">زر تبديل لوحة الإدخال</string>
     <string name="text_input_title">إدخال النص</string>
     <string name="text_input_hide_on_send_title">إخفاء لوحة الإدخال بعد الإرسال</string>
@@ -292,8 +292,8 @@
     <string name="locale_override_summary">تجاوز لغة التطبيق</string>
     <string name="locale_override_entry_system">لغة النظام</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">إخفاء المفاتيح الإضافية مع لوحة المفاتيح</string>
-    <string name="hide_extra_keys_with_keyboard_summary">إخفاء المفاتيح الإضافية تلقائيًا عند إغلاق لوحة المفاتيح، وإظهارها عند فتحها</string>
+    <string name="hide_extra_keys_with_keyboard_title">إخفاء الأزرار الإضافية مع لوحة المفاتيح</string>
+    <string name="hide_extra_keys_with_keyboard_summary">إخفاء الأزرار الإضافية تلقائيًا عند إغلاق لوحة المفاتيح، وإظهارها عند فتحها</string>
 
     
     <string name="suggestions_max_count_title">الحد الأقصى لاقتراحات الإكمال التلقائي</string>
@@ -308,29 +308,29 @@
     <string name="display_preferences_title">العرض</string>
     <string name="terminal_advanced_title">متقدمة</string>
     <string name="terminal_advanced_summary">الجلسة، الصوت والإشعارات، التطبيقات الخارجية، الملحقات، تصحيح الأخطاء</string>
-    <string name="extra_keys_category_title">المفاتيح الإضافية</string>
-    <string name="extra_keys_header">المفاتيح الإضافية</string>
-    <string name="extra_keys_layout_summary">مصفوفة JSON تحدد صفوف المفاتيح الإضافية وقيمها المنبثقة.</string>
-    <string name="extra_keys_layout_title">تخطيط المفاتيح</string>
-    <string name="extra_keys_preferences_summary">تفضيلات لوحة المفاتيح الإضافية</string>
-    <string name="extra_keys_preferences_title">المفاتيح الإضافية</string>
+    <string name="extra_keys_category_title">الأزرار الإضافية</string>
+    <string name="extra_keys_header">الأزرار الإضافية</string>
+    <string name="extra_keys_layout_summary">مصفوفة JSON تحدد صفوف الأزرار الإضافية وقيمها المنبثقة.</string>
+    <string name="extra_keys_layout_title">تخطيط الأزرار</string>
+    <string name="extra_keys_preferences_summary">تفضيلات لوحة الأزرار الإضافية</string>
+    <string name="extra_keys_preferences_title">الأزرار الإضافية</string>
     <string name="extra_keys_special_button_mode_hold">ضغط مستمر (أثناء الضغط)</string>
     <string name="extra_keys_special_button_mode_sticky">لاصق (تبديل / قفل)</string>
-    <string name="extra_keys_special_button_mode_summary">كيفية استجابة مفاتيح التعديل (CTRL، ALT، SHIFT، FN) للمس. ثابت: انقر للتبديل، ضغط مطول للقفل. مستمر: نشطة فقط أثناء الضغط على المفتاح.</string>
-    <string name="extra_keys_special_button_mode_title">سلوك المفاتيح الخاصة</string>
+    <string name="extra_keys_special_button_mode_summary">كيفية استجابة أزرار التعديل (CTRL، ALT، SHIFT، FN) للمس. ثابت: انقر للتبديل، ضغط مطول للقفل. مستمر: نشطة فقط أثناء الضغط على الزر.</string>
+    <string name="extra_keys_special_button_mode_title">سلوك الأزرار الخاصة</string>
     <string name="extra_keys_style_all">الكل</string>
     <string name="extra_keys_style_arrows_all">كل الأسهم</string>
     <string name="extra_keys_style_arrows_only">الأسهم فقط</string>
     <string name="extra_keys_style_default">افتراضي</string>
     <string name="extra_keys_style_none">بدون</string>
-    <string name="extra_keys_style_summary">كيفية عرض الرموز الخاصة على المفاتيح.</string>
-    <string name="extra_keys_style_title">نمط المفاتيح</string>
-    <string name="extra_keys_text_all_caps_summary">عرض تسميات المفاتيح الإضافية بأحرف كبيرة.</string>
+    <string name="extra_keys_style_summary">كيفية عرض الرموز الخاصة على الأزرار.</string>
+    <string name="extra_keys_style_title">نمط الأزرار</string>
+    <string name="extra_keys_text_all_caps_summary">عرض تسميات الأزرار الإضافية بأحرف كبيرة.</string>
     <string name="extra_keys_text_all_caps_title">نص بأحرف كبيرة</string>
     <string name="failure_notifications_category_title">إشعارات الأعطال</string>
     <string name="history_category_title">السجل</string>
     <string name="input_panel_title">لوحة الإدخال</string>
-    <string name="input_preferences_summary">المفاتيح الإضافية، لوحة الإدخال، لوحة المفاتيح، اختصارات المفاتيح، أزرار النظام</string>
+    <string name="input_preferences_summary">الأزرار الإضافية، لوحة الإدخال، لوحة المفاتيح، اختصارات المفاتيح، أزرار النظام</string>
     <string name="input_preferences_title">الإدخال</string>
     <string name="language_category_title">اللغة</string>
     <string name="plugin_logging_category_title">التسجيل</string>
@@ -350,46 +350,46 @@
     <string name="screen_orientation_entry_landscape">أفقي</string>
 
     
-    <string name="extra_keys_visibility_title">إظهار لوحة المفاتيح الإضافية</string>
-    <string name="extra_keys_visibility_summary">متى تُعرض لوحة المفاتيح الإضافية.</string>
+    <string name="extra_keys_visibility_title">إظهار لوحة الأزرار الإضافية</string>
+    <string name="extra_keys_visibility_summary">متى تُعرض لوحة الأزرار الإضافية.</string>
     <string name="extra_keys_visibility_always">دائمًا</string>
     <string name="extra_keys_visibility_keyboard">فقط عند فتح لوحة المفاتيح</string>
     <string name="extra_keys_visibility_never">أبدًا</string>
 
     
-    <string name="extra_keys_invalid_json">JSON غير صالح للمفاتيح الإضافية. لم يتم حفظ التغييرات.</string>
+    <string name="extra_keys_invalid_json">JSON غير صالح للأزرار الإضافية. لم يتم حفظ التغييرات.</string>
 
     
-    <string name="extra_keys_editor_title">محرر المفاتيح الإضافية</string>
-    <string name="extra_keys_editor_summary">أنشئ لوحة المفاتيح الإضافية بصريًا: حدد الصفوف والأعمدة، ثم اضغط على مفتاح لتعيين إشارة.</string>
+    <string name="extra_keys_editor_title">محرر الأزرار الإضافية</string>
+    <string name="extra_keys_editor_summary">أنشئ لوحة الأزرار الإضافية بصريًا: حدد الصفوف والأعمدة، ثم اضغط على زر لتعيين إشارة.</string>
     <string name="extra_keys_editor_columns_title">الأعمدة</string>
-    <string name="extra_keys_editor_columns_summary">عدد المفاتيح في كل صف (1 إلى 10).</string>
+    <string name="extra_keys_editor_columns_summary">عدد الأزرار في كل صف (1 إلى 10).</string>
     <string name="extra_keys_editor_rows_title">الصفوف</string>
-    <string name="extra_keys_editor_rows_summary">عدد صفوف المفاتيح (1 إلى 4).</string>
+    <string name="extra_keys_editor_rows_summary">عدد صفوف الأزرار (1 إلى 4).</string>
     <string name="extra_keys_editor_preview_title">معاينة</string>
-    <string name="extra_keys_editor_preview_summary">لوحة تفاعلية — اضغط على أي مفتاح لتغيير إشارته.</string>
+    <string name="extra_keys_editor_preview_summary">لوحة تفاعلية — اضغط على أي زر لتغيير إشارته.</string>
     <string name="extra_keys_editor_signal_dialog_title">تعيين إشارة</string>
     <string name="extra_keys_editor_custom_text_title">رمز/نص</string>
     <string name="extra_keys_editor_custom_text_message">اضغط أي مفتاح للربط:</string>
-    <string name="extra_keys_editor_apply_title">تطبيق على المفاتيح الإضافية</string>
-    <string name="extra_keys_editor_apply_summary">احفظ هذا التخطيط في إعدادات المفاتيح الإضافية.</string>
+    <string name="extra_keys_editor_apply_title">تطبيق على الأزرار الإضافية</string>
+    <string name="extra_keys_editor_apply_summary">احفظ هذا التخطيط في إعدادات الأزرار الإضافية.</string>
     <string name="extra_keys_editor_empty">(فارغ)</string>
-    <string name="extra_keys_editor_max_signals">الحد الأقصى 8 إشارات لكل مفتاح</string>
+    <string name="extra_keys_editor_max_signals">الحد الأقصى 8 إشارات لكل زر</string>
     <string name="extra_keys_editor_custom_text_no_space">النص المخصص مع المسافات غير مدعوم في التركيبات</string>
     <string name="extra_keys_editor_done">تم</string>
-    <string name="extra_keys_editor_open_editor">تحرير المفاتيح الإضافية</string>
-    <string name="extra_keys_editor_open_editor_summary">تكوين التخطيط والتحجيم وربط المفاتيح</string>
+    <string name="extra_keys_editor_open_editor">تحرير الأزرار الإضافية</string>
+    <string name="extra_keys_editor_open_editor_summary">تكوين التخطيط والتحجيم وربط الأزرار</string>
     <string name="extra_keys_edge_indicators_title">مؤشرات اتجاه السحب</string>
-    <string name="extra_keys_edge_indicators_summary">إظهار مؤشرات اتجاهات السحب مع الإجراءات المعينة على المفاتيح الإضافية</string>
-    <string name="extra_keys_editor_hint">اضغط لتعيين الإجراء الرئيسي.\nاسحب لأعلى أو لأسفل أو لليسار أو لليمين لتعيين إجراء الإيماءة.\nاضغط مطوّلًا على مفتاح لتعيين تسميته.</string>
+    <string name="extra_keys_edge_indicators_summary">إظهار مؤشرات اتجاهات السحب مع الإجراءات المعينة على الأزرار الإضافية</string>
+    <string name="extra_keys_editor_hint">اضغط لتعيين الإجراء الرئيسي.\nاسحب لأعلى أو لأسفل أو لليسار أو لليمين لتعيين إجراء الإيماءة.\nاضغط مطوّلًا على زر لتعيين تسميته.</string>
     <string name="extra_keys_editor_mode_assign">تعيين</string>
     <string name="extra_keys_editor_mode_move">نقل</string>
-    <string name="extra_keys_editor_hint_move">اسحب مفتاحًا إلى خلية أخرى لنقل/تبادل جميع إجراءاته</string>
+    <string name="extra_keys_editor_hint_move">اسحب زرًا إلى خلية أخرى لنقل/تبادل جميع إجراءاته</string>
     <string name="extra_keys_editor_label_dialog_title">تسمية</string>
     <string name="extra_keys_editor_profile_default">الافتراضي</string>
     <string name="extra_keys_editor_profile_add">إضافة ملف التعريف</string>
     <string name="extra_keys_editor_profile_delete">حذف ملف التعريف</string>
-    <string name="extra_keys_editor_profile_add_title">ملف التعريف الجديد للمفاتيح الإضافية</string>
+    <string name="extra_keys_editor_profile_add_title">ملف التعريف الجديد للأزرار الإضافية</string>
     <string name="extra_keys_editor_profile_name_hint">اسم ملف التعريف</string>
     <string name="extra_keys_editor_profile_exists">يوجد بالفعل ملف التعريف بهذا الاسم</string>
     <string name="extra_keys_editor_profile_delete_title">حذف ملف التعريف</string>
@@ -408,7 +408,7 @@
 
     
     <string name="extra_keys_haptic_title">الاستجابة اللمسية</string>
-    <string name="extra_keys_haptic_summary">الاهتزاز عند التفاعل مع لوحة المفاتيح الإضافية</string>
+    <string name="extra_keys_haptic_summary">الاهتزاز عند التفاعل مع لوحة الأزرار الإضافية</string>
     <string name="extra_keys_haptic_all">الضغط والإيماءات</string>
     <string name="extra_keys_haptic_gestures">الإيماءات فقط</string>
     <string name="extra_keys_haptic_off">معطّل</string>
@@ -428,12 +428,12 @@
     <string name="termux_float_debugging_title">تصحيح أخطاء Termux:Float</string>
     <string name="termux_tasker_debugging_title">تصحيح أخطاء Termux:Tasker</string>
     <string name="termux_widget_debugging_title">تصحيح أخطاء Termux:Widget</string>
-    <string name="extra_keys_button_margin_title">تباعد المفاتيح</string>
-    <string name="extra_keys_button_margin_summary">المسافة بين المفاتيح</string>
+    <string name="extra_keys_button_margin_title">تباعد الأزرار</string>
+    <string name="extra_keys_button_margin_summary">المسافة بين الأزرار</string>
     <string name="extra_keys_dynamic_font_size_title">حجم خط ديناميكي</string>
     <string name="extra_keys_dynamic_font_size_summary">تقليل حجم الخط عند زيادة عدد الأعمدة أو تعيين الماكرو على الإجراءات الرئيسية</string>
     <string name="extra_keys_font_size_title">حجم الخط الأساسي</string>
-    <string name="extra_keys_font_size_summary">حجم النص الأساسي لتسميات المفاتيح</string>
+    <string name="extra_keys_font_size_summary">حجم النص الأساسي لتسميات الأزرار</string>
     <string name="extra_keys_editor_tap_suffix"> (نقرة)</string>
     <string name="extra_keys_editor_remove_signal">إزالة %s</string>
     <string name="terminal_category_title">الطرفية</string>
@@ -743,4 +743,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">فقاعة</string>
     <string name="bubble_notification_channel_description">نافذة طرفية عائمة فوق التطبيقات الأخرى</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">لوحة مضغوطة في الوضع الأفقي</string>
+    <string name="extra_keys_compact_landscape_summary">في الوضع الأفقي تُطوى 2–3 صفوف من الأزرار في صف واحد، و4 صفوف من الأزرار في صفين.</string>
+    <string name="extra_keys_compact_mode_title">ترتيب الطي</string>
+    <string name="extra_keys_compact_mode_rows">حسب الصفوف</string>
+    <string name="extra_keys_compact_mode_columns">حسب الأعمدة</string>
 </resources>

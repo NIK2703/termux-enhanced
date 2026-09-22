@@ -185,7 +185,7 @@
     <string name="backup_restore_settings_category_title">应用设置</string>
     <string name="backup_settings_title">备份应用设置</string>
     <string name="restore_settings_title">恢复应用设置</string>
-    <string name="settings_backup_warning">将把 Termux 应用设置（设置项、配色方案、字体、额外按键布局）保存到备份文件中。\n\n请选择目标文件。</string>
+    <string name="settings_backup_warning">将把 Termux 应用设置（设置项、配色方案、字体、额外按钮布局）保存到备份文件中。\n\n请选择目标文件。</string>
     <string name="settings_restore_warning">这将从备份文件恢复您的 Termux 应用设置。当前设置将被覆盖。</string>
     <string name="settings_backup_progress">正在备份设置…</string>
     <string name="settings_restore_progress">正在恢复设置…</string>
@@ -259,7 +259,7 @@
     <string name="notification_wake_lock_held">（唤醒锁已保持）</string>
     <string name="session_null_title">空会话</string>
     <string name="msg_extra_keys_load_failed">无法从属性文件加载并设置属性“%1$s”：%2$s</string>
-    <string name="msg_extra_keys_create_failed">无法创建默认额外按键</string>
+    <string name="msg_extra_keys_create_failed">无法创建默认额外按钮</string>
 
 
     
@@ -267,8 +267,8 @@
     <string name="locale_override_summary">覆盖应用语言</string>
     <string name="locale_override_entry_system">跟随系统</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">随键盘隐藏额外按键</string>
-    <string name="hide_extra_keys_with_keyboard_summary">键盘关闭时自动隐藏额外按键，打开时显示</string>
+    <string name="hide_extra_keys_with_keyboard_title">随键盘隐藏额外按钮</string>
+    <string name="hide_extra_keys_with_keyboard_summary">键盘关闭时自动隐藏额外按钮，打开时显示</string>
 
     
     <string name="termux_tab_height_mode_title">标签页高度</string>
@@ -284,14 +284,14 @@
     <string name="language_category_title">语言</string>
     <string name="appearance_category_title">外观</string>
     <string name="input_preferences_title">输入</string>
-    <string name="input_preferences_summary">额外按键、输入面板、键盘、快捷键、系统按键</string>
-    <string name="extra_keys_preferences_title">额外按键</string>
-    <string name="extra_keys_preferences_summary">额外按键面板设置</string>
+    <string name="input_preferences_summary">额外按钮、输入面板、键盘、快捷键、系统按钮</string>
+    <string name="extra_keys_preferences_title">额外按钮</string>
+    <string name="extra_keys_preferences_summary">额外按钮面板设置</string>
     <string name="display_preferences_title">显示</string>
     <string name="display_preferences_summary">外观、标签页、终端、窗口</string>
     <string name="terminal_advanced_title">高级</string>
     <string name="terminal_advanced_summary">会话、声音与通知、外部应用、附加功能、调试</string>
-    <string name="extra_keys_corner_radius_title">按键圆角半径</string>
+    <string name="extra_keys_corner_radius_title">按钮圆角半径</string>
     <string name="sessions_preferences_title">会话</string>
     <string name="sessions_history_preferences_summary">会话、标签页和历史设置</string>
     <string name="backup_restore_preferences_title">备份与恢复</string>
@@ -299,22 +299,22 @@
     <string name="diagnostics_preferences_title">诊断</string>
     <string name="diagnostics_preferences_summary">日志记录和错误通知</string>
     <string name="plugin_logging_category_title">日志记录</string>
-    <string name="extra_keys_special_button_mode_title">特殊按键行为</string>
+    <string name="extra_keys_special_button_mode_title">特殊按钮行为</string>
     <string name="extra_keys_special_button_mode_summary">修饰键（CTRL、ALT、SHIFT、FN）如何响应触摸。粘滞：点按切换，长按锁定；按住：仅在按住期间生效。</string>
     <string name="extra_keys_special_button_mode_sticky">粘滞（切换/锁定）</string>
     <string name="extra_keys_special_button_mode_hold">按住（按住时生效）</string>
-    <string name="extra_keys_header">额外按键</string>
-    <string name="extra_keys_category_title">额外按键</string>
-    <string name="extra_keys_layout_title">按键布局</string>
-    <string name="extra_keys_layout_summary">用于定义额外按键各行及其弹出值的 JSON 矩阵。</string>
-    <string name="extra_keys_style_title">按键样式</string>
-    <string name="extra_keys_style_summary">特殊字符在按键上的显示方式。</string>
+    <string name="extra_keys_header">额外按钮</string>
+    <string name="extra_keys_category_title">额外按钮</string>
+    <string name="extra_keys_layout_title">按钮布局</string>
+    <string name="extra_keys_layout_summary">用于定义额外按钮各行及其弹出值的 JSON 矩阵。</string>
+    <string name="extra_keys_style_title">按钮样式</string>
+    <string name="extra_keys_style_summary">特殊字符在按钮上的显示方式。</string>
     <string name="extra_keys_style_default">默认</string>
     <string name="extra_keys_style_arrows_only">仅箭头</string>
     <string name="extra_keys_style_arrows_all">全部箭头</string>
     <string name="extra_keys_style_all">全部</string>
     <string name="extra_keys_style_none">无</string>
-    <string name="extra_keys_text_all_caps_title">按键标签全大写</string>
+    <string name="extra_keys_text_all_caps_title">按钮标签全大写</string>
     <string name="view_category_title">视图</string>
     <string name="window_category_title">窗口</string>
     <string name="history_category_title">历史</string>
@@ -331,52 +331,52 @@
     <string name="screen_orientation_entry_landscape">横屏</string>
 
     
-    <string name="extra_keys_visibility_title">显示额外按键面板</string>
-    <string name="extra_keys_visibility_summary">控制额外按键面板的显示时机。</string>
+    <string name="extra_keys_visibility_title">显示额外按钮面板</string>
+    <string name="extra_keys_visibility_summary">控制额外按钮面板的显示时机。</string>
     <string name="extra_keys_visibility_always">始终显示</string>
     <string name="extra_keys_visibility_keyboard">仅键盘打开时</string>
     <string name="extra_keys_visibility_never">从不显示</string>
 
     
-    <string name="extra_keys_invalid_json">额外按键的 JSON 格式无效，更改未保存。</string>
+    <string name="extra_keys_invalid_json">额外按钮的 JSON 格式无效，更改未保存。</string>
 
     
     <string name="extra_keys_haptic_title">触觉反馈</string>
-    <string name="extra_keys_haptic_summary">与额外按键面板交互时震动</string>
+    <string name="extra_keys_haptic_summary">与额外按钮面板交互时震动</string>
     <string name="extra_keys_haptic_all">点按与手势</string>
     <string name="extra_keys_haptic_gestures">仅手势</string>
     <string name="extra_keys_haptic_off">已禁用</string>
 
     
-    <string name="extra_keys_editor_title">额外按键编辑器</string>
-    <string name="extra_keys_editor_summary">可视化构建额外按键面板：设置行数和列数，然后点按按键分配信号。</string>
+    <string name="extra_keys_editor_title">额外按钮编辑器</string>
+    <string name="extra_keys_editor_summary">可视化构建额外按钮面板：设置行数和列数，然后点按按钮分配信号。</string>
     <string name="extra_keys_editor_columns_title">列数</string>
     <string name="extra_keys_editor_rows_title">行数</string>
     <string name="extra_keys_editor_preview_title">预览</string>
-    <string name="extra_keys_editor_preview_summary">实时面板——点按任意按键即可更改其信号。</string>
+    <string name="extra_keys_editor_preview_summary">实时面板——点按任意按钮即可更改其信号。</string>
     <string name="extra_keys_editor_signal_dialog_title">分配信号</string>
     <string name="extra_keys_editor_custom_text_title">符号/文本</string>
     <string name="extra_keys_editor_custom_text_message">按任意键以绑定：</string>
-    <string name="extra_keys_editor_apply_title">应用到额外按键</string>
-    <string name="extra_keys_editor_apply_summary">将此布局保存到额外按键设置。</string>
+    <string name="extra_keys_editor_apply_title">应用到额外按钮</string>
+    <string name="extra_keys_editor_apply_summary">将此布局保存到额外按钮设置。</string>
     <string name="extra_keys_editor_empty">（空）</string>
-    <string name="extra_keys_editor_max_signals">每个按键最多 8 个信号</string>
+    <string name="extra_keys_editor_max_signals">每个按钮最多 8 个信号</string>
     <string name="extra_keys_editor_custom_text_no_space">组合键中不支持含空格的文本</string>
     <string name="extra_keys_editor_done">完成</string>
-    <string name="extra_keys_editor_open_editor">编辑额外按键</string>
-    <string name="extra_keys_editor_open_editor_summary">配置布局、缩放和按键绑定</string>
+    <string name="extra_keys_editor_open_editor">编辑额外按钮</string>
+    <string name="extra_keys_editor_open_editor_summary">配置布局、缩放和按钮绑定</string>
     <string name="extra_keys_edge_indicators_title">手势方向指示器</string>
-    <string name="extra_keys_editor_hint">点按分配主要操作。\n向上、向下、向左或向右滑动，为相应手势分配操作。\n长按按键可设置标签。</string>
+    <string name="extra_keys_editor_hint">点按分配主要操作。\n向上、向下、向左或向右滑动，为相应手势分配操作。\n长按按钮可设置标签。</string>
     <string name="extra_keys_editor_mode_assign">分配</string>
     <string name="extra_keys_editor_mode_move">移动</string>
-    <string name="extra_keys_editor_hint_move">将按键拖到其他单元格，以移动/交换其所有操作</string>
+    <string name="extra_keys_editor_hint_move">将按钮拖到其他单元格，以移动/交换其所有操作</string>
     <string name="extra_keys_editor_label_dialog_title">标签</string>
 
     <!-- Extra Keys Editor: session profiles -->
     <string name="extra_keys_editor_profile_default">默认</string>
     <string name="extra_keys_editor_profile_add">添加配置文件</string>
     <string name="extra_keys_editor_profile_delete">删除配置文件</string>
-    <string name="extra_keys_editor_profile_add_title">新建额外按键配置文件</string>
+    <string name="extra_keys_editor_profile_add_title">新建额外按钮配置文件</string>
     <string name="extra_keys_editor_profile_name_hint">配置文件名称</string>
     <string name="extra_keys_editor_profile_exists">已存在同名配置文件</string>
     <string name="extra_keys_editor_profile_delete_title">删除配置文件</string>
@@ -515,7 +515,7 @@
     <string name="hide_soft_keyboard_on_startup_title">启动时隐藏屏幕键盘</string>
     <string name="hide_soft_keyboard_on_startup_summary">启动 Termux 时保持屏幕键盘隐藏。</string>
 
-    <string name="extra_keys_button_margin_title">按键间距</string>
+    <string name="extra_keys_button_margin_title">按钮间距</string>
 
     <string name="extra_keys_dynamic_font_size_title">动态字体大小</string>
     <string name="extra_keys_dynamic_font_size_summary">列数增加或为主操作绑定宏时减小字体大小</string>
@@ -730,4 +730,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">气泡</string>
     <string name="bubble_notification_channel_description">浮在其他应用之上的终端窗口</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">横屏时的紧凑面板</string>
+    <string name="extra_keys_compact_landscape_summary">横屏时，2–3 行按钮会折叠成一行，4 行按钮折叠成两行。</string>
+    <string name="extra_keys_compact_mode_title">折叠顺序</string>
+    <string name="extra_keys_compact_mode_rows">按行</string>
+    <string name="extra_keys_compact_mode_columns">按列</string>
 </resources>

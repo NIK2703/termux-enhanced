@@ -779,4 +779,15 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Blase</string>
     <string name="bubble_notification_channel_description">Schwebendes Terminalfenster über anderen Apps</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">Kompakte Leiste im Querformat</string>
+    <string name="extra_keys_compact_landscape_summary">Im Querformat werden 2–3 Tastenreihen zu einer und 4 Tastenreihen zu zwei zusammengefasst.</string>
+    <string name="extra_keys_compact_mode_title">Faltreihenfolge</string>
+    <string name="extra_keys_compact_mode_rows">Nach Zeilen</string>
+    <string name="extra_keys_compact_mode_columns">Nach Spalten</string>
 </resources>

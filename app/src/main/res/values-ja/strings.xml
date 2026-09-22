@@ -174,7 +174,7 @@
 <string name="backup_restore_settings_category_title">アプリ設定</string>
 <string name="backup_settings_title">アプリ設定のバックアップ</string>
 <string name="restore_settings_title">アプリ設定の復元</string>
-<string name="settings_backup_warning">アプリの設定（設定、カラースキーム、フォント、拡張キーレイアウト）をバックアップファイルに保存します。\n\n保存先ファイルを選択してください。</string>
+<string name="settings_backup_warning">アプリの設定（設定、カラースキーム、フォント、拡張ボタンレイアウト）をバックアップファイルに保存します。\n\n保存先ファイルを選択してください。</string>
 <string name="settings_restore_warning">バックアップファイルからアプリの設定を復元します。現在の設定は上書きされます。</string>
 <string name="settings_backup_progress">設定をバックアップ中…</string>
 <string name="settings_restore_progress">設定を復元中…</string>
@@ -201,7 +201,7 @@
 <string name="termux_tab_panel_position_top">上</string>
 <string name="termux_tab_panel_position_bottom">下</string>
 <string name="text_input_toggle_button_title">入力パネル切り替えボタン</string>
-<string name="text_input_show_summary_on">テキスト入力欄が追加キーの上に表示されています</string>
+<string name="text_input_show_summary_on">テキスト入力欄が追加ボタンの上に表示されています</string>
 <string name="text_input_show_summary_off">テキスト入力欄は非表示です</string>
 <string name="text_input_hide_on_send_title">送信後に入力パネルを隠す</string>
     <string name="text_input_hide_on_send_summary">有効にすると、送信後に入力パネルが閉じてフォーカスがターミナルに移ります。連続したコマンド入力のためにパネルを開いたままにするには無効にしてください。</string>
@@ -261,7 +261,7 @@
 <string name="notification_wake_lock_held">（ウェイクロック保持中）</string>
 <string name="session_null_title">null セッション</string>
 <string name="msg_extra_keys_load_failed">プロパティファイルから\"%1$s\"プロパティを読み込んで設定できませんでした: %2$s</string>
-<string name="msg_extra_keys_create_failed">デフォルトの追加キーを作成できませんでした</string>
+<string name="msg_extra_keys_create_failed">デフォルトの追加ボタンを作成できませんでした</string>
     <string name="about_preference_title">アプリについて</string>
     <string name="theme_mode_title">アプリのテーマ</string>
     <string name="theme_mode_summary">アプリとターミナルのテーマを選択</string>
@@ -275,8 +275,8 @@
     <string name="locale_override_summary">アプリの言語を上書き</string>
     <string name="locale_override_entry_system">システム</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">キーボードに連動して拡張キーを非表示</string>
-    <string name="hide_extra_keys_with_keyboard_summary">キーボードが閉じられたときに拡張キーを自動的に非表示にし、開かれたときに表示します</string>
+    <string name="hide_extra_keys_with_keyboard_title">キーボードに連動して拡張ボタンを非表示</string>
+    <string name="hide_extra_keys_with_keyboard_summary">キーボードが閉じられたときに拡張ボタンを自動的に非表示にし、開かれたときに表示します</string>
 
     
     <string name="suggestions_max_count_title">オートコンプリート候補の最大数</string>
@@ -290,29 +290,29 @@
     <string name="display_preferences_summary">外観、タブ、ターミナル、ウィンドウ</string>
 <string name="terminal_advanced_title">詳細設定</string>
 <string name="terminal_advanced_summary">セッション、サウンドと通知、外部アプリ、アドオン、デバッグ</string>
-<string name="extra_keys_preferences_title">拡張キー</string>
-<string name="extra_keys_preferences_summary">拡張キーバーの設定</string>
-<string name="extra_keys_header">拡張キー</string>
-<string name="extra_keys_category_title">拡張キー</string>
-<string name="extra_keys_layout_title">キーレイアウト</string>
-<string name="extra_keys_layout_summary">拡張キーの行とそのポップアップを定義するJSON行列。</string>
-<string name="extra_keys_style_title">キーのスタイル</string>
-<string name="extra_keys_style_summary">キーに表示される特殊文字の表示方法。</string>
+<string name="extra_keys_preferences_title">拡張ボタン</string>
+<string name="extra_keys_preferences_summary">拡張ボタンバーの設定</string>
+<string name="extra_keys_header">拡張ボタン</string>
+<string name="extra_keys_category_title">拡張ボタン</string>
+<string name="extra_keys_layout_title">ボタンレイアウト</string>
+<string name="extra_keys_layout_summary">拡張ボタンの行とそのポップアップを定義するJSON行列。</string>
+<string name="extra_keys_style_title">ボタンのスタイル</string>
+<string name="extra_keys_style_summary">ボタンに表示される特殊文字の表示方法。</string>
 <string name="extra_keys_style_default">デフォルト</string>
 <string name="extra_keys_style_arrows_only">矢印のみ</string>
 <string name="extra_keys_style_arrows_all">すべての矢印</string>
 <string name="extra_keys_style_all">すべて</string>
 <string name="extra_keys_style_none">なし</string>
 <string name="extra_keys_text_all_caps_title">すべて大文字表示</string>
-<string name="extra_keys_text_all_caps_summary">拡張キーのラベルを大文字で表示します。</string>
-<string name="extra_keys_special_button_mode_title">特殊キーの動作</string>
-<string name="extra_keys_special_button_mode_summary">修飾キー（CTRL、ALT、SHIFT、FN）がタッチにどう応答するか。Sticky（固定）: タップで切り替え、長押しでロック。Hold（押下）: キーが押されている間のみ有効。</string>
+<string name="extra_keys_text_all_caps_summary">拡張ボタンのラベルを大文字で表示します。</string>
+<string name="extra_keys_special_button_mode_title">特殊ボタンの動作</string>
+<string name="extra_keys_special_button_mode_summary">修飾ボタン（CTRL、ALT、SHIFT、FN）がタッチにどう応答するか。Sticky（固定）: タップで切り替え、長押しでロック。Hold（押下）: ボタンが押されている間のみ有効。</string>
 <string name="extra_keys_special_button_mode_sticky">Sticky（切り替え / ロック）</string>
 <string name="extra_keys_special_button_mode_hold">Hold（押している間）</string>
 <string name="failure_notifications_category_title">失敗通知</string>
 <string name="history_category_title">履歴</string>
 <string name="input_preferences_title">入力</string>
-<string name="input_preferences_summary">拡張キー、入力パネル、キーボード、ショートカット、システムボタン</string>
+<string name="input_preferences_summary">拡張ボタン、入力パネル、キーボード、ショートカット、システムボタン</string>
 <string name="input_panel_title">入力パネル</string>
 <string name="language_category_title">言語</string>
 <string name="plugin_logging_category_title">ログ記録</string>
@@ -331,48 +331,48 @@
     <string name="screen_orientation_entry_landscape">横向き</string>
 
     
-    <string name="extra_keys_visibility_title">拡張キーパネルを表示</string>
-    <string name="extra_keys_visibility_summary">拡張キーバーを表示するタイミング</string>
+    <string name="extra_keys_visibility_title">拡張ボタンパネルを表示</string>
+    <string name="extra_keys_visibility_summary">拡張ボタンバーを表示するタイミング</string>
     <string name="extra_keys_visibility_always">常に表示</string>
     <string name="extra_keys_visibility_keyboard">キーボード表示時のみ</string>
     <string name="extra_keys_visibility_never">表示しない</string>
 
     
-    <string name="extra_keys_invalid_json">拡張キーのJSONが無効です。変更は保存されませんでした。</string>
+    <string name="extra_keys_invalid_json">拡張ボタンのJSONが無効です。変更は保存されませんでした。</string>
 
     
-    <string name="extra_keys_editor_title">拡張キーエディター</string>
-    <string name="extra_keys_editor_summary">拡張キーパネルを視覚的に構築: 行と列を設定し、キーをタップしてシグナルを割り当てます。</string>
+    <string name="extra_keys_editor_title">拡張ボタンエディター</string>
+    <string name="extra_keys_editor_summary">拡張ボタンパネルを視覚的に構築: 行と列を設定し、ボタンをタップしてシグナルを割り当てます。</string>
     <string name="extra_keys_editor_columns_title">列数</string>
     <string name="extra_keys_editor_columns_summary">行あたりのボタン数</string>
     <string name="extra_keys_editor_rows_title">行数</string>
     <string name="extra_keys_editor_rows_summary">ボタンの行数</string>
     <string name="extra_keys_editor_preview_title">プレビュー</string>
-    <string name="extra_keys_editor_preview_summary">ライブパネル — キーをタップしてシグナルを変更</string>
+    <string name="extra_keys_editor_preview_summary">ライブパネル — ボタンをタップしてシグナルを変更</string>
     <string name="extra_keys_editor_signal_dialog_title">シグナルを割り当て</string>
     <string name="extra_keys_editor_custom_text_title">文字/テキスト</string>
     <string name="extra_keys_editor_custom_text_message">キーを押してバインド:</string>
-    <string name="extra_keys_editor_apply_title">拡張キーに適用</string>
-    <string name="extra_keys_editor_apply_summary">このレイアウトを拡張キー設定に保存</string>
+    <string name="extra_keys_editor_apply_title">拡張ボタンに適用</string>
+    <string name="extra_keys_editor_apply_summary">このレイアウトを拡張ボタン設定に保存</string>
     <string name="extra_keys_editor_empty">（空）</string>
     <string name="extra_keys_editor_max_signals">1ボタンあたり最大8シグナル</string>
-    <string name="extra_keys_editor_custom_text_no_space">スペースを含むカスタムテキストはキーの組み合わせに対応していません</string>
+    <string name="extra_keys_editor_custom_text_no_space">スペースを含むカスタムテキストはボタンの組み合わせに対応していません</string>
     <string name="extra_keys_editor_done">完了</string>
-    <string name="extra_keys_editor_open_editor">拡張キーを編集</string>
-    <string name="extra_keys_editor_open_editor_summary">レイアウト、スケール、キー割り当てを設定</string>
+    <string name="extra_keys_editor_open_editor">拡張ボタンを編集</string>
+    <string name="extra_keys_editor_open_editor_summary">レイアウト、スケール、ボタン割り当てを設定</string>
     <string name="extra_keys_edge_indicators_title">スワイプ方向インジケーター</string>
-    <string name="extra_keys_edge_indicators_summary">拡張キーにアクションが割り当てられたスワイプ方向インジケーターを表示する</string>
-    <string name="extra_keys_editor_hint">タップでメインアクションを割り当て · スワイプ ↑ ↓ ← → でジェスチャーアクションを割り当て · 長押しでキーのラベルを設定</string>
+    <string name="extra_keys_edge_indicators_summary">拡張ボタンにアクションが割り当てられたスワイプ方向インジケーターを表示する</string>
+    <string name="extra_keys_editor_hint">タップでメインアクションを割り当て · スワイプ ↑ ↓ ← → でジェスチャーアクションを割り当て · 長押しでボタンのラベルを設定</string>
     <string name="extra_keys_editor_mode_assign">割り当て</string>
     <string name="extra_keys_editor_mode_move">移動</string>
-    <string name="extra_keys_editor_hint_move">キーを別のセルにドラッグしてアクションを移動・入れ替え</string>
+    <string name="extra_keys_editor_hint_move">ボタンを別のセルにドラッグしてアクションを移動・入れ替え</string>
     <string name="extra_keys_editor_label_dialog_title">ラベル</string>
 
     <!-- Extra Keys Editor: session profiles -->
     <string name="extra_keys_editor_profile_default">デフォルト</string>
     <string name="extra_keys_editor_profile_add">プロフィールを追加</string>
     <string name="extra_keys_editor_profile_delete">プロフィールを削除</string>
-    <string name="extra_keys_editor_profile_add_title">新しい拡張キープロフィール</string>
+    <string name="extra_keys_editor_profile_add_title">新しい拡張ボタンプロフィール</string>
     <string name="extra_keys_editor_profile_name_hint">プロフィール名</string>
     <string name="extra_keys_editor_profile_exists">この名前のプロフィールは既に存在します</string>
     <string name="extra_keys_editor_profile_delete_title">プロフィールを削除</string>
@@ -393,7 +393,7 @@
 
     
     <string name="extra_keys_haptic_title">触覚フィードバック</string>
-    <string name="extra_keys_haptic_summary">拡張キーパネル操作時のバイブレーション</string>
+    <string name="extra_keys_haptic_summary">拡張ボタンパネル操作時のバイブレーション</string>
     <string name="extra_keys_haptic_all">タップとジェスチャー</string>
     <string name="extra_keys_haptic_gestures">ジェスチャーのみ</string>
     <string name="extra_keys_haptic_off">無効</string>
@@ -778,4 +778,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">バブル</string>
     <string name="bubble_notification_channel_description">他のアプリの上に浮かぶターミナルウィンドウ</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">横向きのコンパクトパネル</string>
+    <string name="extra_keys_compact_landscape_summary">横向きでは2〜3行のボタンが1行に、4行が2行に折りたたまれます。</string>
+    <string name="extra_keys_compact_mode_title">折りたたみ順</string>
+    <string name="extra_keys_compact_mode_rows">行順</string>
+    <string name="extra_keys_compact_mode_columns">列順</string>
 </resources>

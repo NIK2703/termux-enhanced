@@ -302,6 +302,28 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_EXTRA_KEYS_EDGE_INDICATORS = "extra-keys-edge-indicators";
         public static final boolean DEFAULT_VALUE_EXTRA_KEYS_EDGE_INDICATORS = true;
 
+        /**
+         * Whether the extra keys panel is folded into one or two rows when the window is wider than
+         * it is tall (landscape). See {@code ExtraKeysCompaction} for the exact rules.
+         *
+         * <p>The default is <em>device-dependent</em> — on for phones, off for tablets, the same
+         * split {@link #KEY_EXTRA_KEYS_DYNAMIC_FONT_SIZE} uses — so it is computed by
+         * {@code TermuxAppSharedPreferences.isExtraKeysCompactLandscapeEnabled(Context)}, which needs
+         * a {@code Context} to measure the device. The constant below is only the fallback for a
+         * caller that has none.
+         */
+        public static final String KEY_EXTRA_KEYS_COMPACT_LANDSCAPE = "extra-keys-compact-landscape";
+        public static final boolean DEFAULT_VALUE_EXTRA_KEYS_COMPACT_LANDSCAPE = false;
+
+        /**
+         * Order of keys inside a folded row: {@code "rows"} (element by element of the first row,
+         * then of the second, …) or {@code "columns"} (top to bottom inside a column, then the next
+         * column). Folding column by column keeps the keys of one stored column next to each other,
+         * which is the order that reads most like the keyboard the stored layout was written for.
+         */
+        public static final String KEY_EXTRA_KEYS_COMPACT_MODE = "extra-keys-compact-mode";
+        public static final String DEFAULT_VALUE_EXTRA_KEYS_COMPACT_MODE = "columns";
+
         public static final String KEY_HIDE_SOFT_KEYBOARD_ON_STARTUP = "hide-soft-keyboard-on-startup";
         public static final boolean DEFAULT_VALUE_HIDE_SOFT_KEYBOARD_ON_STARTUP = false;
 

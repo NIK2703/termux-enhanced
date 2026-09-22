@@ -50,7 +50,7 @@
     <string name="backup_restore_settings_category_title">Configurações do aplicativo</string>
     <string name="backup_settings_title">Fazer backup das configurações do aplicativo</string>
     <string name="restore_settings_title">Restaurar configurações do aplicativo</string>
-    <string name="settings_backup_warning">Esta ação salvará as configurações do aplicativo Termux (preferências, esquema de cores, fonte e layout das teclas extras) em um pequeno arquivo de backup.\n\nEscolha um arquivo de destino.</string>
+    <string name="settings_backup_warning">Esta ação salvará as configurações do aplicativo Termux (preferências, esquema de cores, fonte e layout dos botões extras) em um pequeno arquivo de backup.\n\nEscolha um arquivo de destino.</string>
     <string name="settings_restore_warning">Esta ação restaurará as configurações do aplicativo Termux a partir de um arquivo de backup. As configurações atuais serão substituídas.</string>
     <string name="settings_backup_progress">Fazendo backup das configurações…</string>
     <string name="settings_restore_progress">Restaurando configurações…</string>
@@ -142,7 +142,7 @@
     <string name="msg_add_termux_debug_info">Adicionar informações de depuração do Termux ao relatório?</string>
     <string name="msg_terminal_panel_disabling">Desativando o painel do terminal</string>
     <string name="msg_terminal_panel_enabling">Ativando o painel do terminal</string>
-    <string name="msg_extra_keys_create_failed">Falha ao criar as teclas extras padrão</string>
+    <string name="msg_extra_keys_create_failed">Falha ao criar os botões extras padrão</string>
     <string name="msg_extra_keys_load_failed">Falha ao carregar e definir propriedade \"%1$s\" do arquivo de propriedades: %2$s</string>
     <string name="msg_generating_report">Gerando o relatório</string>
     <string name="msg_max_terminals_reached">Feche os terminais existentes antes de criar um novo.</string>
@@ -242,7 +242,7 @@
     <string name="text_input_restore_mode_option_replace">Substituir todo o campo de entrada</string>
     <string name="text_input_hide_on_send_title">Ocultar painel de entrada após envio</string>
     <string name="text_input_show_summary_off">O campo de entrada de texto está oculto</string>
-    <string name="text_input_show_summary_on">O campo de entrada de texto está visível acima das teclas extras</string>
+    <string name="text_input_show_summary_on">O campo de entrada de texto está visível acima dos botões extras</string>
     <string name="text_input_toggle_button_title">Botão de alternância do painel de entrada</string>
     <string name="theme_title">Tema</string>
     <string name="theme_mode_title">Tema do aplicativo</string>
@@ -275,32 +275,32 @@
     <string name="locale_override_summary">Substituir o idioma do aplicativo</string>
     <string name="locale_override_entry_system">Sistema</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">Ocultar teclas extras com o teclado</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Ocultar automaticamente as teclas extras quando o teclado estiver fechado; mostrá-las quando aberto</string>
+    <string name="hide_extra_keys_with_keyboard_title">Ocultar botões extras com o teclado</string>
+    <string name="hide_extra_keys_with_keyboard_summary">Ocultar automaticamente os botões extras quando o teclado estiver fechado; mostrá-los quando aberto</string>
 
     
     <string name="suggestions_max_count_title">Máximo de sugestões de autocompletar</string>
     <string name="suggestions_max_count_summary">Número máximo de sugestões de autocompletar do histórico de textos inseridos.</string>
 
     <string name="extra_keys_preferences_title">Teclas extras</string>
-    <string name="extra_keys_preferences_summary">Preferências da barra de teclas extras</string>
+    <string name="extra_keys_preferences_summary">Preferências da barra de botões extras</string>
     <string name="extra_keys_header">Teclas extras</string>
     <string name="extra_keys_category_title">Teclas extras</string>
-    <string name="extra_keys_layout_title">Layout das teclas</string>
-    <string name="extra_keys_layout_summary">Matriz JSON que define as linhas de teclas extras e seus menus pop-up.</string>
-    <string name="extra_keys_style_title">Estilo das teclas</string>
-    <string name="extra_keys_style_summary">Como os caracteres especiais nas teclas são exibidos.</string>
+    <string name="extra_keys_layout_title">Layout dos botões</string>
+    <string name="extra_keys_layout_summary">Matriz JSON que define as linhas de botões extras e seus menus pop-up.</string>
+    <string name="extra_keys_style_title">Estilo dos botões</string>
+    <string name="extra_keys_style_summary">Como os caracteres especiais nos botões são exibidos.</string>
     <string name="extra_keys_style_default">Padrão</string>
     <string name="extra_keys_style_arrows_only">Somente setas</string>
     <string name="extra_keys_style_arrows_all">Todas as setas</string>
     <string name="extra_keys_style_all">Todas</string>
     <string name="extra_keys_style_none">Nenhuma</string>
     <string name="extra_keys_text_all_caps_title">Rótulos em maiúsculas</string>
-    <string name="extra_keys_text_all_caps_summary">Exibir os rótulos das teclas extras em maiúsculas.</string>
-    <string name="extra_keys_special_button_mode_title">Comportamento das teclas especiais</string>
-    <string name="extra_keys_special_button_mode_summary">Como as teclas modificadoras (CTRL, ALT, SHIFT, FN) respondem ao toque. Fixo: toque para alternar; mantenha a tecla pressionada para travar. Manter: ativa somente enquanto a tecla estiver pressionada.</string>
+    <string name="extra_keys_text_all_caps_summary">Exibir os rótulos dos botões extras em maiúsculas.</string>
+    <string name="extra_keys_special_button_mode_title">Comportamento dos botões especiais</string>
+    <string name="extra_keys_special_button_mode_summary">Como os botões modificadores (CTRL, ALT, SHIFT, FN) respondem ao toque. Fixo: toque para alternar; mantenha o botão pressionado para travar. Manter: ativa somente enquanto o botão estiver pressionado.</string>
     <string name="extra_keys_special_button_mode_sticky">Fixo (alternar/travar)</string>
-    <string name="extra_keys_special_button_mode_hold">Manter (enquanto pressionada)</string>
+    <string name="extra_keys_special_button_mode_hold">Manter (enquanto pressionado)</string>
     <string name="input_preferences_title">Entrada</string>
     <string name="input_preferences_summary">Teclas extras, painel de entrada, teclado, atalhos de teclado, botões do sistema</string>
     <string name="display_preferences_title">Exibição</string>
@@ -308,7 +308,7 @@
     <string name="terminal_advanced_title">Avançado</string>
     <string name="terminal_advanced_summary">Sessão, som e notificações, aplicativos externos, complementos, depuração</string>
     <string name="terminal_category_title">Terminal</string>
-    <string name="extra_keys_corner_radius_title">Raio dos cantos das teclas</string>
+    <string name="extra_keys_corner_radius_title">Raio dos cantos dos botões</string>
     <string name="sessions_preferences_title">Sessões</string>
     <string name="sessions_history_preferences_summary">Preferências para sessões, abas e histórico</string>
     <string name="backup_restore_preferences_title">Backup e restauração</string>
@@ -335,48 +335,48 @@
     <string name="screen_orientation_entry_landscape">Paisagem</string>
 
     
-    <string name="extra_keys_visibility_title">Mostrar painel de teclas extras</string>
-    <string name="extra_keys_visibility_summary">Define quando a barra de teclas extras é exibida.</string>
+    <string name="extra_keys_visibility_title">Mostrar painel de botões extras</string>
+    <string name="extra_keys_visibility_summary">Define quando a barra de botões extras é exibida.</string>
     <string name="extra_keys_visibility_always">Sempre</string>
     <string name="extra_keys_visibility_keyboard">Apenas quando o teclado estiver aberto</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     
-    <string name="extra_keys_invalid_json">JSON inválido para teclas extras. As alterações não foram salvas.</string>
+    <string name="extra_keys_invalid_json">JSON inválido para botões extras. As alterações não foram salvas.</string>
 
     
-    <string name="extra_keys_editor_title">Editor de teclas extras</string>
-    <string name="extra_keys_editor_summary">Criação visual do painel de teclas extras: defina linhas e colunas e toque em uma tecla para atribuir uma ação.</string>
+    <string name="extra_keys_editor_title">Editor de botões extras</string>
+    <string name="extra_keys_editor_summary">Criação visual do painel de botões extras: defina linhas e colunas e toque em um botão para atribuir uma ação.</string>
     <string name="extra_keys_editor_columns_title">Colunas</string>
-    <string name="extra_keys_editor_columns_summary">Número de teclas por linha (1 a 10).</string>
+    <string name="extra_keys_editor_columns_summary">Número de botões por linha (1 a 10).</string>
     <string name="extra_keys_editor_rows_title">Linhas</string>
-    <string name="extra_keys_editor_rows_summary">Número de linhas de teclas (1 a 4).</string>
+    <string name="extra_keys_editor_rows_summary">Número de linhas de botões (1 a 4).</string>
     <string name="extra_keys_editor_preview_title">Pré-visualização</string>
-    <string name="extra_keys_editor_preview_summary">Painel interativo — toque em qualquer tecla para alterar a ação.</string>
+    <string name="extra_keys_editor_preview_summary">Painel interativo — toque em qualquer botão para alterar a ação.</string>
     <string name="extra_keys_editor_signal_dialog_title">Atribuir ação</string>
     <string name="extra_keys_editor_custom_text_title">Símbolo/texto</string>
     <string name="extra_keys_editor_custom_text_message">Toque em qualquer tecla para vincular:</string>
-    <string name="extra_keys_editor_apply_title">Aplicar às teclas extras</string>
-    <string name="extra_keys_editor_apply_summary">Salvar este layout nas configurações de teclas extras.</string>
+    <string name="extra_keys_editor_apply_title">Aplicar aos botões extras</string>
+    <string name="extra_keys_editor_apply_summary">Salvar este layout nas configurações de botões extras.</string>
     <string name="extra_keys_editor_empty">(vazio)</string>
-    <string name="extra_keys_editor_max_signals">Máximo de 8 ações por tecla</string>
+    <string name="extra_keys_editor_max_signals">Máximo de 8 ações por botão</string>
     <string name="extra_keys_editor_custom_text_no_space">Texto personalizado com espaços não é suportado em combinações</string>
     <string name="extra_keys_editor_done">Concluído</string>
-    <string name="extra_keys_editor_open_editor">Editar teclas extras</string>
-    <string name="extra_keys_editor_open_editor_summary">Configurar layout, escala e atribuições das teclas.</string>
+    <string name="extra_keys_editor_open_editor">Editar botões extras</string>
+    <string name="extra_keys_editor_open_editor_summary">Configurar layout, escala e atribuições dos botões.</string>
     <string name="extra_keys_edge_indicators_title">Indicadores de direção dos gestos</string>
-    <string name="extra_keys_edge_indicators_summary">Mostrar indicadores de direção dos gestos com ações atribuídas às teclas extras.</string>
-    <string name="extra_keys_editor_hint">Toque para atribuir a ação principal.\nDeslize para cima, para baixo, para a esquerda ou para a direita para atribuir ações de gesto.\nMantenha uma tecla pressionada para definir o rótulo.</string>
+    <string name="extra_keys_edge_indicators_summary">Mostrar indicadores de direção dos gestos com ações atribuídas aos botões extras.</string>
+    <string name="extra_keys_editor_hint">Toque para atribuir a ação principal.\nDeslize para cima, para baixo, para a esquerda ou para a direita para atribuir ações de gesto.\nMantenha um botão pressionado para definir o rótulo.</string>
     <string name="extra_keys_editor_mode_assign">Atribuir</string>
     <string name="extra_keys_editor_mode_move">Mover</string>
-    <string name="extra_keys_editor_hint_move">Arraste uma tecla para outra célula para mover/trocar todas as suas ações</string>
+    <string name="extra_keys_editor_hint_move">Arraste um botão para outra célula para mover/trocar todas as suas ações</string>
 
     <!-- Extra Keys Editor: session profiles -->
     <string name="extra_keys_editor_label_dialog_title">Rótulo</string>
     <string name="extra_keys_editor_profile_default">Padrão</string>
     <string name="extra_keys_editor_profile_add">Adicionar perfil</string>
     <string name="extra_keys_editor_profile_delete">Excluir perfil</string>
-    <string name="extra_keys_editor_profile_add_title">Novo perfil de teclas extras</string>
+    <string name="extra_keys_editor_profile_add_title">Novo perfil de botões extras</string>
     <string name="extra_keys_editor_profile_name_hint">Nome do perfil</string>
     <string name="extra_keys_editor_profile_exists">Já existe um perfil com este nome</string>
     <string name="extra_keys_editor_profile_delete_title">Excluir perfil</string>
@@ -395,7 +395,7 @@
 
     
     <string name="extra_keys_haptic_title">Feedback tátil</string>
-    <string name="extra_keys_haptic_summary">Vibrar ao interagir com o painel de teclas extras</string>
+    <string name="extra_keys_haptic_summary">Vibrar ao interagir com o painel de botões extras</string>
     <string name="extra_keys_haptic_all">Toque e gestos</string>
     <string name="extra_keys_haptic_gestures">Apenas gestos</string>
     <string name="extra_keys_haptic_off">Desativado</string>
@@ -452,15 +452,15 @@
     <string name="extra_keys_dynamic_font_size_title">Tamanho dinâmico da fonte</string>
     <string name="extra_keys_dynamic_font_size_summary">Reduzir o tamanho da fonte ao aumentar o número de colunas ou atribuir macros às ações principais</string>
     <string name="extra_keys_font_size_title">Tamanho base da fonte</string>
-    <string name="extra_keys_font_size_summary">Tamanho base do texto para os rótulos das teclas.</string>
+    <string name="extra_keys_font_size_summary">Tamanho base do texto para os rótulos dos botões.</string>
     <string name="extra_keys_editor_tap_suffix"> (Toque)</string>
     <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>
     <string name="extra_keys_editor_swipe_down_suffix"> (↓)</string>
     <string name="extra_keys_editor_swipe_left_suffix"> (←)</string>
     <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
     <string name="extra_keys_editor_remove_signal">Remover %s</string>
-    <string name="extra_keys_button_margin_title">Espaçamento das teclas</string>
-    <string name="extra_keys_button_margin_summary">Espaço entre as teclas.</string>
+    <string name="extra_keys_button_margin_title">Espaçamento dos botões</string>
+    <string name="extra_keys_button_margin_summary">Espaço entre os botões.</string>
     <string name="report_issue_title">Termux — Relatar problema</string>
     <string name="report_issue_transcript_header">## Transcrição\n</string>
     <string name="report_issue_transcript_footer">\n##\n</string>
@@ -694,4 +694,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Bolha</string>
     <string name="bubble_notification_channel_description">Janela de terminal flutuante sobre outros aplicativos</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">Painel compacto no modo paisagem</string>
+    <string name="extra_keys_compact_landscape_summary">No modo paisagem, 2–3 linhas de botões são dobradas em uma e 4 linhas em duas.</string>
+    <string name="extra_keys_compact_mode_title">Ordem de dobra</string>
+    <string name="extra_keys_compact_mode_rows">Por linhas</string>
+    <string name="extra_keys_compact_mode_columns">Por colunas</string>
 </resources>

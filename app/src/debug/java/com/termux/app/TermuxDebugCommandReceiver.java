@@ -51,6 +51,10 @@ import com.termux.terminal.TerminalSession;
  *                   highlighted tab) — for the tab-close invariant check (tag TIPanelCmd)
  *   session count- log the number of live sessions
  *   dumpsess     - log per-session handles in service order (for re-key verification)
+ *   extrakeys    - snapshot of the extra-keys panel's fold state: stored / effective / actually
+ *                  built row count, fold flag and mode, landscape or not, column count and panel
+ *                  height. The on-device oracle for the "compact panel in landscape" option, which
+ *                  tells "the panel really was rebuilt folded" from "it only looks narrower".
  *   tabs         - snapshot of the tab strip: geometry, scroll position, range, and the visible
  *                  over-drag displacement, plus whatever the last `tabs watch` observed
  *   tabs watch <ms> - sample the tab strip once per animation frame for <ms> (default 3000) and
@@ -92,6 +96,9 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
             switch (cmd) {
                 case "status":
                     dumpStatus(activity);
+                    break;
+                case "extrakeys":
+                    dumpExtraKeys(activity);
                     break;
                 case "bubble":
                     // Deliberately routed through the same manager call the notification button and
@@ -700,6 +707,54 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         return out.length() == 0 ? "EMPTY" : out.toString();
     }
 
+    /**
+     * Dump the extra-keys panel's fold state. Four numbers describe it, and they are the four the
+     * option is made of:
+     * <ul>
+     *   <li>{@code storedRows} — rows in the layout as stored ({@code extra-keys} / session profile);</li>
+     *   <li>{@code effectiveRows} — what the height rule sizes the panel for;</li>
+     *   <li>{@code builtRows} — rows the grid was really built with by the last reload, i.e. the
+     *       ground truth: if this equals {@code storedRows} while the fold is on, the panel was never
+     *       rebuilt and the option is not doing anything;</li>
+     *   <li>{@code cols} — columns of the built grid, which grows as rows are folded away.</li>
+     * </ul>
+     * Both the preference and the window orientation are printed next to them, so a mismatch can be
+     * attributed to the preference, to the orientation or to the rebuild.
+     */
+    private static void dumpExtraKeys(TermuxActivity activity) {
+        com.termux.shared.termux.extrakeys.ExtraKeysView ekv = activity.getExtraKeysView();
+        if (ekv == null) {
+            log("extrakeys: no view");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("extrakeys:");
+
+        int storedRows = 0;
+        if (activity.getTermuxTerminalExtraKeys() != null
+            && activity.getTermuxTerminalExtraKeys().getExtraKeysInfo() != null) {
+            storedRows = activity.getTermuxTerminalExtraKeys().getExtraKeysInfo().getMatrix().length;
+        }
+
+        final boolean fold = ekv.isLandscapeCompactActive();
+        sb.append(" prefCompact=").append(activity.getPreferences().isExtraKeysCompactLandscapeEnabled(activity));
+        sb.append(" prefMode=").append(activity.getPreferences().getExtraKeysCompactMode());
+        sb.append(" landscape=").append(
+            activity.getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE);
+        sb.append(" fold=").append(fold);
+        sb.append(" mode=").append(ekv.getCompactMode());
+        sb.append(" storedRows=").append(storedRows);
+        sb.append(" effectiveRows=").append(
+            com.termux.shared.termux.extrakeys.ExtraKeysCompaction.effectiveRowCount(storedRows, fold));
+        sb.append(" builtRows=").append(ekv.getReloadedRowCount());
+        sb.append(" cols=").append(ekv.getColumnCount());
+        if (ekv.getLayoutParams() != null)
+            sb.append(" panelH=").append(ekv.getLayoutParams().height);
+        sb.append(" vis=").append(vis(ekv));
+
+        log(sb.toString());
+    }
+
     private static void dumpStatus(TermuxActivity activity) {
         StringBuilder sb = new StringBuilder();
         View container = activity.findViewById(R.id.terminal_toolbar_container);
@@ -724,7 +779,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         View root = activity.findViewById(R.id.activity_termux_root_view);
         if (root != null && root.getLayoutParams() != null) {
             sb.append(" rootH=").append(root.getHeight());
-            // The input panel's height limit is a third of the root view's CONTENT BOX (height
+            // The input panel's height limit is a quarter of the root view's CONTENT BOX (height
             // minus padding), so print the three numbers the rule is made of: the box, the cap it
             // implies, and the field's current layout height (tiLPH above). This is the on-device
             // oracle for TextInputPanelController.applyPanelHeightLimitForContentView — with the

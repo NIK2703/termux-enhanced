@@ -53,7 +53,7 @@
     <string name="backup_restore_settings_category_title">앱 설정</string>
     <string name="backup_settings_title">앱 설정 백업</string>
     <string name="restore_settings_title">앱 설정 복원</string>
-    <string name="settings_backup_warning">Termux 앱 설정(색 구성표, 글꼴, 추가 키 레이아웃)을 백업 파일로 저장합니다.\n\n대상 파일을 선택하세요.</string>
+    <string name="settings_backup_warning">Termux 앱 설정(색 구성표, 글꼴, 추가 버튼 레이아웃)을 백업 파일로 저장합니다.\n\n대상 파일을 선택하세요.</string>
     <string name="settings_restore_warning">백업 파일에서 Termux 앱 설정을 복원합니다. 현재 설정이 덮어쓰여집니다.</string>
     <string name="settings_backup_progress">설정 백업 중…</string>
     <string name="settings_restore_progress">설정 복원 중…</string>
@@ -143,7 +143,7 @@
     <string name="msg_add_termux_debug_info">Termux 디버그 정보를 보고서에 추가할까요?</string>
     <string name="msg_terminal_panel_disabling">터미널 패널을 비활성화하는 중…</string>
     <string name="msg_terminal_panel_enabling">터미널 패널을 활성화하는 중…</string>
-    <string name="msg_extra_keys_create_failed">기본 추가 키를 만들지 못했습니다</string>
+    <string name="msg_extra_keys_create_failed">기본 추가 버튼을 만들지 못했습니다</string>
     <string name="msg_extra_keys_load_failed">속성 파일에서 \"%1$s\" 속성을 읽어 설정하지 못했습니다: %2$s</string>
     <string name="msg_generating_report">보고서 생성 중…</string>
     <string name="msg_max_terminals_reached">새 세션을 만들기 전에 기존 세션을 닫아주세요.</string>
@@ -230,7 +230,7 @@
     <string name="text_input_append_enter_summary">입력 필드에서 전송할 때 Enter 키도 함께 전송합니다. 줄 바꿈 없이 원시 텍스트만 보내려면 비활성화하세요.</string>
     <string name="text_input_append_enter_title">전송 시 Enter 키 추가</string>
     <string name="text_input_show_summary_off">텍스트 입력 필드가 숨겨집니다</string>
-    <string name="text_input_show_summary_on">텍스트 입력 필드가 추가 키 위에 표시됩니다</string>
+    <string name="text_input_show_summary_on">텍스트 입력 필드가 추가 버튼 위에 표시됩니다</string>
     <string name="text_input_toggle_button_title">텍스트 입력 전환 버튼</string>
     <string name="text_input_title">텍스트 입력</string>
     <string name="text_input_hide_on_send_title">전송 후 입력 패널 숨기기</string>
@@ -276,8 +276,8 @@
     <string name="locale_override_summary">앱 언어 재정의</string>
     <string name="locale_override_entry_system">시스템</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">키보드와 함께 추가 키 숨기기</string>
-    <string name="hide_extra_keys_with_keyboard_summary">키보드가 닫히면 추가 키 버튼을 자동으로 숨기고 열리면 표시합니다</string>
+    <string name="hide_extra_keys_with_keyboard_title">키보드와 함께 추가 버튼 숨기기</string>
+    <string name="hide_extra_keys_with_keyboard_summary">키보드가 닫히면 추가 버튼을 자동으로 숨기고 열리면 표시합니다</string>
 
     
     <string name="suggestions_max_count_title">자동 완성 제안 최대 개수</string>
@@ -286,9 +286,9 @@
     <string name="language_category_title">언어</string>
     <string name="appearance_category_title">모양</string>
     <string name="input_preferences_title">입력</string>
-    <string name="input_preferences_summary">추가 키, 입력 패널, 키보드, 단축키, 시스템 버튼</string>
-    <string name="extra_keys_preferences_title">추가 키</string>
-    <string name="extra_keys_preferences_summary">추가 키 패널 설정</string>
+    <string name="input_preferences_summary">추가 버튼, 입력 패널, 키보드, 단축키, 시스템 버튼</string>
+    <string name="extra_keys_preferences_title">추가 버튼</string>
+    <string name="extra_keys_preferences_summary">추가 버튼 패널 설정</string>
     <string name="display_preferences_title">화면 표시</string>
     <string name="display_preferences_summary">모양, 탭, 터미널, 창</string>
     <string name="terminal_advanced_title">고급</string>
@@ -302,23 +302,23 @@
     <string name="diagnostics_preferences_summary">로깅 및 실패 알림</string>
     <string name="plugin_logging_category_title">로깅</string>
     <string name="failure_notifications_category_title">실패 알림</string>
-    <string name="extra_keys_special_button_mode_title">특수 키 동작</string>
-    <string name="extra_keys_special_button_mode_summary">수정자 키(CTRL, ALT, SHIFT, FN)의 터치 동작을 설정합니다. 고정: 탭하여 켜고 끄며, 길게 누르면 잠깁니다. 누르기: 키를 누르는 동안에만 활성화됩니다.</string>
+    <string name="extra_keys_special_button_mode_title">특수 버튼 동작</string>
+    <string name="extra_keys_special_button_mode_summary">수정자 버튼(CTRL, ALT, SHIFT, FN)의 터치 동작을 설정합니다. 고정: 탭하여 켜고 끄며, 길게 누르면 잠깁니다. 누르기: 버튼을 누르는 동안에만 활성화됩니다.</string>
     <string name="extra_keys_special_button_mode_sticky">고정(전환 / 잠금)</string>
     <string name="extra_keys_special_button_mode_hold">누르기(누르는 동안 유지)</string>
-    <string name="extra_keys_header">추가 키</string>
-    <string name="extra_keys_category_title">추가 키</string>
-    <string name="extra_keys_layout_title">키 배치</string>
-    <string name="extra_keys_layout_summary">추가 키 행과 팝업 값을 정의하는 JSON 행렬입니다.</string>
-    <string name="extra_keys_style_title">키 스타일</string>
-    <string name="extra_keys_style_summary">키의 특수 문자가 표시되는 방식입니다.</string>
+    <string name="extra_keys_header">추가 버튼</string>
+    <string name="extra_keys_category_title">추가 버튼</string>
+    <string name="extra_keys_layout_title">버튼 배치</string>
+    <string name="extra_keys_layout_summary">추가 버튼 행과 팝업 값을 정의하는 JSON 행렬입니다.</string>
+    <string name="extra_keys_style_title">버튼 스타일</string>
+    <string name="extra_keys_style_summary">버튼의 특수 문자가 표시되는 방식입니다.</string>
     <string name="extra_keys_style_default">기본값</string>
     <string name="extra_keys_style_arrows_only">화살표만</string>
     <string name="extra_keys_style_arrows_all">모든 화살표</string>
     <string name="extra_keys_style_all">전체</string>
     <string name="extra_keys_style_none">없음</string>
     <string name="extra_keys_text_all_caps_title">모두 대문자 표시</string>
-    <string name="extra_keys_text_all_caps_summary">추가 키 라벨을 대문자로 표시합니다.</string>
+    <string name="extra_keys_text_all_caps_summary">추가 버튼 라벨을 대문자로 표시합니다.</string>
     <string name="view_category_title">보기</string>
     <string name="window_category_title">창</string>
     <string name="history_category_title">기록</string>
@@ -334,18 +334,18 @@
     <string name="screen_orientation_entry_landscape">가로</string>
 
     
-    <string name="extra_keys_visibility_title">추가 키 패널 표시</string>
-    <string name="extra_keys_visibility_summary">추가 키 패널이 표시되는 시점입니다.</string>
+    <string name="extra_keys_visibility_title">추가 버튼 패널 표시</string>
+    <string name="extra_keys_visibility_summary">추가 버튼 패널이 표시되는 시점입니다.</string>
     <string name="extra_keys_visibility_always">항상 표시</string>
     <string name="extra_keys_visibility_keyboard">키보드가 열릴 때만</string>
     <string name="extra_keys_visibility_never">표시 안 함</string>
 
     
-    <string name="extra_keys_invalid_json">추가 키 JSON이 잘못되었습니다. 변경사항이 저장되지 않았습니다.</string>
+    <string name="extra_keys_invalid_json">추가 버튼 JSON이 잘못되었습니다. 변경사항이 저장되지 않았습니다.</string>
 
     
-    <string name="extra_keys_editor_title">추가 키 편집기</string>
-    <string name="extra_keys_editor_summary">추가 키 패널을 시각적으로 구성합니다. 행과 열을 설정한 다음 키를 탭하여 신호를 지정하세요.</string>
+    <string name="extra_keys_editor_title">추가 버튼 편집기</string>
+    <string name="extra_keys_editor_summary">추가 버튼 패널을 시각적으로 구성합니다. 행과 열을 설정한 다음 버튼을 탭하여 신호를 지정하세요.</string>
     <string name="extra_keys_editor_columns_title">열</string>
     <string name="extra_keys_editor_columns_summary">행당 버튼 수(1~10).</string>
     <string name="extra_keys_editor_rows_title">행</string>
@@ -355,25 +355,25 @@
     <string name="extra_keys_editor_signal_dialog_title">신호 지정</string>
     <string name="extra_keys_editor_custom_text_title">기호/텍스트</string>
     <string name="extra_keys_editor_custom_text_message">바인딩할 아무 키나 누르세요:</string>
-    <string name="extra_keys_editor_apply_title">추가 키에 적용</string>
-    <string name="extra_keys_editor_apply_summary">이 레이아웃을 추가 키 설정에 저장합니다.</string>
+    <string name="extra_keys_editor_apply_title">추가 버튼에 적용</string>
+    <string name="extra_keys_editor_apply_summary">이 레이아웃을 추가 버튼 설정에 저장합니다.</string>
     <string name="extra_keys_editor_empty">(비어 있음)</string>
     <string name="extra_keys_editor_max_signals">버튼당 최대 8개 신호</string>
-    <string name="extra_keys_editor_custom_text_no_space">공백이 포함된 사용자 정의 텍스트는 키 조합에서 지원되지 않습니다</string>
+    <string name="extra_keys_editor_custom_text_no_space">공백이 포함된 사용자 정의 텍스트는 버튼 조합에서 지원되지 않습니다</string>
     <string name="extra_keys_editor_done">완료</string>
-    <string name="extra_keys_editor_open_editor">추가 키 편집</string>
-    <string name="extra_keys_editor_open_editor_summary">레이아웃, 크기 및 키 바인딩 구성</string>
+    <string name="extra_keys_editor_open_editor">추가 버튼 편집</string>
+    <string name="extra_keys_editor_open_editor_summary">레이아웃, 크기 및 버튼 바인딩 구성</string>
     <string name="extra_keys_edge_indicators_title">스와이프 방향 표시기</string>
-    <string name="extra_keys_edge_indicators_summary">추가 키에 할당된 동작과 함께 스와이프 방향을 표시합니다</string>
-    <string name="extra_keys_editor_hint">탭하여 기본 동작을 지정하세요.\n위/아래/왼쪽/오른쪽으로 스와이프하여 제스처 동작을 지정하세요.\n키를 길게 누르면 라벨을 설정할 수 있습니다.</string>
+    <string name="extra_keys_edge_indicators_summary">추가 버튼에 할당된 동작과 함께 스와이프 방향을 표시합니다</string>
+    <string name="extra_keys_editor_hint">탭하여 기본 동작을 지정하세요.\n위/아래/왼쪽/오른쪽으로 스와이프하여 제스처 동작을 지정하세요.\n버튼을 길게 누르면 라벨을 설정할 수 있습니다.</string>
     <string name="extra_keys_editor_mode_assign">할당</string>
     <string name="extra_keys_editor_mode_move">이동</string>
-    <string name="extra_keys_editor_hint_move">키를 다른 셀로 드래그하면 모든 동작이 이동/교체됩니다.</string>
+    <string name="extra_keys_editor_hint_move">버튼을 다른 셀로 드래그하면 모든 동작이 이동/교체됩니다.</string>
     <string name="extra_keys_editor_label_dialog_title">라벨</string>
     <string name="extra_keys_editor_profile_default">기본값</string>
     <string name="extra_keys_editor_profile_add">프로필 추가</string>
     <string name="extra_keys_editor_profile_delete">프로필 삭제</string>
-    <string name="extra_keys_editor_profile_add_title">새 추가 키 프로필</string>
+    <string name="extra_keys_editor_profile_add_title">새 추가 버튼 프로필</string>
     <string name="extra_keys_editor_profile_name_hint">프로필 이름</string>
     <string name="extra_keys_editor_profile_exists">같은 이름의 프로필이 이미 존재합니다</string>
     <string name="extra_keys_editor_profile_delete_title">프로필 삭제</string>
@@ -392,7 +392,7 @@
 
     
     <string name="extra_keys_haptic_title">햅틱 피드백</string>
-    <string name="extra_keys_haptic_summary">추가 키 패널 상호작용 시 진동</string>
+    <string name="extra_keys_haptic_summary">추가 버튼 패널 상호작용 시 진동</string>
     <string name="extra_keys_haptic_all">탭 및 제스처</string>
     <string name="extra_keys_haptic_gestures">제스처만</string>
     <string name="extra_keys_haptic_off">사용 안 함</string>
@@ -797,4 +797,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">버블</string>
     <string name="bubble_notification_channel_description">다른 앱 위에 떠 있는 터미널 창</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">가로 모드의 컴팩트 패널</string>
+    <string name="extra_keys_compact_landscape_summary">가로 모드에서는 버튼 2~3줄이 한 줄로, 4줄이 두 줄로 접힙니다.</string>
+    <string name="extra_keys_compact_mode_title">접는 순서</string>
+    <string name="extra_keys_compact_mode_rows">행 기준</string>
+    <string name="extra_keys_compact_mode_columns">열 기준</string>
 </resources>

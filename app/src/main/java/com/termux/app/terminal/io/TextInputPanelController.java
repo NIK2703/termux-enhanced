@@ -37,13 +37,14 @@ public final class TextInputPanelController {
 
     /**
      * The input panel may never occupy more than a {@code 1/MAX_HEIGHT_FRACTION} share of the
-     * height of the area it shares with the terminal. The panel is a convenience layered over the
-     * terminal, never a replacement for it: at the height the XML declares it is already small
-     * enough that this limit never engages in a phone-sized window, but the same fixed height
-     * would swallow most of a short window (the floating bubble, split-screen, landscape with the
-     * keyboard up) — and that is exactly where the user loses the output they were typing against.
+     * height of the area it shares with the terminal — a quarter. The panel is a convenience
+     * layered over the terminal, never a replacement for it: at the height the XML declares it is
+     * already small enough that this limit never engages in a phone-sized window, but the same
+     * fixed height would swallow most of a short window (the floating bubble, split-screen,
+     * landscape with the keyboard up) — and that is exactly where the user loses the output they
+     * were typing against.
      */
-    private static final int MAX_HEIGHT_FRACTION = 3;
+    private static final int MAX_HEIGHT_FRACTION = 4;
 
     /**
      * Panel height in px as laid out in XML — the unclamped maximum the limit is applied to.
@@ -99,7 +100,7 @@ public final class TextInputPanelController {
     /**
      * The height limit for a panel sharing {@code contentHeightPx} px with the terminal, in px.
      * <p>
-     * Integer division on purpose: the cap is a hard "no more than a third", so it rounds DOWN.
+     * Integer division on purpose: the cap is a hard "no more than a quarter", so it rounds DOWN.
      * A non-positive height (nothing measured yet, or a window too degenerate to reason about)
      * yields {@code 0}, which callers must read as "no usable measurement", not as a real cap.
      */
@@ -108,15 +109,15 @@ public final class TextInputPanelController {
     }
 
     /**
-     * Cap the panel at a third of the height of the area it shares with the terminal, i.e. never
-     * let it be taller than {@code min(designed height, sharedHeight / 3)}.
+     * Cap the panel at a quarter of the height of the area it shares with the terminal, i.e. never
+     * let it be taller than {@code min(designed height, sharedHeight / 4)}.
      * <p>
      * <b>Which height.</b> {@code contentView} is the activity's root view and the measurement
      * used is its CONTENT BOX — measured height minus vertical padding — not its raw height. That
      * padding is where this window's system-bar and keyboard insets land (see
      * {@link com.termux.app.terminal.TermuxActivityRootView}), so the content box is exactly the
      * box the toolbar and the terminal divide between them, and the rule is therefore "the panel
-     * never takes more than a third of what it competes for". The raw height is not that box: it
+     * never takes more than a quarter of what it competes for". The raw height is not that box: it
      * still counts the strip the status bar covers, and — when the keyboard covers the window
      * without the platform resizing it (a floating/undocked keyboard, a ROM that ignores
      * ADJUST_RESIZE, an IME reporting less than it occupies) — the strip the keyboard covers.
@@ -135,7 +136,7 @@ public final class TextInputPanelController {
      * right size when it is next shown — no visibility callback is needed here.
      * <p>
      * No floor is applied: a window short enough to push the cap below one line of text is a
-     * degenerate window, and honouring the third there is the whole point of the rule. The field
+     * degenerate window, and honouring the quarter there is the whole point of the rule. The field
      * scrolls internally (fixed height, {@code scrollbars="vertical"}), so a short panel stays
      * usable instead of clipping its text.
      *

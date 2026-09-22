@@ -488,6 +488,46 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     }
 
 
+    /**
+     * Whether the extra keys panel may fold its rows into one or two when the window is wider than
+     * it is tall. The fold itself is a derived layout — see
+     * {@link com.termux.shared.termux.extrakeys.ExtraKeysCompaction} — so this is a UI preference,
+     * not part of the stored {@code extra-keys} layout.
+     *
+     * @param context used for the device-dependent default (on for phones, off for tablets), so it
+     *                must be a {@code Context} whose resources describe the device.
+     */
+    public boolean isExtraKeysCompactLandscapeEnabled(Context context) {
+        // Device-dependent default, the same split the dynamic font uses: a phone in landscape is
+        // short on height, so the panel folds unless the user says otherwise; a tablet has room for
+        // the stored layout, so it does not. Only applies until the user touches the switch — from
+        // then on the stored value wins, on either device.
+        boolean isTablet = context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        return SharedPreferenceUtils.getBoolean(mSharedPreferences,
+            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE, !isTablet);
+    }
+
+    public void setExtraKeysCompactLandscapeEnabled(boolean value) {
+        SharedPreferenceUtils.setBoolean(mSharedPreferences,
+            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE, value, false);
+    }
+
+    /**
+     * Order of keys inside a folded row, as a {@link com.termux.shared.termux.extrakeys.ExtraKeysCompaction.Mode}
+     * preference value ({@code "rows"} or {@code "columns"}). Read it through
+     * {@code ExtraKeysCompaction.modeFromPreferenceValue(...)} so an unknown value cannot break the panel.
+     */
+    public String getExtraKeysCompactMode() {
+        return SharedPreferenceUtils.getString(mSharedPreferences,
+            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_COMPACT_MODE, true);
+    }
+
+    public void setExtraKeysCompactMode(String value) {
+        SharedPreferenceUtils.setString(mSharedPreferences,
+            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE, value, false);
+    }
+
+
     public boolean isScrollOnNewOutputEnabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences,
             TERMUX_APP.KEY_SCROLL_ON_NEW_OUTPUT,

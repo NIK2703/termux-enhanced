@@ -171,7 +171,7 @@
     <string name="backup_restore_settings_category_title">Paramètres de l\'application</string>
     <string name="backup_settings_title">Sauvegarde des paramètres de l\'application</string>
     <string name="restore_settings_title">Restauration des paramètres de l\'application</string>
-    <string name="settings_backup_warning">Cela sauvegardera les paramètres de votre application Termux (préférences, jeu de couleurs, police, disposition des touches supplémentaires) dans un fichier de sauvegarde.\n\nChoisissez un fichier de destination.</string>
+    <string name="settings_backup_warning">Cela sauvegardera les paramètres de votre application Termux (préférences, jeu de couleurs, police, disposition des boutons supplémentaires) dans un fichier de sauvegarde.\n\nChoisissez un fichier de destination.</string>
     <string name="settings_restore_warning">Cela restaurera les paramètres de votre application Termux à partir d\'un fichier de sauvegarde. Les paramètres actuels seront écrasés.</string>
     <string name="settings_backup_progress">Sauvegarde des paramètres en cours…</string>
     <string name="settings_restore_progress">Restauration des paramètres en cours…</string>
@@ -241,7 +241,7 @@
     <string name="notification_wake_lock_held"> (verrouillage d\'éveil actif)</string>
     <string name="session_null_title">session null</string>
     <string name="msg_extra_keys_load_failed">Impossible de charger et de définir la propriété \"%1$s\" depuis le fichier de propriétés : %2$s</string>
-    <string name="msg_extra_keys_create_failed">Impossible de créer les touches supplémentaires par défaut</string>
+    <string name="msg_extra_keys_create_failed">Impossible de créer les boutons supplémentaires par défaut</string>
     <plurals name="notification_tasks_separator">
     <item quantity="one">, %d tâche</item>
     <item quantity="other">, %d tâches</item>
@@ -259,17 +259,17 @@
     <string name="termux_tab_panel_position_bottom">Bas</string>
 
     
-    <string name="hide_extra_keys_with_keyboard_title">Masquer les touches supplémentaires avec le clavier</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Masquer automatiquement les touches supplémentaires quand le clavier est fermé, les afficher quand il est ouvert</string>
+    <string name="hide_extra_keys_with_keyboard_title">Masquer les boutons supplémentaires avec le clavier</string>
+    <string name="hide_extra_keys_with_keyboard_summary">Masquer automatiquement les boutons supplémentaires quand le clavier est fermé, les afficher quand il est ouvert</string>
 
     
     <string name="suggestions_max_count_title">Nombre maximal de suggestions de saisie semi-automatique</string>
     <string name="language_category_title">Langue</string>
     <string name="appearance_category_title">Apparence</string>
     <string name="input_preferences_title">Saisie</string>
-    <string name="input_preferences_summary">Touches supplémentaires, panneau de saisie, clavier, raccourcis clavier, boutons système</string>
-    <string name="extra_keys_preferences_title">Touches supplémentaires</string>
-    <string name="extra_keys_preferences_summary">Préférences du panneau de touches supplémentaires</string>
+    <string name="input_preferences_summary">Boutons supplémentaires, panneau de saisie, clavier, raccourcis clavier, boutons système</string>
+    <string name="extra_keys_preferences_title">Boutons supplémentaires</string>
+    <string name="extra_keys_preferences_summary">Préférences du panneau de boutons supplémentaires</string>
     <string name="display_preferences_title">Affichage</string>
     <string name="display_preferences_summary">Apparence, onglets, terminal, fenêtre</string>
     <string name="terminal_advanced_title">Avancé</string>
@@ -281,16 +281,16 @@
     <string name="diagnostics_preferences_summary">Journalisation et notifications d\'erreur</string>
     <string name="plugin_logging_category_title">Journalisation</string>
     <string name="action_failsafe_mode">Mode sans échec</string>
-    <string name="extra_keys_special_button_mode_title">Comportement des touches spéciales</string>
-    <string name="extra_keys_special_button_mode_summary">Fonctionnement des touches modificatrices (CTRL, ALT, SHIFT, FN) au toucher. Collant : appui pour basculer, appui long pour verrouiller. Maintenu : actif uniquement pendant l\'appui.</string>
+    <string name="extra_keys_special_button_mode_title">Comportement des boutons spéciaux</string>
+    <string name="extra_keys_special_button_mode_summary">Fonctionnement des boutons modificateurs (CTRL, ALT, SHIFT, FN) au toucher. Collant : appui pour basculer, appui long pour verrouiller. Maintenu : actif uniquement pendant l\'appui.</string>
     <string name="extra_keys_special_button_mode_sticky">Collant (basculer / verrouiller)</string>
     <string name="extra_keys_special_button_mode_hold">Maintenu (pendant l\'appui)</string>
-    <string name="extra_keys_header">Touches supplémentaires</string>
-    <string name="extra_keys_category_title">Touches supplémentaires</string>
-    <string name="extra_keys_layout_title">Disposition des touches</string>
-    <string name="extra_keys_layout_summary">Matrice JSON définissant les lignes de touches supplémentaires et leurs popups.</string>
-    <string name="extra_keys_style_title">Style des touches</string>
-    <string name="extra_keys_style_summary">Affichage des caractères spéciaux sur les touches.</string>
+    <string name="extra_keys_header">Boutons supplémentaires</string>
+    <string name="extra_keys_category_title">Boutons supplémentaires</string>
+    <string name="extra_keys_layout_title">Disposition des boutons</string>
+    <string name="extra_keys_layout_summary">Matrice JSON définissant les lignes de boutons supplémentaires et leurs popups.</string>
+    <string name="extra_keys_style_title">Style des boutons</string>
+    <string name="extra_keys_style_summary">Affichage des caractères spéciaux sur les boutons.</string>
     <string name="extra_keys_style_default">Par défaut</string>
     <string name="extra_keys_style_arrows_only">Flèches uniquement</string>
     <string name="extra_keys_style_arrows_all">Toutes les flèches</string>
@@ -311,43 +311,43 @@
     <string name="screen_orientation_entry_landscape">Paysage</string>
 
     
-    <string name="extra_keys_visibility_title">Afficher le panneau de touches supplémentaires</string>
-    <string name="extra_keys_visibility_summary">Quand le panneau de touches supplémentaires est affiché.</string>
+    <string name="extra_keys_visibility_title">Afficher le panneau de boutons supplémentaires</string>
+    <string name="extra_keys_visibility_summary">Quand le panneau de boutons supplémentaires est affiché.</string>
     <string name="extra_keys_visibility_always">Toujours</string>
     <string name="extra_keys_visibility_keyboard">Uniquement quand le clavier est ouvert</string>
     <string name="extra_keys_visibility_never">Jamais</string>
 
     
-    <string name="extra_keys_invalid_json">JSON invalide pour les touches supplémentaires. Les modifications n\'ont pas été enregistrées.</string>
+    <string name="extra_keys_invalid_json">JSON invalide pour les boutons supplémentaires. Les modifications n\'ont pas été enregistrées.</string>
 
     
-    <string name="extra_keys_editor_title">Éditeur de touches supplémentaires</string>
-    <string name="extra_keys_editor_summary">Construisez visuellement le panneau des touches supplémentaires : définissez les lignes et colonnes, puis appuyez sur une touche pour lui attribuer un signal.</string>
+    <string name="extra_keys_editor_title">Éditeur de boutons supplémentaires</string>
+    <string name="extra_keys_editor_summary">Construisez visuellement le panneau des boutons supplémentaires : définissez les lignes et colonnes, puis appuyez sur un bouton pour lui attribuer un signal.</string>
     <string name="extra_keys_editor_columns_title">Colonnes</string>
     <string name="extra_keys_editor_rows_title">Lignes</string>
     <string name="extra_keys_editor_preview_title">Aperçu</string>
-    <string name="extra_keys_editor_preview_summary">Panneau interactif — appuyez sur n\'importe quelle touche pour modifier son signal.</string>
+    <string name="extra_keys_editor_preview_summary">Panneau interactif — appuyez sur n\'importe quel bouton pour modifier son signal.</string>
     <string name="extra_keys_editor_signal_dialog_title">Attribuer un signal</string>
     <string name="extra_keys_editor_custom_text_title">Symbole/texte</string>
     <string name="extra_keys_editor_custom_text_message">Appuyez sur n\'importe quelle touche pour lier :</string>
-    <string name="extra_keys_editor_apply_title">Appliquer aux touches supplémentaires</string>
-    <string name="extra_keys_editor_apply_summary">Enregistrer cette disposition dans les paramètres des touches supplémentaires.</string>
+    <string name="extra_keys_editor_apply_title">Appliquer aux boutons supplémentaires</string>
+    <string name="extra_keys_editor_apply_summary">Enregistrer cette disposition dans les paramètres des boutons supplémentaires.</string>
     <string name="extra_keys_editor_empty">(vide)</string>
-    <string name="extra_keys_editor_max_signals">Maximum 8 signaux par touche</string>
+    <string name="extra_keys_editor_max_signals">Maximum 8 signaux par bouton</string>
     <string name="extra_keys_editor_custom_text_no_space">Le texte personnalisé avec espaces n\'est pas pris en charge dans les combinaisons</string>
     <string name="extra_keys_editor_done">Terminé</string>
-    <string name="extra_keys_editor_open_editor">Modifier les touches supplémentaires</string>
-    <string name="extra_keys_editor_open_editor_summary">Configurer la disposition, l\'échelle et les affectations des touches</string>
+    <string name="extra_keys_editor_open_editor">Modifier les boutons supplémentaires</string>
+    <string name="extra_keys_editor_open_editor_summary">Configurer la disposition, l\'échelle et les affectations des boutons</string>
     <string name="extra_keys_edge_indicators_title">Indicateurs de direction des gestes</string>
-    <string name="extra_keys_editor_hint">Appuyez pour attribuer l\'action principale.\nGlissez vers le haut, le bas, la gauche ou la droite pour attribuer les actions gestuelles.\nAppuyez longuement sur une touche pour définir son libellé.</string>
+    <string name="extra_keys_editor_hint">Appuyez pour attribuer l\'action principale.\nGlissez vers le haut, le bas, la gauche ou la droite pour attribuer les actions gestuelles.\nAppuyez longuement sur un bouton pour définir son libellé.</string>
     <string name="extra_keys_editor_label_dialog_title">Libellé</string>
     <string name="extra_keys_editor_mode_assign">Attribuer</string>
     <string name="extra_keys_editor_mode_move">Déplacer</string>
-    <string name="extra_keys_editor_hint_move">Faites glisser une touche vers une autre cellule pour déplacer/échanger toutes ses actions</string>
+    <string name="extra_keys_editor_hint_move">Faites glisser un bouton vers une autre cellule pour déplacer/échanger toutes ses actions</string>
     <string name="extra_keys_editor_profile_default">Par défaut</string>
     <string name="extra_keys_editor_profile_add">Ajouter un profil</string>
     <string name="extra_keys_editor_profile_delete">Supprimer le profil</string>
-    <string name="extra_keys_editor_profile_add_title">Nouveau profil de touches supplémentaires</string>
+    <string name="extra_keys_editor_profile_add_title">Nouveau profil de boutons supplémentaires</string>
     <string name="extra_keys_editor_profile_name_hint">Nom du profil</string>
     <string name="extra_keys_editor_profile_exists">Un profil portant ce nom existe déjà</string>
     <string name="extra_keys_editor_profile_delete_title">Supprimer le profil</string>
@@ -366,7 +366,7 @@
 
     
     <string name="extra_keys_haptic_title">Retour haptique</string>
-    <string name="extra_keys_haptic_summary">Vibration lors des interactions avec le panneau de touches supplémentaires</string>
+    <string name="extra_keys_haptic_summary">Vibration lors des interactions avec le panneau de boutons supplémentaires</string>
     <string name="extra_keys_haptic_all">Appuis et gestes</string>
     <string name="extra_keys_haptic_gestures">Gestes uniquement</string>
     <string name="extra_keys_haptic_off">Désactivé</string>
@@ -778,4 +778,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Bulle</string>
     <string name="bubble_notification_channel_description">Fenêtre de terminal flottante par-dessus les autres applications</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">Panneau compact en paysage</string>
+    <string name="extra_keys_compact_landscape_summary">En paysage, 2–3 rangées de boutons se replient en une et 4 rangées en deux.</string>
+    <string name="extra_keys_compact_mode_title">Ordre de repli</string>
+    <string name="extra_keys_compact_mode_rows">Par rangées</string>
+    <string name="extra_keys_compact_mode_columns">Par colonnes</string>
 </resources>

@@ -1,0 +1,811 @@
+
+===== app/build.gradle
++        versionCode 118020 // 0.118.0 base + mod release 20
++        versionName "0.118.0+enhanced.20" // base Termux version + mod release 20
+
+===== app/src/debug/java/com/termux/app/TermuxDebugCommandReceiver.java
++ *   extrakeys    - snapshot of the extra-keys panel's fold state: stored / effective / actually
++ *                  built row count, fold flag and mode, landscape or not, column count and panel
++ *                  height. The on-device oracle for the "compact panel in landscape" option, which
++ *                  tells "the panel really was rebuilt folded" from "it only looks narrower".
++                case "extrakeys":
++                    dumpExtraKeys(activity);
++                    break;
++    /**
++     * Dump the extra-keys panel's fold state. Four numbers describe it, and they are the four the
++     * option is made of:
++     * <ul>
++     *   <li>{@code storedRows} — rows in the layout as stored ({@code extra-keys} / session profile);</li>
++     *   <li>{@code effectiveRows} — what the height rule sizes the panel for;</li>
++     *   <li>{@code builtRows} — rows the grid was really built with by the last reload, i.e. the
++     *       ground truth: if this equals {@code storedRows} while the fold is on, the panel was never
++     *       rebuilt and the option is not doing anything;</li>
++     *   <li>{@code cols} — columns of the built grid, which grows as rows are folded away.</li>
++     * </ul>
++     * Both the preference and the window orientation are printed next to them, so a mismatch can be
++     * attributed to the preference, to the orientation or to the rebuild.
++     */
++    private static void dumpExtraKeys(TermuxActivity activity) {
++        com.termux.shared.termux.extrakeys.ExtraKeysView ekv = activity.getExtraKeysView();
++        if (ekv == null) {
++            log("extrakeys: no view");
++            return;
++        }
++        StringBuilder sb = new StringBuilder("extrakeys:");
++
++        int storedRows = 0;
++        if (activity.getTermuxTerminalExtraKeys() != null
++            && activity.getTermuxTerminalExtraKeys().getExtraKeysInfo() != null) {
++            storedRows = activity.getTermuxTerminalExtraKeys().getExtraKeysInfo().getMatrix().length;
++        }
++
++        final boolean fold = ekv.isLandscapeCompactActive();
++        sb.append(" prefCompact=").append(activity.getPreferences().isExtraKeysCompactLandscapeEnabled(activity));
++        sb.append(" prefMode=").append(activity.getPreferences().getExtraKeysCompactMode());
++        sb.append(" landscape=").append(
++            activity.getResources().getConfiguration().orientation
++                == android.content.res.Configuration.ORIENTATION_LANDSCAPE);
++        sb.append(" fold=").append(fold);
++        sb.append(" mode=").append(ekv.getCompactMode());
++        sb.append(" storedRows=").append(storedRows);
++        sb.append(" effectiveRows=").append(
++            com.termux.shared.termux.extrakeys.ExtraKeysCompaction.effectiveRowCount(storedRows, fold));
++        sb.append(" builtRows=").append(ekv.getReloadedRowCount());
++        sb.append(" cols=").append(ekv.getColumnCount());
++        if (ekv.getLayoutParams() != null)
++            sb.append(" panelH=").append(ekv.getLayoutParams().height);
++        sb.append(" vis=").append(vis(ekv));
++
++        log(sb.toString());
++    }
++
+
+===== app/src/main/java/com/termux/app/TermuxActivity.java
++import android.content.res.Configuration;
++import com.termux.shared.termux.extrakeys.ExtraKeysCompaction;
++    /**
++     * TermuxActivity handles orientation and screen-size changes itself (see the {@code configChanges}
++     * attribute in the manifest), so a rotation does not recreate the activity and nothing else would
++     * tell the extra-keys panel that its window changed shape. This callback is where that change
++     * arrives — for a rotation, for a split-screen resize and for a floating window being resized
++     * alike — so the panel's fold state is re-decided here.
++     *
++     * <p>The method itself is cheap when nothing relevant changed: it only re-reads the orientation
++     * and rebuilds the panel when the fold state actually flipped, not on every density or locale
++     * change that also lands here.
++     *
++     * <p>The orientation is taken from {@code newConfig} — the configuration the platform is
++     * applying right now — rather than from the activity's own resources. That is the value the
++     * platform hands us for exactly this decision, and unlike {@code getResources()} it cannot be a
++     * step behind while the change is being dispatched, which would leave the panel unfolded for the
++     * rest of the session (nothing would re-decide it until the next transition).
++     *
++     * <p>Deliberately does nothing that could re-enter the platform's configuration dispatch (no
++     * {@code setRequestedOrientation()} here): on some ROMs that recurses through
++     * {@code AppCompatDelegateImpl.onConfigurationChanged()}.
++     */
++    @Override
++    public void onConfigurationChanged(@NonNull Configuration newConfig) {
++        super.onConfigurationChanged(newConfig);
++        updateExtraKeysCompaction(newConfig);
++    }
++
++
++            // Same for the extra-keys fold: a floating window reaches its real bounds only once it
++            // is actually shown, so a decision taken at creation or resume can predate the shape
++            // the panel ends up being drawn in. Focus is when that shape is settled, and the call
++            // costs one comparison unless the panel really is mismatched.
++            updateExtraKeysCompaction();
++        // Same idea for the extra-keys panel: the fold state is derived from the window's shape and
++        // the preference, and a transition that could not apply it (or a preference that changed
++        // while this window was not in front) would otherwise stay invisible for the rest of the
++        // session. Idempotent — it returns immediately when the panel already matches.
++        updateExtraKeysCompaction();
++
++        // Decide whether this panel folds before it is sized and built, so the height below and the
++        // reload at the end of this method already work on the folded row count. The result is
++        // ignored on purpose: this method reloads the panel unconditionally anyway.
++        applyExtraKeysCompaction();
++
++        final int storedRows = (mTermuxTerminalExtraKeys == null
++            || mTermuxTerminalExtraKeys.getExtraKeysInfo() == null)
++            ? 0 : mTermuxTerminalExtraKeys.getExtraKeysInfo().getMatrix().length;
++
++        // The panel is sized from the row count the view is actually built with, not from the stored
++        // layout: with landscape compaction on, the same layout is rendered in fewer rows, and sizing
++        // the panel by the stored count would leave the folded keys sitting in a too-tall panel (or
++        // clip the bottom row in the opposite case). Both this method and ExtraKeysView.reload() ask
++        // the same helper, so the two can never disagree about how many rows there are.
++        final int rows = ExtraKeysCompaction.effectiveRowCount(storedRows,
++            extraKeysView.isLandscapeCompactActive());
++
++        layoutParams.height = Math.round(mTerminalToolbarDefaultHeight * rows *
++    /**
++     * Point the extra-keys panel at the fold state that the current window and preferences imply:
++     * fold the rows when the window is in landscape <em>and</em> the user asked for it.
++     *
++     * <p>Only the flag on the view is set here — the grid itself is rebuilt by whoever reloads the
++     * panel. That split is what keeps the call cheap: callers that reload unconditionally (activity
++     * creation, a styling reload) just call this first and ignore the result, while the ones that
++     * would otherwise rebuild the panel for nothing (a configuration change) use the result to decide
++     * whether a rebuild is needed at all.
++     *
++     * @return {@code true} when the panel's grid no longer matches the fold state, i.e. when the
++     *         caller owes the view a {@link ExtraKeysView#reload(com.termux.shared.termux.extrakeys.ExtraKeysInfo, float)}
++     */
++    private boolean applyExtraKeysCompaction() {
++        return applyExtraKeysCompaction(null);
++    }
++
++    /**
++     * The same decision as {@link #applyExtraKeysCompaction()}, with the {@link Configuration} to read
++     * the orientation from given explicitly.
++     *
++     * @param changedConfig the configuration the platform is applying, when this runs from
++     *        {@link #onConfigurationChanged(Configuration)}; {@code null} to read the activity's own
++     *        configuration (activity creation, a styling reload, a resume).
++     */
++    private boolean applyExtraKeysCompaction(@Nullable Configuration changedConfig) {
++        final ExtraKeysView extraKeysView = getExtraKeysView();
++        if (extraKeysView == null) return false;
++
++        final boolean fold = mPreferences.isExtraKeysCompactLandscapeEnabled(this)
++            && isLandscape(changedConfig);
++        final ExtraKeysCompaction.Mode mode =
++            ExtraKeysCompaction.modeFromPreferenceValue(mPreferences.getExtraKeysCompactMode());
++        return extraKeysView.setLandscapeCompact(fold, mode);
++    }
++
++    /**
++     * Re-fold the panel if the window no longer matches the fold state it was built with, and rebuild
++     * it when it has to change.
++     *
++     * <p>Called from {@link #onConfigurationChanged(Configuration)} — where a rotation, a
++     * split-screen resize and a floating-window resize all arrive, since the activity handles those
++     * itself (see the manifest's {@code configChanges}) — and from {@link #onResume()}, so the panel
++     * is re-decided whenever this window is (again) the one in front. That second call is the same
++     * "state ours again on resume" step as {@code reassertTerminalViewSize()}: cheap, because it
++     * returns immediately unless the fold state actually flipped.
++     *
++     * @param changedConfig see {@link #applyExtraKeysCompaction(Configuration)}
++     */
++    private void updateExtraKeysCompaction(@Nullable Configuration changedConfig) {
++        if (!applyExtraKeysCompaction(changedConfig)) return;
++
++        final ExtraKeysView extraKeysView = getExtraKeysView();
++        if (extraKeysView == null) return;
++
++        if (mTermuxTerminalExtraKeys != null && mTermuxTerminalExtraKeys.getExtraKeysInfo() != null) {
++            extraKeysView.reload(mTermuxTerminalExtraKeys.getExtraKeysInfo(), mTerminalToolbarDefaultHeight);
++        }
++        setTerminalToolbarHeight();
++    }
++
++    /** {@link #updateExtraKeysCompaction(Configuration)} against the activity's own configuration. */
++    private void updateExtraKeysCompaction() {
++        updateExtraKeysCompaction(null);
++    }
++
++    /**
++     * Whether the window is in landscape, i.e. wider than it is tall.
++     *
++     * <p>The answer comes from a {@link Configuration} — the platform's value, the same one the rest
++     * of the app asks for (see {@code TermuxActivityUtils} and
++     * {@code ViewUtils.getDisplayOrientation}). The configuration handed to
++     * {@link #onConfigurationChanged(Configuration)} is used when there is one, the activity's own
++     * otherwise. Because this activity handles orientation and screen-size changes itself (see the
++     * manifest's {@code configChanges}), that value is refreshed on every rotation and on every
++     * window resize in split-screen or a floating window.
++     *
++     * @param changedConfig the configuration being applied, or {@code null} to read the activity's.
++     */
++    private boolean isLandscape(@Nullable Configuration changedConfig) {
++        if (changedConfig != null)
++            return changedConfig.orientation == Configuration.ORIENTATION_LANDSCAPE;
++
++        // No configuration is being applied, so this is a decision the activity takes on its own
++        // initiative (creation, resume, focus). The configuration is the answer for a full-screen
++        // window, and it stays the first source. When the window has already been laid out its own
++        // size is the better one though: the question is "is the window this panel is drawn in wider
++        // than it is tall", and a floating window (the bubble) is shaped by its own bounds, which
++        // the configuration does not necessarily describe. Measured on this device:
++        // WindowManager.getCurrentWindowMetrics() reports bounds in the display's *unrotated*
++        // space, so it answers portrait on a landscape screen — the decor view's own size is in the
++        // window's space and is right for both windows. It is only consulted once it is non-zero,
++        // i.e. once the window really has been laid out; before that the configuration decides.
++        final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
++        if (decorView != null && decorView.getWidth() > 0 && decorView.getHeight() > 0)
++            return decorView.getWidth() > decorView.getHeight();
++
++        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
++    }
++
++                // Re-decide the fold state before anything reloads the grid below. The preferences
++                // that drive it live in the extra-keys editor, so a change there reaches the live
++                // panel exactly through this path (updateTermuxActivityStyling). The result is
++                // ignored: the reload below happens either way.
++                applyExtraKeysCompaction();
++
+
+===== app/src/main/java/com/termux/app/fragments/settings/termux/ExtraKeysEditorFragment.java
++import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
++
++        SwitchPreferenceCompat compactPref =
++            findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE);
++        if (compactPref != null) {
++            // The default is device-dependent (phones on, tablets off) and a static
++            // app:defaultValue cannot express it, so seed the switch from the same getter the panel
++            // asks — otherwise a phone would show the switch off while its panel folds. Writing it
++            // here only happens the first time (the stored value wins from then on) and keeps the
++            // screen and the live panel in step; see DisplayPreferencesFragment's orientation.
++            compactPref.setChecked(mPrefs.isExtraKeysCompactLandscapeEnabled(requireContext()));
++
++            compactPref.setOnPreferenceChangeListener((preference, newValue) -> {
++                mPrefs.setExtraKeysCompactLandscapeEnabled((Boolean) newValue);
++                // Nothing in this screen shows the fold: the editable grid is the stored layout and
++                // looks the same either way, and the fold only exists in landscape. So this is purely
++                // "save it and tell the live panel" — a styling reload is the path that carries the
++                // preference into it, without leaving the settings.
++                TermuxActivity.updateTermuxActivityStyling(requireContext(), false);
++                return true;
++            });
++        }
++
++        ListPreference compactModePref =
++            findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE);
++        if (compactModePref != null) {
++            compactModePref.setOnPreferenceChangeListener((preference, newValue) -> {
++                mPrefs.setExtraKeysCompactMode((String) newValue);
++                TermuxActivity.updateTermuxActivityStyling(requireContext(), false);
++                return true;
++            });
++        }
+
+===== app/src/main/res/values-ar/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">لوحة مضغوطة في الوضع الأفقي</string>
++    <string name="extra_keys_compact_landscape_summary">في الوضع الأفقي تُدمج 2–3 صفوف في صف واحد، و4 صفوف في صفين.</string>
++    <string name="extra_keys_compact_mode_title">ترتيب الدمج</string>
++    <string name="extra_keys_compact_mode_rows">حسب الصفوف</string>
++    <string name="extra_keys_compact_mode_columns">حسب الأعمدة</string>
+
+===== app/src/main/res/values-b+zh+Hant/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">橫向時的緊湊面板</string>
++    <string name="extra_keys_compact_landscape_summary">橫向時，2–3 行會合併為一行，4 行合併為兩行。</string>
++    <string name="extra_keys_compact_mode_title">合併順序</string>
++    <string name="extra_keys_compact_mode_rows">依行</string>
++    <string name="extra_keys_compact_mode_columns">依欄</string>
+
+===== app/src/main/res/values-de/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Kompakte Leiste im Querformat</string>
++    <string name="extra_keys_compact_landscape_summary">Im Querformat werden 2–3 Zeilen zu einer und 4 Zeilen zu zwei zusammengefasst.</string>
++    <string name="extra_keys_compact_mode_title">Faltreihenfolge</string>
++    <string name="extra_keys_compact_mode_rows">Nach Zeilen</string>
++    <string name="extra_keys_compact_mode_columns">Nach Spalten</string>
+
+===== app/src/main/res/values-es/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Panel compacto en horizontal</string>
++    <string name="extra_keys_compact_landscape_summary">En horizontal, 2–3 filas se pliegan en una y 4 filas en dos.</string>
++    <string name="extra_keys_compact_mode_title">Orden de plegado</string>
++    <string name="extra_keys_compact_mode_rows">Por filas</string>
++    <string name="extra_keys_compact_mode_columns">Por columnas</string>
+
+===== app/src/main/res/values-fr/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Panneau compact en paysage</string>
++    <string name="extra_keys_compact_landscape_summary">En paysage, 2–3 rangées se replient en une et 4 rangées en deux.</string>
++    <string name="extra_keys_compact_mode_title">Ordre de repli</string>
++    <string name="extra_keys_compact_mode_rows">Par rangées</string>
++    <string name="extra_keys_compact_mode_columns">Par colonnes</string>
+
+===== app/src/main/res/values-hi/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">लैंडस्केप में संक्षिप्त पैनल</string>
++    <string name="extra_keys_compact_landscape_summary">लैंडस्केप में 2–3 पंक्तियाँ एक में और 4 पंक्तियाँ दो में मोड़ दी जाती हैं।</string>
++    <string name="extra_keys_compact_mode_title">मोड़ने का क्रम</string>
++    <string name="extra_keys_compact_mode_rows">पंक्तियों के अनुसार</string>
++    <string name="extra_keys_compact_mode_columns">स्तंभों के अनुसार</string>
+
+===== app/src/main/res/values-in/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Panel ringkas dalam lanskap</string>
++    <string name="extra_keys_compact_landscape_summary">Dalam lanskap, 2–3 baris dilipat menjadi satu dan 4 baris menjadi dua.</string>
++    <string name="extra_keys_compact_mode_title">Urutan lipatan</string>
++    <string name="extra_keys_compact_mode_rows">Menurut baris</string>
++    <string name="extra_keys_compact_mode_columns">Menurut kolom</string>
+
+===== app/src/main/res/values-ja/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">横向きのコンパクトパネル</string>
++    <string name="extra_keys_compact_landscape_summary">横向きでは2〜3行が1行に、4行が2行に折りたたまれます。</string>
++    <string name="extra_keys_compact_mode_title">折りたたみ順</string>
++    <string name="extra_keys_compact_mode_rows">行順</string>
++    <string name="extra_keys_compact_mode_columns">列順</string>
+
+===== app/src/main/res/values-ko/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">가로 모드의 간략 패널</string>
++    <string name="extra_keys_compact_landscape_summary">가로 모드에서는 2~3줄이 한 줄로, 4줄이 두 줄로 접힙니다.</string>
++    <string name="extra_keys_compact_mode_title">접는 순서</string>
++    <string name="extra_keys_compact_mode_rows">행 기준</string>
++    <string name="extra_keys_compact_mode_columns">열 기준</string>
+
+===== app/src/main/res/values-pt/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Painel compacto em paisagem</string>
++    <string name="extra_keys_compact_landscape_summary">Em paisagem, 2–3 linhas são dobradas em uma e 4 linhas em duas.</string>
++    <string name="extra_keys_compact_mode_title">Ordem de dobra</string>
++    <string name="extra_keys_compact_mode_rows">Por linhas</string>
++    <string name="extra_keys_compact_mode_columns">Por colunas</string>
+
+===== app/src/main/res/values-ru/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Компактная панель в ландшафтном режиме</string>
++    <string name="extra_keys_compact_landscape_summary">В ландшафте 2–3 строки сворачиваются в одну, а 4 — в две.</string>
++    <string name="extra_keys_compact_mode_title">Порядок сворачивания</string>
++    <string name="extra_keys_compact_mode_rows">По строкам</string>
++    <string name="extra_keys_compact_mode_columns">По столбцам</string>
+
+===== app/src/main/res/values-tr/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Yatay modda kompakt panel</string>
++    <string name="extra_keys_compact_landscape_summary">Yatay modda 2–3 satır bire, 4 satır ikiye katlanır.</string>
++    <string name="extra_keys_compact_mode_title">Katlama sırası</string>
++    <string name="extra_keys_compact_mode_rows">Satırlara göre</string>
++    <string name="extra_keys_compact_mode_columns">Sütunlara göre</string>
+
+===== app/src/main/res/values-zh/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">横屏时的紧凑面板</string>
++    <string name="extra_keys_compact_landscape_summary">横屏时，2–3 行会合并为一行，4 行合并为两行。</string>
++    <string name="extra_keys_compact_mode_title">合并顺序</string>
++    <string name="extra_keys_compact_mode_rows">按行</string>
++    <string name="extra_keys_compact_mode_columns">按列</string>
+
+===== app/src/main/res/values/arrays.xml
++
++    <!-- Fold order of the compact extra-keys panel. The entries are @string references, so every
++         locale renders them in its own language without a copy of this array: a resource reference
++         is resolved against the configuration the app runs in, not the one the array was taken
++         from. The values below are preference values and are never shown, hence not localised. -->
++    <string-array name="extra_keys_compact_mode_entries">
++        <item>@string/extra_keys_compact_mode_rows</item>
++        <item>@string/extra_keys_compact_mode_columns</item>
++    </string-array>
++    <string-array name="extra_keys_compact_mode_values">
++        <item>rows</item>
++        <item>columns</item>
++    </string-array>
+
+===== app/src/main/res/values/strings.xml
++
++    <!-- ===================== Compact extra-keys panel =====================
++         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
++         these strings describe the behaviour and the order of the keys inside a folded row; the
++         stored layout is never rewritten. The preview title labels the read-only preview of the
++         folded panel under the editable grid in the extra-keys editor. -->
++    <string name="extra_keys_compact_landscape_title">Compact panel in landscape</string>
++    <string name="extra_keys_compact_landscape_summary">In landscape, 2–3 rows fold into one and 4 rows into two.</string>
++    <string name="extra_keys_compact_mode_title">Fold order</string>
++    <string name="extra_keys_compact_mode_rows">By rows</string>
++    <string name="extra_keys_compact_mode_columns">By columns</string>
+
+===== app/src/main/res/xml/extra_keys_editor_preferences.xml
++    <!-- The default is device-dependent (on for phones, off for tablets), which a static
++         app:defaultValue cannot express; ExtraKeysEditorFragment seeds the switch from
++         TermuxAppSharedPreferences.isExtraKeysCompactLandscapeEnabled(Context) so the screen and the
++         live panel cannot disagree. -->
++    <SwitchPreferenceCompat
++        app:key="extra-keys-compact-landscape"
++        app:defaultValue="false"
++        app:title="@string/extra_keys_compact_landscape_title"
++        app:summary="@string/extra_keys_compact_landscape_summary"
++        app:iconSpaceReserved="false" />
++
++    <!-- Fold order only means something while the fold is on, so it greys out with the switch. -->
++    <ListPreference
++        app:key="extra-keys-compact-mode"
++        app:defaultValue="columns"
++        app:title="@string/extra_keys_compact_mode_title"
++        app:useSimpleSummaryProvider="true"
++        app:entries="@array/extra_keys_compact_mode_entries"
++        app:entryValues="@array/extra_keys_compact_mode_values"
++        app:dependency="extra-keys-compact-landscape"
++        app:iconSpaceReserved="false" />
++
+
+===== docs/extra-keys-landscape-compact.md
++  профилей ×2) получают эффект автоматически.
++2 настройки, 2 пункта в редакторе, 5 строк × 14 локалей.
++### 2.4. Пустые ячейки: переносятся как есть
++**Сжатие чисто позиционное: содержимое клеток не анализируется вообще.** Алгоритм знает только форму
++матрицы (сколько строк, сколько клеток в каждой) и порядок обхода — ни `key`, ни `display`, ни свайпы он
++не смотрит.
++Следствия:
++- Незаполненная клетка (редактор пишет туда `""`) в сжатой панели остаётся клеткой: на своём месте в
++  порядке обхода появляется такая же пустая кнопка, как и в обычной панели. Число клеток в сжатой панели
++  равно числу клеток в исходной.
++- Кнопка «только со свайпами» (`{"swipeUp": …}` без `key`) переносится автоматически — как и любая
++  другая клетка, потому что её содержимое никого не интересует.
++- Единственное, что «отбрасывается» — позиции, которых в матрице нет вовсе (у «рваной» строки меньше
++  клеток, чем у самой длинной): это утверждение о **форме** матрицы, а не о содержимом клетки. Редактор
++  всегда пишет прямоугольную сетку, так что для раскладок из редактора это не встречается.
++| Р2 | Критерий «ландшафт» — **`Configuration.orientation`**; в `onConfigurationChanged` берётся **переданный платформой `newConfig`**, в остальных точках — `getResources().getConfiguration()` | Ручной тест «окно шире, чем выше» по aspect root view — **отвергнут как костыль**: он дублирует то, что платформа уже сообщает, и заводит свою геометрию, которую надо отдельно держать в согласии с каждым ресайзом. `Configuration` в квадратном bubble-окне может сказать «ландшафт» — принимаем как известное ограничение (см. §10). Читать в колбэке `getResources()` вместо `newConfig` — значение, которое платформа уже отдала в аргументе, может быть на шаг позади во время применения конфигурации, и тогда панель осталась бы несжатой до конца сессии |
++| Р6 | Пересчёт в `onConfigurationChanged` (там же приходит и ресайз multi-window / floating-окна) + переподтверждение в `onResume` — тот же приём, что `reassertTerminalViewSize()` для размера pty, с гвардом идемпотентности | Слушатель layout у root view — избыточен: он делал бы то же самое на каждом проходе layout'а. Без гварда каждый config-change (шрифт, локаль, плотность) будет заново пересобирать панель. Без переподтверждения в `onResume` состояние, которое переход применить не смог, остаётся невидимым до конца сессии |
++| Р7 | В редакторе — только редактируемая (несжатая) сетка; отдельного превью «ландшафтный вид» нет (**отдельное превью было реализовано и убрано по требованию владельца**) | Показывать сжатую сетку как редактируемую — нужна обратная индексация клеток для тап/свайп/лонг-пресс, а режим MOVE (перетаскивание клеток) в переставленном виде теряет смысл. Отдельное превью рядом — дублирует панель и требует своего пересчёта на каждое изменение |
++ * null = сжимать нечего (или в результате не осталось ни одной клетки) — вызывающий оставляет исходную
++ * матрицу. Каждая группа строк даёт ровно одну целевую строку: 2-3 строки -> одна группа, 4 строки ->
++ * пары 0-1 и 2-3. Содержимое клеток не анализируется — переносятся все клетки, включая пустые.
++                    seq.add(b);
++                    if (c < m[r].length) seq.add(m[r][c]);   // нет клетки — нечего переносить
++        if (!seq.isEmpty()) out.add(seq.toArray(new ExtraKeyButton[0]));   // группа без клеток не создаётся
++private boolean mCompactLandscape;          // флаг ставит вызывающий (activity)
++| 4×10 (40) | по строкам | строки 0–1 → 20 клеток, строки 2–3 → 20 клеток | 20 колонок — предел разумного, см. §6 |
++| 4×5, заполнена только строка 0 | любое | 2 строки: 5 ключей + 5 пустых клеток, затем 10 пустых клеток | сжатие позиционное: пустые клетки на месте |
++| 4×5 из «рваных» строк `[[a,b],[],[c],[]]` | любое | 2 строки: `a b` и `c` | переносятся только существующие клетки |
++| `termux-shared/.../extrakeys/ExtraKeysCompaction.java` | **новый**: `Mode`, `targetRows`, `rowGroupBounds`, `compact`, `effectiveRowCount`, `modeFromPreferenceValue` — чистая статика (зависит только от `ExtraKeyButton`), удобно проверять вручную |
++| `termux-shared/.../extrakeys/ExtraKeysView.java` | поля `mCompactLandscape`/`mCompactMode`, `setLandscapeCompact(...)` (**возвращает `boolean` — «сетку придётся пересобрать»**, это и есть гвард идемпотентности), применение в `reload()`, геттеры `isLandscapeCompactActive()`/`getCompactMode()`/`getReloadedRowCount()` для отладки |
++| `termux-shared/.../settings/preferences/TermuxAppSharedPreferences.java` | `isExtraKeysCompactLandscapeEnabled(Context)/set…` (дефолт по устройству, как у `…DynamicFontSize…`: `!isTablet` — `smallestScreenWidthDp >= 600`), `getExtraKeysCompactMode()/set…` |
++| `termux-shared/.../settings/preferences/TermuxPreferenceConstants.java` | `KEY_EXTRA_KEYS_COMPACT_LANDSCAPE` (дефолт зависит от устройства; константа — только фолбэк без `Context`), `KEY_EXTRA_KEYS_COMPACT_MODE` (default `"columns"`), значения `rows`/`columns` |
++| `app/.../TermuxActivity.java` | `applyExtraKeysCompaction([Configuration])` (флаг на вью + результат «надо пересобирать» — сравнивается с тем, **с чем собрана сетка**: `mBuiltCompactLandscape`/`mBuiltCompactMode`/`mBuiltGrid`), `updateExtraKeysCompaction([Configuration])` (флаг + `reload()` + высота), `isLandscape(Configuration)`; вызовы: `setTerminalToolbarView()` (перед первой сборкой сетки), `reloadActivityStyling()` (перед `reloadExtraKeys()`), `onResume()`, `onWindowFocusChanged(true)` (окно всплывающего/плавающего режима получает реальные границы только когда показано), новый `onConfigurationChanged(...)` — он и передаёт свой `newConfig`; в `setTerminalToolbarHeight()` — `effectiveRowCount(...)` вместо `getMatrix().length` |
++| `app/.../fragments/settings/termux/ExtraKeysEditorFragment.java` | слушатели двух новых настроек (оба — «сохранить + `updateTermuxActivityStyling`»); переключатель компактности засеивается из `isExtraKeysCompactLandscapeEnabled(context)`, иначе экран показывал бы «выкл» при работающем свёртывании |
++| `app/src/main/res/xml/extra_keys_editor_preferences.xml` | `SwitchPreferenceCompat` «Компактная панель в ландшафтном режиме» + `ListPreference` «Порядок сворачивания» с `app:dependency` |
++| `app/src/main/res/values/arrays.xml` (только дефолт) | `extra_keys_compact_mode_entries` / `_values`; items — ссылки `@string/…`, поэтому локализовать массив не нужно (ссылка разрешается в текущей конфигурации, в отличие от массивов с литералами) |
++| `app/src/main/res/values*/strings.xml` (14 локалей) | **5** новых строк, см. §9 |
++| `app/src/debug/java/com/termux/app/TermuxDebugCommandReceiver.java` | команда `extrakeys` со `switch (cmd)`: строки исходные/эффективные/собранные, флаг и режим, ландшафт, колонки, высота панели |
++   (`app:dependency`, виден только при включённом тумблере).
++3. Слайдеры «Rows»/«Columns» управляют исходной сеткой (тем, что хранится), а не сжатой формой:
++   сжатие — производная раскладка, и редактор её не показывает.
++4. Отдельного превью «Ландшафтный вид» в редакторе **нет** — оно было реализовано и убрано по
++   требованию владельца (§3, Р7). Что именно делает тумблер, объясняет его `summary`.
++5. Смена тумблера/режима шлёт `updateTermuxActivityStyling(ctx, false)`, чтобы живая панель
++   применилась без перезапуска приложения.
++
++**6** новых строк, 14 каталогов (`values/` + `ar de es fr hi in ja ko pt ru tr zh` + `b+zh+Hant`),
++| `extra_keys_compact_mode_rows` | По строкам | By rows |
++| `extra_keys_compact_mode_columns` | По столбцам | By columns |
++
++`extra_keys_compact_mode_entries` ссылается на две строки выше (`@string/…`), поэтому массив заведён
++**только в `values/arrays.xml`**: ссылка разрешается в текущей конфигурации, и `values-b+zh+Hant` (у
++которого нет своего `arrays.xml`) получает переведённые подписи из своего `strings.xml`. Локализуются
++только массивы с литеральными item'ами.
++Заведение строк — скриптом `scripts/add_compact_extra_keys_strings.py` (идемпотентен, вставляет перед
++последним `</resources>`), а не правкой 14 файлов руками.
++| Пустые клетки занимают место в сжатой строке | низкая | Не дефект: сжатие позиционное (§2.4), клетка остаётся клеткой. Плата за то, что наполнение не анализируется |
++| Панель после сжатия пуста (строки нулевой длины) | низкая | Гвард: `compact()` возвращает `null`, панель остаётся исходной |
++| Поворот не перестраивает панель (`configChanges`) | **высокая, если забыть** | Явный `onConfigurationChanged` + гвард идемпотентности (результат `setLandscapeCompact`) |
++| Лишние пересборки панели на каждом config-change | средняя | Гвард: `setLandscapeCompact()` возвращает `false`, когда сетка не изменилась (флаг тот же, либо режим сменился при выключенном сворачивании) — тогда `reload()` не зовётся вообще |
++| Квадратное bubble-окно может быть сочтено ландшафтом | низкая | Следствие решения Р2 (платформенное `Configuration.orientation`). Приемлемо: в квадратном окне панель просто свернётся в строку, как в любом другом ландшафтном окне; при необходимости это лечится размером окна, а не логикой |
++11. Bubble-окно (квадратное): поведение определяется `Configuration.orientation` (§Р2) — если система
++    считает окно ландшафтным, панель свернётся; это ожидаемо, не дефект.
++12. Редактор: тумблер включает/выключает сжатие в живой панели сразу, без перезапуска приложения;
++    зависимый `ListPreference` «Порядок сворачивания» виден только при включённом тумблере.
++13. Смена «Порядок сворачивания» при включённом тумблере → в живой панели (в ландшафте) меняется порядок
++    ключей, без перезапуска приложения.
++  — печатает `storedRows`/`effectiveRows`/**`builtRows`** (собранные фактически), `fold`, `mode`,
++  `landscape`, `cols`, `panelH`.
++- Что панель действительно перестроена, а не «показалось»: `builtRows` в дампе выше; либо `dumpsys
++  window` размеры контейнера `terminal_toolbar_container` до/после поворота.
++## 12. Решения, принятые к реализации
++1. **Пустые клетки — переносятся как есть.** Сжатие чисто позиционное, наполнение клеток не
++   анализируется вообще (§2.4).
++2. **Критерий «ландшафт» — `Configuration.orientation`** (§Р2, уточнено при реализации): платформенное
++   значение вместо ручного сравнения сторон окна.
++3. **Превью в редакторе — делаем** (§7): без него эффект опции нельзя увидеть, не выйдя из настроек и не
++   повернув телефон.
++4. **Настройка глобальная.** Пер-профильный вариант (свой режим сжатия у профиля сессии) — возможное
++   расширение позже, в текущий объём не входит.
++## 13. Порядок работ — выполнен
++1. `ExtraKeysCompaction` + прогон на дефолтной и на 4×5 раскладках (чистая логика, без Android). ✔
++2. `ExtraKeysView`: флаг, `setLandscapeCompact()` (с результатом «надо пересобирать»), применение в
++   `reload()`. ✔
++3. `TermuxActivity`: `isLandscape()`, `applyExtraKeysCompaction()`, `updateExtraKeysCompaction()`,
++   `effectiveRowCount()` в `setTerminalToolbarHeight()`, `onConfigurationChanged`. ✔
++4. Настройки: константы, геттеры/сеттеры, тумблер и режим в редакторе. ✔
++5. i18n (5 строк × 14 локалей + массивы), debug-команда `extrakeys`, сборка релиза, ручной чек-лист из
++   §11. ✔ (гейты компиляции зелёные; ручной чек-лист на устройстве — по запросу)
+
+===== termux-shared/src/main/java/com/termux/shared/termux/extrakeys/ExtraKeysView.java
++    /**
++     * The fold state the grid <em>on screen</em> was built with, recorded by the same
++     * {@link #reload(ExtraKeysInfo, float)} that built it.
++     *
++     * <p>This is what {@link #setLandscapeCompact(boolean, ExtraKeysCompaction.Mode)} compares
++     * against when it answers "does the grid need a rebuild?". Comparing the flag with its own
++     * previous value instead looks equivalent and is not: a caller is allowed to set the flag and
++     * then skip the rebuild (there is nothing to rebuild with yet), and from that moment the flag
++     * describes a grid that does not exist. A flag comparison then answers "nothing to do" —
++     * forever, because the flag never changes again, so the panel stays unfolded for the rest of
++     * the session. What was built is the only thing that can be compared honestly.
++     */
++    private boolean mBuiltCompactLandscape;
++    @NonNull
++    private ExtraKeysCompaction.Mode mBuiltCompactMode = ExtraKeysCompaction.Mode.ROWS;
++    /** {@code false} until a {@code reload()} has actually built a grid. */
++    private boolean mBuiltGrid;
++
++    /**
++     * What the last dynamic-font pass was computed for: this view's size <em>and</em> the grid
++     * dimensions. The fit is a function of the cell size, and a cell is the view's size divided by the
++     * grid dimensions — so the result belongs to that whole combination, and either a new size (a
++     * rotation, split screen, the IME) or a new column/row count (a rebuild, a folded layout, a session
++     * profile with other dimensions) makes it stale. Written by {@link #recordFittedFontState()},
++     * zeroed by {@link #invalidateFittedFont()}; a grid that has been built always has at least one
++     * column and one row, so a zeroed record can never compare equal to the live one.
++     *
++     * <p>{@link #onLayout(boolean, int, int, int, int)} re-measures whenever this no longer matches,
++     * which is what keeps the fitted size the same across any sequence of rotations.
++     */
++    private int mFittedFontWidth;
++    private int mFittedFontHeight;
++    private int mFittedFontColumns;
++    private int mFittedFontRows;
++
++    /**
++     * Display density, used to turn the dp margins and the sp font sizes into pixels. Not final: the
++     * activity declares {@code density} in its {@code configChanges}, so a display-size change reaches
++     * this view without recreating it, and a stale density would make the margins (and therefore the
++     * fitted font) disagree with the sp-to-px conversion the fit itself performs with the live
++     * metrics. Refreshed on every {@link #reload(ExtraKeysInfo, float)}.
++     */
++    private float mDensity;
++     * <p>The fitted-font cache is dropped when the layout really changes: it was measured for the
++     * previous column count, and reusing it would render the first frame of the new layout with the
++     * wrong text size.
++     * @return {@code true} when the next reload would build a different grid than the one currently
++     *         on screen, i.e. when a reload is actually needed. Callers that run on every layout
++     *         pass rely on this to avoid rebuilding the grid for nothing. Switching {@code mode}
++     *         while the fold is off is <em>not</em> a change: an unfolded panel renders the stored
++     *         layout either way, and the new mode is still remembered for when the fold engages.
++    public boolean setLandscapeCompact(boolean active, @NonNull ExtraKeysCompaction.Mode mode) {
++        // Compare the request with the grid that is on screen, not with the previous request. See
++        // mBuiltCompactLandscape: the flag can get ahead of the grid, and a flag-to-flag comparison
++        // then answers "nothing to do" for the rest of the session.
++        final boolean layoutChanged = !mBuiltGrid
++            || mBuiltCompactLandscape != active
++            || (active && mBuiltCompactMode != mode);
++        if (!layoutChanged) return false;
++        return true;
++        // Re-read the density here as well as in the constructor: a display-size change does not
++        // recreate this view (see the field), and both the margins below and the fitted font depend
++        // on it.
++        mDensity = getResources().getDisplayMetrics().density;
++
++        // Landscape compaction: fold the stored rows into one or two rows. Purely positional — the
++        // cells themselves are the same objects in the same reading order, only the row breaks move.
++        // When there is nothing to fold (already one/two rows, or a matrix with no cells at all) the
++        // stored layout is used as-is.
++        if (mCompactLandscape) {
++            ExtraKeyButton[][] compacted = ExtraKeysCompaction.compact(buttons, mCompactMode);
++            if (compacted != null) buttons = compacted;
++        }
++        mLastReloadedRowCount = buttons.length;
++
++                    if (button == null) {
++                        // The grid was torn down and only partly rebuilt — what is on screen is not
++                        // a grid, so the next fold decision must answer "rebuild me".
++                        mBuiltGrid = false;
++                        return;
++                    }
++        // The grid was just rebuilt, so any fit measured for the previous grid is void: it was taken
++        // for another cell size, which depends on the column/row count as much as on this view's own
++        // dimensions. Drop the record rather than measuring right here — this method runs from
++        // onConfigurationChanged(), i.e. before the window (and with it this view) has been laid out
++        // again, so a measurement taken now would divide the OLD width by the NEW column count. The
++        // rebuild has requested a layout, and the pass that answers it ends in onLayout(), which
++        // measures against the real size. The cached *value* is deliberately kept: it seeds the first
++        // frame's text size, so dropping it would only trade this bug for a visible jump.
++        invalidateFittedFont();
++
++        // The grid on screen now matches the fold state it was built with. That — and not the
++        // requested flag — is what the next setLandscapeCompact() compares a new request against,
++        // so a later call can still tell "the window wants a folded panel, but this one is not".
++        mBuiltCompactLandscape = mCompactLandscape;
++        mBuiltCompactMode = mCompactMode;
++        mBuiltGrid = true;
++    }
++
++    /**
++     * Forget which grid and size the cached fit was measured for, so the next layout pass re-measures.
++     *
++     * <p>The cached font size itself is left alone — see {@link #reload(ExtraKeysInfo, float)}.
++     */
++    private void invalidateFittedFont() {
++        mFittedFontWidth = 0;
++        mFittedFontHeight = 0;
++        mFittedFontColumns = 0;
++        mFittedFontRows = 0;
++    }
++
++    /** Remember the grid and the size the last dynamic-font/truncation pass was computed for. */
++    private void recordFittedFontState() {
++        mFittedFontWidth = getWidth();
++        mFittedFontHeight = getHeight();
++        mFittedFontColumns = getColumnCount();
++        mFittedFontRows = getRowCount();
++    }
++
++    /**
++     * Whether the last pass was computed for the grid and the size that are on screen right now. A
++     * zeroed record never matches, because a built grid has at least one column and one row.
++     */
++    private boolean isFittedFontCurrent() {
++        return mFittedFontColumns > 0
++            && mFittedFontColumns == getColumnCount()
++            && mFittedFontRows == getRowCount()
++            && mFittedFontWidth == getWidth()
++            && mFittedFontHeight == getHeight();
++     * Called via {@code post()} after a layout pass ({@link #onLayout(boolean, int, int, int, int)}),
++     * after {@link #reload(ExtraKeysInfo, float)}, or from one of the setters that changes an input of
++     * the fit. Measures the actual button width and picks a font size so that "WWWW"
++     *
++     * <p>Everything it reads — this view's size, the column/row count, the buttons — must belong to the
++     * same layout, which is why it is only ever reached from a post-layout point; see {@code onLayout()}.
++            recordFittedFontState();
++        // Record what this pass was computed for — the size and the grid — so that a later change to
++        // either is recognised as "this no longer describes what is on screen" and re-measured.
++        recordFittedFontState();
++    /**
++     * Re-fit the button font after a layout pass, whenever the last fit no longer describes what was
++     * laid out.
++     *
++     * <p>This is the hook the fit was missing. Its inputs are split in two: the grid dimensions, which
++     * change the instant {@link #reload(ExtraKeysInfo, float)} calls {@code setColumnCount()}, and this
++     * view's own size, which only changes on a layout pass. A measurement taken between those two
++     * moments therefore divides the <em>old</em> width by the <em>new</em> column count — with the rows
++     * folded in landscape that is half a panel wide instead of a whole one, so the fit collapsed to its
++     * floor and, because the value it stored looked valid, nothing ever asked for another measurement.
++     * {@code onLayout()} is the first point at which both halves describe the same layout:
++     * {@code super.onLayout()} has just given every button its real bounds.
++     *
++     * <p>Posted rather than run inline, because setting a child's text size re-requests layout. The
++     * runnable runs after this pass, so it reads final bounds — and because it records what it measured
++     * ({@link #isFittedFontCurrent()}), the extra pass that the text-size change triggers costs one
++     * comparison instead of another measurement.
++     */
++    @Override
++    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
++        super.onLayout(changed, left, top, right, bottom);
++
++        // Nothing to do when the last pass was computed for exactly this grid and size. With the
++        // dynamic font off there is no fit to refresh, but the macro-text truncation depends on the
++        // cell width too, and applyDynamicFontAfterLayout() is the entry point that runs it.
++        if (isFittedFontCurrent()) return;
++
++        post(this::applyDynamicFontAfterLayout);
++    }
++
+
+===== termux-shared/src/main/java/com/termux/shared/termux/settings/preferences/TermuxAppSharedPreferences.java
++    /**
++     * Whether the extra keys panel may fold its rows into one or two when the window is wider than
++     * it is tall. The fold itself is a derived layout — see
++     * {@link com.termux.shared.termux.extrakeys.ExtraKeysCompaction} — so this is a UI preference,
++     * not part of the stored {@code extra-keys} layout.
++     *
++     * @param context used for the device-dependent default (on for phones, off for tablets), so it
++     *                must be a {@code Context} whose resources describe the device.
++     */
++    public boolean isExtraKeysCompactLandscapeEnabled(Context context) {
++        // Device-dependent default, the same split the dynamic font uses: a phone in landscape is
++        // short on height, so the panel folds unless the user says otherwise; a tablet has room for
++        // the stored layout, so it does not. Only applies until the user touches the switch — from
++        // then on the stored value wins, on either device.
++        boolean isTablet = context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
++        return SharedPreferenceUtils.getBoolean(mSharedPreferences,
++            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE, !isTablet);
++    }
++
++    public void setExtraKeysCompactLandscapeEnabled(boolean value) {
++        SharedPreferenceUtils.setBoolean(mSharedPreferences,
++            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE, value, false);
++    }
++
++    /**
++     * Order of keys inside a folded row, as a {@link com.termux.shared.termux.extrakeys.ExtraKeysCompaction.Mode}
++     * preference value ({@code "rows"} or {@code "columns"}). Read it through
++     * {@code ExtraKeysCompaction.modeFromPreferenceValue(...)} so an unknown value cannot break the panel.
++     */
++    public String getExtraKeysCompactMode() {
++        return SharedPreferenceUtils.getString(mSharedPreferences,
++            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_COMPACT_MODE, true);
++    }
++
++    public void setExtraKeysCompactMode(String value) {
++        SharedPreferenceUtils.setString(mSharedPreferences,
++            TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE, value, false);
++    }
++
++
+
+===== termux-shared/src/main/java/com/termux/shared/termux/settings/preferences/TermuxPreferenceConstants.java
++        /**
++         * Whether the extra keys panel is folded into one or two rows when the window is wider than
++         * it is tall (landscape). See {@code ExtraKeysCompaction} for the exact rules.
++         *
++         * <p>The default is <em>device-dependent</em> — on for phones, off for tablets, the same
++         * split {@link #KEY_EXTRA_KEYS_DYNAMIC_FONT_SIZE} uses — so it is computed by
++         * {@code TermuxAppSharedPreferences.isExtraKeysCompactLandscapeEnabled(Context)}, which needs
++         * a {@code Context} to measure the device. The constant below is only the fallback for a
++         * caller that has none.
++         */
++        public static final String KEY_EXTRA_KEYS_COMPACT_LANDSCAPE = "extra-keys-compact-landscape";
++        public static final boolean DEFAULT_VALUE_EXTRA_KEYS_COMPACT_LANDSCAPE = false;
++
++        /**
++         * Order of keys inside a folded row: {@code "rows"} (element by element of the first row,
++         * then of the second, …) or {@code "columns"} (top to bottom inside a column, then the next
++         * column). Folding column by column keeps the keys of one stored column next to each other,
++         * which is the order that reads most like the keyboard the stored layout was written for.
++         */
++        public static final String KEY_EXTRA_KEYS_COMPACT_MODE = "extra-keys-compact-mode";
++        public static final String DEFAULT_VALUE_EXTRA_KEYS_COMPACT_MODE = "columns";
++

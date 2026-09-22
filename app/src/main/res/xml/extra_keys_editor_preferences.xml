@@ -103,4 +103,26 @@
         app:title="@string/extra_keys_edge_indicators_title"
         app:iconSpaceReserved="false" />
 
+    <!-- The default is device-dependent (on for phones, off for tablets), which a static
+         app:defaultValue cannot express; ExtraKeysEditorFragment seeds the switch from
+         TermuxAppSharedPreferences.isExtraKeysCompactLandscapeEnabled(Context) so the screen and the
+         live panel cannot disagree. -->
+    <SwitchPreferenceCompat
+        app:key="extra-keys-compact-landscape"
+        app:defaultValue="false"
+        app:title="@string/extra_keys_compact_landscape_title"
+        app:summary="@string/extra_keys_compact_landscape_summary"
+        app:iconSpaceReserved="false" />
+
+    <!-- Fold order only means something while the fold is on, so it greys out with the switch. -->
+    <ListPreference
+        app:key="extra-keys-compact-mode"
+        app:defaultValue="columns"
+        app:title="@string/extra_keys_compact_mode_title"
+        app:useSimpleSummaryProvider="true"
+        app:entries="@array/extra_keys_compact_mode_entries"
+        app:entryValues="@array/extra_keys_compact_mode_values"
+        app:dependency="extra-keys-compact-landscape"
+        app:iconSpaceReserved="false" />
+
 </PreferenceScreen>

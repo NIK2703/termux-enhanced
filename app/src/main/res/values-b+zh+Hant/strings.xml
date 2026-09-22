@@ -185,7 +185,7 @@
     <string name="backup_restore_settings_category_title">應用程式設定</string>
     <string name="backup_settings_title">備份應用程式設定</string>
     <string name="restore_settings_title">還原應用程式設定</string>
-    <string name="settings_backup_warning">將把 Termux 應用程式設定（設定項目、配色方案、字型、額外按鍵配置）儲存到備份檔案中。\n\n請選擇目標檔案。</string>
+    <string name="settings_backup_warning">將把 Termux 應用程式設定（設定項目、配色方案、字型、額外按鈕配置）儲存到備份檔案中。\n\n請選擇目標檔案。</string>
     <string name="settings_restore_warning">這將從備份檔案還原您的 Termux 應用程式設定。目前設定將被覆寫。</string>
     <string name="settings_backup_progress">正在備份設定…</string>
     <string name="settings_restore_progress">正在還原設定…</string>
@@ -259,7 +259,7 @@
     <string name="notification_wake_lock_held">（已持有喚醒鎖）</string>
     <string name="session_null_title">空工作階段</string>
     <string name="msg_extra_keys_load_failed">無法從屬性檔案載入並設定屬性「%1$s」：%2$s</string>
-    <string name="msg_extra_keys_create_failed">無法建立預設額外按鍵</string>
+    <string name="msg_extra_keys_create_failed">無法建立預設額外按鈕</string>
 
 
     
@@ -267,8 +267,8 @@
     <string name="locale_override_summary">覆寫應用程式的語言設定</string>
     <string name="locale_override_entry_system">跟隨系統</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">隨鍵盤隱藏額外按鍵</string>
-    <string name="hide_extra_keys_with_keyboard_summary">鍵盤關閉時自動隱藏額外按鍵，開啟時顯示</string>
+    <string name="hide_extra_keys_with_keyboard_title">隨鍵盤隱藏額外按鈕</string>
+    <string name="hide_extra_keys_with_keyboard_summary">鍵盤關閉時自動隱藏額外按鈕，開啟時顯示</string>
 
     
     <string name="termux_tab_height_mode_title">分頁高度</string>
@@ -284,14 +284,14 @@
     <string name="language_category_title">語言</string>
     <string name="appearance_category_title">外觀</string>
     <string name="input_preferences_title">輸入</string>
-    <string name="input_preferences_summary">額外按鍵、輸入面板、鍵盤、快捷鍵、系統按鍵</string>
-    <string name="extra_keys_preferences_title">額外按鍵</string>
-    <string name="extra_keys_preferences_summary">額外按鍵面板設定</string>
+    <string name="input_preferences_summary">額外按鈕、輸入面板、鍵盤、快捷鍵、系統按鈕</string>
+    <string name="extra_keys_preferences_title">額外按鈕</string>
+    <string name="extra_keys_preferences_summary">額外按鈕面板設定</string>
     <string name="display_preferences_title">顯示</string>
     <string name="display_preferences_summary">外觀、分頁、終端機、視窗</string>
     <string name="terminal_advanced_title">進階</string>
     <string name="terminal_advanced_summary">工作階段、聲音與通知、外部應用程式、附加功能、偵錯</string>
-    <string name="extra_keys_corner_radius_title">按鍵圓角半徑</string>
+    <string name="extra_keys_corner_radius_title">按鈕圓角半徑</string>
     <string name="sessions_preferences_title">工作階段</string>
     <string name="sessions_history_preferences_summary">工作階段、分頁和紀錄設定</string>
     <string name="backup_restore_preferences_title">備份與還原</string>
@@ -299,22 +299,22 @@
     <string name="diagnostics_preferences_title">診斷</string>
     <string name="diagnostics_preferences_summary">記錄和錯誤通知</string>
     <string name="plugin_logging_category_title">記錄</string>
-    <string name="extra_keys_special_button_mode_title">特殊按鍵行為</string>
+    <string name="extra_keys_special_button_mode_title">特殊按鈕行為</string>
     <string name="extra_keys_special_button_mode_summary">修飾鍵（CTRL、ALT、SHIFT、FN）對觸控的回應方式。黏滯：輕觸切換，長按鎖定；按住：僅在按住時生效。</string>
     <string name="extra_keys_special_button_mode_sticky">黏滯（切換/鎖定）</string>
     <string name="extra_keys_special_button_mode_hold">按住（按住時生效）</string>
-    <string name="extra_keys_header">額外按鍵</string>
-    <string name="extra_keys_category_title">額外按鍵</string>
-    <string name="extra_keys_layout_title">按鍵配置</string>
-    <string name="extra_keys_layout_summary">用於定義額外按鍵各行及其彈出內容的 JSON 矩陣。</string>
-    <string name="extra_keys_style_title">按鍵樣式</string>
-    <string name="extra_keys_style_summary">特殊字元在按鍵上的顯示方式。</string>
+    <string name="extra_keys_header">額外按鈕</string>
+    <string name="extra_keys_category_title">額外按鈕</string>
+    <string name="extra_keys_layout_title">按鈕配置</string>
+    <string name="extra_keys_layout_summary">用於定義額外按鈕各行及其彈出內容的 JSON 矩陣。</string>
+    <string name="extra_keys_style_title">按鈕樣式</string>
+    <string name="extra_keys_style_summary">特殊字元在按鈕上的顯示方式。</string>
     <string name="extra_keys_style_default">預設</string>
     <string name="extra_keys_style_arrows_only">僅箭頭</string>
     <string name="extra_keys_style_arrows_all">全部箭頭</string>
     <string name="extra_keys_style_all">全部</string>
     <string name="extra_keys_style_none">無</string>
-    <string name="extra_keys_text_all_caps_title">按鍵標籤全大寫</string>
+    <string name="extra_keys_text_all_caps_title">按鈕標籤全大寫</string>
     <string name="view_category_title">檢視</string>
     <string name="window_category_title">視窗</string>
     <string name="history_category_title">紀錄</string>
@@ -331,52 +331,52 @@
     <string name="screen_orientation_entry_landscape">橫向</string>
 
     
-    <string name="extra_keys_visibility_title">顯示額外按鍵面板</string>
-    <string name="extra_keys_visibility_summary">控制額外按鍵面板的顯示時機。</string>
+    <string name="extra_keys_visibility_title">顯示額外按鈕面板</string>
+    <string name="extra_keys_visibility_summary">控制額外按鈕面板的顯示時機。</string>
     <string name="extra_keys_visibility_always">總是顯示</string>
     <string name="extra_keys_visibility_keyboard">僅鍵盤開啟時</string>
     <string name="extra_keys_visibility_never">從不顯示</string>
 
     
-    <string name="extra_keys_invalid_json">額外按鍵的 JSON 格式無效，變更未儲存。</string>
+    <string name="extra_keys_invalid_json">額外按鈕的 JSON 格式無效，變更未儲存。</string>
 
     
     <string name="extra_keys_haptic_title">觸覺回饋</string>
-    <string name="extra_keys_haptic_summary">與額外按鍵面板互動時震動</string>
+    <string name="extra_keys_haptic_summary">與額外按鈕面板互動時震動</string>
     <string name="extra_keys_haptic_all">輕觸與手勢</string>
     <string name="extra_keys_haptic_gestures">僅手勢</string>
     <string name="extra_keys_haptic_off">已停用</string>
 
     
-    <string name="extra_keys_editor_title">額外按鍵編輯器</string>
-    <string name="extra_keys_editor_summary">視覺化建構額外按鍵面板：設定行數和欄數，然後輕觸按鍵分配訊號。</string>
+    <string name="extra_keys_editor_title">額外按鈕編輯器</string>
+    <string name="extra_keys_editor_summary">視覺化建構額外按鈕面板：設定行數和欄數，然後輕觸按鈕分配訊號。</string>
     <string name="extra_keys_editor_columns_title">欄數</string>
     <string name="extra_keys_editor_rows_title">行數</string>
     <string name="extra_keys_editor_preview_title">預覽</string>
-    <string name="extra_keys_editor_preview_summary">即時面板——輕觸任意按鍵即可變更其訊號。</string>
+    <string name="extra_keys_editor_preview_summary">即時面板——輕觸任意按鈕即可變更其訊號。</string>
     <string name="extra_keys_editor_signal_dialog_title">分配訊號</string>
     <string name="extra_keys_editor_custom_text_title">符號/文字</string>
     <string name="extra_keys_editor_custom_text_message">按下任意鍵以綁定：</string>
-    <string name="extra_keys_editor_apply_title">套用到額外按鍵</string>
-    <string name="extra_keys_editor_apply_summary">將此配置儲存到額外按鍵設定。</string>
+    <string name="extra_keys_editor_apply_title">套用到額外按鈕</string>
+    <string name="extra_keys_editor_apply_summary">將此配置儲存到額外按鈕設定。</string>
     <string name="extra_keys_editor_empty">（空）</string>
-    <string name="extra_keys_editor_max_signals">每個按鍵最多 8 個訊號</string>
+    <string name="extra_keys_editor_max_signals">每個按鈕最多 8 個訊號</string>
     <string name="extra_keys_editor_custom_text_no_space">組合鍵中不支援含空格的文字</string>
     <string name="extra_keys_editor_done">完成</string>
-    <string name="extra_keys_editor_open_editor">編輯額外按鍵</string>
-    <string name="extra_keys_editor_open_editor_summary">設定配置、縮放和按鍵綁定</string>
+    <string name="extra_keys_editor_open_editor">編輯額外按鈕</string>
+    <string name="extra_keys_editor_open_editor_summary">設定配置、縮放和按鈕綁定</string>
     <string name="extra_keys_edge_indicators_title">手勢方向指示器</string>
-    <string name="extra_keys_editor_hint">輕觸分配主要動作。\n向上、向下、向左或向右滑動，為相應手勢分配動作。\n長按任意按鍵可設定標籤。</string>
+    <string name="extra_keys_editor_hint">輕觸分配主要動作。\n向上、向下、向左或向右滑動，為相應手勢分配動作。\n長按任意按鈕可設定標籤。</string>
     <string name="extra_keys_editor_mode_assign">分配</string>
     <string name="extra_keys_editor_mode_move">移動</string>
-    <string name="extra_keys_editor_hint_move">將按鍵拖曳到其他儲存格，以移動或交換其所有動作</string>
+    <string name="extra_keys_editor_hint_move">將按鈕拖曳到其他儲存格，以移動或交換其所有動作</string>
     <string name="extra_keys_editor_label_dialog_title">標籤</string>
 
     <!-- Extra Keys Editor: session profiles -->
     <string name="extra_keys_editor_profile_default">預設</string>
     <string name="extra_keys_editor_profile_add">新增設定檔</string>
     <string name="extra_keys_editor_profile_delete">刪除設定檔</string>
-    <string name="extra_keys_editor_profile_add_title">新增額外按鍵設定檔</string>
+    <string name="extra_keys_editor_profile_add_title">新增額外按鈕設定檔</string>
     <string name="extra_keys_editor_profile_name_hint">設定檔名稱</string>
     <string name="extra_keys_editor_profile_exists">已存在同名設定檔</string>
     <string name="extra_keys_editor_profile_delete_title">刪除設定檔</string>
@@ -515,7 +515,7 @@
     <string name="hide_soft_keyboard_on_startup_title">啟動時隱藏螢幕鍵盤</string>
     <string name="hide_soft_keyboard_on_startup_summary">啟動 Termux 時保持螢幕鍵盤隱藏。</string>
 
-    <string name="extra_keys_button_margin_title">按鍵間距</string>
+    <string name="extra_keys_button_margin_title">按鈕間距</string>
 
     <string name="extra_keys_dynamic_font_size_title">動態字型大小</string>
     <string name="extra_keys_dynamic_font_size_summary">欄數增加或為主要動作綁定巨集時減小字型大小</string>
@@ -730,4 +730,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">氣泡</string>
     <string name="bubble_notification_channel_description">浮在其他應用程式上方的終端機視窗</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">橫向時的緊湊面板</string>
+    <string name="extra_keys_compact_landscape_summary">橫向時，2–3 行按鈕會折疊成一行，4 行按鈕折疊成兩行。</string>
+    <string name="extra_keys_compact_mode_title">折疊順序</string>
+    <string name="extra_keys_compact_mode_rows">依行</string>
+    <string name="extra_keys_compact_mode_columns">依欄</string>
 </resources>

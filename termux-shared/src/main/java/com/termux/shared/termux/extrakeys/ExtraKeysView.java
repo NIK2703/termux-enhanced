@@ -336,11 +336,46 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     /** Row count the grid was actually built with by the last {@link #reload(ExtraKeysInfo, float)}. */
     private int mLastReloadedRowCount;
 
+    /**
+     * The fold state the grid <em>on screen</em> was built with, recorded by the same
+     * {@link #reload(ExtraKeysInfo, float)} that built it.
+     *
+     * <p>This is what {@link #setLandscapeCompact(boolean, ExtraKeysCompaction.Mode)} compares
+     * against when it answers "does the grid need a rebuild?". Comparing the flag with its own
+     * previous value instead looks equivalent and is not: a caller is allowed to set the flag and
+     * then skip the rebuild (there is nothing to rebuild with yet), and from that moment the flag
+     * describes a grid that does not exist. A flag comparison then answers "nothing to do" —
+     * forever, because the flag never changes again, so the panel stays unfolded for the rest of
+     * the session. What was built is the only thing that can be compared honestly.
+     */
+    private boolean mBuiltCompactLandscape;
+    @NonNull
+    private ExtraKeysCompaction.Mode mBuiltCompactMode = ExtraKeysCompaction.Mode.ROWS;
+    /** {@code false} until a {@code reload()} has actually built a grid. */
+    private boolean mBuiltGrid;
+
     /** The base font size in sp for button labels. Defaults to 14. */
     private int mBaseFontSizeSp = 14;
 
     /** Cached fitted font size from last successful dynamic font calculation. -1 = not yet computed. */
     private float mCachedFittedFontSp = -1f;
+
+    /**
+     * What the last dynamic-font pass was computed for: this view's size <em>and</em> the grid
+     * dimensions. The fit is a function of the cell size, and a cell is the view's size divided by the
+     * grid dimensions — so the result belongs to that whole combination, and either a new size (a
+     * rotation, split screen, the IME) or a new column/row count (a rebuild, a folded layout, a session
+     * profile with other dimensions) makes it stale. Written by {@link #recordFittedFontState()},
+     * zeroed by {@link #invalidateFittedFont()}; a grid that has been built always has at least one
+     * column and one row, so a zeroed record can never compare equal to the live one.
+     *
+     * <p>{@link #onLayout(boolean, int, int, int, int)} re-measures whenever this no longer matches,
+     * which is what keeps the fitted size the same across any sequence of rotations.
+     */
+    private int mFittedFontWidth;
+    private int mFittedFontHeight;
+    private int mFittedFontColumns;
+    private int mFittedFontRows;
 
     /** Original display text for each button before all-caps transformation. */
     private final ArrayMap<MaterialButton, String> mOriginalButtonTexts = new ArrayMap<>();
@@ -444,7 +479,14 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
 
     private final List<MaterialButton> mButtonPool = new ArrayList<>();
 
-    private final float mDensity;
+    /**
+     * Display density, used to turn the dp margins and the sp font sizes into pixels. Not final: the
+     * activity declares {@code density} in its {@code configChanges}, so a display-size change reaches
+     * this view without recreating it, and a stale density would make the margins (and therefore the
+     * fitted font) disagree with the sp-to-px conversion the fit itself performs with the live
+     * metrics. Refreshed on every {@link #reload(ExtraKeysInfo, float)}.
+     */
+    private float mDensity;
 
     private final TextPaint mMeasPaint = new TextPaint();
 
@@ -673,17 +715,30 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
      * rebuild the grid itself, because the caller that changes the flag (the activity on a
      * configuration change, the editor on a preference change) also decides when to reload.
      *
-     * <p>The fitted-font cache is dropped: it was measured for the previous column count, and reusing
-     * it would render the first frame of the new layout with the wrong text size.
+     * <p>The fitted-font cache is dropped when the layout really changes: it was measured for the
+     * previous column count, and reusing it would render the first frame of the new layout with the
+     * wrong text size.
      *
      * @param active {@code true} to fold the rows, {@code false} to render the stored layout as-is
      * @param mode   order of keys inside a folded row, must not be {@code null}
+     * @return {@code true} when the next reload would build a different grid than the one currently
+     *         on screen, i.e. when a reload is actually needed. Callers that run on every layout
+     *         pass rely on this to avoid rebuilding the grid for nothing. Switching {@code mode}
+     *         while the fold is off is <em>not</em> a change: an unfolded panel renders the stored
+     *         layout either way, and the new mode is still remembered for when the fold engages.
      */
-    public void setLandscapeCompact(boolean active, @NonNull ExtraKeysCompaction.Mode mode) {
-        if (mCompactLandscape == active && mCompactMode == mode) return;
+    public boolean setLandscapeCompact(boolean active, @NonNull ExtraKeysCompaction.Mode mode) {
+        // Compare the request with the grid that is on screen, not with the previous request. See
+        // mBuiltCompactLandscape: the flag can get ahead of the grid, and a flag-to-flag comparison
+        // then answers "nothing to do" for the rest of the session.
+        final boolean layoutChanged = !mBuiltGrid
+            || mBuiltCompactLandscape != active
+            || (active && mBuiltCompactMode != mode);
         mCompactLandscape = active;
         mCompactMode = mode;
+        if (!layoutChanged) return false;
         mCachedFittedFontSp = -1f;
+        return true;
     }
 
     /** @return {@code true} if the next {@link #reload(ExtraKeysInfo, float)} will fold the rows. */
@@ -850,6 +905,11 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
 
         removeAllViews();
 
+        // Re-read the density here as well as in the constructor: a display-size change does not
+        // recreate this view (see the field), and both the margins below and the fitted font depend
+        // on it.
+        mDensity = getResources().getDisplayMetrics().density;
+
         TermuxAppSharedProperties props = TermuxAppSharedProperties.getProperties();
         mButtonCornerRadiusDp = props != null ? props.getExtraKeysCornerRadius() : BUTTON_CORNER_RADIUS_DP;
         mButtonMarginHorizontalDp = props != null ? props.getExtraKeysButtonMargin() : BUTTON_MARGIN_HORIZONTAL_DP;
@@ -857,6 +917,16 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mBaseFontSizeSp = props != null ? props.getExtraKeysFontSize() : 14;
 
         ExtraKeyButton[][] buttons = extraKeysInfo.getMatrix();
+
+        // Landscape compaction: fold the stored rows into one or two rows. Purely positional — the
+        // cells themselves are the same objects in the same reading order, only the row breaks move.
+        // When there is nothing to fold (already one/two rows, or a matrix with no cells at all) the
+        // stored layout is used as-is.
+        if (mCompactLandscape) {
+            ExtraKeyButton[][] compacted = ExtraKeysCompaction.compact(buttons, mCompactMode);
+            if (compacted != null) buttons = compacted;
+        }
+        mLastReloadedRowCount = buttons.length;
 
         setRowCount(buttons.length);
         setColumnCount(maximumLength(buttons));
@@ -869,7 +939,12 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
                 MaterialButton button;
                 if (isSpecialButton(buttonInfo)) {
                     button = createSpecialButton(buttonInfo.getKey(), true);
-                    if (button == null) return;
+                    if (button == null) {
+                        // The grid was torn down and only partly rebuilt — what is on screen is not
+                        // a grid, so the next fold decision must answer "rebuild me".
+                        mBuiltGrid = false;
+                        return;
+                    }
                 } else if (!mButtonPool.isEmpty()) {
                     button = mButtonPool.remove(0);
                     button.setText(null);
@@ -1108,11 +1183,54 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
             }
         }
 
-        // Conditional post: only when cache is empty (fresh view after recreate).
-        // The 3 explicit triggers (columnCount/baseFont/dynamicFont toggle) handle the rest.
-        if (mDynamicFontSize && mCachedFittedFontSp <= 0) {
-            post(this::applyDynamicFontAfterLayout);
-        }
+        // The grid was just rebuilt, so any fit measured for the previous grid is void: it was taken
+        // for another cell size, which depends on the column/row count as much as on this view's own
+        // dimensions. Drop the record rather than measuring right here — this method runs from
+        // onConfigurationChanged(), i.e. before the window (and with it this view) has been laid out
+        // again, so a measurement taken now would divide the OLD width by the NEW column count. The
+        // rebuild has requested a layout, and the pass that answers it ends in onLayout(), which
+        // measures against the real size. The cached *value* is deliberately kept: it seeds the first
+        // frame's text size, so dropping it would only trade this bug for a visible jump.
+        invalidateFittedFont();
+
+        // The grid on screen now matches the fold state it was built with. That — and not the
+        // requested flag — is what the next setLandscapeCompact() compares a new request against,
+        // so a later call can still tell "the window wants a folded panel, but this one is not".
+        mBuiltCompactLandscape = mCompactLandscape;
+        mBuiltCompactMode = mCompactMode;
+        mBuiltGrid = true;
+    }
+
+    /**
+     * Forget which grid and size the cached fit was measured for, so the next layout pass re-measures.
+     *
+     * <p>The cached font size itself is left alone — see {@link #reload(ExtraKeysInfo, float)}.
+     */
+    private void invalidateFittedFont() {
+        mFittedFontWidth = 0;
+        mFittedFontHeight = 0;
+        mFittedFontColumns = 0;
+        mFittedFontRows = 0;
+    }
+
+    /** Remember the grid and the size the last dynamic-font/truncation pass was computed for. */
+    private void recordFittedFontState() {
+        mFittedFontWidth = getWidth();
+        mFittedFontHeight = getHeight();
+        mFittedFontColumns = getColumnCount();
+        mFittedFontRows = getRowCount();
+    }
+
+    /**
+     * Whether the last pass was computed for the grid and the size that are on screen right now. A
+     * zeroed record never matches, because a built grid has at least one column and one row.
+     */
+    private boolean isFittedFontCurrent() {
+        return mFittedFontColumns > 0
+            && mFittedFontColumns == getColumnCount()
+            && mFittedFontRows == getRowCount()
+            && mFittedFontWidth == getWidth()
+            && mFittedFontHeight == getHeight();
     }
 
 
@@ -1502,10 +1620,14 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Called via {@code post()} after {@link #reload(ExtraKeysInfo, float)}.
-     * Measures the actual button width and picks a font size so that "WWWW"
+     * Called via {@code post()} after a layout pass ({@link #onLayout(boolean, int, int, int, int)}),
+     * after {@link #reload(ExtraKeysInfo, float)}, or from one of the setters that changes an input of
+     * the fit. Measures the actual button width and picks a font size so that "WWWW"
      * (four uppercase letters) fits in every multi-character button.
      * Afterwards runs macro-text truncation.
+     *
+     * <p>Everything it reads — this view's size, the column/row count, the buttons — must belong to the
+     * same layout, which is why it is only ever reached from a post-layout point; see {@code onLayout()}.
      */
     private void applyDynamicFontAfterLayout() {
         if (getWidth() <= 0 || getColumnCount() <= 0) {
@@ -1515,6 +1637,7 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
 
         if (!mDynamicFontSize) {
             applyMacroTruncationAfterLayout();
+            recordFittedFontState();
             return;
         }
 
@@ -1547,6 +1670,9 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
                 mMeasPaint, testString, buttonW,
                 maxFontSp, minFontSp, metrics);
         mCachedFittedFontSp = fittedFontSp;
+        // Record what this pass was computed for — the size and the grid — so that a later change to
+        // either is recognised as "this no longer describes what is on screen" and re-measured.
+        recordFittedFontState();
 
         // Button height for maxLines recalculation
         int cellH = getRowCount() > 0 ? getHeight() / getRowCount() : 0;
@@ -1624,6 +1750,36 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
                 button.setEllipsize(null);
             }
         }
+    }
+
+    /**
+     * Re-fit the button font after a layout pass, whenever the last fit no longer describes what was
+     * laid out.
+     *
+     * <p>This is the hook the fit was missing. Its inputs are split in two: the grid dimensions, which
+     * change the instant {@link #reload(ExtraKeysInfo, float)} calls {@code setColumnCount()}, and this
+     * view's own size, which only changes on a layout pass. A measurement taken between those two
+     * moments therefore divides the <em>old</em> width by the <em>new</em> column count — with the rows
+     * folded in landscape that is half a panel wide instead of a whole one, so the fit collapsed to its
+     * floor and, because the value it stored looked valid, nothing ever asked for another measurement.
+     * {@code onLayout()} is the first point at which both halves describe the same layout:
+     * {@code super.onLayout()} has just given every button its real bounds.
+     *
+     * <p>Posted rather than run inline, because setting a child's text size re-requests layout. The
+     * runnable runs after this pass, so it reads final bounds — and because it records what it measured
+     * ({@link #isFittedFontCurrent()}), the extra pass that the text-size change triggers costs one
+     * comparison instead of another measurement.
+     */
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+
+        // Nothing to do when the last pass was computed for exactly this grid and size. With the
+        // dynamic font off there is no fit to refresh, but the macro-text truncation depends on the
+        // cell width too, and applyDynamicFontAfterLayout() is the entry point that runs it.
+        if (isFittedFontCurrent()) return;
+
+        post(this::applyDynamicFontAfterLayout);
     }
 
     @Override

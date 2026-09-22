@@ -50,7 +50,7 @@
     <string name="backup_restore_settings_category_title">ऐप सेटिंग्स</string>
     <string name="backup_settings_title">ऐप सेटिंग्स का बैकअप लें</string>
     <string name="restore_settings_title">ऐप सेटिंग्स पुनर्स्थापित करें</string>
-    <string name="settings_backup_warning">इससे आपकी Termux ऐप सेटिंग्स (प्राथमिकताएँ, रंग योजना, फ़ॉन्ट, अतिरिक्त कुंजी लेआउट) बैकअप फ़ाइल में सहेजी जाएँगी।\n\nगंतव्य फ़ाइल चुनें।</string>
+    <string name="settings_backup_warning">इससे आपकी Termux ऐप सेटिंग्स (प्राथमिकताएँ, रंग योजना, फ़ॉन्ट, अतिरिक्त बटन लेआउट) बैकअप फ़ाइल में सहेजी जाएँगी।\n\nगंतव्य फ़ाइल चुनें।</string>
     <string name="settings_restore_warning">इससे बैकअप फ़ाइल से आपकी Termux ऐप सेटिंग्स पुनर्स्थापित की जाएँगी। मौजूदा सेटिंग्स ओवरराइट हो जाएँगी।</string>
     <string name="settings_backup_progress">सेटिंग्स सहेजी जा रही हैं…</string>
     <string name="settings_restore_progress">सेटिंग्स पुनर्स्थापित की जा रही हैं…</string>
@@ -140,7 +140,7 @@
     <string name="msg_add_termux_debug_info">रिपोर्ट में Termux डीबग जानकारी जोड़ें?</string>
     <string name="msg_terminal_panel_disabling">टर्मिनल पैनल अक्षम हो रहा है</string>
     <string name="msg_terminal_panel_enabling">टर्मिनल पैनल सक्षम हो रहा है</string>
-    <string name="msg_extra_keys_create_failed">डिफ़ॉल्ट अतिरिक्त कुंजियाँ नहीं बनाई जा सकीं</string>
+    <string name="msg_extra_keys_create_failed">डिफ़ॉल्ट अतिरिक्त बटन नहीं बनाए जा सके</string>
     <string name="msg_extra_keys_load_failed">प्रॉपर्टी फ़ाइल से “%1$s” प्रॉपर्टी लोड और सेट नहीं की जा सकी: %2$s</string>
     <string name="msg_generating_report">रिपोर्ट तैयार की जा रही है…</string>
     <string name="msg_max_terminals_reached">नया बनाने से पहले मौजूदा टर्मिनल बंद करें।</string>
@@ -260,7 +260,7 @@
     <string name="locale_override_summary">ऐप भाषा ओवरराइड करें</string>
     <string name="locale_override_entry_system">सिस्टम भाषा</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">कीबोर्ड के साथ अतिरिक्त कुंजियाँ छिपाएँ</string>
+    <string name="hide_extra_keys_with_keyboard_title">कीबोर्ड के साथ अतिरिक्त बटन छिपाएँ</string>
     <string name="hide_extra_keys_with_keyboard_summary">कीबोर्ड बंद होने पर अतिरिक्त बटन छिपाएँ, खुलने पर दिखाएँ</string>
 
     
@@ -269,8 +269,8 @@
 
     <string name="language_category_title">भाषा</string>
     <string name="appearance_category_title">दिखावट</string>
-    <string name="extra_keys_preferences_title">अतिरिक्त कुंजियाँ</string>
-    <string name="extra_keys_preferences_summary">अतिरिक्त कुंजियों की पट्टी के लिए प्राथमिकताएँ</string>
+    <string name="extra_keys_preferences_title">अतिरिक्त बटन</string>
+    <string name="extra_keys_preferences_summary">अतिरिक्त बटनों की पट्टी के लिए प्राथमिकताएँ</string>
     <string name="sessions_preferences_title">सत्र</string>
     <string name="sessions_history_preferences_summary">सत्रों, टैबों और इतिहास के लिए प्राथमिकताएँ</string>
     <string name="backup_restore_preferences_title">बैकअप और पुनर्स्थापना</string>
@@ -278,22 +278,22 @@
     <string name="diagnostics_preferences_title">निदान</string>
     <string name="diagnostics_preferences_summary">लॉगिंग और त्रुटि सूचनाएँ</string>
     <string name="input_preferences_title">इनपुट</string>
-    <string name="input_preferences_summary">अतिरिक्त कुंजियाँ, इनपुट पैनल, कीबोर्ड, शॉर्टकट, सिस्टम बटन</string>
+    <string name="input_preferences_summary">अतिरिक्त बटन, इनपुट पैनल, कीबोर्ड, शॉर्टकट, सिस्टम बटन</string>
     <string name="display_preferences_title">डिस्प्ले</string>
     <string name="display_preferences_summary">दिखावट, टैब, टर्मिनल, विंडो</string>
     <string name="terminal_advanced_title">उन्नत</string>
     <string name="terminal_advanced_summary">सत्र, ध्वनि और सूचनाएँ, बाहरी ऐप्स, ऐड-ऑन, डीबगिंग</string>
     <string name="extra_keys_corner_radius_title">बटन कोने की त्रिज्या</string>
-    <string name="extra_keys_special_button_mode_title">विशेष कुंजियों का व्यवहार</string>
-    <string name="extra_keys_special_button_mode_summary">संशोधक कुंजियाँ (CTRL, ALT, SHIFT, FN) स्पर्श करने पर कैसे प्रतिक्रिया करती हैं। स्टिकी: टॉगल करने के लिए टैप करें, लॉक करने के लिए देर तक दबाएँ। होल्ड: केवल तब सक्रिय जब कुंजी दबी हो।</string>
+    <string name="extra_keys_special_button_mode_title">विशेष बटनों का व्यवहार</string>
+    <string name="extra_keys_special_button_mode_summary">संशोधक बटन (CTRL, ALT, SHIFT, FN) स्पर्श करने पर कैसे प्रतिक्रिया करते हैं। स्टिकी: टॉगल करने के लिए टैप करें, लॉक करने के लिए देर तक दबाएँ। होल्ड: केवल तब सक्रिय जब बटन दबा हो।</string>
     <string name="extra_keys_special_button_mode_sticky">स्टिकी (टॉगल / लॉक)</string>
     <string name="extra_keys_special_button_mode_hold">होल्ड (दबे रहने पर)</string>
-    <string name="extra_keys_header">अतिरिक्त कुंजियाँ</string>
-    <string name="extra_keys_category_title">अतिरिक्त कुंजियाँ</string>
-    <string name="extra_keys_layout_title">कुंजियों का लेआउट</string>
-    <string name="extra_keys_layout_summary">अतिरिक्त कुंजियों की पंक्तियों और उनके पॉपअप मानों को परिभाषित करने वाला JSON मैट्रिक्स।</string>
-    <string name="extra_keys_style_title">कुंजियों की शैली</string>
-    <string name="extra_keys_style_summary">कुंजियों पर विशेष वर्णों को कैसे प्रदर्शित किया जाता है।</string>
+    <string name="extra_keys_header">अतिरिक्त बटन</string>
+    <string name="extra_keys_category_title">अतिरिक्त बटन</string>
+    <string name="extra_keys_layout_title">बटनों का लेआउट</string>
+    <string name="extra_keys_layout_summary">अतिरिक्त बटनों की पंक्तियों और उनके पॉपअप मानों को परिभाषित करने वाला JSON मैट्रिक्स।</string>
+    <string name="extra_keys_style_title">बटनों की शैली</string>
+    <string name="extra_keys_style_summary">बटनों पर विशेष वर्णों को कैसे प्रदर्शित किया जाता है।</string>
     <string name="extra_keys_style_default">डिफ़ॉल्ट</string>
     <string name="extra_keys_style_arrows_only">केवल तीर</string>
     <string name="extra_keys_style_arrows_all">सभी तीर</string>
@@ -316,54 +316,54 @@
     <string name="screen_orientation_entry_landscape">लैंडस्केप</string>
 
     
-    <string name="extra_keys_visibility_title">अतिरिक्त कुंजी पैनल दिखाएँ</string>
+    <string name="extra_keys_visibility_title">अतिरिक्त बटन पैनल दिखाएँ</string>
     <string name="extra_keys_visibility_summary">अतिरिक्त बटन पट्टी कब दिखाई जाए।</string>
     <string name="extra_keys_visibility_always">हमेशा</string>
     <string name="extra_keys_visibility_keyboard">केवल जब कीबोर्ड खुला हो</string>
     <string name="extra_keys_visibility_never">कभी नहीं</string>
 
     
-    <string name="extra_keys_invalid_json">अतिरिक्त कुंजियों के लिए अमान्य JSON। परिवर्तन सहेजे नहीं गए।</string>
+    <string name="extra_keys_invalid_json">अतिरिक्त बटनों के लिए अमान्य JSON। परिवर्तन सहेजे नहीं गए।</string>
 
     
     <string name="extra_keys_haptic_title">हैप्टिक फ़ीडबैक</string>
-    <string name="extra_keys_haptic_summary">अतिरिक्त कुंजी पैनल के उपयोग पर वाइब्रेट करें</string>
+    <string name="extra_keys_haptic_summary">अतिरिक्त बटन पैनल के उपयोग पर वाइब्रेट करें</string>
     <string name="extra_keys_haptic_all">टैप और जेस्चर</string>
     <string name="extra_keys_haptic_gestures">केवल जेस्चर</string>
     <string name="extra_keys_haptic_off">अक्षम</string>
 
     
-    <string name="extra_keys_editor_title">अतिरिक्त कुंजियाँ संपादक</string>
-    <string name="extra_keys_editor_summary">अतिरिक्त कुंजी पैनल को दृश्य रूप में बनाएँ: पंक्तियाँ और स्तंभ सेट करें, फिर क्रिया असाइन करने के लिए किसी कुंजी को टैप करें।</string>
+    <string name="extra_keys_editor_title">अतिरिक्त बटन संपादक</string>
+    <string name="extra_keys_editor_summary">अतिरिक्त बटन पैनल को दृश्य रूप में बनाएँ: पंक्तियाँ और स्तंभ सेट करें, फिर क्रिया असाइन करने के लिए किसी बटन को टैप करें।</string>
     <string name="extra_keys_editor_columns_title">स्तंभ</string>
     <string name="extra_keys_editor_rows_title">पंक्तियाँ</string>
     <string name="extra_keys_editor_preview_title">पूर्वावलोकन</string>
-    <string name="extra_keys_editor_preview_summary">लाइव पैनल — किसी भी कुंजी की क्रिया बदलने के लिए उसे टैप करें।</string>
+    <string name="extra_keys_editor_preview_summary">लाइव पैनल — किसी भी बटन की क्रिया बदलने के लिए उसे टैप करें।</string>
     <string name="extra_keys_editor_signal_dialog_title">क्रिया असाइन करें</string>
     <string name="extra_keys_editor_custom_text_message">बाइंड करने के लिए कोई भी कुंजी प्रेस करें:</string>
-    <string name="extra_keys_editor_apply_title">अतिरिक्त कुंजियों पर लागू करें</string>
-    <string name="extra_keys_editor_apply_summary">इस लेआउट को अतिरिक्त कुंजियों की सेटिंग में सहेजें।</string>
+    <string name="extra_keys_editor_apply_title">अतिरिक्त बटनों पर लागू करें</string>
+    <string name="extra_keys_editor_apply_summary">इस लेआउट को अतिरिक्त बटनों की सेटिंग में सहेजें।</string>
     <string name="extra_keys_editor_empty">(खाली)</string>
     <string name="extra_keys_editor_max_signals">अधिकतम 8 क्रियाएँ प्रति बटन</string>
     <string name="extra_keys_editor_custom_text_no_space">संयोजनों में खाली स्थान वाला कस्टम टेक्स्ट समर्थित नहीं है</string>
     <string name="extra_keys_editor_done">हो गया</string>
-    <string name="extra_keys_editor_open_editor">अतिरिक्त कुंजियाँ संपादित करें</string>
-    <string name="extra_keys_editor_open_editor_summary">लेआउट, आकार और कुंजी बाइंडिंग कॉन्फ़िगर करें</string>
+    <string name="extra_keys_editor_open_editor">अतिरिक्त बटन संपादित करें</string>
+    <string name="extra_keys_editor_open_editor_summary">लेआउट, आकार और बटन बाइंडिंग कॉन्फ़िगर करें</string>
 
     
     <string name="extra_keys_edge_indicators_title">स्वाइप दिशा संकेतक</string>
 
-    <string name="extra_keys_editor_hint">मुख्य क्रिया असाइन करने के लिए टैप करें।\nजेस्चर क्रिया असाइन करने के लिए ऊपर, नीचे, बाएँ या दाएँ स्वाइप करें।\nकिसी कुंजी का लेबल सेट करने के लिए उसे देर तक दबाएँ।</string>
+    <string name="extra_keys_editor_hint">मुख्य क्रिया असाइन करने के लिए टैप करें।\nजेस्चर क्रिया असाइन करने के लिए ऊपर, नीचे, बाएँ या दाएँ स्वाइप करें।\nकिसी बटन का लेबल सेट करने के लिए उसे देर तक दबाएँ।</string>
     <string name="extra_keys_editor_mode_assign">असाइन करें</string>
     <string name="extra_keys_editor_mode_move">स्थानांतरित करें</string>
-    <string name="extra_keys_editor_hint_move">किसी कुंजी को दूसरे सेल पर खींचकर उसकी सभी क्रियाएँ स्थानांतरित/स्वैप करें</string>
+    <string name="extra_keys_editor_hint_move">किसी बटन को दूसरे सेल पर खींचकर उसकी सभी क्रियाएँ स्थानांतरित/स्वैप करें</string>
     <string name="extra_keys_editor_label_dialog_title">लेबल</string>
 
     <!-- Extra Keys Editor: session profiles -->
     <string name="extra_keys_editor_profile_default">डिफ़ॉल्ट</string>
     <string name="extra_keys_editor_profile_add">प्रोफ़ाइल जोड़ें</string>
     <string name="extra_keys_editor_profile_delete">प्रोफ़ाइल हटाएँ</string>
-    <string name="extra_keys_editor_profile_add_title">नई अतिरिक्त कुंजी प्रोफ़ाइल</string>
+    <string name="extra_keys_editor_profile_add_title">नई अतिरिक्त बटन प्रोफ़ाइल</string>
     <string name="extra_keys_editor_profile_name_hint">प्रोफ़ाइल का नाम</string>
     <string name="extra_keys_editor_profile_exists">इस नाम वाली प्रोफ़ाइल पहले से मौजूद है</string>
     <string name="extra_keys_editor_profile_delete_title">प्रोफ़ाइल हटाएँ</string>
@@ -701,4 +701,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">बबल</string>
     <string name="bubble_notification_channel_description">अन्य ऐप्स के ऊपर तैरती टर्मिनल विंडो</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">लैंडस्केप में कॉम्पैक्ट पैनल</string>
+    <string name="extra_keys_compact_landscape_summary">लैंडस्केप में बटनों की 2–3 पंक्तियाँ एक में और 4 पंक्तियाँ दो में मोड़ दी जाती हैं।</string>
+    <string name="extra_keys_compact_mode_title">मोड़ने का क्रम</string>
+    <string name="extra_keys_compact_mode_rows">पंक्तियों के अनुसार</string>
+    <string name="extra_keys_compact_mode_columns">स्तंभों के अनुसार</string>
 </resources>

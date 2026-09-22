@@ -39,6 +39,7 @@ import com.termux.shared.termux.extrakeys.ExtraKeyButton;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.shared.termux.extrakeys.BindingTokenizer;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.shared.theme.ThemeUtils;
 
@@ -264,6 +265,37 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
                 boolean enabled = (Boolean) newValue;
                 if (mPreviewView != null) mPreviewView.setRuntimeEdgeIndicatorsEnabled(enabled);
                 TermuxActivity.updateTermuxActivityStyling(requireContext(), true);
+                return true;
+            });
+        }
+
+        SwitchPreferenceCompat compactPref =
+            findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE);
+        if (compactPref != null) {
+            // The default is device-dependent (phones on, tablets off) and a static
+            // app:defaultValue cannot express it, so seed the switch from the same getter the panel
+            // asks — otherwise a phone would show the switch off while its panel folds. Writing it
+            // here only happens the first time (the stored value wins from then on) and keeps the
+            // screen and the live panel in step; see DisplayPreferencesFragment's orientation.
+            compactPref.setChecked(mPrefs.isExtraKeysCompactLandscapeEnabled(requireContext()));
+
+            compactPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                mPrefs.setExtraKeysCompactLandscapeEnabled((Boolean) newValue);
+                // Nothing in this screen shows the fold: the editable grid is the stored layout and
+                // looks the same either way, and the fold only exists in landscape. So this is purely
+                // "save it and tell the live panel" — a styling reload is the path that carries the
+                // preference into it, without leaving the settings.
+                TermuxActivity.updateTermuxActivityStyling(requireContext(), false);
+                return true;
+            });
+        }
+
+        ListPreference compactModePref =
+            findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE);
+        if (compactModePref != null) {
+            compactModePref.setOnPreferenceChangeListener((preference, newValue) -> {
+                mPrefs.setExtraKeysCompactMode((String) newValue);
+                TermuxActivity.updateTermuxActivityStyling(requireContext(), false);
                 return true;
             });
         }

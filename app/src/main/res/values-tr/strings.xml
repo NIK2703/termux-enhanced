@@ -187,7 +187,7 @@
 <string name="backup_restore_settings_category_title">Uygulama ayarları</string>
 <string name="backup_settings_title">Uygulama ayarlarını yedekle</string>
 <string name="restore_settings_title">Uygulama ayarlarını geri yükle</string>
-<string name="settings_backup_warning">Bu işlem, Termux uygulama ayarlarınızı (tercihler, renk şeması, yazı tipi, ek tuş düzeni) bir yedek dosyaya kaydedecektir.\n\nBir hedef dosya seçin.</string>
+<string name="settings_backup_warning">Bu işlem, Termux uygulama ayarlarınızı (tercihler, renk şeması, yazı tipi, ek düğme düzeni) bir yedek dosyaya kaydedecektir.\n\nBir hedef dosya seçin.</string>
 <string name="settings_restore_warning">Bu işlem, &TERMUX_APP_NAME; uygulama ayarlarınızı bir yedek dosyadan geri yükleyecektir. Mevcut ayarların üzerine yazılacaktır.</string>
 <string name="settings_backup_progress">Ayarlar yedekleniyor…</string>
 <string name="settings_restore_progress">Ayarlar geri yükleniyor…</string>
@@ -213,7 +213,7 @@
     <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
     <string name="text_input_toggle_button_title">Giriş panelini aç/kapat düğmesi</string>
-<string name="text_input_show_summary_on">Giriş panelini aç/kapat düğmesi ek tuşların üzerinde görünür</string>
+<string name="text_input_show_summary_on">Giriş panelini aç/kapat düğmesi ek düğmelerin üzerinde görünür</string>
     <string name="text_input_show_summary_off">Giriş panelini aç/kapat düğmesi gizli</string>
     <string name="text_input_hide_on_send_title">Gönderdikten sonra giriş panelini gizle</string>
     <string name="text_input_hide_on_send_summary">Etkinleştirildiğinde, giriş paneli kapanır ve gönderdikten sonra odak terminale geçer. Ardışık komutlar için paneli açık tutmak üzere devre dışı bırakın.</string>
@@ -266,7 +266,7 @@
 <string name="notification_wake_lock_held"> (uyandırma kilidi tutuluyor)</string>
 <string name="session_null_title">null oturum</string>
 <string name="msg_extra_keys_load_failed">Özellikler dosyasından \"%1$s\" özelliği yüklenip ayarlanamadı: %2$s</string>
-<string name="msg_extra_keys_create_failed">Varsayılan ek tuşlar oluşturulamıyor</string>
+<string name="msg_extra_keys_create_failed">Varsayılan ek düğmeler oluşturulamıyor</string>
 <plurals name="notification_sessions">
         <item quantity="one">%d oturum</item>
         <item quantity="other">%d oturum</item>
@@ -283,7 +283,7 @@
     <string name="locale_override_summary">Uygulama dilini geçersiz kıl</string>
     <string name="locale_override_entry_system">Sistem dili</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">Ek tuşları klavyeyle gizle</string>
+    <string name="hide_extra_keys_with_keyboard_title">Ek düğmeleri klavyeyle gizle</string>
     <string name="hide_extra_keys_with_keyboard_summary">Klavye kapatıldığında ek düğmeleri otomatik gizle, açıldığında göster</string>
 
 
@@ -293,9 +293,9 @@
 <string name="language_category_title">Dil</string>
 <string name="appearance_category_title">Görünüm</string>
 <string name="input_preferences_title">Giriş</string>
-<string name="input_preferences_summary">Ek tuşlar, giriş paneli, klavye, kısayollar, sistem düğmeleri</string>
-<string name="extra_keys_preferences_title">Ek tuşlar</string>
-<string name="extra_keys_preferences_summary">Ek tuşlar paneli tercihleri</string>
+<string name="input_preferences_summary">Ek düğmeler, giriş paneli, klavye, kısayollar, sistem düğmeleri</string>
+<string name="extra_keys_preferences_title">Ek düğmeler</string>
+<string name="extra_keys_preferences_summary">Ek düğmeler paneli tercihleri</string>
 <string name="display_preferences_title">Görüntüleme</string>
 <string name="display_preferences_summary">Görünüm, sekmeler, terminal, pencere</string>
     <string name="terminal_advanced_title">Gelişmiş</string>
@@ -308,14 +308,14 @@
 <string name="diagnostics_preferences_summary">Günlük kaydı ve hata bildirimleri</string>
 <string name="plugin_logging_category_title">Günlük kaydı</string>
 <string name="failure_notifications_category_title">Hata bildirimleri</string>
-<string name="extra_keys_special_button_mode_title">Özel tuş davranışı</string>
-<string name="extra_keys_special_button_mode_summary">Değiştirici tuşların (CTRL, ALT, SHIFT, FN) dokunmaya nasıl yanıt verdiği. Yapışkan: dokunarak aç/kapat, uzun basarak kilitle. Basılı tut: yalnızca tuşa basıldığı sürece etkindir.</string>
+<string name="extra_keys_special_button_mode_title">Özel düğme davranışı</string>
+<string name="extra_keys_special_button_mode_summary">Değiştirici düğmelerin (CTRL, ALT, SHIFT, FN) dokunmaya nasıl yanıt verdiği. Yapışkan: dokunarak aç/kapat, uzun basarak kilitle. Basılı tut: yalnızca düğmeye basıldığı sürece etkindir.</string>
 <string name="extra_keys_special_button_mode_sticky">Yapışkan (aç/kapat/kilitle)</string>
 <string name="extra_keys_special_button_mode_hold">Basılı tut (basıldığı sürece)</string>
-<string name="extra_keys_header">Ek tuşlar</string>
-<string name="extra_keys_category_title">Ek tuşlar</string>
+<string name="extra_keys_header">Ek düğmeler</string>
+<string name="extra_keys_category_title">Ek düğmeler</string>
 <string name="extra_keys_layout_title">Tuş düzeni</string>
-<string name="extra_keys_layout_summary">Ek tuşların satırlarını ve açılır değerlerini tanımlayan JSON matrisi.</string>
+<string name="extra_keys_layout_summary">Ek düğmelerin satırlarını ve açılır değerlerini tanımlayan JSON matrisi.</string>
 <string name="extra_keys_style_title">Tuş stili</string>
 <string name="extra_keys_style_summary">Tuşlardaki özel karakterlerin nasıl görüntülendiği.</string>
 <string name="extra_keys_style_default">Varsayılan</string>
@@ -324,7 +324,7 @@
 <string name="extra_keys_style_all">Tümü</string>
 <string name="extra_keys_style_none">Yok</string>
 <string name="extra_keys_text_all_caps_title">Etiket metinleri büyük harf</string>
-<string name="extra_keys_text_all_caps_summary">Ek tuş etiketlerini büyük harfle göster.</string>
+<string name="extra_keys_text_all_caps_summary">Ek düğme etiketlerini büyük harfle göster.</string>
 <string name="view_category_title">Görünüm</string>
 <string name="window_category_title">Pencere</string>
 <string name="history_category_title">Geçmiş</string>
@@ -340,54 +340,54 @@
     <string name="screen_orientation_entry_landscape">Yatay</string>
 
     
-    <string name="extra_keys_visibility_title">Ek tuşlar panelini göster</string>
-    <string name="extra_keys_visibility_summary">Ek tuşlar panelinin ne zaman gösterileceği.</string>
+    <string name="extra_keys_visibility_title">Ek düğmeler panelini göster</string>
+    <string name="extra_keys_visibility_summary">Ek düğmeler panelinin ne zaman gösterileceği.</string>
     <string name="extra_keys_visibility_always">Her zaman</string>
     <string name="extra_keys_visibility_keyboard">Yalnızca klavye açıkken</string>
     <string name="extra_keys_visibility_never">Asla</string>
 
     
-    <string name="extra_keys_invalid_json">Ek tuşlar için geçersiz JSON. Değişiklikler kaydedilmedi.</string>
+    <string name="extra_keys_invalid_json">Ek düğmeler için geçersiz JSON. Değişiklikler kaydedilmedi.</string>
 
     
     <string name="extra_keys_haptic_title">Dokunsal geri bildirim</string>
-    <string name="extra_keys_haptic_summary">Ek tuşlar paneli etkileşimlerinde titreşim</string>
+    <string name="extra_keys_haptic_summary">Ek düğmeler paneli etkileşimlerinde titreşim</string>
     <string name="extra_keys_haptic_all">Dokunma ve hareketler</string>
     <string name="extra_keys_haptic_gestures">Yalnızca hareketler</string>
     <string name="extra_keys_haptic_off">Devre dışı</string>
 
     
-    <string name="extra_keys_editor_title">Ek tuşlar düzenleyicisi</string>
-    <string name="extra_keys_editor_summary">Ek tuşlar panelini görsel olarak oluşturun: satır ve sütunları ayarlayın, ardından sinyal atamak için bir tuşa dokunun.</string>
+    <string name="extra_keys_editor_title">Ek düğmeler düzenleyicisi</string>
+    <string name="extra_keys_editor_summary">Ek düğmeler panelini görsel olarak oluşturun: satır ve sütunları ayarlayın, ardından sinyal atamak için bir düğmeye dokunun.</string>
     <string name="extra_keys_editor_columns_title">Sütunlar</string>
     <string name="extra_keys_editor_columns_summary">Satır başına düğme sayısı (1-10).</string>
     <string name="extra_keys_editor_rows_title">Satırlar</string>
     <string name="extra_keys_editor_rows_summary">Düğme satırı sayısı (1-4).</string>
     <string name="extra_keys_editor_preview_title">Önizleme</string>
-    <string name="extra_keys_editor_preview_summary">Canlı panel — sinyalini değiştirmek için herhangi bir tuşa dokunun.</string>
+    <string name="extra_keys_editor_preview_summary">Canlı panel — sinyalini değiştirmek için herhangi bir düğmeye dokunun.</string>
     <string name="extra_keys_editor_signal_dialog_title">Sinyal ata</string>
     <string name="extra_keys_editor_custom_text_title">Simge/metin</string>
     <string name="extra_keys_editor_custom_text_message">Bağlamak için herhangi bir tuşa basın:</string>
-    <string name="extra_keys_editor_apply_title">Ek tuşlara uygula</string>
-    <string name="extra_keys_editor_apply_summary">Bu düzeni ek tuşlar ayarına kaydedin.</string>
+    <string name="extra_keys_editor_apply_title">Ek düğmelere uygula</string>
+    <string name="extra_keys_editor_apply_summary">Bu düzeni ek düğmeler ayarına kaydedin.</string>
     <string name="extra_keys_editor_empty">(boş)</string>
     <string name="extra_keys_editor_max_signals">Düğme başına en fazla 8 sinyal</string>
     <string name="extra_keys_editor_custom_text_no_space">Boşluk içeren özel metin, kombinasyonlarda desteklenmez</string>
     <string name="extra_keys_editor_done">Tamam</string>
-    <string name="extra_keys_editor_open_editor">Ek tuşları düzenle</string>
-    <string name="extra_keys_editor_open_editor_summary">Düzen, ölçek ve tuş bağlamalarını yapılandırın</string>
+    <string name="extra_keys_editor_open_editor">Ek düğmeleri düzenle</string>
+    <string name="extra_keys_editor_open_editor_summary">Düzen, ölçek ve düğme bağlamalarını yapılandırın</string>
     <string name="extra_keys_edge_indicators_title">Kaydırma yönü göstergeleri</string>
-    <string name="extra_keys_edge_indicators_summary">Ek tuşlarda atanmış eylemlerin kaydırma yönü göstergelerini göster</string>
-    <string name="extra_keys_editor_hint">Ana eylemi atamak için dokunun.\nHareket eylemlerini atamak için yukarı, aşağı, sola veya sağa kaydırın.\nEtiketini ayarlamak için bir tuşa uzun basın.</string>
+    <string name="extra_keys_edge_indicators_summary">Ek düğmelerde atanmış eylemlerin kaydırma yönü göstergelerini göster</string>
+    <string name="extra_keys_editor_hint">Ana eylemi atamak için dokunun.\nHareket eylemlerini atamak için yukarı, aşağı, sola veya sağa kaydırın.\nEtiketini ayarlamak için bir düğmeye uzun basın.</string>
     <string name="extra_keys_editor_mode_assign">Ata</string>
     <string name="extra_keys_editor_mode_move">Taşı</string>
-    <string name="extra_keys_editor_hint_move">Tüm eylemleri taşımak/değiştirmek için bir tuşu başka bir hücreye sürükleyin</string>
+    <string name="extra_keys_editor_hint_move">Tüm eylemleri taşımak/değiştirmek için bir düğmeyi başka bir hücreye sürükleyin</string>
 
     <!-- Extra Keys Editor: session profiles -->
     <string name="extra_keys_editor_profile_default">Varsayılan</string>
     <string name="extra_keys_editor_profile_add">Profil ekle</string>
     <string name="extra_keys_editor_profile_delete">Profili sil</string>
-    <string name="extra_keys_editor_profile_add_title">Yeni ek tuşlar profili</string>
+    <string name="extra_keys_editor_profile_add_title">Yeni ek düğmeler profili</string>
     <string name="extra_keys_editor_profile_name_hint">Profil adı</string>
     <string name="extra_keys_editor_profile_exists">Bu ada sahip bir profil zaten mevcut</string>
     <string name="extra_keys_editor_profile_delete_title">Profili sil</string>
@@ -799,4 +799,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Baloncuk</string>
     <string name="bubble_notification_channel_description">Diğer uygulamaların üzerinde yüzen terminal penceresi</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">Yatay modda kompakt panel</string>
+    <string name="extra_keys_compact_landscape_summary">Yatay modda 2–3 düğme satırı bire, 4 düğme satırı ikiye katlanır.</string>
+    <string name="extra_keys_compact_mode_title">Katlama sırası</string>
+    <string name="extra_keys_compact_mode_rows">Satırlara göre</string>
+    <string name="extra_keys_compact_mode_columns">Sütunlara göre</string>
 </resources>

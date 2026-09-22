@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
@@ -77,6 +78,7 @@ import com.termux.app.terminal.io.autocomplete.DirectoryHistoryPopupController;
 import com.termux.app.terminal.io.SessionUiStateStore;
 import com.termux.app.terminal.io.autocomplete.MessageHistoryController;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
+import com.termux.shared.termux.extrakeys.ExtraKeysCompaction;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.shared.termux.monet.MonetSchemeStore;
 import com.termux.shared.termux.interact.TextInputDialogUtils;
@@ -830,7 +832,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mTermuxActivityRootView = findViewById(R.id.activity_termux_root_view);
         mTextInputPanel.setup(savedInstanceState, mTermuxActivityRootView);
 
-        // Keep the input panel under a third of the height it shares with the terminal (the rule
+        // Keep the input panel under a quarter of the height it shares with the terminal (the rule
         // itself lives in TextInputPanelController.applyPanelHeightLimitForContentView).
         //
         // The root view's layout is where every way that height can change converges: rotation,
@@ -984,6 +986,33 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     };
 
+    /**
+     * TermuxActivity handles orientation and screen-size changes itself (see the {@code configChanges}
+     * attribute in the manifest), so a rotation does not recreate the activity and nothing else would
+     * tell the extra-keys panel that its window changed shape. This callback is where that change
+     * arrives — for a rotation, for a split-screen resize and for a floating window being resized
+     * alike — so the panel's fold state is re-decided here.
+     *
+     * <p>The method itself is cheap when nothing relevant changed: it only re-reads the orientation
+     * and rebuilds the panel when the fold state actually flipped, not on every density or locale
+     * change that also lands here.
+     *
+     * <p>The orientation is taken from {@code newConfig} — the configuration the platform is
+     * applying right now — rather than from the activity's own resources. That is the value the
+     * platform hands us for exactly this decision, and unlike {@code getResources()} it cannot be a
+     * step behind while the change is being dispatched, which would leave the panel unfolded for the
+     * rest of the session (nothing would re-decide it until the next transition).
+     *
+     * <p>Deliberately does nothing that could re-enter the platform's configuration dispatch (no
+     * {@code setRequestedOrientation()} here): on some ROMs that recurses through
+     * {@code AppCompatDelegateImpl.onConfigurationChanged()}.
+     */
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        updateExtraKeysCompaction(newConfig);
+    }
+
     @Override
     public void onStart() {
         super.onStart();
@@ -1055,6 +1084,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // after it. Idempotent, so a redundant call costs a comparison. See
             // reassertTerminalViewSize().
             reassertTerminalViewSize();
+
+            // Same for the extra-keys fold: a floating window reaches its real bounds only once it
+            // is actually shown, so a decision taken at creation or resume can predate the shape
+            // the panel ends up being drawn in. Focus is when that shape is settled, and the call
+            // costs one comparison unless the panel really is mismatched.
+            updateExtraKeysCompaction();
         }
     }
 
@@ -1077,6 +1112,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // ours again; this is also what makes the bubble window adopt its own geometry when it is
         // the one coming back to the front, since it is this same activity class.
         reassertTerminalViewSize();
+
+        // Same idea for the extra-keys panel: the fold state is derived from the window's shape and
+        // the preference, and a transition that could not apply it (or a preference that changed
+        // while this window was not in front) would otherwise stay invisible for the rest of the
+        // session. Idempotent — it returns immediately when the panel already matches.
+        updateExtraKeysCompaction();
 
         // Snapshot the remembered focus target BEFORE the terminal view client runs.
         // mTermuxTerminalViewClient.onResume() -> setSoftKeyboardState() calls
@@ -2078,6 +2119,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         extraKeysView.setRuntimeEdgeIndicatorsEnabled(getPreferences().isExtraKeysEdgeIndicatorsEnabled());
         setExtraKeysView(extraKeysView);
 
+        // Decide whether this panel folds before it is sized and built, so the height below and the
+        // reload at the end of this method already work on the folded row count. The result is
+        // ignored on purpose: this method reloads the panel unconditionally anyway.
+        applyExtraKeysCompaction();
+
         setTerminalToolbarHeight();
 
         // Ensure the toggle button anchor is correct even when toolbar is initially GONE.
@@ -2215,11 +2261,122 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final ExtraKeysView extraKeysView = getExtraKeysView();
         if (extraKeysView == null) return;
 
+        final int storedRows = (mTermuxTerminalExtraKeys == null
+            || mTermuxTerminalExtraKeys.getExtraKeysInfo() == null)
+            ? 0 : mTermuxTerminalExtraKeys.getExtraKeysInfo().getMatrix().length;
+
+        // The panel is sized from the row count the view is actually built with, not from the stored
+        // layout: with landscape compaction on, the same layout is rendered in fewer rows, and sizing
+        // the panel by the stored count would leave the folded keys sitting in a too-tall panel (or
+        // clip the bottom row in the opposite case). Both this method and ExtraKeysView.reload() ask
+        // the same helper, so the two can never disagree about how many rows there are.
+        final int rows = ExtraKeysCompaction.effectiveRowCount(storedRows,
+            extraKeysView.isLandscapeCompactActive());
+
         ViewGroup.LayoutParams layoutParams = extraKeysView.getLayoutParams();
-        layoutParams.height = Math.round(mTerminalToolbarDefaultHeight *
-            (mTermuxTerminalExtraKeys.getExtraKeysInfo() == null ? 0 : mTermuxTerminalExtraKeys.getExtraKeysInfo().getMatrix().length) *
+        layoutParams.height = Math.round(mTerminalToolbarDefaultHeight * rows *
             mProperties.getTerminalToolbarHeightScaleFactor());
         extraKeysView.setLayoutParams(layoutParams);
+    }
+
+    /**
+     * Point the extra-keys panel at the fold state that the current window and preferences imply:
+     * fold the rows when the window is in landscape <em>and</em> the user asked for it.
+     *
+     * <p>Only the flag on the view is set here — the grid itself is rebuilt by whoever reloads the
+     * panel. That split is what keeps the call cheap: callers that reload unconditionally (activity
+     * creation, a styling reload) just call this first and ignore the result, while the ones that
+     * would otherwise rebuild the panel for nothing (a configuration change) use the result to decide
+     * whether a rebuild is needed at all.
+     *
+     * @return {@code true} when the panel's grid no longer matches the fold state, i.e. when the
+     *         caller owes the view a {@link ExtraKeysView#reload(com.termux.shared.termux.extrakeys.ExtraKeysInfo, float)}
+     */
+    private boolean applyExtraKeysCompaction() {
+        return applyExtraKeysCompaction(null);
+    }
+
+    /**
+     * The same decision as {@link #applyExtraKeysCompaction()}, with the {@link Configuration} to read
+     * the orientation from given explicitly.
+     *
+     * @param changedConfig the configuration the platform is applying, when this runs from
+     *        {@link #onConfigurationChanged(Configuration)}; {@code null} to read the activity's own
+     *        configuration (activity creation, a styling reload, a resume).
+     */
+    private boolean applyExtraKeysCompaction(@Nullable Configuration changedConfig) {
+        final ExtraKeysView extraKeysView = getExtraKeysView();
+        if (extraKeysView == null) return false;
+
+        final boolean fold = mPreferences.isExtraKeysCompactLandscapeEnabled(this)
+            && isLandscape(changedConfig);
+        final ExtraKeysCompaction.Mode mode =
+            ExtraKeysCompaction.modeFromPreferenceValue(mPreferences.getExtraKeysCompactMode());
+        return extraKeysView.setLandscapeCompact(fold, mode);
+    }
+
+    /**
+     * Re-fold the panel if the window no longer matches the fold state it was built with, and rebuild
+     * it when it has to change.
+     *
+     * <p>Called from {@link #onConfigurationChanged(Configuration)} — where a rotation, a
+     * split-screen resize and a floating-window resize all arrive, since the activity handles those
+     * itself (see the manifest's {@code configChanges}) — and from {@link #onResume()}, so the panel
+     * is re-decided whenever this window is (again) the one in front. That second call is the same
+     * "state ours again on resume" step as {@code reassertTerminalViewSize()}: cheap, because it
+     * returns immediately unless the fold state actually flipped.
+     *
+     * @param changedConfig see {@link #applyExtraKeysCompaction(Configuration)}
+     */
+    private void updateExtraKeysCompaction(@Nullable Configuration changedConfig) {
+        if (!applyExtraKeysCompaction(changedConfig)) return;
+
+        final ExtraKeysView extraKeysView = getExtraKeysView();
+        if (extraKeysView == null) return;
+
+        if (mTermuxTerminalExtraKeys != null && mTermuxTerminalExtraKeys.getExtraKeysInfo() != null) {
+            extraKeysView.reload(mTermuxTerminalExtraKeys.getExtraKeysInfo(), mTerminalToolbarDefaultHeight);
+        }
+        setTerminalToolbarHeight();
+    }
+
+    /** {@link #updateExtraKeysCompaction(Configuration)} against the activity's own configuration. */
+    private void updateExtraKeysCompaction() {
+        updateExtraKeysCompaction(null);
+    }
+
+    /**
+     * Whether the window is in landscape, i.e. wider than it is tall.
+     *
+     * <p>The answer comes from a {@link Configuration} — the platform's value, the same one the rest
+     * of the app asks for (see {@code TermuxActivityUtils} and
+     * {@code ViewUtils.getDisplayOrientation}). The configuration handed to
+     * {@link #onConfigurationChanged(Configuration)} is used when there is one, the activity's own
+     * otherwise. Because this activity handles orientation and screen-size changes itself (see the
+     * manifest's {@code configChanges}), that value is refreshed on every rotation and on every
+     * window resize in split-screen or a floating window.
+     *
+     * @param changedConfig the configuration being applied, or {@code null} to read the activity's.
+     */
+    private boolean isLandscape(@Nullable Configuration changedConfig) {
+        if (changedConfig != null)
+            return changedConfig.orientation == Configuration.ORIENTATION_LANDSCAPE;
+
+        // No configuration is being applied, so this is a decision the activity takes on its own
+        // initiative (creation, resume, focus). The configuration is the answer for a full-screen
+        // window, and it stays the first source. When the window has already been laid out its own
+        // size is the better one though: the question is "is the window this panel is drawn in wider
+        // than it is tall", and a floating window (the bubble) is shaped by its own bounds, which
+        // the configuration does not necessarily describe. Measured on this device:
+        // WindowManager.getCurrentWindowMetrics() reports bounds in the display's *unrotated*
+        // space, so it answers portrait on a landscape screen — the decor view's own size is in the
+        // window's space and is right for both windows. It is only consulted once it is non-zero,
+        // i.e. once the window really has been laid out; before that the configuration decides.
+        final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
+        if (decorView != null && decorView.getWidth() > 0 && decorView.getHeight() > 0)
+            return decorView.getWidth() > decorView.getHeight();
+
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
     }
 
     public void toggleTerminalToolbar() {
@@ -4936,6 +5093,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mColorSchemeManager.recompute(getPreferences());
 
             if (mExtraKeysView != null) {
+                // Re-decide the fold state before anything reloads the grid below. The preferences
+                // that drive it live in the extra-keys editor, so a change there reaches the live
+                // panel exactly through this path (updateTermuxActivityStyling). The result is
+                // ignored: the reload below happens either way.
+                applyExtraKeysCompaction();
+
                 // C8: refresh the cached haptic settings once per styling reload instead of doing a
                 // Binder IPC to SettingsProvider on every key press.
                 mExtraKeysView.refreshHapticState();

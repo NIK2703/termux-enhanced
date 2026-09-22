@@ -798,4 +798,15 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Gelembung</string>
     <string name="bubble_notification_channel_description">Jendela terminal mengambang di atas aplikasi lain</string>
+
+    <!-- ===================== Compact extra-keys panel =====================
+         The panel folds its rows when the window is in landscape. The fold is a derived layout, so
+         these strings describe the behaviour and the order of the keys inside a folded row; the
+         stored layout is never rewritten. The preview title labels the read-only preview of the
+         folded panel under the editable grid in the extra-keys editor. -->
+    <string name="extra_keys_compact_landscape_title">Panel ringkas dalam lanskap</string>
+    <string name="extra_keys_compact_landscape_summary">Dalam lanskap, 2–3 baris tombol dilipat menjadi satu dan 4 baris tombol menjadi dua.</string>
+    <string name="extra_keys_compact_mode_title">Urutan lipatan</string>
+    <string name="extra_keys_compact_mode_rows">Menurut baris</string>
+    <string name="extra_keys_compact_mode_columns">Menurut kolom</string>
 </resources>
