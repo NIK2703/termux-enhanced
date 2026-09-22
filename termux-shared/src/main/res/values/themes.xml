@@ -102,6 +102,24 @@
 
         <!-- Dialog message text style. -->
         <item name="materialAlertDialogBodyTextStyle">@style/BaseDialog.Message.Text.Light</item>
+
+        <!--
+          Window flags: dialogs must NOT inherit the activity theme's translucent status/navigation
+          bars. These overlays are applied with a ContextThemeWrapper on top of the ACTIVITY theme,
+          so `android:windowTranslucentStatus=true` (set by Theme.TermuxActivity.* for the terminal)
+          leaked into every dialog window and gave it FLAG_TRANSLUCENT_STATUS +
+          SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN. WindowManagerService then lays a floating dialog out
+          fullscreen and centres its frame in the whole display instead of the content area, so a
+          tall dialog (the style/font picker) gets a frame whose top is ABOVE the status bar; the
+          framework offsets the drawn content down by the resulting `contentInsets.top` while the
+          input system keeps mapping touches with the raw frame top. Every touch was therefore
+          delivered `contentInsets.top` px too low in view coordinates, which is exactly the
+          "tapping the lower part of a row selects the row below" bug. With the flags cleared the
+          window is laid out inside the content area, contentInsets stays 0 and drawing and touch
+          agree again.
+        -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
     </style>
 
     <!-- BaseDialog DayNight theme. -->

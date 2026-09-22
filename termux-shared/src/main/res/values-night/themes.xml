@@ -69,6 +69,14 @@
 
         <!-- Dialog message text style. -->
         <item name="materialAlertDialogBodyTextStyle">@style/BaseDialog.Message.Text.Dark</item>
+
+        <!-- Window flags: dialogs must not inherit the activity theme's translucent status/navigation
+             bars - see the comment on ThemeOverlay.BaseDialog.Light in values/themes.xml. Without
+             this, a tall dialog is centred in the whole display (over the status bar) and every
+             touch is delivered `contentInsets.top` px too low, selecting the row below the one
+             that was tapped. -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
     </style>
 
 </resources>
