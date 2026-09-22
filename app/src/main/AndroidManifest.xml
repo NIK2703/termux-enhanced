@@ -80,6 +80,59 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Host of the floating bubble window (the API exists from Android 10, bubbles for all
+             apps from Android 11).
+
+             This is the app's own window: TermuxBubbleActivity extends TermuxActivity and adds no
+             UI, so the bubble shows the real toolbar, session tabs, extra-keys panel and dialogs.
+             It is a separate manifest entry only because the bubble needs two things TermuxActivity
+             itself must not have:
+
+             - android:allowEmbedded="true" AND android:resizeableActivity="true" are both REQUIRED:
+               SystemUI does not run the bubble's content in a window of its own, it embeds it into
+               the bubble window through an ActivityView. If either attribute is missing the system
+               silently shows a plain notification instead of a bubble, with no error anywhere.
+               Putting allowEmbedded on TermuxActivity would also let any other process embed the
+               app's main activity.
+
+             - a launch mode that permits a second instance. TermuxActivity is singleTask, and a
+               singleTask activity can never be instantiated again inside a bubble task: the system
+               would bring the existing full-screen instance forward and the bubble would come up
+               empty. The default launchMode plus documentLaunchMode="always" gives the bubble its
+               own task, and excludeFromRecents keeps that task out of recents — a bubble is not a
+               document the user opened. Note that this cannot be expressed on TermuxActivity: the
+               launch mode and excludeFromRecents are per-activity attributes, so setting them there
+               would change how the app opens from the launcher and hide the full-screen instance
+               from recents.
+
+             - android:screenOrientation="unspecified" — the bubble follows the device instead of the
+               app's Screen orientation setting. This is the manifest default, so the attribute is
+               documentation rather than a change: the bubble inherits TermuxActivity's code, which
+               applies that preference in onCreate, and the bubble is a floating window drawn in
+               whatever orientation the device is actually in. Forcing the preference on it rotates the
+               display and renders the terminal as a portrait strip inside a landscape bubble.
+               TermuxActivity.applyWindowOrientation() is the runtime half — keep the two in step. -->
+        <activity
+            android:name=".app.bubble.TermuxBubbleActivity"
+            android:allowEmbedded="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|keyboard|keyboardHidden|navigation"
+            android:documentLaunchMode="always"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/application_name"
+            android:resizeableActivity="true"
+            android:screenOrientation="unspecified"
+            android:theme="@style/Theme.TermuxActivity.DayNight.NoActionBar"
+            android:windowSoftInputMode="adjustResize"
+            tools:targetApi="q" />
+
+        <!-- Fired by SystemUI when the user dismisses the bubble, so the notification behind it can
+             be cleaned up. Collapsing the bubble does NOT come through here: collapsing only
+             destroys the activity, and the bubble has to survive that. -->
+        <receiver
+            android:name=".app.bubble.TermuxBubbleReceiver"
+            android:exported="false" />
+
         <activity-alias
             android:name=".HomeActivity"
             android:exported="true"

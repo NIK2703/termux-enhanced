@@ -519,6 +519,8 @@
     <string name="terminal_onclick_url_open_title">Abrir links ao tocar</string>
     <string name="terminal_onclick_url_open_summary">Abrir links no buffer do terminal ao tocar.</string>
     <string name="fullscreen_title">Tela cheia</string>
+    <string name="bubble_on_background_title">Bolha em segundo plano</string>
+    <string name="bubble_on_background_summary">Mostrar a bolha quando o aplicativo for para o segundo plano, permitindo acessar rapidamente o terminal por cima de outros aplicativos</string>
     <string name="fullscreen_summary">Executar o Termux em modo tela cheia.</string>
     <string name="night_mode_legacy_title">Modo noturno (night-mode legado)</string>
     <string name="night_mode_legacy_summary">Controla a propriedade antiga de modo noturno. Use a configuração de tema na tela Exibição.</string>
@@ -685,4 +687,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Tamanho da fonte</string>
     <string name="terminal_font_size_summary" formatted="false">O gesto de pinça no terminal também altera este valor</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Bolha</string>
+    <string name="bubble_notification_channel_description">Janela de terminal flutuante sobre outros aplicativos</string>
 </resources>

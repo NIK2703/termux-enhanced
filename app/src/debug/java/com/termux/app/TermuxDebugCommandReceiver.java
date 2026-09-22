@@ -10,8 +10,12 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
 import com.termux.R;
+import com.termux.app.TermuxService;
+import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.app.terminal.SessionPagerManager;
 import com.termux.app.terminal.io.SessionUiStateStore;
+import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.view.KeyboardUtils;
 import com.termux.terminal.TerminalSession;
@@ -52,6 +56,15 @@ import com.termux.terminal.TerminalSession;
  *   tabs watch <ms> - sample the tab strip once per animation frame for <ms> (default 3000) and
  *                  log the totals: frames, moved frames, frames pinned at an end, frames pinned
  *                  at an end WHILE stretched (the bounce), and the peak displacement
+ *   bubble       - post the bubble notification from wherever the app currently is. Run it after
+ *                  KEYCODE_HOME to exercise the background-posting path, which is the one the
+ *                  notification button and the automatic option both rely on.
+ *   bubble cancel- take the bubble down (same as the main window resuming)
+ *   bubble auto <0|1> - set the "bubble on background" preference, so the automatic behaviour can
+ *                  be tested without walking the settings UI (1 is the default when omitted)
+ *   bubble exit  - send the notification's "Exit" action (a TermuxService intent, which cannot be
+ *                  sent from adb because the service is exported="false"). Used to check that the
+ *                  bubble is taken down with the sessions instead of being left floating, empty.
  */
 public class TermuxDebugCommandReceiver extends BroadcastReceiver {
 
@@ -79,6 +92,41 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
             switch (cmd) {
                 case "status":
                     dumpStatus(activity);
+                    break;
+                case "bubble":
+                    // Deliberately routed through the same manager call the notification button and
+                    // the automatic path use, so this exercises the real background-posting code
+                    // path rather than a shortcut.
+                    activity.runOnUiThread(() ->
+                        log("bubble posted=" + TermuxBubbleManager.showBubble(activity, "debug")));
+                    break;
+                case "bubble cancel":
+                    activity.runOnUiThread(() -> {
+                        TermuxBubbleManager.cancel(activity);
+                        log("bubble cancelled");
+                    });
+                    break;
+                case "bubble auto": {
+                    final boolean enabled = !"0".equals(
+                        intent == null ? null : intent.getStringExtra("arg"));
+                    activity.runOnUiThread(() -> {
+                        TermuxAppSharedPreferences prefs = activity.getPreferences();
+                        if (prefs != null) prefs.setBubbleOnBackgroundEnabled(enabled);
+                        log("bubble auto=" + enabled);
+                    });
+                    break;
+                }
+                case "bubble exit":
+                    // Reproduces the notification's "Exit" action byte for byte: that action is a
+                    // service intent (TermuxService.ACTION_STOP_SERVICE), and the service is
+                    // exported="false", so it cannot be sent from adb shell — this hook builds the
+                    // very same intent from inside the app so the real stop path (and the bubble
+                    // cancellation inside it) can be exercised. See TermuxService.buildNotification().
+                    activity.runOnUiThread(() -> {
+                        activity.startService(new Intent(activity, TermuxService.class)
+                            .setAction(TermuxConstants.TERMUX_APP.TERMUX_SERVICE.ACTION_STOP_SERVICE));
+                        log("sent ACTION_STOP_SERVICE");
+                    });
                     break;
                 case "panel open":
                     activity.runOnUiThread(() -> {

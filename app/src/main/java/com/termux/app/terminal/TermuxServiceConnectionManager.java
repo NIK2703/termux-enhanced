@@ -104,11 +104,15 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
      * Unbind from the {@link TermuxService} and clear the reference. Mirrors the original
      * {@link TermuxActivity#onDestroy()} logic: releases the session client so the service no longer
      * holds an activity reference, then unbinds (best-effort).
+     *
+     * <p>Only <em>this</em> window's client is released. The app can have a second window bound at
+     * the same time (the floating bubble), and it must keep receiving session callbacks — so this is
+     * deliberately not a "clear everything" call.
      */
     public void unbindService() {
         if (mTermuxService != null) {
             // Do not leave service and session clients with references to activity.
-            mTermuxService.unsetTermuxTerminalSessionClient();
+            mTermuxService.unsetTermuxTerminalSessionClient(mActivity.getTermuxTerminalSessionClient());
             mTermuxService = null;
         }
 

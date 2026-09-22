@@ -420,6 +420,8 @@
     <string name="extra_keys_dynamic_font_size_title">Tamaño de fuente dinámico</string>
     <string name="fullscreen_summary">Ejecutar Termux en modo pantalla completa.</string>
     <string name="fullscreen_title">Pantalla completa</string>
+    <string name="bubble_on_background_title">Burbuja en segundo plano</string>
+    <string name="bubble_on_background_summary">Mostrar la burbuja cuando la aplicación pase a segundo plano para acceder rápidamente a la terminal encima de otras aplicaciones</string>
     <string name="hide_soft_keyboard_on_startup_summary">Mantener oculto el teclado virtual al iniciar Termux.</string>
     <string name="hide_soft_keyboard_on_startup_title">Ocultar teclado virtual al inicio</string>
     <string name="invalid_number">Introduzca un número válido.</string>
@@ -680,4 +682,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Tamaño de fuente</string>
     <string name="terminal_font_size_summary" formatted="false">El gesto de pellizco en el terminal también cambia este valor</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Burbuja</string>
+    <string name="bubble_notification_channel_description">Ventana de terminal flotante sobre otras aplicaciones</string>
 </resources>

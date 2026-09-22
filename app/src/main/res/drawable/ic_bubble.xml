@@ -1,0 +1,16 @@
+<!--
+    "Open in bubble" notification action icon: a speech bubble outline.
+
+    Notification action icons are tinted by the system, so the fill colour only matters on platforms
+    that draw them as-is; white-on-transparent is the convention for notification drawables and is
+    what the other icons in this folder use.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M20,2H4c-1.1,0 -2,0.9 -2,2v18l4,-4h14c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2zM20,16H6l-2,2V4h16v12z" />
+</vector>

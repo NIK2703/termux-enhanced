@@ -492,6 +492,8 @@
     <string name="terminal_onclick_url_open_summary">輕觸終端機緩衝區中的連結時開啟。</string>
 
     <string name="fullscreen_title">全螢幕</string>
+    <string name="bubble_on_background_title">背景氣泡</string>
+    <string name="bubble_on_background_summary">進入背景時顯示氣泡，以便在其他應用程式上方快速存取終端機</string>
     <string name="fullscreen_summary">以全螢幕模式執行 Termux。</string>
 
 
@@ -721,4 +723,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">字型大小</string>
     <string name="terminal_font_size_summary" formatted="false">此值與在終端機中透過雙指縮放手勢調整的字型大小相同</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">氣泡</string>
+    <string name="bubble_notification_channel_description">浮在其他應用程式上方的終端機視窗</string>
 </resources>

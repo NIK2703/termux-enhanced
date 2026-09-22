@@ -607,6 +607,8 @@
     <string name="terminal_onclick_url_open_summary">Open links in the terminal buffer when they are tapped.</string>
 
     <string name="fullscreen_title">Fullscreen</string>
+    <string name="bubble_on_background_title">Background bubble</string>
+    <string name="bubble_on_background_summary">Show a bubble when the app goes to the background for quick access to the terminal over other apps</string>
     <string name="fullscreen_summary">Run &TERMUX_APP_NAME; in fullscreen mode.</string>
 
 
@@ -893,4 +895,12 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Font size</string>
     <string name="terminal_font_size_summary" formatted="false">Pinch-to-zoom on the terminal changes this same value.</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Bubble</string>
+    <string name="bubble_notification_channel_description">Floating terminal window on top of other apps</string>
+
 </resources>

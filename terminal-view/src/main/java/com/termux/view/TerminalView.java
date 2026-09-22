@@ -2677,6 +2677,35 @@ public final class TerminalView extends View {
         updateSize();
     }
 
+    /**
+     * Publish this view's geometry to the attached session's pty again, even though neither the view
+     * nor the session's emulator changed in the meantime.
+     *
+     * <p>Needed because the pty size belongs to the <em>session</em>, not to the window that shows
+     * it. One session can be on screen in two views at once — the app's full-screen window and the
+     * bubble's window, which is a second instance of the same activity — and each reports its own
+     * size; the pty keeps whichever was written last. The window that comes back to the front has
+     * normally not been laid out again (same view, same size), so {@link #onSizeChanged} never fires
+     * and nothing re-reports it, while {@link #updateSize()}'s check compares against the
+     * <em>session's</em> emulator, which the other window has meanwhile resized. The visible result
+     * is a terminal left rendering at the other window's geometry: leave the app into a bubble and
+     * come back, and the full-screen window shows the bubble's smaller grid (and the other way
+     * round).
+     *
+     * <p>Idempotent and free when nothing changed: {@link #updateSize()} only reaches the pty when
+     * the size it computes differs from the session emulator's, so calling this on every resume
+     * costs one comparison in the common case.
+     */
+    public void reassertSessionSize() {
+        if (mTermSession == null) return;
+        // Same preconditions as onSizeChanged(): a view that has not been laid out yet has no
+        // meaningful column/row count to report, and a renderer without font metrics would make the
+        // divisions inside updateSize() produce an absurd one.
+        if (getWidth() == 0 || getHeight() == 0) return;
+        if (mRenderer == null || mRenderer.mFontWidth <= 0 || mRenderer.mFontLineSpacing <= 0) return;
+        updateSize();
+    }
+
     /** Check if the terminal size in rows and columns should be updated. */
     public void updateSize() {
         int viewWidth = getWidth();

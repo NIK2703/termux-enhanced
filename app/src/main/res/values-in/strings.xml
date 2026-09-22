@@ -490,6 +490,8 @@
 
     
     <string name="fullscreen_title">Layar penuh</string>
+    <string name="bubble_on_background_title">Gelembung di latar belakang</string>
+    <string name="bubble_on_background_summary">Tampilkan gelembung saat aplikasi masuk ke latar belakang untuk akses cepat ke terminal di atas aplikasi lain</string>
     <string name="fullscreen_summary">Jalankan Termux dalam mode layar penuh.</string>
 
     
@@ -789,4 +791,11 @@
     <string name="addons_category_title">Add-on</string>
     <string name="session_shortcut_needs_modifier">Tentukan pintasan dengan pengubah Ctrl, Alt, Shift, atau Fn</string>
     <string name="session_shortcut_needs_key">Tambahkan tombol yang akan diberi pengubah</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Gelembung</string>
+    <string name="bubble_notification_channel_description">Jendela terminal mengambang di atas aplikasi lain</string>
 </resources>

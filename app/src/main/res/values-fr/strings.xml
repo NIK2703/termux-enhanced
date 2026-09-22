@@ -448,6 +448,8 @@
 
     
     <string name="fullscreen_title">Plein écran</string>
+    <string name="bubble_on_background_title">Bulle en arrière-plan</string>
+    <string name="bubble_on_background_summary">Afficher une bulle lorsque l’application passe en arrière-plan pour accéder rapidement au terminal par-dessus les autres applications</string>
     <string name="fullscreen_summary">Exécuter Termux en mode plein écran.</string>
 
     
@@ -769,4 +771,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Taille de police</string>
     <string name="terminal_font_size_summary" formatted="false">Le pincement sur le terminal modifie également cette valeur</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Bulle</string>
+    <string name="bubble_notification_channel_description">Fenêtre de terminal flottante par-dessus les autres applications</string>
 </resources>

@@ -1,7 +1,9 @@
 package com.termux.app;
 
+import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
+import android.os.Bundle;
 
 import com.termux.BuildConfig;
 import com.termux.shared.errors.Error;
@@ -21,10 +23,33 @@ public class TermuxApplication extends Application {
 
     private static final String LOG_TAG = "TermuxApplication";
 
+    /**
+     * How many of this app's activities are currently in the started state (i.e. at least visible).
+     *
+     * <p>This exists to answer one question that no single activity can answer on its own: when the
+     * terminal window goes to {@code onStop()}, did the user leave the app, or did the app simply put
+     * another of its own screens (Settings, Help, the bootstrap selector) in front of it? Only the
+     * second case has {@code count > 0} once our own stop has been accounted for.
+     *
+     * <p>The bubble's own window is a second instance of the same activity class, so it is counted
+     * here as well; the auto-open code never consults this from inside the bubble window.
+     *
+     * <p>Written and read on the main thread only (the activity lifecycle callbacks are dispatched
+     * there), so no synchronization is needed.
+     */
+    private static int sStartedActivityCount;
+
+    /** @return the number of this app's activities currently started. Main thread only. */
+    public static int getStartedActivityCount() {
+        return sStartedActivityCount;
+    }
+
     public void onCreate() {
         super.onCreate();
 
         Context context = getApplicationContext();
+
+        registerActivityLifecycleCallbacks(new StartedActivityCounter());
 
         // Set crash handler for the app
         TermuxCrashUtils.setDefaultCrashHandler(this);
@@ -97,6 +122,50 @@ public class TermuxApplication extends Application {
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context);
         if (preferences == null) return;
         preferences.setLogLevel(null, preferences.getLogLevel());
+    }
+
+    /**
+     * Keeps {@link #sStartedActivityCount} in step with the app's activities.
+     *
+     * <p>Registered for every activity of the app, including ones that have nothing to do with the
+     * terminal, because that is the whole point: the terminal window has to be able to tell whether
+     * one of them is on screen when it is itself stopped.
+     *
+     * <p>The pair {@code onActivityStarted}/{@code onActivityStopped} is always balanced, so the
+     * counter cannot drift; the clamp below only guards against a callback arriving for an activity
+     * that was started before this application object registered its callbacks (which cannot happen
+     * in practice, since registration happens in {@code onCreate()}).
+     */
+    private static final class StartedActivityCounter implements ActivityLifecycleCallbacks {
+
+        @Override
+        public void onActivityStarted(Activity activity) {
+            sStartedActivityCount++;
+            Logger.logVerbose(LOG_TAG, "Activity started: " + activity.getClass().getSimpleName()
+                    + ", started count: " + sStartedActivityCount);
+        }
+
+        @Override
+        public void onActivityStopped(Activity activity) {
+            if (sStartedActivityCount > 0) sStartedActivityCount--;
+            Logger.logVerbose(LOG_TAG, "Activity stopped: " + activity.getClass().getSimpleName()
+                    + ", started count: " + sStartedActivityCount);
+        }
+
+        @Override
+        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {}
+
+        @Override
+        public void onActivityResumed(Activity activity) {}
+
+        @Override
+        public void onActivityPaused(Activity activity) {}
+
+        @Override
+        public void onActivitySaveInstanceState(Activity activity, Bundle outState) {}
+
+        @Override
+        public void onActivityDestroyed(Activity activity) {}
     }
 
 }

@@ -26,8 +26,9 @@
             android:layout_alignParentTop="true">
 
             <!-- Elastic over-drag, matching the terminal pager's: dragging past either end of
-                 the list pulls the strip with a damped response and springs it back. See
-                 ElasticHorizontalScrollView. -->
+                 the list pulls the strip with a damped response and springs it back. Only while
+                 the tabs actually overflow the window — a strip with nothing to scroll has no end
+                 to pull away from and stays inert. See ElasticHorizontalScrollView. -->
             <com.termux.app.terminal.ElasticHorizontalScrollView
                 android:id="@+id/session_tabs_scroll"
                 android:layout_width="0dp"

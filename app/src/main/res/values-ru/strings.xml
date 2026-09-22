@@ -520,6 +520,8 @@
     <string name="terminal_onclick_url_open_summary">Открывать ссылки в буфере терминала при нажатии.</string>
 
     <string name="fullscreen_title">Полноэкранный режим</string>
+    <string name="bubble_on_background_title">Пузырёк при уходе в фон</string>
+    <string name="bubble_on_background_summary">При уходе в фон показывать пузырёк для быстрого доступа к терминалу поверх других приложений</string>
     <string name="fullscreen_summary">Запускать Termux в полноэкранном режиме.</string>
 
 
@@ -863,4 +865,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Размер шрифта</string>
     <string name="terminal_font_size_summary" formatted="false">То же значение меняется щипком на терминале</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Пузырёк</string>
+    <string name="bubble_notification_channel_description">Плавающее окно терминала поверх других приложений</string>
 </resources>

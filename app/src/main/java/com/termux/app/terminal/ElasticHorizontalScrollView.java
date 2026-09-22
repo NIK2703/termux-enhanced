@@ -16,6 +16,11 @@ import com.termux.view.ElasticOverdrag;
 /**
  * The session tab strip, with the same elastic ("rubber band") over-drag the terminal pager has.
  *
+ * <p>The effect belongs to a strip that <em>scrolls</em>. While the tabs (plus the (+) button) fit
+ * inside the window there is no end to pull away from, and the strip is deliberately inert: no
+ * displacement, no spring, no fling impact. See {@link #overScrollBy} for where that is decided and
+ * why it is a runtime test.
+ *
  * <p>{@link PagerOverscrollController} is a separate controller class because a
  * {@code ViewPager2} cannot be subclassed into one; the tab strip is a plain
  * {@link HorizontalScrollView}, so here the same physics is installed by subclassing. Everything
@@ -230,12 +235,28 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      * {@link #OVER_SCROLL_NEVER}, so {@code View#overScrollBy} forces it to 0 and the boundary is
      * where the list genuinely stops; honouring a non-zero margin here would let the framework
      * scroll past the end on its own and then count that as finger travel as well.
+     *
+     * <p><b>A strip with nothing to scroll has no end to pull away from.</b> {@code scrollRangeX}
+     * is the widget's own scroll range — content width minus the viewport, floored at 0 — so it is
+     * 0 for exactly as long as the tabs fit inside the window, which is the ordinary case for one
+     * or two of them. Every drag frame then arrives with {@code wanted == clamped == 0}: the finger
+     * travel is <em>entirely</em> unconsumed, and the arithmetic below would read a full-width pull
+     * out of a gesture that has nowhere to go, stretching the strip from an edge it does not have.
+     * The gate keeps the whole elastic layer — the pull, the spring it releases into, and the fling
+     * impact, which reach this method through the same hook — switched off while that holds, so a
+     * horizontal drag across a short strip does nothing at all instead of rubber-banding.
+     *
+     * <p>It is a runtime test rather than a one-off check at attach time because the range moves
+     * under the strip as tabs come and go: the effect comes alive the moment a tab makes the
+     * content overflow, and goes inert again when the last tab that overflowed is closed. A pull
+     * already held at such a moment is not stranded — the drag frames simply stop feeding it, and
+     * the release that ends the gesture springs whatever is on screen back to 0 as usual.
      */
     @Override
     protected boolean overScrollBy(int deltaX, int deltaY, int scrollX, int scrollY,
                                    int scrollRangeX, int scrollRangeY,
                                    int maxOverScrollX, int maxOverScrollY, boolean isTouchEvent) {
-        if (deltaX != 0) {
+        if (deltaX != 0 && scrollRangeX > 0) {
             final int wanted = scrollX + deltaX;
             final int clamped = Math.max(0, Math.min(scrollRangeX, wanted));
             // Where the list will actually stop. The difference is finger travel it had nowhere to
@@ -348,9 +369,10 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         }
 
         if (mFlingImpactSpent || mDragPullAbsorbed || !mFlingArmed) return;
-        // "Reached an end": the position is pinned to one of the two ends of the range. The two
-        // tests are one condition, not two cases — with a range of 0 both ends are the same
-        // position, and a flick on a strip that cannot scroll at all must still bounce.
+        // "Reached an end": the position is pinned to one of the two ends of the range. One
+        // condition, not two cases — the frame either landed exactly on an end or was clamped back
+        // onto one. A range of 0 never arrives here: overScrollBy() gates the whole elastic layer
+        // on scrollRangeX > 0, because a strip that cannot scroll has no end to bounce off.
         if (clampedPosition != 0 && clampedPosition != scrollRangeX) return;
 
         final float velocity = mFlingArrivalPxPerSec > 0f
@@ -478,11 +500,12 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         if (!(deltaPx > 0f) || !isFinite(deltaPx)) return;
         cancelAnimators();
         // The finger can only be on one end at a time, so a new pull first pays off whatever the
-        // opposite end still holds. With a scrollable strip that is a belt-and-braces path — the
-        // bleed below pays the held pull back as the list scrolls away from the end — but the
-        // strip need not be scrollable at all (two tabs fit on any screen), and then both ends
-        // are the same position and a drag can change which one it is pulling without any scroll
-        // in between.
+        // opposite end still holds. On a strip that scrolls — the only kind that gets this far, see
+        // overScrollBy() — that is a belt-and-braces path rather than the load-bearing one: to reach
+        // the other end the finger has to travel back across the whole range, and the bleed below
+        // pays the held pull back as the list scrolls away from the end it was made on. It costs
+        // one min() and makes "at most one end is ever displaced" hold by construction instead of
+        // by that argument.
         if (direction == DIRECTION_LEFT) {
             float returned = Math.min(mRightRawPx, deltaPx);
             mRightRawPx = clampRaw(mRightRawPx - returned);

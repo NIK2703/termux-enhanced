@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
@@ -39,6 +40,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.termux.R;
 import com.termux.app.api.file.FileReceiverActivity;
+import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.app.terminal.TermuxActivityRootView;
 import com.termux.app.terminal.TermuxServiceConnectionManager;
 import com.termux.app.terminal.TermuxSessionSnapshotManager;
@@ -109,8 +111,14 @@ import java.util.function.Consumer;
  * <li>https://code.google.com/p/android/issues/detail?id=6426</li>
  * </ul>
  * about memory leaks.
+ *
+ * <p>Not {@code final} on purpose: {@link com.termux.app.bubble.TermuxBubbleActivity} extends this
+ * class so that the floating bubble window shows <em>this</em> window — the same toolbar, session
+ * tabs, extra-keys panel and dialogs — instead of a hand-rolled approximation of it. That subclass
+ * only exists to give the bubble its own manifest entry with {@code allowEmbedded} and its own
+ * launch mode; it adds no UI of its own.
  */
-public final class TermuxActivity extends AppCompatActivity implements TextInputPanelController.Host, TermuxActivityPopupController.Host {
+public class TermuxActivity extends AppCompatActivity implements TextInputPanelController.Host, TermuxActivityPopupController.Host {
 
     /**
      * Owns the {@link TermuxService} binding for this activity. Created in {@link #onCreate(Bundle)}
@@ -308,6 +316,19 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
      * input panel when the soft keyboard is dismissed by the system on pause.
      */
     private boolean mIsPaused = false;
+
+    /**
+     * Set by {@link #onUserLeaveHint()} and consumed by {@link #onStop()}: the user chose to leave
+     * this window (Home, Recents, switching apps) rather than the app putting another of its own
+     * screens in front of it.
+     *
+     * <p>The hint cannot be acted upon where it arrives. It is delivered as part of the pause
+     * transaction, which the platform batches together with the launch of the next activity — at that
+     * instant the next screen has not been created yet, so nothing there can tell an in-app
+     * transition from a trip to the launcher. By {@link #onStop()} the batch has been executed and
+     * {@link TermuxApplication#getStartedActivityCount()} answers that question.
+     */
+    private boolean mUserLeaveHintSeen = false;
 
     /**
      * If onResume() was called after onCreate().
@@ -713,7 +734,14 @@ public final class TermuxActivity extends AppCompatActivity implements TextInput
     public void onCreate(Bundle savedInstanceState) {
         Logger.logDebug(LOG_TAG, "onCreate");
 
-        sInstance = this;
+        // Claim the debug-hook handle. With two windows alive this must not be a plain assignment:
+        // the bubble is a second instance of this class, so the last one to be created would win and
+        // — worse — the bubble's onDestroy() would clear the handle of the full-screen window that is
+        // still running. The full-screen window always wins; a bubble only claims the handle while it
+        // is the only window there is (which is how the hooks still work when the app was opened
+        // straight into a bubble).
+        if (sInstance == null || !isBubbleWindow())
+            sInstance = this;
         mIsOnResumeAfterOnCreate = true;
 
         if (savedInstanceState != null)
@@ -780,8 +808,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // the ImeVisibilityDetector (visible-frame method) still functions as fallback.
         KeyboardUtils.setSoftInputModeAdjustResize(this);
 
-        // Apply the user's screen-orientation choice (Settings -> Screen orientation).
-        TermuxActivityUtils.applyScreenOrientation(this);
+        // Apply this window's rotation mode: the user's screen-orientation choice for the
+        // full-screen window, no preference at all for the bubble. See applyWindowOrientation().
+        applyWindowOrientation();
 
         // Load termux shared preferences
         // This will also fail if TermuxConstants.TERMUX_PACKAGE_NAME does not equal applicationId
@@ -951,6 +980,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mIsVisible = true;
 
+        // A leave hint only means something for the stop that immediately follows it. Dropping it on
+        // every (re)start keeps a stale one from a previous transition — one that was evaluated and
+        // correctly ignored because another of our screens took over — from opening a bubble much
+        // later, on an unrelated stop.
+        mUserLeaveHintSeen = false;
+
         // Reset both IME-visibility latches on (re)start. They may be left stale as
         // true from before the app was backgrounded, when the soft keyboard was
         // dismissed by the system. Without this reset, the first insets after
@@ -993,14 +1028,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         } else if (hasFocus) {
         }
 
-        // When Termux regains focus (e.g. after returning from Settings), apply
-        // the screen-orientation choice immediately so the change is visible
-        // without restarting the app.
+        // When Termux regains focus (e.g. after returning from Settings), apply the rotation mode
+        // immediately so a change is visible without restarting the app.
         // Skip if the activity is in an invalid state (e.g. no bootstrap installed)
         // to avoid triggering setRequestedOrientation() on MIUI/HyperOS, which can
         // cause infinite recursion through AppCompatDelegateImpl.onConfigurationChanged().
         if (hasFocus && !mIsInvalidState) {
-            TermuxActivityUtils.applyScreenOrientation(this);
+            applyWindowOrientation();
+
+            // Second, later chance to publish our geometry: onResume may run before the other window
+            // (the bubble) has finished tearing down, and that window's own resize can still land
+            // after it. Idempotent, so a redundant call costs a comparison. See
+            // reassertTerminalViewSize().
+            reassertTerminalViewSize();
         }
     }
 
@@ -1011,6 +1051,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Logger.logVerbose(LOG_TAG, "onResume");
 
         if (mIsInvalidState) return;
+
+        // Automatic bubble: this window is back in front, so the floating one is redundant. Done
+        // first, before any of the keyboard restore below, so the bubble is already going away by
+        // the time the full-screen window is visible again.
+        maybeAutoHideBubbleOnForeground();
+
+        // The pty size belongs to the session, not to the window that shows it, and this window is
+        // normally still laid out at its own size when it comes back — so onSizeChanged() will not
+        // fire and the pty would keep the geometry the other window (the bubble) last wrote. State
+        // ours again; this is also what makes the bubble window adopt its own geometry when it is
+        // the one coming back to the front, since it is this same activity class.
+        reassertTerminalViewSize();
 
         // Snapshot the remembered focus target BEFORE the terminal view client runs.
         // mTermuxTerminalViewClient.onResume() -> setSoftKeyboardState() calls
@@ -1110,6 +1162,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // the user had just opened right after launch.
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+        // The bubble's own cold-start IME suppression ends here too, but through its own method: the
+        // call above is also made from onPause()/session churn, which do not mean "the user is now
+        // driving this window" (see endBubbleStartupImeSuppression()).
+        if (mTermuxTerminalViewClient != null)
+            mTermuxTerminalViewClient.endBubbleStartupImeSuppression();
     }
 
     @Override
@@ -1182,6 +1239,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             unregisterCrossWindowBlurListener();
         }
+
+        // Last, because it decides "the user left the app" from the state the whole app is in, and by
+        // this point every other lifecycle callback of this stop has already run.
+        maybeAutoOpenBubbleAfterStop();
     }
 
     @Override
@@ -1190,7 +1251,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         Logger.logDebug(LOG_TAG, "onDestroy");
 
-        sInstance = null;
+        // Release the debug-hook handle only if it is still ours. The bubble window is a second
+        // instance of this class; clearing unconditionally meant that closing the bubble blanked the
+        // handle of the full-screen window that was still alive (see onCreate()).
+        if (sInstance == this)
+            sInstance = null;
 
         MonetSchemeStore.removeListener(mMonetChangedListener);
         MonetSchemeStore.WallpaperObserver.unregister(this);
@@ -3621,6 +3686,203 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
     }
 
+    /** @return the label for the bubble notification, falling back to the app name. */
+    @NonNull
+    private CharSequence bubbleNotificationTitle(@Nullable TerminalSession session) {
+        String title = session != null ? session.getTitle() : null;
+        if (title == null || title.trim().isEmpty()) title = getString(R.string.application_name);
+        return title;
+    }
+
+    /**
+     * Apply this window's rotation mode.
+     *
+     * <p>The two windows this class runs in need opposite answers, and the difference is not
+     * cosmetic.
+     *
+     * <p>The <b>full-screen window</b> obeys Settings → Screen orientation, as it always has.
+     *
+     * <p>The <b>bubble</b> must not. A bubble is a floating window hosted by SystemUI and drawn in
+     * whatever orientation the device is actually in, and its task is not on a display of its own —
+     * it is the main one. So a portrait request from the bubble does not merely lay the bubble's own
+     * content out for the wrong window shape: it rotates the display out from under whatever the user
+     * is looking at. The symptom this method exists for is the pair of them together — the app is set
+     * to portrait, the phone is held landscape, and the bubble comes up showing the terminal rendered
+     * as a portrait strip inside a landscape window. Because the pty size is derived from the
+     * terminal view's own geometry, the line wrapping follows the same wrong numbers.
+     *
+     * <p>So the bubble keeps no orientation preference of its own and simply follows the system. The
+     * manifest already declares {@code android:screenOrientation="unspecified"} for
+     * {@link com.termux.app.bubble.TermuxBubbleActivity}; the explicit call below exists so the value
+     * is also <em>cleared</em> should a manifest edit ever give the bubble activity a preference. The
+     * guard keeps it idempotent — this runs on every focus change, and repeated
+     * {@code setRequestedOrientation()} calls are the MIUI/HyperOS hazard noted at the call site in
+     * {@link #onWindowFocusChanged(boolean)}.
+     *
+     * <p>{@link #isBubbleWindow()} is what tells the two instances apart; see that method for why the
+     * distinction is needed at all.
+     */
+    private void applyWindowOrientation() {
+        if (isBubbleWindow()) {
+            if (getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            return;
+        }
+        TermuxActivityUtils.applyScreenOrientation(this);
+    }
+
+    /**
+     * Whether this instance is the bubble's window rather than the app's full-screen one.
+     *
+     * <p>{@link com.termux.app.bubble.TermuxBubbleActivity} overrides this, and it matters because
+     * the bubble is a second instance of this very class: the lifecycle callbacks below therefore run
+     * twice with opposite meanings. The bubble resuming is not "the user came back to the app", and
+     * the bubble going to the background must not open another bubble.
+     *
+     * <p>Public rather than protected because it is not only subclass code that needs the answer:
+     * {@link com.termux.app.terminal.TermuxTerminalViewClient} (a different package) asks it to
+     * decide whether this window may pull up the IME on its own.
+     */
+    public boolean isBubbleWindow() {
+        return false;
+    }
+
+    /**
+     * Decide, at {@link #onStop()}, whether the app just went to the background by the user's choice.
+     *
+     * <p>The decision cannot be made in {@link #onUserLeaveHint()}, where the platform reports that
+     * choice, because the hint arrives too early to be interpreted. {@code onUserLeaveHint} is
+     * delivered inside the pause transaction, and for a transition between two of this app's own
+     * activities the platform puts the pause and the launch of the next screen in one batch — the
+     * hint therefore runs before that next screen exists, so at that moment an in-app transition is
+     * indistinguishable from a trip to the launcher. Measured: with the bubble opened straight from
+     * the hint, launching {@code SettingsActivity} from the terminal already produced a bubble, with
+     * no Home press anywhere in the sequence.
+     *
+     * <p>By {@code onStop} the batch has run, and the question "did the user leave the app, or did
+     * the app put another of its own screens in front of this one?" is answered by
+     * {@link TermuxApplication#getStartedActivityCount()}: after this window has stopped, a non-zero
+     * count means one of our own activities is on screen, so the app is still in the foreground and a
+     * bubble would be wrong.
+     *
+     * <p>Requiring the hint at all is what keeps a screen-off from opening a bubble: the platform
+     * does not call {@code onUserLeaveHint} when the display turns off, and {@code onStop} alone
+     * cannot tell that case apart from leaving the app.
+     */
+    private void maybeAutoOpenBubbleAfterStop() {
+        final boolean userLeft = mUserLeaveHintSeen;
+        // Consume it: it describes this stop and nothing later.
+        mUserLeaveHintSeen = false;
+
+        // Screen off / lock / our own screen taking over: no hint, or another window of ours is up.
+        if (!userLeft) return;
+
+        final int startedActivities = TermuxApplication.getStartedActivityCount();
+        // Logged at info level because this is the only place the two indistinguishable-looking
+        // stops (leaving the app vs. the app opening one of its own screens) can be told apart in a
+        // bug report, and it fires only on a user-initiated leave.
+        Logger.logInfo(LOG_TAG, "User left this window, other started activities: " + startedActivities);
+        if (startedActivities > 0) return;
+
+        // Rotation and similar: this stop is not a departure, the window is being rebuilt.
+        if (isChangingConfigurations()) return;
+
+        maybeAutoOpenBubbleOnBackground();
+    }
+
+    /**
+     * Open the bubble when the user leaves the app, if that is switched on.
+     *
+     * <p>Called from {@link #maybeAutoOpenBubbleAfterStop()} — the reasoning for that timing, and for
+     * why {@link #onUserLeaveHint()} alone cannot be trusted to mean "the user left the app", is
+     * there. {@link #onStop()} is not usable on its own either: it also fires for a screen-off and
+     * for a rotation.
+     *
+     * <p>Each guard below is load-bearing; the reasoning is written up in docs/bubble-auto-open.md.
+     */
+    private void maybeAutoOpenBubbleOnBackground() {
+        // The bubble is this same class. Without this, leaving the bubble would open another one.
+        if (isBubbleWindow()) return;
+
+        // The user is closing this window, not leaving it. Pressing Back to finish the activity also
+        // routes through here on some versions, and floating a bubble over the launcher the user
+        // just backed out to would be absurd.
+        if (isFinishing()) return;
+
+        if (!isBubbleAutoEnabled()) return;
+
+        // If bubbles are switched off for the app, posting would leave an ordinary notification
+        // behind on every trip to the background — noise with nothing to show for it.
+        if (!TermuxBubbleManager.areBubblesAvailable(this)) return;
+
+        // Nothing to show. Opening a bubble here would spawn a shell just to have something on
+        // screen, so leaving the app with no sessions at all does nothing.
+        final TermuxService service = getTermuxService();
+        if (service == null || service.isTermuxSessionsEmpty()) return;
+
+        // Already posted: re-posting refreshes the notification, but it also re-asserts
+        // setAutoExpandBubble(true), which would un-collapse a bubble collapsed on purpose.
+        if (TermuxBubbleManager.isBubblePosted(this)) return;
+
+        TermuxBubbleManager.showBubble(this, bubbleNotificationTitle(getCurrentSession()));
+    }
+
+    /**
+     * Remove the bubble when the full-screen window comes back to the front.
+     *
+     * <p>Deliberately NOT gated on the {@code bubble-on-background} preference, even though the
+     * opening half is. A floating window and the app's own full-screen window showing the same
+     * session at the same time is a state with no use: the bubble covers part of the screen, the
+     * terminal is on screen twice, and whichever of the two was touched last owns the pty size
+     * ({@link #reassertTerminalViewSize()}). So coming back to the app takes the bubble down
+     * whoever opened it — the automatic path or the notification's button. The preference decides
+     * only whether a bubble appears *by itself*; it does not decide whether one is allowed to
+     * outlive the app being in front.
+     *
+     * <p>The user can always get it back: the notification's "bubble" button is there whenever no
+     * bubble is posted.
+     */
+    private void maybeAutoHideBubbleOnForeground() {
+        // The bubble resuming is not the app returning to the foreground.
+        if (isBubbleWindow()) return;
+        TermuxBubbleManager.cancel(this);
+    }
+
+    private boolean isBubbleAutoEnabled() {
+        TermuxAppSharedPreferences prefs = getPreferences();
+        return prefs != null && prefs.isBubbleOnBackgroundEnabled();
+    }
+
+    /**
+     * Re-publish this window's terminal geometry to the current session's pty.
+     *
+     * <p>A session can be displayed by two windows at once — this activity and
+     * {@link com.termux.app.bubble.TermuxBubbleActivity}, which is a second instance of this same
+     * class — and the pty size is a property of the session, so the window that reported last wins
+     * while the other keeps its own layout. A window returning to the front is normally still laid
+     * out at its previous size, so nothing else re-reports it and the terminal is left rendering at
+     * the other window's geometry: use the bubble, open the full-screen window, and the grid stays
+     * bubble-sized; do it the other way round and the bubble stays full-screen-sized. See
+     * {@link TerminalView#reassertSessionSize()}.
+     *
+     * <p>Only the current page needs this. A page that is not the current one is re-bound on the
+     * next swipe, and the page bind path already re-reports its size when it differs from the
+     * session emulator's.
+     */
+    private void reassertTerminalViewSize() {
+        TerminalView terminalView = getTerminalView();
+        if (terminalView != null) terminalView.reassertSessionSize();
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+
+        // Only a note that the user chose to leave; the decision is taken in onStop(). See
+        // maybeAutoOpenBubbleAfterStop() for why acting here opens a bubble on our own transitions.
+        mUserLeaveHintSeen = true;
+    }
+
 
 
     /**
@@ -4500,6 +4762,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final TerminalSession armed = getCurrentSession();
         target.postDelayed(() -> {
             if (isFinishing() || mIsPaused) return;
+            // A cold-start suppression (the "hide keyboard on startup" window, or a bubble's whole
+            // cold start) must outlive this deferred re-assert: re-asserting the keyboard here would
+            // undo it 300 ms later, which is exactly the "the preference looked broken" failure.
+            if (mTermuxTerminalViewClient != null
+                    && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending()) return;
             TerminalSession current = getCurrentSession();
             if (current == null || current != armed) return;                 // switched elsewhere meanwhile
             if (!mTextInputState.isSoftKeyboardIntent(current)) return;      // user hid it meanwhile
@@ -4534,6 +4801,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (anchor == null) return;
         anchor.postDelayed(() -> {
             if (isFinishing() || mIsPaused) return;
+            // See scheduleSwitchKeyboardReassert(): a startup suppression outlives this re-assert.
+            if (mTermuxTerminalViewClient != null
+                    && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending()) return;
             TerminalSession current = getCurrentSession();
             if (current == null || current != armed) return;                // switched elsewhere meanwhile
             if (!ignoreSessionIntent && !mTextInputState.isSoftKeyboardIntent(current)) return;

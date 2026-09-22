@@ -317,6 +317,16 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_USE_FULLSCREEN = "fullscreen";
         public static final boolean DEFAULT_VALUE_USE_FULLSCREEN = false;
 
+        /**
+         * Whether the app moves itself into a bubble window when the user leaves it, and takes it
+         * back down when they return.
+         *
+         * <p>Off by default: it changes what happens every time the user presses Home, so it has to
+         * be asked for rather than discovered.
+         */
+        public static final String KEY_BUBBLE_ON_BACKGROUND = "bubble-on-background";
+        public static final boolean DEFAULT_VALUE_BUBBLE_ON_BACKGROUND = false;
+
         /* int */
 
         public static final String KEY_BELL_BEHAVIOUR = "bell-character";

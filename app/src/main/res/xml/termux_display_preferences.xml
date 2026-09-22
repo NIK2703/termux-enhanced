@@ -225,5 +225,17 @@
             app:title="@string/fullscreen_title"
             app:iconSpaceReserved="false" />
 
+        <!-- The bubble is the app's own window (TermuxBubbleActivity) floated over whatever else is
+             on screen. Switched on, it opens itself when the user leaves the app and goes away when
+             they come back; switched off, a bubble only ever appears when it is asked for — from the
+             notification's button. Off by default, because it changes what happens on every trip to
+             the background. -->
+        <SwitchPreferenceCompat
+            app:key="bubble-on-background"
+            app:title="@string/bubble_on_background_title"
+            app:summary="@string/bubble_on_background_summary"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 </PreferenceScreen>

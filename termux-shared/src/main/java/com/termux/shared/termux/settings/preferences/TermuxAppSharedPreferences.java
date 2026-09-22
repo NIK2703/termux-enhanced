@@ -544,6 +544,15 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_FULLSCREEN, value, false);
     }
 
+
+    public boolean isBubbleOnBackgroundEnabled() {
+        return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_BUBBLE_ON_BACKGROUND, TERMUX_APP.DEFAULT_VALUE_BUBBLE_ON_BACKGROUND);
+    }
+
+    public void setBubbleOnBackgroundEnabled(boolean value) {
+        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_BUBBLE_ON_BACKGROUND, value, false);
+    }
+
     /* int */
 
     public int getBellBehaviour() {

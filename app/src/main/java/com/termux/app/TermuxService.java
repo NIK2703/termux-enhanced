@@ -19,8 +19,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.termux.R;
+import com.termux.app.bubble.TermuxBubbleManager;
+import com.termux.app.bubble.TermuxBubbleReceiver;
 import com.termux.app.event.SystemEventReceiver;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
+import com.termux.app.terminal.TermuxTerminalSessionClientMux;
 import com.termux.app.terminal.TermuxTerminalSessionServiceClient;
 import com.termux.shared.termux.plugins.TermuxPluginUtils;
 import com.termux.shared.data.IntentUtils;
@@ -51,6 +54,7 @@ import com.termux.terminal.TerminalSessionClient;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A service holding a list of {@link TermuxSession} in {@link TermuxShellManager#mTermuxSessions} and background {@link AppShell}
@@ -77,16 +81,44 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     private final Handler mHandler = new Handler();
 
 
-    /** The full implementation of the {@link TerminalSessionClient} interface to be used by {@link TerminalSession}
-     * that holds activity references for activity related functions.
-     * Note that the service may often outlive the activity, so need to clear this reference.
+    /**
+     * The full implementations of the {@link TerminalSessionClient} interface that hold activity
+     * references for activity related functions.
+     *
+     * <p>A <em>list</em>, not a single field, because the app can have more than one window bound at
+     * the same time: the full-screen {@link TermuxActivity} and the floating bubble window (see
+     * {@link com.termux.app.bubble.TermuxBubbleActivity}) are two independent instances of the same
+     * UI over one service. With a single field the second window to bind would take the reference
+     * away from the first, and the first window's terminal would silently stop repainting.
+     *
+     * <p>Every UI notification that is not a {@link TerminalSessionClient} callback — the session
+     * list refresh and the "a new session became current" switch — is therefore delivered to
+     * <em>all</em> bound windows, not just one.
+     *
+     * <p>The service may often outlive the activities, so these references must be cleared on unbind.
      */
-    private TermuxTerminalSessionActivityClient mTermuxTerminalSessionActivityClient;
+    private final CopyOnWriteArrayList<TermuxTerminalSessionActivityClient> mTermuxTerminalSessionActivityClients = new CopyOnWriteArrayList<>();
 
     /** The basic implementation of the {@link TerminalSessionClient} interface to be used by {@link TerminalSession}
      * that does not hold activity references and only a service reference.
      */
     private final TermuxTerminalSessionServiceClient mTermuxTerminalSessionServiceClient = new TermuxTerminalSessionServiceClient(this);
+
+    /**
+     * The single {@link TerminalSessionClient} actually handed to every {@link TerminalSession}.
+     *
+     * <p>A session holds exactly one client, and that client is the only channel through which the
+     * session announces that its screen changed ({@link TerminalSession#notifyScreenUpdate()} →
+     * {@link TerminalSessionClient#onTextChanged}). A second surface for the same session — the
+     * floating bubble window — therefore cannot simply replace it: doing so would silently freeze
+     * the terminal of whichever surface lost the slot.
+     *
+     * <p>This mux fans every callback out to the always-present {@link #mTermuxTerminalSessionServiceClient}
+     * (the primary delegate, which owns the pid bookkeeping and keeps working with no window bound)
+     * plus every bound activity client, which are registered as <em>secondaries</em> through
+     * {@link #setTermuxTerminalSessionClient}.
+     */
+    private final TermuxTerminalSessionClientMux mMuxClient = new TermuxTerminalSessionClientMux();
 
     /**
      * Termux app shared properties manager, loaded from termux.properties
@@ -115,6 +147,10 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     @Override
     public void onCreate() {
         Logger.logVerbose(LOG_TAG, "onCreate");
+
+        // Until an activity binds, the service client is the primary delegate. This matches the
+        // old behaviour where sessions were handed mTermuxTerminalSessionServiceClient directly.
+        mMuxClient.setPrimary(mTermuxTerminalSessionServiceClient);
 
         // Get Termux app SharedProperties without loading from disk since TermuxApplication handles
         // load and TermuxActivity handles reloads
@@ -159,6 +195,16 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
                     Logger.logDebug(LOG_TAG, "ACTION_SERVICE_EXECUTE intent received");
                     actionServiceExecute(intent);
                     break;
+                case TERMUX_SERVICE.ACTION_REFRESH_NOTIFICATION:
+                    // buildNotification() reads the bubble state live, so the rebuild needs no
+                    // parameters — only a reason to happen. runStartForeground() at the top of this
+                    // method is that reason, but it re-posts through the activity manager, which
+                    // promises that a foreground service has *a* notification, not that the shade
+                    // re-reads its contents. The call below is the one the service already makes for
+                    // every session change, so it is the one known to re-render.
+                    Logger.logDebug(LOG_TAG, "ACTION_REFRESH_NOTIFICATION intent received");
+                    republishNotification();
+                    break;
                 default:
                     Logger.logError(LOG_TAG, "Invalid action: \"" + action + "\"");
                     break;
@@ -199,9 +245,9 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
         // Since we cannot rely on {@link TermuxActivity.onDestroy()} to always complete,
         // we unset clients here as well if it failed, so that we do not leave service and session
-        // clients with references to the activity.
-        if (mTermuxTerminalSessionActivityClient != null)
-            unsetTermuxTerminalSessionClient();
+        // clients with references to the activity. This fires when the LAST client unbinds, so all
+        // windows are released together.
+        unsetAllTermuxTerminalSessionClients();
         return false;
     }
 
@@ -219,6 +265,11 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     /** Request to stop service. */
     private void requestStopService() {
         Logger.logDebug(LOG_TAG, "Requesting to stop service");
+        // Take the bubble down with the service. A bubble whose sessions are gone is an empty
+        // terminal window floating over other apps, and it is reachable in exactly one step: the
+        // "Exit" action on the notification, which the user may well tap while the app is in the
+        // background with the bubble up.
+        TermuxBubbleManager.cancel(this);
         runStopForeground();
         stopSelf();
     }
@@ -623,9 +674,10 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
             mShellManager.mPendingPluginExecutionCommands.remove(executionCommand);
 
         // Notify {@link TermuxSessionsListViewController} that sessions list has been updated if
-        // activity in is foreground
-        if (mTermuxTerminalSessionActivityClient != null)
-            mTermuxTerminalSessionActivityClient.termuxSessionListNotifyUpdated();
+        // activity in is foreground. Every bound window gets it, otherwise the session list of the
+        // window that did not would go stale.
+        for (TermuxTerminalSessionActivityClient client : mTermuxTerminalSessionActivityClients)
+            client.termuxSessionListNotifyUpdated();
 
         updateNotification();
 
@@ -708,8 +760,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         switch (sessionAction) {
             case TERMUX_SERVICE.VALUE_EXTRA_SESSION_ACTION_SWITCH_TO_NEW_SESSION_AND_OPEN_ACTIVITY:
                 setCurrentStoredTerminalSession(newTerminalSession);
-                if (mTermuxTerminalSessionActivityClient != null)
-                    mTermuxTerminalSessionActivityClient.setCurrentSession(newTerminalSession);
+                setCurrentSessionInAllWindows(newTerminalSession);
                 startTermuxActivity();
                 break;
             case TERMUX_SERVICE.VALUE_EXTRA_SESSION_ACTION_KEEP_CURRENT_SESSION_AND_OPEN_ACTIVITY:
@@ -719,8 +770,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
                 break;
             case TERMUX_SERVICE.VALUE_EXTRA_SESSION_ACTION_SWITCH_TO_NEW_SESSION_AND_DONT_OPEN_ACTIVITY:
                 setCurrentStoredTerminalSession(newTerminalSession);
-                if (mTermuxTerminalSessionActivityClient != null)
-                    mTermuxTerminalSessionActivityClient.setCurrentSession(newTerminalSession);
+                setCurrentSessionInAllWindows(newTerminalSession);
                 break;
             case TERMUX_SERVICE.VALUE_EXTRA_SESSION_ACTION_KEEP_CURRENT_SESSION_AND_DONT_OPEN_ACTIVITY:
                 if (getTermuxSessionsSize() == 1)
@@ -752,48 +802,92 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
 
 
-    /** If {@link TermuxActivity} has not bound to the {@link TermuxService} yet or is destroyed, then
-     * interface functions requiring the activity should not be available to the terminal sessions,
-     * so we just return the {@link #mTermuxTerminalSessionServiceClient}. Once {@link TermuxActivity} bind
-     * callback is received, it should call {@link #setTermuxTerminalSessionClient} to set the
-     * {@link TermuxService#mTermuxTerminalSessionActivityClient} so that further terminal sessions are directly
-     * passed the {@link TermuxTerminalSessionActivityClient} object which fully implements the
-     * {@link TerminalSessionClient} interface.
+    /** Every {@link TerminalSession} is handed {@link #mMuxClient}, which is the only client a
+     * session ever sees.
      *
-     * @return Returns the {@link TermuxTerminalSessionActivityClient} if {@link TermuxActivity} has bound with
-     * {@link TermuxService}, otherwise {@link TermuxTerminalSessionServiceClient}.
+     * <p>Its primary delegate is always {@link #mTermuxTerminalSessionServiceClient} — the client
+     * that needs only a service, holds no window reference and owns the pid bookkeeping, so it must
+     * run whether or not any window is bound. Every bound window is registered as a secondary
+     * through {@link #setTermuxTerminalSessionClient}, so a session's screen updates reach all of
+     * them instead of whichever one happened to claim a single slot.
+     *
+     * @return The {@link #mMuxClient}.
      */
     public synchronized TermuxTerminalSessionClientBase getTermuxTerminalSessionClient() {
-        if (mTermuxTerminalSessionActivityClient != null)
-            return mTermuxTerminalSessionActivityClient;
-        else
-            return mTermuxTerminalSessionServiceClient;
+        return mMuxClient;
     }
 
-    /** This should be called when {@link TermuxActivity#onServiceConnected} is called to set the
-     * {@link TermuxService#mTermuxTerminalSessionActivityClient} variable and update the {@link TerminalSession}
-     * and {@link TerminalEmulator} clients in case they were passed {@link TermuxTerminalSessionServiceClient}
-     * earlier.
+    /**
+     * Register an additional surface (e.g. the bubble window) that must also receive the
+     * {@link TerminalSessionClient} callbacks for the existing sessions. Without this a second
+     * surface showing a session would never be told that its screen changed, because a session has
+     * exactly one client and that slot is already taken.
+     */
+    public synchronized void addSecondaryTerminalSessionClient(@NonNull TerminalSessionClient client) {
+        mMuxClient.addSecondary(client);
+    }
+
+    /**
+     * Unregister a secondary surface. Must be called before that surface is destroyed, otherwise
+     * the mux keeps a reference to a dead activity.
+     */
+    public synchronized void removeSecondaryTerminalSessionClient(@NonNull TerminalSessionClient client) {
+        mMuxClient.removeSecondary(client);
+    }
+
+    /** This should be called when {@link TermuxActivity#onServiceConnected} is called to register a
+     * window's {@link TermuxTerminalSessionActivityClient} and to make sure the {@link TerminalSession}
+     * and {@link TerminalEmulator} clients are the mux, in case they were passed
+     * {@link TermuxTerminalSessionServiceClient} earlier.
+     *
+     * <p>Registration is additive: a window that binds later does not displace the ones already
+     * bound. That is what lets the full-screen activity and the bubble window be alive at once.
      *
      * @param termuxTerminalSessionActivityClient The {@link TermuxTerminalSessionActivityClient} object that fully
      * implements the {@link TerminalSessionClient} interface.
      */
     public synchronized void setTermuxTerminalSessionClient(TermuxTerminalSessionActivityClient termuxTerminalSessionActivityClient) {
-        mTermuxTerminalSessionActivityClient = termuxTerminalSessionActivityClient;
+        if (termuxTerminalSessionActivityClient == null) return;
+
+        mTermuxTerminalSessionActivityClients.addIfAbsent(termuxTerminalSessionActivityClient);
+        mMuxClient.addSecondary(termuxTerminalSessionActivityClient);
 
         for (int i = 0; i < mShellManager.mTermuxSessions.size(); i++)
-            mShellManager.mTermuxSessions.get(i).getTerminalSession().updateTerminalSessionClient(mTermuxTerminalSessionActivityClient);
+            mShellManager.mTermuxSessions.get(i).getTerminalSession().updateTerminalSessionClient(mMuxClient);
     }
 
-    /** This should be called when {@link TermuxActivity} has been destroyed and in {@link #onUnbind(Intent)}
-     * so that the {@link TermuxService} and {@link TerminalSession} and {@link TerminalEmulator}
-     * clients do not hold an activity references.
+    /** This should be called when a window's {@link TermuxActivity} has been destroyed, so that the
+     * {@link TermuxService} and {@link TerminalSession} and {@link TerminalEmulator} clients do not
+     * hold a reference to that dead activity.
+     *
+     * <p>Only the given window is released. The other windows keep receiving callbacks, and the mux
+     * itself stays installed on the sessions — the service client is always its primary delegate, so
+     * nothing has to be swapped back.
      */
-    public synchronized void unsetTermuxTerminalSessionClient() {
-        for (int i = 0; i < mShellManager.mTermuxSessions.size(); i++)
-            mShellManager.mTermuxSessions.get(i).getTerminalSession().updateTerminalSessionClient(mTermuxTerminalSessionServiceClient);
+    public synchronized void unsetTermuxTerminalSessionClient(TermuxTerminalSessionActivityClient termuxTerminalSessionActivityClient) {
+        if (termuxTerminalSessionActivityClient == null) return;
 
-        mTermuxTerminalSessionActivityClient = null;
+        mTermuxTerminalSessionActivityClients.remove(termuxTerminalSessionActivityClient);
+        mMuxClient.removeSecondary(termuxTerminalSessionActivityClient);
+    }
+
+    /**
+     * Release every window. Called from {@link #onUnbind(Intent)}, which fires when the last client
+     * has unbound, so this is the "no windows left" path.
+     */
+    public synchronized void unsetAllTermuxTerminalSessionClients() {
+        for (TermuxTerminalSessionActivityClient client : mTermuxTerminalSessionActivityClients)
+            mMuxClient.removeSecondary(client);
+        mTermuxTerminalSessionActivityClients.clear();
+    }
+
+    /**
+     * Make {@code newTerminalSession} the current session in every bound window, so that a window
+     * created or switched by the service does not leave another window showing the old session.
+     */
+    private void setCurrentSessionInAllWindows(@NonNull TerminalSession newTerminalSession) {
+        for (TermuxTerminalSessionActivityClient client : mTermuxTerminalSessionActivityClients)
+            client.setCurrentSession(newTerminalSession);
     }
 
 
@@ -859,6 +953,34 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         builder.addAction(actionIcon, actionTitle, PendingIntent.getService(this, 0, toggleWakeLockIntent, 0));
 
 
+        // Set the "bubble" action.
+        //
+        // Two conditions, both deliberate:
+        //  * bubbles must be available at all — a button that cannot do anything is worse than no
+        //    button, and this is the only place where the app offers the feature: the context menu
+        //    item was removed, so this button is the single manual entry point;
+        //  * no bubble may be posted already — the button is then redundant, and its tap is not
+        //    harmless either: re-posting the same notification refreshes it, but it also re-asserts
+        //    setAutoExpandBubble(true), which would un-collapse a bubble the user had collapsed on
+        //    purpose.
+        //
+        // Because of the second condition this notification is only correct while the bubble state is
+        // unchanged, so every bubble post/cancel asks the service to rebuild it — see
+        // TermuxBubbleManager.requestServiceNotificationRefresh().
+        //
+        // A broadcast, not an activity: the button is tapped from the shade with the app in the
+        // background, and launching the UI from there would defeat the point.
+        if (TermuxBubbleManager.areBubblesAvailable(this) && !TermuxBubbleManager.isBubblePosted(this)) {
+            Intent openBubbleIntent = new Intent(this, TermuxBubbleReceiver.class)
+                .setAction(TermuxBubbleManager.ACTION_OPEN_BUBBLE)
+                // Carried in the intent because the receiver has no session to ask for a label.
+                .putExtra(TermuxBubbleManager.EXTRA_BUBBLE_TITLE, notificationText);
+            builder.addAction(R.drawable.ic_bubble, res.getString(R.string.action_open_in_bubble),
+                PendingIntent.getBroadcast(this, 0, openBubbleIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+        }
+
+
         return builder.build();
     }
 
@@ -877,6 +999,22 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         } else {
             ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification());
         }
+    }
+
+    /**
+     * Re-post the foreground notification with freshly built contents.
+     *
+     * <p>Deliberately not {@link #updateNotification()}: that one also stops the service when there is
+     * nothing left to keep it alive, and a bubble appearing or disappearing is not a reason to end a
+     * session. Used when something outside the service changes what the notification should say — see
+     * {@code TermuxBubbleManager.requestServiceNotificationRefresh()}.
+     */
+    private void republishNotification() {
+        Notification notification = buildNotification();
+        if (notification == null) return;
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        if (notificationManager == null) return;
+        notificationManager.notify(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, notification);
     }
 
 

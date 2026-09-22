@@ -93,6 +93,38 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private boolean mStartupSoftKeyboardPending;
 
     /**
+     * Set on a bubble window's cold start: this window must not pull up the IME on its own.
+     *
+     * <p>A bubble is not a user launch of the app — it appears either because the user just left
+     * (the automatic option) or because they tapped "Open in bubble" in the notification. A keyboard
+     * that pops up there lands on top of whatever app the user switched to, which is the regression
+     * this prevents. The bubble is a cold start of the very same activity class, so without this it
+     * runs the historical cold-start behaviour ("show the keyboard") even though the keyboard was
+     * hidden when the user left.
+     *
+     * <p>This is only half the fix. Suppressing the shows <em>we</em> request is not enough on its
+     * own: a fresh window that gains focus with a focused editor and a {@code STATE_UNSPECIFIED}
+     * soft-input mode gets the IME from the <em>platform</em>, with {@code mShowExplicitlyRequested}
+     * false. {@link #onResume()} therefore also pre-empts that with
+     * {@code SOFT_INPUT_STATE_ALWAYS_HIDDEN | SOFT_INPUT_ADJUST_RESIZE}. Both bits are needed there —
+     * see {@link KeyboardUtils#setSoftKeyboardAlwaysHiddenAndAdjustResize} — and neither step is
+     * redundant: measured, each one alone left the keyboard up.
+     *
+     * <p>Lifetime: raised in {@link #onResume()} when this resume <em>is</em> the cold start, and
+     * dropped on the next resume (the user coming back to an already-created bubble is a normal
+     * window) or earlier by the first user interaction ({@link #endBubbleStartupImeSuppression()},
+     * which is deliberately not {@link #cancelStartupSoftKeyboardReassert()} — that one is also
+     * called from {@code onPause()} and from the session-churn path). Deliberately NOT dropped by
+     * {@link #applyStartupSoftKeyboardState()} — the "first page is live" hook fires while the pager
+     * is still settling, and the startup page selection runs the per-session reconcile <em>more than
+     * once</em> (the pager re-selects page 0 every time the session list is re-notified while
+     * sessions are being restored). Measured: dropping it at the first page-live let the second
+     * reconcile open the keyboard anyway
+     * ({@code showSoftInput requested by TermuxActivity.applyTextInputVisibilityForSession:4621}).
+     */
+    private boolean mBubbleStartupImeSuppressed;
+
+    /**
      * Bounded re-assert of the cold-start hide. The startup sequence fires the per-session IME
      * reconcile more than once (the pager re-selects page 0 whenever the session list is
      * re-notified while sessions are still being restored), and each pass re-reads the keyboard
@@ -146,6 +178,28 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * Should be called when mActivity.onResume() is called
      */
     public void onResume() {
+        // A bubble window's cold start must not pull up the IME at all — see
+        // mBubbleStartupImeSuppressed. Raised here because onResume() is the first point at which the
+        // window exists, and before setSoftKeyboardState()/the startup reconcile below could show it.
+        // Cleared on a later resume: that one is the user coming back to an already-created bubble,
+        // which is a normal window from then on.
+        if (mActivity.isBubbleWindow()) {
+            if (mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()) {
+                mBubbleStartupImeSuppressed = true;
+                // Suppressing our own shows is not enough: the bubble is a fresh window that gains
+                // focus with a focused TerminalView, and while the window's soft-input state is
+                // STATE_UNSPECIFIED the PLATFORM shows the IME on its own. Measured: with every show
+                // of ours suppressed the IME was still up with mShowExplicitlyRequested=false, i.e.
+                // nothing of ours had asked for it. This is the same pre-emption the main window's
+                // "hide keyboard on startup" path and runKeyboardRestore()'s hide case already do.
+                // ADJUST_RESIZE is OR'd in deliberately — see the helper's javadoc.
+                KeyboardUtils.setSoftKeyboardAlwaysHiddenAndAdjustResize(mActivity);
+                Logger.logInfo(LOG_TAG, "Bubble cold start: suppressing automatic soft keyboard shows");
+            } else {
+                mBubbleStartupImeSuppressed = false;
+            }
+        }
+
         // On a true cold start with the "hide soft keyboard on startup" preference in effect, keep
         // the keyboard hidden for the whole startup window. Two things must be neutralised, both of
         // which otherwise pop the IME on launch:
@@ -342,9 +396,16 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         }
 
         if (!term.isMouseTrackingActive() && !e.isFromSource(InputDevice.SOURCE_MOUSE)) {
-            if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity))
+            if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity)) {
+                // A tap is an explicit show request, so clear a leftover SOFT_INPUT_STATE_ALWAYS_HIDDEN
+                // first: it is left behind by the cold-start "hide keyboard on startup" policy and by
+                // the bubble's cold-start suppression, and while it is in place the window state works
+                // against the show. Same precaution the KEYBOARD toggle and the per-session reconcile
+                // already take before showing. setSoftInputModeAdjustResize also keeps the window
+                // resizing for the keyboard (the ALWAYS_HIDDEN bit alone replaces ADJUST_RESIZE).
+                KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
                 KeyboardUtils.showSoftKeyboard(mActivity, terminalView);
-            else
+            } else
                 Logger.logVerbose(LOG_TAG, "Not showing soft keyboard onSingleTapUp since its disabled");
         }
     }
@@ -925,8 +986,22 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         }
 
         // Do not force show soft keyboard if termux-reload-settings command was run with hardware keyboard
-        // or soft keyboard is to be hidden or is disabled
-        if (!isReloadTermuxProperties && !noShowKeyboard) {
+        // or soft keyboard is to be hidden or is disabled.
+        //
+        // The bubble window is a third case, and it is not "the user opened the app": it is a second
+        // window that shows up either because the user just left the app (the automatic option) or
+        // because they tapped "Open in bubble" in the notification. Popping the IME there would drop
+        // a keyboard on top of whatever app the user switched to. The bubble is a cold start of this
+        // very activity class, so without this guard it runs the historical cold-start behaviour
+        // ("always show") even though the keyboard was hidden when the user left — that was the
+        // measured regression (mInputShown false before HOME, true after).
+        //
+        // Skipping the show disables nothing: a tap on the terminal ({@link #onSingleTapUp}) and the
+        // KEYBOARD toggle ({@link #onToggleSoftKeyboardRequest}) both request the IME explicitly and
+        // do not go through this method.
+        if (mActivity.isBubbleWindow()) {
+            Logger.logInfo(LOG_TAG, "Not showing soft keyboard: bubble window");
+        } else if (!isReloadTermuxProperties && !noShowKeyboard) {
             // Request focus for TerminalView. On a resume/recreate this requestFocus() may fire the
             // per-page focus listener, but onResume() raises mRestoringKeyboard BEFORE calling this
             // method, so the listener early-returns and nothing happens here.
@@ -1047,9 +1122,30 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * runs AFTER the startup hide and wins. The flag is raised in {@link #onResume()} and cleared by
      * {@link #applyStartupSoftKeyboardState()} once the startup page selection is done, so only the
      * startup reconcile is affected and later user-driven shows keep working.
+     *
+     * <p>A bubble cold start reports {@code true} here too ({@link #mBubbleStartupImeSuppressed}):
+     * the bubble has no recorded keyboard intent of its own either, so the very same reconcile would
+     * pop the IME into the freshly opened bubble. It stays true for the whole cold start rather than
+     * only until the first "page is live", because the pager runs the reconcile more than once while
+     * the sessions are being restored.
      */
     public boolean isStartupSoftKeyboardHidePending() {
-        return mStartupSoftKeyboardPending;
+        return mStartupSoftKeyboardPending || mBubbleStartupImeSuppressed;
+    }
+
+    /**
+     * End the bubble's cold-start IME suppression because the user has interacted with the window.
+     *
+     * <p>Kept separate from {@link #cancelStartupSoftKeyboardReassert()} on purpose, even though both
+     * are triggered by the same user gesture: that one is also called from {@code onPause()} and from
+     * the session-churn path, and neither of those means "the user is now driving this window". A
+     * pause in particular is normal during a bubble's own collapse/expand churn, and clearing the
+     * suppression there would re-open the keyboard a moment later.
+     */
+    public void endBubbleStartupImeSuppression() {
+        if (!mBubbleStartupImeSuppressed) return;
+        mBubbleStartupImeSuppressed = false;
+        Logger.logInfo(LOG_TAG, "Bubble cold start: IME suppression ended by user interaction");
     }
 
     /**

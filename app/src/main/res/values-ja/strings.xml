@@ -516,6 +516,8 @@
 
     
     <string name="fullscreen_title">全画面</string>
+    <string name="bubble_on_background_title">バックグラウンドでバブル</string>
+    <string name="bubble_on_background_summary">アプリがバックグラウンドに移行したときに、他のアプリの上からターミナルにすばやくアクセスできるようバブルを表示します</string>
     <string name="fullscreen_summary">Termuxを全画面モードで実行します。</string>
 
     
@@ -769,4 +771,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">フォントサイズ</string>
     <string name="terminal_font_size_summary" formatted="false">ターミナルでのピンチ操作でも同じ値が変わります</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">バブル</string>
+    <string name="bubble_notification_channel_description">他のアプリの上に浮かぶターミナルウィンドウ</string>
 </resources>

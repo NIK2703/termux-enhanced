@@ -119,6 +119,10 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("fullscreen", prefs != null && prefs.isUsingFullScreen(),
             value -> { if (prefs != null) prefs.setFullScreen(value); });
 
+        // --- Window: bubble on background ---
+        configureSwitch("bubble-on-background", prefs != null && prefs.isBubbleOnBackgroundEnabled(),
+            value -> { if (prefs != null) prefs.setBubbleOnBackgroundEnabled(value); });
+
         // --- Tabs ---
         // --- Terminal appearance (moved from Terminal screen) ---
         configureTerminalAppearancePreferences(prefs);

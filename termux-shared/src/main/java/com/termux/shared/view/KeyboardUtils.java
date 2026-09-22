@@ -91,6 +91,22 @@ public class KeyboardUtils {
         setSoftInputMode(activity, WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
     }
 
+    /**
+     * Keep the IME from being shown by the platform when this window gains focus, while still
+     * letting the window resize once a keyboard does appear.
+     *
+     * <p>Both halves matter and they are different bits of the same field, so neither of the two
+     * single-purpose setters above can be used: {@link #setSoftKeyboardAlwaysHiddenFlags} replaces
+     * the whole mode with {@code STATE_ALWAYS_HIDDEN}, dropping {@code ADJUST_RESIZE} (the keyboard
+     * then overlays the content instead of resizing it), and {@link #setSoftInputModeAdjustResize}
+     * does the opposite. Use this when the window must not auto-show the IME but is expected to
+     * resize if the user opens it explicitly.
+     */
+    public static void setSoftKeyboardAlwaysHiddenAndAdjustResize(final Activity activity) {
+        setSoftInputMode(activity, WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+                | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    }
+
     public static void setSoftInputModeAdjustResize(final Activity activity) {
         // TODO: The flag is deprecated for API 30 and WindowInset API should be used
         // https://developer.android.com/reference/android/view/WindowManager.LayoutParams#SOFT_INPUT_ADJUST_RESIZE

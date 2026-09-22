@@ -893,6 +893,29 @@ public final class TermuxConstants {
     /** Termux backup/restore unique notification id (shared by progress + result) */
     public static final int TERMUX_BACKUP_NOTIFICATION_ID = 1341;
 
+    /**
+     * Termux app notification channel id used for the floating bubble window.
+     *
+     * <p>Deliberately a channel of its own rather than reusing {@link #TERMUX_APP_NOTIFICATION_CHANNEL_ID}:
+     * a bubble needs {@code NotificationChannel.setAllowBubbles(true)} and a different lifecycle
+     * (not ongoing, cancellable), while the foreground-service channel keeps its original semantics.
+     * Changing {@code allowBubbles} on a channel the user has already customised is not reliable,
+     * so a fresh id is the safe route.
+     */
+    public static final String TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID = "termux_bubble_notification_channel";
+    /** Termux app notification channel name used for the floating bubble window */
+    public static final String TERMUX_BUBBLE_NOTIFICATION_CHANNEL_NAME = TermuxConstants.TERMUX_APP_NAME + " Bubble";
+    /** Termux app unique notification id used for the floating bubble window */
+    public static final int TERMUX_BUBBLE_NOTIFICATION_ID = 1342;
+    /**
+     * Id of the long-lived sharing shortcut the bubble notification is associated with.
+     *
+     * <p>Only strictly required for apps targeting API 30+, and this app targets 28, but the id is
+     * also what identifies a bubble inside SystemUI, so publishing it removes a whole class of
+     * device-specific surprises.
+     */
+    public static final String TERMUX_BUBBLE_SHORTCUT_ID = "termux_bubble_terminal";
+
 
 
 
@@ -1010,6 +1033,17 @@ public final class TermuxConstants {
 
             /** Intent action to stop TERMUX_SERVICE */
             public static final String ACTION_STOP_SERVICE = TERMUX_PACKAGE_NAME + ".service_stop"; // Default: "com.termux.service_stop"
+
+
+            /**
+             * Intent action to make TERMUX_SERVICE rebuild and re-post its notification.
+             *
+             * <p>Sent when something outside the service changes what the notification should offer —
+             * currently the bubble being posted or taken down, which decides whether the notification
+             * carries the "bubble" button. The service rebuilds the notification from live state, so
+             * this is a "re-read the world" request, not a description of what changed.
+             */
+            public static final String ACTION_REFRESH_NOTIFICATION = TERMUX_PACKAGE_NAME + ".service_refresh_notification"; // Default: "com.termux.service_refresh_notification"
 
 
             /** Intent action to make TERMUX_SERVICE acquire a wakelock */

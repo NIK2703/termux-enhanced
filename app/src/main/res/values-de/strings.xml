@@ -493,6 +493,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_onclick_url_open_summary">Links im Terminalpuffer durch Antippen öffnen.</string>
 
     <string name="fullscreen_title">Vollbildmodus</string>
+    <string name="bubble_on_background_title">Blase im Hintergrund</string>
+    <string name="bubble_on_background_summary">Beim Wechsel in den Hintergrund eine Blase für den schnellen Zugriff auf das Terminal über anderen Apps anzeigen</string>
     <string name="fullscreen_summary">Termux im Vollbildmodus ausführen.</string>
 
 
@@ -770,4 +772,11 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Schriftgröße</string>
     <string name="terminal_font_size_summary" formatted="false">Dieselbe Größe kann mit der Zwei-Finger-Zoom-Geste im Terminal geändert werden</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Blase</string>
+    <string name="bubble_notification_channel_description">Schwebendes Terminalfenster über anderen Apps</string>
 </resources>

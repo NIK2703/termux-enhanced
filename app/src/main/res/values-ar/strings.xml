@@ -492,6 +492,8 @@
     <string name="terminal_onclick_url_open_title">فتح الروابط عند النقر</string>
     <string name="terminal_onclick_url_open_summary">فتح الروابط في سجل الطرفية عند النقر عليها.</string>
     <string name="fullscreen_title">ملء الشاشة</string>
+    <string name="bubble_on_background_title">فقاعة عند الانتقال إلى الخلفية</string>
+    <string name="bubble_on_background_summary">إظهار فقاعة عند انتقال التطبيق إلى الخلفية للوصول السريع إلى الطرفية فوق التطبيقات الأخرى</string>
     <string name="fullscreen_summary">تشغيل Termux في وضع ملء الشاشة.</string>
     <string name="night_mode_legacy_title">الوضع الليلي (المهمل)</string>
     <string name="night_mode_legacy_summary">يتحكم في خاصية الوضع الليلي القديمة. يُفضل استخدام إعداد السمة في شاشة العرض.</string>
@@ -734,4 +736,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">حجم الخط</string>
     <string name="terminal_font_size_summary" formatted="false">تغيير الحجم بإيماءة القرص في الطرفية يعدّل القيمة نفسها</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">فقاعة</string>
+    <string name="bubble_notification_channel_description">نافذة طرفية عائمة فوق التطبيقات الأخرى</string>
 </resources>

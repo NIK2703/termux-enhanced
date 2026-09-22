@@ -451,6 +451,8 @@
     <string name="terminal_onclick_url_open_title">टैप पर URL खोलें</string>
     <string name="terminal_onclick_url_open_summary">टर्मिनल बफ़र में URL टैप करने पर खोलें।</string>
     <string name="fullscreen_title">पूर्ण स्क्रीन</string>
+    <string name="bubble_on_background_title">पृष्ठभूमि में बबल</string>
+    <string name="bubble_on_background_summary">ऐप के पृष्ठभूमि में जाने पर अन्य ऐप्स के ऊपर टर्मिनल तक त्वरित पहुँच के लिए बबल दिखाएँ</string>
     <string name="fullscreen_summary">Termux को पूर्ण स्क्रीन मोड में चलाएँ।</string>
     <string name="night_mode_legacy_title">नाइट मोड (लीगेसी नाइट-मोड)</string>
     <string name="night_mode_legacy_summary">लीगेसी नाइट-मोड गुण नियंत्रित करता है। डिस्प्ले स्क्रीन पर थीम सेटिंग का उपयोग करें।</string>
@@ -692,4 +694,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">फ़ॉन्ट आकार</string>
     <string name="terminal_font_size_summary" formatted="false">टर्मिनल पर पिंच करने से भी यही मान बदलता है</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">बबल</string>
+    <string name="bubble_notification_channel_description">अन्य ऐप्स के ऊपर तैरती टर्मिनल विंडो</string>
 </resources>

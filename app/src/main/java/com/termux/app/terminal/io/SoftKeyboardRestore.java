@@ -7,6 +7,8 @@ import android.view.inputmethod.InputMethodManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.shared.logger.Logger;
+
 /**
  * Reliable soft-keyboard show helper.
  *
@@ -15,8 +17,16 @@ import androidx.annotation.Nullable;
  * This helper retries with a short delay and STOPS as soon as the probe reports
  * the IME is actually visible (the activity's combined insets + visible-frame
  * detection), so it never hammers the IME longer than necessary.
+ *
+ * <p>This is the single funnel for every <em>automatic</em> IME show in the app (the user-driven
+ * paths — a tap on the terminal, the KEYBOARD toggle — call {@code KeyboardUtils.showSoftKeyboard}
+ * directly). That makes it the place to look when asking "who opened the keyboard?" — which is not
+ * answerable from the {@code InputMethodManager} log line alone, because several call sites share
+ * this helper. {@link #logCaller} records the first caller outside this class for that reason.
  */
 public final class SoftKeyboardRestore {
+
+    private static final String LOG_TAG = "SoftKeyboardRestore";
 
     /** Probe for the REAL current IME visibility (insets OR visible-frame). */
     public interface ImeVisibilityProbe {
@@ -27,6 +37,26 @@ public final class SoftKeyboardRestore {
     private static final long RETRY_DELAY_MS = 120;
 
     private SoftKeyboardRestore() {}
+
+    /**
+     * Report which call site is about to request the IME.
+     *
+     * <p>Existed as a debugging aid and kept because the answer is genuinely non-obvious: the six
+     * call sites of {@link #showWithRetry} are spread over the resume path, the tab-switch reconcile
+     * and three deferred re-asserts, and they are indistinguishable in the
+     * {@code InputMethodManager} log line. Only the first frame outside this class is reported, so
+     * the line stays short.
+     */
+    private static void logCaller() {
+        StackTraceElement[] frames = new Throwable().getStackTrace();
+        for (StackTraceElement frame : frames) {
+            if (!SoftKeyboardRestore.class.getName().equals(frame.getClassName())) {
+                Logger.logInfo(LOG_TAG, "showSoftInput requested by " + frame.getClassName() + "."
+                        + frame.getMethodName() + ":" + frame.getLineNumber());
+                return;
+            }
+        }
+    }
 
     public static void showWithRetry(@NonNull View target, @NonNull ImeVisibilityProbe probe) {
         showWithRetry(target, probe, null);
@@ -63,6 +93,7 @@ public final class SoftKeyboardRestore {
         }
         if (!target.hasFocus()) target.requestFocus();
 
+        logCaller();
         Context context = target.getContext();
         InputMethodManager imm =
                 (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);

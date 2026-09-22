@@ -518,6 +518,8 @@
 
     
     <string name="fullscreen_title">Tam ekran</string>
+    <string name="bubble_on_background_title">Arka planda baloncuk</string>
+    <string name="bubble_on_background_summary">Uygulama arka plana geçtiğinde diğer uygulamaların üzerinde terminale hızlı erişim için baloncuk göster</string>
     <string name="fullscreen_summary">&TERMUX_APP_NAME; uygulamasını tam ekran modunda çalıştır.</string>
 
     
@@ -790,4 +792,11 @@
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Yazı tipi boyutu</string>
     <string name="terminal_font_size_summary" formatted="false">Aynı değer terminalde kıstırma hareketiyle de değiştirilir</string>
+
+    <!-- ===================== Floating bubble window =====================
+         Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only
+         shown where the platform can actually bubble, and the button on the service notification
+         is now the single manual entry point: there is no context-menu item any more. -->
+    <string name="action_open_in_bubble">Baloncuk</string>
+    <string name="bubble_notification_channel_description">Diğer uygulamaların üzerinde yüzen terminal penceresi</string>
 </resources>

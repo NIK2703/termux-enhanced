@@ -35,4 +35,5 @@
         <item name="android:windowEnterAnimation">@anim/history_popup_enter</item>
         <item name="android:windowExitAnimation">@anim/history_popup_exit</item>
     </style>
+
 </resources>
