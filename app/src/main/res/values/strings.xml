@@ -45,7 +45,6 @@
     <string name="title_create_named_session">New named session</string>
     <string name="action_create_named_session_confirm">Create</string>
 
-    <string name="action_toggle_soft_keyboard">Keyboard</string>
     <string name="action_toggle_text_input">Text input</string>
 
     <string name="msg_terminal_panel_enabling">Enabling terminal panel</string>
@@ -78,8 +77,6 @@
 
     <string name="action_style_terminal">Style</string>
     <string name="action_font_terminal">Font</string>
-    <string name="font_picker_title">Select a font (.ttf)</string>
-    <string name="error_font_apply_failed">Failed to apply font</string>
     <string name="action_toggle_keep_screen_on">Keep screen on</string>
     <string name="action_open_help">Help</string>
     <string name="action_open_settings">Settings</string>
@@ -89,7 +86,6 @@
     <string name="msg_add_termux_debug_info">Add &TERMUX_APP_NAME; debug info to the report?</string>
 
     <string name="error_styling_not_installed">The &TERMUX_STYLING_APP_NAME; plugin app is not installed.</string>
-    <string name="action_styling_install">Install</string>
 
     <!-- Termux Notifications -->
     <string name="notification_action_exit">Exit</string>
@@ -124,33 +120,20 @@
     <string name="title_activity_termux_settings">&TERMUX_APP_NAME; Settings</string>
 
     <!-- Termux App Preferences -->
-    <string name="appearance_preferences_title">Appearance</string>
-    <string name="appearance_preferences_summary">Preferences for the app appearance and panel transparency</string>
-    <string name="theme_title">Theme</string>
-    <string name="language_category_title">Language</string>
-    <string name="panel_transparency_title">Panel transparency</string>
     <string name="appearance_category_title">Appearance</string>
 
-    <string name="termux_preferences_title">&TERMUX_APP_NAME;</string>
-    <string name="termux_preferences_summary">Preferences for the &TERMUX_APP_NAME; app</string>
 
     <string name="input_preferences_title">Input</string>
-    <string name="input_preferences_summary">Preferences for extra keys, the input panel, the keyboard, shortcuts, and system buttons</string>
+    <string name="input_preferences_summary">Preferences for extra buttons, the input panel, the keyboard, shortcuts, and system buttons</string>
 
-    <string name="extra_keys_preferences_title">Extra keys</string>
-    <string name="extra_keys_preferences_summary">Preferences for the extra keys panel</string>
 
     <string name="display_preferences_title">Display</string>
     <string name="display_preferences_summary">Appearance, tabs, terminal view, and window</string>
 
-    <string name="sessions_preferences_title">Sessions</string>
-    <string name="sessions_history_preferences_summary">Preferences for sessions, tabs, and history</string>
 
     <string name="backup_restore_preferences_title">Backup &amp; restore</string>
     <string name="backup_restore_preferences_summary">&TERMUX_APP_NAME; container and app settings</string>
 
-    <string name="diagnostics_preferences_title">Diagnostics</string>
-    <string name="diagnostics_preferences_summary">Logging and failure notifications</string>
 
         <!-- Debugging Preferences -->
         <string name="termux_debugging_preferences_title">Debugging</string>
@@ -179,8 +162,6 @@
                 <string name="termux_crash_report_notifications_enabled_title">Crash report notifications</string>
 
         <!-- Terminal IO Preferences -->
-        <string name="termux_terminal_io_preferences_title">Terminal I/O</string>
-        <string name="termux_terminal_io_preferences_summary">Preferences for terminal I/O.</string>
 
             <!-- Keyboard Category -->
             <string name="termux_keyboard_header">Keyboard</string>
@@ -189,8 +170,6 @@
 
                 <!-- Soft Keyboard -->
                 <string name="termux_soft_keyboard_enabled_title">Soft keyboard</string>
-                <string name="termux_soft_keyboard_enabled_off">The soft keyboard will be disabled.</string>
-                <string name="termux_soft_keyboard_enabled_on">The soft keyboard will be enabled.</string>
 
                 <!-- Tab panel position -->
                 <string name="termux_tab_panel_position_title">Tab panel position</string>
@@ -204,28 +183,21 @@
 
                 <!-- Extra keys special button mode -->
                 <string name="extra_keys_special_button_mode_title">Special keys behavior</string>
-                <string name="extra_keys_special_button_mode_summary">How modifier keys (CTRL, ALT, SHIFT, FN) respond to touch. Sticky: tap to toggle; long-press to lock. Hold: active only while pressed.</string>
                 <string name="extra_keys_special_button_mode_sticky">Sticky (toggle / lock)</string>
                 <string name="extra_keys_special_button_mode_hold">Hold (while pressed)</string>
 
                 <!-- Extra keys panel section -->
-                <string name="extra_keys_header">Extra keys</string>
-                <string name="extra_keys_category_title">Extra keys</string>
-                <string name="extra_keys_layout_title">Keys layout</string>
-                <string name="extra_keys_layout_summary">JSON matrix defining extra key rows and their popups.</string>
-                <string name="extra_keys_style_title">Keys style</string>
-                <string name="extra_keys_style_summary">How special characters on the keys are displayed.</string>
+                <string name="extra_keys_category_title">Extra buttons</string>
+                <string name="extra_keys_style_title">Buttons style</string>
                 <string name="extra_keys_style_default">Default</string>
                 <string name="extra_keys_style_arrows_only">Arrows only</string>
                 <string name="extra_keys_style_arrows_all">All arrows</string>
                 <string name="extra_keys_style_all">All</string>
                 <string name="extra_keys_style_none">None</string>
                 <string name="extra_keys_text_all_caps_title">Uppercase labels</string>
-                <string name="extra_keys_text_all_caps_summary">Show extra key labels in uppercase.</string>
                 <string name="extra_keys_dynamic_font_size_title">Dynamic font size</string>
                 <string name="extra_keys_dynamic_font_size_summary">Reduce the font size when the number of columns increases or when macros are bound to main actions.</string>
                 <string name="extra_keys_font_size_title">Base font size</string>
-                <string name="extra_keys_font_size_summary">Base text size for extra key labels.</string>
                 <string name="extra_keys_editor_tap_suffix"> (Tap)</string>
                 <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>
                 <string name="extra_keys_editor_swipe_down_suffix"> (↓)</string>
@@ -235,20 +207,14 @@
 
                 <!-- Soft Keyboard Only If No Hardware-->
                 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Hide soft keyboard when a hardware keyboard is connected</string>
-                <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">The soft keyboard will be enabled even when a hardware keyboard is connected.</string>
-                <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">The soft keyboard will be enabled only when no hardware keyboard is connected.</string>
 
                 <!-- Keyboard State On Tab Switch -->
                 <string name="keyboard_state_follow_tab_switch_title">Keyboard state when switching tabs</string>
                 <string name="keyboard_state_follow_tab_switch_summary">When switching tabs, restore each tab’s keyboard state to what it was when you switched away.</string>
 
         <!-- Terminal View Preferences -->
-        <string name="termux_terminal_view_preferences_title">Terminal view</string>
-        <string name="termux_terminal_view_preferences_summary">Preferences for the terminal view.</string>
 
             <!-- View Category -->
-            <string name="termux_terminal_view_view_header">View</string>
-            <string name="view_category_title">View</string>
             <string name="window_category_title">Window</string>
 
                 <!-- Button Background Inactive Alpha -->
@@ -263,7 +229,6 @@
 
                 <!-- Extra Keys Button Margin -->
                 <string name="extra_keys_button_margin_title">Button spacing</string>
-                <string name="extra_keys_button_margin_summary">Space between buttons.</string>
 
                 <!-- Terminal View Margin Adjustment -->
 
@@ -288,7 +253,6 @@
 
     <!-- Theme Preference -->
     <string name="theme_mode_title">App theme</string>
-    <string name="theme_mode_summary">Choose the app and terminal theme.</string>
 
     <!-- Color scheme preferences (per app theme) -->
     <string name="color_scheme_dialog_title">Terminal color scheme</string>
@@ -298,11 +262,9 @@
     <string name="color_scheme_dark_summary">The color scheme applied when the app theme is dark.</string>
 
     <!-- S5 category titles -->
-    <string name="history_category_title">History</string>
     <string name="tabs_category_title">Tabs</string>
 
     <!-- Message history preferences -->
-    <string name="input_history_title">Input history</string>
     <string name="input_history_max_title">Maximum input history entries</string>
     <string name="per_directory_input_history_title">Per-directory input history</string>
     <string name="per_directory_input_history_summary">Keep a separate input history for each working directory. When off, all sessions share one global history.</string>
@@ -312,14 +274,8 @@
     <!-- Text input preferences -->
     <string name="input_panel_title">Input panel</string>
     <string name="text_input_append_enter_title">Append Enter on send</string>
-    <string name="text_input_append_enter_summary">When sending from the input field, also submit the line by pressing Enter. Disable this to send raw text without a trailing newline.</string>
 
-    <string name="text_input_hide_on_send_title">Hide input panel after send</string>
-    <string name="text_input_hide_on_send_summary">When enabled, the input panel closes and focus goes to the terminal after sending. Disable to keep the panel open for consecutive commands.</string>
-    <string name="text_input_hide_keyboard_on_send_title">Hide keyboard after send</string>
-    <string name="text_input_hide_keyboard_on_send_summary">When enabled, the soft keyboard is dismissed after sending text from the input field (e.g. on Enter). The input panel and keyboard are controlled independently.</string>
     <string name="text_input_action_on_send_title">Action on send</string>
-    <string name="text_input_action_on_send_summary">What happens after sending text from the input field: do nothing, hide the input panel, or hide the input panel and keyboard.</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Nothing</item>
         <item>Hide input panel</item>
@@ -332,22 +288,18 @@
     </string-array>
 
     <string name="text_input_restore_mode_title">Input history restore behavior</string>
-    <string name="text_input_restore_mode_summary">Tap to choose whether to insert at the cursor or replace the entire input field.</string>
     <string name="text_input_restore_mode_dialog_title">Input history restore mode</string>
     <string name="text_input_restore_mode_option_insert">Insert at cursor</string>
     <string name="text_input_restore_mode_option_replace">Replace entire input field</string>
 
     <!-- Directory history preferences -->
-    <string name="directory_history_title">Directory history</string>
     <string name="directory_history_max_title">Maximum directory history entries</string>
 
     <!-- Session restore preferences -->
     <string name="restore_tabs_title">Restore tabs on launch</string>
-    <string name="restore_tabs_summary">Reopen all tabs and their directories when the app starts.</string>
 
     <!-- Screen orientation preference -->
     <string name="screen_orientation_title">Screen orientation</string>
-    <string name="screen_orientation_summary">The “Follow sensor” variants rotate between two orientations (for example, 0°/180° portrait).</string>
 
     <!-- Theme mode entries -->
     <string name="theme_mode_entry_dark">Dark</string>
@@ -367,17 +319,12 @@
     <!-- Backup / Restore Preference -->
     <string name="backup_preference_title">Back up the &TERMUX_APP_NAME; container</string>
     <string name="restore_preference_title">Restore the &TERMUX_APP_NAME; container</string>
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_restore_dialog_title">&TERMUX_APP_NAME; data backup / restore</string>
     <string name="backup_restore_warning_backup">This will create a compressed archive of your &TERMUX_APP_NAME; data directory (installed packages and environment together with your home directory).\n\nChoose a destination file to save the backup.</string>
     <string name="backup_restore_warning_restore">Restoring will OVERWRITE the current &TERMUX_APP_NAME; data directory (installed packages and your home directory) with the contents of the selected backup file. Existing data will be LOST.\n\n⚠ If the restore fails — because the backup file is corrupted, incomplete, or the connection is interrupted during the process — your &TERMUX_APP_NAME; environment will be LEFT EMPTY. There will be no way to recover the original data.\n\nThis cannot be undone. It is strongly recommended to back up FIRST and verify the backup file is valid.</string>
     <string name="backup_restore_backup_started">Creating backup…</string>
     <string name="backup_restore_restore_started">Restoring backup…</string>
-    <string name="backup_restore_backup_success">Backup created successfully</string>
-    <string name="backup_restore_restore_success">Data restored successfully</string>
-    <string name="backup_restore_failed_title">Operation failed</string>
     <string name="backup_restore_tar_not_found">The &TERMUX_APP_NAME; tar binary was not found. Please open &TERMUX_APP_NAME; at least once so the container can be set up.</string>
-    <string name="backup_restore_choose_backup">Select a .tar.gz backup file to restore</string>
     <string name="backup_service_channel_name">&TERMUX_APP_NAME; backup / restore</string>
     <string name="backup_service_notification_title">&TERMUX_APP_NAME; data backup</string>
     <string name="backup_service_notification_restore_title">&TERMUX_APP_NAME; data restore</string>
@@ -397,7 +344,7 @@
     <string name="backup_restore_settings_category_title">App settings</string>
     <string name="backup_settings_title">Back up app settings</string>
     <string name="restore_settings_title">Restore app settings</string>
-    <string name="settings_backup_warning">This will save your &TERMUX_APP_NAME; app settings (preferences, color scheme, font, and extra keys layout) to a backup file.\n\nChoose a destination file.</string>
+    <string name="settings_backup_warning">This will save your &TERMUX_APP_NAME; app settings (preferences, color scheme, font, and extra buttons layout) to a backup file.\n\nChoose a destination file.</string>
     <string name="settings_restore_warning">This will restore your &TERMUX_APP_NAME; app settings from a backup file. The current settings will be overwritten.</string>
     <string name="settings_backup_progress">Backing up settings…</string>
     <string name="settings_restore_progress">Restoring settings…</string>
@@ -406,10 +353,7 @@
     <string name="settings_restart_required">Restart &TERMUX_APP_NAME; for all restored settings to take effect.</string>
     <string name="settings_backup_failed">Settings backup failed</string>
     <string name="settings_restore_failed">Settings restore failed</string>
-    <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">Include the tmp directory (usr/tmp/)</string>
-    <string name="error_settings_backup_format_version">Unsupported backup format version: %1$s.</string>
-    <string name="error_settings_backup_missing_manifest">The backup file is missing manifest.properties.</string>
     <string name="error_settings_restore_open_input">Failed to open the input file.</string>
 
     <!-- NEW STRINGS (extracted from hardcoded text) -->
@@ -425,15 +369,11 @@
     <!-- Session tabs -->
     <string name="tab_close_description">Close tab</string>
     <string name="session_default_title">Terminal</string>
-    <string name="session_tabs_title">Session tabs</string>
     <string name="swipe_rightmost_new_tab_title">Swipe the rightmost tab to create a new session</string>
-    <string name="swipe_rightmost_new_tab_summary">Swipe right on the last tab to open a new terminal session.</string>
     <string name="new_tab_placeholder_hint">New session</string>
 
     <!-- Text input show preference -->
     <string name="text_input_toggle_button_title">Input panel toggle button</string>
-    <string name="text_input_show_summary_on">The input panel toggle button is visible above the extra keys.</string>
-    <string name="text_input_show_summary_off">The input panel toggle button is hidden.</string>
 
     <!-- Message history -->
     <string name="input_history_empty">No input history</string>
@@ -485,11 +425,10 @@
 
     <!-- Extra keys -->
     <string name="msg_extra_keys_load_failed">Could not load and set the \"%1$s\" property from the properties file: %2$s</string>
-    <string name="msg_extra_keys_create_failed">Cannot create default extra keys</string>
+    <string name="msg_extra_keys_create_failed">Cannot create default extra buttons</string>
 
     <!-- App language override -->
     <string name="locale_override_title">App language</string>
-    <string name="locale_override_summary">Override the app language.</string>
     <string name="locale_override_entry_system">System default</string>
     <string name="locale_override_entry_english">English</string>
 
@@ -508,22 +447,17 @@
     <string name="locale_entry_zh" translatable="false">中文</string>
     <string name="locale_entry_zh_hant" translatable="false">繁體中文</string>
 
-    <string name="extra_keys_visibility_title">Show extra keys panel</string>
-    <string name="extra_keys_visibility_summary">Choose when the extra keys panel is shown.</string>
+    <string name="extra_keys_visibility_title">Show extra buttons panel</string>
 
     <!-- Text input auto-complete -->
     <string name="suggestions_max_count_title">Maximum auto-complete suggestions</string>
-    <string name="suggestions_max_count_summary">Number of auto-complete suggestions from input history.</string>
 
     <!-- Terminal preferences -->
     <string name="terminal_advanced_title">Advanced</string>
     <string name="terminal_advanced_summary">Session, sound and notifications, external apps, add-ons, and debugging</string>
 
     <string name="terminal_category_title">Terminal</string>
-    <string name="key_behaviour_category_title">Key behavior</string>
-    <string name="screen_category_title">Screen</string>
     <string name="shortcuts_category_title">Keyboard shortcuts</string>
-    <string name="misc_category_title">Misc</string>
 
     <string name="external_apps_category_title">External apps</string>
 
@@ -542,7 +476,6 @@
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_title">Delete old TMPDIR files on exit</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_summary">Delete files older than N days from the session TMPDIR on exit. Use -1 to never delete.</string>
 
-    <string name="extra_keys_invalid_json">Invalid JSON for extra keys. Changes were not saved.</string>
 
     <string name="invalid_number">Please enter a valid number.</string>
 
@@ -550,7 +483,6 @@
     <string name="session_shortcut_needs_key">Add a key for the modifiers to apply to.</string>
 
     <string name="terminal_cursor_style_title">Cursor style</string>
-    <string name="terminal_cursor_style_summary">How the terminal cursor is drawn.</string>
 
     <string name="terminal_cursor_blink_rate_title">Cursor blink interval</string>
     <string name="terminal_cursor_blink_rate_summary">The cursor blink interval in milliseconds.</string>
@@ -558,7 +490,6 @@
     <string name="terminal_cursor_blink_enabled_title">Cursor blinking</string>
 
     <string name="bell_character_title">Bell behavior</string>
-    <string name="bell_character_summary">What happens when the terminal receives a bell character (BEL).</string>
 
     <string name="terminal_margin_left_title">Left margin</string>
 
@@ -571,49 +502,36 @@
     <string name="terminal_background_transparency_title">Background transparency</string>
 
     <string name="terminal_background_blur_radius_title">Background blur radius</string>
-    <string name="terminal_background_blur_radius_summary">A high blur radius may increase power consumption with dynamic wallpapers. With static wallpapers, the power impact is negligible.</string>
+    <string name="terminal_background_blur_radius_summary">A high blur radius may increase power consumption with dynamic backgrounds. With static backgrounds, the power impact is negligible.</string>
 
     <string name="terminal_toolbar_scale_title">Panel height scale</string>
-    <string name="terminal_toolbar_height_summary">The scale factor for the extra keys / terminal panel height.</string>
 
     <string name="default_working_directory_title">Default working directory</string>
     <string name="default_working_directory_summary">Directory opened for new sessions. Leave empty to use the home directory.</string>
 
-    <string name="back_key_sends_escape_title">Back key behavior</string>
-    <string name="back_key_summary">What the hardware/software back key does in the terminal.</string>
+    <string name="back_key_sends_escape_title">Send Escape on Back key press</string>
 
     <string name="volume_keys_title">Volume keys as modifiers</string>
     <string name="volume_keys_summary">Hold Ctrl or Fn while pressing the device volume-down or volume-up keys, respectively. To open the volume panel in this mode, use Fn + v.</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">Keyboard toggle behavior</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">Choose whether the keyboard toggle shows/hides or enables/disables the soft keyboard.</string>
 
     <string name="ctrl_space_workaround_title">Ctrl+Space workaround</string>
-    <string name="ctrl_space_workaround_summary">Use a workaround so that Ctrl+Space is delivered correctly.</string>
 
     <string name="enforce_char_based_input_title">Enforce char-based input</string>
-    <string name="enforce_char_based_input_summary">Force characters to be sent one byte at a time.</string>
 
     <string name="disable_hardware_keyboard_shortcuts_title">Disable hardware keyboard shortcuts</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">Ignore keyboard shortcuts from a hardware/external keyboard.</string>
 
-    <string name="disable_terminal_session_change_toast_title">Disable session change toast</string>
-    <string name="disable_terminal_session_change_toast_summary">Do not show a toast message when switching terminal sessions.</string>
 
     <string name="scroll_on_new_output_title">Scroll on new output</string>
-    <string name="scroll_on_new_output_summary">Automatically scroll to the bottom when new output arrives.</string>
 
     <string name="terminal_onclick_url_open_title">Open links on tap</string>
-    <string name="terminal_onclick_url_open_summary">Open links in the terminal buffer when they are tapped.</string>
 
     <string name="fullscreen_title">Fullscreen</string>
     <string name="bubble_on_background_title">Background bubble</string>
     <string name="bubble_on_background_summary">Show a bubble when the app goes to the background for quick access to the terminal over other apps</string>
-    <string name="fullscreen_summary">Run &TERMUX_APP_NAME; in fullscreen mode.</string>
 
 
-    <string name="night_mode_legacy_title">Night mode (legacy)</string>
-    <string name="night_mode_legacy_summary">Controls the legacy night-mode property. Use the theme setting on the Display screen instead.</string>
 
     <string name="shortcut_create_session_title">New session</string>
     <string name="shortcut_next_session_title">Next session</string>
@@ -630,7 +548,6 @@
     <string name="run_termux_am_socket_server_title">Run termux-am socket server</string>
 
     <string name="hide_soft_keyboard_on_startup_title">Hide soft keyboard on startup</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Keep the soft keyboard hidden when &TERMUX_APP_NAME; starts.</string>
 
     <!-- Terminal preference list-entries -->
     <string name="terminal_cursor_style_block">Block</string>
@@ -641,46 +558,28 @@
     <string name="bell_character_beep">Beep</string>
     <string name="bell_character_ignore">Ignore</string>
 
-    <string name="back_key_back">Back button</string>
-    <string name="back_key_escape">Escape key</string>
 
     <string name="soft_keyboard_toggle_show_hide">Show / hide</string>
     <string name="soft_keyboard_toggle_enable_disable">Enable / disable</string>
 
-    <string name="night_mode_true">Dark</string>
-    <string name="night_mode_false">Light</string>
-    <string name="night_mode_system">System default</string>
 
     <!-- Extra Keys Editor -->
-    <string name="extra_keys_editor_title">Extra keys editor</string>
-    <string name="extra_keys_editor_summary">Visually build the extra keys panel: set rows and columns, then tap a key to assign an action.</string>
+    <string name="extra_keys_editor_title">Extra buttons editor</string>
     <string name="extra_keys_editor_columns_title">Columns</string>
-    <string name="extra_keys_editor_columns_summary">The number of buttons per row.</string>
     <string name="extra_keys_editor_rows_title">Rows</string>
-    <string name="extra_keys_editor_rows_summary">The number of button rows.</string>
-    <string name="extra_keys_editor_preview_title">Preview</string>
-    <string name="extra_keys_editor_preview_summary">Live panel — tap any key to change its action.</string>
     <string name="extra_keys_editor_signal_dialog_title">Assign action</string>
     <string name="extra_keys_editor_custom_text_title">Symbol/text</string>
-    <string name="extra_keys_editor_custom_text_message">Press any key to bind it:</string>
-    <string name="extra_keys_editor_apply_title">Apply to extra keys</string>
-    <string name="extra_keys_editor_apply_summary">Save this layout to the extra keys setting.</string>
-    <string name="extra_keys_editor_empty">(empty)</string>
     <string name="extra_keys_editor_max_signals">Maximum of 8 actions per button</string>
-    <string name="extra_keys_editor_custom_text_no_space">Custom text with spaces is not supported in combinations.</string>
     <string name="extra_keys_editor_done">Done</string>
-    <string name="extra_keys_editor_open_editor">Edit extra keys</string>
-    <string name="extra_keys_editor_open_editor_summary">Configure layout, scale, and key bindings.</string>
+    <string name="extra_keys_editor_open_editor">Edit extra buttons</string>
     <string name="extra_keys_edge_indicators_title">Swipe direction indicators</string>
-    <string name="extra_keys_edge_indicators_summary">Show swipe direction indicators on extra keys.</string>
-    <string name="extra_keys_editor_hint">Tap to assign the main action.\nSwipe ↑, ↓, ←, or → to assign gesture actions.\nLong-press a key to set its label.</string>
+    <string name="extra_keys_editor_hint">Tap to assign the main action.\nSwipe ↑, ↓, ←, or → to assign gesture actions.\nLong-press a button to set its label.</string>
     <string name="extra_keys_editor_mode_assign">Assign</string>
     <string name="extra_keys_editor_mode_move">Move</string>
-    <string name="extra_keys_editor_hint_move">Drag a key onto another cell to move or swap all of its actions.</string>
+    <string name="extra_keys_editor_hint_move">Drag a button onto another cell to move or swap all of its actions.</string>
     <string name="extra_keys_editor_label_dialog_title">Label</string>
 
     <string name="extra_keys_haptic_title">Haptic feedback</string>
-    <string name="extra_keys_haptic_summary">Vibrate when interacting with the extra keys panel.</string>
     <string name="extra_keys_haptic_all">Tap and gestures</string>
     <string name="extra_keys_haptic_gestures">Gestures only</string>
     <string name="extra_keys_haptic_off">Off</string>
@@ -689,8 +588,6 @@
     <string name="extra_keys_visibility_always">Always</string>
     <string name="extra_keys_visibility_keyboard">Only when the keyboard is open</string>
     <string name="extra_keys_visibility_never">Never</string>
-    <string name="hide_extra_keys_with_keyboard_title">Hide extra keys with the keyboard</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Automatically hide the extra keys panel when the keyboard is closed, and show it when the keyboard is open.</string>
 
     <!-- Extra keys editor signal entries -->
     <string name="extra_keys_editor_signal_ctrl">CTRL</string>
@@ -700,7 +597,6 @@
     <string name="extra_keys_editor_signal_keyboard">Keyboard toggle</string>
     <string name="extra_keys_editor_signal_paste">Paste</string>
     <string name="extra_keys_editor_signal_scroll_lock">Scroll Lock</string>
-    <string name="extra_keys_editor_signal_space">Space</string>
     <string name="extra_keys_editor_signal_esc">Esc</string>
     <string name="extra_keys_editor_signal_tab">Tab</string>
     <string name="extra_keys_editor_signal_home">Home</string>
@@ -728,24 +624,17 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_backslash">Backslash (\\)</string>
-    <string name="extra_keys_editor_signal_quote">Quote (\")</string>
-    <string name="extra_keys_editor_signal_apostrophe">Apostrophe (\')</string>
     <string name="extra_keys_editor_signal_custom">Symbol/text…</string>
     <string name="extra_keys_editor_signal_add_delay">Delay…</string>
     <string name="extra_keys_editor_delay_dialog_title">Add delay</string>
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
-    <string name="extra_keys_editor_delay_presets">Quick selection:</string>
     <string name="extra_keys_editor_delay_hint">Delay</string>
 
     <!-- Bootstrap Selector Activity -->
-    <string name="bootstrap_selector_error_load_sources">Failed to load sources</string>
     <string name="bootstrap_selector_install_local_title">Install local bootstrap?</string>
     <string name="bootstrap_selector_install_local_message">A local bootstrap zip may execute arbitrary code. Only continue if you trust this file.</string>
     <string name="bootstrap_selector_install">Install</string>
     <string name="bootstrap_selector_title">&TERMUX_APP_NAME; bootstrap installation</string>
-    <string name="bootstrap_selector_status_default">Choose a bootstrap source to install:</string>
-    <string name="bootstrap_selector_source_label">Source:</string>
 
     <string name="bootstrap_selector_download">Download recommended bootstrap</string>
     <string name="bootstrap_selector_pick_zip">Choose local .zip file</string>
@@ -755,7 +644,6 @@
     <string name="bootstrap_progress_title">Installing bootstrap</string>
 
     <!-- Bootstrap Download Service -->
-    <string name="bootstrap_download_status_idle">Idle</string>
     <string name="bootstrap_download_status_connecting">Connecting</string>
     <string name="bootstrap_download_progress_preparing">Preparing download</string>
     <string name="bootstrap_download_status_installing">Installing</string>
@@ -770,8 +658,6 @@
     <string name="bootstrap_download_progress_checking_sha">Checking SHA-256</string>
     <string name="bootstrap_download_notification_starting">Starting</string>
     <string name="bootstrap_download_channel_name">&TERMUX_APP_NAME; bootstrap downloads</string>
-    <string name="bootstrap_download_notification_title_success">Bootstrap installed</string>
-    <string name="bootstrap_download_notification_text_success">Tap to open &TERMUX_APP_NAME;</string>
     <string name="bootstrap_download_notification_title_failed">Bootstrap installation failed</string>
 
     <!-- File Receiver -->
@@ -781,7 +667,6 @@
     <string name="run_command_bootstrap_not_installed">Bootstrap is not installed. Please open &TERMUX_APP_NAME; to install it first.</string>
 
     <!-- Bootstrap install progress (TermuxInstaller) -->
-    <string name="bootstrap_install_progress_verify_sha">Verifying checksum</string>
     <string name="bootstrap_install_progress_verify_manifest">Verifying package manifest</string>
     <string name="bootstrap_install_progress_extract">Extracting packages</string>
     <string name="bootstrap_install_progress_finalize">Finalizing installation</string>
@@ -789,12 +674,9 @@
     <string name="bootstrap_install_progress_done">Done</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">No supported ABIs on this device</string>
     <string name="error_abi_arch_mismatch">Bootstrap architecture \'%1$s\' does not match device architecture \'%2$s\'. Available ABIs: %3$s</string>
-    <string name="error_abi_unknown">Unknown ABI: %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">Missing BOOTSTRAP_INFO in bootstrap zip</string>
     <string name="error_bootstrap_manifest_missing_variant">Missing \'variant\' in BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_manifest_missing_arch">Missing \'arch\' in BOOTSTRAP_INFO</string>
 
@@ -871,7 +753,7 @@
     <string name="extra_keys_editor_profile_default">Default</string>
     <string name="extra_keys_editor_profile_add">Add profile</string>
     <string name="extra_keys_editor_profile_delete">Delete profile</string>
-    <string name="extra_keys_editor_profile_add_title">New extra keys profile</string>
+    <string name="extra_keys_editor_profile_add_title">New extra buttons profile</string>
     <string name="extra_keys_editor_profile_name_hint">Profile name</string>
     <string name="extra_keys_editor_profile_exists">A profile with this name already exists.</string>
     <string name="extra_keys_editor_profile_delete_title">Delete profile</string>
@@ -894,7 +776,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Font size</string>
-    <string name="terminal_font_size_summary" formatted="false">Pinch-to-zoom on the terminal changes this same value.</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

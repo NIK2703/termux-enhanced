@@ -958,7 +958,10 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         // Two conditions, both deliberate:
         //  * bubbles must be available at all — a button that cannot do anything is worse than no
         //    button, and this is the only place where the app offers the feature: the context menu
-        //    item was removed, so this button is the single manual entry point;
+        //    item was removed, so this button is the single manual entry point. "Available" covers the
+        //    Android version, the framework's bubble API and the Android Go / low-RAM case — see
+        //    TermuxBubbleManager.isSupported(), which is where a device that cannot bubble is filtered
+        //    out and this button therefore disappears;
         //  * no bubble may be posted already — the button is then redundant, and its tap is not
         //    harmless either: re-posting the same notification refreshes it, but it also re-asserts
         //    setAutoExpandBubble(true), which would un-collapse a bubble the user had collapsed on

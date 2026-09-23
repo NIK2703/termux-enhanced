@@ -1,6 +1,7 @@
 package com.termux.shared.activities;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -10,6 +11,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -21,9 +23,12 @@ import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 
+import com.google.android.material.button.MaterialButton;
 import com.termux.shared.R;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.data.DataUtils;
@@ -34,12 +39,16 @@ import com.termux.shared.errors.Error;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.markdown.MarkdownUtils;
 import com.termux.shared.interact.ShareUtils;
+import com.termux.shared.models.ReportAction;
 import com.termux.shared.models.ReportInfo;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.theme.NightMode;
 
 import org.commonmark.node.FencedCodeBlock;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.recycler.MarkwonAdapter;
@@ -77,6 +86,25 @@ public class ReportActivity extends AppCompatActivity {
     private Bundle mBundle;
 
     private static final String LOG_TAG = "ReportActivity";
+
+    /**
+     * Host app hook that contributes the extra action buttons shown on report screens — see
+     * {@link ReportActionHost}. {@code null} when the host app does not use it, in which case report
+     * screens look and behave exactly as they did before.
+     */
+    private static ReportActionHost sReportActionHost;
+
+    /** Adapter for the report list, which prepends the host app's action buttons (see below). */
+    private ReportListAdapter mReportListAdapter;
+
+    /**
+     * Set the {@link ReportActionHost} that contributes the extra action buttons of report screens.
+     * Should be called before the first {@link ReportActivity} is started, typically from the host
+     * app's {@code Application.onCreate()}.
+     */
+    public static void setReportActionHost(final ReportActionHost host) {
+        sReportActionHost = host;
+    }
 
     /**
      * The report/About screen deliberately does <b>not</b> wrap its context with the
@@ -243,12 +271,167 @@ public class ReportActivity extends AppCompatActivity {
             .include(FencedCodeBlock.class, SimpleEntry.create(R.layout.markdown_adapter_node_code_block, R.id.code_text_view))
             .build();
 
+        // The host app's action buttons are the first items of the report list, so they sit at the
+        // very top of the report and scroll away with it (see ReportListAdapter).
+        mReportListAdapter = new ReportListAdapter(adapter);
+
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.setAdapter(adapter);
+        recyclerView.setAdapter(mReportListAdapter);
 
         generateReportActivityMarkdownString();
         adapter.setMarkdown(markwon, mReportActivityMarkdownString);
         adapter.notifyDataSetChanged();
+
+        setupReportActions();
+    }
+
+    /**
+     * Hand the host app's action buttons to the list, which shows them as its first items — at the
+     * very top of the report and scrolling away with it, rather than pinned under the toolbar.
+     */
+    private void setupReportActions() {
+        if (mReportListAdapter == null) return;
+
+        if (sReportActionHost == null || mReportInfo == null) {
+            mReportListAdapter.setActions(null);
+            return;
+        }
+
+        final List<ReportAction> actions;
+        try {
+            actions = sReportActionHost.getReportActions(this, mReportInfo);
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get report actions from the host app", e);
+            mReportListAdapter.setActions(null);
+            return;
+        }
+        mReportListAdapter.setActions(actions);
+    }
+
+    /**
+     * Build one outlined action button, coloured from the app day/night theme rather than from the
+     * button style defaults — this keeps the theme's red {@code colorPrimary} (which the rest of
+     * this screen deliberately avoids) out of the buttons and guarantees readable text in both modes.
+     */
+    private MaterialButton createReportActionButton() {
+        final boolean night = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+
+        final int surface = getThemeColor(com.google.android.material.R.attr.colorSurface,
+                night ? 0xFF000000 : 0xFFFFFFFF);
+        final int onSurface = getThemeColor(android.R.attr.textColorPrimary,
+                night ? 0xFFFFFFFF : 0xFF000000);
+
+        MaterialButton button = new MaterialButton(this, null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle);
+        button.setAllCaps(false);
+        button.setTextColor(onSurface);
+        // Same colour as the text, at 25% alpha, so the outline is visible but not a hard border.
+        button.setStrokeColor(ColorStateList.valueOf((onSurface & 0x00FFFFFF) | 0x40000000));
+        button.setBackgroundTintList(ColorStateList.valueOf(surface));
+        return button;
+    }
+
+    /** Hand a clicked action button over to the host app. */
+    private void dispatchReportAction(final ReportAction action) {
+        if (sReportActionHost == null) return;
+        Logger.logInfo(LOG_TAG, "Report action \"" + action.id + "\" clicked");
+        try {
+            sReportActionHost.onReportActionClicked(this, mReportInfo, action);
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to handle report action \"" + action.id + "\"", e);
+        }
+    }
+
+    /**
+     * Wraps the markdown adapter so the host app's action buttons become the report list's FIRST
+     * items: they then sit at the very top of the report and scroll away with it, instead of being
+     * pinned under the toolbar.
+     *
+     * <p>This is what {@code ConcatAdapter} does, but this module compiles against RecyclerView
+     * 1.1.0, which does not have it yet, so the one-item header is prepended by hand.
+     */
+    private final class ReportListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+
+        /** View type of an action button item. Markdown item types are shifted by one to stay clear. */
+        private static final int VIEW_TYPE_ACTION = 0;
+
+        /** The markdown adapter that renders the report itself. */
+        private final RecyclerView.Adapter<RecyclerView.ViewHolder> mReportAdapter;
+
+        private final List<ReportAction> mActions = new ArrayList<>();
+
+        /** Keeps the RecyclerView in sync when the markdown adapter replaces the whole report. */
+        private final RecyclerView.AdapterDataObserver mReportAdapterObserver = new RecyclerView.AdapterDataObserver() {
+            @Override public void onChanged() { notifyDataSetChanged(); }
+            @Override public void onItemRangeChanged(int positionStart, int itemCount) { notifyDataSetChanged(); }
+            @Override public void onItemRangeInserted(int positionStart, int itemCount) { notifyDataSetChanged(); }
+            @Override public void onItemRangeRemoved(int positionStart, int itemCount) { notifyDataSetChanged(); }
+            @Override public void onItemRangeMoved(int fromPosition, int toPosition, int itemCount) { notifyDataSetChanged(); }
+        };
+
+        @SuppressWarnings("unchecked")
+        ReportListAdapter(@NonNull RecyclerView.Adapter<?> reportAdapter) {
+            mReportAdapter = (RecyclerView.Adapter<RecyclerView.ViewHolder>) reportAdapter;
+            mReportAdapter.registerAdapterDataObserver(mReportAdapterObserver);
+        }
+
+        void setActions(@Nullable final List<ReportAction> actions) {
+            mActions.clear();
+            if (actions != null) {
+                for (ReportAction action : actions) {
+                    if (action != null && !action.title.isEmpty()) mActions.add(action);
+                }
+            }
+            notifyDataSetChanged();
+        }
+
+        @Override
+        public int getItemCount() {
+            return mActions.size() + mReportAdapter.getItemCount();
+        }
+
+        @Override
+        public int getItemViewType(int position) {
+            if (isActionItem(position)) return VIEW_TYPE_ACTION;
+            return mReportAdapter.getItemViewType(position - mActions.size()) + 1;
+        }
+
+        @NonNull
+        @Override
+        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            if (viewType == VIEW_TYPE_ACTION) {
+                MaterialButton button = createReportActionButton();
+                final int sidePadding = getResources().getDimensionPixelSize(R.dimen.content_padding);
+                RecyclerView.LayoutParams params = new RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                params.leftMargin = sidePadding;
+                params.rightMargin = sidePadding;
+                params.bottomMargin = (int) (8 * getResources().getDisplayMetrics().density + 0.5f);
+                button.setLayoutParams(params);
+                return new RecyclerView.ViewHolder(button) {};
+            }
+            return mReportAdapter.onCreateViewHolder(parent, viewType - 1);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+            if (isActionItem(position)) {
+                final ReportAction action = mActions.get(position);
+                MaterialButton button = (MaterialButton) holder.itemView;
+                button.setText(action.title);
+                button.setOnClickListener(v -> dispatchReportAction(action));
+                return;
+            }
+            mReportAdapter.onBindViewHolder(holder, position - mActions.size());
+        }
+
+        private boolean isActionItem(int position) {
+            return position < mActions.size();
+        }
+
     }
 
 
@@ -304,6 +487,21 @@ public class ReportActivity extends AppCompatActivity {
         }
 
         return false;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        // Forward every result to the host app, so it can receive the results of the intents it
+        // started from ReportActionHost.onReportActionClicked() (e.g. a file chosen with
+        // ACTION_CREATE_DOCUMENT). The host ignores request codes it does not own.
+        if (sReportActionHost == null) return;
+        try {
+            sReportActionHost.onReportActionActivityResult(this, mReportInfo, requestCode, resultCode, data);
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to forward activity result to the host app", e);
+        }
     }
 
     @Override
@@ -527,6 +725,52 @@ public class ReportActivity extends AppCompatActivity {
         String reportInfoDirectoryPath = getReportInfoDirectoryPath(context);
         Logger.logVerbose(LOG_TAG, "Deleting " + ReportInfo.class.getSimpleName() + " serialized object files under directory path \"" + reportInfoDirectoryPath + "\" older than " + days + " days");
         return FileUtils.deleteFilesOlderThanXDays(ReportInfo.class.getSimpleName(), reportInfoDirectoryPath, null, days, true, FileType.REGULAR.getValue());
+    }
+
+
+    /**
+     * Implemented by the host app to add custom action buttons to report screens — e.g. the
+     * "back up the container" / "back up app settings" buttons on a crash report — without
+     * {@link ReportActivity} having to know anything about them: the host supplies the (already
+     * localized) labels and handles the clicks.
+     *
+     * <p>All callbacks are invoked on the main thread.
+     *
+     * @see #setReportActionHost(ReportActionHost)
+     */
+    public interface ReportActionHost {
+
+        /**
+         * Get the actions to show as buttons under the toolbar of the report screen for
+         * {@code reportInfo}.
+         *
+         * @param activity The {@link Activity} showing the report.
+         * @param reportInfo The report that is being shown.
+         * @return The actions to show, or {@code null}/empty for none — the button row is hidden
+         *         then, so a host only has to return actions for the reports it cares about.
+         */
+        @Nullable
+        List<ReportAction> getReportActions(@NonNull Activity activity, @NonNull ReportInfo reportInfo);
+
+        /**
+         * Called when the button of {@code action} is clicked.
+         *
+         * <p>The host may start another activity for a result with
+         * {@link Activity#startActivityForResult(Intent, int)}; the result is then delivered to
+         * {@link #onReportActionActivityResult(Activity, ReportInfo, int, int, Intent)}.
+         */
+        void onReportActionClicked(@NonNull Activity activity, @NonNull ReportInfo reportInfo,
+                                   @NonNull ReportAction action);
+
+        /**
+         * Called for every activity result received while the report screen is open, so the host can
+         * receive the results of intents it started from
+         * {@link #onReportActionClicked(Activity, ReportInfo, ReportAction)}. Request codes the host
+         * does not own must be ignored.
+         */
+        void onReportActionActivityResult(@NonNull Activity activity, @NonNull ReportInfo reportInfo,
+                                          int requestCode, int resultCode, @Nullable Intent data);
+
     }
 
 

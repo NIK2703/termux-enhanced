@@ -29,16 +29,13 @@
     <string name="action_new_session">新增工作階段</string>
     <string name="action_failsafe_mode">故障安全模式</string>
     <string name="new_tab_placeholder_hint">新增工作階段</string>
-    <string name="session_tabs_title">工作階段分頁</string>
     <string name="swipe_rightmost_new_tab_title">滑動最右側分頁以新增工作階段</string>
-    <string name="swipe_rightmost_new_tab_summary">在最後一個分頁上向右滑動以開啟新的終端機工作階段</string>
     <string name="title_max_terminals_reached">終端機數量已達上限</string>
     <string name="msg_max_terminals_reached">請先關閉現有終端機，再建立新終端機。</string>
     <string name="title_rename_session">設定工作階段名稱</string>
     <string name="action_rename_session_confirm">設定</string>
     <string name="title_create_named_session">新增具名工作階段</string>
     <string name="action_create_named_session_confirm">建立</string>
-    <string name="action_toggle_soft_keyboard">鍵盤</string>
     <string name="action_toggle_text_input">文字輸入</string>
     <string name="msg_terminal_panel_enabling">正在啟用終端機面板</string>
     <string name="msg_terminal_panel_disabling">正在停用終端機面板</string>
@@ -63,8 +60,6 @@
     <string name="title_confirm_kill_process">確定要終止此工作階段？</string>
     <string name="action_style_terminal">樣式</string>
     <string name="action_font_terminal">字型</string>
-    <string name="font_picker_title">選擇字型 (.ttf)</string>
-    <string name="error_font_apply_failed">套用字型失敗</string>
     <string name="action_toggle_keep_screen_on">保持螢幕恆亮</string>
     <string name="action_open_help">說明</string>
     <string name="action_open_settings">設定</string>
@@ -72,7 +67,6 @@
     <string name="msg_generating_report">正在產生報告</string>
     <string name="msg_add_termux_debug_info">是否將 Termux 偵錯資訊新增至報告？</string>
     <string name="error_styling_not_installed">未安裝 Termux:Styling 外掛程式。</string>
-    <string name="action_styling_install">安裝</string>
     <string name="notification_action_exit">離開</string>
     <string name="notification_action_wake_lock">取得喚醒鎖</string>
     <string name="notification_action_wake_unlock">釋放喚醒鎖</string>
@@ -94,11 +88,6 @@
     <string name="error_termux_service_start_failed_general">啟動 TermuxService 失敗。請檢查 logcat 中的例外訊息。</string>
     <string name="error_termux_service_start_failed_bg">由於 Android 背景限制，應用程式在背景時啟動 TermuxService 失敗。</string>
     <string name="title_activity_termux_settings">Termux 設定</string>
-    <string name="appearance_preferences_title">外觀</string>
-    <string name="appearance_preferences_summary">應用程式外觀與面板透明度設定</string>
-    <string name="theme_title">主題</string>
-    <string name="panel_transparency_title">面板透明度</string>
-    <string name="termux_preferences_summary">Termux 應用程式設定</string>
     <string name="termux_debugging_preferences_title">偵錯</string>
     <string name="termux_debugging_preferences_summary">偵錯設定</string>
     <string name="termux_log_level_title">記錄層級</string>
@@ -108,8 +97,6 @@
     <string name="termux_plugin_error_notifications_enabled_title">外掛程式錯誤通知</string>
     <string name="termux_crash_report_notifications_enabled_title">當機報告通知</string>
 
-    <string name="termux_terminal_io_preferences_title">終端機輸入/輸出</string>
-    <string name="termux_terminal_io_preferences_summary">終端機輸入/輸出設定</string>
     <string name="termux_keyboard_header">鍵盤</string>
     <string name="system_buttons_category_title">系統按鍵</string>
     <string name="input_additional_category_title">附加</string>
@@ -119,9 +106,6 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">切換分頁時的鍵盤狀態</string>
     <string name="keyboard_state_follow_tab_switch_summary">切換分頁時，還原每個分頁離開時的鍵盤狀態。</string>
-    <string name="termux_terminal_view_preferences_title">終端機檢視</string>
-    <string name="termux_terminal_view_preferences_summary">終端機檢視設定</string>
-    <string name="termux_terminal_view_view_header">檢視</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">非作用中元素背景不透明度</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">作用中元素背景不透明度</string>
     <string name="termux_api_preferences_title">Termux:API</string>
@@ -134,26 +118,21 @@
     <string name="termux_widget_preferences_summary">Termux:Widget 應用程式設定</string>
     <string name="about_preference_title">關於</string>
     <string name="theme_mode_title">應用程式主題</string>
-    <string name="theme_mode_summary">選擇應用程式和終端機主題</string>
     <string name="color_scheme_dialog_title">終端機配色方案</string>
     <string name="color_scheme_light_title">終端機配色方案（淺色主題）</string>
     <string name="color_scheme_light_summary">淺色應用程式主題下使用的配色方案</string>
     <string name="color_scheme_dark_title">終端機配色方案（深色主題）</string>
     <string name="color_scheme_dark_summary">深色應用程式主題下使用的配色方案</string>
 
-    <string name="input_history_title">輸入紀錄</string>
     <string name="input_history_max_title">輸入紀錄的最大項目數</string>
     <string name="per_directory_input_history_title">依目錄分別儲存輸入紀錄</string>
     <string name="per_directory_input_history_summary">為每個工作目錄分別儲存輸入紀錄。關閉後，所有工作階段共用同一個全域紀錄。</string>
     <string name="input_history_save_cleared_title">儲存已清空的輸入內容</string>
     <string name="input_history_save_cleared_summary">將已從輸入框清空的輸入內容儲存到紀錄。</string>
     <string name="text_input_append_enter_title">傳送時附加 Enter</string>
-    <string name="directory_history_title">工作目錄紀錄</string>
     <string name="directory_history_max_title">工作目錄紀錄的最大項目數</string>
     <string name="restore_tabs_title">啟動時還原分頁</string>
-    <string name="restore_tabs_summary">應用程式啟動時重新開啟所有分頁及其目錄</string>
     <string name="screen_orientation_title">螢幕方向</string>
-    <string name="screen_orientation_summary">「跟隨感應器」選項會在兩種方向之間切換（例如直向的 0°/180°）。</string>
 
     <string name="donate_preference_title">捐款</string>
     <string name="backup_preference_title">備份 Termux 容器</string>
@@ -164,11 +143,7 @@
     <string name="backup_restore_warning_restore">還原操作將用所選備份檔案的內容覆寫目前 Termux 資料目錄（已安裝的套件和主目錄）。現有資料將會遺失。\n\n⚠ 如果還原失敗——例如備份檔案損毀、不完整，或還原過程被中斷——您的 Termux 環境將為空，且無法復原原始資料。\n\n此操作無法復原。強烈建議先建立備份，並驗證備份檔案有效。</string>
     <string name="backup_restore_backup_started">正在建立備份…</string>
     <string name="backup_restore_restore_started">正在從備份還原…</string>
-    <string name="backup_restore_backup_success">備份建立成功</string>
-    <string name="backup_restore_restore_success">資料還原成功</string>
-    <string name="backup_restore_failed_title">操作失敗</string>
     <string name="backup_restore_tar_not_found">未找到 Termux 的 tar 二進位檔案。請至少開啟一次 Termux，以完成容器初始化。</string>
-    <string name="backup_restore_choose_backup">選擇要還原的 .tar.gz 備份檔案</string>
     <string name="backup_service_channel_name">Termux 備份 / 還原</string>
     <string name="backup_service_notification_title">Termux 資料備份</string>
     <string name="backup_service_notification_restore_title">Termux 資料還原</string>
@@ -194,21 +169,13 @@
     <string name="settings_restart_required">請重新啟動 Termux 以使所有還原的設定生效</string>
     <string name="settings_backup_failed">設定備份失敗</string>
     <string name="settings_restore_failed">設定還原失敗</string>
-    <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">包含 tmp 目錄 (usr/tmp/)</string>
-    <string name="error_settings_backup_format_version">不支援的備份格式版本：%1$s</string>
-    <string name="error_settings_backup_missing_manifest">備份檔案中缺少 manifest.properties</string>
     <string name="error_settings_restore_open_input">無法開啟要讀取的檔案</string>
     <string name="tab_close_description">關閉分頁</string>
     <string name="session_default_title">終端機</string>
     <string name="text_input_toggle_button_title">輸入面板切換按鈕</string>
-    <string name="text_input_hide_on_send_title">傳送後隱藏輸入面板</string>
-    <string name="text_input_hide_on_send_summary">啟用後，輸入面板將在傳送後關閉，焦點返回終端機；停用後，面板保持開啟，便於連續輸入指令。</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">傳送後隱藏螢幕鍵盤</string>
-    <string name="text_input_hide_keyboard_on_send_summary">啟用後，從輸入框傳送文字（例如按下 Enter）時會隱藏螢幕鍵盤。輸入面板和鍵盤分別獨立控制。</string>
     <string name="text_input_action_on_send_title">傳送動作</string>
-    <string name="text_input_action_on_send_summary">從輸入框傳送文字後執行的動作：無動作、隱藏輸入面板，或隱藏輸入面板和鍵盤。</string>
     <string-array name="text_input_action_on_send_entries">
         <item>無動作</item>
         <item>隱藏輸入面板</item>
@@ -220,7 +187,6 @@
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">從紀錄還原文字的行為</string>
-    <string name="text_input_restore_mode_summary">輕觸以選擇：插入到游標位置或取代整個輸入框</string>
     <string name="text_input_restore_mode_dialog_title">從紀錄還原模式</string>
     <string name="text_input_restore_mode_option_insert">在游標處插入</string>
     <string name="text_input_restore_mode_option_replace">取代整個輸入框</string>
@@ -264,11 +230,8 @@
 
     
     <string name="locale_override_title">應用程式語言</string>
-    <string name="locale_override_summary">覆寫應用程式的語言設定</string>
     <string name="locale_override_entry_system">跟隨系統</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">隨鍵盤隱藏額外按鈕</string>
-    <string name="hide_extra_keys_with_keyboard_summary">鍵盤關閉時自動隱藏額外按鈕，開啟時顯示</string>
 
     
     <string name="termux_tab_height_mode_title">分頁高度</string>
@@ -281,43 +244,29 @@
     
     <string name="suggestions_max_count_title">自動補全建議的最大數量</string>
 
-    <string name="language_category_title">語言</string>
     <string name="appearance_category_title">外觀</string>
     <string name="input_preferences_title">輸入</string>
     <string name="input_preferences_summary">額外按鈕、輸入面板、鍵盤、快捷鍵、系統按鈕</string>
-    <string name="extra_keys_preferences_title">額外按鈕</string>
-    <string name="extra_keys_preferences_summary">額外按鈕面板設定</string>
     <string name="display_preferences_title">顯示</string>
     <string name="display_preferences_summary">外觀、分頁、終端機、視窗</string>
     <string name="terminal_advanced_title">進階</string>
     <string name="terminal_advanced_summary">工作階段、聲音與通知、外部應用程式、附加功能、偵錯</string>
     <string name="extra_keys_corner_radius_title">按鈕圓角半徑</string>
-    <string name="sessions_preferences_title">工作階段</string>
-    <string name="sessions_history_preferences_summary">工作階段、分頁和紀錄設定</string>
     <string name="backup_restore_preferences_title">備份與還原</string>
     <string name="backup_restore_preferences_summary">Termux 容器、應用程式設定</string>
-    <string name="diagnostics_preferences_title">診斷</string>
-    <string name="diagnostics_preferences_summary">記錄和錯誤通知</string>
     <string name="plugin_logging_category_title">記錄</string>
     <string name="extra_keys_special_button_mode_title">特殊按鈕行為</string>
-    <string name="extra_keys_special_button_mode_summary">修飾鍵（CTRL、ALT、SHIFT、FN）對觸控的回應方式。黏滯：輕觸切換，長按鎖定；按住：僅在按住時生效。</string>
     <string name="extra_keys_special_button_mode_sticky">黏滯（切換/鎖定）</string>
     <string name="extra_keys_special_button_mode_hold">按住（按住時生效）</string>
-    <string name="extra_keys_header">額外按鈕</string>
     <string name="extra_keys_category_title">額外按鈕</string>
-    <string name="extra_keys_layout_title">按鈕配置</string>
-    <string name="extra_keys_layout_summary">用於定義額外按鈕各行及其彈出內容的 JSON 矩陣。</string>
     <string name="extra_keys_style_title">按鈕樣式</string>
-    <string name="extra_keys_style_summary">特殊字元在按鈕上的顯示方式。</string>
     <string name="extra_keys_style_default">預設</string>
     <string name="extra_keys_style_arrows_only">僅箭頭</string>
     <string name="extra_keys_style_arrows_all">全部箭頭</string>
     <string name="extra_keys_style_all">全部</string>
     <string name="extra_keys_style_none">無</string>
     <string name="extra_keys_text_all_caps_title">按鈕標籤全大寫</string>
-    <string name="view_category_title">檢視</string>
     <string name="window_category_title">視窗</string>
-    <string name="history_category_title">紀錄</string>
     <string name="tabs_category_title">分頁</string>
     <string name="input_panel_title">輸入面板</string>
 
@@ -332,39 +281,27 @@
 
     
     <string name="extra_keys_visibility_title">顯示額外按鈕面板</string>
-    <string name="extra_keys_visibility_summary">控制額外按鈕面板的顯示時機。</string>
     <string name="extra_keys_visibility_always">總是顯示</string>
     <string name="extra_keys_visibility_keyboard">僅鍵盤開啟時</string>
     <string name="extra_keys_visibility_never">從不顯示</string>
 
     
-    <string name="extra_keys_invalid_json">額外按鈕的 JSON 格式無效，變更未儲存。</string>
 
     
     <string name="extra_keys_haptic_title">觸覺回饋</string>
-    <string name="extra_keys_haptic_summary">與額外按鈕面板互動時震動</string>
     <string name="extra_keys_haptic_all">輕觸與手勢</string>
     <string name="extra_keys_haptic_gestures">僅手勢</string>
     <string name="extra_keys_haptic_off">已停用</string>
 
     
     <string name="extra_keys_editor_title">額外按鈕編輯器</string>
-    <string name="extra_keys_editor_summary">視覺化建構額外按鈕面板：設定行數和欄數，然後輕觸按鈕分配訊號。</string>
     <string name="extra_keys_editor_columns_title">欄數</string>
     <string name="extra_keys_editor_rows_title">行數</string>
-    <string name="extra_keys_editor_preview_title">預覽</string>
-    <string name="extra_keys_editor_preview_summary">即時面板——輕觸任意按鈕即可變更其訊號。</string>
     <string name="extra_keys_editor_signal_dialog_title">分配訊號</string>
     <string name="extra_keys_editor_custom_text_title">符號/文字</string>
-    <string name="extra_keys_editor_custom_text_message">按下任意鍵以綁定：</string>
-    <string name="extra_keys_editor_apply_title">套用到額外按鈕</string>
-    <string name="extra_keys_editor_apply_summary">將此配置儲存到額外按鈕設定。</string>
-    <string name="extra_keys_editor_empty">（空）</string>
     <string name="extra_keys_editor_max_signals">每個按鈕最多 8 個訊號</string>
-    <string name="extra_keys_editor_custom_text_no_space">組合鍵中不支援含空格的文字</string>
     <string name="extra_keys_editor_done">完成</string>
     <string name="extra_keys_editor_open_editor">編輯額外按鈕</string>
-    <string name="extra_keys_editor_open_editor_summary">設定配置、縮放和按鈕綁定</string>
     <string name="extra_keys_edge_indicators_title">手勢方向指示器</string>
     <string name="extra_keys_editor_hint">輕觸分配主要動作。\n向上、向下、向左或向右滑動，為相應手勢分配動作。\n長按任意按鈕可設定標籤。</string>
     <string name="extra_keys_editor_mode_assign">分配</string>
@@ -397,22 +334,15 @@
     <string name="extra_keys_editor_signal_keyboard">鍵盤切換</string>
     <string name="extra_keys_editor_signal_paste">貼上</string>
     <string name="extra_keys_editor_signal_scroll_lock">捲動鎖定</string>
-    <string name="extra_keys_editor_signal_space">空格</string>
     <string name="extra_keys_editor_signal_up">向上</string>
     <string name="extra_keys_editor_signal_left">向左</string>
     <string name="extra_keys_editor_signal_right">向右</string>
     <string name="extra_keys_editor_signal_down">向下</string>
-    <string name="extra_keys_editor_signal_backslash">反斜線（\\）</string>
-    <string name="extra_keys_editor_signal_quote">引號（\"）</string>
-    <string name="extra_keys_editor_signal_apostrophe">撇號（\'）</string>
     <string name="extra_keys_editor_signal_custom">符號/文字…</string>
 
     <string name="terminal_category_title">終端機</string>
-    <string name="key_behaviour_category_title">按鍵行為</string>
-    <string name="screen_category_title">螢幕</string>
     <string name="shortcuts_category_title">快捷鍵</string>
     <string name="addons_category_title">附加功能</string>
-    <string name="misc_category_title">雜項</string>
     <string name="external_apps_category_title">外部應用程式</string>
     <string name="sound_category_title">聲音與通知</string>
     <string name="session_category_title">工作階段</string>
@@ -434,7 +364,6 @@
     <string name="invalid_number">請輸入有效數字。</string>
 
     <string name="terminal_cursor_style_title">游標樣式</string>
-    <string name="terminal_cursor_style_summary">終端機游標的繪製方式。</string>
     <string name="terminal_cursor_style_block">方塊</string>
     <string name="terminal_cursor_style_underline">底線</string>
     <string name="terminal_cursor_style_bar">豎線</string>
@@ -443,7 +372,6 @@
     <string name="terminal_cursor_blink_enabled_title">游標閃爍</string>
 
     <string name="bell_character_title">響鈴行為</string>
-    <string name="bell_character_summary">終端機收到響鈴字元（BEL）時的行為。</string>
     <string name="bell_character_vibrate">震動</string>
     <string name="bell_character_beep">蜂鳴聲</string>
     <string name="bell_character_ignore">忽略</string>
@@ -469,39 +397,25 @@
     <string name="volume_keys_summary">按住裝置的音量減小鍵或音量增大鍵時，將分別作為 Ctrl 或 Fn 使用。在此模式下，如需開啟音量面板，請使用 Fn + v。</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">螢幕鍵盤切換行為</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">選擇螢幕鍵盤切換按鈕的行為：顯示/隱藏螢幕鍵盤，或啟用/停用螢幕鍵盤。</string>
     <string name="soft_keyboard_toggle_show_hide">顯示/隱藏</string>
     <string name="soft_keyboard_toggle_enable_disable">啟用/停用</string>
 
     <string name="ctrl_space_workaround_title">Ctrl+Space 變通方案</string>
-    <string name="ctrl_space_workaround_summary">使用變通方案，確保正確傳送 Ctrl+Space。</string>
 
     <string name="enforce_char_based_input_title">依位元組傳送輸入</string>
-    <string name="enforce_char_based_input_summary">一次傳送一個位元組。</string>
 
     <string name="disable_hardware_keyboard_shortcuts_title">停用實體鍵盤快捷鍵</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">忽略來自實體/外部鍵盤的快捷鍵。</string>
 
-    <string name="disable_terminal_session_change_toast_title">不顯示工作階段切換提示</string>
-    <string name="disable_terminal_session_change_toast_summary">切換終端機工作階段時不顯示提示。</string>
 
     <string name="scroll_on_new_output_title">新輸出時自動捲動</string>
-    <string name="scroll_on_new_output_summary">當終端機有新輸出時自動捲動到底部。</string>
 
     <string name="terminal_onclick_url_open_title">輕觸開啟連結</string>
-    <string name="terminal_onclick_url_open_summary">輕觸終端機緩衝區中的連結時開啟。</string>
 
     <string name="fullscreen_title">全螢幕</string>
     <string name="bubble_on_background_title">背景氣泡</string>
     <string name="bubble_on_background_summary">進入背景時顯示氣泡，以便在其他應用程式上方快速存取終端機</string>
-    <string name="fullscreen_summary">以全螢幕模式執行 Termux。</string>
 
 
-    <string name="night_mode_legacy_title">夜間模式（舊版）</string>
-    <string name="night_mode_legacy_summary">控制舊版夜間模式屬性。建議在「顯示」頁面使用主題設定。</string>
-    <string name="night_mode_true">深色</string>
-    <string name="night_mode_false">淺色</string>
-    <string name="night_mode_system">跟隨系統</string>
 
     <string name="allow_external_apps_title">允許外部指令</string>
     <string name="allow_external_apps_summary">允許其他應用程式透過 RUN_COMMAND 啟動 Termux 指令。</string>
@@ -513,7 +427,6 @@
     <string name="run_termux_am_socket_server_title">啟動 termux-am 通訊端伺服器</string>
 
     <string name="hide_soft_keyboard_on_startup_title">啟動時隱藏螢幕鍵盤</string>
-    <string name="hide_soft_keyboard_on_startup_summary">啟動 Termux 時保持螢幕鍵盤隱藏。</string>
 
     <string name="extra_keys_button_margin_title">按鈕間距</string>
 
@@ -535,14 +448,12 @@
     <string name="termux_widget_debugging_title">Termux:Widget 偵錯</string>
 
     <!-- Bootstrap Selector Activity -->
-    <string name="bootstrap_selector_error_load_sources">無法載入來源</string>
     <string name="bootstrap_selector_install_local_title">安裝本機啟動套件？</string>
     <string name="bootstrap_selector_install_local_message">安裝本機啟動套件 .zip 檔案時可能會執行任意程式碼。請僅在信任此檔案時繼續。</string>
     <string name="bootstrap_selector_install">安裝</string>
     <string name="bootstrap_selector_cancel">取消</string>
 
     <!-- Bootstrap Download Service -->
-    <string name="bootstrap_download_status_idle">等待中</string>
     <string name="bootstrap_download_status_connecting">正在連線</string>
     <string name="bootstrap_download_progress_preparing">正在準備下載</string>
     <string name="bootstrap_download_status_installing">正在安裝</string>
@@ -557,8 +468,6 @@
     <string name="bootstrap_download_progress_checking_sha">正在檢查 SHA-256</string>
     <string name="bootstrap_download_notification_starting">正在啟動</string>
     <string name="bootstrap_download_channel_name">Termux 啟動套件下載器</string>
-    <string name="bootstrap_download_notification_title_success">啟動套件已安裝</string>
-    <string name="bootstrap_download_notification_text_success">輕觸開啟 Termux</string>
     <string name="bootstrap_download_notification_title_failed">啟動套件安裝失敗</string>
 
 
@@ -570,7 +479,6 @@
 
 
     <!-- Bootstrap install progress (TermuxInstaller) -->
-    <string name="bootstrap_install_progress_verify_sha">正在驗證總和檢查碼</string>
     <string name="bootstrap_install_progress_verify_manifest">正在驗證套件資訊清單</string>
     <string name="bootstrap_install_progress_extract">正在解壓縮啟動套件</string>
     <string name="bootstrap_install_progress_finalize">正在完成安裝</string>
@@ -579,10 +487,8 @@
 
     <string name="extra_keys_editor_delay_format">⏱ %d 毫秒</string>
     <string name="extra_keys_editor_delay_hint">延遲</string>
-    <string name="extra_keys_editor_delay_presets">快速選擇：</string>
 
     <!-- Termux App Preferences -->
-    <string name="termux_preferences_title">Termux</string>
 
     <!-- Extra keys editor swipe suffixes -->
     <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>
@@ -591,7 +497,6 @@
     <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
 
     <!-- Backup -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
     <string name="backup_progress_calculating_size">正在計算備份大小…</string>
 
@@ -630,12 +535,9 @@
     <string name="extra_keys_editor_delay_dialog_title">延遲</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">裝置沒有支援的 ABI</string>
     <string name="error_abi_arch_mismatch">啟動套件架構「%1$s」與裝置架構「%2$s」不相符。可用 ABI：%3$s</string>
-    <string name="error_abi_unknown">未知 ABI：%1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">啟動套件 zip 中缺少 BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_manifest_missing_variant">BOOTSTRAP_INFO 中缺少「variant」</string>
     <string name="error_bootstrap_manifest_missing_arch">BOOTSTRAP_INFO 中缺少「arch」</string>
 
@@ -702,8 +604,6 @@
 
     <!-- Bootstrap/backup strings added for i18n completeness -->
     <string name="bootstrap_selector_title">Termux 啟動套件安裝</string>
-    <string name="bootstrap_selector_status_default">選擇要安裝的啟動套件來源：</string>
-    <string name="bootstrap_selector_source_label">來源：</string>
     <string name="bootstrap_selector_download">下載推薦的啟動套件</string>
     <string name="bootstrap_selector_pick_zip">選擇本機 .zip 檔案</string>
     <string name="bootstrap_selector_retry">重試</string>
@@ -722,7 +622,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">字型大小</string>
-    <string name="terminal_font_size_summary" formatted="false">此值與在終端機中透過雙指縮放手勢調整的字型大小相同</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

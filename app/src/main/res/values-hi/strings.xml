@@ -33,17 +33,12 @@
     <string name="action_share_selected_text">चयनित पाठ साझा करें</string>
     <string name="action_share_transcript">टर्मिनल लॉग साझा करें</string>
     <string name="action_style_terminal">शैली</string>
-    <string name="action_styling_install">इंस्टॉल करें</string>
     <string name="action_toggle_keep_screen_on">स्क्रीन चालू रखें</string>
-    <string name="action_toggle_soft_keyboard">कीबोर्ड</string>
     <string name="action_toggle_text_input">टेक्स्ट इनपुट</string>
-    <string name="appearance_preferences_summary">ऐप की दिखावट और पैनल पारदर्शिता के लिए प्राथमिकताएँ</string>
-    <string name="appearance_preferences_title">दिखावट</string>
     <string name="backup_dialog_run_in_background">पृष्ठभूमि में चलाएँ</string>
     <string name="backup_dialog_cancel">रद्द करें</string>
     <string name="backup_preference_title">Termux कंटेनर का बैकअप</string>
     <string name="backup_restore_backup_started">बैकअप बनाया जा रहा है…</string>
-    <string name="backup_restore_backup_success">बैकअप सफलतापूर्वक बनाया गया</string>
     <string name="backup_restore_cancelled">ऑपरेशन रद्द किया गया</string>
     <!-- Settings Backup / Restore -->
     <string name="backup_restore_full_data_category_title">Termux कंटेनर</string>
@@ -59,17 +54,11 @@
     <string name="settings_restart_required">सभी पुनर्स्थापित सेटिंग्स प्रभावी होने के लिए Termux को पुनरारंभ करें</string>
     <string name="settings_backup_failed">सेटिंग्स सहेजने में विफल</string>
     <string name="settings_restore_failed">सेटिंग्स पुनर्स्थापित करने में विफल</string>
-    <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">tmp निर्देशिका शामिल करें (usr/tmp/)</string>
-    <string name="error_settings_backup_format_version">असमर्थित बैकअप प्रारूप संस्करण: %1$s</string>
-    <string name="error_settings_backup_missing_manifest">बैकअप फ़ाइल में manifest.properties गायब है</string>
     <string name="error_settings_restore_open_input">इनपुट फ़ाइल खोलने में विफल</string>
-    <string name="backup_restore_choose_backup">पुनर्स्थापना के लिए .tar.gz बैकअप फ़ाइल चुनें</string>
     <string name="backup_restore_dialog_title">Termux डेटा बैकअप / पुनर्स्थापना</string>
-    <string name="backup_restore_failed_title">ऑपरेशन विफल</string>
     <string name="backup_restore_tar_not_found">Termux में tar बाइनरी नहीं मिली। कृपया कम से कम एक बार Termux खोलें ताकि कंटेनर सेटअप हो सके।</string>
     <string name="backup_restore_restore_started">बैकअप से पुनर्स्थापना हो रही है…</string>
-    <string name="backup_restore_restore_success">डेटा सफलतापूर्वक पुनर्स्थापित हो गया</string>
     <string name="backup_restore_warning_backup">इससे आपकी Termux डेटा निर्देशिका का संपीड़ित संग्रह बनाया जाएगा (इंस्टॉल किए गए पैकेज और वातावरण, आपकी होम निर्देशिका सहित)।\n\nबैकअप सहेजने के लिए गंतव्य फ़ाइल चुनें।</string>
     <string name="backup_restore_warning_restore">पुनर्स्थापना करने पर मौजूदा Termux डेटा निर्देशिका (इंस्टॉल किए गए पैकेज और होम निर्देशिका) चयनित बैकअप फ़ाइल की सामग्री से ओवरराइट हो जाएगी। मौजूदा डेटा खो जाएगा।\n\n⚠ यदि पुनर्स्थापना विफल रहती है — क्योंकि बैकअप फ़ाइल क्षतिग्रस्त है, अधूरी है, या प्रक्रिया के दौरान कनेक्शन टूट जाता है — तो आपका Termux वातावरण खाली रह जाएगा। मूल डेटा पुनर्प्राप्त करने का कोई तरीका नहीं होगा।\n\nइसे पूर्ववत नहीं किया जा सकता। पहले बैकअप बनाने और यह सत्यापित करने की दृढ़ अनुशंसा की जाती है कि बैकअप फ़ाइल मान्य है।</string>
     <string name="backup_service_channel_name">Termux बैकअप / पुनर्स्थापना</string>
@@ -96,10 +85,8 @@
     <string name="directory_history_clear_dialog_title">निर्देशिका इतिहास साफ़ करें</string>
     <string name="directory_history_cleared">निर्देशिका इतिहास साफ़ कर दिया गया</string>
     <string name="directory_history_max_title">इतिहास में अधिकतम कार्य निर्देशिकाएँ</string>
-    <string name="directory_history_title">निर्देशिका इतिहास</string>
     <string name="donate_preference_title">दान करें</string>
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Android &gt;= 10 पर पृष्ठभूमि से टर्मिनल सत्र शुरू करने के लिए &TERMUX_APP_NAME; को “दूसरे ऐप्स पर दिखाएँ” अनुमति चाहिए। सेटिंग्स → ऐप्स → &TERMUX_APP_NAME; → उन्नत में जाकर अनुमति दें।</string>
-    <string name="error_font_apply_failed">फ़ॉन्ट लागू करने में विफल</string>
     <string name="error_run_command_service_api_help">RUN_COMMAND इंटेंट उपयोग की अधिक जानकारी के लिए %1$s पर जाएँ।</string>
     <string name="error_run_command_service_invalid_execution_command_runner">RunCommandService के लिए अमान्य निष्पादन कमांड निष्पादक: `%1$s`</string>
     <string name="error_run_command_service_invalid_intent_action">RunCommandService के लिए अमान्य इंटेंट क्रिया: `%1$s`</string>
@@ -122,7 +109,6 @@
     <string name="file_receiver_error_no_editor">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-file-editor\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे प्राप्त फ़ाइल एकमात्र तर्क के रूप में पास की जाएगी।</string>
     <string name="file_receiver_error_no_url_opener">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-url-opener\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे साझा किया गया URL पहले तर्क के रूप में पास किया जाएगा।</string>
     <string name="file_receiver_error_saving_file">फ़ाइल सहेजने में त्रुटि:\n\n%s</string>
-    <string name="font_picker_title">एक फ़ॉन्ट चुनें (.ttf)</string>
     <string name="input_history_clear">साफ़ करें</string>
     <string name="input_history_clear_all">इतिहास साफ़ करें…</string>
     <string name="input_history_clear_all_button">सभी</string>
@@ -136,7 +122,6 @@
     <string name="input_history_cleared">इनपुट इतिहास साफ़ कर दिया गया</string>
     <string name="input_history_empty">कोई इनपुट इतिहास नहीं</string>
     <string name="input_history_max_title">इतिहास में अधिकतम सहेजे गए इनपुट की संख्या</string>
-    <string name="input_history_title">इनपुट इतिहास</string>
     <string name="msg_add_termux_debug_info">रिपोर्ट में Termux डीबग जानकारी जोड़ें?</string>
     <string name="msg_terminal_panel_disabling">टर्मिनल पैनल अक्षम हो रहा है</string>
     <string name="msg_terminal_panel_enabling">टर्मिनल पैनल सक्षम हो रहा है</string>
@@ -151,7 +136,6 @@
     <string name="notification_action_wake_lock">वेक लॉक सक्षम करें</string>
     <string name="notification_action_wake_unlock">वेक लॉक अक्षम करें</string>
     <string name="notification_wake_lock_held"> (वेक लॉक सक्रिय)</string>
-    <string name="panel_transparency_title">पैनल पारदर्शिता</string>
     <string name="per_directory_input_history_summary">प्रत्येक कार्य निर्देशिका के लिए अलग इनपुट इतिहास रखें। अक्षम होने पर सभी सत्र एक साझा इतिहास का उपयोग करते हैं।</string>
     <string name="input_history_save_cleared_title">साफ़ किया गया टेक्स्ट इतिहास में सहेजें</string>
     <string name="input_history_save_cleared_summary">इनपुट फ़ील्ड से साफ़ किए गए टेक्स्ट को इतिहास में सहेजें।</string>
@@ -159,16 +143,12 @@
     <string name="permission_run_command_description">Termux वातावरण में कोई भी कमांड चलाना और फ़ाइलों तक पहुँचना</string>
     <string name="permission_run_command_label">Termux वातावरण में कमांड चलाना</string>
     <string name="restore_preference_title">Termux कंटेनर पुनर्स्थापित करें</string>
-    <string name="restore_tabs_summary">ऐप शुरू होने पर सभी टैब और उनकी निर्देशिकाएँ पुनः खोलें</string>
     <string name="restore_tabs_title">लॉन्च पर टैब पुनर्स्थापित करें</string>
-    <string name="screen_orientation_summary">“सेंसर का पालन करें” विकल्प दो अभिमुखताओं के बीच स्विच करते हैं (जैसे 0°/180° पोर्ट्रेट)।</string>
     <string name="screen_orientation_title">स्क्रीन अभिमुखता</string>
     <string name="session_default_title">टर्मिनल</string>
     <string name="session_null_title">नामहीन सत्र</string>
     <string name="new_tab_placeholder_hint">नया सत्र</string>
-    <string name="session_tabs_title">सत्र टैब</string>
     <string name="swipe_rightmost_new_tab_title">नए सत्र के लिए अंतिम टैब पर स्वाइप करें</string>
-    <string name="swipe_rightmost_new_tab_summary">अंतिम टैब पर दाएँ स्वाइप करके नया टर्मिनल सत्र खोलें</string>
     <string name="shared_user_label">Termux उपयोगकर्ता</string>
     <string name="tab_close_description">टैब बंद करें</string>
     <string name="termux_api_preferences_summary">Termux:API ऐप के लिए प्राथमिकताएँ</string>
@@ -179,9 +159,7 @@
     <string name="termux_debugging_preferences_title">डीबगिंग</string>
     <string name="termux_float_preferences_summary">Termux:Float ऐप के लिए प्राथमिकताएँ</string>
     <string name="termux_log_level_title">लॉग स्तर</string>
-    <string name="termux_logging_header">लॉगिंग</string>
     <string name="termux_plugin_error_notifications_enabled_title">प्लगिन त्रुटि सूचनाएँ</string>
-    <string name="termux_preferences_summary">Termux ऐप के लिए प्राथमिकताएँ</string>
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">टैब बदलते समय कीबोर्ड की स्थिति</string>
@@ -192,14 +170,9 @@
     <string name="input_additional_category_title">अतिरिक्त</string>
     <string name="termux_soft_keyboard_enabled_title">स्क्रीन कीबोर्ड</string>
     <string name="termux_tasker_preferences_summary">Termux:Tasker ऐप के लिए प्राथमिकताएँ</string>
-    <string name="termux_terminal_io_preferences_summary">टर्मिनल I/O के लिए प्राथमिकताएँ</string>
-    <string name="termux_terminal_io_preferences_title">टर्मिनल I/O</string>
     <string name="termux_terminal_view_key_logging_enabled_off">लॉग में टर्मिनल दृश्य कुंजियों की प्रविष्टियाँ नहीं होंगी।</string>
     <string name="termux_terminal_view_key_logging_enabled_on">लॉगकैट में टर्मिनल दृश्य कुंजियों की प्रविष्टियाँ होंगी। ये बहुत विस्तृत होती हैं और सामान्य उपयोग में अक्षम रहनी चाहिए, अन्यथा प्रदर्शन संबंधी समस्याएँ हो सकती हैं।</string>
     <string name="termux_terminal_view_key_logging_enabled_title">टर्मिनल दृश्य कुंजी लॉगिंग</string>
-    <string name="termux_terminal_view_preferences_summary">टर्मिनल दृश्य के लिए प्राथमिकताएँ</string>
-    <string name="termux_terminal_view_preferences_title">टर्मिनल दृश्य</string>
-    <string name="termux_terminal_view_view_header">दृश्य</string>
     <string name="termux_tab_height_mode_title">टैब ऊँचाई</string>
     <string name="termux_tab_height_mode_single">एक लाइन</string>
     <string name="termux_tab_height_mode_double">दो लाइनें</string>
@@ -209,13 +182,8 @@
     <string name="termux_widget_preferences_summary">Termux:Widget ऐप के लिए प्राथमिकताएँ</string>
     <string name="text_input_append_enter_title">भेजते समय Enter जोड़ें</string>
     <string name="text_input_toggle_button_title">इनपुट पैनल टॉगल बटन</string>
-    <string name="text_input_hide_on_send_title">भेजने के बाद इनपुट पैनल छिपाएँ</string>
-    <string name="text_input_hide_on_send_summary">सक्षम होने पर, भेजने के बाद इनपुट पैनल बंद हो जाता है और फ़ोकस टर्मिनल पर स्थानांतरित हो जाता है। लगातार कमांड के लिए पैनल खुला रखने हेतु इसे अक्षम करें।</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">भेजने के बाद सॉफ्ट कीबोर्ड छिपाएँ</string>
-    <string name="text_input_hide_keyboard_on_send_summary">सक्षम होने पर, इनपुट फ़ील्ड से टेक्स्ट भेजने के बाद (जैसे Enter दबाने पर) सॉफ्ट कीबोर्ड छिप जाता है। इनपुट पैनल और कीबोर्ड स्वतंत्र रूप से नियंत्रित होते हैं।</string>
     <string name="text_input_action_on_send_title">भेजने पर क्रिया</string>
-    <string name="text_input_action_on_send_summary">इनपुट फ़ील्ड से पाठ भेजने के बाद क्या होता है: कुछ न करें, इनपुट पैनल छिपाएँ, या इनपुट पैनल और कीबोर्ड दोनों छिपाएँ।</string>
     <string-array name="text_input_action_on_send_entries">
         <item>कुछ नहीं</item>
         <item>इनपुट पैनल छिपाएँ</item>
@@ -227,13 +195,10 @@
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">इतिहास से टेक्स्ट पुनर्स्थापना व्यवहार</string>
-    <string name="text_input_restore_mode_summary">चुनने के लिए टैप करें: कर्सर की स्थिति पर सम्मिलित करें या पूरा इनपुट फ़ील्ड बदलें</string>
     <string name="text_input_restore_mode_dialog_title">इनपुट इतिहास पुनर्स्थापना मोड</string>
     <string name="text_input_restore_mode_option_insert">कर्सर की स्थिति में सम्मिलित करें</string>
     <string name="text_input_restore_mode_option_replace">पूरा इनपुट फ़ील्ड बदलें</string>
     <string name="theme_mode_title">ऐप थीम</string>
-    <string name="theme_mode_summary">ऐप और टर्मिनल थीम चुनें</string>
-    <string name="theme_title">थीम</string>
     <string name="title_activity_termux_settings">Termux सेटिंग्स</string>
     <string name="title_confirm_kill_process">क्या वाकई यह सत्र समाप्त करें?</string>
     <string name="title_create_named_session">नया नामित सत्र</string>
@@ -257,26 +222,15 @@
 
     
     <string name="locale_override_title">ऐप भाषा</string>
-    <string name="locale_override_summary">ऐप भाषा ओवरराइड करें</string>
     <string name="locale_override_entry_system">सिस्टम भाषा</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">कीबोर्ड के साथ अतिरिक्त बटन छिपाएँ</string>
-    <string name="hide_extra_keys_with_keyboard_summary">कीबोर्ड बंद होने पर अतिरिक्त बटन छिपाएँ, खुलने पर दिखाएँ</string>
 
     
     <string name="suggestions_max_count_title">ऑटोकम्प्लीट सुझावों की अधिकतम संख्या</string>
-    <string name="suggestions_max_count_summary">इनपुट इतिहास से स्वतः पूर्ण सुझावों की अधिकतम संख्या</string>
 
-    <string name="language_category_title">भाषा</string>
     <string name="appearance_category_title">दिखावट</string>
-    <string name="extra_keys_preferences_title">अतिरिक्त बटन</string>
-    <string name="extra_keys_preferences_summary">अतिरिक्त बटनों की पट्टी के लिए प्राथमिकताएँ</string>
-    <string name="sessions_preferences_title">सत्र</string>
-    <string name="sessions_history_preferences_summary">सत्रों, टैबों और इतिहास के लिए प्राथमिकताएँ</string>
     <string name="backup_restore_preferences_title">बैकअप और पुनर्स्थापना</string>
     <string name="backup_restore_preferences_summary">Termux कंटेनर, ऐप सेटिंग्स</string>
-    <string name="diagnostics_preferences_title">निदान</string>
-    <string name="diagnostics_preferences_summary">लॉगिंग और त्रुटि सूचनाएँ</string>
     <string name="input_preferences_title">इनपुट</string>
     <string name="input_preferences_summary">अतिरिक्त बटन, इनपुट पैनल, कीबोर्ड, शॉर्टकट, सिस्टम बटन</string>
     <string name="display_preferences_title">डिस्प्ले</string>
@@ -285,25 +239,18 @@
     <string name="terminal_advanced_summary">सत्र, ध्वनि और सूचनाएँ, बाहरी ऐप्स, ऐड-ऑन, डीबगिंग</string>
     <string name="extra_keys_corner_radius_title">बटन कोने की त्रिज्या</string>
     <string name="extra_keys_special_button_mode_title">विशेष बटनों का व्यवहार</string>
-    <string name="extra_keys_special_button_mode_summary">संशोधक बटन (CTRL, ALT, SHIFT, FN) स्पर्श करने पर कैसे प्रतिक्रिया करते हैं। स्टिकी: टॉगल करने के लिए टैप करें, लॉक करने के लिए देर तक दबाएँ। होल्ड: केवल तब सक्रिय जब बटन दबा हो।</string>
     <string name="extra_keys_special_button_mode_sticky">स्टिकी (टॉगल / लॉक)</string>
     <string name="extra_keys_special_button_mode_hold">होल्ड (दबे रहने पर)</string>
-    <string name="extra_keys_header">अतिरिक्त बटन</string>
     <string name="extra_keys_category_title">अतिरिक्त बटन</string>
-    <string name="extra_keys_layout_title">बटनों का लेआउट</string>
-    <string name="extra_keys_layout_summary">अतिरिक्त बटनों की पंक्तियों और उनके पॉपअप मानों को परिभाषित करने वाला JSON मैट्रिक्स।</string>
     <string name="extra_keys_style_title">बटनों की शैली</string>
-    <string name="extra_keys_style_summary">बटनों पर विशेष वर्णों को कैसे प्रदर्शित किया जाता है।</string>
     <string name="extra_keys_style_default">डिफ़ॉल्ट</string>
     <string name="extra_keys_style_arrows_only">केवल तीर</string>
     <string name="extra_keys_style_arrows_all">सभी तीर</string>
     <string name="extra_keys_style_all">सभी</string>
     <string name="extra_keys_style_none">कोई नहीं</string>
     <string name="extra_keys_text_all_caps_title">लेबल बड़े अक्षरों में</string>
-    <string name="history_category_title">इतिहास</string>
     <string name="tabs_category_title">टैब</string>
     <string name="input_panel_title">इनपुट पैनल</string>
-    <string name="view_category_title">दृश्य</string>
     <string name="window_category_title">विंडो</string>
 
     <string name="theme_mode_entry_dark">डार्क</string>
@@ -317,38 +264,26 @@
 
     
     <string name="extra_keys_visibility_title">अतिरिक्त बटन पैनल दिखाएँ</string>
-    <string name="extra_keys_visibility_summary">अतिरिक्त बटन पट्टी कब दिखाई जाए।</string>
     <string name="extra_keys_visibility_always">हमेशा</string>
     <string name="extra_keys_visibility_keyboard">केवल जब कीबोर्ड खुला हो</string>
     <string name="extra_keys_visibility_never">कभी नहीं</string>
 
     
-    <string name="extra_keys_invalid_json">अतिरिक्त बटनों के लिए अमान्य JSON। परिवर्तन सहेजे नहीं गए।</string>
 
     
     <string name="extra_keys_haptic_title">हैप्टिक फ़ीडबैक</string>
-    <string name="extra_keys_haptic_summary">अतिरिक्त बटन पैनल के उपयोग पर वाइब्रेट करें</string>
     <string name="extra_keys_haptic_all">टैप और जेस्चर</string>
     <string name="extra_keys_haptic_gestures">केवल जेस्चर</string>
     <string name="extra_keys_haptic_off">अक्षम</string>
 
     
     <string name="extra_keys_editor_title">अतिरिक्त बटन संपादक</string>
-    <string name="extra_keys_editor_summary">अतिरिक्त बटन पैनल को दृश्य रूप में बनाएँ: पंक्तियाँ और स्तंभ सेट करें, फिर क्रिया असाइन करने के लिए किसी बटन को टैप करें।</string>
     <string name="extra_keys_editor_columns_title">स्तंभ</string>
     <string name="extra_keys_editor_rows_title">पंक्तियाँ</string>
-    <string name="extra_keys_editor_preview_title">पूर्वावलोकन</string>
-    <string name="extra_keys_editor_preview_summary">लाइव पैनल — किसी भी बटन की क्रिया बदलने के लिए उसे टैप करें।</string>
     <string name="extra_keys_editor_signal_dialog_title">क्रिया असाइन करें</string>
-    <string name="extra_keys_editor_custom_text_message">बाइंड करने के लिए कोई भी कुंजी प्रेस करें:</string>
-    <string name="extra_keys_editor_apply_title">अतिरिक्त बटनों पर लागू करें</string>
-    <string name="extra_keys_editor_apply_summary">इस लेआउट को अतिरिक्त बटनों की सेटिंग में सहेजें।</string>
-    <string name="extra_keys_editor_empty">(खाली)</string>
     <string name="extra_keys_editor_max_signals">अधिकतम 8 क्रियाएँ प्रति बटन</string>
-    <string name="extra_keys_editor_custom_text_no_space">संयोजनों में खाली स्थान वाला कस्टम टेक्स्ट समर्थित नहीं है</string>
     <string name="extra_keys_editor_done">हो गया</string>
     <string name="extra_keys_editor_open_editor">अतिरिक्त बटन संपादित करें</string>
-    <string name="extra_keys_editor_open_editor_summary">लेआउट, आकार और बटन बाइंडिंग कॉन्फ़िगर करें</string>
 
     
     <string name="extra_keys_edge_indicators_title">स्वाइप दिशा संकेतक</string>
@@ -389,18 +324,12 @@
     <string name="extra_keys_editor_signal_left">बाएँ</string>
     <string name="extra_keys_editor_signal_right">दाएँ</string>
     <string name="extra_keys_editor_signal_down">नीचे</string>
-    <string name="extra_keys_editor_signal_backslash">बैकस्लैश (\\)</string>
-    <string name="extra_keys_editor_signal_quote">कोट (\")</string>
-    <string name="extra_keys_editor_signal_apostrophe">एपॉस्ट्रॉफ़ी (\')</string>
     <string name="report_issue_title">Termux — समस्या की रिपोर्ट करें</string>
     <string name="report_issue_transcript_header">## टर्मिनल लॉग\n</string>
     <string name="backup_error_open_output">आउटपुट फ़ाइल खोलने में विफल</string>
     <string name="invalid_number">कृपया एक मान्य संख्या दर्ज करें।</string>
     <string name="terminal_category_title">टर्मिनल</string>
-    <string name="key_behaviour_category_title">कुंजी व्यवहार</string>
-    <string name="screen_category_title">स्क्रीन</string>
     <string name="shortcuts_category_title">शॉर्टकट</string>
-    <string name="misc_category_title">विविध</string>
     <string name="external_apps_category_title">बाहरी ऐप्स</string>
     <string name="addons_category_title">ऐड-ऑन</string>
     <string name="sound_category_title">ध्वनि और सूचनाएँ</string>
@@ -414,12 +343,10 @@
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_title">बाहर निकलने पर पुरानी TMPDIR फ़ाइलें हटाएँ</string>
     <string name="delete_tmpdir_files_older_than_x_days_on_exit_summary">बाहर निकलने पर सत्र TMPDIR से N दिन से पुरानी फ़ाइलें हटाएँ (-1 = कभी न हटाएँ)।</string>
     <string name="terminal_cursor_style_title">कर्सर शैली</string>
-    <string name="terminal_cursor_style_summary">टर्मिनल कर्सर कैसे खींचा जाता है।</string>
     <string name="terminal_cursor_blink_rate_title">कर्सर ब्लिंक दर</string>
     <string name="terminal_cursor_blink_rate_summary">मिलीसेकंड में कर्सर ब्लिंक दर।</string>
     <string name="terminal_cursor_blink_enabled_title">कर्सर ब्लिंकिंग</string>
     <string name="bell_character_title">बेल संकेत का व्यवहार</string>
-    <string name="bell_character_summary">जब टर्मिनल को बेल (BEL) वर्ण प्राप्त होता है तो क्या होता है।</string>
     <string name="terminal_margin_left_title">बायाँ मार्जिन</string>
     <string name="terminal_margin_top_title">ऊपरी मार्जिन</string>
     <string name="terminal_margin_right_title">दायाँ मार्जिन</string>
@@ -428,34 +355,22 @@
     <string name="terminal_background_transparency_title">टर्मिनल पृष्ठभूमि पारदर्शिता</string>
 
     <string name="terminal_background_blur_radius_title">पृष्ठभूमि ब्लर त्रिज्या</string>
-    <string name="terminal_background_blur_radius_summary">डायनामिक वॉलपेपर पर अधिक ब्लर त्रिज्या होने से बिजली की खपत बढ़ सकती है। स्थिर वॉलपेपर पर बिजली पर प्रभाव नगण्य होता है।</string>
+    <string name="terminal_background_blur_radius_summary">डायनामिक पृष्ठभूमि पर अधिक ब्लर त्रिज्या होने से बिजली की खपत बढ़ सकती है। स्थिर पृष्ठभूमि पर बिजली पर प्रभाव नगण्य होता है।</string>
     <string name="terminal_toolbar_scale_title">टूलबार स्केल</string>
-    <string name="terminal_toolbar_height_summary">अतिरिक्त कुंजियाँ / टर्मिनल टूलबार की ऊँचाई का स्केल कारक।</string>
     <string name="default_working_directory_title">डिफ़ॉल्ट कार्य निर्देशिका</string>
     <string name="default_working_directory_summary">नए सत्रों के लिए खोली गई निर्देशिका (होम के लिए खाली छोड़ें)।</string>
     <string name="back_key_sends_escape_title">बैक बटन से Escape भेजें</string>
     <string name="volume_keys_title">वॉल्यूम कुंजियाँ संशोधक के रूप में</string>
     <string name="volume_keys_summary">डिवाइस पर वॉल्यूम नीचे/ऊपर दबाए रखने पर क्रमशः Ctrl या Fn दबा हुआ रहता है। इस मोड में वॉल्यूम पैनल खोलने के लिए Fn + v का उपयोग करें।</string>
     <string name="soft_keyboard_toggle_behaviour_title">कीबोर्ड टॉगल व्यवहार</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">कीबोर्ड टॉगल सॉफ्ट कीबोर्ड को दिखाता/छिपाता है या सक्षम/अक्षम करता है।</string>
     <string name="ctrl_space_workaround_title">Ctrl+Space वर्कअराउंड</string>
-    <string name="ctrl_space_workaround_summary">एक वर्कअराउंड का उपयोग करें ताकि Ctrl+Space सही ढंग से भेजा जा सके।</string>
     <string name="enforce_char_based_input_title">बाइट-आधारित इनपुट</string>
-    <string name="enforce_char_based_input_summary">वर्णों को एक बार में एक बाइट के रूप में भेजें।</string>
     <string name="disable_hardware_keyboard_shortcuts_title">हार्डवेयर कीबोर्ड शॉर्टकट अक्षम करें</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">हार्डवेयर/बाहरी कीबोर्ड से कीबोर्ड शॉर्टकट अनदेखा करें।</string>
-    <string name="disable_terminal_session_change_toast_title">सत्र परिवर्तन सूचना अक्षम करें</string>
-    <string name="disable_terminal_session_change_toast_summary">टर्मिनल सत्र स्विच करते समय सूचना न दिखाएँ।</string>
     <string name="scroll_on_new_output_title">नए आउटपुट पर स्क्रॉल करें</string>
-    <string name="scroll_on_new_output_summary">नया टर्मिनल आउटपुट आने पर स्वतः नीचे स्क्रॉल होता है।</string>
     <string name="terminal_onclick_url_open_title">टैप पर URL खोलें</string>
-    <string name="terminal_onclick_url_open_summary">टर्मिनल बफ़र में URL टैप करने पर खोलें।</string>
     <string name="fullscreen_title">पूर्ण स्क्रीन</string>
     <string name="bubble_on_background_title">पृष्ठभूमि में बबल</string>
     <string name="bubble_on_background_summary">ऐप के पृष्ठभूमि में जाने पर अन्य ऐप्स के ऊपर टर्मिनल तक त्वरित पहुँच के लिए बबल दिखाएँ</string>
-    <string name="fullscreen_summary">Termux को पूर्ण स्क्रीन मोड में चलाएँ।</string>
-    <string name="night_mode_legacy_title">नाइट मोड (लीगेसी नाइट-मोड)</string>
-    <string name="night_mode_legacy_summary">लीगेसी नाइट-मोड गुण नियंत्रित करता है। डिस्प्ले स्क्रीन पर थीम सेटिंग का उपयोग करें।</string>
     <string name="shortcut_create_session_title">नया सत्र</string>
     <string name="shortcut_next_session_title">अगला सत्र</string>
     <string name="shortcut_previous_session_title">पिछला सत्र</string>
@@ -466,7 +381,6 @@
     <string name="disable_file_view_receiver_title">फ़ाइल प्रीव्यू अक्षम करें</string>
     <string name="run_termux_am_socket_server_title">termux-am सॉकेट सर्वर चलाएँ</string>
     <string name="hide_soft_keyboard_on_startup_title">स्टार्टअप पर सॉफ्ट कीबोर्ड छिपाएँ</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Termux शुरू होने पर सॉफ्ट कीबोर्ड छिपा कर रखें।</string>
     <string name="terminal_cursor_style_block">ब्लॉक</string>
     <string name="terminal_cursor_style_underline">रेखांकित</string>
     <string name="terminal_cursor_style_bar">खड़ी रेखा</string>
@@ -475,9 +389,6 @@
     <string name="bell_character_ignore">अनदेखा करें</string>
     <string name="soft_keyboard_toggle_show_hide">दिखाएँ / छिपाएँ</string>
     <string name="soft_keyboard_toggle_enable_disable">सक्षम / अक्षम</string>
-    <string name="night_mode_true">डार्क</string>
-    <string name="night_mode_false">लाइट</string>
-    <string name="night_mode_system">सिस्टम</string>
     <string name="extra_keys_dynamic_font_size_title">डायनामिक फ़ॉन्ट आकार</string>
     <string name="extra_keys_dynamic_font_size_summary">स्तंभों की संख्या बढ़ने या बटनों पर मैक्रो बाइंड होने पर फ़ॉन्ट आकार स्वतः घटाएँ</string>
     <string name="extra_keys_font_size_title">आधार फ़ॉन्ट आकार</string>
@@ -491,14 +402,12 @@
     <string name="termux_widget_debugging_title">Termux:Widget डीबगिंग</string>
 
     
-    <string name="bootstrap_selector_error_load_sources">स्रोत लोड करने में विफल</string>
     <string name="bootstrap_selector_install_local_title">स्थानीय बूटस्ट्रैप इंस्टॉल करें?</string>
     <string name="bootstrap_selector_install_local_message">स्थानीय बूटस्ट्रैप zip मनमाना कोड निष्पादित कर सकता है। केवल तभी जारी रखें यदि आप इस फ़ाइल पर भरोसा करते हैं।</string>
     <string name="bootstrap_selector_install">इंस्टॉल करें</string>
     <string name="bootstrap_selector_cancel">रद्द करें</string>
 
     
-    <string name="bootstrap_download_status_idle">प्रतीक्षा में</string>
     <string name="bootstrap_download_status_connecting">कनेक्ट हो रहा है</string>
     <string name="bootstrap_download_progress_preparing">डाउनलोड तैयार हो रहा है</string>
     <string name="bootstrap_download_status_installing">इंस्टॉल हो रहा है</string>
@@ -513,8 +422,6 @@
     <string name="bootstrap_download_progress_checking_sha">SHA-256 जाँचा जा रहा है</string>
     <string name="bootstrap_download_notification_starting">शुरू हो रहा है</string>
     <string name="bootstrap_download_channel_name">Termux बूटस्ट्रैप डाउनलोडर</string>
-    <string name="bootstrap_download_notification_title_success">बूटस्ट्रैप इंस्टॉल हो गया</string>
-    <string name="bootstrap_download_notification_text_success">Termux खोलने के लिए टैप करें</string>
     <string name="bootstrap_download_notification_title_failed">बूटस्ट्रैप इंस्टॉलेशन विफल</string>
 
     
@@ -525,7 +432,6 @@
 
 
     
-    <string name="bootstrap_install_progress_verify_sha">चेकसम सत्यापित किया जा रहा है</string>
     <string name="bootstrap_install_progress_verify_manifest">पैकेज मेनिफ़ेस्ट सत्यापित किया जा रहा है</string>
     <string name="bootstrap_install_progress_extract">पैकेज निकाले जा रहे हैं</string>
     <string name="bootstrap_install_progress_finalize">इंस्टॉलेशन को अंतिम रूप दिया जा रहा है</string>
@@ -533,11 +439,9 @@
     <string name="bootstrap_install_progress_done">पूर्ण</string>
     <string name="extra_keys_editor_delay_format">⏱ %d मि.से.</string>
     <string name="extra_keys_editor_delay_hint">विलंब</string>
-    <string name="extra_keys_editor_delay_presets">त्वरित चयन:</string>
 
     <string name="application_name">TermuxEnhanced</string>
 
-    <string name="termux_preferences_title">&TERMUX_APP_NAME;</string>
 
     <string name="extra_keys_editor_swipe_up_suffix"> (↑)</string>
     <string name="extra_keys_editor_swipe_down_suffix"> (↓)</string>
@@ -557,7 +461,6 @@
     <string name="termux_widget_preferences_title">&TERMUX_WIDGET_APP_NAME;</string>
 
     <!-- Backup -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
     <string name="backup_progress_calculating_size">बैकअप के आकार की गणना की जा रही है…</string>
 
@@ -572,7 +475,6 @@
     <string name="extra_keys_editor_signal_alt">ALT</string>
     <string name="extra_keys_editor_signal_shift">SHIFT</string>
     <string name="extra_keys_editor_signal_fn">FN</string>
-    <string name="extra_keys_editor_signal_space">स्पेस</string>
     <string name="extra_keys_editor_signal_esc">Esc</string>
     <string name="extra_keys_editor_signal_tab">Tab</string>
     <string name="extra_keys_editor_signal_home">Home</string>
@@ -601,12 +503,9 @@
     <string name="extra_keys_editor_delay_dialog_title">विलंब</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">इस डिवाइस पर कोई समर्थित ABI नहीं है</string>
     <string name="error_abi_arch_mismatch">बूटस्ट्रैप आर्किटेक्चर \'%1$s\' डिवाइस आर्किटेक्चर \'%2$s\' से मेल नहीं खाता। उपलब्ध ABI: %3$s</string>
-    <string name="error_abi_unknown">अज्ञात ABI: %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">बूटस्ट्रैप zip में BOOTSTRAP_INFO मौजूद नहीं है</string>
     <string name="error_bootstrap_manifest_missing_variant">BOOTSTRAP_INFO में \'variant\' गायब है</string>
     <string name="error_bootstrap_manifest_missing_arch">BOOTSTRAP_INFO में \'arch\' गायब है</string>
 
@@ -677,8 +576,6 @@
     <string name="bootstrap_selector_offline">न्यूनतम ऑफ़लाइन संस्करण इंस्टॉल करें (बेस शेल)</string>
     <string name="bootstrap_selector_pick_zip">स्थानीय .zip फ़ाइल चुनें</string>
     <string name="bootstrap_selector_retry">पुनः प्रयास करें</string>
-    <string name="bootstrap_selector_source_label">स्रोत:</string>
-    <string name="bootstrap_selector_status_default">इंस्टॉल करने के लिए बूटस्ट्रैप स्रोत चुनें:</string>
     <string name="bootstrap_selector_title">Termux बूटस्ट्रैप इंस्टॉलेशन</string>
     <string name="human_size_format" formatted="false">%.1f %s</string>
     <string name="human_size_progress_format">%1$s / %2$s</string>
@@ -693,7 +590,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">फ़ॉन्ट आकार</string>
-    <string name="terminal_font_size_summary" formatted="false">टर्मिनल पर पिंच करने से भी यही मान बदलता है</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

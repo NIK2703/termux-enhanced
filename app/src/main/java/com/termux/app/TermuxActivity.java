@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -58,8 +57,6 @@ import com.termux.shared.interact.ToastUtils;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY;
 import com.termux.app.activities.HelpActivity;
-import com.termux.app.activities.SettingsActivity;
-import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 import com.termux.app.terminal.TermuxSessionsListViewController;
@@ -1163,9 +1160,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onResume();
 
-        // Check if a crash happened on last run of the app or if a crash happened and show a
-        // notification with the crash details if it did
-        TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
+        // A crash of a previous run is notified from TermuxApplication.onCreate() instead of here:
+        // this point is only reached after the whole activity (terminal view, sessions, pager, IME
+        // state) has been created, so a crash during start-up would never produce the crash report
+        // notification — and with it the report screen — at all.
 
         // On return from the background (not a fresh create — that path restores
         // with applyFocus=false at startup), re-apply the current session's panel
@@ -3854,7 +3852,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     @Override
     public void startSettingsActivity() {
-        ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
+        ActivityUtils.startActivity(this, TermuxActivityUtils.newSettingsIntent(this));
     }
 
     /** @return the label for the bubble notification, falling back to the app name. */
@@ -3866,39 +3864,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Apply this window's rotation mode.
-     *
-     * <p>The two windows this class runs in need opposite answers, and the difference is not
-     * cosmetic.
-     *
-     * <p>The <b>full-screen window</b> obeys Settings → Screen orientation, as it always has.
-     *
-     * <p>The <b>bubble</b> must not. A bubble is a floating window hosted by SystemUI and drawn in
-     * whatever orientation the device is actually in, and its task is not on a display of its own —
-     * it is the main one. So a portrait request from the bubble does not merely lay the bubble's own
-     * content out for the wrong window shape: it rotates the display out from under whatever the user
-     * is looking at. The symptom this method exists for is the pair of them together — the app is set
-     * to portrait, the phone is held landscape, and the bubble comes up showing the terminal rendered
-     * as a portrait strip inside a landscape window. Because the pty size is derived from the
-     * terminal view's own geometry, the line wrapping follows the same wrong numbers.
-     *
-     * <p>So the bubble keeps no orientation preference of its own and simply follows the system. The
-     * manifest already declares {@code android:screenOrientation="unspecified"} for
-     * {@link com.termux.app.bubble.TermuxBubbleActivity}; the explicit call below exists so the value
-     * is also <em>cleared</em> should a manifest edit ever give the bubble activity a preference. The
-     * guard keeps it idempotent — this runs on every focus change, and repeated
-     * {@code setRequestedOrientation()} calls are the MIUI/HyperOS hazard noted at the call site in
-     * {@link #onWindowFocusChanged(boolean)}.
-     *
-     * <p>{@link #isBubbleWindow()} is what tells the two instances apart; see that method for why the
-     * distinction is needed at all.
+     * Apply this window's rotation mode: the user's screen-orientation choice for the full-screen
+     * window, no preference at all for the bubble. The rule lives in
+     * {@link TermuxActivityUtils#applyScreenOrientation(Activity)} because it is shared with every
+     * other screen the bubble can show.
      */
     private void applyWindowOrientation() {
-        if (isBubbleWindow()) {
-            if (getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-            return;
-        }
         TermuxActivityUtils.applyScreenOrientation(this);
     }
 

@@ -45,7 +45,6 @@
     <string name="title_create_named_session">Новый именованный сеанс</string>
     <string name="action_create_named_session_confirm">Создать</string>
 
-    <string name="action_toggle_soft_keyboard">Клавиатура</string>
     <string name="action_toggle_text_input">Ввод текста</string>
 
     <string name="msg_terminal_panel_enabling">Включение панели терминала</string>
@@ -78,8 +77,6 @@
 
     <string name="action_style_terminal">Стиль</string>
     <string name="action_font_terminal">Шрифт</string>
-    <string name="font_picker_title">Выберите шрифт (.ttf)</string>
-    <string name="error_font_apply_failed">Не удалось применить шрифт</string>
     <string name="action_toggle_keep_screen_on">Не выключать экран</string>
     <string name="action_open_help">Справка</string>
     <string name="action_open_settings">Настройки</string>
@@ -89,7 +86,6 @@
     <string name="msg_add_termux_debug_info">Добавить отладочную информацию Termux в отчёт?</string>
 
     <string name="error_styling_not_installed">Плагин Termux:Styling не установлен.</string>
-    <string name="action_styling_install">Установить</string>
 
     
     <string name="notification_action_exit">Выход</string>
@@ -124,13 +120,8 @@
     <string name="title_activity_termux_settings">Настройки Termux</string>
 
     
-    <string name="appearance_preferences_title">Внешний вид</string>
-    <string name="appearance_preferences_summary">Настройки внешнего вида приложения и прозрачности панели</string>
-    <string name="theme_title">Тема</string>
-    <string name="panel_transparency_title">Прозрачность панели</string>
     <string name="appearance_category_title">Внешний вид</string>
 
-    <string name="termux_preferences_summary">Настройки приложения Termux</string>
 
         
         <string name="termux_debugging_preferences_title">Отладка</string>
@@ -154,8 +145,6 @@
                 <string name="termux_crash_report_notifications_enabled_title">Уведомления об отчётах о сбоях</string>
 
         
-        <string name="termux_terminal_io_preferences_title">Ввод-вывод терминала</string>
-        <string name="termux_terminal_io_preferences_summary">Настройки ввода-вывода терминала</string>
 
             
             <string name="termux_keyboard_header">Клавиатура</string>
@@ -172,11 +161,8 @@
                 <string name="keyboard_state_follow_tab_switch_summary">При смене вкладок восстанавливать состояние клавиатуры для каждой вкладки, запомненное на момент переключения с неё</string>
 
         
-        <string name="termux_terminal_view_preferences_title">Вид терминала</string>
-        <string name="termux_terminal_view_preferences_summary">Настройки вида терминала</string>
 
             
-            <string name="termux_terminal_view_view_header">Вид</string>
 
                 
                 <string name="termux_button_bg_inactive_alpha_title" formatted="false">Непрозрачность фона неактивных элементов</string>
@@ -203,7 +189,6 @@
 
     
     <string name="theme_mode_title">Тема приложения</string>
-    <string name="theme_mode_summary">Выберите тему приложения и терминала</string>
 
     
     <string name="color_scheme_dialog_title">Цветовая схема терминала</string>
@@ -212,24 +197,18 @@
     <string name="color_scheme_dark_title">Цветовая схема терминала (Тёмная тема)</string>
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
-    <string name="input_history_title">История введённых текстов</string>
-    <string name="input_history_max_title">Максимум введённых текстов в истории</string>
-    <string name="per_directory_input_history_title">История введённых текстов по директориям</string>
-    <string name="per_directory_input_history_summary">Вести отдельную историю введённых текстов для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
+    <string name="input_history_max_title">Максимум элементов в истории ввода</string>
+    <string name="per_directory_input_history_title">История ввода по директориям</string>
+    <string name="per_directory_input_history_summary">Вести отдельную историю ввода для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
     <string name="input_history_save_cleared_title">Очищаемые в истории</string>
-    <string name="input_history_save_cleared_summary">Сохранять в историю очищаемые из поля ввода тексты.</string>
+    <string name="input_history_save_cleared_summary">Сохранять в историю очищаемый из поля ввода текст</string>
 
     
     <string name="input_panel_title">Панель ввода</string>
     <string name="text_input_append_enter_title">Добавлять Enter при отправке</string>
 
-    <string name="text_input_hide_on_send_title">Скрывать панель ввода после отправки</string>
-    <string name="text_input_hide_on_send_summary">При включении панель ввода закрывается и фокус переходит в терминал после отправки. Отключите, чтобы панель оставалась открытой для последовательных команд.</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">Скрывать экранную клавиатуру после отправки</string>
-    <string name="text_input_hide_keyboard_on_send_summary">При включении экранная клавиатура скрывается после отправки текста из поля ввода (например, по Enter). Панель ввода и клавиатура управляются независимо.</string>
     <string name="text_input_action_on_send_title">Действие при отправке</string>
-    <string name="text_input_action_on_send_summary">Что происходит после отправки текста из поля ввода: ничего не делать, скрыть панель ввода или скрыть панель ввода и клавиатуру.</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Ничего не делать</item>
         <item>Скрыть панель ввода</item>
@@ -241,22 +220,18 @@
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">Поведение при восстановлении текста из истории</string>
-    <string name="text_input_restore_mode_summary">Нажмите, чтобы выбрать: вставить в позицию курсора или заменить всё поле ввода</string>
     <string name="text_input_restore_mode_dialog_title">Режим восстановления из истории</string>
     <string name="text_input_restore_mode_option_insert">Вставить в позицию курсора</string>
     <string name="text_input_restore_mode_option_replace">Заменить всё поле ввода</string>
 
     
-    <string name="directory_history_title">История папок</string>
     <string name="directory_history_max_title">Максимум рабочих директорий в истории</string>
 
     
     <string name="restore_tabs_title">Восстанавливать вкладки при запуске</string>
-    <string name="restore_tabs_summary">Повторно открывать все вкладки и их директории при запуске приложения</string>
 
     
     <string name="screen_orientation_title">Ориентация экрана</string>
-    <string name="screen_orientation_summary">Варианты «По датчику» переключаются между двумя ориентациями (например, 0°/180° книжная).</string>
 
     
     <string name="donate_preference_title">Пожертвовать</string>
@@ -269,11 +244,7 @@
     <string name="backup_restore_warning_restore">Восстановление ПЕРЕЗАПИШЕТ текущий каталог данных Termux (установленные пакеты и домашний каталог) содержимым выбранного файла резервной копии. Существующие данные будут УТЕРЯНЫ.\n\n⚠ Если восстановление не удастся — из-за повреждения файла резервной копии, неполноты или прерывания соединения во время процесса — ваше окружение Termux останется ПУСТЫМ. Восстановить исходные данные будет невозможно.\n\nЭто действие нельзя отменить. Настоятельно рекомендуется сначала СДЕЛАТЬ РЕЗЕРВНУЮ КОПИЮ и проверить, что файл резервной копии действителен.</string>
     <string name="backup_restore_backup_started">Создание резервной копии…</string>
     <string name="backup_restore_restore_started">Восстановление из резервной копии…</string>
-    <string name="backup_restore_backup_success">Резервная копия успешно создана</string>
-    <string name="backup_restore_restore_success">Данные успешно восстановлены</string>
-    <string name="backup_restore_failed_title">Операция не удалась</string>
     <string name="backup_restore_tar_not_found">Двоичный файл termux (tar) не найден. Пожалуйста, откройте Termux хотя бы один раз, чтобы контейнер был настроен.</string>
-    <string name="backup_restore_choose_backup">Выберите файл резервной копии .tar.gz для восстановления</string>
     <string name="backup_service_channel_name">Резервное копирование / Восстановление Termux</string>
     <string name="backup_service_notification_title">Резервное копирование данных Termux</string>
     <string name="backup_service_notification_restore_title">Восстановление данных Termux</string>
@@ -300,18 +271,13 @@
     <string name="settings_restart_required">Перезапустите Termux для применения всех восстановленных настроек</string>
     <string name="settings_backup_failed">Ошибка сохранения настроек</string>
     <string name="settings_restore_failed">Ошибка восстановления настроек</string>
-    <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">Включить каталог tmp (usr/tmp/)</string>
-    <string name="error_settings_backup_format_version">Неподдерживаемая версия формата backup: %1$s</string>
-    <string name="error_settings_backup_missing_manifest">В файле backup отсутствует manifest.properties</string>
     <string name="error_settings_restore_open_input">Не удалось открыть файл для чтения</string>
 
     <string name="tab_close_description">Закрыть вкладку</string>
     <string name="session_default_title">Терминал</string>
     <string name="new_tab_placeholder_hint">Новый сеанс</string>
-    <string name="session_tabs_title">Вкладки сеансов</string>
     <string name="swipe_rightmost_new_tab_title">Смахните последнюю вкладку для нового сеанса</string>
-    <string name="swipe_rightmost_new_tab_summary">На последней вкладке смахните вправо, чтобы открыть новый сеанс терминала</string>
     <string name="termux_tab_height_mode_title">Высота вкладки</string>
     <string name="termux_tab_height_mode_single">Одна строка</string>
     <string name="termux_tab_height_mode_double">Две строки</string>
@@ -323,20 +289,20 @@
     <string name="text_input_toggle_button_title">Кнопка переключения панели ввода</string>
 
     
-    <string name="input_history_empty">Нет истории введённых текстов</string>
+    <string name="input_history_empty">История ввода пуста</string>
     <string name="input_history_clear_all">ОЧИСТИТЬ ИСТОРИЮ…</string>
     <string name="input_history_clear">Очистить</string>
 
     
-    <string name="input_history_clear_dialog_title">Очистить историю введённых текстов</string>
-    <string name="input_history_clear_question">Очистить историю введённых текстов?</string>
-    <string name="input_history_clear_confirm_current">Очистить все сохранённые введённые тексты для текущей директории? Это действие необратимо.</string>
-    <string name="input_history_clear_confirm_all">Очистить всю историю введённых текстов? Это действие необратимо.</string>
+    <string name="input_history_clear_dialog_title">Очистить историю ввода</string>
+    <string name="input_history_clear_question">Очистить историю ввода?</string>
+    <string name="input_history_clear_confirm_current">Очистить всю историю ввода для текущей директории? Это действие необратимо.</string>
+    <string name="input_history_clear_confirm_all">Очистить всю историю ввода? Это действие необратимо.</string>
     <string name="input_history_clear_ok">ОК</string>
     <string name="input_history_clear_all_button">Все</string>
     <string name="input_history_clear_current_only_question">Очистить историю только для текущей директории?</string>
-    <string name="input_history_clear_all_question">Это навсегда удалит все сохранённые введённые тексты.</string>
-    <string name="input_history_cleared">История введённых текстов очищена</string>
+    <string name="input_history_clear_all_question">Это навсегда удалит всю историю ввода.</string>
+    <string name="input_history_cleared">История ввода очищена</string>
 
     
     <string name="directory_history_clear_dialog_title">Очистить историю папок</string>
@@ -381,38 +347,24 @@
 
     
     <string name="locale_override_title">Язык приложения</string>
-    <string name="locale_override_summary">Переопределить язык приложения</string>
     <string name="locale_override_entry_system">Системный</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">Скрывать кнопки с клавиатурой</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Автоматически скрывать дополнительные кнопки при закрытии клавиатуры, показывать при открытии</string>
 
     
     <string name="suggestions_max_count_title">Максимум предложений автодополнения</string>
 
     
-    <string name="language_category_title">Язык</string>
     <string name="input_preferences_title">Ввод</string>
     <string name="input_preferences_summary">Дополнительные кнопки, панель ввода, клавиатура, сочетания клавиш, системные кнопки</string>
-    <string name="extra_keys_preferences_title">Дополнительные кнопки</string>
-    <string name="extra_keys_preferences_summary">Настройки панели дополнительных кнопок</string>
     <string name="display_preferences_title">Отображение</string>
     <string name="display_preferences_summary">Внешний вид, вкладки, терминал, окно</string>
-    <string name="sessions_preferences_title">Сессии</string>
-    <string name="sessions_history_preferences_summary">Настройки сессий, вкладок и истории</string>
     <string name="backup_restore_preferences_title">Резервное копирование и восстановление</string>
     <string name="backup_restore_preferences_summary">Контейнер Termux, настройки приложения</string>
-    <string name="diagnostics_preferences_title">Диагностика</string>
-    <string name="diagnostics_preferences_summary">Журналирование и уведомления об ошибках</string>
     <string name="plugin_logging_category_title">Журналирование</string>
 
     
-    <string name="extra_keys_header">Дополнительные кнопки</string>
     <string name="extra_keys_category_title">Дополнительные кнопки</string>
-    <string name="extra_keys_layout_title">Раскладка кнопок</string>
-    <string name="extra_keys_layout_summary">JSON-матрица, определяющая ряды дополнительных кнопок и их всплывающие значения.</string>
     <string name="extra_keys_style_title">Стиль кнопок</string>
-    <string name="extra_keys_style_summary">Как отображаются специальные символы на кнопках.</string>
     <string name="extra_keys_style_default">По умолчанию</string>
     <string name="extra_keys_style_arrows_only">Только стрелки</string>
     <string name="extra_keys_style_arrows_all">Все стрелки</string>
@@ -420,16 +372,13 @@
     <string name="extra_keys_style_none">Нет</string>
     <string name="extra_keys_text_all_caps_title">Текст меток заглавными</string>
     <string name="extra_keys_special_button_mode_title">Поведение спецкнопок</string>
-    <string name="extra_keys_special_button_mode_summary">Как модификаторы (CTRL, ALT, SHIFT, FN) реагируют на касание. Залипающий: нажмите для переключения, долгое нажатие — для блокировки. Удержание: активно только пока кнопка нажата.</string>
     <string name="extra_keys_special_button_mode_sticky">Залипающий (переключение / блокировка)</string>
     <string name="extra_keys_special_button_mode_hold">Удержание (пока нажата)</string>
 
     
-    <string name="view_category_title">Вид</string>
     <string name="window_category_title">Окно</string>
 
     
-    <string name="history_category_title">История</string>
     <string name="tabs_category_title">Вкладки</string>
 
     
@@ -449,21 +398,17 @@
     <string name="terminal_advanced_summary">Сессия, звук и уведомления, внешние приложения, дополнения, отладка</string>
 
     <string name="sound_category_title">Звук и уведомления</string>
-    <string name="key_behaviour_category_title">Поведение клавиш</string>
-    <string name="screen_category_title">Экран</string>
     <string name="shortcuts_category_title">Сочетания клавиш</string>
     <string name="session_category_title">Сессия</string>
     <string name="external_apps_category_title">Внешние приложения</string>
 
     <string name="addons_category_title">Дополнения</string>
-    <string name="misc_category_title">Прочее</string>
     <string name="terminal_category_title">Терминал</string>
 
     <string name="terminal_transcript_rows_title">Число строк в буфере прокрутки</string>
     <string name="terminal_transcript_rows_summary">Количество строк, сохраняемых в буфере прокрутки.</string>
 
     <string name="terminal_cursor_style_title">Стиль курсора</string>
-    <string name="terminal_cursor_style_summary">Как отрисовывается курсор терминала.</string>
     <string name="terminal_cursor_style_block">Блок</string>
     <string name="terminal_cursor_style_underline">Подчёркивание</string>
     <string name="terminal_cursor_style_bar">Вертикальная черта</string>
@@ -486,7 +431,6 @@
     <string name="terminal_toolbar_scale_title">Масштаб панели</string>
 
     <string name="bell_character_title">Поведение при сигнале</string>
-    <string name="bell_character_summary">Что происходит, когда терминал получает символ звонка (BEL).</string>
     <string name="bell_character_vibrate">Вибрация</string>
     <string name="bell_character_beep">Звук</string>
     <string name="bell_character_ignore">Игнорировать</string>
@@ -497,32 +441,23 @@
     <string name="volume_keys_summary">Зажать Ctrl или Fn при зажатии на устройстве кнопок громкости вниз или вверх соответственно. Для открытия панели громкости в таком режиме используйте Fn + v</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">Поведение переключателя клавиатуры</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">Показывает/скрывает или включает/выключает экранную клавиатуру переключатель.</string>
     <string name="soft_keyboard_toggle_show_hide">Показать / скрыть</string>
     <string name="soft_keyboard_toggle_enable_disable">Включить / выключить</string>
 
     <string name="ctrl_space_workaround_title">Обходная мера Ctrl+Пробел</string>
-    <string name="ctrl_space_workaround_summary">Использовать обходную меру, чтобы Ctrl+Пробел передавался корректно.</string>
 
     <string name="enforce_char_based_input_title">Побайтовая отправка ввода</string>
-    <string name="enforce_char_based_input_summary">Отправлять символы по одному байту за раз.</string>
 
     <string name="disable_hardware_keyboard_shortcuts_title">Отключить горячие клавиши внешней клавиатуры</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">Игнорировать горячие клавиши от аппаратной/внешней клавиатуры.</string>
 
-    <string name="disable_terminal_session_change_toast_title">Не показывать уведомление о смене сессии</string>
-    <string name="disable_terminal_session_change_toast_summary">Не показывать всплывающее сообщение при переключении сессий терминала.</string>
 
     <string name="scroll_on_new_output_title">Автопрокрутка при новом выводе</string>
-    <string name="scroll_on_new_output_summary">Автоматически прокручивать вниз при поступлении новых данных в терминале.</string>
 
     <string name="terminal_onclick_url_open_title">Открывать ссылки по нажатию</string>
-    <string name="terminal_onclick_url_open_summary">Открывать ссылки в буфере терминала при нажатии.</string>
 
     <string name="fullscreen_title">Полноэкранный режим</string>
     <string name="bubble_on_background_title">Пузырёк при уходе в фон</string>
     <string name="bubble_on_background_summary">При уходе в фон показывать пузырёк для быстрого доступа к терминалу поверх других приложений</string>
-    <string name="fullscreen_summary">Запускать Termux в полноэкранном режиме.</string>
 
 
     <string name="shortcut_empty_summary">Не задано</string>
@@ -549,43 +484,26 @@
     <string name="run_termux_am_socket_server_title">Запускать сокет-сервер termux-am</string>
 
     <string name="hide_soft_keyboard_on_startup_title">Скрывать клавиатуру при запуске</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Держать экранную клавиатуру скрытой при запуске Termux.</string>
 
     <string name="empty_value_summary">Не задано</string>
-    <string name="extra_keys_invalid_json">Неверный JSON для дополнительных кнопок. Изменения не сохранены.</string>
 
     
-    <string name="night_mode_legacy_title">Ночной режим (устаревший night-mode)</string>
-    <string name="night_mode_legacy_summary">Управляет устаревшим свойством ночного режима. Лучше используйте тему на экране «Дисплей».</string>
-    <string name="night_mode_true">Тёмная</string>
-    <string name="night_mode_false">Светлая</string>
-    <string name="night_mode_system">Системная</string>
 
     
     <string name="extra_keys_visibility_title">Показывать панель дополнительных кнопок</string>
-    <string name="extra_keys_visibility_summary">Когда отображается панель дополнительных кнопок.</string>
 
     
     <string name="extra_keys_corner_radius_title">Радиус скругления кнопок</string>
 
     
     <string name="extra_keys_editor_title">Редактор дополнительных кнопок</string>
-    <string name="extra_keys_editor_summary">Визуальное создание панели дополнительных кнопок: задайте строки и столбцы, затем нажмите на кнопку, чтобы назначить сигнал.</string>
     <string name="extra_keys_editor_columns_title">Столбцы</string>
     <string name="extra_keys_editor_rows_title">Строки</string>
-    <string name="extra_keys_editor_preview_title">Предпросмотр</string>
-    <string name="extra_keys_editor_preview_summary">Интерактивная панель — нажмите на любую кнопку, чтобы изменить её сигнал.</string>
     <string name="extra_keys_editor_signal_dialog_title">Назначить сигнал</string>
     <string name="extra_keys_editor_custom_text_title">Символ/текст</string>
-    <string name="extra_keys_editor_custom_text_message">Нажмите любую клавишу для привязки:</string>
-    <string name="extra_keys_editor_apply_title">Применить к дополнительным кнопкам</string>
-    <string name="extra_keys_editor_apply_summary">Сохранить раскладку в настройки дополнительных кнопок.</string>
-    <string name="extra_keys_editor_empty">(пусто)</string>
     <string name="extra_keys_editor_max_signals">Максимум 8 сигналов на кнопку</string>
-    <string name="extra_keys_editor_custom_text_no_space">Свой текст с пробелами не поддерживается в комбинациях</string>
     <string name="extra_keys_editor_done">Готово</string>
     <string name="extra_keys_editor_open_editor">Редактировать дополнительные кнопки</string>
-    <string name="extra_keys_editor_open_editor_summary">Настройка раскладки, масштаба и привязки кнопок</string>
     <string name="extra_keys_edge_indicators_title">Индикаторы направлений жестов</string>
     <string name="extra_keys_editor_hint">Нажмите, чтобы назначить основное действие.\nСмахните вверх, вниз, влево или вправо, чтобы назначить действие на соответствующий жест.\nУдерживайте на кнопке, чтобы задать метку.</string>
     <string name="extra_keys_editor_mode_assign">Назначить</string>
@@ -614,7 +532,6 @@
     <string name="extra_keys_editor_profile_prefix_hint">например nano, vim, htop</string>
 
     <string name="extra_keys_haptic_title">Тактильная обратная связь</string>
-    <string name="extra_keys_haptic_summary">Вибрация при взаимодействии с панелью дополнительных кнопок</string>
     <string name="extra_keys_haptic_all">Нажатия и жесты</string>
     <string name="extra_keys_haptic_gestures">Только жесты</string>
     <string name="extra_keys_haptic_off">Отключено</string>
@@ -628,19 +545,14 @@
     <string name="extra_keys_editor_signal_keyboard">Переключатель клавиатуры</string>
     <string name="extra_keys_editor_signal_paste">Вставить</string>
     <string name="extra_keys_editor_signal_scroll_lock">Блокировка прокрутки</string>
-    <string name="extra_keys_editor_signal_space">Пробел</string>
     <string name="extra_keys_editor_signal_up">Вверх</string>
     <string name="extra_keys_editor_signal_left">Влево</string>
     <string name="extra_keys_editor_signal_right">Вправо</string>
     <string name="extra_keys_editor_signal_down">Вниз</string>
-    <string name="extra_keys_editor_signal_backslash">Обратная косая черта (\\)</string>
-    <string name="extra_keys_editor_signal_quote">Кавычка (\")</string>
-    <string name="extra_keys_editor_signal_apostrophe">Апостроф (\')</string>
     <string name="extra_keys_editor_signal_custom">Символ/текст…</string>
     <string name="extra_keys_editor_signal_add_delay">Задержка…</string>
     <string name="extra_keys_editor_delay_dialog_title">Задержка</string>
     <string name="extra_keys_editor_delay_format">⏱ %d мс</string>
-    <string name="extra_keys_editor_delay_presets">Быстрый выбор:</string>
     <string name="extra_keys_editor_delay_hint">Задержка</string>
 
     
@@ -668,14 +580,11 @@
     <string name="invalid_number">Пожалуйста, введите допустимое число.</string>
 
     
-    <string name="bootstrap_selector_error_load_sources">Не удалось загрузить источники</string>
     <string name="bootstrap_selector_install_local_title">Установить локальный bootstrap?</string>
     <string name="bootstrap_selector_install_local_message">Локальный bootstrap-архив может выполнить произвольный код. Продолжайте, только если доверяете этому файлу.</string>
     <string name="bootstrap_selector_install">Установить</string>
     <string name="bootstrap_selector_cancel">Отмена</string>
     <string name="bootstrap_selector_title">Установка bootstrap для Termux</string>
-    <string name="bootstrap_selector_status_default">Выберите источник bootstrap для установки:</string>
-    <string name="bootstrap_selector_source_label">Источник:</string>
     <string name="bootstrap_selector_download">Скачать рекомендуемый bootstrap</string>
     <string name="bootstrap_selector_pick_zip">Выбрать локальный .zip-файл</string>
     <string name="bootstrap_selector_retry">Повторить</string>
@@ -683,7 +592,6 @@
     <string name="bootstrap_progress_title">Установка bootstrap</string>
 
     
-    <string name="bootstrap_download_status_idle">Ожидание</string>
     <string name="bootstrap_download_status_connecting">Подключение</string>
     <string name="bootstrap_download_progress_preparing">Подготовка загрузки</string>
     <string name="bootstrap_download_status_installing">Установка</string>
@@ -698,8 +606,6 @@
     <string name="bootstrap_download_progress_checking_sha">Проверка SHA-256</string>
     <string name="bootstrap_download_notification_starting">Запуск</string>
     <string name="bootstrap_download_channel_name">Загрузчик Termux</string>
-    <string name="bootstrap_download_notification_title_success">Bootstrap установлен</string>
-    <string name="bootstrap_download_notification_text_success">Нажмите, чтобы открыть Termux</string>
     <string name="bootstrap_download_notification_title_failed">Установка bootstrap не удалась</string>
 
     
@@ -713,7 +619,6 @@
     
 
     
-    <string name="bootstrap_install_progress_verify_sha">Проверка контрольной суммы</string>
     <string name="bootstrap_install_progress_verify_manifest">Проверка манифеста пакетов</string>
     <string name="bootstrap_install_progress_extract">Извлечение пакетов</string>
     <string name="bootstrap_install_progress_finalize">Завершение установки</string>
@@ -724,7 +629,6 @@
     <string name="application_name">TermuxEnhanced</string>
 
     <!-- Termux App Preferences -->
-    <string name="termux_preferences_title">Termux</string>
 
     <!-- Termux:API App Preferences -->
     <string name="termux_api_preferences_title">Termux:API</string>
@@ -742,7 +646,6 @@
     <string name="report_issue_transcript_footer">\n##\n</string>
 
     <!-- Backup / Restore Preference -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
     <string name="backup_progress_calculating_size">Подсчёт размера…</string>
 
@@ -830,9 +733,6 @@
     <string name="error_bootstrap_manifest_missing_variant">Отсутствует \'variant\' в BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_manifest_missing_arch">Отсутствует \'arch\' в BOOTSTRAP_INFO</string>
 
-    <string name="error_abi_no_supported_abis">На устройстве нет поддерживаемых ABI</string>
-    <string name="error_abi_unknown">Неизвестный ABI: %1$s</string>
-    <string name="error_bootstrap_manifest_missing_info">В bootstrap-zip отсутствует BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_zip_not_found">Bootstrap-zip не найден: %1$s</string>
     <string name="error_bootstrap_create_temp_dir">Не удалось создать временный каталог: %1$s</string>
     <string name="error_bootstrap_rename_prefix">Не удалось переименовать существующий префикс в резервную копию</string>
@@ -864,7 +764,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Размер шрифта</string>
-    <string name="terminal_font_size_summary" formatted="false">То же значение меняется щипком на терминале</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

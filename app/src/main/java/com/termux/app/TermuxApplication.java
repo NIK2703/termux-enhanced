@@ -6,6 +6,7 @@ import android.content.Context;
 import android.os.Bundle;
 
 import com.termux.BuildConfig;
+import com.termux.shared.activities.ReportActivity;
 import com.termux.shared.errors.Error;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxBootstrap;
@@ -54,6 +55,12 @@ public class TermuxApplication extends Application {
         // Set crash handler for the app
         TermuxCrashUtils.setDefaultCrashHandler(this);
 
+        // Add the container/settings backup buttons to the app crash report screen. The host is a
+        // process-wide static of the shared ReportActivity, and ReportActivity instances always live
+        // in this process, so registering it here covers every way the crash report can be opened
+        // (crash notification, recents, ...).
+        ReportActivity.setReportActionHost(new TermuxReportActionHost());
+
         // Set log config for the app
         setLogConfig(context);
 
@@ -78,6 +85,15 @@ public class TermuxApplication extends Application {
         // Apply the app display language (per-app locale) at startup so the chosen
         // language (e.g. Russian) is used everywhere without re-selecting it.
         TermuxLocaleUtils.applyLocale(TermuxLocaleUtils.getLocaleOverride());
+
+        // Notify about a crash of a previous run as early as possible — deliberately here, and not
+        // in TermuxActivity, because that only runs after the whole terminal UI (view, sessions,
+        // pager, IME state) has been created: a crash during start-up — exactly the case where a
+        // crash report is most needed — would then never produce a notification at all. Reading the
+        // crash log and posting the notification happen on a background thread, so the app start is
+        // not delayed. Called after the locale is applied so the notification is in the user's
+        // language, and before the files directory checks below, which can return early.
+        TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
 
         // Init TermuxShellEnvironment constants and caches BEFORE any early return,
         // so that getDefaultWorkingDirectoryPath() always returns runtime-resolved paths

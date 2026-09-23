@@ -30,7 +30,6 @@
 <string name="action_rename_session_confirm">設定</string>
 <string name="title_create_named_session">新しい名前付きセッション</string>
 <string name="action_create_named_session_confirm">作成</string>
-<string name="action_toggle_soft_keyboard">キーボード</string>
 <string name="action_toggle_text_input">テキスト入力</string>
 <string name="msg_terminal_panel_enabling">ターミナルパネルを有効化中</string>
 <string name="msg_terminal_panel_disabling">ターミナルパネルを無効化中</string>
@@ -54,8 +53,6 @@
 <string name="title_confirm_kill_process">このセッションを本当に強制終了しますか？</string>
 <string name="action_style_terminal">スタイル</string>
 <string name="action_font_terminal">フォント</string>
-<string name="font_picker_title">フォントを選択 (.ttf)</string>
-<string name="error_font_apply_failed">フォントの適用に失敗しました</string>
 <string name="action_toggle_keep_screen_on">画面をオンのままにする</string>
 <string name="action_open_help">ヘルプ</string>
 <string name="action_open_settings">設定</string>
@@ -63,7 +60,6 @@
 <string name="msg_generating_report">レポートを生成中</string>
 <string name="msg_add_termux_debug_info">レポートに Termux デバッグ情報を追加しますか？</string>
 <string name="error_styling_not_installed">Termux:Styling プラグインアプリがインストールされていません。</string>
-<string name="action_styling_install">インストール</string>
 <string name="notification_action_exit">終了</string>
 <string name="notification_action_wake_lock">ウェイクロックを取得</string>
 <string name="notification_action_wake_unlock">ウェイクロックを解放</string>
@@ -82,42 +78,20 @@
 <string name="error_termux_service_start_failed_general">TermuxService の起動に失敗しました。例外メッセージについて logcat を確認してください。</string>
 <string name="error_termux_service_start_failed_bg">Android のバックグラウンド制限により、アプリがバックグラウンドにある間に TermuxService の起動に失敗しました。</string>
 <string name="title_activity_termux_settings">Termux 設定</string>
-<string name="appearance_preferences_title">外観</string>
-<string name="appearance_preferences_summary">外観とパネルの透明度の設定</string>
-<string name="theme_title">テーマ</string>
-<string name="panel_transparency_title">パネルの透明度</string>
-<string name="termux_preferences_summary">Termux アプリの設定</string>
 <string name="termux_debugging_preferences_title">デバッグ</string>
 <string name="termux_debugging_preferences_summary">デバッグ設定</string>
-<string name="termux_logging_header">ログ記録</string>
 <string name="termux_log_level_title">ログレベル</string>
 <string name="termux_terminal_view_key_logging_enabled_title">ターミナルビューのキーログ記録</string>
 <string name="termux_terminal_view_key_logging_enabled_off">ログにターミナルビューのキーエントリは含まれません。</string>
 <string name="termux_terminal_view_key_logging_enabled_on">logcat にターミナルビューのキーエントリが含まれます。これらは非常に詳細であり、通常は無効にする必要があります。有効にするとパフォーマンスの問題が発生する可能性があります。</string>
 <string name="termux_plugin_error_notifications_enabled_title">プラグインエラー通知</string>
-<string name="termux_plugin_error_notifications_enabled_off">プラグインエラーのトーストと通知を無効にします。</string>
-<string name="termux_plugin_error_notifications_enabled_on">プラグインエラーのトーストと通知を表示します。</string>
 <string name="termux_crash_report_notifications_enabled_title">クラッシュレポート通知</string>
-<string name="termux_crash_report_notifications_enabled_off">クラッシュレポートの通知を無効にします。</string>
-<string name="termux_crash_report_notifications_enabled_on">クラッシュレポートの通知を表示します。</string>
-    <string name="termux_terminal_io_preferences_title">ターミナル I/O</string>
-<string name="termux_terminal_io_preferences_summary">ターミナルの入出力設定</string>
 <string name="termux_soft_keyboard_enabled_title">ソフトウェアキーボード</string>
-<string name="termux_soft_keyboard_enabled_off">ソフトウェアキーボードを無効にします。</string>
-<string name="termux_soft_keyboard_enabled_on">ソフトウェアキーボードを有効にします。</string>
-<string name="termux_settings_button_enabled_title">設定ボタンを表示</string>
-<string name="termux_settings_button_enabled_on">設定ボタンがタブパネルに表示されます。</string>
-<string name="termux_settings_button_enabled_off">設定ボタンは非表示です。ターミナルを長押し → その他… → 設定から設定を開きます。</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">ハードウェアキーボード接続時に非表示</string>
-<string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">ハードウェアキーボードが接続されている場合でもソフトウェアキーボードを有効にします。</string>
-<string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">ハードウェアキーボードが接続されていない場合のみソフトウェアキーボードを有効にします。</string>
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">タブ切り替え時のキーボード状態</string>
     <string name="keyboard_state_follow_tab_switch_summary">タブを切り替えるとき、各タブのキーボード状態を、そのタブから離れたときの状態に復元します。</string>
-<string name="termux_terminal_view_preferences_title">ターミナル表示</string>
-<string name="termux_terminal_view_preferences_summary">ターミナル表示の設定</string>
-<string name="termux_terminal_view_view_header">表示</string>
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">非アクティブ項目の背景不透明度</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">アクティブ項目の背景不透明度</string>
 <string name="extra_keys_corner_radius_title">ボタンの角の丸み</string>
@@ -129,21 +103,15 @@
 <string name="color_scheme_light_summary">アプリのテーマがライトの場合に適用されるカラースキーム</string>
 <string name="color_scheme_dark_title">ターミナルのカラースキーム（ダークテーマ）</string>
 <string name="color_scheme_dark_summary">アプリのテーマがダークの場合に適用されるカラースキーム</string>
-    <string name="input_history_title">入力履歴</string>
 <string name="input_history_max_title">入力履歴の最大件数</string>
 <string name="per_directory_input_history_title">ディレクトリごとの入力履歴</string>
 <string name="per_directory_input_history_summary">作業ディレクトリごとに個別の入力履歴を保持します。無効にすると、すべてのセッションで1つのグローバル履歴を共有します。</string>
 <string name="input_history_save_cleared_title">クリアした項目を履歴に保存</string>
 <string name="input_history_save_cleared_summary">入力欄からクリアしたテキストを履歴に保存します。</string>
-<string name="text_input_title">テキスト入力</string>
 <string name="text_input_append_enter_title">送信時にEnterを追加</string>
-<string name="text_input_append_enter_summary">入力フィールドから送信する際に、Enter（改行）も送信します。無効にすると、末尾に改行のない生テキストが送信されます。</string>
-<string name="directory_history_title">ディレクトリ履歴</string>
 <string name="directory_history_max_title">最大記憶ディレクトリ数</string>
 <string name="restore_tabs_title">起動時にタブを復元</string>
-<string name="restore_tabs_summary">アプリ起動時にすべてのタブとそのディレクトリを再度開きます</string>
 <string name="screen_orientation_title">画面の向き</string>
-<string name="screen_orientation_summary">\"センサーに従う\"バリエーションは2つの向き（例：ポートレート0°/180°）の間で回転します。</string>
 
 <string name="donate_preference_title">寄付</string>
 <string name="backup_preference_title">Termuxコンテナのバックアップ</string>
@@ -153,11 +121,7 @@
     <string name="backup_restore_warning_restore">復元を実行すると、選択したバックアップファイルの内容で現在のTermuxデータディレクトリ（インストール済みパッケージとホームディレクトリ）が上書きされます。既存のデータは失われます。\n\n⚠ バックアップファイルが破損している、不完全である、または処理中に接続が中断された場合など、復元に失敗すると、Termux環境は空のままになります。元のデータを復元する方法はありません。\n\nこの操作は元に戻せません。先にバックアップを作成し、バックアップファイルが有効であることを確認することを強くお勧めします。</string>
     <string name="backup_restore_backup_started">バックアップを作成中…</string>
 <string name="backup_restore_restore_started">バックアップを復元中…</string>
-<string name="backup_restore_backup_success">バックアップが正常に作成されました</string>
-<string name="backup_restore_restore_success">データが正常に復元されました</string>
-<string name="backup_restore_failed_title">操作に失敗しました</string>
 <string name="backup_restore_tar_not_found">termuxバイナリ（tar）が見つかりません。コンテナをセットアップするために、Termuxを一度は開いてください。</string>
-<string name="backup_restore_choose_backup">復元する.tar.gzバックアップファイルを選択してください</string>
 <string name="backup_service_channel_name">Termux バックアップ / 復元</string>
 <string name="backup_service_notification_title">Termux データバックアップ</string>
 <string name="backup_service_notification_restore_title">Termux データ復元</string>
@@ -183,17 +147,12 @@
 <string name="settings_restart_required">復元したすべての設定を反映するにはTermuxを再起動してください</string>
 <string name="settings_backup_failed">設定のバックアップに失敗しました</string>
 <string name="settings_restore_failed">設定の復元に失敗しました</string>
-<string name="settings_backup_filename">termux-settings-backup.zip</string>
 <string name="backup_include_tmp_checkbox">tmp ディレクトリを含める (usr/tmp/)</string>
-<string name="error_settings_backup_format_version">サポートされていないバックアップ形式のバージョン: %1$s</string>
-<string name="error_settings_backup_missing_manifest">バックアップファイルに manifest.properties が見つかりません</string>
 <string name="error_settings_restore_open_input">入力ファイルを開けませんでした</string>
 <string name="tab_close_description">タブを閉じる</string>
 <string name="session_default_title">ターミナル</string>
 <string name="new_tab_placeholder_hint">新しいセッション</string>
-<string name="session_tabs_title">セッションタブ</string>
 <string name="swipe_rightmost_new_tab_title">最右端のタブを右にスワイプして新規セッション</string>
-<string name="swipe_rightmost_new_tab_summary">最後のタブで右にスワイプすると、新しいターミナルセッションが表示されて開きます</string>
 <string name="termux_tab_height_mode_title">タブの高さ</string>
 <string name="termux_tab_height_mode_single">1行</string>
 <string name="termux_tab_height_mode_double">2行</string>
@@ -201,15 +160,8 @@
 <string name="termux_tab_panel_position_top">上</string>
 <string name="termux_tab_panel_position_bottom">下</string>
 <string name="text_input_toggle_button_title">入力パネル切り替えボタン</string>
-<string name="text_input_show_summary_on">テキスト入力欄が追加ボタンの上に表示されています</string>
-<string name="text_input_show_summary_off">テキスト入力欄は非表示です</string>
-<string name="text_input_hide_on_send_title">送信後に入力パネルを隠す</string>
-    <string name="text_input_hide_on_send_summary">有効にすると、送信後に入力パネルが閉じてフォーカスがターミナルに移ります。連続したコマンド入力のためにパネルを開いたままにするには無効にしてください。</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">送信後にソフトウェアキーボードを隠す</string>
-    <string name="text_input_hide_keyboard_on_send_summary">有効にすると、入力欄からテキストを送信した後（例：Enter キー）にソフトウェアキーボードが閉じます。入力パネルとキーボードは個別に制御されます。</string>
     <string name="text_input_action_on_send_title">送信時の動作</string>
-    <string name="text_input_action_on_send_summary">入力フィールドからテキストを送信した後の動作: 何もしない、入力パネルを隠す、または入力パネルとキーボードを隠します。</string>
     <string-array name="text_input_action_on_send_entries">
         <item>何もしない</item>
         <item>入力パネルを隠す</item>
@@ -221,7 +173,6 @@
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">履歴からのテキスト復元動作</string>
-    <string name="text_input_restore_mode_summary">タップして選択：カーソル位置に挿入、または入力フィールド全体を置き換え</string>
     <string name="text_input_restore_mode_dialog_title">履歴復元モード</string>
     <string name="text_input_restore_mode_option_insert">カーソル位置に挿入</string>
     <string name="text_input_restore_mode_option_replace">入力フィールド全体を置き換え</string>
@@ -230,11 +181,11 @@
 <string name="input_history_clear">クリア</string>
 <string name="input_history_clear_dialog_title">入力履歴をクリア</string>
 <string name="input_history_clear_question">入力履歴をクリアしますか？</string>
-<string name="input_history_clear_confirm_current">現在のディレクトリの保存された入力テキストをすべてクリアしますか？この操作は元に戻せません。</string>
+<string name="input_history_clear_confirm_current">現在のディレクトリの入力履歴をすべてクリアしますか？この操作は元に戻せません。</string>
 <string name="input_history_clear_confirm_all">すべての入力履歴をクリアしますか？この操作は元に戻せません。</string>
 <string name="input_history_clear_all_button">すべて</string>
 <string name="input_history_clear_current_only_question">現在のディレクトリのみ履歴をクリアしますか？</string>
-<string name="input_history_clear_all_question">これにより、保存されたすべての入力テキストが完全に削除されます。</string>
+<string name="input_history_clear_all_question">これにより、すべての入力履歴が完全に削除されます。</string>
 <string name="input_history_cleared">入力履歴がクリアされました</string>
 <string name="directory_history_clear_dialog_title">ディレクトリ履歴をクリア</string>
 <string name="directory_history_clear_confirm">すべてのディレクトリ履歴をクリアしますか？この操作は元に戻せません。</string>
@@ -264,7 +215,6 @@
 <string name="msg_extra_keys_create_failed">デフォルトの追加ボタンを作成できませんでした</string>
     <string name="about_preference_title">アプリについて</string>
     <string name="theme_mode_title">アプリのテーマ</string>
-    <string name="theme_mode_summary">アプリとターミナルのテーマを選択</string>
     <string name="color_scheme_dialog_title">ターミナルのカラースキーム</string>
     <string name="termux_keyboard_header">キーボード</string>
     <string name="system_buttons_category_title">システムボタン</string>
@@ -272,54 +222,34 @@
 
     
     <string name="locale_override_title">アプリの言語</string>
-    <string name="locale_override_summary">アプリの言語を上書き</string>
     <string name="locale_override_entry_system">システム</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">キーボードに連動して拡張ボタンを非表示</string>
-    <string name="hide_extra_keys_with_keyboard_summary">キーボードが閉じられたときに拡張ボタンを自動的に非表示にし、開かれたときに表示します</string>
 
     
     <string name="suggestions_max_count_title">オートコンプリート候補の最大数</string>
-    <string name="suggestions_max_count_summary">入力履歴から自動補完</string>
 <string name="appearance_category_title">外観</string>
 <string name="backup_restore_preferences_title">バックアップと復元</string>
 <string name="backup_restore_preferences_summary">Termuxコンテナ、アプリ設定</string>
-<string name="diagnostics_preferences_title">診断</string>
-<string name="diagnostics_preferences_summary">ログ記録と失敗通知</string>
 <string name="display_preferences_title">表示</string>
     <string name="display_preferences_summary">外観、タブ、ターミナル、ウィンドウ</string>
 <string name="terminal_advanced_title">詳細設定</string>
 <string name="terminal_advanced_summary">セッション、サウンドと通知、外部アプリ、アドオン、デバッグ</string>
-<string name="extra_keys_preferences_title">拡張ボタン</string>
-<string name="extra_keys_preferences_summary">拡張ボタンバーの設定</string>
-<string name="extra_keys_header">拡張ボタン</string>
 <string name="extra_keys_category_title">拡張ボタン</string>
-<string name="extra_keys_layout_title">ボタンレイアウト</string>
-<string name="extra_keys_layout_summary">拡張ボタンの行とそのポップアップを定義するJSON行列。</string>
 <string name="extra_keys_style_title">ボタンのスタイル</string>
-<string name="extra_keys_style_summary">ボタンに表示される特殊文字の表示方法。</string>
 <string name="extra_keys_style_default">デフォルト</string>
 <string name="extra_keys_style_arrows_only">矢印のみ</string>
 <string name="extra_keys_style_arrows_all">すべての矢印</string>
 <string name="extra_keys_style_all">すべて</string>
 <string name="extra_keys_style_none">なし</string>
 <string name="extra_keys_text_all_caps_title">すべて大文字表示</string>
-<string name="extra_keys_text_all_caps_summary">拡張ボタンのラベルを大文字で表示します。</string>
 <string name="extra_keys_special_button_mode_title">特殊ボタンの動作</string>
-<string name="extra_keys_special_button_mode_summary">修飾ボタン（CTRL、ALT、SHIFT、FN）がタッチにどう応答するか。Sticky（固定）: タップで切り替え、長押しでロック。Hold（押下）: ボタンが押されている間のみ有効。</string>
 <string name="extra_keys_special_button_mode_sticky">Sticky（切り替え / ロック）</string>
 <string name="extra_keys_special_button_mode_hold">Hold（押している間）</string>
-<string name="failure_notifications_category_title">失敗通知</string>
-<string name="history_category_title">履歴</string>
 <string name="input_preferences_title">入力</string>
 <string name="input_preferences_summary">拡張ボタン、入力パネル、キーボード、ショートカット、システムボタン</string>
 <string name="input_panel_title">入力パネル</string>
-<string name="language_category_title">言語</string>
 <string name="plugin_logging_category_title">ログ記録</string>
-<string name="sessions_preferences_title">セッション</string>
-<string name="sessions_history_preferences_summary">セッション、タブ、履歴の設定</string>
 <string name="tabs_category_title">タブ</string>
-<string name="view_category_title">表示</string>
 <string name="window_category_title">ウィンドウ</string>
     <string name="theme_mode_entry_dark">ダーク</string>
     <string name="theme_mode_entry_light">ライト</string>
@@ -332,36 +262,22 @@
 
     
     <string name="extra_keys_visibility_title">拡張ボタンパネルを表示</string>
-    <string name="extra_keys_visibility_summary">拡張ボタンバーを表示するタイミング</string>
     <string name="extra_keys_visibility_always">常に表示</string>
     <string name="extra_keys_visibility_keyboard">キーボード表示時のみ</string>
     <string name="extra_keys_visibility_never">表示しない</string>
 
     
-    <string name="extra_keys_invalid_json">拡張ボタンのJSONが無効です。変更は保存されませんでした。</string>
 
     
     <string name="extra_keys_editor_title">拡張ボタンエディター</string>
-    <string name="extra_keys_editor_summary">拡張ボタンパネルを視覚的に構築: 行と列を設定し、ボタンをタップしてシグナルを割り当てます。</string>
     <string name="extra_keys_editor_columns_title">列数</string>
-    <string name="extra_keys_editor_columns_summary">行あたりのボタン数</string>
     <string name="extra_keys_editor_rows_title">行数</string>
-    <string name="extra_keys_editor_rows_summary">ボタンの行数</string>
-    <string name="extra_keys_editor_preview_title">プレビュー</string>
-    <string name="extra_keys_editor_preview_summary">ライブパネル — ボタンをタップしてシグナルを変更</string>
     <string name="extra_keys_editor_signal_dialog_title">シグナルを割り当て</string>
     <string name="extra_keys_editor_custom_text_title">文字/テキスト</string>
-    <string name="extra_keys_editor_custom_text_message">キーを押してバインド:</string>
-    <string name="extra_keys_editor_apply_title">拡張ボタンに適用</string>
-    <string name="extra_keys_editor_apply_summary">このレイアウトを拡張ボタン設定に保存</string>
-    <string name="extra_keys_editor_empty">（空）</string>
     <string name="extra_keys_editor_max_signals">1ボタンあたり最大8シグナル</string>
-    <string name="extra_keys_editor_custom_text_no_space">スペースを含むカスタムテキストはボタンの組み合わせに対応していません</string>
     <string name="extra_keys_editor_done">完了</string>
     <string name="extra_keys_editor_open_editor">拡張ボタンを編集</string>
-    <string name="extra_keys_editor_open_editor_summary">レイアウト、スケール、ボタン割り当てを設定</string>
     <string name="extra_keys_edge_indicators_title">スワイプ方向インジケーター</string>
-    <string name="extra_keys_edge_indicators_summary">拡張ボタンにアクションが割り当てられたスワイプ方向インジケーターを表示する</string>
     <string name="extra_keys_editor_hint">タップでメインアクションを割り当て · スワイプ ↑ ↓ ← → でジェスチャーアクションを割り当て · 長押しでボタンのラベルを設定</string>
     <string name="extra_keys_editor_mode_assign">割り当て</string>
     <string name="extra_keys_editor_mode_move">移動</string>
@@ -393,7 +309,6 @@
 
     
     <string name="extra_keys_haptic_title">触覚フィードバック</string>
-    <string name="extra_keys_haptic_summary">拡張ボタンパネル操作時のバイブレーション</string>
     <string name="extra_keys_haptic_all">タップとジェスチャー</string>
     <string name="extra_keys_haptic_gestures">ジェスチャーのみ</string>
     <string name="extra_keys_haptic_off">無効</string>
@@ -402,9 +317,6 @@
     <string name="extra_keys_editor_signal_keyboard">キーボード切替</string>
     <string name="extra_keys_editor_signal_paste">ペースト</string>
     <string name="extra_keys_editor_signal_scroll_lock">スクロールロック</string>
-    <string name="extra_keys_editor_signal_backslash">Backslash（\\）</string>
-    <string name="extra_keys_editor_signal_quote">Quote（\"）</string>
-    <string name="extra_keys_editor_signal_apostrophe">Apostrophe（\'）</string>
     <string name="termux_api_debugging_title">Termux:API デバッグ</string>
     <string name="termux_float_debugging_title">Termux:Float デバッグ</string>
     <string name="termux_tasker_debugging_title">Termux:Tasker デバッグ</string>
@@ -414,21 +326,16 @@
     <string name="extra_keys_dynamic_font_size_title">動的フォントサイズ</string>
     <string name="extra_keys_dynamic_font_size_summary">列数またはマクロバインディング数が増加したときにフォントサイズを縮小</string>
     <string name="extra_keys_font_size_title">基本フォントサイズ</string>
-    <string name="extra_keys_font_size_summary">ボタンラベルの基本テキストサイズ</string>
     <string name="extra_keys_editor_tap_suffix"> (タップ)</string>
 
     <string name="extra_keys_editor_remove_signal">%sを削除</string>
 
     
     <string name="extra_keys_button_margin_title">ボタンの間隔</string>
-    <string name="extra_keys_button_margin_summary">ボタン間のスペース</string>
 
     
     <string name="terminal_category_title">ターミナル</string>
-    <string name="key_behaviour_category_title">キーの動作</string>
-    <string name="screen_category_title">画面</string>
     <string name="shortcuts_category_title">ショートカット</string>
-    <string name="misc_category_title">その他</string>
     <string name="external_apps_category_title">外部アプリ</string>
     <string name="sound_category_title">サウンドと通知</string>
     <string name="session_category_title">セッション</string>
@@ -450,18 +357,15 @@
 
     
     <string name="invalid_number">有効な数値を入力してください。</string>
-    <string name="shortcut_invalid_format">無効なショートカットです。"ctrl+x"の形式を使用するか、無効にするには空のままにしてください。</string>
 
     
     <string name="terminal_cursor_style_title">カーソルスタイル</string>
-    <string name="terminal_cursor_style_summary">ターミナルカーソルの描画方法。</string>
     <string name="terminal_cursor_blink_rate_title">カーソル点滅速度</string>
     <string name="terminal_cursor_blink_rate_summary">カーソルの点滅速度（ミリ秒）。</string>
     <string name="terminal_cursor_blink_enabled_title">カーソル点滅</string>
 
     
     <string name="bell_character_title">ベル動作</string>
-    <string name="bell_character_summary">ターミナルがベル（BEL）文字を受信したときの動作。</string>
 
     
     <string name="terminal_margin_left_title">左余白</string>
@@ -472,11 +376,10 @@
     <string name="terminal_background_transparency_title">ターミナル背景の透明度</string>
 
     <string name="terminal_background_blur_radius_title">背景のぼかし半径</string>
-    <string name="terminal_background_blur_radius_summary">動く壁紙でぼかし半径を大きくすると消費電力が増える場合があります。静止画の壁紙では電力への影響はほとんどありません。</string>
+    <string name="terminal_background_blur_radius_summary">動的な背景でぼかし半径を大きくすると消費電力が増える場合があります。静的な背景では電力への影響はほとんどありません。</string>
 
     
     <string name="terminal_toolbar_scale_title">パネルのスケール</string>
-    <string name="terminal_toolbar_height_summary">拡張キー / ターミナルツールバーの高さ倍率。</string>
 
     
     <string name="default_working_directory_title">デフォルトの作業ディレクトリ</string>
@@ -484,48 +387,35 @@
 
     
     <string name="back_key_sends_escape_title">戻るキーでEscapeを送信</string>
-    <string name="back_key_summary">ハードウェア/ソフトウェアの戻るキーがターミナルで行う動作。</string>
     <string name="volume_keys_title">ボリュームキーを修飾キーとして使用</string>
     <string name="volume_keys_summary">音量ダウンキーでCtrl、音量アップキーでFnを押したままにします。このモードで音量パネルを開くにはFn + vを使用します</string>
 
     
     <string name="soft_keyboard_toggle_behaviour_title">キーボード切り替え動作</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">キーボード切替がソフトウェアキーボードの表示/非表示を行うか、有効/無効を行うか。</string>
 
     
     <string name="ctrl_space_workaround_title">Ctrl+Space 回避策</string>
-    <string name="ctrl_space_workaround_summary">Ctrl+Space が正しく配信されるように回避策を使用します。</string>
 
     
     <string name="enforce_char_based_input_title">バイト単位の入力送信</string>
-    <string name="enforce_char_based_input_summary">文字を1バイトずつ送信するように強制します。</string>
 
     
     <string name="disable_hardware_keyboard_shortcuts_title">ハードウェアキーボードショートカットを無効化</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">ハードウェア/外部キーボードからのキーボードショートカットを無視します。</string>
-    <string name="disable_terminal_session_change_toast_title">セッション切り替えトーストを無効化</string>
-    <string name="disable_terminal_session_change_toast_summary">ターミナルセッションを切り替えるときにトーストを表示しません。</string>
 
     
     <string name="scroll_on_new_output_title">新規出力時に自動スクロール</string>
-    <string name="scroll_on_new_output_summary">新しいターミナル出力があったときに自動的に最下部までスクロールします。</string>
 
     
     <string name="terminal_onclick_url_open_title">クリックでURLを開く</string>
-    <string name="terminal_onclick_url_open_summary">タップしたときにターミナルバッファ内のURLを開きます。</string>
 
     
     <string name="fullscreen_title">全画面</string>
     <string name="bubble_on_background_title">バックグラウンドでバブル</string>
     <string name="bubble_on_background_summary">アプリがバックグラウンドに移行したときに、他のアプリの上からターミナルにすばやくアクセスできるようバブルを表示します</string>
-    <string name="fullscreen_summary">Termuxを全画面モードで実行します。</string>
 
     
-    <string name="night_mode_legacy_title">ナイトモード（レガシーのnight-mode）</string>
-    <string name="night_mode_legacy_summary">レガシーのnight-modeプロパティを制御します。代わりに「表示」設定のテーマを使用することを推奨します。</string>
 
     
-    <string name="shortcut_summary">形式: Ctrl+KEY（例: Ctrl+a）。無効にするには空のままにしてください。</string>
     <string name="shortcut_create_session_title">新規セッション</string>
     <string name="shortcut_next_session_title">次のセッション</string>
     <string name="shortcut_previous_session_title">前のセッション</string>
@@ -542,7 +432,6 @@
 
     
     <string name="hide_soft_keyboard_on_startup_title">起動時にソフトウェアキーボードを非表示</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Termux起動時にソフトウェアキーボードを非表示にします。</string>
 
     
     <string name="terminal_cursor_style_block">ブロック</string>
@@ -553,18 +442,11 @@
     <string name="bell_character_beep">ビープ</string>
     <string name="bell_character_ignore">無視</string>
 
-    <string name="back_key_back">戻るボタン</string>
-    <string name="back_key_escape">エスケープキー</string>
 
-    <string name="volume_keys_virtual">仮想キー（ボリュームキーがキーとして動作）</string>
-    <string name="volume_keys_volume">音量（デバイスの音量を制御）</string>
 
     <string name="soft_keyboard_toggle_show_hide">表示 / 非表示</string>
     <string name="soft_keyboard_toggle_enable_disable">有効 / 無効</string>
 
-    <string name="night_mode_true">ダーク</string>
-    <string name="night_mode_false">ライト</string>
-    <string name="night_mode_system">システム標準</string>
 
     
     <string name="report_issue_title">Termux の問題を報告</string>
@@ -572,20 +454,16 @@
     <string name="backup_error_open_output">出力ファイルを開けませんでした</string>
 
     
-    <string name="bootstrap_selector_error_load_sources">ソースの読み込みに失敗しました</string>
     <string name="bootstrap_selector_install_local_title">ローカルのブートストラップをインストールしますか？</string>
     <string name="bootstrap_selector_install_local_message">ローカルのブートストラップzipは任意のコードを実行できます。このファイルを信頼する場合のみ続行してください。</string>
     <string name="bootstrap_selector_install">インストール</string>
     <string name="bootstrap_selector_cancel">キャンセル</string>
     <string name="bootstrap_selector_title">Termuxブートストラップのインストール</string>
-    <string name="bootstrap_selector_status_default">インストールするブートストラップソースを選択:</string>
-    <string name="bootstrap_selector_source_label">ソース:</string>
     <string name="bootstrap_selector_download">推奨ブートストラップをダウンロード</string>
     <string name="bootstrap_selector_pick_zip">ローカルの.zipファイルを選択</string>
     <string name="bootstrap_selector_retry">再試行</string>
     <string name="bootstrap_selector_offline">最小オフラインインストール（基本シェル）</string>
     <string name="bootstrap_progress_title">ブートストラップをインストール中</string>
-    <string name="bootstrap_download_status_idle">待機中</string>
     <string name="bootstrap_download_status_connecting">接続中</string>
     <string name="bootstrap_download_progress_preparing">ダウンロードを準備中</string>
     <string name="bootstrap_download_status_installing">インストール中</string>
@@ -600,12 +478,9 @@
     <string name="bootstrap_download_progress_checking_sha">SHA-256をチェック中</string>
     <string name="bootstrap_download_notification_starting">開始中</string>
     <string name="bootstrap_download_channel_name">Termux ブートストラップ</string>
-    <string name="bootstrap_download_notification_title_success">ブートストラップがインストールされました</string>
-    <string name="bootstrap_download_notification_text_success">タップしてTermuxを開く</string>
     <string name="bootstrap_download_notification_title_failed">ブートストラップのインストールに失敗しました</string>
     <string name="file_receiver_bootstrap_not_installed">ブートストラップがインストールされていません。先にTermuxアプリを開いてください。</string>
     <string name="run_command_bootstrap_not_installed">ブートストラップがインストールされていません。先にTermuxアプリを開いてインストールしてください。</string>
-    <string name="bootstrap_install_progress_verify_sha">チェックサムを検証中</string>
     <string name="bootstrap_install_progress_verify_manifest">パッケージマニフェストを検証中</string>
     <string name="bootstrap_install_progress_extract">パッケージを展開中</string>
     <string name="bootstrap_install_progress_finalize">インストールを完了中</string>
@@ -614,13 +489,11 @@
 
     <string name="extra_keys_editor_delay_format">⏱ %d ミリ秒</string>
     <string name="extra_keys_editor_delay_hint">遅延</string>
-    <string name="extra_keys_editor_delay_presets">クイック選択:</string>
 
     <!-- Application name -->
     <string name="application_name">TermuxEnhanced</string>
 
     <!-- Termux App Preferences -->
-    <string name="termux_preferences_title">Termux</string>
 
     <!-- Termux:API App Preferences -->
     <string name="termux_api_preferences_title">&TERMUX_API_APP_NAME;</string>
@@ -635,7 +508,6 @@
     <string name="termux_widget_preferences_title">&TERMUX_WIDGET_APP_NAME;</string>
 
     <!-- Backup / Restore Preference -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
     <string name="backup_progress_calculating_size">サイズを計算中…</string>
 
@@ -650,7 +522,6 @@
     <string name="extra_keys_editor_signal_alt">ALT</string>
     <string name="extra_keys_editor_signal_shift">SHIFT</string>
     <string name="extra_keys_editor_signal_fn">FN</string>
-    <string name="extra_keys_editor_signal_space">Space</string>
     <string name="extra_keys_editor_signal_esc">Esc</string>
     <string name="extra_keys_editor_signal_tab">Tab</string>
     <string name="extra_keys_editor_signal_home">Home</string>
@@ -688,12 +559,9 @@
     <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">このデバイスでサポートされている ABI がありません</string>
     <string name="error_abi_arch_mismatch">ブートストラップアーキテクチャ \'%1$s\' がデバイスアーキテクチャ \'%2$s\' と一致しません。利用可能な ABI: %3$s</string>
-    <string name="error_abi_unknown">不明な ABI: %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">ブートストラップ zip に BOOTSTRAP_INFO がありません</string>
     <string name="error_bootstrap_manifest_missing_variant">BOOTSTRAP_INFO に \'variant\' がありません</string>
     <string name="error_bootstrap_manifest_missing_arch">BOOTSTRAP_INFO に \'arch\' がありません</string>
 
@@ -770,7 +638,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">フォントサイズ</string>
-    <string name="terminal_font_size_summary" formatted="false">ターミナルでのピンチ操作でも同じ値が変わります</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

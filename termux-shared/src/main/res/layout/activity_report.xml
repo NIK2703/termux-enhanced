@@ -8,6 +8,10 @@
         layout="@layout/partial_primary_toolbar"
         android:id="@+id/partial_primary_toolbar"/>
 
+    <!-- Custom action buttons contributed by the host app (see ReportActivity.ReportActionHost,
+         e.g. the container/settings backups on the crash report screen) are NOT a separate view
+         here: they are the first items of the report list below, so they sit at the very top of the
+         report and scroll away with it instead of staying pinned under the toolbar. -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view"
         android:layout_width="match_parent"

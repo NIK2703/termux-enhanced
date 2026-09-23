@@ -30,17 +30,12 @@
     <string name="action_share_selected_text">Markierten Text teilen</string>
     <string name="action_share_transcript">Protokoll teilen</string>
     <string name="action_style_terminal">Stil</string>
-    <string name="action_styling_install">Installieren</string>
     <string name="action_toggle_keep_screen_on">Bildschirm anlassen</string>
-    <string name="action_toggle_soft_keyboard">Tastatur</string>
     <string name="action_toggle_text_input">Texteingabe</string>
-    <string name="appearance_preferences_summary">Einstellungen für das Erscheinungsbild der App und die Transparenz der Leiste</string>
-    <string name="appearance_preferences_title">Erscheinungsbild</string>
     <string name="backup_dialog_run_in_background">Im Hintergrund</string>
     <string name="backup_dialog_cancel">Abbrechen</string>
     <string name="backup_preference_title">Termux-Container sichern</string>
     <string name="backup_restore_backup_started">Sicherung wird erstellt…</string>
-    <string name="backup_restore_backup_success">Sicherung erfolgreich erstellt</string>
     <string name="backup_restore_cancelled">Vorgang abgebrochen</string>
     <!-- Einstellungen Backup / Wiederherstellung -->
     <string name="backup_restore_full_data_category_title">Termux-Container</string>
@@ -56,17 +51,11 @@
     <string name="settings_restart_required">Starten Sie Termux neu, damit alle wiederhergestellten Einstellungen übernommen werden</string>
     <string name="settings_backup_failed">Sicherung der Einstellungen fehlgeschlagen</string>
     <string name="settings_restore_failed">Wiederherstellung der Einstellungen fehlgeschlagen</string>
-    <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">tmp-Verzeichnis einschließen (usr/tmp/)</string>
-    <string name="error_settings_backup_format_version">Nicht unterstützte Sicherungsformatversion: %1$s</string>
-    <string name="error_settings_backup_missing_manifest">In der Sicherungsdatei fehlt manifest.properties</string>
     <string name="error_settings_restore_open_input">Die Datei konnte nicht zum Lesen geöffnet werden</string>
-    <string name="backup_restore_choose_backup">Wählen Sie eine .tar.gz-Sicherungsdatei für die Wiederherstellung aus</string>
     <string name="backup_restore_dialog_title">Sicherung/Wiederherstellung der Termux-Daten</string>
-    <string name="backup_restore_failed_title">Vorgang fehlgeschlagen</string>
     <string name="backup_restore_tar_not_found">Die Termux-Binärdatei (tar) wurde nicht gefunden. Bitte öffnen Sie Termux mindestens einmal, damit der Container eingerichtet wird.</string>
     <string name="backup_restore_restore_started">Wiederherstellung aus der Sicherung…</string>
-    <string name="backup_restore_restore_success">Daten erfolgreich wiederhergestellt</string>
     <string name="backup_restore_warning_backup">Es wird ein komprimiertes Archiv Ihres Termux-Datenverzeichnisses (installierte Pakete und Umgebung sowie Ihr Home-Verzeichnis) erstellt.\n\nWählen Sie eine Zieldatei zum Speichern der Sicherung.</string>
     <string name="backup_restore_warning_restore">Die Wiederherstellung ÜBERSCHREIBT Ihr aktuelles Termux-Datenverzeichnis (installierte Pakete und Ihr Home-Verzeichnis) mit dem Inhalt der ausgewählten Sicherungsdatei. Vorhandene Daten GEHEN VERLOREN.\n\n⚠ Wenn die Wiederherstellung fehlschlägt — weil die Sicherungsdatei beschädigt oder unvollständig ist oder die Verbindung während des Vorgangs abbricht — bleibt Ihre Termux-Umgebung LEER. Es gibt keine Möglichkeit, die ursprünglichen Daten wiederherzustellen.\n\nDies kann nicht rückgängig gemacht werden. Es wird dringend empfohlen, ZUERST eine Sicherung zu erstellen und zu prüfen, ob die Sicherungsdatei gültig ist.</string>
     <string name="backup_service_channel_name">Termux-Sicherung/Wiederherstellung</string>
@@ -96,12 +85,10 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="directory_history_clear_dialog_title">Verzeichnisverlauf löschen</string>
     <string name="directory_history_cleared">Verzeichnisverlauf gelöscht</string>
     <string name="directory_history_max_title">Maximal gespeicherte Verzeichnisse</string>
-    <string name="directory_history_title">Verzeichnisverlauf</string>
     <string name="donate_preference_title">Spenden</string>
     <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">&TERMUX_APP_NAME; benötigt die Berechtigung „Über anderen Apps einblenden“,
         um Terminalsitzungen aus dem Hintergrund unter Android &gt;= 10 zu starten.
         Erteilen Sie die Berechtigung unter Einstellungen → Apps → &TERMUX_APP_NAME; → Erweitert</string>
-    <string name="error_font_apply_failed">Schriftart konnte nicht angewendet werden</string>
     <string name="error_run_command_service_api_help">Weitere Informationen zur Verwendung des RUN_COMMAND-Intents finden Sie unter %1$s.</string>
     <string name="error_run_command_service_invalid_execution_command_runner">Ungültiger Befehls-Runner für RunCommandService: `%1$s`</string>
     <string name="error_run_command_service_invalid_intent_action">Ungültige Intent-Aktion für RunCommandService: `%1$s`</string>
@@ -136,7 +123,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="input_history_cleared">Eingabeverlauf gelöscht</string>
     <string name="input_history_empty">Kein Eingabeverlauf</string>
     <string name="input_history_max_title">Maximal gespeicherte Eingaben</string>
-    <string name="input_history_title">Eingabeverlauf</string>
     <string name="msg_add_termux_debug_info">Termux-Debug-Informationen zum Bericht hinzufügen?</string>
     <string name="msg_terminal_panel_disabling">Terminalleiste wird deaktiviert</string>
     <string name="msg_terminal_panel_enabling">Terminalleiste wird aktiviert</string>
@@ -151,7 +137,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="notification_action_wake_lock">Wakelock halten</string>
     <string name="notification_action_wake_unlock">Wakelock freigeben</string>
     <string name="notification_wake_lock_held"> (Wakelock aktiv)</string>
-    <string name="panel_transparency_title">Leisten-Transparenz</string>
     <string name="per_directory_input_history_summary">Für jedes Arbeitsverzeichnis einen separaten Eingabeverlauf führen. Wenn deaktiviert, verwenden alle Sitzungen einen gemeinsamen Verlauf.</string>
     <string name="input_history_save_cleared_title">Gelöschte Eingaben im Verlauf speichern</string>
     <string name="input_history_save_cleared_summary">Aus dem Eingabefeld gelöschte Eingaben im Verlauf speichern.</string>
@@ -159,15 +144,11 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="permission_run_command_description">beliebige Befehle in der Termux-Umgebung ausführen und auf Dateien zugreifen</string>
     <string name="permission_run_command_label">Befehle in der Termux-Umgebung ausführen</string>
     <string name="restore_preference_title">Termux-Container wiederherstellen</string>
-    <string name="restore_tabs_summary">Alle Tabs und deren Verzeichnisse beim App-Start erneut öffnen</string>
     <string name="restore_tabs_title">Tabs beim Start wiederherstellen</string>
-    <string name="screen_orientation_summary">Die „Sensor“-Varianten wechseln zwischen beiden Ausrichtungen (z. B. 0°/180° im Hochformat).</string>
     <string name="screen_orientation_title">Bildschirmausrichtung</string>
     <string name="session_null_title">null-Sitzung</string>
     <string name="new_tab_placeholder_hint">Neue Sitzung</string>
-    <string name="session_tabs_title">Sitzungs-Tabs</string>
     <string name="swipe_rightmost_new_tab_title">Letzten Tab nach rechts wischen, um eine neue Sitzung zu öffnen</string>
-    <string name="swipe_rightmost_new_tab_summary">Auf dem letzten Tab nach rechts wischen, um eine neue Terminalsitzung zu öffnen</string>
     <string name="termux_tab_height_mode_title">Tabhöhe</string>
     <string name="termux_tab_height_mode_single">Eine Zeile</string>
     <string name="termux_tab_height_mode_double">Zwei Zeilen</string>
@@ -189,7 +170,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
         <!-- ORPHANED: <string name="termux_plugin_error_notifications_enabled_off">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler deaktivieren.</string> -->
         <!-- ORPHANED: <string name="termux_plugin_error_notifications_enabled_on">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler anzeigen.</string> -->
     <string name="termux_plugin_error_notifications_enabled_title">Benachrichtigungen für Plugin-Fehler</string>
-    <string name="termux_preferences_summary">Einstellungen der Termux-App</string>
         <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_off">Die Soft-Tastatur wird deaktiviert.</string> -->
         <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_on">Die Soft-Tastatur wird aktiviert.</string> -->
         <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Die Soft-Tastatur wird auch bei angeschlossener Hardware-Tastatur aktiviert.</string> -->
@@ -201,26 +181,17 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Bildschirmtastatur bei angeschlossener Hardware-Tastatur ausblenden</string>
     <string name="termux_soft_keyboard_enabled_title">Bildschirmtastatur verwenden</string>
     <string name="termux_tasker_preferences_summary">Einstellungen für die Termux:Tasker-App</string>
-    <string name="termux_terminal_io_preferences_summary">Einstellungen für Terminal-Eingabe/-Ausgabe</string>
     <string name="termux_terminal_view_key_logging_enabled_off">Protokolle enthalten keine Einträge zu Terminaltasten.</string>
     <string name="termux_terminal_view_key_logging_enabled_on">Logcat-Protokolle enthalten Einträge zu Terminaltasten. Diese Einträge sind sehr ausführlich; die Protokollierung sollte bei normaler Nutzung deaktiviert sein, da sie Leistungsprobleme verursachen kann.</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Protokollierung der Terminaltasten</string>
-    <string name="termux_terminal_view_preferences_summary">Einstellungen für die Terminalansicht</string>
-    <string name="termux_terminal_view_preferences_title">Terminalansicht</string>
-    <string name="termux_terminal_view_view_header">Ansicht</string>
     <string name="termux_widget_preferences_summary">Einstellungen für die Termux:Widget-App</string>
         <!-- ORPHANED: <string name="text_input_append_enter_summary">Beim Senden aus dem Eingabefeld auch die Zeile absenden (Eingabetaste drücken). Deaktivieren, um Rohtext ohne abschließende neue Zeile zu senden.</string> -->
     <string name="text_input_append_enter_title">Enter beim Senden anhängen</string>
         <!-- ORPHANED: <string name="text_input_show_summary_off">Texteingabefeld ist ausgeblendet</string> -->
         <!-- ORPHANED: <string name="text_input_show_summary_on">Texteingabefeld ist über den Zusatztasten sichtbar</string> -->
     <string name="text_input_toggle_button_title">Schalter für die Eingabeleiste</string>
-    <string name="text_input_hide_on_send_title">Eingabeleiste nach dem Senden ausblenden</string>
-    <string name="text_input_hide_on_send_summary">Wenn aktiviert, schließt sich die Eingabeleiste und der Fokus wechselt nach dem Senden zum Terminal. Deaktivieren, um die Leiste für aufeinanderfolgende Befehle geöffnet zu lassen.</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">Bildschirmtastatur nach dem Senden ausblenden</string>
-    <string name="text_input_hide_keyboard_on_send_summary">Wenn aktiviert, wird die Bildschirmtastatur nach dem Senden von Text aus dem Eingabefeld (z. B. mit Enter) ausgeblendet. Eingabeleiste und Tastatur werden unabhängig voneinander gesteuert.</string>
     <string name="text_input_action_on_send_title">Aktion beim Senden</string>
-    <string name="text_input_action_on_send_summary">Was nach dem Senden von Text aus dem Eingabefeld passiert: nichts tun, die Eingabeleiste ausblenden oder die Eingabeleiste und die Bildschirmtastatur ausblenden.</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Nichts tun</item>
         <item>Eingabeleiste ausblenden</item>
@@ -232,11 +203,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">Verhalten beim Wiederherstellen von Text aus dem Verlauf</string>
-    <string name="text_input_restore_mode_summary">Zum Auswählen tippen: an der Cursorposition einfügen oder das gesamte Eingabefeld ersetzen</string>
     <string name="text_input_restore_mode_dialog_title">Modus der Verlaufswiederherstellung</string>
     <string name="text_input_restore_mode_option_insert">An der Cursorposition einfügen</string>
     <string name="text_input_restore_mode_option_replace">Gesamtes Eingabefeld ersetzen</string>
-    <string name="theme_title">Design</string>
     <string name="title_activity_termux_settings">Termux-Einstellungen</string>
     <string name="title_confirm_kill_process">Diese Sitzung wirklich beenden?</string>
     <string name="title_create_named_session">Neue benannte Sitzung</string>
@@ -261,53 +230,35 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     <string name="about_preference_title">Über die App</string>
     <string name="color_scheme_dialog_title">Terminal-Farbschema</string>
-    <string name="font_picker_title">Schriftart auswählen (.ttf)</string>
     <string name="termux_keyboard_header">Tastatur</string>
     <string name="system_buttons_category_title">Systemtasten</string>
     <string name="input_additional_category_title">Erweitert</string>
-    <string name="theme_mode_summary">Design für App und Terminal auswählen</string>
     <string name="theme_mode_title">App-Design</string>
 
 
     
     <string name="locale_override_title">App-Sprache</string>
-    <string name="locale_override_summary">App-Sprache überschreiben</string>
     <string name="locale_override_entry_system">System</string>
 
 
     
     <string name="suggestions_max_count_title">Max. Autovervollständigungsvorschläge</string>
-    <string name="suggestions_max_count_summary">Autovervollständigung aus dem Eingabeverlauf</string>
-    <string name="language_category_title">Sprache</string>
     <string name="appearance_category_title">Erscheinungsbild</string>
     <string name="input_preferences_title">Eingabe</string>
     <string name="input_preferences_summary">Zusatztasten, Eingabeleiste, Tastatur, Tastenkürzel, Systemtasten</string>
-    <string name="extra_keys_preferences_title">Zusatztasten</string>
-    <string name="extra_keys_preferences_summary">Einstellungen für die Zusatztastenleiste</string>
     <string name="display_preferences_title">Anzeige</string>
     <string name="display_preferences_summary">Erscheinungsbild, Tabs, Terminal, Fenster</string>
     <string name="terminal_advanced_title">Erweitert</string>
     <string name="terminal_advanced_summary">Sitzung, Ton &amp; Benachrichtigungen, externe Apps, Erweiterungen, Debugging</string>
-    <string name="sessions_preferences_title">Sitzungen</string>
-    <string name="sessions_history_preferences_summary">Einstellungen für Sitzungen, Tabs und Verlauf</string>
     <string name="backup_restore_preferences_title">Sicherung &amp; Wiederherstellung</string>
     <string name="backup_restore_preferences_summary">Termux-Container, App-Einstellungen</string>
-    <string name="diagnostics_preferences_title">Diagnose</string>
-    <string name="diagnostics_preferences_summary">Protokollierung und Fehlerbenachrichtigungen</string>
     <string name="plugin_logging_category_title">Protokollierung</string>
         <!-- ORPHANED: <string name="failure_notifications_category_title">Fehlerbenachrichtigungen</string> -->
     <string name="extra_keys_special_button_mode_title">Verhalten der Sondertasten</string>
-    <string name="extra_keys_special_button_mode_summary">Wie Modifikatortasten (CTRL, ALT, SHIFT, FN) auf Antippen reagieren. Einrastend: Tippen zum Umschalten, langes Drücken zum Feststellen. Halten: nur aktiv, während die Taste gedrückt wird.</string>
     <string name="extra_keys_special_button_mode_sticky">Einrastend (Umschalten / Feststellen)</string>
     <string name="extra_keys_special_button_mode_hold">Halten (während gedrückt)</string>
-    <string name="extra_keys_header">Zusatztasten</string>
     <string name="extra_keys_category_title">Zusatztasten</string>
-    <string name="hide_extra_keys_with_keyboard_title">Zusatztasten zusammen mit Tastatur ausblenden</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Zusatztasten automatisch ausblenden, wenn die Tastatur geschlossen wird, und einblenden, wenn sie geöffnet wird</string>
-    <string name="extra_keys_layout_title">Tastenlayout</string>
-    <string name="extra_keys_layout_summary">JSON-Matrix, die die Zeilen der Zusatztasten und deren Popup-Werte definiert.</string>
     <string name="extra_keys_style_title">Tastenstil</string>
-    <string name="extra_keys_style_summary">Wie Sonderzeichen auf den Tasten dargestellt werden.</string>
     <string name="extra_keys_style_default">Standard</string>
     <string name="extra_keys_style_arrows_only">Nur Pfeile</string>
     <string name="extra_keys_style_arrows_all">Alle Pfeile</string>
@@ -316,9 +267,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_text_all_caps_title">Beschriftungen in Großbuchstaben</string>
         <!-- ORPHANED: <string name="extra_keys_text_all_caps_summary">Zusatztastenbeschriftungen in Großbuchstaben anzeigen.</string> -->
     <string name="extra_keys_corner_radius_title">Eckenradius der Tasten</string>
-    <string name="view_category_title">Ansicht</string>
     <string name="window_category_title">Fenster</string>
-    <string name="history_category_title">Verlauf</string>
     <string name="input_panel_title">Eingabeleiste</string>
     <string name="theme_mode_entry_dark">Dunkel</string>
     <string name="theme_mode_entry_light">Hell</string>
@@ -331,34 +280,23 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     
     <string name="extra_keys_visibility_title">Zusatztastenleiste anzeigen</string>
-    <string name="extra_keys_visibility_summary">Legt fest, wann die Zusatztastenleiste angezeigt wird.</string>
     <string name="extra_keys_visibility_always">Immer</string>
     <string name="extra_keys_visibility_keyboard">Nur bei geöffneter Tastatur</string>
     <string name="extra_keys_visibility_never">Nie</string>
 
     
-    <string name="extra_keys_invalid_json">Ungültiges JSON für Zusatztasten. Änderungen wurden nicht gespeichert.</string>
 
     
     <string name="extra_keys_editor_title">Zusatztasten-Editor</string>
-    <string name="extra_keys_editor_summary">Zusatztastenleiste visuell erstellen: Zeilen und Spalten festlegen, dann auf eine Taste tippen, um ihr ein Signal zuzuweisen.</string>
     <string name="extra_keys_editor_columns_title">Spalten</string>
         <!-- ORPHANED: <string name="extra_keys_editor_columns_summary">Anzahl der Tasten pro Zeile (1 bis 10).</string> -->
     <string name="extra_keys_editor_rows_title">Zeilen</string>
         <!-- ORPHANED: <string name="extra_keys_editor_rows_summary">Anzahl der Tasten-Zeilen (1 bis 4).</string> -->
-    <string name="extra_keys_editor_preview_title">Vorschau</string>
-    <string name="extra_keys_editor_preview_summary">Interaktive Leiste – tippen Sie auf eine Taste, um ihr Signal zu ändern.</string>
     <string name="extra_keys_editor_signal_dialog_title">Signal zuweisen</string>
     <string name="extra_keys_editor_custom_text_title">Zeichen/Text</string>
-    <string name="extra_keys_editor_custom_text_message">Drücken Sie eine beliebige Taste, um sie zuzuweisen:</string>
-    <string name="extra_keys_editor_apply_title">Auf Zusatztasten anwenden</string>
-    <string name="extra_keys_editor_apply_summary">Dieses Layout in den Zusatztasten-Einstellungen speichern.</string>
-    <string name="extra_keys_editor_empty">(leer)</string>
     <string name="extra_keys_editor_max_signals">Maximal 8 Signale pro Taste</string>
-    <string name="extra_keys_editor_custom_text_no_space">Benutzerdefinierter Text mit Leerzeichen wird in Kombinationen nicht unterstützt</string>
     <string name="extra_keys_editor_done">Fertig</string>
     <string name="extra_keys_editor_open_editor">Zusatztasten bearbeiten</string>
-    <string name="extra_keys_editor_open_editor_summary">Layout, Skalierung und Tastenzuweisungen konfigurieren</string>
     <string name="extra_keys_edge_indicators_title">Indikatoren für Gestenrichtungen</string>
         <!-- ORPHANED: <string name="extra_keys_edge_indicators_summary">Wischrichtungssymbole für Aktionen auf Zusatztasten anzeigen</string> -->
     <string name="extra_keys_editor_hint">Tippen, um die Hauptaktion zuzuweisen.\nNach oben, unten, links oder rechts wischen, um die entsprechende Geste zuzuweisen.\nLange auf eine Taste drücken, um die Beschriftung festzulegen.</string>
@@ -390,7 +328,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     
     <string name="extra_keys_haptic_title">Haptisches Feedback</string>
-    <string name="extra_keys_haptic_summary">Vibration bei Interaktion mit der Zusatztastenleiste</string>
     <string name="extra_keys_haptic_all">Tippen und Gesten</string>
     <string name="extra_keys_haptic_gestures">Nur Gesten</string>
     <string name="extra_keys_haptic_off">Deaktiviert</string>
@@ -399,7 +336,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_editor_signal_keyboard">Tastatur umschalten</string>
     <string name="extra_keys_editor_signal_paste">Einfügen</string>
     <string name="extra_keys_editor_signal_scroll_lock">Scroll-Sperre</string>
-    <string name="extra_keys_editor_signal_space">Leertaste</string>
     <string name="extra_keys_editor_signal_end">Ende</string>
     <string name="extra_keys_editor_signal_page_up">Bild auf</string>
     <string name="extra_keys_editor_signal_page_down">Bild ab</string>
@@ -411,14 +347,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_editor_signal_right">Nach rechts</string>
     <string name="extra_keys_editor_signal_down">Nach unten</string>
     <string name="extra_keys_editor_signal_enter">Enter</string>
-    <string name="extra_keys_editor_signal_quote">Anführungszeichen (\")</string>
-    <string name="extra_keys_editor_signal_apostrophe">Apostroph (\')</string>
     <string name="extra_keys_editor_signal_custom">Zeichen/Text…</string>
 
-    <string name="key_behaviour_category_title">Tastenverhalten</string>
-    <string name="screen_category_title">Bildschirm</string>
     <string name="shortcuts_category_title">Tastenkürzel</string>
-    <string name="misc_category_title">Sonstiges</string>
     <string name="external_apps_category_title">Externe Apps</string>
     <string name="addons_category_title">Erweiterungen</string>
     <string name="sound_category_title">Ton &amp; Benachrichtigungen</string>
@@ -440,7 +371,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
         <!-- ORPHANED: <string name="shortcut_invalid_format">Ungültiges Kürzel. Verwenden Sie das Format \"ctrl+x\" oder lassen Sie es leer zum Deaktivieren.</string> -->
 
     <string name="terminal_cursor_style_title">Cursor-Stil</string>
-    <string name="terminal_cursor_style_summary">Wie der Terminal-Cursor dargestellt wird.</string>
 
     <string name="terminal_cursor_blink_rate_title">Cursor-Blinkrate</string>
     <string name="terminal_cursor_blink_rate_summary">Cursor-Blinkrate in Millisekunden.</string>
@@ -448,7 +378,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_cursor_blink_enabled_title">Cursor-Blinken</string>
 
     <string name="bell_character_title">Verhalten bei Bell-Signal</string>
-    <string name="bell_character_summary">Was passiert, wenn das Terminal ein Bell-Zeichen (BEL) empfängt.</string>
 
     <string name="terminal_margin_left_title">Linker Abstand</string>
     <string name="terminal_margin_top_title">Oberer Abstand</string>
@@ -472,34 +401,23 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="volume_keys_summary">Strg bzw. Fn gedrückt halten, während Sie die Leiser- bzw. Lauter-Taste auf dem Gerät gedrückt halten. Um in diesem Modus die Lautstärkeregelung zu öffnen, verwenden Sie Fn + v.</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">Verhalten des Tastaturumschalters</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">Legt fest, ob der Umschalter die Bildschirmtastatur ein-/ausblendet oder aktiviert/deaktiviert.</string>
 
     <string name="ctrl_space_workaround_title">Workaround für Strg+Leertaste</string>
-    <string name="ctrl_space_workaround_summary">Einen Workaround verwenden, damit Strg+Leertaste korrekt gesendet wird.</string>
 
     <string name="enforce_char_based_input_title">Eingabe byteweise senden</string>
-    <string name="enforce_char_based_input_summary">Zeichen einzeln Byte für Byte senden.</string>
 
     <string name="disable_hardware_keyboard_shortcuts_title">Hardware-Tastaturkürzel deaktivieren</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">Tastenkürzel einer Hardware-/externen Tastatur ignorieren.</string>
 
-    <string name="disable_terminal_session_change_toast_title">Kurzbenachrichtigung bei Sitzungswechsel deaktivieren</string>
-    <string name="disable_terminal_session_change_toast_summary">Keine Kurzbenachrichtigung beim Wechseln von Terminalsitzungen anzeigen.</string>
 
     <string name="scroll_on_new_output_title">Automatisch bei neuer Ausgabe scrollen</string>
-    <string name="scroll_on_new_output_summary">Beim Eintreffen neuer Terminalausgabe automatisch nach unten scrollen.</string>
 
     <string name="terminal_onclick_url_open_title">Links durch Antippen öffnen</string>
-    <string name="terminal_onclick_url_open_summary">Links im Terminalpuffer durch Antippen öffnen.</string>
 
     <string name="fullscreen_title">Vollbildmodus</string>
     <string name="bubble_on_background_title">Blase im Hintergrund</string>
     <string name="bubble_on_background_summary">Beim Wechsel in den Hintergrund eine Blase für den schnellen Zugriff auf das Terminal über anderen Apps anzeigen</string>
-    <string name="fullscreen_summary">Termux im Vollbildmodus ausführen.</string>
 
 
-    <string name="night_mode_legacy_title">Nachtmodus (veraltet)</string>
-    <string name="night_mode_legacy_summary">Steuert die veraltete Nachtmodus-Eigenschaft. Verwenden Sie stattdessen die Design-Einstellung im Bereich „Anzeige“.</string>
 
         <!-- ORPHANED: <string name="shortcut_summary">Format: Ctrl+TASTE (z. B. Ctrl+a). Leer lassen zum Deaktivieren.</string> -->
     <string name="shortcut_create_session_title">Neue Sitzung</string>
@@ -517,7 +435,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="run_termux_am_socket_server_title">termux-am-Socket-Server ausführen</string>
 
     <string name="hide_soft_keyboard_on_startup_title">Bildschirmtastatur beim Start ausblenden</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Die Bildschirmtastatur beim Start von Termux ausgeblendet lassen.</string>
 
     
     <string name="terminal_cursor_style_underline">Unterstrich</string>
@@ -541,9 +458,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="soft_keyboard_toggle_enable_disable">Aktivieren / deaktivieren</string>
 
     
-    <string name="night_mode_true">Dunkel</string>
-    <string name="night_mode_false">Hell</string>
-    <string name="night_mode_system">Systemstandard</string>
 
     
     <string name="termux_api_debugging_title">Termux:API-Debugging</string>
@@ -570,14 +484,12 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_editor_remove_signal">%s entfernen</string>
 
     <!-- Bootstrap Selector Activity -->
-    <string name="bootstrap_selector_error_load_sources">Quellen konnten nicht geladen werden</string>
     <string name="bootstrap_selector_install_local_title">Lokales Bootstrap installieren?</string>
     <string name="bootstrap_selector_install_local_message">Ein lokales Bootstrap-ZIP kann beliebigen Code ausführen. Fahren Sie nur fort, wenn Sie dieser Datei vertrauen.</string>
     <string name="bootstrap_selector_install">Installieren</string>
     <string name="bootstrap_selector_cancel">Abbrechen</string>
 
     <!-- Bootstrap Download Service -->
-    <string name="bootstrap_download_status_idle">Warten</string>
     <string name="bootstrap_download_status_connecting">Verbinden</string>
     <string name="bootstrap_download_progress_preparing">Herunterladen wird vorbereitet</string>
     <string name="bootstrap_download_status_installing">Installation</string>
@@ -592,8 +504,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="bootstrap_download_progress_checking_sha">SHA-256 wird geprüft</string>
     <string name="bootstrap_download_notification_starting">Wird gestartet</string>
     <string name="bootstrap_download_channel_name">Termux-Bootstrap-Downloads</string>
-    <string name="bootstrap_download_notification_title_success">Bootstrap installiert</string>
-    <string name="bootstrap_download_notification_text_success">Tippen, um Termux zu öffnen</string>
     <string name="bootstrap_download_notification_title_failed">Bootstrap-Installation fehlgeschlagen</string>
 
 
@@ -605,7 +515,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
 
     <!-- Bootstrap install progress (TermuxInstaller) -->
-    <string name="bootstrap_install_progress_verify_sha">Prüfsumme wird geprüft</string>
     <string name="bootstrap_install_progress_verify_manifest">Paketmanifest wird überprüft</string>
     <string name="bootstrap_install_progress_extract">Pakete werden entpackt</string>
     <string name="bootstrap_install_progress_finalize">Installation wird abgeschlossen</string>
@@ -614,7 +523,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
     <string name="extra_keys_editor_delay_hint">Verzögerung</string>
-    <string name="extra_keys_editor_delay_presets">Schnellauswahl:</string>
 
     <!-- App name -->
     <string name="application_name">TermuxEnhanced</string>
@@ -629,8 +537,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_cursor_style_block">Block</string>
 
     <!-- Termux App Preferences -->
-    <string name="termux_preferences_title">&TERMUX_APP_NAME;</string>
-    <string name="termux_terminal_io_preferences_title">Terminal-Eingabe/-Ausgabe</string>
     <string name="termux_debugging_preferences_title">Debugging</string>
     <string name="termux_api_preferences_title">&TERMUX_API_APP_NAME;</string>
     <string name="termux_float_preferences_title">&TERMUX_FLOAT_APP_NAME;</string>
@@ -644,7 +550,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="report_issue_transcript_footer">\n##\n</string>
 
     <!-- Backup -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
     <string name="backup_progress_calculating_size">Sicherungsgröße wird berechnet…</string>
 
@@ -658,7 +563,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_editor_signal_home">Pos1</string>
     <string name="extra_keys_editor_signal_add_delay">Verzögerung…</string>
     <string name="extra_keys_editor_delay_dialog_title">Verzögerung</string>
-    <string name="extra_keys_editor_signal_backslash">Backslash (\\)</string>
     <!-- F1-F12 -->
     <string name="extra_keys_editor_signal_f1">F1</string>
     <string name="extra_keys_editor_signal_f2">F2</string>
@@ -680,9 +584,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_editor_swipe_right_suffix"> (→)</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">Keine unterstützten ABIs auf diesem Gerät</string>
     <string name="error_abi_arch_mismatch">Die Bootstrap-Architektur „%1$s“ stimmt nicht mit der Gerätearchitektur „%2$s“ überein. Verfügbare ABIs: %3$s</string>
-    <string name="error_abi_unknown">Unbekanntes ABI: %1$s</string>
 
     <!-- TermuxInstaller error messages -->
     <string name="error_bootstrap_install_in_progress">Bootstrap-Installation läuft bereits</string>
@@ -733,7 +635,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="error_bootstrap_state_create_dir">etc/termux-Verzeichnis konnte nicht erstellt werden</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">BOOTSTRAP_INFO fehlt im Bootstrap-ZIP</string>
     <string name="error_bootstrap_manifest_missing_variant">variant fehlt in BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_manifest_missing_arch">arch fehlt in BOOTSTRAP_INFO</string>
 
@@ -752,8 +653,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     <!-- Bootstrap/backup strings added for i18n completeness -->
     <string name="bootstrap_selector_title">Bootstrap-Installation für Termux</string>
-    <string name="bootstrap_selector_status_default">Wählen Sie eine Bootstrap-Quelle zur Installation:</string>
-    <string name="bootstrap_selector_source_label">Quelle:</string>
     <string name="bootstrap_selector_download">Empfohlene Bootstrap-Quelle herunterladen</string>
     <string name="bootstrap_selector_pick_zip">Lokale .zip-Datei auswählen</string>
     <string name="bootstrap_selector_retry">Wiederholen</string>
@@ -771,7 +670,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Schriftgröße</string>
-    <string name="terminal_font_size_summary" formatted="false">Dieselbe Größe kann mit der Zwei-Finger-Zoom-Geste im Terminal geändert werden</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

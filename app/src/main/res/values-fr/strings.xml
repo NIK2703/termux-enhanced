@@ -31,7 +31,6 @@
     <string name="action_rename_session_confirm">Définir</string>
     <string name="title_create_named_session">Nouvelle session nommée</string>
     <string name="action_create_named_session_confirm">Créer</string>
-    <string name="action_toggle_soft_keyboard">Clavier</string>
     <string name="action_toggle_text_input">Saisie de texte</string>
     <string name="msg_terminal_panel_enabling">Activation du panneau du terminal</string>
     <string name="msg_terminal_panel_disabling">Désactivation du panneau du terminal</string>
@@ -54,8 +53,6 @@
     <string name="action_kill_process">Terminer le processus (%d)</string>
     <string name="title_confirm_kill_process">Voulez-vous vraiment terminer cette session ?</string>
     <string name="action_font_terminal">Police</string>
-    <string name="font_picker_title">Sélectionner une police (.ttf)</string>
-    <string name="error_font_apply_failed">Échec de l\'application de la police</string>
     <string name="action_toggle_keep_screen_on">Maintenir l\'écran allumé</string>
     <string name="action_open_help">Aide</string>
     <string name="action_open_settings">Paramètres</string>
@@ -63,7 +60,6 @@
     <string name="msg_generating_report">Génération du rapport</string>
     <string name="msg_add_termux_debug_info">Ajouter les informations de débogage Termux au rapport ?</string>
     <string name="error_styling_not_installed">Le plugin Termux:Styling n\'est pas installé.</string>
-    <string name="action_styling_install">Installer</string>
     <string name="notification_action_exit">Quitter</string>
     <string name="notification_action_wake_lock">Acquérir le verrouillage d\'éveil</string>
     <string name="notification_action_wake_unlock">Libérer le verrouillage d\'éveil</string>
@@ -84,11 +80,6 @@
     <string name="error_termux_service_start_failed_general">Échec du démarrage de TermuxService. Consultez logcat pour le message d\'exception.</string>
     <string name="error_termux_service_start_failed_bg">Échec du démarrage de TermuxService en arrière-plan en raison des restrictions Android sur les applications en arrière-plan.</string>
     <string name="title_activity_termux_settings">Paramètres Termux</string>
-    <string name="appearance_preferences_title">Apparence</string>
-    <string name="appearance_preferences_summary">Préférences d\'apparence de l\'application et de transparence du panneau</string>
-    <string name="theme_title">Thème</string>
-    <string name="panel_transparency_title">Transparence du panneau</string>
-    <string name="termux_preferences_summary">Préférences de l\'application Termux</string>
     <string name="termux_debugging_preferences_title">Débogage</string>
     <string name="termux_debugging_preferences_summary">Préférences de débogage</string>
     <string name="termux_log_level_title">Niveau de journalisation</string>
@@ -97,8 +88,6 @@
     <string name="termux_terminal_view_key_logging_enabled_on">Les journaux logcat contiendront des entrées pour les touches du terminal. Elles sont très détaillées et devraient être désactivées en temps normal, sinon elles peuvent provoquer des problèmes de performance.</string>
     <string name="termux_plugin_error_notifications_enabled_title">Notifications d\'erreurs des plugins</string>
     <string name="termux_crash_report_notifications_enabled_title">Notifications des rapports de plantage</string>
-    <string name="termux_terminal_io_preferences_title">E/S du terminal</string>
-    <string name="termux_terminal_io_preferences_summary">Préférences des E/S du terminal</string>
 
     
     <string name="termux_keyboard_header">Clavier</string>
@@ -112,9 +101,6 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">État du clavier lors du changement d\'onglet</string>
     <string name="keyboard_state_follow_tab_switch_summary">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était au moment de le quitter.</string>
-    <string name="termux_terminal_view_preferences_title">Vue du terminal</string>
-    <string name="termux_terminal_view_preferences_summary">Préférences de la vue du terminal</string>
-    <string name="termux_terminal_view_view_header">Vue</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Opacité du fond des éléments inactifs</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Opacité du fond des éléments actifs</string>
     <string name="termux_api_preferences_summary">Préférences de l\'application Termux:API</string>
@@ -126,23 +112,18 @@
     <string name="color_scheme_light_summary">Jeu de couleurs appliqué lorsque le thème de l\'application est clair</string>
     <string name="color_scheme_dark_title">Jeu de couleurs du terminal (Thème sombre)</string>
     <string name="color_scheme_dark_summary">Jeu de couleurs appliqué lorsque le thème de l\'application est sombre</string>
-    <string name="input_history_title">Historique des textes saisis</string>
-    <string name="input_history_max_title">Nombre maximal de textes saisis dans l\'historique</string>
-    <string name="per_directory_input_history_title">Historique des textes saisis par répertoire</string>
-    <string name="per_directory_input_history_summary">Conserver un historique distinct pour chaque répertoire de travail. Lorsque l\'option est désactivée, toutes les sessions partagent un historique commun.</string>
+    <string name="input_history_max_title">Nombre maximal d\'éléments dans l\'historique de saisie</string>
+    <string name="per_directory_input_history_title">Historique de saisie par répertoire</string>
+    <string name="per_directory_input_history_summary">Conserver un historique de saisie distinct pour chaque répertoire de travail. Lorsque l\'option est désactivée, toutes les sessions partagent un historique commun.</string>
     <string name="input_history_save_cleared_title">Conserver les textes effacés dans l\'historique</string>
-    <string name="input_history_save_cleared_summary">Enregistrer dans l\'historique les textes effacés du champ de saisie.</string>
+    <string name="input_history_save_cleared_summary">Enregistrer dans l\'historique le texte effacé du champ de saisie.</string>
     <string name="text_input_append_enter_title">Ajouter la touche Entrée lors de l\'envoi</string>
-    <string name="directory_history_title">Historique des répertoires</string>
     <string name="directory_history_max_title">Nombre maximal de répertoires de travail dans l\'historique</string>
     <string name="restore_tabs_title">Restaurer les onglets au démarrage</string>
-    <string name="restore_tabs_summary">Rouvrir tous les onglets et leurs répertoires au démarrage de l\'application</string>
     <string name="screen_orientation_title">Orientation de l\'écran</string>
-    <string name="screen_orientation_summary">Les variantes « Suivre le capteur » basculent entre les deux orientations (ex. portrait 0°/180°).</string>
     <string name="donate_preference_title">Faire un don</string>
     <string name="about_preference_title">À propos</string>
     <string name="theme_mode_title">Thème de l\'application</string>
-    <string name="theme_mode_summary">Choisir le thème de l\'application et du terminal</string>
     <string name="backup_preference_title">Sauvegarde du conteneur Termux</string>
     <string name="restore_preference_title">Restauration du conteneur Termux</string>
     <string name="backup_restore_dialog_title">Sauvegarde / Restauration des données Termux</string>
@@ -151,11 +132,7 @@
     <string name="backup_restore_warning_restore">La restauration ÉCRASERA le répertoire de données Termux actuel (paquets installés ainsi que votre répertoire personnel) avec le contenu du fichier de sauvegarde sélectionné. Les données existantes seront PERDUES.\n\n⚠ Si la restauration échoue — parce que le fichier de sauvegarde est corrompu, incomplet ou que la connexion est interrompue pendant le processus — votre environnement Termux restera VIDE. Il n\'y aura aucun moyen de récupérer les données d\'origine.\n\nCette action est irréversible. Il est fortement recommandé de faire d\'abord une sauvegarde et de vérifier que le fichier de sauvegarde est valide.</string>
     <string name="backup_restore_backup_started">Création de la sauvegarde…</string>
     <string name="backup_restore_restore_started">Restauration de la sauvegarde…</string>
-    <string name="backup_restore_backup_success">Sauvegarde créée avec succès</string>
-    <string name="backup_restore_restore_success">Données restaurées avec succès</string>
-    <string name="backup_restore_failed_title">Échec de l\'opération</string>
     <string name="backup_restore_tar_not_found">Le binaire termux (tar) est introuvable. Veuillez ouvrir Termux au moins une fois pour que le conteneur soit configuré.</string>
-    <string name="backup_restore_choose_backup">Sélectionnez un fichier de sauvegarde .tar.gz à restaurer</string>
     <string name="backup_service_channel_name">Sauvegarde / Restauration Termux</string>
     <string name="backup_service_notification_title">Sauvegarde des données Termux</string>
     <string name="backup_service_notification_restore_title">Restauration des données Termux</string>
@@ -180,24 +157,14 @@
     <string name="settings_restart_required">Redémarrez Termux pour appliquer tous les paramètres restaurés</string>
     <string name="settings_backup_failed">Échec de la sauvegarde des paramètres</string>
     <string name="settings_restore_failed">Échec de la restauration des paramètres</string>
-    <string name="settings_backup_filename">termux-settings-backup.zip</string>
     <string name="backup_include_tmp_checkbox">Inclure le répertoire tmp (usr/tmp/)</string>
-    <string name="error_settings_backup_format_version">Version du format de sauvegarde non prise en charge : %1$s</string>
-    <string name="error_settings_backup_missing_manifest">Le fichier de sauvegarde ne contient pas manifest.properties</string>
     <string name="error_settings_restore_open_input">Échec de l\'ouverture du fichier d\'entrée</string>
     <string name="tab_close_description">Fermer l\'onglet</string>
     <string name="new_tab_placeholder_hint">Nouvelle session</string>
-    <string name="session_tabs_title">Onglets de session</string>
     <string name="swipe_rightmost_new_tab_title">Balayer le dernier onglet pour une nouvelle session</string>
-    <string name="swipe_rightmost_new_tab_summary">Sur le dernier onglet, balayez vers la droite pour ouvrir une nouvelle session de terminal</string>
     <string name="text_input_toggle_button_title">Bouton de bascule du panneau de saisie</string>
-    <string name="text_input_hide_on_send_title">Masquer le panneau de saisie après l\'envoi</string>
-    <string name="text_input_hide_on_send_summary">Lorsque activé, le panneau de saisie se ferme et le focus revient au terminal après l\'envoi. Désactivez pour garder le panneau ouvert afin d\'enchaîner les commandes.</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">Masquer le clavier virtuel après l\'envoi</string>
-    <string name="text_input_hide_keyboard_on_send_summary">Lorsque cette option est activée, le clavier virtuel est masqué après l\'envoi du texte depuis le champ de saisie (par ex. avec la touche Entrée). Le panneau de saisie et le clavier sont contrôlés indépendamment.</string>
     <string name="text_input_action_on_send_title">Action après l\'envoi</string>
-    <string name="text_input_action_on_send_summary">Ce qui se passe après l\'envoi de texte depuis le champ de saisie : ne rien faire, masquer le panneau de saisie, ou masquer le panneau de saisie et le clavier.</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Ne rien faire</item>
         <item>Masquer le panneau de saisie</item>
@@ -209,21 +176,20 @@
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">Comportement de restauration du texte depuis l\'historique</string>
-    <string name="text_input_restore_mode_summary">Appuyez pour choisir : insérer à la position du curseur ou remplacer tout le champ de saisie</string>
     <string name="text_input_restore_mode_dialog_title">Mode de restauration de l\'historique</string>
     <string name="text_input_restore_mode_option_insert">Insérer à la position du curseur</string>
     <string name="text_input_restore_mode_option_replace">Remplacer tout le champ de saisie</string>
-    <string name="input_history_empty">Aucun historique de textes saisis</string>
+    <string name="input_history_empty">Aucun historique de saisie</string>
     <string name="input_history_clear_all">EFFACER L\'HISTORIQUE…</string>
     <string name="input_history_clear">Effacer</string>
-    <string name="input_history_clear_dialog_title">Effacer l\'historique des textes saisis</string>
-    <string name="input_history_clear_question">Effacer l\'historique des textes saisis ?</string>
-    <string name="input_history_clear_confirm_current">Effacer tous les textes saisis mémorisés pour le répertoire actuel ? Cette action est irréversible.</string>
-    <string name="input_history_clear_confirm_all">Effacer tout l\'historique des textes saisis ? Cette action est irréversible.</string>
+    <string name="input_history_clear_dialog_title">Effacer l\'historique de saisie</string>
+    <string name="input_history_clear_question">Effacer l\'historique de saisie ?</string>
+    <string name="input_history_clear_confirm_current">Effacer tout l\'historique de saisie du répertoire actuel ? Cette action est irréversible.</string>
+    <string name="input_history_clear_confirm_all">Effacer tout l\'historique de saisie ? Cette action est irréversible.</string>
     <string name="input_history_clear_all_button">Tout</string>
     <string name="input_history_clear_current_only_question">Effacer l\'historique pour le répertoire actuel uniquement ?</string>
-    <string name="input_history_clear_all_question">Cela supprimera définitivement tous les textes saisis mémorisés.</string>
-    <string name="input_history_cleared">Historique des textes saisis effacé</string>
+    <string name="input_history_clear_all_question">Cela supprimera définitivement tout l\'historique de saisie.</string>
+    <string name="input_history_cleared">Historique de saisie effacé</string>
     <string name="directory_history_clear_dialog_title">Effacer l\'historique des répertoires</string>
     <string name="directory_history_clear_confirm">Effacer tout l\'historique des répertoires ? Cette action est irréversible.</string>
     <string name="directory_history_cleared">Historique des répertoires effacé</string>
@@ -249,7 +215,6 @@
 
     
     <string name="locale_override_title">Langue de l\'application</string>
-    <string name="locale_override_summary">Redéfinir la langue de l\'application</string>
     <string name="locale_override_entry_system">Système</string>
     <string name="termux_tab_height_mode_title">Hauteur de l\'onglet</string>
     <string name="termux_tab_height_mode_single">Ligne unique</string>
@@ -259,48 +224,34 @@
     <string name="termux_tab_panel_position_bottom">Bas</string>
 
     
-    <string name="hide_extra_keys_with_keyboard_title">Masquer les boutons supplémentaires avec le clavier</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Masquer automatiquement les boutons supplémentaires quand le clavier est fermé, les afficher quand il est ouvert</string>
 
     
     <string name="suggestions_max_count_title">Nombre maximal de suggestions de saisie semi-automatique</string>
-    <string name="language_category_title">Langue</string>
     <string name="appearance_category_title">Apparence</string>
     <string name="input_preferences_title">Saisie</string>
     <string name="input_preferences_summary">Boutons supplémentaires, panneau de saisie, clavier, raccourcis clavier, boutons système</string>
-    <string name="extra_keys_preferences_title">Boutons supplémentaires</string>
-    <string name="extra_keys_preferences_summary">Préférences du panneau de boutons supplémentaires</string>
     <string name="display_preferences_title">Affichage</string>
     <string name="display_preferences_summary">Apparence, onglets, terminal, fenêtre</string>
     <string name="terminal_advanced_title">Avancé</string>
     <string name="terminal_advanced_summary">Session, son et notifications, applications externes, extensions, débogage</string>
     <string name="extra_keys_corner_radius_title">Rayon d\'arrondi des boutons</string>
-    <string name="sessions_history_preferences_summary">Préférences des sessions, des onglets et de l\'historique</string>
     <string name="backup_restore_preferences_title">Sauvegarde &amp; restauration</string>
     <string name="backup_restore_preferences_summary">Conteneur Termux, paramètres de l\'application</string>
-    <string name="diagnostics_preferences_summary">Journalisation et notifications d\'erreur</string>
     <string name="plugin_logging_category_title">Journalisation</string>
     <string name="action_failsafe_mode">Mode sans échec</string>
     <string name="extra_keys_special_button_mode_title">Comportement des boutons spéciaux</string>
-    <string name="extra_keys_special_button_mode_summary">Fonctionnement des boutons modificateurs (CTRL, ALT, SHIFT, FN) au toucher. Collant : appui pour basculer, appui long pour verrouiller. Maintenu : actif uniquement pendant l\'appui.</string>
     <string name="extra_keys_special_button_mode_sticky">Collant (basculer / verrouiller)</string>
     <string name="extra_keys_special_button_mode_hold">Maintenu (pendant l\'appui)</string>
-    <string name="extra_keys_header">Boutons supplémentaires</string>
     <string name="extra_keys_category_title">Boutons supplémentaires</string>
-    <string name="extra_keys_layout_title">Disposition des boutons</string>
-    <string name="extra_keys_layout_summary">Matrice JSON définissant les lignes de boutons supplémentaires et leurs popups.</string>
     <string name="extra_keys_style_title">Style des boutons</string>
-    <string name="extra_keys_style_summary">Affichage des caractères spéciaux sur les boutons.</string>
     <string name="extra_keys_style_default">Par défaut</string>
     <string name="extra_keys_style_arrows_only">Flèches uniquement</string>
     <string name="extra_keys_style_arrows_all">Toutes les flèches</string>
     <string name="extra_keys_style_all">Tout</string>
     <string name="extra_keys_style_none">Aucun</string>
     <string name="extra_keys_text_all_caps_title">Libellés en majuscules</string>
-    <string name="history_category_title">Historique</string>
     <string name="tabs_category_title">Onglets</string>
     <string name="input_panel_title">Panneau de saisie</string>
-    <string name="view_category_title">Vue</string>
     <string name="window_category_title">Fenêtre</string>
     <string name="theme_mode_entry_dark">Sombre</string>
     <string name="theme_mode_entry_light">Clair</string>
@@ -312,32 +263,21 @@
 
     
     <string name="extra_keys_visibility_title">Afficher le panneau de boutons supplémentaires</string>
-    <string name="extra_keys_visibility_summary">Quand le panneau de boutons supplémentaires est affiché.</string>
     <string name="extra_keys_visibility_always">Toujours</string>
     <string name="extra_keys_visibility_keyboard">Uniquement quand le clavier est ouvert</string>
     <string name="extra_keys_visibility_never">Jamais</string>
 
     
-    <string name="extra_keys_invalid_json">JSON invalide pour les boutons supplémentaires. Les modifications n\'ont pas été enregistrées.</string>
 
     
     <string name="extra_keys_editor_title">Éditeur de boutons supplémentaires</string>
-    <string name="extra_keys_editor_summary">Construisez visuellement le panneau des boutons supplémentaires : définissez les lignes et colonnes, puis appuyez sur un bouton pour lui attribuer un signal.</string>
     <string name="extra_keys_editor_columns_title">Colonnes</string>
     <string name="extra_keys_editor_rows_title">Lignes</string>
-    <string name="extra_keys_editor_preview_title">Aperçu</string>
-    <string name="extra_keys_editor_preview_summary">Panneau interactif — appuyez sur n\'importe quel bouton pour modifier son signal.</string>
     <string name="extra_keys_editor_signal_dialog_title">Attribuer un signal</string>
     <string name="extra_keys_editor_custom_text_title">Symbole/texte</string>
-    <string name="extra_keys_editor_custom_text_message">Appuyez sur n\'importe quelle touche pour lier :</string>
-    <string name="extra_keys_editor_apply_title">Appliquer aux boutons supplémentaires</string>
-    <string name="extra_keys_editor_apply_summary">Enregistrer cette disposition dans les paramètres des boutons supplémentaires.</string>
-    <string name="extra_keys_editor_empty">(vide)</string>
     <string name="extra_keys_editor_max_signals">Maximum 8 signaux par bouton</string>
-    <string name="extra_keys_editor_custom_text_no_space">Le texte personnalisé avec espaces n\'est pas pris en charge dans les combinaisons</string>
     <string name="extra_keys_editor_done">Terminé</string>
     <string name="extra_keys_editor_open_editor">Modifier les boutons supplémentaires</string>
-    <string name="extra_keys_editor_open_editor_summary">Configurer la disposition, l\'échelle et les affectations des boutons</string>
     <string name="extra_keys_edge_indicators_title">Indicateurs de direction des gestes</string>
     <string name="extra_keys_editor_hint">Appuyez pour attribuer l\'action principale.\nGlissez vers le haut, le bas, la gauche ou la droite pour attribuer les actions gestuelles.\nAppuyez longuement sur un bouton pour définir son libellé.</string>
     <string name="extra_keys_editor_label_dialog_title">Libellé</string>
@@ -366,7 +306,6 @@
 
     
     <string name="extra_keys_haptic_title">Retour haptique</string>
-    <string name="extra_keys_haptic_summary">Vibration lors des interactions avec le panneau de boutons supplémentaires</string>
     <string name="extra_keys_haptic_all">Appuis et gestes</string>
     <string name="extra_keys_haptic_gestures">Gestes uniquement</string>
     <string name="extra_keys_haptic_off">Désactivé</string>
@@ -375,8 +314,6 @@
     <string name="extra_keys_editor_signal_keyboard">Bascule du clavier</string>
     <string name="extra_keys_editor_signal_paste">Coller</string>
     <string name="extra_keys_editor_signal_scroll_lock">Verrouillage du défilement</string>
-    <string name="extra_keys_editor_signal_space">Espace</string>
-    <string name="extra_keys_editor_signal_quote">Guillemet double (\")</string>
     <string name="extra_keys_editor_signal_custom">Symbole/texte…</string>
 
     
@@ -394,14 +331,12 @@
 
     
     <string name="bell_character_title">Comportement lors du signal</string>
-    <string name="bell_character_summary">Ce qui se passe quand le terminal reçoit un caractère de sonnerie (BEL).</string>
     <string name="bell_character_vibrate">Vibrer</string>
     <string name="bell_character_beep">Bip</string>
     <string name="bell_character_ignore">Ignorer</string>
 
     
     <string name="ctrl_space_workaround_title">Contournement Ctrl+Espace</string>
-    <string name="ctrl_space_workaround_summary">Utiliser un contournement pour que Ctrl+Espace soit transmis correctement.</string>
 
     
     <string name="default_working_directory_title">Répertoire de travail par défaut</string>
@@ -419,21 +354,16 @@
 
     
     <string name="disable_hardware_keyboard_shortcuts_title">Désactiver les raccourcis du clavier physique</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">Ignorer les raccourcis clavier d\'un clavier physique/externe.</string>
 
     
-    <string name="disable_terminal_session_change_toast_title">Désactiver le toast de changement de session</string>
-    <string name="disable_terminal_session_change_toast_summary">Ne pas afficher de toast lors du changement de session terminal.</string>
 
     <string name="scroll_on_new_output_title">Défilement automatique lors de nouvelles sorties</string>
-    <string name="scroll_on_new_output_summary">Faire défiler automatiquement vers le bas lors de l\'arrivée de nouvelles données dans le terminal.</string>
 
     
     <string name="empty_value_summary">Non défini</string>
 
     
     <string name="enforce_char_based_input_title">Envoi de la saisie octet par octet</string>
-    <string name="enforce_char_based_input_summary">Envoyer les caractères un octet à la fois.</string>
 
     
     <string name="extra_keys_button_margin_title">Espacement des boutons</string>
@@ -450,28 +380,18 @@
     <string name="fullscreen_title">Plein écran</string>
     <string name="bubble_on_background_title">Bulle en arrière-plan</string>
     <string name="bubble_on_background_summary">Afficher une bulle lorsque l’application passe en arrière-plan pour accéder rapidement au terminal par-dessus les autres applications</string>
-    <string name="fullscreen_summary">Exécuter Termux en mode plein écran.</string>
 
     
     <string name="hide_soft_keyboard_on_startup_title">Masquer le clavier virtuel au démarrage</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Garder le clavier virtuel masqué au démarrage de Termux.</string>
 
     
     <string name="invalid_number">Veuillez saisir un nombre valide.</string>
 
     
-    <string name="key_behaviour_category_title">Comportement des touches</string>
-    <string name="misc_category_title">Divers</string>
-    <string name="screen_category_title">Écran</string>
     <string name="external_apps_category_title">Applications externes</string>
     <string name="addons_category_title">Extensions</string>
     <string name="shortcuts_category_title">Raccourcis clavier</string>
     <string name="sound_category_title">Son &amp; notifications</string>
-    <string name="night_mode_legacy_title">Mode nuit (ancien night-mode)</string>
-    <string name="night_mode_legacy_summary">Contrôle l\'ancienne propriété night-mode. Préférez le réglage du thème dans l\'écran d\'affichage.</string>
-    <string name="night_mode_true">Sombre</string>
-    <string name="night_mode_false">Clair</string>
-    <string name="night_mode_system">Par défaut du système</string>
 
     
     <string name="report_issue_title">Termux — Signaler un problème</string>
@@ -489,13 +409,11 @@
 
     
     <string name="soft_keyboard_toggle_behaviour_title">Comportement du basculement du clavier</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">Détermine si le bouton de basculement du clavier affiche/masque ou active/désactive le clavier virtuel.</string>
     <string name="soft_keyboard_toggle_show_hide">Afficher / masquer</string>
     <string name="soft_keyboard_toggle_enable_disable">Activer / désactiver</string>
 
     
     <string name="terminal_cursor_style_title">Style du curseur</string>
-    <string name="terminal_cursor_style_summary">Comment le curseur du terminal est dessiné.</string>
     <string name="terminal_cursor_style_block">Bloc</string>
     <string name="terminal_cursor_style_underline">Souligné</string>
     <string name="terminal_cursor_style_bar">Barre</string>
@@ -512,7 +430,7 @@
     <string name="terminal_background_transparency_title">Transparence de l\'arrière-plan du terminal</string>
 
     <string name="terminal_background_blur_radius_title">Rayon de flou de l\'arrière-plan</string>
-    <string name="terminal_background_blur_radius_summary">Peut augmenter la consommation d\'énergie avec des fonds d\'écran dynamiques et un rayon de flou élevé. Avec des fonds statiques, l\'impact sur la consommation est négligeable.</string>
+    <string name="terminal_background_blur_radius_summary">Peut augmenter la consommation d\'énergie avec des arrière-plans dynamiques et un rayon de flou élevé. Avec des arrière-plans statiques, l\'impact sur la consommation est négligeable.</string>
 
     
     <string name="terminal_toolbar_scale_title">Échelle du panneau</string>
@@ -523,7 +441,6 @@
 
     
     <string name="terminal_onclick_url_open_title">Ouvrir les liens par appui</string>
-    <string name="terminal_onclick_url_open_summary">Ouvrir les liens dans le tampon du terminal lors d\'un appui.</string>
 
     
     <string name="termux_api_debugging_title">Débogage Termux:API</string>
@@ -538,14 +455,11 @@
     <string name="volume_keys_summary">Maintenir Ctrl ou Fn en appuyant sur les boutons de volume bas ou haut de l\'appareil, respectivement. Pour ouvrir le panneau de volume dans ce mode, utilisez Fn + v.</string>
 
     <!-- Bootstrap Selector Activity -->
-    <string name="bootstrap_selector_error_load_sources">Échec du chargement des sources</string>
     <string name="bootstrap_selector_install_local_title">Installer le bootstrap local ?</string>
     <string name="bootstrap_selector_install_local_message">Un zip bootstrap local peut exécuter du code arbitraire. Continuez uniquement si vous avez confiance en ce fichier.</string>
     <string name="bootstrap_selector_install">Installer</string>
     <string name="bootstrap_selector_cancel">Annuler</string>
     <string name="bootstrap_selector_title">Installation du bootstrap de Termux</string>
-    <string name="bootstrap_selector_status_default">Choisissez une source de bootstrap à installer :</string>
-    <string name="bootstrap_selector_source_label">Source :</string>
     <string name="bootstrap_selector_download">Télécharger le bootstrap recommandé</string>
     <string name="bootstrap_selector_pick_zip">Choisir un fichier .zip local</string>
     <string name="bootstrap_selector_retry">Réessayer</string>
@@ -553,7 +467,6 @@
     <string name="bootstrap_progress_title">Installation du bootstrap</string>
 
     <!-- Bootstrap Download Service -->
-    <string name="bootstrap_download_status_idle">En attente</string>
     <string name="bootstrap_download_status_connecting">Connexion</string>
     <string name="bootstrap_download_progress_preparing">Préparation du téléchargement</string>
     <string name="bootstrap_download_status_installing">Installation</string>
@@ -568,8 +481,6 @@
     <string name="bootstrap_download_progress_checking_sha">Vérification SHA-256</string>
     <string name="bootstrap_download_notification_starting">Démarrage</string>
     <string name="bootstrap_download_channel_name">Téléchargement du bootstrap Termux</string>
-    <string name="bootstrap_download_notification_title_success">Bootstrap installé</string>
-    <string name="bootstrap_download_notification_text_success">Appuyez pour ouvrir Termux</string>
     <string name="bootstrap_download_notification_title_failed">Échec de l\'installation du bootstrap</string>
 
 
@@ -581,7 +492,6 @@
 
 
     <!-- Bootstrap install progress (TermuxInstaller) -->
-    <string name="bootstrap_install_progress_verify_sha">Vérification de la somme de contrôle</string>
     <string name="bootstrap_install_progress_verify_manifest">Vérification du manifeste des paquets</string>
     <string name="bootstrap_install_progress_extract">Extraction des paquets</string>
     <string name="bootstrap_install_progress_finalize">Finalisation de l\'installation</string>
@@ -590,7 +500,6 @@
 
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
     <string name="extra_keys_editor_delay_hint">Délai</string>
-    <string name="extra_keys_editor_delay_presets">Sélection rapide :</string>
 
     <!-- App name -->
     <string name="application_name">TermuxEnhanced</string>
@@ -599,9 +508,6 @@
     <string name="action_style_terminal">Style</string>
 
     <!-- Termux App Preferences (titles missing from French) -->
-    <string name="termux_preferences_title">&TERMUX_APP_NAME;</string>
-    <string name="sessions_preferences_title">Sessions</string>
-    <string name="diagnostics_preferences_title">Diagnostics</string>
 
     <!-- Plugin Preferences titles -->
     <string name="termux_api_preferences_title">&TERMUX_API_APP_NAME;</string>
@@ -619,7 +525,6 @@
     <string name="screen_orientation_entry_portrait">Portrait</string>
 
     <!-- Backup filename -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
 
     <!-- Report issue -->
     <string name="report_issue_transcript_footer">\n##\n</string>
@@ -676,18 +581,13 @@
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
 
-    <string name="extra_keys_editor_signal_backslash">Antislash (\\)</string>
-    <string name="extra_keys_editor_signal_apostrophe">Apostrophe (\')</string>
     <string name="extra_keys_editor_signal_add_delay">Délai…</string>
     <string name="extra_keys_editor_delay_dialog_title">Délai</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">Aucun ABI pris en charge sur cet appareil</string>
     <string name="error_abi_arch_mismatch">L\'architecture bootstrap \'%1$s\' ne correspond pas à l\'architecture de l\'appareil \'%2$s\'. ABI disponibles : %3$s</string>
-    <string name="error_abi_unknown">ABI inconnu : %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">BOOTSTRAP_INFO manquant dans le zip bootstrap</string>
     <string name="error_bootstrap_manifest_missing_variant">« variant » manquant dans BOOTSTRAP_INFO</string>
     <string name="error_bootstrap_manifest_missing_arch">« arch » manquant dans BOOTSTRAP_INFO</string>
 
@@ -770,7 +670,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Taille de police</string>
-    <string name="terminal_font_size_summary" formatted="false">Le pincement sur le terminal modifie également cette valeur</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

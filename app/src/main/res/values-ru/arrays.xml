@@ -68,11 +68,6 @@
         <item>@string/extra_keys_style_none</item>
     </string-array>
 
-    <string-array name="night_mode_entries">
-        <item>@string/night_mode_true</item>
-        <item>@string/night_mode_false</item>
-        <item>@string/night_mode_system</item>
-    </string-array>
 
     <string-array name="extra_keys_editor_signal_entries">
         <item>@string/extra_keys_editor_signal_custom</item>

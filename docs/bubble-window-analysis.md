@@ -249,13 +249,14 @@ layout внутри маленького окна.
   **отдельный** от FGS-канала `termux_notification_channel`, чтобы не менять семантику
   существующей нотификации 1337;
 - новый notification id;
-- `BubbleMetadata.Builder(PendingIntent, Icon)` + `setDesiredHeight()` + `setAutoExpandBubble(true)`
-  + `setSuppressNotification(true)`;
+- `BubbleMetadata.Builder` + `setDesiredHeight()` + `setAutoExpandBubble(true)`
+  + `setSuppressNotification(true)`; intent и иконка ставятся **по версии**: на API 30+
+  `Builder(PendingIntent, Icon)`, на API 29 — `Builder()` + `setIntent()` + `setIcon()` (§11.5);
 - публикация long-lived shortcut (`ShortcutManagerCompat.pushDynamicShortcut`) и `setShortcutId()`
   **на `Notification.Builder`** — у `BubbleMetadata.Builder` такого метода нет, см. §11.1;
 - pre-flight проверки: `NotificationManager.areBubblesAllowed()` (API 29) /
-  `areBubblesEnabled()` (API 30), `NotificationChannel.canBubble()`, `POST_NOTIFICATIONS`;
-- `setDeleteIntent` (API 30) — узнать, что bubble закрыт, и почистить состояние.
+  `areBubblesEnabled()` (API 31), `NotificationChannel.canBubble()`, `POST_NOTIFICATIONS`;
+- `setDeleteIntent` (API 29) — узнать, что bubble закрыт, и почистить состояние.
 
 ### Этап 4 — эксклюзивность сессии (§5.1)
 
@@ -362,15 +363,25 @@ bubble надо отдельно проверить `adjustResize` / `fitsSystem
 ### 11.1 `BubbleMetadata.Builder.setShortcutId()` не существует
 
 Первая версия кода вызывала `bubbleMetadata.setShortcutId(shortcutId)` — компилятор её отверг.
-Правда об API (сверено `javap` по android-34):
+Правда об API (сверено по исходникам AOSP: `core/java/android/app/Notification.java` в ветках
+`android-10.0.0_r47` и `android-11.0.0_r48`):
 
 | Конструктор | API | Замечание |
 |---|---|---|
-| `Builder(PendingIntent, Icon)` | 29 | **выбранный путь**; работает на всех версиях, никогда не deprecated |
+| `Builder()` | 29 | **на API 29 это единственный конструктор**; deprecated с 30, но не удалён |
+| `Builder(PendingIntent, Icon)` | **30** | **выбранный путь на API 30+**; на 29 отсутствует ⇒ `NoSuchMethodError` |
 | `Builder(String shortcutId)` | 30 | deprecated в 31; SystemUI **резолвит launch-intent из самого shortcut** и игнорирует `setIntent()` |
-| `Builder()` | 30 | на API 29 отсутствует ⇒ `NoSuchMethodError` без guard'а |
 
-`setDeleteIntent` — API 30, поэтому под `SDK_INT >= R`.
+> Первая редакция этой таблицы была **перепутана** (у неё `Builder()` стоял как API 30, а
+> `Builder(PendingIntent, Icon)` — как 29). Из-за этого безусловный вызов
+> `Builder(PendingIntent, Icon)` выглядел безопасным, хотя на Android 10 он гарантированно падает:
+> в android-10 у класса объявлены только `Builder()` и сеттеры `setIntent()` / `setIcon()`.
+> Нашлось это только когда гейт доступности стали разбирать по версиям (§11.7) — до того на
+> Android 10 никто не проверял.
+
+`setDeleteIntent` — **API 29** (в android-10 уже есть), поэтому guard `SDK_INT >= R` в
+`showBubbleInternal` избыточен: он лишь лишает Android 10 колбэка «пузырёк закрыт». Оставлен
+сознательно — это изменение поведения в потоке, который здесь нечем проверить.
 Ассоциация с long-lived sharing shortcut делается через `Notification.Builder.setShortcutId()`.
 Второй конструктор сознательно **не** используется: его семантика (intent берётся из shortcut)
 здесь не нужна, но чтобы она не выстрелила на ROM'ах, которые всё же смотрят в shortcut, shortcut
@@ -477,7 +488,9 @@ adb shell cmd notification set_bubbles_channel com.termux.debug termux_bubble_no
 
 - `setAllowBubbles(true)` оставлен, но помечен в javadoc как **просьба, а не гарантия**;
 - реальный переключатель — пользовательская настройка пузырей для приложения, её и читает
-  `areBubblesAvailable()` (`areBubblesEnabled()` на API 30+, `areBubblesAllowed()` на 29);
+  `areBubblesAvailable()` (`areBubblesEnabled()` на API 31+, `areBubblesAllowed()` на 29–30);
+- **`areBubblesEnabled()` — API 31, а не 30** (§11.7). Версия проверяется не по `SDK_INT`, а по
+  наличию метода в рантайм-framework'е;
 - именно поэтому важно, чтобы нотификация была «разговором»: `MessagingStyle` + `Person` +
   long-lived shortcut — это то, что делает канал видимым в списке пузырей в настройках, где
   пользователь и включает флаг;
@@ -502,3 +515,75 @@ adb shell cmd notification set_bubbles_channel com.termux.debug termux_bubble_no
   падает; в репозитории для этого есть `scripts/check_apostrophes.py`.
 - Контекстное меню терминала открывается **клавишей MENU** (`adb shell input keyevent 82`), а не
   long-press: long-press уходит в системное выделение текста.
+
+### 11.7 Гейт доступности: версия Android, API в framework'е, Android Go
+
+Краш с устройства `realme RMX3581`, Android 11 (API 30):
+
+```
+java.lang.NoSuchMethodError: No virtual method areBubblesEnabled()Z in class Landroid/app/NotificationManager;
+    at com.termux.app.bubble.TermuxBubbleManager.areBubblesAllowed(SourceFile:133)
+    at com.termux.app.bubble.TermuxBubbleManager.areBubblesAvailable(SourceFile:125)
+    at com.termux.app.TermuxService.buildNotification(SourceFile:973)
+    at com.termux.app.TermuxService.runStartForeground(SourceFile:257)
+    at com.termux.app.TermuxService.onCreate(SourceFile:161)
+```
+
+Причина — неверная версия в таблице: `areBubblesEnabled()` появился в **API 31**, а гейт стоял
+`SDK_INT >= R` (30), поэтому на Android 11 вызывался несуществующий метод. Падало из `onCreate`
+сервиса, то есть приложение не поднималось вообще. Проверка версий — по
+`$ANDROID_HOME/platforms/android-34/data/api-versions.xml` (атрибут `since`; опущен, когда совпадает
+с `since` класса):
+
+| метод | since | deprecated |
+|---|---|---|
+| `NotificationManager.areBubblesAllowed()` | 29 | 31 |
+| `NotificationManager.areBubblesEnabled()` | 31 | — |
+| `NotificationManager.getBubblePreference()` | 31 | — |
+| `Notification.BubbleMetadata.Builder.setSuppressableBubble()` | 31 | — |
+
+**Android Go.** Платформа сама отказывается от пузырей на low-RAM устройствах —
+`BubbleExtractor.process()` (AOSP):
+
+```java
+boolean notifCanPresentAsBubble = canPresentAsBubble(record)
+        && !mActivityManager.isLowRamDevice()
+        && record.isConversation()
+        && record.getShortcutInfo() != null
+        && (record.getNotification().flags & FLAG_FOREGROUND_SERVICE) == 0;
+...
+if (!userEnabledBubbles || appPreference == BUBBLE_PREFERENCE_NONE || !notifCanPresentAsBubble) {
+    record.setAllowBubble(false);
+    if (!notifCanPresentAsBubble) record.getNotification().setBubbleMetadata(null);
+}
+```
+
+То есть на Android Go (`ro.config.low_ram=true` ⇒ `ActivityManager.isLowRamDevice()` = true) метадата
+пузыря вырезается до ранжирования: опубликовать пузырёк там невозможно в принципе, и кнопка «в
+пузырёк» — ровно тот случай «кнопки, которая ничего не может», от которого гейт и существует.
+
+**Реализация.** Единый гейт `TermuxBubbleManager.isSupported(context)` = три условия:
+
+1. версия ≥ Android 10 (API 29);
+2. в рантайм-framework'е есть метод опроса — резолвится reflection'ом один раз на процесс
+   (`areBubblesEnabled`, иначе `areBubblesAllowed`); версия **не** сравнивается с `SDK_INT`, чтобы
+   таблица версий не могла снова разойтись с реальностью;
+3. устройство не low-RAM (`ActivityManager.isLowRamDevice()`) — вопрос ровно тот, что задаёт
+   платформа.
+
+От гейта зависят оба пользовательских входа: кнопка «в пузырёк» в нотификации сервиса
+(`TermuxService.buildNotification`, условие `areBubblesAvailable`) и переключатель
+`bubble-on-background` в «Оформлении» (`DisplayPreferencesFragment.configureBubbleOnBackgroundSupport`
+гасит его через `setEnabled(false)`). Значение самой настройки при этом **не** переписывается, а
+строка не прячется — иначе пользователь остался бы с пузырьком, который не появляется, и без
+объяснения почему.
+
+**Вторая находка того же класса — конструктор `BubbleMetadata.Builder`.** Разбор гейта по версиям
+вывел на ещё одну ошибку таблицы версий: `Builder(PendingIntent, Icon)` появился только в API 30
+(в android-10 у класса есть лишь `Builder()` + `setIntent()` / `setIcon()`), а вызывался он
+безусловно — то есть на Android 10 пост пузырька падал бы с `NoSuchMethodError` ровно так же, как на
+Android 11 падал `areBubblesEnabled()`. Теперь форма выбирается по версии, см. §11.5.
+
+`setDeleteIntent` при этом — API 29 (в android-10 уже есть), и guard `SDK_INT >= R` вокруг него
+избыточен: он лишь лишает Android 10 колбэка «пузырёк закрыт». Оставлен как есть — это изменение
+поведения в потоке, который здесь нечем проверить.

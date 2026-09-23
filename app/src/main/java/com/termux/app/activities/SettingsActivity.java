@@ -50,6 +50,9 @@ public class SettingsActivity extends AppCompatActivity {
         // activity below), a stale value, or the user changing the setting from the Display screen
         // while this activity is alive. Applied before setContentView() so a change takes effect
         // before the first layout instead of flipping after it is shown.
+        //
+        // It also covers this screen when it is opened from the bubble, where the answer is the
+        // opposite: no preference at all, because the bubble's window follows the device.
         TermuxActivityUtils.applyScreenOrientation(this);
 
         AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);

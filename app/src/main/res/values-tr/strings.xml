@@ -35,7 +35,6 @@
 <string name="action_rename_session_confirm">Ayarla</string>
     <string name="title_create_named_session">Yeni adlandırılmış oturum</string>
 <string name="action_create_named_session_confirm">Oluştur</string>
-<string name="action_toggle_soft_keyboard">Klavye</string>
 <string name="action_toggle_text_input">Metin girişini aç/kapat</string>
 <string name="msg_terminal_panel_enabling">Terminal paneli etkinleştiriliyor</string>
 <string name="msg_terminal_panel_disabling">Terminal paneli devre dışı bırakılıyor</string>
@@ -59,8 +58,6 @@
 <string name="title_confirm_kill_process">Bu oturumu gerçekten sonlandırmak istiyor musunuz?</string>
 <string name="action_style_terminal">Stil</string>
 <string name="action_font_terminal">Yazı tipi</string>
-<string name="font_picker_title">Bir yazı tipi seçin (.ttf)</string>
-<string name="error_font_apply_failed">Yazı tipi uygulanamadı</string>
 <string name="action_toggle_keep_screen_on">Ekranı açık tut</string>
 <string name="action_open_help">Yardım</string>
 <string name="action_open_settings">Ayarlar</string>
@@ -68,7 +65,6 @@
 <string name="msg_generating_report">Rapor oluşturuluyor</string>
 <string name="msg_add_termux_debug_info">Rapora &TERMUX_APP_NAME; hata ayıklama bilgileri eklensin mi?</string>
 <string name="error_styling_not_installed">&TERMUX_STYLING_APP_NAME; eklenti uygulaması yüklü değil.</string>
-<string name="action_styling_install">Yükle</string>
 <string name="notification_action_exit">Çıkış</string>
 <string name="notification_action_wake_lock">Uyandırma kilidini al</string>
 <string name="notification_action_wake_unlock">Uyandırma kilidini bırak</string>
@@ -89,46 +85,24 @@
 <string name="error_termux_service_start_failed_general">TermuxService başlatılamadı. İstisna mesajı için Logcat çıktısını kontrol edin.</string>
 <string name="error_termux_service_start_failed_bg">Uygulama arka plandayken Android arka plan kısıtlamaları nedeniyle TermuxService başlatılamadı.</string>
 <string name="title_activity_termux_settings">&TERMUX_APP_NAME; ayarları</string>
-<string name="appearance_preferences_title">Görünüm</string>
-<string name="appearance_preferences_summary">Uygulama görünümü ve panel saydamlığı tercihleri</string>
-<string name="theme_title">Tema</string>
-<string name="panel_transparency_title">Panel saydamlığı</string>
-<string name="termux_preferences_summary">&TERMUX_APP_NAME; uygulaması tercihleri</string>
 <string name="termux_debugging_preferences_title">Hata ayıklama</string>
 <string name="termux_debugging_preferences_summary">Hata ayıklama tercihleri</string>
-<string name="termux_logging_header">Günlük kaydı</string>
 <string name="termux_log_level_title">Günlük seviyesi</string>
 <string name="termux_terminal_view_key_logging_enabled_title">Terminal tuş günlüğü</string>
 <string name="termux_terminal_view_key_logging_enabled_off">Günlüklerde terminal tuş kayıtları bulunmaz.</string>
 <string name="termux_terminal_view_key_logging_enabled_on">Logcat günlüklerinde terminal tuş kayıtları olur.
                     Bunlar çok ayrıntılıdır ve normal kullanımda devre dışı bırakılmalıdır; aksi takdirde performans sorunlarına neden olabilir.</string>
 <string name="termux_plugin_error_notifications_enabled_title">Eklenti hata bildirimleri</string>
-<string name="termux_plugin_error_notifications_enabled_off">Eklenti hataları için yanıp sönen uyarıları ve bildirimleri devre dışı bırak.</string>
-<string name="termux_plugin_error_notifications_enabled_on">Eklenti hataları için yanıp sönen uyarıları ve bildirimleri göster.</string>
 <string name="termux_crash_report_notifications_enabled_title">Çökme raporu bildirimleri</string>
-<string name="termux_crash_report_notifications_enabled_off">Çökme raporları için bildirimleri devre dışı bırak.</string>
-<string name="termux_crash_report_notifications_enabled_on">Çökme raporları için bildirimleri göster.</string>
-<string name="termux_terminal_io_preferences_title">Terminal G/Ç</string>
-<string name="termux_terminal_io_preferences_summary">Terminal G/Ç tercihleri</string>
 <string name="termux_keyboard_header">Klavye</string>
 <string name="system_buttons_category_title">Sistem düğmeleri</string>
 <string name="input_additional_category_title">Ek seçenekler</string>
 <string name="termux_soft_keyboard_enabled_title">Ekran klavyesi etkin</string>
-<string name="termux_soft_keyboard_enabled_off">Ekran klavyesi devre dışı bırakılır.</string>
-<string name="termux_soft_keyboard_enabled_on">Ekran klavyesi etkinleştirilir.</string>
-<string name="termux_settings_button_enabled_title">Ayarlar düğmesini göster</string>
-<string name="termux_settings_button_enabled_on">Ayarlar düğmesi sekmeler panelinde gösterilir.</string>
-<string name="termux_settings_button_enabled_off">Ayarlar düğmesi gizlidir. Ayarları açmak için terminalde uzun basın → Daha fazla… → Ayarlar yolunu izleyin.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Donanım klavyesi bağlandığında ekran klavyesini gizle</string>
-<string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Donanım klavyesi bağlı olsa bile ekran klavyesi etkinleştirilir.</string>
-<string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Ekran klavyesi yalnızca donanım klavyesi bağlı değilse etkinleştirilir.</string>
 
                     <!-- Keyboard State On Tab Switch -->
                     <string name="keyboard_state_follow_tab_switch_title">Sekme değiştirirken klavye durumu</string>
                     <string name="keyboard_state_follow_tab_switch_summary">Sekmeler arasında geçiş yaparken, her sekmenin klavye durumu o sekmeden ayrıldığınızdaki hâliyle geri yüklenir.</string>
-<string name="termux_terminal_view_preferences_title">Terminal görünümü</string>
-<string name="termux_terminal_view_preferences_summary">Terminal görünümü için tercihler</string>
-<string name="termux_terminal_view_view_header">Görünüm</string>
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">Etkin olmayan ögelerin arka plan opaklığı</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">Etkin ögelerin arka plan opaklığı</string>
 <string name="extra_keys_corner_radius_title">Düğme köşe yarıçapı</string>
@@ -138,27 +112,20 @@
 <string name="termux_widget_preferences_summary">&TERMUX_WIDGET_APP_NAME; uygulaması tercihleri</string>
 <string name="about_preference_title">Hakkında</string>
 <string name="theme_mode_title">Uygulama teması</string>
-<string name="theme_mode_summary">Uygulama ve terminal temasını seçin</string>
 <string name="color_scheme_dialog_title">Terminal renk şeması</string>
 <string name="color_scheme_light_title">Terminal renk şeması (açık tema)</string>
 <string name="color_scheme_light_summary">Uygulama teması açıkken uygulanan renk şeması</string>
 <string name="color_scheme_dark_title">Terminal renk şeması (koyu tema)</string>
 <string name="color_scheme_dark_summary">Uygulama teması koyuyken uygulanan renk şeması</string>
-<string name="input_history_title">Giriş geçmişi</string>
 <string name="input_history_max_title">Geçmişte tutulacak en fazla giriş sayısı</string>
 <string name="per_directory_input_history_title">Dizin başına giriş geçmişi</string>
 <string name="per_directory_input_history_summary">Her çalışma dizini için ayrı bir giriş geçmişi tutun. Kapalıyken tüm oturumlar ortak bir geçmiş kullanır.</string>
 <string name="input_history_save_cleared_title">Temizlenen girişleri geçmişte tut</string>
 <string name="input_history_save_cleared_summary">Giriş alanından silinen metinleri geçmişe kaydet.</string>
-<string name="text_input_title">Metin girişi</string>
 <string name="text_input_append_enter_title">Gönderirken Enter ekle</string>
-<string name="text_input_append_enter_summary">Gönderirken metnin sonuna Enter ekler. Ham metni satır sonu olmadan göndermek için devre dışı bırakın.</string>
-<string name="directory_history_title">Dizin geçmişi</string>
 <string name="directory_history_max_title">Geçmişte tutulacak en fazla dizin sayısı</string>
 <string name="restore_tabs_title">Başlatıldığında sekmeleri geri yükle</string>
-<string name="restore_tabs_summary">Uygulama başlatıldığında tüm sekmeler ve bunların dizinleri yeniden açılır</string>
 <string name="screen_orientation_title">Ekran yönü</string>
-<string name="screen_orientation_summary">"Sensörü takip et" seçenekleri iki yön arasında geçiş yapar (ör. 0°/180° dikey).</string>
 <string name="donate_preference_title">Bağış</string>
 <string name="backup_preference_title">Termux konteynerini yedekle</string>
 <string name="restore_preference_title">Termux konteynerini geri yükle</string>
@@ -167,11 +134,7 @@
 <string name="backup_restore_warning_restore">Geri yükleme, seçilen yedek dosyasının içeriğini mevcut Termux veri dizininin (yüklü paketler ve ev dizini) üzerine YAZACAKTIR. Mevcut veriler KAYBOLACAKTIR.\n\n⚠ Geri yükleme başarısız olursa — yedek dosyası bozuk veya eksikse ya da işlem sırasında bağlantı kesilirse — Termux ortamınız BOŞ KALACAKTIR. Orijinal verileri kurtarmanın hiçbir yolu olmayacaktır.\n\nBu işlem geri alınamaz. Önce yedek almanız ve yedek dosyasının geçerli olduğunu doğrulamanız şiddetle önerilir.</string>
 <string name="backup_restore_backup_started">Yedekleme oluşturuluyor…</string>
 <string name="backup_restore_restore_started">Yedek geri yükleniyor…</string>
-<string name="backup_restore_backup_success">Yedekleme başarıyla oluşturuldu</string>
-<string name="backup_restore_restore_success">Veriler başarıyla geri yüklendi</string>
-<string name="backup_restore_failed_title">İşlem başarısız</string>
 <string name="backup_restore_tar_not_found">Termux tar ikili dosyası bulunamadı. Konteynerin kurulumu için lütfen &TERMUX_APP_NAME; uygulamasını en az bir kez açın.</string>
-<string name="backup_restore_choose_backup">Geri yüklemek için bir .tar.gz yedek dosyası seçin</string>
 <string name="backup_service_channel_name">Termux yedekleme / geri yükleme</string>
 <string name="backup_service_notification_title">Termux veri yedekleme</string>
 <string name="backup_service_notification_restore_title">Termux veri geri yükleme</string>
@@ -196,16 +159,11 @@
 <string name="settings_restart_required">Geri yüklenen tüm ayarların etkili olması için Termux uygulamasını yeniden başlatın</string>
     <string name="settings_backup_failed">Ayarlar yedeklenemedi</string>
     <string name="settings_restore_failed">Ayarlar geri yüklenemedi</string>
-<string name="settings_backup_filename">termux-settings-backup.zip</string>
 <string name="backup_include_tmp_checkbox">tmp dizinini dahil et (usr/tmp/)</string>
-<string name="error_settings_backup_format_version">Desteklenmeyen yedek biçimi sürümü: %1$s</string>
-<string name="error_settings_backup_missing_manifest">Yedek dosyasında manifest.properties eksik</string>
 <string name="error_settings_restore_open_input">Dosya okumak için açılamadı</string>
 <string name="tab_close_description">Sekmeyi kapat</string>
     <string name="new_tab_placeholder_hint">Yeni oturum</string>
-    <string name="session_tabs_title">Oturum sekmeleri</string>
     <string name="swipe_rightmost_new_tab_title">Yeni oturum için en sağdaki sekmeyi sağa kaydırın</string>
-    <string name="swipe_rightmost_new_tab_summary">Son sekmede, yeni bir terminal oturumu açmak için sağa kaydırın</string>
     <string name="termux_tab_height_mode_title">Sekme yüksekliği</string>
     <string name="termux_tab_height_mode_single">Tek satır</string>
     <string name="termux_tab_height_mode_double">İki satır</string>
@@ -213,15 +171,8 @@
     <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
     <string name="text_input_toggle_button_title">Giriş panelini aç/kapat düğmesi</string>
-<string name="text_input_show_summary_on">Giriş panelini aç/kapat düğmesi ek düğmelerin üzerinde görünür</string>
-    <string name="text_input_show_summary_off">Giriş panelini aç/kapat düğmesi gizli</string>
-    <string name="text_input_hide_on_send_title">Gönderdikten sonra giriş panelini gizle</string>
-    <string name="text_input_hide_on_send_summary">Etkinleştirildiğinde, giriş paneli kapanır ve gönderdikten sonra odak terminale geçer. Ardışık komutlar için paneli açık tutmak üzere devre dışı bırakın.</string>
 
-    <string name="text_input_hide_keyboard_on_send_title">Gönderdikten sonra ekran klavyesini gizle</string>
-    <string name="text_input_hide_keyboard_on_send_summary">Etkinleştirildiğinde, giriş alanından metin gönderildikten sonra (örneğin Enter tuşuna basıldığında) ekran klavyesi kapatılır. Giriş paneli ve klavye birbirinden bağımsız yönetilir.</string>
     <string name="text_input_action_on_send_title">Gönderim eylemi</string>
-    <string name="text_input_action_on_send_summary">Giriş alanından metin gönderdikten sonra ne olacağı: hiçbir şey yapma, giriş panelini gizle veya giriş panelini ve klavyeyi gizle.</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Hiçbir şey yapma</item>
         <item>Giriş panelini gizle</item>
@@ -233,7 +184,6 @@
         <item>hide_keyboard</item>
     </string-array>
     <string name="text_input_restore_mode_title">Geçmişten giriş geri yükleme davranışı</string>
-    <string name="text_input_restore_mode_summary">Seçmek için dokunun: imlece ekle veya giriş alanının tamamını değiştir</string>
     <string name="text_input_restore_mode_dialog_title">Geçmiş geri yükleme modu</string>
     <string name="text_input_restore_mode_option_insert">İmlece ekle</string>
     <string name="text_input_restore_mode_option_replace">Tüm giriş alanını değiştir</string>
@@ -280,54 +230,34 @@
 
     
     <string name="locale_override_title">Uygulama dili</string>
-    <string name="locale_override_summary">Uygulama dilini geçersiz kıl</string>
     <string name="locale_override_entry_system">Sistem dili</string>
     
-    <string name="hide_extra_keys_with_keyboard_title">Ek düğmeleri klavyeyle gizle</string>
-    <string name="hide_extra_keys_with_keyboard_summary">Klavye kapatıldığında ek düğmeleri otomatik gizle, açıldığında göster</string>
 
 
     
     <string name="suggestions_max_count_title">En fazla otomatik tamamlama önerisi</string>
-    <string name="suggestions_max_count_summary">Giriş geçmişinden gösterilecek otomatik tamamlama önerisi sayısı</string>
-<string name="language_category_title">Dil</string>
 <string name="appearance_category_title">Görünüm</string>
 <string name="input_preferences_title">Giriş</string>
 <string name="input_preferences_summary">Ek düğmeler, giriş paneli, klavye, kısayollar, sistem düğmeleri</string>
-<string name="extra_keys_preferences_title">Ek düğmeler</string>
-<string name="extra_keys_preferences_summary">Ek düğmeler paneli tercihleri</string>
 <string name="display_preferences_title">Görüntüleme</string>
 <string name="display_preferences_summary">Görünüm, sekmeler, terminal, pencere</string>
     <string name="terminal_advanced_title">Gelişmiş</string>
     <string name="terminal_advanced_summary">Oturum, ses ve bildirimler, harici uygulamalar, eklentiler, hata ayıklama</string>
-<string name="sessions_preferences_title">Oturumlar</string>
-<string name="sessions_history_preferences_summary">Oturumlar, sekmeler ve geçmiş tercihleri</string>
 <string name="backup_restore_preferences_title">Yedekle ve geri yükle</string>
 <string name="backup_restore_preferences_summary">Termux konteyneri ve uygulama ayarları</string>
-<string name="diagnostics_preferences_title">Tanılama</string>
-<string name="diagnostics_preferences_summary">Günlük kaydı ve hata bildirimleri</string>
 <string name="plugin_logging_category_title">Günlük kaydı</string>
-<string name="failure_notifications_category_title">Hata bildirimleri</string>
 <string name="extra_keys_special_button_mode_title">Özel düğme davranışı</string>
-<string name="extra_keys_special_button_mode_summary">Değiştirici düğmelerin (CTRL, ALT, SHIFT, FN) dokunmaya nasıl yanıt verdiği. Yapışkan: dokunarak aç/kapat, uzun basarak kilitle. Basılı tut: yalnızca düğmeye basıldığı sürece etkindir.</string>
 <string name="extra_keys_special_button_mode_sticky">Yapışkan (aç/kapat/kilitle)</string>
 <string name="extra_keys_special_button_mode_hold">Basılı tut (basıldığı sürece)</string>
-<string name="extra_keys_header">Ek düğmeler</string>
 <string name="extra_keys_category_title">Ek düğmeler</string>
-<string name="extra_keys_layout_title">Tuş düzeni</string>
-<string name="extra_keys_layout_summary">Ek düğmelerin satırlarını ve açılır değerlerini tanımlayan JSON matrisi.</string>
-<string name="extra_keys_style_title">Tuş stili</string>
-<string name="extra_keys_style_summary">Tuşlardaki özel karakterlerin nasıl görüntülendiği.</string>
+<string name="extra_keys_style_title">Düğme stili</string>
 <string name="extra_keys_style_default">Varsayılan</string>
 <string name="extra_keys_style_arrows_only">Yalnızca oklar</string>
 <string name="extra_keys_style_arrows_all">Tüm oklar</string>
 <string name="extra_keys_style_all">Tümü</string>
 <string name="extra_keys_style_none">Yok</string>
 <string name="extra_keys_text_all_caps_title">Etiket metinleri büyük harf</string>
-<string name="extra_keys_text_all_caps_summary">Ek düğme etiketlerini büyük harfle göster.</string>
-<string name="view_category_title">Görünüm</string>
 <string name="window_category_title">Pencere</string>
-<string name="history_category_title">Geçmiş</string>
 <string name="tabs_category_title">Sekmeler</string>
     <string name="action_failsafe_mode">Güvenli mod</string>
     <string name="theme_mode_entry_dark">Koyu</string>
@@ -341,43 +271,28 @@
 
     
     <string name="extra_keys_visibility_title">Ek düğmeler panelini göster</string>
-    <string name="extra_keys_visibility_summary">Ek düğmeler panelinin ne zaman gösterileceği.</string>
     <string name="extra_keys_visibility_always">Her zaman</string>
     <string name="extra_keys_visibility_keyboard">Yalnızca klavye açıkken</string>
     <string name="extra_keys_visibility_never">Asla</string>
 
     
-    <string name="extra_keys_invalid_json">Ek düğmeler için geçersiz JSON. Değişiklikler kaydedilmedi.</string>
 
     
     <string name="extra_keys_haptic_title">Dokunsal geri bildirim</string>
-    <string name="extra_keys_haptic_summary">Ek düğmeler paneli etkileşimlerinde titreşim</string>
     <string name="extra_keys_haptic_all">Dokunma ve hareketler</string>
     <string name="extra_keys_haptic_gestures">Yalnızca hareketler</string>
     <string name="extra_keys_haptic_off">Devre dışı</string>
 
     
     <string name="extra_keys_editor_title">Ek düğmeler düzenleyicisi</string>
-    <string name="extra_keys_editor_summary">Ek düğmeler panelini görsel olarak oluşturun: satır ve sütunları ayarlayın, ardından sinyal atamak için bir düğmeye dokunun.</string>
     <string name="extra_keys_editor_columns_title">Sütunlar</string>
-    <string name="extra_keys_editor_columns_summary">Satır başına düğme sayısı (1-10).</string>
     <string name="extra_keys_editor_rows_title">Satırlar</string>
-    <string name="extra_keys_editor_rows_summary">Düğme satırı sayısı (1-4).</string>
-    <string name="extra_keys_editor_preview_title">Önizleme</string>
-    <string name="extra_keys_editor_preview_summary">Canlı panel — sinyalini değiştirmek için herhangi bir düğmeye dokunun.</string>
     <string name="extra_keys_editor_signal_dialog_title">Sinyal ata</string>
     <string name="extra_keys_editor_custom_text_title">Simge/metin</string>
-    <string name="extra_keys_editor_custom_text_message">Bağlamak için herhangi bir tuşa basın:</string>
-    <string name="extra_keys_editor_apply_title">Ek düğmelere uygula</string>
-    <string name="extra_keys_editor_apply_summary">Bu düzeni ek düğmeler ayarına kaydedin.</string>
-    <string name="extra_keys_editor_empty">(boş)</string>
     <string name="extra_keys_editor_max_signals">Düğme başına en fazla 8 sinyal</string>
-    <string name="extra_keys_editor_custom_text_no_space">Boşluk içeren özel metin, kombinasyonlarda desteklenmez</string>
     <string name="extra_keys_editor_done">Tamam</string>
     <string name="extra_keys_editor_open_editor">Ek düğmeleri düzenle</string>
-    <string name="extra_keys_editor_open_editor_summary">Düzen, ölçek ve düğme bağlamalarını yapılandırın</string>
     <string name="extra_keys_edge_indicators_title">Kaydırma yönü göstergeleri</string>
-    <string name="extra_keys_edge_indicators_summary">Ek düğmelerde atanmış eylemlerin kaydırma yönü göstergelerini göster</string>
     <string name="extra_keys_editor_hint">Ana eylemi atamak için dokunun.\nHareket eylemlerini atamak için yukarı, aşağı, sola veya sağa kaydırın.\nEtiketini ayarlamak için bir düğmeye uzun basın.</string>
     <string name="extra_keys_editor_mode_assign">Ata</string>
     <string name="extra_keys_editor_mode_move">Taşı</string>
@@ -417,10 +332,7 @@
     
 
     
-    <string name="key_behaviour_category_title">Tuş davranışı</string>
-    <string name="screen_category_title">Ekran</string>
     <string name="shortcuts_category_title">Kısayollar</string>
-    <string name="misc_category_title">Çeşitli</string>
     <string name="external_apps_category_title">Harici uygulamalar</string>
     <string name="addons_category_title">Eklentiler</string>
     <string name="sound_category_title">Ses &amp; bildirimler</string>
@@ -428,8 +340,6 @@
 
     <string name="empty_value_summary">Ayarlanmamış</string>
     <string name="shortcut_empty_summary">Ayarlanmamış</string>
-    <string name="shortcut_summary">Biçim: Ctrl+TUŞ (örn. Ctrl+a). Devre dışı bırakmak için boş bırakın.</string>
-    <string name="shortcut_invalid_format">Geçersiz kısayol. "Ctrl+x" biçimini kullanın veya devre dışı bırakmak için boş bırakın.</string>
     <string name="session_shortcut_needs_modifier">Ctrl, Alt, Shift veya Fn değiştirici tuşlarını içeren bir kısayol ayarlayın</string>
     <string name="session_shortcut_needs_key">Değiştirici tuşların uygulanacağı bir tuş ekleyin</string>
 
@@ -446,7 +356,6 @@
 
     
     <string name="terminal_cursor_style_title">İmleç stili</string>
-    <string name="terminal_cursor_style_summary">Terminal imlecinin nasıl çizileceği.</string>
     <string name="terminal_cursor_style_block">Blok</string>
     <string name="terminal_cursor_style_underline">Alt çizgi</string>
     <string name="terminal_cursor_style_bar">Dikey çubuk</string>
@@ -456,7 +365,6 @@
 
     
     <string name="bell_character_title">Zil davranışı</string>
-    <string name="bell_character_summary">Terminal bir zil (BEL) karakteri aldığında ne olacağı.</string>
     <string name="bell_character_vibrate">Titreşim</string>
     <string name="bell_character_beep">Bip</string>
     <string name="bell_character_ignore">Yoksay</string>
@@ -474,60 +382,40 @@
 
     
     <string name="terminal_toolbar_scale_title">Araç çubuğu ölçeği</string>
-    <string name="terminal_toolbar_height_summary">Ek tuşlar / terminal araç çubuğu yükseklik ölçek faktörü.</string>
 
     
     <string name="default_working_directory_title">Varsayılan çalışma dizini</string>
     <string name="default_working_directory_summary">Yeni oturumlar için açılan dizin (ev için boş bırakın).</string>
 
     
-    <string name="back_key_sends_escape_title">Geri tuşu davranışı</string>
-    <string name="back_key_summary">Donanım/yazılım geri tuşunun terminalde ne yaptığı.</string>
-    <string name="back_key_back">Geri düğmesi</string>
-    <string name="back_key_escape">Escape tuşu</string>
+    <string name="back_key_sends_escape_title">Geri tuşuna basıldığında Escape gönder</string>
 
     <string name="volume_keys_title">Ses tuşları davranışı</string>
     <string name="volume_keys_summary">Cihazdaki ses kısma/açma tuşlarına basılı tutulduğunda sırasıyla Ctrl veya Fn tuşlarını basılı tutar. Bu modda ses düzeyi panelini açmak için Fn + v kullanın.</string>
-    <string name="volume_keys_virtual">Sanal (ses tuşları normal tuş gibi davranır)</string>
-    <string name="volume_keys_volume">Ses (cihaz sesini kontrol eder)</string>
 
     <string name="soft_keyboard_toggle_behaviour_title">Ekran klavyesi geçiş davranışı</string>
-    <string name="soft_keyboard_toggle_behaviour_summary">Geçiş düğmesi ekran klavyesini gösterir/gizler veya etkinleştirir/devre dışı bırakır.</string>
     <string name="soft_keyboard_toggle_show_hide">Göster / gizle</string>
     <string name="soft_keyboard_toggle_enable_disable">Etkinleştir / devre dışı bırak</string>
 
     <string name="ctrl_space_workaround_title">Ctrl+Boşluk geçici çözümü</string>
-    <string name="ctrl_space_workaround_summary">Ctrl+Boşluk kombinasyonunun doğru iletilmesi için geçici çözüm kullan.</string>
 
     <string name="enforce_char_based_input_title">Bayt tabanlı giriş gönderimi</string>
-    <string name="enforce_char_based_input_summary">Karakterlerin her seferinde bir bayt gönderilmesini zorla.</string>
 
     <string name="disable_hardware_keyboard_shortcuts_title">Donanım klavye kısayollarını devre dışı bırak</string>
-    <string name="disable_hardware_keyboard_shortcuts_summary">Donanım/harici klavyeden gelen klavye kısayollarını yoksay.</string>
 
-    <string name="disable_terminal_session_change_toast_title">Oturum değişikliği açılır bildirimini gösterme</string>
-    <string name="disable_terminal_session_change_toast_summary">Terminal oturumları arasında geçiş yaparken açılır mesaj gösterme.</string>
 
     
     <string name="scroll_on_new_output_title">Yeni çıktıda otomatik kaydırma</string>
-    <string name="scroll_on_new_output_summary">Yeni terminal çıktısı geldiğinde otomatik olarak en alta kaydır.</string>
 
     
     <string name="terminal_onclick_url_open_title">Bağlantılara dokununca aç</string>
-    <string name="terminal_onclick_url_open_summary">Terminal dökümündeki bağlantılara dokunulduğunda açılır.</string>
 
     
     <string name="fullscreen_title">Tam ekran</string>
     <string name="bubble_on_background_title">Arka planda baloncuk</string>
     <string name="bubble_on_background_summary">Uygulama arka plana geçtiğinde diğer uygulamaların üzerinde terminale hızlı erişim için baloncuk göster</string>
-    <string name="fullscreen_summary">&TERMUX_APP_NAME; uygulamasını tam ekran modunda çalıştır.</string>
 
     
-    <string name="night_mode_legacy_title">Gece modu (eski gece modu)</string>
-    <string name="night_mode_legacy_summary">Eski gece modu özelliğini kontrol eder. Görüntüleme ekranındaki tema ayarını tercih edin.</string>
-    <string name="night_mode_true">Koyu</string>
-    <string name="night_mode_false">Açık</string>
-    <string name="night_mode_system">Sistem varsayılanı</string>
 
     
     <string name="allow_external_apps_title">Harici komutlara izin ver</string>
@@ -542,7 +430,6 @@
 
     
     <string name="hide_soft_keyboard_on_startup_title">Başlangıçta ekran klavyesini gizle</string>
-    <string name="hide_soft_keyboard_on_startup_summary">Termux başladığında ekran klavyesini gizli tut.</string>
 
     
     <string name="input_panel_title">Giriş paneli</string>
@@ -552,13 +439,11 @@
 
     
     <string name="extra_keys_button_margin_title">Düğme aralığı</string>
-    <string name="extra_keys_button_margin_summary">Düğmeler arası boşluk</string>
 
     
     <string name="extra_keys_dynamic_font_size_title">Dinamik yazı tipi boyutu</string>
     <string name="extra_keys_dynamic_font_size_summary">Sütun sayısı arttığında veya ana eylemlere makro atandığında yazı tipi boyutunu küçült</string>
     <string name="extra_keys_font_size_title">Temel yazı tipi boyutu</string>
-    <string name="extra_keys_font_size_summary">Düğme etiketleri için temel metin boyutu</string>
     <string name="extra_keys_editor_tap_suffix"> (Dokunma)</string>
     <string name="extra_keys_editor_remove_signal">%s kaldır</string>
 
@@ -574,14 +459,11 @@
     <string name="backup_error_open_output">Çıktı dosyası açılamadı</string>
 
     
-    <string name="bootstrap_selector_error_load_sources">Kaynaklar yüklenemedi</string>
     <string name="bootstrap_selector_install_local_title">Yerel bootstrap yüklensin mi?</string>
     <string name="bootstrap_selector_install_local_message">Yerel bir bootstrap zip dosyası rastgele kod çalıştırabilir. Yalnızca bu dosyaya güveniyorsanız devam edin.</string>
     <string name="bootstrap_selector_install">Yükle</string>
     <string name="bootstrap_selector_cancel">İptal</string>
     <string name="bootstrap_selector_title">&TERMUX_APP_NAME; için bootstrap kurulumu</string>
-    <string name="bootstrap_selector_status_default">Yüklemek için bir bootstrap kaynağı seçin:</string>
-    <string name="bootstrap_selector_source_label">Kaynak:</string>
     <string name="bootstrap_selector_download">Önerilen bootstrap\'i indir</string>
     <string name="bootstrap_selector_pick_zip">Yerel .zip dosyası seç</string>
     <string name="bootstrap_selector_retry">Yeniden dene</string>
@@ -589,7 +471,6 @@
     <string name="bootstrap_progress_title">Bootstrap yükleniyor</string>
 
     
-    <string name="bootstrap_download_status_idle">Bekliyor</string>
     <string name="bootstrap_download_status_connecting">Bağlanıyor</string>
     <string name="bootstrap_download_progress_preparing">İndirme hazırlanıyor</string>
     <string name="bootstrap_download_status_installing">Yükleniyor</string>
@@ -604,8 +485,6 @@
     <string name="bootstrap_download_progress_checking_sha">SHA-256 kontrol ediliyor</string>
     <string name="bootstrap_download_notification_starting">Başlatılıyor</string>
     <string name="bootstrap_download_channel_name">&TERMUX_APP_NAME; bootstrap indiricisi</string>
-    <string name="bootstrap_download_notification_title_success">Bootstrap yüklendi</string>
-    <string name="bootstrap_download_notification_text_success">&TERMUX_APP_NAME; uygulamasını açmak için dokunun</string>
     <string name="bootstrap_download_notification_title_failed">Bootstrap yüklemesi başarısız</string>
 
     
@@ -619,7 +498,6 @@
     
 
     
-    <string name="bootstrap_install_progress_verify_sha">Sağlama toplamı doğrulanıyor</string>
     <string name="bootstrap_install_progress_verify_manifest">Paket manifestosu doğrulanıyor</string>
     <string name="bootstrap_install_progress_extract">Paketler çıkarılıyor</string>
     <string name="bootstrap_install_progress_finalize">Kurulum tamamlanıyor</string>
@@ -629,13 +507,11 @@
     
     <string name="extra_keys_editor_delay_format">⏱ %d ms</string>
     <string name="extra_keys_editor_delay_hint">Gecikme</string>
-    <string name="extra_keys_editor_delay_presets">Hızlı seçim:</string>
 
     <!-- Termux App Name -->
     <string name="application_name">TermuxEnhanced</string>
 
     <!-- Termux App Preferences -->
-    <string name="termux_preferences_title">&TERMUX_APP_NAME;</string>
 
     <!-- Termux:API App Preferences -->
     <string name="termux_api_preferences_title">&TERMUX_API_APP_NAME;</string>
@@ -650,7 +526,6 @@
     <string name="termux_widget_preferences_title">&TERMUX_WIDGET_APP_NAME;</string>
 
     <!-- Backup / Restore Preference -->
-    <string name="backup_restore_backup_filename">termux-data-backup.tar.gz</string>
     <string name="backup_service_notification_progress">%1$d%%</string>
     <string name="backup_progress_calculating_size">Yedek boyutu hesaplanıyor…</string>
 
@@ -673,7 +548,6 @@
     <string name="extra_keys_editor_signal_alt">ALT</string>
     <string name="extra_keys_editor_signal_shift">SHIFT</string>
     <string name="extra_keys_editor_signal_fn">FN</string>
-    <string name="extra_keys_editor_signal_space">Boşluk</string>
     <string name="extra_keys_editor_signal_esc">Esc</string>
     <string name="extra_keys_editor_signal_tab">Tab</string>
     <string name="extra_keys_editor_signal_home">Home</string>
@@ -701,19 +575,13 @@
     <string name="extra_keys_editor_signal_f10">F10</string>
     <string name="extra_keys_editor_signal_f11">F11</string>
     <string name="extra_keys_editor_signal_f12">F12</string>
-    <string name="extra_keys_editor_signal_backslash">Ters bölü (\\)</string>
-    <string name="extra_keys_editor_signal_quote">Tırnak (\")</string>
-    <string name="extra_keys_editor_signal_apostrophe">Kesme işareti (\')</string>
     <string name="extra_keys_editor_signal_add_delay">Gecikme…</string>
     <string name="extra_keys_editor_delay_dialog_title">Gecikme</string>
 
     <!-- AbiUtils error messages -->
-    <string name="error_abi_no_supported_abis">Bu cihazda desteklenen ABI yok</string>
     <string name="error_abi_arch_mismatch">Bootstrap mimarisi \'%1$s\' cihaz mimarisi \'%2$s\' ile eşleşmiyor. Mevcut ABI\'lar: %3$s</string>
-    <string name="error_abi_unknown">Bilinmeyen ABI: %1$s</string>
 
     <!-- BootstrapManifest error messages -->
-    <string name="error_bootstrap_manifest_missing_info">Bootstrap zip\'inde BOOTSTRAP_INFO bulunamadı</string>
     <string name="error_bootstrap_manifest_missing_variant">BOOTSTRAP_INFO\'da \'variant\' eksik</string>
     <string name="error_bootstrap_manifest_missing_arch">BOOTSTRAP_INFO\'da \'arch\' eksik</string>
 
@@ -791,7 +659,6 @@
          and the same step the pinch gesture uses — see
          TermuxAppSharedPreferences.getFontSize()/changeFontSize(). -->
     <string name="terminal_font_size_title" formatted="false">Yazı tipi boyutu</string>
-    <string name="terminal_font_size_summary" formatted="false">Aynı değer terminalde kıstırma hareketiyle de değiştirilir</string>
 
     <!-- ===================== Floating bubble window =====================
          Strings for the bubble (a floating terminal window hosted by SystemUI). The label is only

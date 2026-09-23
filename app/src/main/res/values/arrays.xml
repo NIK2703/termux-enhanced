@@ -127,14 +127,6 @@
         <item>ignore</item>
     </string-array>
 
-    <string-array name="back_key_entries">
-        <item>@string/back_key_back</item>
-        <item>@string/back_key_escape</item>
-    </string-array>
-    <string-array name="back_key_values">
-        <item>back</item>
-        <item>escape</item>
-    </string-array>
 
     <string-array name="soft_keyboard_toggle_behaviour_entries">
         <item>@string/soft_keyboard_toggle_show_hide</item>
@@ -145,16 +137,6 @@
         <item>enable/disable</item>
     </string-array>
 
-    <string-array name="night_mode_entries">
-        <item>@string/night_mode_true</item>
-        <item>@string/night_mode_false</item>
-        <item>@string/night_mode_system</item>
-    </string-array>
-    <string-array name="night_mode_values">
-        <item>true</item>
-        <item>false</item>
-        <item>system</item>
-    </string-array>
 
     <string-array name="extra_keys_editor_signal_entries">
         <item>@string/extra_keys_editor_signal_custom</item>

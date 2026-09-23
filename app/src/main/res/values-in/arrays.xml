@@ -49,15 +49,7 @@
         <item>@string/bell_character_ignore</item>
     </string-array>
 
-    <string-array name="back_key_entries">
-        <item>@string/back_key_back</item>
-        <item>@string/back_key_escape</item>
-    </string-array>
 
-    <string-array name="volume_keys_entries">
-        <item>@string/volume_keys_virtual</item>
-        <item>@string/volume_keys_volume</item>
-    </string-array>
 
     <string-array name="soft_keyboard_toggle_behaviour_entries">
         <item>@string/soft_keyboard_toggle_show_hide</item>
@@ -65,11 +57,6 @@
     
     </string-array>
 
-    <string-array name="night_mode_entries">
-        <item>@string/night_mode_true</item>
-        <item>@string/night_mode_false</item>
-        <item>@string/night_mode_system</item>
-    </string-array>
 
     <string-array name="extra_keys_editor_signal_entries">
         <item>@string/extra_keys_editor_signal_custom</item>

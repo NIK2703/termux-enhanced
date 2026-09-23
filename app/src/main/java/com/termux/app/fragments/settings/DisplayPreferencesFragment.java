@@ -15,6 +15,7 @@ import androidx.preference.SwitchPreferenceCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
+import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.app.terminal.TermuxActivityBroadcastManager;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
@@ -109,6 +110,8 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
                 termuxPrefs.edit().putString("screen_orientation", (String) newValue).apply();
                 final androidx.fragment.app.FragmentActivity activity = getActivity();
                 if (activity != null) {
+                    // Applied to the window this screen is drawn in — in the bubble that means no
+                    // preference, so the display is not rotated under it.
                     TermuxActivity.applyScreenOrientation(activity);
                 }
                 return true;
@@ -122,6 +125,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         // --- Window: bubble on background ---
         configureSwitch("bubble-on-background", prefs != null && prefs.isBubbleOnBackgroundEnabled(),
             value -> { if (prefs != null) prefs.setBubbleOnBackgroundEnabled(value); });
+        configureBubbleOnBackgroundSupport();
 
         // --- Tabs ---
         // --- Terminal appearance (moved from Terminal screen) ---
@@ -407,6 +411,25 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
     private interface PreferenceValueSetter<T> {
         void set(T value);
+    }
+
+    /**
+     * Deactivate the "bubble on background" switch where the device cannot show a bubble at all.
+     *
+     * <p>The gate is {@link TermuxBubbleManager#isSupported} — the Android version, the framework's own
+     * bubble API, and the Android Go / low-RAM case — and deliberately <em>not</em> the user's per-app
+     * bubble preference: this switch is what turns the automatic bubble on, so it has to stay usable
+     * while the user is on their way to the system settings to allow bubbles for the app.
+     *
+     * <p>Deactivated, not hidden. The preference may already be on from a device where it worked, and
+     * hiding the row would leave the user with a bubble that never appears and nothing on screen to
+     * explain it. The stored value is left alone on purpose — rewriting what the user chose is not this
+     * screen's business, and the value is harmless while the feature is gated off at every entry point.
+     */
+    private void configureBubbleOnBackgroundSupport() {
+        final SwitchPreferenceCompat pref = findPreference("bubble-on-background");
+        if (pref == null) return;
+        pref.setEnabled(TermuxBubbleManager.isSupported(requireContext()));
     }
 
     private void updateStyling() {
