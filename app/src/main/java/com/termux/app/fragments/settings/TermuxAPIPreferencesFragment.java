@@ -5,7 +5,6 @@ import android.os.Bundle;
 
 import androidx.annotation.Keep;
 import androidx.preference.PreferenceDataStore;
-import androidx.preference.PreferenceManager;
 
 import com.termux.R;
 import com.termux.shared.termux.settings.preferences.TermuxAPIAppSharedPreferences;
@@ -18,10 +17,7 @@ public class TermuxAPIPreferencesFragment extends TermuxPreferenceFragmentBase {
         Context context = getContext();
         if (context == null) return;
 
-        PreferenceManager preferenceManager = getPreferenceManager();
-        preferenceManager.setPreferenceDataStore(TermuxAPIPreferencesDataStore.getInstance(context));
-
-        setPreferencesFromResource(R.xml.termux_api_preferences, rootKey);
+        setupPreferences(TermuxAPIPreferencesDataStore.getInstance(context), R.xml.termux_api_preferences, rootKey);
     }
 
 }

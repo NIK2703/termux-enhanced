@@ -163,6 +163,38 @@ static int raw_open_readonly(const char *path) {
     return (int)syscall(__NR_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0);
 }
 
+static const char *remap_at_cwd(int dirfd, const char *pathname, char *buf, size_t buf_len) {
+    if (dirfd == AT_FDCWD)
+        return remap_path(pathname, buf, buf_len);
+    return pathname;
+}
+
+static int count_args(char *const argv[]) {
+    int argc = 0;
+    while (argv && argv[argc])
+        argc++;
+    return argc;
+}
+
+static void fill_wrapped_argv(char **nargv, char *const argv[], int argc, const char *p) {
+    int i = 0;
+
+    nargv[i++] = (char *)g_loader;
+    nargv[i++] = (char *)"--library-path";
+    nargv[i++] = (char *)g_libpath;
+
+    const char *preserve_argv0 = getenv("TERMUX_REMAP_PRESERVE_ARGV0");
+    if (preserve_argv0 && preserve_argv0[0] == '1' && argc > 0) {
+        nargv[i++] = (char *)"--argv0";
+        nargv[i++] = argv[0];
+    }
+
+    nargv[i++] = (char *)p;
+    for (int j = 1; j < argc; j++)
+        nargv[i++] = argv[j];
+    nargv[i] = NULL;
+}
+
 // ── ELF inspection ──
 
 static int elf_needs_loader_wrap(const char *path) {
@@ -256,10 +288,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     if (!real) real = (openat_fn)dlsym(RTLD_NEXT, "openat");
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     mode_t mode = 0;
     if (flags & O_CREAT) {
@@ -277,10 +306,7 @@ int openat64(int dirfd, const char *pathname, int flags, ...) {
     if (!real) real = (openat_fn)dlsym(RTLD_NEXT, "openat64");
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     mode_t mode = 0;
     if (flags & O_CREAT) {
@@ -352,10 +378,7 @@ int fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags) {
     if (!real) real = (fstatat_fn)dlsym(RTLD_NEXT, "fstatat");
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     return real(dirfd, p, statbuf, flags);
 }
@@ -383,10 +406,7 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     if (!real) real = (readlinkat_fn)dlsym(RTLD_NEXT, "readlinkat");
 
     char rbuf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, rbuf, sizeof(rbuf));
+    const char *p = remap_at_cwd(dirfd, pathname, rbuf, sizeof(rbuf));
 
     return real(dirfd, p, buf, bufsiz);
 }
@@ -401,28 +421,9 @@ int execve(const char *pathname, char *const argv[], char *const envp[]) {
     const char *p = remap_path(pathname, buf, sizeof(buf));
 
     if (elf_needs_loader_wrap(p)) {
-        int argc = 0;
-        while (argv && argv[argc])
-            argc++;
-
+        int argc = count_args(argv);
         char **nargv = alloca(sizeof(char *) * (argc + 8));
-        int i = 0;
-
-        nargv[i++] = (char *)g_loader;
-        nargv[i++] = (char *)"--library-path";
-        nargv[i++] = (char *)g_libpath;
-
-        const char *preserve_argv0 = getenv("TERMUX_REMAP_PRESERVE_ARGV0");
-        if (preserve_argv0 && preserve_argv0[0] == '1' && argc > 0) {
-            nargv[i++] = (char *)"--argv0";
-            nargv[i++] = argv[0];
-        }
-
-        nargv[i++] = (char *)p;
-        for (int j = 1; j < argc; j++)
-            nargv[i++] = argv[j];
-        nargv[i] = NULL;
-
+        fill_wrapped_argv(nargv, argv, argc, p);
         return real(g_loader, nargv, envp);
     }
 
@@ -437,34 +438,12 @@ int execveat(int dirfd, const char *pathname,
     pthread_once(&g_once, init_rules);
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     if (elf_needs_loader_wrap(p)) {
-        int argc = 0;
-        while (argv && argv[argc])
-            argc++;
-
+        int argc = count_args(argv);
         char **nargv = alloca(sizeof(char *) * (argc + 8));
-        int i = 0;
-
-        nargv[i++] = (char *)g_loader;
-        nargv[i++] = (char *)"--library-path";
-        nargv[i++] = (char *)g_libpath;
-
-        const char *preserve_argv0 = getenv("TERMUX_REMAP_PRESERVE_ARGV0");
-        if (preserve_argv0 && preserve_argv0[0] == '1' && argc > 0) {
-            nargv[i++] = (char *)"--argv0";
-            nargv[i++] = argv[0];
-        }
-
-        nargv[i++] = (char *)p;
-        for (int j = 1; j < argc; j++)
-            nargv[i++] = argv[j];
-        nargv[i] = NULL;
-
+        fill_wrapped_argv(nargv, argv, argc, p);
         return real(AT_FDCWD, g_loader, nargv, envp, flags & ~AT_EMPTY_PATH);
     }
 
@@ -477,10 +456,7 @@ int statx(int dirfd, const char *pathname, int flags,
     if (!real) real = (statx_fn)dlsym(RTLD_NEXT, "statx");
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     return real(dirfd, p, flags, mask, statxbuf);
 }
@@ -519,10 +495,7 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
     if (!real) real = (faccessat_fn)dlsym(RTLD_NEXT, "faccessat");
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     return real(dirfd, p, mode, flags);
 }
@@ -552,10 +525,7 @@ int __openat_2(int dirfd, const char *pathname, int flags) {
     if (!real) real = (openat_fn)dlsym(RTLD_NEXT, "__openat_2");
 
     char buf[PATH_BUF];
-    const char *p = pathname;
-
-    if (dirfd == AT_FDCWD)
-        p = remap_path(pathname, buf, sizeof(buf));
+    const char *p = remap_at_cwd(dirfd, pathname, buf, sizeof(buf));
 
     return real(dirfd, p, flags);
 }

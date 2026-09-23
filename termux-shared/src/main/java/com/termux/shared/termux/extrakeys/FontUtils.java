@@ -2,16 +2,12 @@ package com.termux.shared.termux.extrakeys;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.view.ContextThemeWrapper;
 import android.widget.ListView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import com.termux.shared.android.PackageUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxConstants;
 
@@ -54,7 +50,7 @@ public final class FontUtils {
      * @return The font file names, or {@code null} if Termux:Style is not installed / has no assets.
      */
     public static String[] listStylingFonts(Context context) {
-        Context stylingContext = getStylingContext(context);
+        Context stylingContext = ColorSchemeUtils.getStylingContext(context);
         if (stylingContext == null) return null;
         try {
             String[] files = stylingContext.getAssets().list(STYLING_FONTS_ASSET_DIR);
@@ -79,22 +75,7 @@ public final class FontUtils {
      */
     public static String fontDisplayName(String fileName) {
         if (FONT_DEFAULT.equals(fileName)) return FONT_DEFAULT;
-        String name = fileName.replace('-', ' ');
-        int dot = name.lastIndexOf('.');
-        if (dot != -1) name = name.substring(0, dot);
-        StringBuilder sb = new StringBuilder(name.length());
-        boolean lastWhitespace = true;
-        for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            if (Character.isLetter(c)) {
-                sb.append(lastWhitespace ? Character.toUpperCase(c) : c);
-                lastWhitespace = false;
-            } else {
-                sb.append(c);
-                lastWhitespace = Character.isWhitespace(c);
-            }
-        }
-        return sb.toString();
+        return ColorSchemeUtils.styleAssetDisplayName(fileName);
     }
 
     /**
@@ -109,13 +90,9 @@ public final class FontUtils {
                                       CharSequence notInstalledMessage,
                                       Runnable onApplied) {
         final String[] fonts = listStylingFonts(context);
-        final Context dialogContext = new ContextThemeWrapper(context, com.termux.shared.R.style.ThemeOverlay_BaseDialog_DayNight);
+        final Context dialogContext = ColorSchemeUtils.createDialogContext(context);
         if (fonts == null) {
-            AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
-                .setMessage(notInstalledMessage)
-                .setPositiveButton(android.R.string.ok, null)
-                .create();
-            d.show();
+            ColorSchemeUtils.showNotInstalledDialog(dialogContext, notInstalledMessage);
             return;
         }
 
@@ -123,15 +100,13 @@ public final class FontUtils {
         // its own adapter; the rows it inflates are a single TextView each.
         final FontPreviewAdapter adapter = new FontPreviewAdapter(dialogContext, fonts);
 
-        AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
-            .setTitle(dialogContext.getString(com.termux.shared.R.string.title_select_font))
-            .setAdapter(adapter, (dialog, which) -> {
+        AlertDialog d = ColorSchemeUtils.showListDialog(dialogContext,
+            dialogContext.getString(com.termux.shared.R.string.title_select_font),
+            adapter, (dialog, which) -> {
                 applyStylingFont(context, fonts[which]);
                 if (onApplied != null) onApplied.run();
                 dialog.dismiss();
-            })
-            .create();
-        d.show();
+            });
 
         // Bounded like the color-scheme picker's: a long list would draw its last row past the
         // bottom edge, unreachable.
@@ -150,7 +125,7 @@ public final class FontUtils {
      */
     @Nullable
     public static Typeface loadStylingTypeface(@Nullable Context context, @NonNull String fileName) {
-        final Context stylingContext = getStylingContext(context);
+        final Context stylingContext = ColorSchemeUtils.getStylingContext(context);
         if (stylingContext == null) return null;
         try {
             return Typeface.createFromAsset(stylingContext.getAssets(),
@@ -177,7 +152,7 @@ public final class FontUtils {
             return true;
         }
 
-        Context stylingContext = getStylingContext(context);
+        Context stylingContext = ColorSchemeUtils.getStylingContext(context);
         if (stylingContext == null) return false;
 
         // Ensure the ~/.termux directory exists.
@@ -189,20 +164,12 @@ public final class FontUtils {
         try (InputStream in = stylingContext.getAssets()
                 .open(STYLING_FONTS_ASSET_DIR + "/" + fileName);
              FileOutputStream out = new FileOutputStream(fontFile)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+            ColorSchemeUtils.copyStream(in, out);
             return true;
         } catch (IOException e) {
             Logger.logError(LOG_TAG, "Failed to apply Termux:Style font \"" + fileName
                 + "\": " + e.getMessage());
             return false;
         }
-    }
-
-    /** Package context of the installed Termux:Style app, or {@code null} if not installed. */
-    private static Context getStylingContext(Context context) {
-        if (context == null) return null;
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME);
     }
 }

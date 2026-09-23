@@ -1,8 +1,10 @@
 package com.termux.shared.termux.extrakeys;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.res.Resources;
 import android.view.ContextThemeWrapper;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 
 import androidx.appcompat.app.AlertDialog;
@@ -28,6 +30,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -119,9 +122,7 @@ public final class ColorSchemeUtils {
      * @return An ARGB colour with the given alpha over dark (light scheme) or light (dark scheme) base.
      */
     public static int getButtonBackground(boolean isLight, int alphaPercent) {
-        int alpha = percentToAlpha(alphaPercent);
-        int base = isLight ? 0x000000 : 0xFFFFFF;
-        return (alpha << 24) | base;
+        return composeTranslucentColor(alphaPercent, isLight);
     }
 
     /** @deprecated Use {@link #getButtonActiveBackground(boolean, int)} to honour user transparency slider. */
@@ -138,6 +139,10 @@ public final class ColorSchemeUtils {
      * @return An ARGB colour with the given alpha over dark (light scheme) or light (dark scheme) base.
      */
     public static int getButtonActiveBackground(boolean isLight, int alphaPercent) {
+        return composeTranslucentColor(alphaPercent, isLight);
+    }
+
+    private static int composeTranslucentColor(int alphaPercent, boolean isLight) {
         int alpha = percentToAlpha(alphaPercent);
         int base = isLight ? 0x000000 : 0xFFFFFF;
         return (alpha << 24) | base;
@@ -510,13 +515,9 @@ public final class ColorSchemeUtils {
     public static void showColorSchemeDialog(Context context, boolean isNight, CharSequence title,
                                              CharSequence notInstalledMessage, Runnable onApplied) {
         final String[] schemes = listStylingColorSchemes(context);
-        final Context dialogContext = new ContextThemeWrapper(context, com.termux.shared.R.style.ThemeOverlay_BaseDialog_DayNight);
+        final Context dialogContext = createDialogContext(context);
         if (schemes == null) {
-            AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
-                .setMessage(notInstalledMessage)
-                .setPositiveButton(android.R.string.ok, null)
-                .create();
-            d.show();
+            showNotInstalledDialog(dialogContext, notInstalledMessage);
             return;
         }
 
@@ -535,17 +536,13 @@ public final class ColorSchemeUtils {
         final ColorSchemePreviewAdapter adapter =
             new ColorSchemePreviewAdapter(dialogContext, isNight, schemes, checkedItem);
 
-        AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
-            .setTitle(title)
-            .setAdapter(adapter, (dialog, which) -> {
-                adapter.setCheckedPosition(which);
-                persistSelection(isNight, schemes[which]);
-                applyStylingScheme(context, isNight, schemes[which]);
-                if (onApplied != null) onApplied.run();
-                dialog.dismiss();
-            })
-            .create();
-        d.show();
+        AlertDialog d = showListDialog(dialogContext, title, adapter, (dialog, which) -> {
+            adapter.setCheckedPosition(which);
+            persistSelection(isNight, schemes[which]);
+            applyStylingScheme(context, isNight, schemes[which]);
+            if (onApplied != null) onApplied.run();
+            dialog.dismiss();
+        });
 
         // The rows are opaque and painted with the scheme's own background, so the framework's
         // divider would draw a line in a color that belongs to no scheme across the preview strip.
@@ -589,6 +586,10 @@ public final class ColorSchemeUtils {
     public static String schemeDisplayName(String fileName) {
         if (SCHEME_DEFAULT.equals(fileName)) return SCHEME_DEFAULT;
         if (isMonetScheme(fileName)) return monetDisplayName(monetVariantOf(fileName));
+        return styleAssetDisplayName(fileName);
+    }
+
+    static String styleAssetDisplayName(String fileName) {
         String name = fileName.replace('-', ' ');
         int dot = name.lastIndexOf('.');
         if (dot != -1) name = name.substring(0, dot);
@@ -646,9 +647,7 @@ public final class ColorSchemeUtils {
 
         try (InputStream in = stylingContext.getAssets().open(STYLING_COLORS_ASSET_DIR + "/" + fileName);
              FileOutputStream out = new FileOutputStream(perThemeFile)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+            copyStream(in, out);
             return true;
         } catch (IOException e) {
             Logger.logError(LOG_TAG, "Failed to apply Termux:Style scheme \"" + fileName + "\": " + e.getMessage());
@@ -656,8 +655,36 @@ public final class ColorSchemeUtils {
         }
     }
 
+    static void copyStream(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+    }
+
+    static Context createDialogContext(Context context) {
+        return new ContextThemeWrapper(context, com.termux.shared.R.style.ThemeOverlay_BaseDialog_DayNight);
+    }
+
+    static void showNotInstalledDialog(Context dialogContext, CharSequence notInstalledMessage) {
+        AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
+            .setMessage(notInstalledMessage)
+            .setPositiveButton(android.R.string.ok, null)
+            .create();
+        d.show();
+    }
+
+    static AlertDialog showListDialog(Context dialogContext, CharSequence title,
+                                      ListAdapter adapter, DialogInterface.OnClickListener listener) {
+        AlertDialog d = new MaterialAlertDialogBuilder(dialogContext)
+            .setTitle(title)
+            .setAdapter(adapter, listener)
+            .create();
+        d.show();
+        return d;
+    }
+
     /** Package context of the installed Termux:Style app, or {@code null} if not installed. */
-    private static Context getStylingContext(Context context) {
+    static Context getStylingContext(Context context) {
         if (context == null) return null;
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME);
     }

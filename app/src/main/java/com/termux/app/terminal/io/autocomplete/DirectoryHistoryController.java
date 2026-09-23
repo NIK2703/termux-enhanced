@@ -122,10 +122,17 @@ public final class DirectoryHistoryController {
         if (!mDirectoryHistory.isEmpty() && directory.equals(mDirectoryHistory.get(0))) return;
         mDirectoryHistory.remove(directory);
         mDirectoryHistory.add(0, directory);
+        trimToMaxSize();
+        save();
+    }
+
+    private boolean trimToMaxSize() {
+        boolean trimmed = false;
         while (mDirectoryHistory.size() > mDirectoryHistoryMax) {
             mDirectoryHistory.remove(mDirectoryHistory.size() - 1);
+            trimmed = true;
         }
-        save();
+        return trimmed;
     }
 
     // ── Load / Persist ──
@@ -145,12 +152,7 @@ public final class DirectoryHistoryController {
             }
         } catch (JSONException ignored) {
         }
-        boolean trimmed = false;
-        while (mDirectoryHistory.size() > mDirectoryHistoryMax) {
-            mDirectoryHistory.remove(mDirectoryHistory.size() - 1);
-            trimmed = true;
-        }
-        if (trimmed) save();
+        if (trimToMaxSize()) save();
     }
 
     public void save() {

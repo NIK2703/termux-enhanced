@@ -490,9 +490,7 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      * inverts a NaN matrix, turning every touch coordinate into NaN).
      */
     private void setTranslation(float px, float widthPx) {
-        if (!isFinite(px)) px = 0f;
-        float max = ElasticOverdrag.maxPull(widthPx);
-        px = Math.max(-max, Math.min(max, px));
+        px = PagerOverscrollController.coerceTranslation(px, widthPx);
         // An unchanged displacement must not dirty the RenderNode. Every settle/reset ends here,
         // and most of them are writing a 0 that is already there.
         if (px == mTranslationPx) return;
@@ -525,25 +523,21 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
     /** {@link #damp(float)} against an extent the caller already has — see {@link #apply()}. */
     private float damp(float rawPx, float widthPx) {
-        // Rejects NaN as well.
-        if (!(rawPx > 0f)) return 0f;
-        return ElasticOverdrag.damp(rawPx, widthPx);
+        return PagerOverscrollController.dampStatic(rawPx, widthPx);
     }
 
     /** Inverse of {@link #damp(float)}: the raw travel that produces {@code dampedPx}. */
     private float inverseDamp(float dampedPx) {
-        if (!(dampedPx > 0f)) return 0f;
-        return clampRaw(ElasticOverdrag.undamp(dampedPx, extentPx()));
+        return PagerOverscrollController.inverseDampStatic(dampedPx, extentPx());
     }
 
     /** Keep the raw accumulator finite and bounded: positive, never NaN/Infinity, never > cap. */
     private float clampRaw(float rawPx) {
-        if (!(rawPx > 0f) || !isFinite(rawPx)) return 0f;
-        return ElasticOverdrag.clampRaw(rawPx, extentPx());
+        return PagerOverscrollController.clampRawStatic(rawPx, extentPx());
     }
 
     private static boolean isFinite(float v) {
-        return !Float.isNaN(v) && !Float.isInfinite(v);
+        return PagerOverscrollController.isFinite(v);
     }
 
     // ── the "never displaced while idle" invariant ─────────────────────────────────────────

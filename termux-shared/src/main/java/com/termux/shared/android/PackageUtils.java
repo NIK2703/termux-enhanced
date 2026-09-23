@@ -30,6 +30,18 @@ public class PackageUtils {
 
     private static final String LOG_TAG = "PackageUtils";
 
+    @Nullable
+    private static <T> T getApplicationInfoFieldValue(@NonNull String fieldName, @Nullable ApplicationInfo applicationInfo, @NonNull Class<T> fieldType, @NonNull String logMessage) {
+        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
+        try {
+            return fieldType.cast(ReflectionUtils.invokeField(ApplicationInfo.class, fieldName, applicationInfo).value);
+        } catch (Exception e) {
+            // ClassCastException may be thrown
+            Logger.logStackTraceWithMessage(LOG_TAG, logMessage, e);
+            return null;
+        }
+    }
+
     /**
      * Get the {@link Context} for the package name with {@link Context#CONTEXT_RESTRICTED} flags.
      *
@@ -164,14 +176,8 @@ public class PackageUtils {
      */
     @Nullable
     public static Integer getApplicationInfoPrivateFlagsForPackage(@NonNull final ApplicationInfo applicationInfo) {
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        try {
-            return (Integer) ReflectionUtils.invokeField(ApplicationInfo.class, "privateFlags", applicationInfo).value;
-        } catch (Exception e) {
-            // ClassCastException may be thrown
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get privateFlags field value for ApplicationInfo class", e);
-            return null;
-        }
+        return getApplicationInfoFieldValue("privateFlags", applicationInfo, Integer.class,
+            "Failed to get privateFlags field value for ApplicationInfo class");
     }
 
     /**
@@ -188,14 +194,8 @@ public class PackageUtils {
      */
     @Nullable
     public static String getApplicationInfoSeInfoForPackage(@NonNull final ApplicationInfo applicationInfo) {
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        try {
-            return (String) ReflectionUtils.invokeField(ApplicationInfo.class, Build.VERSION.SDK_INT < Build.VERSION_CODES.O ? "seinfo" : "seInfo", applicationInfo).value;
-        } catch (Exception e) {
-            // ClassCastException may be thrown
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get seInfo field value for ApplicationInfo class", e);
-            return null;
-        }
+        return getApplicationInfoFieldValue(Build.VERSION.SDK_INT < Build.VERSION_CODES.O ? "seinfo" : "seInfo", applicationInfo, String.class,
+            "Failed to get seInfo field value for ApplicationInfo class");
     }
 
     /**
@@ -207,14 +207,8 @@ public class PackageUtils {
     @Nullable
     public static String getApplicationInfoSeInfoUserForPackage(@NonNull final ApplicationInfo applicationInfo) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null;
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        try {
-            return (String) ReflectionUtils.invokeField(ApplicationInfo.class, "seInfoUser", applicationInfo).value;
-        } catch (Exception e) {
-            // ClassCastException may be thrown
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get seInfoUser field value for ApplicationInfo class", e);
-            return null;
-        }
+        return getApplicationInfoFieldValue("seInfoUser", applicationInfo, String.class,
+            "Failed to get seInfoUser field value for ApplicationInfo class");
     }
 
     /**
@@ -224,14 +218,8 @@ public class PackageUtils {
      */
     @Nullable
     public static Integer getApplicationInfoStaticIntFieldValue(@NonNull String fieldName) {
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        try {
-            return (Integer) ReflectionUtils.invokeField(ApplicationInfo.class, fieldName, null).value;
-        } catch (Exception e) {
-            // ClassCastException may be thrown
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get \"" + fieldName + "\" field value for ApplicationInfo class", e);
-            return null;
-        }
+        return getApplicationInfoFieldValue(fieldName, null, Integer.class,
+            "Failed to get \"" + fieldName + "\" field value for ApplicationInfo class");
     }
 
     /**

@@ -87,39 +87,28 @@ public final class TermuxPreferenceManager {
 
     @NonNull
     public List<String> getMessageHistoryList() {
-        List<String> list = new ArrayList<>();
-        String json = mPrefs.getString(PREF_MESSAGE_HISTORY, null);
-        if (json == null) return list;
-        try {
-            JSONArray arr = new JSONArray(json);
-            for (int i = 0; i < arr.length(); i++) {
-                String s = arr.optString(i, null);
-                if (s != null && !s.isEmpty() && !list.contains(s)) {
-                    list.add(s);
-                }
-            }
-        } catch (JSONException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to parse message history list", e);
-        }
-        return list;
+        return readStringList(PREF_MESSAGE_HISTORY, "Failed to parse message history list");
     }
 
     public void setMessageHistoryList(@Nullable List<String> list) {
-        JSONArray arr = new JSONArray();
-        if (list != null) {
-            for (String s : list) {
-                if (s != null && !s.isEmpty()) arr.put(s);
-            }
-        }
-        mPrefs.edit().putString(PREF_MESSAGE_HISTORY, arr.toString()).apply();
+        writeStringList(PREF_MESSAGE_HISTORY, list);
     }
 
     // ── Directory history list (JSON array) ──
 
     @NonNull
     public List<String> getDirectoryHistoryList() {
+        return readStringList(PREF_DIRECTORY_HISTORY, "Failed to parse directory history list");
+    }
+
+    public void setDirectoryHistoryList(@Nullable List<String> list) {
+        writeStringList(PREF_DIRECTORY_HISTORY, list);
+    }
+
+    @NonNull
+    private List<String> readStringList(@NonNull String prefKey, @NonNull String logMessage) {
         List<String> list = new ArrayList<>();
-        String json = mPrefs.getString(PREF_DIRECTORY_HISTORY, null);
+        String json = mPrefs.getString(prefKey, null);
         if (json == null) return list;
         try {
             JSONArray arr = new JSONArray(json);
@@ -130,18 +119,18 @@ public final class TermuxPreferenceManager {
                 }
             }
         } catch (JSONException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to parse directory history list", e);
+            Logger.logStackTraceWithMessage(LOG_TAG, logMessage, e);
         }
         return list;
     }
 
-    public void setDirectoryHistoryList(@Nullable List<String> list) {
+    private void writeStringList(@NonNull String prefKey, @Nullable List<String> list) {
         JSONArray arr = new JSONArray();
         if (list != null) {
             for (String s : list) {
                 if (s != null && !s.isEmpty()) arr.put(s);
             }
         }
-        mPrefs.edit().putString(PREF_DIRECTORY_HISTORY, arr.toString()).apply();
+        mPrefs.edit().putString(prefKey, arr.toString()).apply();
     }
 }

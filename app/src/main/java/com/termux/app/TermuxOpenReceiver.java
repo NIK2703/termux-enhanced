@@ -64,11 +64,7 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
                 urlIntent.setDataAndType(data, contentTypeExtra);
             }
             urlIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try {
-                context.startActivity(urlIntent);
-            } catch (ActivityNotFoundException e) {
-                Logger.logError(LOG_TAG, "No app handles the url " + data);
-            }
+            startActivitySafely(context, urlIntent, data);
             return;
         }
 
@@ -91,12 +87,10 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
 
         String contentTypeToUse;
         if (contentTypeExtra == null) {
-            String fileName = fileToShare.getName();
-            int lastDotIndex = fileName.lastIndexOf('.');
-            String fileExtension = fileName.substring(lastDotIndex + 1);
+            String fileExtension = fileExtension(fileToShare.getName());
             MimeTypeMap mimeTypes = MimeTypeMap.getSingleton();
             // Lower casing makes it work with e.g. "JPG":
-            contentTypeToUse = mimeTypes.getMimeTypeFromExtension(fileExtension.toLowerCase());
+            contentTypeToUse = mimeTypes.getMimeTypeFromExtension(fileExtension);
             if (contentTypeToUse == null) contentTypeToUse = "application/octet-stream";
         } else {
             contentTypeToUse = contentTypeExtra;
@@ -116,11 +110,21 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
             sendIntent = Intent.createChooser(sendIntent, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         }
 
+        startActivitySafely(context, sendIntent, data);
+    }
+
+    /** Start {@code intent}, logging (instead of crashing) when no activity can handle it. */
+    private static void startActivitySafely(Context context, Intent intent, Uri data) {
         try {
-            context.startActivity(sendIntent);
+            context.startActivity(intent);
         } catch (ActivityNotFoundException e) {
             Logger.logError(LOG_TAG, "No app handles the url " + data);
         }
+    }
+
+    /** Lower-cased extension of {@code fileName} (no leading dot); the whole name when extensionless. */
+    private static String fileExtension(String fileName) {
+        return fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
     }
 
     public static class ContentProvider extends android.content.ContentProvider {
@@ -172,11 +176,8 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
         @Override
         public String getType(@NonNull Uri uri) {
             String path = uri.getLastPathSegment();
-            int extIndex = path.lastIndexOf('.') + 1;
-            if (extIndex > 0) {
-                MimeTypeMap mimeMap = MimeTypeMap.getSingleton();
-                String ext = path.substring(extIndex).toLowerCase();
-                return mimeMap.getMimeTypeFromExtension(ext);
+            if (path.lastIndexOf('.') >= 0) {
+                return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension(path));
             }
             return null;
         }

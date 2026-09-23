@@ -4,13 +4,9 @@ import android.content.Context;
 import android.os.Bundle;
 
 import androidx.annotation.Keep;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.preference.ListPreference;
-import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceDataStore;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
-import androidx.preference.PreferenceManager;
 
 import com.termux.R;
 import com.termux.shared.termux.settings.preferences.TermuxFloatAppSharedPreferences;
@@ -23,27 +19,11 @@ public class DebuggingPreferencesFragment extends TermuxPreferenceFragmentBase {
         Context context = getContext();
         if (context == null) return;
 
-        PreferenceManager preferenceManager = getPreferenceManager();
-        preferenceManager.setPreferenceDataStore(DebuggingPreferencesDataStore.getInstance(context));
+        setupPreferences(DebuggingPreferencesDataStore.getInstance(context), R.xml.termux_float_debugging_preferences, rootKey);
 
-        setPreferencesFromResource(R.xml.termux_float_debugging_preferences, rootKey);
-
-        configureLoggingPreferences(context);
-    }
-
-    private void configureLoggingPreferences(@NonNull Context context) {
-        PreferenceCategory loggingCategory = findPreference("logging");
-        if (loggingCategory == null) return;
-
-        ListPreference logLevelListPreference = findPreference("log_level");
-        if (logLevelListPreference != null) {
-            TermuxFloatAppSharedPreferences preferences = TermuxFloatAppSharedPreferences.build(context, true);
-            if (preferences == null) return;
-
-            TermuxPreferenceFragmentBase.
-                setLogLevelListPreferenceData(logLevelListPreference, context, preferences.getLogLevel(true));
-            loggingCategory.addPreference(logLevelListPreference);
-        }
+        TermuxFloatAppSharedPreferences preferences = TermuxFloatAppSharedPreferences.build(context, true);
+        if (preferences != null)
+            configureLoggingPreferences(context, preferences.getLogLevel(true));
     }
 }
 

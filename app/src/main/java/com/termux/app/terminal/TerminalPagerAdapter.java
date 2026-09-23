@@ -276,6 +276,12 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             terminalView.setBackgroundTransparencyPercent(mBackgroundTransparencyPercent);
     }
 
+    /** Push both per-page settings (margins + transparency) to one page's TerminalView. */
+    private void applyPerPageConfig(@androidx.annotation.Nullable TerminalView terminalView) {
+        applyTerminalMargins(terminalView);
+        applyTerminalTransparency(terminalView);
+    }
+
     /**
      * Run {@code action} on the TerminalView of every session page plus the placeholder.
      *
@@ -313,8 +319,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             holder.mTerminalView.setTerminalViewClient(mViewClient);
             // Margins and transparency too, so even the not-yet-bound placeholder page carries
             // the configured inset / alpha (a page created mid-swipe must not appear opaque).
-            applyTerminalMargins(holder.mTerminalView);
-            applyTerminalTransparency(holder.mTerminalView);
+            applyPerPageConfig(holder.mTerminalView);
         }
         return holder;
     }
@@ -379,8 +384,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
             // Push the live per-page settings: this holder may come from the recycler pool with a
             // stale config, and no other push path reaches a pooled page (mPlaceholderHolder was
             // cleared on recycle, and there is no mSessionViews entry without a session).
-            applyTerminalMargins(holder.mTerminalView);
-            applyTerminalTransparency(holder.mTerminalView);
+            applyPerPageConfig(holder.mTerminalView);
             // Nothing to bind — the TerminalView is intentionally left unbound (no session). We
             // still keep a valid TerminalView in the holder so a commit can rebind it in place.
             return;
@@ -410,10 +414,9 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // (Re)apply the per-page terminal margins: the view may be a recycled holder
         // whose margins were last set for a different configuration, and the pager
         // container itself stays full-bleed so swipes are never clipped.
-        applyTerminalMargins(terminalView);
         // Re-apply the transparency too: the view may be a recycled holder whose renderer was
         // created (in setTextSize/setTypeface) after the last push.
-        applyTerminalTransparency(terminalView);
+        applyPerPageConfig(terminalView);
 
         // Attach the focus-change listener that drives the soft keyboard to THIS page's view.
         // Done here (not in TermuxTerminalViewClient.setSoftKeyboardState) because the shared

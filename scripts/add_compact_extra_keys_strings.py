@@ -17,6 +17,14 @@ inherited from the default locale. Only arrays that carry literal text (see
 import os
 import sys
 
+from common_helpers import (
+    insert_before_resources_end,
+    print_results,
+    read_if_exists,
+    require_repo_root,
+    write_text,
+)
+
 BASE = "app/src/main/res"
 
 # locale dir -> (title, summary, mode_title, mode_rows, mode_columns)
@@ -162,9 +170,6 @@ def patch_strings(locale: str, values) -> str:
     if MARKER in text:
         return f"SKIP  {locale}: already patched"
 
-    if "</resources>" not in text:
-        return f"FAIL  {locale}: no closing </resources>"
-
     block = BLOCK.format(
         title=values[0],
         summary=values[1],
@@ -173,12 +178,11 @@ def patch_strings(locale: str, values) -> str:
         mode_columns=values[4],
     )
 
-    # Insert before the LAST closing tag; some files carry a nested <resources> in comments.
-    index = text.rindex("</resources>")
-    text = text[:index] + block + text[index:]
+    new_text = insert_before_resources_end(text, block)
+    if new_text is None:
+        return f"FAIL  {locale}: no closing </resources>"
 
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(text)
+    write_text(path, new_text)
     return f"OK    {locale}"
 
 
@@ -187,38 +191,28 @@ def patch_arrays() -> str:
     if not os.path.isfile(path):
         return "FAIL  values: no arrays.xml"
 
-    with open(path, "r", encoding="utf-8") as handle:
-        text = handle.read()
-
+    text = read_if_exists(path)
     if "extra_keys_compact_mode_entries" in text:
         return "SKIP  values/arrays.xml: already patched"
 
-    index = text.rindex("</resources>")
-    text = text[:index] + ARRAYS + text[index:]
+    new_text = insert_before_resources_end(text, ARRAYS)
+    if new_text is None:
+        return "FAIL  values/arrays.xml: no closing </resources>"
 
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(text)
+    write_text(path, new_text)
     return "OK    values/arrays.xml"
 
 
 def main() -> int:
-    if not os.path.isdir(BASE):
-        print(f"Run this from the repo root; {BASE} not found", file=sys.stderr)
+    if not require_repo_root(BASE):
         return 1
 
-    failures = 0
-    for locale, values in TRANSLATIONS.items():
-        result = patch_strings(locale, values)
-        print(result)
-        if result.startswith("FAIL"):
-            failures += 1
+    def results():
+        for locale, values in TRANSLATIONS.items():
+            yield patch_strings(locale, values)
+        yield patch_arrays()
 
-    result = patch_arrays()
-    print(result)
-    if result.startswith("FAIL"):
-        failures += 1
-
-    return 1 if failures else 0
+    return print_results(results())
 
 
 if __name__ == "__main__":

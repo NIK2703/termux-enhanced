@@ -227,10 +227,7 @@ public class Logger {
     }
 
     public static void logInfoAndShowToast(Context context, String tag, String message) {
-        if (CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL) {
-            logInfo(tag, message);
-            showToast(context, message, true);
-        }
+        logAndShowToast(context, tag, message, Log.INFO, LOG_LEVEL_NORMAL);
     }
 
     public static void logInfoAndShowToast(Context context, String message) {
@@ -238,10 +235,7 @@ public class Logger {
     }
 
     public static void logErrorAndShowToast(Context context, String tag, String message) {
-        if (CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL) {
-            logError(tag, message);
-            showToast(context, message, true);
-        }
+        logAndShowToast(context, tag, message, Log.ERROR, LOG_LEVEL_NORMAL);
     }
 
     public static void logErrorAndShowToast(Context context, String message) {
@@ -249,14 +243,18 @@ public class Logger {
     }
 
     public static void logDebugAndShowToast(Context context, String tag, String message) {
-        if (CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG) {
-            logDebug(tag, message);
-            showToast(context, message, true);
-        }
+        logAndShowToast(context, tag, message, Log.DEBUG, LOG_LEVEL_DEBUG);
     }
 
     public static void logDebugAndShowToast(Context context, String message) {
         logDebugAndShowToast(context, DEFAULT_LOG_TAG, message);
+    }
+
+    private static void logAndShowToast(Context context, String tag, String message, int logPriority, int requiredLogLevel) {
+        if (CURRENT_LOG_LEVEL >= requiredLogLevel) {
+            logMessage(logPriority, tag, message);
+            showToast(context, message, true);
+        }
     }
 
     public static void logStackTraceWithMessage(String tag, String message, Throwable throwable) {

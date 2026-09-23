@@ -87,10 +87,13 @@ public final class TermuxPrefixRemap {
 
         if (home != null && home.endsWith("/home")) {
             String fd = home.substring(0, home.length() - 5);
-            return fd.replaceFirst("^/data/user/0/", "/data/data/");
+            return toDataDataPath(fd);
         }
-        return context.getFilesDir().getAbsolutePath()
-            .replaceFirst("^/data/user/0/", "/data/data/");
+        return toDataDataPath(context.getFilesDir().getAbsolutePath());
+    }
+
+    public static String toDataDataPath(@NonNull String path) {
+        return path.replaceFirst("^/data/user/0/", "/data/data/");
     }
 
     /**
@@ -204,11 +207,7 @@ public final class TermuxPrefixRemap {
 
             for (int i = 0; i < e_phnum; i++) {
                 byte[] ph = new byte[e_phentsize];
-                // Read program header from file offset
-                java.io.RandomAccessFile raf = new java.io.RandomAccessFile(executable, "r");
-                raf.seek(e_phoff + (long) i * e_phentsize);
-                raf.readFully(ph);
-                raf.close();
+                if (!readAt(executable, e_phoff + (long) i * e_phentsize, ph)) return false;
 
                 int p_type = bytesToInt(ph, 0, 4); // p_type
                 if (p_type == 3) { // PT_INTERP
@@ -221,11 +220,8 @@ public final class TermuxPrefixRemap {
 
                     if (p_filesz > 4096 || p_filesz <= 0) return false;
 
-                    raf = new java.io.RandomAccessFile(executable, "r");
-                    raf.seek(p_offset);
                     byte[] interpBytes = new byte[(int) p_filesz];
-                    raf.readFully(interpBytes);
-                    raf.close();
+                    if (!readAt(executable, p_offset, interpBytes)) return false;
 
                     // Find null terminator
                     int nullPos = 0;
@@ -283,6 +279,14 @@ public final class TermuxPrefixRemap {
     }
 
     // ── helpers ──
+
+    private static boolean readAt(@NonNull String path, long offset, byte[] buf) throws IOException {
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(path, "r")) {
+            raf.seek(offset);
+            raf.readFully(buf);
+            return true;
+        }
+    }
 
     private static int bytesToInt(byte[] buf, int off, int len) {
         int v = 0;

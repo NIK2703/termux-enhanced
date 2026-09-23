@@ -101,8 +101,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         final ListPreference orientationPref = findPreference("screen_orientation");
         if (orientationPref != null) {
             orientationPref.setPersistent(false);
-            final SharedPreferences termuxPrefs =
-                    requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+            final SharedPreferences termuxPrefs = termuxPrefs();
             final boolean isTablet = requireContext().getResources()
                     .getConfiguration().smallestScreenWidthDp >= 600;
             orientationPref.setValue(termuxPrefs.getString("screen_orientation", isTablet ? "sensor" : "portrait"));
@@ -131,10 +130,10 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureTerminalAppearancePreferences(prefs);
 
         // --- Tabs ---
-        configureTabPanelPositionPreference();
-        configureTabHeightModePreference();
-        configureSwipeRightmostNewTabPreference();
-        configureRestoreSessionsPreference();
+        configureTabListPrefWithBroadcast("tab_panel_position", "top", "com.termux.TAB_PANEL_POSITION_CHANGED");
+        configureTabListPrefWithBroadcast("tab_height_mode", "single", "com.termux.TAB_HEIGHT_MODE_CHANGED");
+        configureTermuxPrefsSwitch("swipe_rightmost_new_tab", true);
+        configureTermuxPrefsSwitch("restore_sessions", false);
         configureDirectoryHistoryMaxPreference();
     }
 
@@ -241,11 +240,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         // The seek bar max is defined in the XML preference; clamp any previously
         // stored value (e.g. from an older build with a higher max) so the terminal
         // never keeps an out-of-range margin.
-        int max = pref.getMax();
-        if (current > max) {
-            current = max;
-            setter.set(current);
-        }
+        current = clampToMax(current, pref.getMax(), setter);
         pref.setValue(current);
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
             setter.set((Integer) newValue);
@@ -281,13 +276,9 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         if (mBlurRadiusPref == null) return;
 
         mBlurRadiusPref.setPersistent(false);
-        int current = prefs.getTerminalBackgroundBlurRadius();
-        final int max = mBlurRadiusPref.getMax();
-        if (current > max) {
-            // Older build with a higher max — clamp so an out-of-range radius never reaches setBlurBehindRadius.
-            current = max;
-            prefs.setTerminalBackgroundBlurRadius(current);
-        }
+        // Older build with a higher max — clamp so an out-of-range radius never reaches setBlurBehindRadius.
+        int current = clampToMax(prefs.getTerminalBackgroundBlurRadius(), mBlurRadiusPref.getMax(),
+            prefs::setTerminalBackgroundBlurRadius);
         mBlurRadiusPref.setValue(current);
         mBlurRadiusPref.setOnPreferenceChangeListener((preference, newValue) -> {
             prefs.setTerminalBackgroundBlurRadius((Integer) newValue);
@@ -312,13 +303,9 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         if (pref == null) return;
 
         pref.setPersistent(false);
-        int current = prefs.getTerminalBackgroundTransparency();
-        final int max = pref.getMax();
-        if (current > max) {
-            // Older build with a higher max — clamp so the terminal never keeps an out-of-range value.
-            current = max;
-            prefs.setTerminalBackgroundTransparency(current);
-        }
+        // Older build with a higher max — clamp so the terminal never keeps an out-of-range value.
+        int current = clampToMax(prefs.getTerminalBackgroundTransparency(), pref.getMax(),
+            prefs::setTerminalBackgroundTransparency);
         pref.setValue(current);
 
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
@@ -393,6 +380,18 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         void set(T value);
     }
 
+    private static int clampToMax(int current, int max, PreferenceValueSetter<Integer> setter) {
+        if (current > max) {
+            current = max;
+            setter.set(current);
+        }
+        return current;
+    }
+
+    private SharedPreferences termuxPrefs() {
+        return requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+    }
+
     /**
      * Deactivate (not hide) the "bubble on background" switch where
      * {@link TermuxBubbleManager#isSupported} is false — Android version, the framework bubble
@@ -430,8 +429,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         final androidx.preference.SeekBarPreference pref = findPreference("directory_history_max");
         if (pref == null) return;
 
-        final SharedPreferences termuxPrefs =
-                requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        final SharedPreferences termuxPrefs = termuxPrefs();
         pref.setPersistent(false);
         int current = termuxPrefs.getInt("directory_history_max", 20);
         if (current < 10) current = 10;
@@ -487,70 +485,34 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
     // Tabs
 
-    private void configureSwipeRightmostNewTabPreference() {
-        final SwitchPreferenceCompat pref = findPreference("swipe_rightmost_new_tab");
+    private void configureTermuxPrefsSwitch(String key, boolean defaultValue) {
+        final SwitchPreferenceCompat pref = findPreference(key);
         if (pref == null) return;
 
-        final SharedPreferences termuxPrefs =
-                requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        final SharedPreferences termuxPrefs = termuxPrefs();
         pref.setPersistent(false);
-        pref.setChecked(termuxPrefs.getBoolean("swipe_rightmost_new_tab", true));
+        pref.setChecked(termuxPrefs.getBoolean(key, defaultValue));
 
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            termuxPrefs.edit().putBoolean("swipe_rightmost_new_tab", (Boolean) newValue).apply();
+            termuxPrefs.edit().putBoolean(key, (Boolean) newValue).apply();
             return true;
         });
     }
 
-    private void configureTabPanelPositionPreference() {
-        final ListPreference pref = findPreference("tab_panel_position");
+    private void configureTabListPrefWithBroadcast(String key, String defaultValue, String action) {
+        final ListPreference pref = findPreference(key);
         if (pref == null) return;
 
-        final SharedPreferences termuxPrefs =
-                requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        final SharedPreferences termuxPrefs = termuxPrefs();
         pref.setPersistent(false);
-        pref.setValue(termuxPrefs.getString("tab_panel_position", "top"));
+        pref.setValue(termuxPrefs.getString(key, defaultValue));
 
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            termuxPrefs.edit().putString("tab_panel_position", (String) newValue).apply();
+            termuxPrefs.edit().putString(key, (String) newValue).apply();
             final Context context = requireContext();
-            final Intent intent = new Intent("com.termux.TAB_PANEL_POSITION_CHANGED");
+            final Intent intent = new Intent(action);
             intent.setPackage(context.getPackageName());
             context.sendBroadcast(intent);
-            return true;
-        });
-    }
-
-    private void configureTabHeightModePreference() {
-        final ListPreference pref = findPreference("tab_height_mode");
-        if (pref == null) return;
-
-        final SharedPreferences termuxPrefs =
-                requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
-        pref.setPersistent(false);
-        pref.setValue(termuxPrefs.getString("tab_height_mode", "single"));
-
-        pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            termuxPrefs.edit().putString("tab_height_mode", (String) newValue).apply();
-            final Context context = requireContext();
-            final Intent intent = new Intent("com.termux.TAB_HEIGHT_MODE_CHANGED");
-            intent.setPackage(context.getPackageName());
-            context.sendBroadcast(intent);
-            return true;
-        });
-    }
-
-    private void configureRestoreSessionsPreference() {
-        final SwitchPreferenceCompat pref = findPreference("restore_sessions");
-        if (pref == null) return;
-
-        final SharedPreferences termuxPrefs =
-                requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
-        pref.setPersistent(false);
-        pref.setChecked(termuxPrefs.getBoolean("restore_sessions", false));
-
-        pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            termuxPrefs.edit().putBoolean("restore_sessions", (Boolean) newValue).apply();
             return true;
         });
     }

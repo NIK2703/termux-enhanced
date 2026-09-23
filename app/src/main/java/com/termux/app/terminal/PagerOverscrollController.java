@@ -314,9 +314,7 @@ public final class PagerOverscrollController {
      * coerced to 0 rather than allowed to poison the transform.
      */
     private void setTranslation(float px, float widthPx) {
-        if (!isFinite(px)) px = 0f;
-        float max = ElasticOverdrag.maxPull(widthPx);
-        px = Math.max(-max, Math.min(max, px));
+        px = coerceTranslation(px, widthPx);
         // Same guard TerminalView.setOverdragRaw() has always had: an unchanged displacement must
         // not dirty the RenderNode (most settles here write a 0 that is already there).
         if (px == mTranslationPx) return;
@@ -367,25 +365,53 @@ public final class PagerOverscrollController {
      * @param widthPx the pager's extent, read once per frame by {@link #apply()}.
      */
     private float damp(float rawPx, float widthPx) {
+        return dampStatic(rawPx, widthPx);
+    }
+
+    /** Inverse of {@link #damp(float)}: the raw travel that produces {@code dampedPx}. */
+    private float inverseDamp(float dampedPx) {
+        return inverseDampStatic(dampedPx, extentPx());
+    }
+
+    /** Keep the raw accumulator finite and bounded: positive, never NaN/Infinity, never > cap. */
+    private float clampRaw(float rawPx) {
+        return clampRawStatic(rawPx, extentPx());
+    }
+
+    /** Pure rubber-band curve shared with {@link ElasticHorizontalScrollView}. */
+    static float dampStatic(float rawPx, float widthPx) {
         // Rejects NaN as well.
         if (!(rawPx > 0f)) return 0f;
         return ElasticOverdrag.damp(rawPx, widthPx);
     }
 
-    /** Inverse of {@link #damp(float)}: the raw travel that produces {@code dampedPx}. */
-    private float inverseDamp(float dampedPx) {
+    /** Inverse of {@link #dampStatic(float, float)} against {@code extentPx}. */
+    static float inverseDampStatic(float dampedPx, float extentPx) {
         if (!(dampedPx > 0f)) return 0f;
-        return clampRaw(ElasticOverdrag.undamp(dampedPx, extentPx()));
+        return clampRawStatic(ElasticOverdrag.undamp(dampedPx, extentPx), extentPx);
     }
 
-    /** Keep the raw accumulator finite and bounded: positive, never NaN/Infinity, never > cap. */
-    private float clampRaw(float rawPx) {
+    /** Positive, finite raw accumulator, capped at the saturation travel. */
+    static float clampRawStatic(float rawPx, float extentPx) {
         if (!(rawPx > 0f) || !isFinite(rawPx)) return 0f;
-        return ElasticOverdrag.clampRaw(rawPx, extentPx());
+        return ElasticOverdrag.clampRaw(rawPx, extentPx);
     }
 
-    private static boolean isFinite(float v) {
+    /** Finite check shared with {@link ElasticHorizontalScrollView}. */
+    static boolean isFinite(float v) {
         return !Float.isNaN(v) && !Float.isInfinite(v);
+    }
+
+    /** Clamp a raw displacement into the finite [-maxPull, +maxPull] band for {@code widthPx}. */
+    static float coerceDisplacement(float px, float widthPx) {
+        if (!isFinite(px)) px = 0f;
+        float max = ElasticOverdrag.maxPull(widthPx);
+        return Math.max(-max, Math.min(max, px));
+    }
+
+    /** Clamp a signed translation into the finite band (same rule as {@link #coerceDisplacement}). */
+    static float coerceTranslation(float px, float widthPx) {
+        return coerceDisplacement(px, widthPx);
     }
 
     // ---- the "never displaced while idle" invariant ----

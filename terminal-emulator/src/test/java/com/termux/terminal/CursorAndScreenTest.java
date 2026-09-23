@@ -1,7 +1,5 @@
 package com.termux.terminal;
 
-import org.junit.Assert;
-
 public class CursorAndScreenTest extends TerminalTestCase {
 
 	public void testDeleteLinesKeepsStyles() {
@@ -18,9 +16,8 @@ public class CursorAndScreenTest extends TerminalTestCase {
 		assertLinesAre("ABCDE", "FGHIJ", "KLMNO", "PQRST", "UVWXY");
 		for (int row = 0; row < 5; row++) {
 			for (int col = 0; col < 5; col++) {
-				long s = getStyleAt(row, col);
-				Assert.assertEquals(col, TextStyle.decodeForeColor(s));
-				Assert.assertEquals(row, TextStyle.decodeBackColor(s));
+				// Foreground color to col, background to row:
+				assertColorsAt(row, col, col, row);
 			}
 		}
 		// "${CSI}H" - place cursor at 1,1, then "${CSI}2M" to delete two lines.
@@ -28,9 +25,7 @@ public class CursorAndScreenTest extends TerminalTestCase {
 		assertLinesAre("KLMNO", "PQRST", "UVWXY", "     ", "     ");
 		for (int row = 0; row < 3; row++) {
 			for (int col = 0; col < 5; col++) {
-				long s = getStyleAt(row, col);
-				Assert.assertEquals(col, TextStyle.decodeForeColor(s));
-				Assert.assertEquals(row + 2, TextStyle.decodeBackColor(s));
+				assertColorsAt(row, col, col, row + 2);
 			}
 		}
 		// Set default fg and background for the new blank lines:
@@ -43,9 +38,7 @@ public class CursorAndScreenTest extends TerminalTestCase {
 			for (int col = 0; col < 5; col++) {
 				int wantedForeground = (row == 1 || row == 2) ? 98 : col;
 				int wantedBackground = (row == 1 || row == 2) ? 99 : (row == 0 ? 2 : row);
-				long s = getStyleAt(row, col);
-				Assert.assertEquals(wantedForeground, TextStyle.decodeForeColor(s));
-				Assert.assertEquals(wantedBackground, TextStyle.decodeBackColor(s));
+				assertColorsAt(row, col, wantedForeground, wantedBackground);
 			}
 		}
 	}
@@ -233,34 +226,20 @@ public class CursorAndScreenTest extends TerminalTestCase {
 	}
 
 	public void testCursorSaveRestoreTextStyle() {
-		long s;
-
 		// DEC save/restore
 		withTerminalSized(4, 2).enterString("\033[31;42;4m..\0337\033[36;47;24m\0338..");
-		s = getStyleAt(0, 3);
-		Assert.assertEquals(1, TextStyle.decodeForeColor(s));
-		Assert.assertEquals(2, TextStyle.decodeBackColor(s));
-		Assert.assertEquals(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE, TextStyle.decodeEffect(s));
+		assertStyleAt(0, 3, 1, 2, TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE);
 
 		// ANSI.SYS save/restore
 		withTerminalSized(4, 2).enterString("\033[31;42;4m..\033[s\033[36;47;24m\033[u..");
-		s = getStyleAt(0, 3);
-		Assert.assertEquals(1, TextStyle.decodeForeColor(s));
-		Assert.assertEquals(2, TextStyle.decodeBackColor(s));
-		Assert.assertEquals(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE, TextStyle.decodeEffect(s));
+		assertStyleAt(0, 3, 1, 2, TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE);
 
 		// Alternate screen enter/exit
 		withTerminalSized(4, 2);
 		enterString("\033[31;42;4m..\033[?1049h\033[H\033[36;47;24m.");
-		s = getStyleAt(0, 0);
-		Assert.assertEquals(6, TextStyle.decodeForeColor(s));
-		Assert.assertEquals(7, TextStyle.decodeBackColor(s));
-		Assert.assertEquals(0, TextStyle.decodeEffect(s));
+		assertStyleAt(0, 0, 6, 7, 0);
 		enterString("\033[?1049l..");
-		s = getStyleAt(0, 3);
-		Assert.assertEquals(1, TextStyle.decodeForeColor(s));
-		Assert.assertEquals(2, TextStyle.decodeBackColor(s));
-		Assert.assertEquals(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE, TextStyle.decodeEffect(s));
+		assertStyleAt(0, 3, 1, 2, TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE);
 	}
 
 }

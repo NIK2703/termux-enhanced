@@ -191,13 +191,17 @@ public class TermuxSession {
 
         mExecutionCommand.resultData.exitCode = exitCode;
 
-        if (this.mSetStdoutOnExit)
-            mExecutionCommand.resultData.stdout.append(ShellUtils.getTerminalSessionTranscriptText(mTerminalSession, true, false));
+        appendTranscriptIfRequested();
 
         if (!mExecutionCommand.setState(ExecutionCommand.ExecutionState.EXECUTED))
             return;
 
         TermuxSession.processTermuxSessionResult(this, null);
+    }
+
+    private void appendTranscriptIfRequested() {
+        if (this.mSetStdoutOnExit)
+            mExecutionCommand.resultData.stdout.append(ShellUtils.getTerminalSessionTranscriptText(mTerminalSession, true, false));
     }
 
     /**
@@ -221,8 +225,7 @@ public class TermuxSession {
                 mExecutionCommand.resultData.exitCode = 137; // SIGKILL
 
                 // Get whatever output has been set till now in case its needed
-                if (this.mSetStdoutOnExit)
-                    mExecutionCommand.resultData.stdout.append(ShellUtils.getTerminalSessionTranscriptText(mTerminalSession, true, false));
+                appendTranscriptIfRequested();
 
                 TermuxSession.processTermuxSessionResult(this, null);
             }

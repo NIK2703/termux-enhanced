@@ -16,6 +16,8 @@ no-op. Run from the repo root:
 import os
 import sys
 
+from common_helpers import insert_after_string_anchor, print_results, require_repo_root, write_text
+
 BASE = "app/src/main/res"
 ANCHOR = "fullscreen_title"
 
@@ -71,31 +73,25 @@ def patch(locale: str, title: str, summary: str) -> str:
         if "'" in value:
             return f"FAIL  {locale}: ASCII apostrophe in {value!r}"
 
-    lines = text.split("\n")
-    for index, line in enumerate(lines):
-        if f'name="{ANCHOR}"' in line:
-            indent = line[: len(line) - len(line.lstrip())]
-            lines.insert(index + 1, f'{indent}<string name="{SUMMARY_KEY}">{summary}</string>')
-            lines.insert(index + 1, f'{indent}<string name="{TITLE_KEY}">{title}</string>')
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write("\n".join(lines))
-            return f"OK    {locale}"
+    new_text = insert_after_string_anchor(text, ANCHOR, [
+        f'<string name="{TITLE_KEY}">{title}</string>',
+        f'<string name="{SUMMARY_KEY}">{summary}</string>',
+    ])
+    if new_text is None:
+        return f"FAIL  {locale}: anchor {ANCHOR} not found"
 
-    return f"FAIL  {locale}: anchor {ANCHOR} not found"
+    write_text(path, new_text)
+    return f"OK    {locale}"
 
 
 def main() -> int:
-    if not os.path.isdir(BASE):
-        print(f"Run this from the repo root; {BASE} not found", file=sys.stderr)
+    if not require_repo_root(BASE):
         return 1
 
-    failures = 0
-    for locale, (title, summary) in TRANSLATIONS.items():
-        result = patch(locale, title, summary)
-        print(result)
-        if result.startswith("FAIL"):
-            failures += 1
-    return 1 if failures else 0
+    return print_results(
+        patch(locale, title, summary)
+        for locale, (title, summary) in TRANSLATIONS.items()
+    )
 
 
 if __name__ == "__main__":

@@ -61,28 +61,35 @@ public class UriUtils {
      * Build a {@code file://} {@link Uri} for {@code path}.
      */
     public static Uri getFileUri(@NonNull String path) {
-        return new Uri.Builder().scheme(UriScheme.SCHEME_FILE).path(path).build();
+        return buildUri(UriScheme.SCHEME_FILE, null, path);
     }
 
     /**
      * Build a {@code file://} {@link Uri} with {@code authority} for {@code path}.
      */
     public static Uri getFileUri(@NonNull String authority, @NonNull String path) {
-        return new Uri.Builder().scheme(UriScheme.SCHEME_FILE).authority(authority).path(path).build();
+        return buildUri(UriScheme.SCHEME_FILE, authority, path);
     }
 
     /**
      * Build a {@code content://} {@link Uri} for {@code path}.
      */
     public static Uri getContentUri(@NonNull String path) {
-        return new Uri.Builder().scheme(UriScheme.SCHEME_CONTENT).path(path).build();
+        return buildUri(UriScheme.SCHEME_CONTENT, null, path);
     }
 
     /**
      * Build a {@code content://} {@link Uri} with {@code authority} for {@code path}.
      */
     public static Uri getContentUri(@NonNull String authority, @NonNull String path) {
-        return new Uri.Builder().scheme(UriScheme.SCHEME_CONTENT).authority(authority).path(path).build();
+        return buildUri(UriScheme.SCHEME_CONTENT, authority, path);
+    }
+
+    private static Uri buildUri(@NonNull String scheme, @Nullable String authority, @NonNull String path) {
+        Uri.Builder builder = new Uri.Builder().scheme(scheme);
+        if (authority != null)
+            builder.authority(authority);
+        return builder.path(path).build();
     }
 
 }

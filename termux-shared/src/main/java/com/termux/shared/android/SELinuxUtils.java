@@ -16,6 +16,24 @@ public class SELinuxUtils {
 
     private static final String LOG_TAG = "SELinuxUtils";
 
+    @Nullable
+    private static String invokeSELinuxMethod(String methodName, Class<?>[] parameterTypes, Object... args) {
+        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
+        try {
+            @SuppressLint("PrivateApi") Class<?> clazz = Class.forName(ANDROID_OS_SELINUX_CLASS);
+            Method method = ReflectionUtils.getDeclaredMethod(clazz, methodName, parameterTypes);
+            if (method == null) {
+                Logger.logError(LOG_TAG, "Failed to get " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class");
+                return null;
+            }
+
+            return (String) ReflectionUtils.invokeMethod(method, null, args).value;
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to call " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class", e);
+            return null;
+        }
+    }
+
     /**
      * Gets the security context of the current process.
      *
@@ -23,21 +41,7 @@ public class SELinuxUtils {
      */
     @Nullable
     public static String getContext() {
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        String methodName = "getContext";
-        try {
-            @SuppressLint("PrivateApi") Class<?> clazz = Class.forName(ANDROID_OS_SELINUX_CLASS);
-            Method method = ReflectionUtils.getDeclaredMethod(clazz, methodName);
-            if (method == null) {
-                Logger.logError(LOG_TAG, "Failed to get " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class");
-                return null;
-            }
-
-            return (String) ReflectionUtils.invokeMethod(method, null).value;
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to call " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class", e);
-            return null;
-        }
+        return invokeSELinuxMethod("getContext", new Class<?>[0]);
     }
 
     /**
@@ -48,21 +52,7 @@ public class SELinuxUtils {
      */
     @Nullable
     public static String getPidContext(int pid) {
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        String methodName = "getPidContext";
-        try {
-            @SuppressLint("PrivateApi") Class<?> clazz = Class.forName(ANDROID_OS_SELINUX_CLASS);
-            Method method = ReflectionUtils.getDeclaredMethod(clazz, methodName, int.class);
-            if (method == null) {
-                Logger.logError(LOG_TAG, "Failed to get " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class");
-                return null;
-            }
-
-            return (String) ReflectionUtils.invokeMethod(method, null, pid).value;
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to call " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class", e);
-            return null;
-        }
+        return invokeSELinuxMethod("getPidContext", new Class<?>[]{int.class}, pid);
     }
 
     /**
@@ -73,21 +63,7 @@ public class SELinuxUtils {
      */
     @Nullable
     public static String getFileContext(@NonNull String path) {
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions();
-        String methodName = "getFileContext";
-        try {
-            @SuppressLint("PrivateApi") Class<?> clazz = Class.forName(ANDROID_OS_SELINUX_CLASS);
-            Method method = ReflectionUtils.getDeclaredMethod(clazz, methodName, String.class);
-            if (method == null) {
-                Logger.logError(LOG_TAG, "Failed to get " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class");
-                return null;
-            }
-
-            return (String) ReflectionUtils.invokeMethod(method, null, path).value;
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to call " + methodName + "() method of " + ANDROID_OS_SELINUX_CLASS + " class", e);
-            return null;
-        }
+        return invokeSELinuxMethod("getFileContext", new Class<?>[]{String.class}, path);
     }
 
 }

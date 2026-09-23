@@ -194,6 +194,23 @@ public final class SessionPagerManager {
     }
 
     /**
+     * Run {@code action} with the directory picker, if one is available, so callers do not each
+     * have to repeat the null-safe {@link #getDirectoryPicker()} dance.
+     */
+    private void withDirectoryPicker(Consumer<DirectoryPickerController> action) {
+        DirectoryPickerController picker = getDirectoryPicker();
+        if (picker != null) action.accept(picker);
+    }
+
+    /** The session at {@code index} in the service's list, or null when there is none. */
+    @Nullable
+    private static TerminalSession terminalSessionAt(@Nullable TermuxService service, int index) {
+        if (service == null) return null;
+        TermuxSession termuxSession = service.getTermuxSession(index);
+        return (termuxSession != null) ? termuxSession.getTerminalSession() : null;
+    }
+
+    /**
      * True while a cold-start session is being initialized on a background thread
      * (emulator subprocess creation, which involves a blocking fork()).  When set,
      * {@link #syncTerminalPagerToService()} skips {@code setCurrentItem()} so the pager layout pass
@@ -332,10 +349,7 @@ public final class SessionPagerManager {
                         case MotionEvent.ACTION_DOWN:
                             mFingerDown = true;
                             mAnchorLatched = false;
-                            mPendingPickReady = false;
-                            mPendingPickDirectory = null;
-                            mForcedPickPending = false;
-                            mForcedPickDirectory = null;
+                            clearPendingPick();
                             // Re-latch the pager's screen position for this gesture: everything that
                             // follows (the anchor and every updateFinger) reads it, and one lookup per
                             // gesture is enough while the pager itself is not moving.
@@ -348,8 +362,8 @@ public final class SessionPagerManager {
                         case MotionEvent.ACTION_MOVE:
                             mFingerRawY = e.getRawY();
                             if (mAnchorLatched) {
-                                DirectoryPickerController picker = getDirectoryPicker();
-                                if (picker != null) picker.updateFinger(rawToPageY(mFingerRawY));
+                                withDirectoryPicker(picker ->
+                                        picker.updateFinger(rawToPageY(mFingerRawY)));
                             }
                             break;
                         case MotionEvent.ACTION_UP:
@@ -375,10 +389,7 @@ public final class SessionPagerManager {
                             break;
                         case MotionEvent.ACTION_CANCEL:
                             mFingerDown = false;
-                            mPendingPickReady = false;
-                            mPendingPickDirectory = null;
-                            mForcedPickPending = false;
-                            mForcedPickDirectory = null;
+                            clearPendingPick();
                             break;
                         default:
                             break;
@@ -793,8 +804,7 @@ public final class SessionPagerManager {
         // Started here rather than on the finger lift so every tab a swipe opens fades the same
         // way; both paths reach this line on the same frame. Before the overlay teardown below, so
         // the highlight is still the one the finger left.
-        final DirectoryPickerController picker = getDirectoryPicker();
-        if (picker != null) picker.beginRowFadeOut();
+        withDirectoryPicker(DirectoryPickerController::beginRowFadeOut);
         // Start the overlay leaving BEFORE the rebind is scheduled: the fade flag has to be up by
         // the time onBindViewHolder() runs, or the bind would set the container GONE and the
         // placeholder would disappear in a single frame instead of fading.
@@ -964,6 +974,13 @@ public final class SessionPagerManager {
         mForcedPickDirectory = null;
     }
 
+    /** Drop the pending pick and the forced pick for a gesture that is starting or was cancelled. */
+    private void clearPendingPick() {
+        mPendingPickReady = false;
+        mPendingPickDirectory = null;
+        clearForcedPick();
+    }
+
     /**
      * How much of the placeholder page is on screen, 0…1 — or {@code -1} when there is no overlay
      * page to drive (commit fade finished, or placeholder dropped).
@@ -997,14 +1014,13 @@ public final class SessionPagerManager {
         if (reveal < 0f) return;
 
         // Before the anchor latch: the first frame the menu appears already has this width.
-        final DirectoryPickerController picker = getDirectoryPicker();
-        if (picker != null) {
+        withDirectoryPicker(picker -> {
             // Page fully off screen always precedes a gesture that can open the menu, so it is
             // where a leftover row fade from the previous gesture is dropped — never open on
             // already-dimmed rows. Free unless there is something to undo.
             if (reveal <= 0f) picker.clearRowFade();
             picker.setRevealedFraction(reveal);
-        }
+        });
         mTerminalPagerAdapter.setPlaceholderScrollOffset(reveal);
     }
 
@@ -1030,10 +1046,8 @@ public final class SessionPagerManager {
     /** Open the menu, anchoring the list at the finger's current vertical position. */
     private void latchAnchor() {
         mAnchorLatched = true;
-        final DirectoryPickerController picker = getDirectoryPicker();
-        if (picker != null) {
-            picker.show(rawToPageY(mFingerRawY), mTerminalPager.getHeight());
-        }
+        withDirectoryPicker(picker ->
+                picker.show(rawToPageY(mFingerRawY), mTerminalPager.getHeight()));
     }
 
     /**
@@ -1058,8 +1072,7 @@ public final class SessionPagerManager {
         mActivity.recordAllSessionDirectories();
         // Re-read the (now updated) history and pre-measure the labels while nothing is animating:
         // show() installs the rows a couple of frames later, on the gesture's critical frame.
-        final DirectoryPickerController picker = getDirectoryPicker();
-        if (picker != null) picker.refreshItems();
+        withDirectoryPicker(DirectoryPickerController::refreshItems);
     }
 
     /**
@@ -1110,9 +1123,7 @@ public final class SessionPagerManager {
         if (position < 0) position = 0;
         if (position >= size) position = size - 1;
 
-        TermuxSession termuxSession = service.getTermuxSession(position);
-        if (termuxSession == null) return;
-        final TerminalSession selected = termuxSession.getTerminalSession();
+        final TerminalSession selected = terminalSessionAt(service, position);
         if (selected == null) return;
 
         // The session we are LEAVING, captured before the active index moves. It may be a session
@@ -1284,12 +1295,9 @@ public final class SessionPagerManager {
         if (mTerminalPager == null || mTerminalPagerAdapter == null) return null;
         TermuxService service = mActivity.getTermuxService();
         if (service != null) {
-            TermuxSession termuxSession = service.getTermuxSession(position);
-            if (termuxSession != null) {
-                TerminalView bySession = mTerminalPagerAdapter.getViewForSession(
-                        termuxSession.getTerminalSession());
-                if (bySession != null) return bySession;
-            }
+            TerminalView bySession = mTerminalPagerAdapter.getViewForSession(
+                    terminalSessionAt(service, position));
+            if (bySession != null) return bySession;
         }
         // Fallback for the rare case the map entry was dropped but the holder exists.
         RecyclerView rv = getPagerRecyclerView();
@@ -1509,8 +1517,7 @@ public final class SessionPagerManager {
             }
         }
         for (int i = 0; i < sessions; i++) {
-            TermuxSession ts = service.getTermuxSession(i);
-            TerminalSession s = (ts == null) ? null : ts.getTerminalSession();
+            TerminalSession s = terminalSessionAt(service, i);
             sb.append(" |s").append(i).append("=").append(id(s));
             sb.append(" view=").append(mTerminalPagerAdapter != null
                     && mTerminalPagerAdapter.getViewForSession(s) != null ? 1 : 0);

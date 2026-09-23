@@ -545,8 +545,7 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
         mSessionUiChurn = true;
         // A tab being created supersedes the cold-start hide policy: the new page inherits the
         // keyboard state, so a pending startup re-assert must not close what it inherits.
-        if (mTermuxTerminalViewClient != null)
-            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+        cancelStartupSoftKeyboardReassert();
         android.view.View decor = getWindow() != null ? getWindow().getDecorView() : null;
         if (decor != null) {
             decor.removeCallbacks(mEndSessionUiChurnRunnable);
@@ -712,6 +711,37 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
     private static final String LOG_TAG = "TermuxActivity";
 
+    /** The app's {@code termux_prefs} shared preferences. */
+    private SharedPreferences termuxPrefs() {
+        return getSharedPreferences("termux_prefs", MODE_PRIVATE);
+    }
+
+    /** The configured tab-strip position ({@code "top"} or {@code "bottom"}). */
+    private String getTabPanelPosition() {
+        return termuxPrefs().getString("tab_panel_position", "top");
+    }
+
+    /** Show the soft keyboard for {@code target} with an implicit show intent. */
+    private void showSoftKeyboardImplicit(@NonNull View target) {
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(target, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    /** Visibility change plus the pencil-icon refresh every such change needs. */
+    private void setTextInputVisibleAndRefreshIcon(boolean visible) {
+        setTextInputVisible(visible);
+        updateToggleTextInputButtonIcon();
+    }
+
+    /** End the cold-start "hide keyboard on startup" re-assert window, when the client exists. */
+    private void cancelStartupSoftKeyboardReassert() {
+        if (mTermuxTerminalViewClient != null)
+            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+    }
+
     @Override
     protected void attachBaseContext(android.content.Context base) {
         // Inflate the whole terminal activity (toolbar, extra-keys, session tabs, and the
@@ -751,8 +781,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
         reloadProperties();
 
         // Initialise the history controllers (they own the in-memory lists + persistence).
-        mMessageHistoryCtrl = new MessageHistoryController(getSharedPreferences("termux_prefs", MODE_PRIVATE));
-        mDirectoryHistoryCtrl = new DirectoryHistoryController(getSharedPreferences("termux_prefs", MODE_PRIVATE));
+        mMessageHistoryCtrl = new MessageHistoryController(termuxPrefs());
+        mDirectoryHistoryCtrl = new DirectoryHistoryController(termuxPrefs());
 
         // Directory-history popup controller — owns its own popup window + gesture state
         // (fully decoupled from the message-history popup, which keeps its own).
@@ -1193,8 +1223,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Real user input ends the cold-start "hide keyboard on startup" policy: from here on the
         // keyboard state is the user's. Without this the bounded re-assert could close a keyboard
         // the user had just opened right after launch.
-        if (mTermuxTerminalViewClient != null)
-            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+        cancelStartupSoftKeyboardReassert();
         // The bubble's own cold-start IME suppression ends here too, but through its own method: the
         // call above is also made from onPause()/session churn, which do not mean "the user is now
         // driving this window" (see endBubbleStartupImeSuppression()).
@@ -1207,8 +1236,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         super.onPause();
 
         // Cold-start hide re-assert is meaningless once we leave the foreground.
-        if (mTermuxTerminalViewClient != null)
-            mTermuxTerminalViewClient.cancelStartupSoftKeyboardReassert();
+        cancelStartupSoftKeyboardReassert();
 
         // Mark paused so the IME-hidden handler (WindowInsetsListener) does not
         // close the text input panel when the system dismisses the soft keyboard
@@ -1303,7 +1331,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         if (mIsInvalidState) return;
 
-        getSharedPreferences("termux_prefs", MODE_PRIVATE)
+        termuxPrefs()
                 .unregisterOnSharedPreferenceChangeListener(mPerDirPrefListener);
 
         unregisterTermuxActivityBroadcastReceiver();
@@ -1403,7 +1431,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // the end of onStop. Skip the write (and the disk flush) when nothing moved.
         if (json == null || json.equals(mLastPersistedUiStateJson)) return;
         mLastPersistedUiStateJson = json;
-        getSharedPreferences("termux_prefs", MODE_PRIVATE).edit()
+        termuxPrefs().edit()
                 .putString(PREF_UI_STATE_JSON, json).apply();
     }
 
@@ -1415,7 +1443,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     public void restorePersistedUiState() {
         if (getTermuxService() == null) return;
-        String json = getSharedPreferences("termux_prefs", MODE_PRIVATE)
+        String json = termuxPrefs()
                 .getString(PREF_UI_STATE_JSON, null);
         if (json == null) return;
         mTextInputState.importFromJson(json, orderedTerminalSessions());
@@ -2345,8 +2373,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // If hiding the toolbar while text input is visible, close text input first
         // so the toolbar state is consistent.
         if (!showNow && isTextInputVisible()) {
-            setTextInputVisible(false);
-            updateToggleTextInputButtonIcon();
+            setTextInputVisibleAndRefreshIcon(false);
         }
 
         // Update the pencil anchor so it stays at the bottom when toolbar is GONE.
@@ -2467,8 +2494,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * only the tab strip moves. The ViewPager2 fills whatever space remains between them.
      */
     public void applyTabPanelPosition() {
-        String position = getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                .getString("tab_panel_position", "top");
+        String position = getTabPanelPosition();
         LinearLayout tabsContainer = findViewById(R.id.session_tabs_container);
         androidx.viewpager2.widget.ViewPager2 pager = findViewById(R.id.terminal_view_pager);
         if (tabsContainer == null || pager == null) return;
@@ -2554,8 +2580,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         penLp.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
 
         if (toolbar.getVisibility() == View.VISIBLE) {
-            String position = getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                    .getString("tab_panel_position", "top");
+            String position = getTabPanelPosition();
             if ("bottom".equals(position)) {
                 penLp.addRule(RelativeLayout.ABOVE, R.id.session_tabs_container);
             } else {
@@ -2570,8 +2595,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** Whether the session tabs panel is configured to sit at the bottom of the screen. */
     public boolean isTabPanelAtBottom() {
-        return "bottom".equals(getSharedPreferences("termux_prefs", MODE_PRIVATE)
-                .getString("tab_panel_position", "top"));
+        return "bottom".equals(getTabPanelPosition());
     }
 
     /**
@@ -2585,7 +2609,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mTermuxSessionTabsController.applyTabHeightMode();
 
         // Also update the add-tab button height.
-        String mode = getSharedPreferences("termux_prefs", MODE_PRIVATE)
+        String mode = termuxPrefs()
                 .getString("tab_height_mode", "single");
         boolean doubleMode = "double".equals(mode);
         int buttonSizeDp = doubleMode ? 36 : 24;
@@ -2625,7 +2649,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Seed the hot-path handle used by the margin setters (see mFloatingButton).
         mFloatingButton = toggleTextInputButton;
         if (toggleTextInputButton != null) {
-            SharedPreferences prefs = getSharedPreferences("termux_prefs", MODE_PRIVATE);
+            SharedPreferences prefs = termuxPrefs();
             // Load the persisted sent-message history once.
             mMessageHistoryCtrl.setMaxSize(prefs.getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
             mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean("per_directory_message_history", false));
@@ -2725,8 +2749,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                                 && event.getActionMasked() == MotionEvent.ACTION_UP) {
                             // No popup was opened: treat as a plain tap -> toggle panel.
                             boolean currentlyVisible = panelOpenAtDown[0];
-                            setTextInputVisible(!currentlyVisible);
-                            updateToggleTextInputButtonIcon();
+                            setTextInputVisibleAndRefreshIcon(!currentlyVisible);
                         }
                         gestureActive[0] = false;
                         swipeDownPending[0] = false;
@@ -2768,8 +2791,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (editText == null) return;
 
         if (!isTextInputVisible()) {
-            setTextInputVisible(true);
-            updateToggleTextInputButtonIcon();
+            setTextInputVisibleAndRefreshIcon(true);
         }
 
         Editable editable = editText.getText();
@@ -3144,8 +3166,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // history (pre-promote-switch behaviour); a message already in the history
         // KEEPS its position. See MessageHistoryController.addNewOnTop().
         if (!isTextInputVisible()) {
-            setTextInputVisible(true);
-            updateToggleTextInputButtonIcon();
+            setTextInputVisibleAndRefreshIcon(true);
         }
 
         String existing = editText.getText().toString();
@@ -3169,8 +3190,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (editText == null) return;
 
         if (!isTextInputVisible()) {
-            setTextInputVisible(true);
-            updateToggleTextInputButtonIcon();
+            setTextInputVisibleAndRefreshIcon(true);
         }
 
         mAutoCompleteCtrl.invalidateHistoryVersion();
@@ -3211,13 +3231,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         saveTextInputForCurrentSession();
 
         editText.requestFocus();
-        editText.post(() -> {
-            android.view.inputmethod.InputMethodManager imm =
-                    (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-            }
-        });
+        editText.post(() -> showSoftKeyboardImplicit(editText));
     }
 
     // ============================================================================
@@ -3480,7 +3494,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * @return true if text input field should be shown, false otherwise
      */
     public boolean isTextInputEnabled() {
-        return getSharedPreferences("termux_prefs", MODE_PRIVATE).getBoolean("text_input_enabled", true);
+        return termuxPrefs().getBoolean("text_input_enabled", true);
     }
 
     /**
@@ -3535,14 +3549,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mPopupCtrl.isHistoryPopupShowing()) {
             mPopupCtrl.dismissMessageHistoryPopup();
             if (isTextInputVisible()) {
-                setTextInputVisible(false);
-                updateToggleTextInputButtonIcon();
+                setTextInputVisibleAndRefreshIcon(false);
             }
         } else if (isTextInputVisible()) {
             // Panel is open: "Back" closes the panel instead of exiting the app
             // (regardless of the "hide panel after send" setting).
-            setTextInputVisible(false);
-            updateToggleTextInputButtonIcon();
+            setTextInputVisibleAndRefreshIcon(false);
         } else {
             TermuxActivityUtils.finishActivityIfNotFinishing(this);
         }
@@ -3658,15 +3670,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Object helper = getContextMenuHelper(source);
         if (helper == null) return null;
         // Framework path: MenuDialogHelper.getDialog() -> AlertDialog list view.
-        try {
-            java.lang.reflect.Method getDialog = helper.getClass().getMethod("getDialog");
-            Object dialog = getDialog.invoke(helper);
-            if (dialog instanceof android.app.Dialog) {
-                android.view.View list = ((android.app.Dialog) dialog)
-                        .findViewById(android.R.id.list);
-                if (list instanceof android.widget.ListView) return (android.widget.ListView) list;
-            }
-        } catch (Exception ignored) {
+        Object dialog = invokeContextMenuGetDialog(helper);
+        if (dialog instanceof android.app.Dialog) {
+            android.view.View list = ((android.app.Dialog) dialog)
+                    .findViewById(android.R.id.list);
+            if (list instanceof android.widget.ListView) return (android.widget.ListView) list;
         }
         // AppCompat path: MenuPopupHelper.mMenuView is the ListView.
         try {
@@ -3688,24 +3696,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Object helper = getContextMenuHelper(source);
         if (helper == null) return null;
         // Framework path: MenuDialogHelper.getDialog() -> AlertDialog whose content view is the menu.
-        try {
-            java.lang.reflect.Method getDialog = helper.getClass().getMethod("getDialog");
-            Object dialog = getDialog.invoke(helper);
-            if (dialog instanceof android.app.Dialog) {
-                return ((android.app.Dialog) dialog).getWindow().getDecorView();
-            }
-        } catch (Exception ignored) {
-            // AppCompat may expose the popup window directly instead.
+        Object dialog = invokeContextMenuGetDialog(helper);
+        if (dialog instanceof android.app.Dialog) {
+            return ((android.app.Dialog) dialog).getWindow().getDecorView();
         }
         // AppCompat path: MenuPopupHelper.mPopup (PopupWindow) with mPopupView.
-        try {
-            java.lang.reflect.Field popupField = helper.getClass().getDeclaredField("mPopup");
-            popupField.setAccessible(true);
-            Object popupWindow = popupField.get(helper);
-            if (popupWindow instanceof android.widget.PopupWindow) {
-                return (View) ((android.widget.PopupWindow) popupWindow).getContentView();
-            }
-        } catch (Exception ignored) {
+        Object popupWindow = getContextMenuPopupWindow(helper);
+        if (popupWindow instanceof android.widget.PopupWindow) {
+            return (View) ((android.widget.PopupWindow) popupWindow).getContentView();
         }
         return null;
     }
@@ -3722,19 +3720,35 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     }
 
+    /** Invoke the helper's {@code getDialog()}, or null when absent or the call failed. */
+    private static Object invokeContextMenuGetDialog(@NonNull Object helper) {
+        try {
+            java.lang.reflect.Method getDialog = helper.getClass().getMethod("getDialog");
+            return getDialog.invoke(helper);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /** Reflect the helper's {@code mPopup} ({@code PopupWindow}), or null when absent/failed. */
+    private static Object getContextMenuPopupWindow(@NonNull Object helper) {
+        try {
+            java.lang.reflect.Field popupField = helper.getClass().getDeclaredField("mPopup");
+            popupField.setAccessible(true);
+            return popupField.get(helper);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     /** Last-resort fallback: paint the popup window's background drawable directly. */
     private static void setContextMenuPopupBackground(@NonNull View source, int schemeBg) {
         Object helper = getContextMenuHelper(source);
         if (helper == null) return;
-        try {
-            java.lang.reflect.Field popupField = helper.getClass().getDeclaredField("mPopup");
-            popupField.setAccessible(true);
-            Object popupWindow = popupField.get(helper);
-            if (popupWindow instanceof android.widget.PopupWindow) {
-                ((android.widget.PopupWindow) popupWindow)
-                        .setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(schemeBg));
-            }
-        } catch (Exception ignored) {
+        Object popupWindow = getContextMenuPopupWindow(helper);
+        if (popupWindow instanceof android.widget.PopupWindow) {
+            ((android.widget.PopupWindow) popupWindow)
+                    .setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(schemeBg));
         }
     }
 
@@ -4399,8 +4413,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     && wasVisible && !imeVisible && isTextInputVisible()
                     && !mButtonTouchInProgress && !mPopupCtrl.isHistoryPopupShowing()) {
                 dismissAutoCompleteSuggestions();
-                setTextInputVisible(false);
-                updateToggleTextInputButtonIcon();
+                setTextInputVisibleAndRefreshIcon(false);
             }
 
             // Extra keys mirror the REAL IME visibility — deliberately outside the transition guard.
@@ -4495,12 +4508,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     textInput.requestFocus();
                     // Clear SOFT_INPUT_STATE_ALWAYS_HIDDEN so SHOW_IMPLICIT below is not ignored.
                     KeyboardUtils.setSoftInputModeAdjustResize(this);
-                    textInput.post(() -> {
-                        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                        if (imm != null) {
-                            imm.showSoftInput(textInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-                        }
-                    });
+                    textInput.post(() -> showSoftKeyboardImplicit(textInput));
                 }
             } else {
                 // Save for THIS session (force: the panel is its authority at hide time).
@@ -4634,11 +4642,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             // Explicit show intent: ensure the window is not left in
                             // SOFT_INPUT_STATE_ALWAYS_HIDDEN from a resume-with-hidden-intent.
                             KeyboardUtils.setSoftInputModeAdjustResize(this);
-                            android.view.inputmethod.InputMethodManager imm =
-                                    (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                            if (imm != null) {
-                                imm.showSoftInput(textInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-                            }
+                            showSoftKeyboardImplicit(textInput);
                         } else if (!followKbOnSwitch) {
                             // Toggle OFF: the keyboard state must not change — leave the IME
                             // exactly as it is. Usually it is up here (otherwise the panel was
@@ -4707,6 +4711,28 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Shared preconditions of both bounded keyboard re-asserts: skip when the activity is going
+     * away, when a cold-start suppression must outlive the re-assert, when the user switched
+     * elsewhere meanwhile, when the session no longer wants a keyboard (unless the caller ignores
+     * that intent), when the IME already survived, or when the keyboard is disabled.
+     */
+    private boolean shouldSkipKeyboardReassert(@Nullable TerminalSession armed, boolean ignoreSessionIntent) {
+        if (isFinishing() || mIsPaused) return true;
+        // A cold-start suppression (the "hide keyboard on startup" window, or a bubble's whole
+        // cold start) must outlive this deferred re-assert: re-asserting the keyboard here would
+        // undo it 300 ms later, which is exactly the "the preference looked broken" failure.
+        if (mTermuxTerminalViewClient != null
+                && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending()) return true;
+        TerminalSession current = getCurrentSession();
+        if (current == null || current != armed) return true;                 // switched elsewhere meanwhile
+        if (!ignoreSessionIntent && !mTextInputState.isSoftKeyboardIntent(current)) return true; // user hid it meanwhile
+        if (computeImeVisibility()) return true;                              // it survived — nothing to do
+        return KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
+                mPreferences.isSoftKeyboardEnabled(),
+                mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware());
+    }
+
+    /**
      * Bounded post-switch re-assert: if the IME is still up at reconcile time but a close-tab
      * rebuild later detaches the served view and drops it, restore it per the session's memory.
      */
@@ -4714,19 +4740,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (target == null) return;
         final TerminalSession armed = getCurrentSession();
         target.postDelayed(() -> {
-            if (isFinishing() || mIsPaused) return;
-            // A cold-start suppression (the "hide keyboard on startup" window, or a bubble's whole
-            // cold start) must outlive this deferred re-assert: re-asserting the keyboard here would
-            // undo it 300 ms later, which is exactly the "the preference looked broken" failure.
-            if (mTermuxTerminalViewClient != null
-                    && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending()) return;
-            TerminalSession current = getCurrentSession();
-            if (current == null || current != armed) return;                 // switched elsewhere meanwhile
-            if (!mTextInputState.isSoftKeyboardIntent(current)) return;      // user hid it meanwhile
-            if (computeImeVisibility()) return;                              // it survived — nothing to do
-            if (KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
-                    mPreferences.isSoftKeyboardEnabled(),
-                    mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware())) return;
+            if (shouldSkipKeyboardReassert(armed, false)) return;
             KeyboardUtils.setSoftInputModeAdjustResize(this);
             com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
                     this::computeImeVisibility);
@@ -4746,17 +4760,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 ? getActiveTerminalView() : getTerminalToolbarTextInput();
         if (anchor == null) return;
         anchor.postDelayed(() -> {
-            if (isFinishing() || mIsPaused) return;
-            // See scheduleSwitchKeyboardReassert(): a startup suppression outlives this re-assert.
-            if (mTermuxTerminalViewClient != null
-                    && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending()) return;
-            TerminalSession current = getCurrentSession();
-            if (current == null || current != armed) return;                // switched elsewhere meanwhile
-            if (!ignoreSessionIntent && !mTextInputState.isSoftKeyboardIntent(current)) return;
-            if (computeImeVisibility()) return;                              // it survived — nothing to do
-            if (KeyboardUtils.shouldSoftKeyboardBeDisabled(this,
-                    mPreferences.isSoftKeyboardEnabled(),
-                    mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware())) return;
+            if (shouldSkipKeyboardReassert(armed, ignoreSessionIntent)) return;
             View target = getActiveTerminalView();
             if (target == null) target = getTerminalToolbarTextInput();
             if (target == null) return;

@@ -53,6 +53,48 @@ public final class TermuxBackupUtils {
 
     private TermuxBackupUtils() {}
 
+    /**
+     * Drain tar's stderr into {@code stderr}, capped at {@link #MAX_STDERR_CHARS}.
+     * Only the first chunk is retained for error reporting.
+     */
+    private static Thread startStderrPump(Process process, StringBuilder stderr) {
+        Thread errPump = new Thread(() -> {
+            try (InputStream e = process.getErrorStream()) {
+                byte[] buf = new byte[4096];
+                int n;
+                // Cap the retained stderr: extracting tens of thousands of files can emit
+                // megabytes of warnings, which previously accumulated in memory for the
+                // whole operation.
+                while ((n = e.read(buf)) > 0) {
+                    if (stderr.length() < MAX_STDERR_CHARS)
+                        stderr.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+                }
+            } catch (IOException ignored) {
+            }
+        });
+        errPump.start();
+        return errPump;
+    }
+
+    /**
+     * Resolve the tar binary and ensure it is usable. Returns null (after notifying
+     * {@code listener}) when the operation must abort; otherwise the tar binary path.
+     */
+    @Nullable
+    private static String requireHealthyTar(@NonNull Context context, @NonNull ResultListener listener) {
+        Error health = checkTarHealth(context);
+        if (health != null) {
+            listener.onResult(health);
+            return null;
+        }
+        String tarBinary = resolveTarBinary(context);
+        if (tarBinary == null) {
+            listener.onResult(new Error(context.getString(R.string.backup_restore_tar_not_found)));
+            return null;
+        }
+        return tarBinary;
+    }
+
     // ---- Size estimation ----
 
     /** Upper bound for a single {@code du -sb} run; on timeout du is killed and the estimate
@@ -281,16 +323,8 @@ public final class TermuxBackupUtils {
                               @Nullable ProgressCallback progress,
                               @Nullable java.util.concurrent.atomic.AtomicBoolean cancelled,
                               boolean excludeTmp) {
-        Error health = checkTarHealth(context);
-        if (health != null) {
-            listener.onResult(health);
-            return;
-        }
-        final String tarBinary = resolveTarBinary(context);
-        if (tarBinary == null) {
-            listener.onResult(new Error(context.getString(R.string.backup_restore_tar_not_found)));
-            return;
-        }
+        final String tarBinary = requireHealthyTar(context, listener);
+        if (tarBinary == null) return;
         final String filesDir = context.getFilesDir().getAbsolutePath();
         final String parentDir = context.getDataDir().getAbsolutePath();
 
@@ -381,16 +415,8 @@ public final class TermuxBackupUtils {
         final String filesDir = context.getFilesDir().getAbsolutePath();
         final String parentDir = context.getDataDir().getAbsolutePath();
 
-        Error health = checkTarHealth(context);
-        if (health != null) {
-            listener.onResult(health);
-            return;
-        }
-        final String tarBinary = resolveTarBinary(context);
-        if (tarBinary == null) {
-            listener.onResult(new Error(context.getString(R.string.backup_restore_tar_not_found)));
-            return;
-        }
+        final String tarBinary = requireHealthyTar(context, listener);
+        if (tarBinary == null) return;
 
         // Diagnostic: state BEFORE any change.
         logDirState("BEFORE tar-start", filesDir);
@@ -433,21 +459,7 @@ public final class TermuxBackupUtils {
             }
 
             final StringBuilder stderr = new StringBuilder();
-            final Thread errPump = new Thread(() -> {
-                try (InputStream e = process.getErrorStream()) {
-                    byte[] buf = new byte[4096];
-                    int n;
-                    // Cap the retained stderr: extracting tens of thousands of files can emit
-                    // megabytes of warnings, which previously accumulated in memory for the
-                    // whole operation.
-                    while ((n = e.read(buf)) > 0) {
-                        if (stderr.length() < MAX_STDERR_CHARS)
-                            stderr.append(new String(buf, 0, n, StandardCharsets.UTF_8));
-                    }
-                } catch (IOException ignored) {
-                }
-            });
-            errPump.start();
+            final Thread errPump = startStderrPump(process, stderr);
 
             final AtomicReference<IOException> pumpError = new AtomicReference<>();
             // totalBytes for restore is unknown here — the caller (fragment) gets
@@ -556,21 +568,7 @@ public final class TermuxBackupUtils {
             final Process process = pb.start();
 
             final StringBuilder stderr = new StringBuilder();
-            final Thread errPump = new Thread(() -> {
-                try (InputStream e = process.getErrorStream()) {
-                    byte[] buf = new byte[4096];
-                    int n;
-                    // Cap the retained stderr: extracting tens of thousands of files can emit
-                    // megabytes of warnings, which previously accumulated in memory for the
-                    // whole operation.
-                    while ((n = e.read(buf)) > 0) {
-                        if (stderr.length() < MAX_STDERR_CHARS)
-                            stderr.append(new String(buf, 0, n, StandardCharsets.UTF_8));
-                    }
-                } catch (IOException ignored) {
-                }
-            });
-            errPump.start();
+            final Thread errPump = startStderrPump(process, stderr);
 
             final AtomicReference<IOException> pumpError = new AtomicReference<>();
             final Thread dataPump;

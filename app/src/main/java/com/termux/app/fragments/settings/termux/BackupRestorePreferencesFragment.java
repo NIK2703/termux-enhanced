@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -110,19 +111,9 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
     private void configureRestorePreference() {
         final Preference pref = findPreference("restore_container");
         if (pref == null) return;
-        pref.setOnPreferenceClickListener(preference -> {
-            FragmentActivity activity = getActivity();
-            if (activity == null) return true;
-
-            AlertDialog dialog = new AlertDialog.Builder(activity)
-                .setTitle(R.string.backup_restore_dialog_title)
-                .setMessage(R.string.backup_restore_warning_restore)
-                .setPositiveButton(android.R.string.ok, (d, which) -> startRestoreFileChooser())
-                .setNegativeButton(android.R.string.cancel, null)
-                .create();
-            dialog.show();
-            return true;
-        });
+        pref.setOnPreferenceClickListener(preference ->
+            showConfirmWarningDialog(R.string.backup_restore_warning_restore,
+                this::startRestoreFileChooser));
     }
 
     private void startBackupFileChooser() {
@@ -136,10 +127,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
     }
 
     private String getDefaultBackupFilename() {
-        SimpleDateFormat dateFmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-        SimpleDateFormat timeFmt = new SimpleDateFormat("HH-mm", Locale.US);
-        Date now = new Date();
-        return "termux-backup-" + dateFmt.format(now) + "_" + timeFmt.format(now) + ".tar.gz";
+        return timestampedFilename("termux-backup-", ".tar.gz");
     }
 
     private void startRestoreFileChooser() {
@@ -156,35 +144,29 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
     private void configureBackupSettingsPreference() {
         final Preference pref = findPreference("backup_settings_container");
         if (pref == null) return;
-        pref.setOnPreferenceClickListener(preference -> {
-            FragmentActivity activity = getActivity();
-            if (activity == null) return true;
-
-            new AlertDialog.Builder(activity)
-                .setTitle(R.string.backup_restore_dialog_title)
-                .setMessage(R.string.settings_backup_warning)
-                .setPositiveButton(android.R.string.ok, (d, which) -> startBackupSettingsFileChooser())
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-            return true;
-        });
+        pref.setOnPreferenceClickListener(preference ->
+            showConfirmWarningDialog(R.string.settings_backup_warning,
+                this::startBackupSettingsFileChooser));
     }
 
     private void configureRestoreSettingsPreference() {
         final Preference pref = findPreference("restore_settings_container");
         if (pref == null) return;
-        pref.setOnPreferenceClickListener(preference -> {
-            FragmentActivity activity = getActivity();
-            if (activity == null) return true;
+        pref.setOnPreferenceClickListener(preference ->
+            showConfirmWarningDialog(R.string.settings_restore_warning,
+                this::startRestoreSettingsFileChooser));
+    }
 
-            new AlertDialog.Builder(activity)
-                .setTitle(R.string.backup_restore_dialog_title)
-                .setMessage(R.string.settings_restore_warning)
-                .setPositiveButton(android.R.string.ok, (d, which) -> startRestoreSettingsFileChooser())
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-            return true;
-        });
+    private boolean showConfirmWarningDialog(int messageRes, Runnable onConfirm) {
+        FragmentActivity activity = getActivity();
+        if (activity == null) return true;
+        new AlertDialog.Builder(activity)
+            .setTitle(R.string.backup_restore_dialog_title)
+            .setMessage(messageRes)
+            .setPositiveButton(android.R.string.ok, (d, which) -> onConfirm.run())
+            .setNegativeButton(android.R.string.cancel, null)
+            .show();
+        return true;
     }
 
     private void startBackupSettingsFileChooser() {
@@ -207,11 +189,14 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
     }
 
     private String getDefaultSettingsBackupFilename() {
+        return timestampedFilename(TermuxSettingsBackupUtils.DEFAULT_FILENAME_PREFIX, ".zip");
+    }
+
+    private static String timestampedFilename(String prefix, String suffix) {
         SimpleDateFormat dateFmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
         SimpleDateFormat timeFmt = new SimpleDateFormat("HH-mm", Locale.US);
         Date now = new Date();
-        return TermuxSettingsBackupUtils.DEFAULT_FILENAME_PREFIX
-            + dateFmt.format(now) + "_" + timeFmt.format(now) + ".zip";
+        return prefix + dateFmt.format(now) + "_" + timeFmt.format(now) + suffix;
     }
 
     // ---- Activity results ----
@@ -247,12 +232,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
     private void runSettingsExport(FragmentActivity activity, Uri uri) {
         if (mSettingsRunning) return;
         mSettingsRunning = true;
-        mSettingsDialog = new ProgressDialog(activity);
-        mSettingsDialog.setTitle(activity.getString(R.string.settings_backup_progress));
-        mSettingsDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-        mSettingsDialog.setIndeterminate(true);
-        mSettingsDialog.setCancelable(false);
-        mSettingsDialog.show();
+        showSettingsProgressDialog(activity, R.string.settings_backup_progress);
 
         final Context appContext = activity.getApplicationContext();
         final String errOpenOutput = appContext.getString(R.string.backup_error_open_output);
@@ -289,12 +269,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
     private void runSettingsImport(FragmentActivity activity, Uri uri) {
         if (mSettingsRunning) return;
         mSettingsRunning = true;
-        mSettingsDialog = new ProgressDialog(activity);
-        mSettingsDialog.setTitle(activity.getString(R.string.settings_restore_progress));
-        mSettingsDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-        mSettingsDialog.setIndeterminate(true);
-        mSettingsDialog.setCancelable(false);
-        mSettingsDialog.show();
+        showSettingsProgressDialog(activity, R.string.settings_restore_progress);
 
         final Context appContext = activity.getApplicationContext();
         new Thread(() -> {
@@ -326,6 +301,15 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
                 }
             });
         }, "SettingsRestore").start();
+    }
+
+    private void showSettingsProgressDialog(@NonNull FragmentActivity activity, int titleRes) {
+        mSettingsDialog = new ProgressDialog(activity);
+        mSettingsDialog.setTitle(activity.getString(titleRes));
+        mSettingsDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+        mSettingsDialog.setIndeterminate(true);
+        mSettingsDialog.setCancelable(false);
+        mSettingsDialog.show();
     }
 
     private void dismissSettingsDialog() {

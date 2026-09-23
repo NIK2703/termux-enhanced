@@ -208,8 +208,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
         // The current terminal session may have changed while being away, force
         // a refresh of the displayed terminal.
-        TerminalView tv = mActivity.getTerminalView();
-        if (tv != null) tv.onScreenUpdated();
+        withTerminalView(TerminalView::onScreenUpdated);
     }
 
     /**
@@ -280,8 +279,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     public void onTextChanged(@NonNull TerminalSession changedSession) {
         runIfVisible(() -> {
             if (mActivity.getCurrentSession() == changedSession) {
-                TerminalView tv = mActivity.getTerminalView();
-                if (tv != null) tv.onScreenUpdated();
+                withTerminalView(TerminalView::onScreenUpdated);
             }
         });
     }
@@ -451,8 +449,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             return;
         }
 
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView != null) terminalView.setTerminalCursorBlinkerState(enabled, false);
+        withTerminalView(terminalView -> terminalView.setTerminalCursorBlinkerState(enabled, false));
     }
 
     @Override
@@ -471,8 +468,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     public void onResetTerminalSession() {
         // Ensure blinker starts again after reset if cursor blinking was disabled before reset like
         // with "tput civis" which would have called onTerminalCursorStateChange()
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView != null) terminalView.setTerminalCursorBlinkerState(true, true);
+        withTerminalView(terminalView -> terminalView.setTerminalCursorBlinkerState(true, true));
     }
 
     @Override
@@ -679,18 +675,34 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             if (--index < 0) index = size - 1;
         }
 
-        TermuxSession termuxSession = service.getTermuxSession(index);
-        if (termuxSession != null)
-            setCurrentSession(termuxSession.getTerminalSession());
+        setCurrentSessionByIndex(service, index);
     }
 
     public void switchToSession(int index) {
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return;
 
+        setCurrentSessionByIndex(service, index);
+    }
+
+    /** Make the session at {@code index} current when it exists (shared by both switch overloads). */
+    private void setCurrentSessionByIndex(@NonNull TermuxService service, int index) {
         TermuxSession termuxSession = service.getTermuxSession(index);
         if (termuxSession != null)
             setCurrentSession(termuxSession.getTerminalSession());
+    }
+
+    /** Index of {@code session} in the live service list, or -1 when there is no service/session. */
+    private int indexOfSession(TerminalSession session) {
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null) return -1;
+        return service.getIndexOfSession(session);
+    }
+
+    /** Run {@code action} on the active terminal view when one exists. */
+    private void withTerminalView(@NonNull TerminalViewAction action) {
+        TerminalView terminalView = mActivity.getTerminalView();
+        if (terminalView != null) action.apply(terminalView);
     }
 
     @SuppressLint("InflateParams")
@@ -1152,11 +1164,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     public void checkAndScrollToSession(TerminalSession session) {
         runIfVisible(() -> {
-            TermuxService service = mActivity.getTermuxService();
-            if (service == null) return;
-
-            final int indexOfSession = service.getIndexOfSession(session);
-            if (indexOfSession < 0) return;
+            if (indexOfSession(session) < 0) return;
 
             // Update session tabs
             termuxSessionListNotifyUpdated();
@@ -1164,10 +1172,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     String toToastTitle(TerminalSession session) {
-        TermuxService service = mActivity.getTermuxService();
-        if (service == null) return null;
-
-        final int indexOfSession = service.getIndexOfSession(session);
+        final int indexOfSession = indexOfSession(session);
         if (indexOfSession < 0) return null;
         StringBuilder toastTitle = new StringBuilder("[" + (indexOfSession + 1) + "]");
         if (!TextUtils.isEmpty(session.mSessionName)) {
@@ -1581,11 +1586,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // between idle and active states is clearly visible.
         ImageButton newSessionBtn = mActivity.findViewById(R.id.new_session_tab_button);
         if (newSessionBtn != null) {
-            android.graphics.drawable.GradientDrawable normalState =
-                    new android.graphics.drawable.GradientDrawable();
-            normalState.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            normalState.setColor(buttonBg);
-
             // Active background: a clearly visible highlight. The scheme-derived
             // buttonActiveBg is only a faint (default ~12% alpha) tint, so compose a
             // stronger overlay of the active colour onto the terminal background and
@@ -1595,37 +1595,17 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                             mActivity.getColorSchemeManager().getSchemeBackground(),
                             ColorSchemeUtils.getButtonActiveBackground(isSchemeLight, 55)),
                     230);
-            android.graphics.drawable.GradientDrawable activeState =
-                    new android.graphics.drawable.GradientDrawable();
-            activeState.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            activeState.setColor(activeFill);
-
-            android.graphics.drawable.StateListDrawable states =
-                    new android.graphics.drawable.StateListDrawable();
-            // Pressed (tap / swipe in progress) shows the active background.
-            states.addState(new int[]{android.R.attr.state_pressed}, activeState);
-            states.addState(new int[]{android.R.attr.state_selected}, activeState);
-            states.addState(new int[]{}, normalState);
-
-            newSessionBtn.setBackground(states);
-            newSessionBtn.setColorFilter(buttonText, android.graphics.PorterDuff.Mode.SRC_ATOP);
-            newSessionBtn.setForeground(null);
+            applyCircleButtonStyle(newSessionBtn,
+                    createOvalStateListDrawable(buttonBg, activeFill), buttonText);
         }
 
         // Toggle text-input button: on press, fill + stroke both become the stroke colour.
         ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
         if (toggleBtn != null) {
             android.graphics.drawable.GradientDrawable normalState =
-                    new android.graphics.drawable.GradientDrawable();
-            normalState.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            normalState.setColor(toggleButtonBg);
-            normalState.setStroke(buttonStrokePx, toggleButtonStroke);
-
+                    createOvalDrawable(toggleButtonBg, buttonStrokePx, toggleButtonStroke);
             android.graphics.drawable.GradientDrawable pressedState =
-                    new android.graphics.drawable.GradientDrawable();
-            pressedState.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            pressedState.setColor(toggleButtonPressed);
-            pressedState.setStroke(buttonStrokePx, toggleButtonStroke);
+                    createOvalDrawable(toggleButtonPressed, buttonStrokePx, toggleButtonStroke);
 
             android.graphics.drawable.StateListDrawable states =
                     new android.graphics.drawable.StateListDrawable();
@@ -1633,9 +1613,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             states.addState(new int[]{ android.R.attr.state_focused }, pressedState);
             states.addState(new int[]{}, normalState);
 
-            toggleBtn.setBackground(states);
-            toggleBtn.setColorFilter(buttonText, android.graphics.PorterDuff.Mode.SRC_ATOP);
-            toggleBtn.setForeground(null);
+            applyCircleButtonStyle(toggleBtn, states, buttonText);
         }
 
         // Session tabs themselves: translucent background (selected = active tone) + scheme fg.
@@ -1665,15 +1643,14 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         }
 
         // Push pre-computed scrollbar thumb colours to TerminalView (alpha baked in ONCE here).
-        TerminalView tv = mActivity.getTerminalView();
-        if (tv != null) {
+        withTerminalView(tv -> {
             tv.setScrollbarColors(toggleButtonBg, toggleButtonStroke);
             // Terminal text-selection drag handles follow the scheme foreground, just like the
             // input-panel selection handles.
             tv.setTextSelectionHandleColor(buttonText);
             // The ActionMode (text-selection CAB) bar + title also follow the scheme.
             tv.setTextSelectionActionModeColors(buttonActiveBg, buttonText);
-        }
+        });
 
         // NOTE: the status-bar styling is deliberately NOT applied here any more.
         // applyPanelColors() has exactly one caller — applyTerminalColorScheme() — which invokes
@@ -1682,6 +1659,44 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // here too painted the identical values twice per application; the authoritative
         // (live-emulator) background is applied at the very end of applyTerminalColorScheme()
         // via updateBackgroundColor().
+    }
+
+    /** A plain oval fill (no stroke). */
+    static android.graphics.drawable.GradientDrawable createOvalDrawable(int color) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        d.setColor(color);
+        return d;
+    }
+
+    /** An oval fill with a stroke of {@code strokePx} in {@code strokeColor}. */
+    static android.graphics.drawable.GradientDrawable createOvalDrawable(int color, int strokePx,
+                                                                        int strokeColor) {
+        android.graphics.drawable.GradientDrawable d = createOvalDrawable(color);
+        d.setStroke(strokePx, strokeColor);
+        return d;
+    }
+
+    /** Oval {@code activeFill} on pressed/selected, {@code idleColor} otherwise. */
+    static android.graphics.drawable.StateListDrawable createOvalStateListDrawable(int idleColor,
+                                                                                  int activeFill) {
+        android.graphics.drawable.GradientDrawable idle = createOvalDrawable(idleColor);
+        android.graphics.drawable.GradientDrawable active = createOvalDrawable(activeFill);
+        android.graphics.drawable.StateListDrawable states = new android.graphics.drawable.StateListDrawable();
+        // Pressed (tap / swipe in progress) shows the active background.
+        states.addState(new int[]{android.R.attr.state_pressed}, active);
+        states.addState(new int[]{android.R.attr.state_selected}, active);
+        states.addState(new int[]{}, idle);
+        return states;
+    }
+
+    /** Install {@code states} on a circle button and tint its icon with the scheme foreground. */
+    private static void applyCircleButtonStyle(ImageButton button,
+                                               android.graphics.drawable.StateListDrawable states,
+                                               int textColor) {
+        button.setBackground(states);
+        button.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_ATOP);
+        button.setForeground(null);
     }
 
     public void updateBackgroundColor() {

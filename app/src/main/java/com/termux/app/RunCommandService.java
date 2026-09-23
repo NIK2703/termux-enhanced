@@ -74,18 +74,14 @@ public class RunCommandService extends Service {
         // If invalid action passed, then just return
         if (!RUN_COMMAND_SERVICE.ACTION_RUN_COMMAND.equals(intent.getAction())) {
             errmsg = this.getString(R.string.error_run_command_service_invalid_intent_action, intent.getAction());
-            executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
-            TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, false);
-            return stopService();
+            return failAndStop(executionCommand, errmsg, false);
         }
 
         // If bootstrap not installed, redirect caller and stop
         if (!TermuxInstaller.isBootstrapInstalled(this)) {
             errmsg = getString(R.string.run_command_bootstrap_not_installed);
             Logger.logError(LOG_TAG, errmsg);
-            executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
-            TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, true);
-            return stopService();
+            return failAndStop(executionCommand, errmsg, true);
         }
 
         String executableExtra = executionCommand.executable = IntentUtils.getStringExtraIfSet(intent, RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH, null);
@@ -118,9 +114,7 @@ public class RunCommandService extends Service {
             (intent.getBooleanExtra(RUN_COMMAND_SERVICE.EXTRA_BACKGROUND, false) ? Runner.APP_SHELL.getName() : Runner.TERMINAL_SESSION.getName()));
         if (Runner.runnerOf(executionCommand.runner) == null) {
             errmsg = this.getString(R.string.error_run_command_service_invalid_execution_command_runner, executionCommand.runner);
-            executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
-            TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, false);
-            return stopService();
+            return failAndStop(executionCommand, errmsg, false);
         }
 
         executionCommand.backgroundCustomLogLevel = IntentUtils.getIntegerExtraIfSet(intent, RUN_COMMAND_SERVICE.EXTRA_BACKGROUND_CUSTOM_LOG_LEVEL, null);
@@ -148,17 +142,13 @@ public class RunCommandService extends Service {
         // also sent, then its creator is also logged and shown.
         errmsg = TermuxPluginUtils.checkIfAllowExternalAppsPolicyIsViolated(this, LOG_TAG);
         if (errmsg != null) {
-            executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
-            TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, true);
-            return stopService();
+            return failAndStop(executionCommand, errmsg, true);
         }
 
         // If executable is null or empty, then exit here instead of getting canonical path which would expand to "/"
         if (executionCommand.executable == null || executionCommand.executable.isEmpty()) {
             errmsg  = this.getString(R.string.error_run_command_service_mandatory_extra_missing, RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH);
-            executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
-            TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, false);
-            return stopService();
+            return failAndStop(executionCommand, errmsg, false);
         }
 
         executionCommand.executable = TermuxFileUtils.getCanonicalPath(executionCommand.executable, null, true);
@@ -169,9 +159,7 @@ public class RunCommandService extends Service {
             FileUtils.APP_EXECUTABLE_FILE_PERMISSIONS, true, true,
             false);
         if (error != null) {
-            executionCommand.setStateFailed(error);
-            TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, false);
-            return stopService();
+            return failAndStop(executionCommand, error);
         }
 
         if (executionCommand.workingDirectory != null && !executionCommand.workingDirectory.isEmpty()) {
@@ -186,9 +174,7 @@ public class RunCommandService extends Service {
                 true, true, true,
                 false, true);
             if (error != null) {
-                executionCommand.setStateFailed(error);
-                TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, false);
-                return stopService();
+                return failAndStop(executionCommand, error);
             }
         }
 
@@ -244,6 +230,20 @@ public class RunCommandService extends Service {
     private int stopService() {
         runStopForeground();
         return Service.START_NOT_STICKY;
+    }
+
+    /** Fail {@code executionCommand} with {@code errmsg}, report it to the caller and stop. */
+    private int failAndStop(ExecutionCommand executionCommand, String errmsg, boolean forceNotification) {
+        executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
+        TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, forceNotification);
+        return stopService();
+    }
+
+    /** Fail {@code executionCommand} with a detailed {@link Error}, report it and stop. */
+    private int failAndStop(ExecutionCommand executionCommand, Error error) {
+        executionCommand.setStateFailed(error);
+        TermuxPluginUtils.processPluginExecutionCommandError(this, LOG_TAG, executionCommand, false);
+        return stopService();
     }
 
     private void runStartForeground() {

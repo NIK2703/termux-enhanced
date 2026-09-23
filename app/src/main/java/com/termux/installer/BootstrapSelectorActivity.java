@@ -106,11 +106,15 @@ public class BootstrapSelectorActivity extends Activity {
         });
     }
 
+    private void bindDownloadService() {
+        Intent intent = new Intent(this, BootstrapDownloadService.class);
+        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+    }
+
     @Override
     protected void onStart() {
         super.onStart();
-        Intent intent = new Intent(this, BootstrapDownloadService.class);
-        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+        bindDownloadService();
     }
 
     @Override
@@ -176,8 +180,7 @@ public class BootstrapSelectorActivity extends Activity {
             BootstrapDownloadService.startDownloadBackground(this, mAutoSelectedSource);
         }
         if (!mBound) {
-            Intent intent = new Intent(this, BootstrapDownloadService.class);
-            bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+            bindDownloadService();
         }
     }
 

@@ -140,10 +140,10 @@ public final class ExtraKeysCompaction {
         return folded.toArray(new ExtraKeyButton[0][]);
     }
 
-    /** Longest row length of a matrix — mirrors {@code ExtraKeysView.maximumLength(Object[][])}. */
-    private static int maximumLength(@NonNull ExtraKeyButton[][] matrix) {
+    /** Longest row length of a matrix. */
+    public static int maximumLength(@NonNull Object[][] matrix) {
         int max = 0;
-        for (ExtraKeyButton[] row : matrix) max = Math.max(max, row.length);
+        for (Object[] row : matrix) max = Math.max(max, row.length);
         return max;
     }
 }

@@ -64,7 +64,7 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
 
     @Override
     public Cursor queryRoots(String[] projection) {
-        final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_ROOT_PROJECTION);
+        final MatrixCursor result = newCursor(projection, DEFAULT_ROOT_PROJECTION);
         final String applicationName = getContext().getString(R.string.application_name);
 
         final MatrixCursor.RowBuilder row = result.newRow();
@@ -81,14 +81,14 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
 
     @Override
     public Cursor queryDocument(String documentId, String[] projection) throws FileNotFoundException {
-        final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
+        final MatrixCursor result = newCursor(projection, DEFAULT_DOCUMENT_PROJECTION);
         includeFile(result, documentId, null);
         return result;
     }
 
     @Override
     public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) throws FileNotFoundException {
-        final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
+        final MatrixCursor result = newCursor(projection, DEFAULT_DOCUMENT_PROJECTION);
         final File parent = getFileForDocId(parentDocumentId);
         final File[] children = parent.listFiles();
         if (children != null) {
@@ -118,6 +118,11 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
     @Override
     public boolean onCreate() {
         return true;
+    }
+
+    /** Cursor over {@code projection}, falling back to {@code defaultProjection} when none is given. */
+    private static MatrixCursor newCursor(String[] projection, String[] defaultProjection) {
+        return new MatrixCursor(projection != null ? projection : defaultProjection);
     }
 
     @Override
@@ -159,7 +164,7 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
 
     @Override
     public Cursor querySearchDocuments(String rootId, String query, String[] projection) throws FileNotFoundException {
-        final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
+        final MatrixCursor result = newCursor(projection, DEFAULT_DOCUMENT_PROJECTION);
         final File parent = getFileForDocId(rootId);
 
         // Searches file names without ranking, so we can stop at a sufficient number of matches.

@@ -85,15 +85,8 @@ public class ResultSender {
             truncatedStderr = DataUtils.getTruncatedCommandOutput(resultDataStderr, DataUtils.TRANSACTION_SIZE_LIMIT_IN_BYTES / 2, false, false, false);
         }
 
-        if (truncatedStdout != null && truncatedStdout.length() < resultDataStdout.length()) {
-            Logger.logWarn(logTag, "The result for command \"" + label + "\" stdout length truncated from " + stdoutOriginalLength + " to " + truncatedStdout.length());
-            resultDataStdout = truncatedStdout;
-        }
-
-        if (truncatedStderr != null && truncatedStderr.length() < resultDataStderr.length()) {
-            Logger.logWarn(logTag, "The result for command \"" + label + "\" stderr length truncated from " + stderrOriginalLength + " to " + truncatedStderr.length());
-            resultDataStderr = truncatedStderr;
-        }
+        resultDataStdout = applyTruncationIfShorter(logTag, label, "stdout", resultDataStdout, truncatedStdout);
+        resultDataStderr = applyTruncationIfShorter(logTag, label, "stderr", resultDataStderr, truncatedStderr);
 
         String resultDataErrmsg = null;
         if (resultData.isStateFailed()) {
@@ -101,15 +94,10 @@ public class ResultSender {
             if (resultDataErrmsg.isEmpty()) resultDataErrmsg = null;
         }
 
-        String errmsgOriginalLength = (resultDataErrmsg == null) ? null : String.valueOf(resultDataErrmsg.length());
-
         // Truncate error to max TRANSACTION_SIZE_LIMIT_IN_BYTES / 4
         // trim from end to preserve start of stacktraces
         String truncatedErrmsg = DataUtils.getTruncatedCommandOutput(resultDataErrmsg, DataUtils.TRANSACTION_SIZE_LIMIT_IN_BYTES / 4, true, false, false);
-        if (truncatedErrmsg != null && truncatedErrmsg.length() < resultDataErrmsg.length()) {
-            Logger.logWarn(logTag, "The result for command \"" + label + "\" error length truncated from " + errmsgOriginalLength + " to " + truncatedErrmsg.length());
-            resultDataErrmsg = truncatedErrmsg;
-        }
+        resultDataErrmsg = applyTruncationIfShorter(logTag, label, "error", resultDataErrmsg, truncatedErrmsg);
 
         final Bundle resultBundle = new Bundle();
         resultBundle.putString(resultConfig.resultStdoutKey, resultDataStdout);
@@ -235,15 +223,8 @@ public class ResultSender {
 
             // Temp file first: see the errCode note below вЂ” a partial read of the final file is worse.
             String temp_filename = resultConfig.resultFileBasename + "-" + AndroidUtils.getCurrentMilliSecondLocalTimeStamp();
-            error = FileUtils.writeTextToFile(temp_filename, resultConfig.resultDirectoryPath + "/" + temp_filename,
-                null, error_or_output, false);
-            if (error != null) {
-                return error;
-            }
-
-            // Move error or output temp file to final destination
-            error = FileUtils.moveRegularFile("error or output temp file", resultConfig.resultDirectoryPath + "/" + temp_filename,
-                resultConfig.resultDirectoryPath + "/" + resultConfig.resultFileBasename, false);
+            error = writeTempFileAndMove(resultConfig, temp_filename, error_or_output,
+                resultConfig.resultFileBasename, "error or output temp file");
             if (error != null) {
                 return error;
             }
@@ -259,37 +240,23 @@ public class ResultSender {
                 return error;
             }
 
-            if (!resultDataStdout.isEmpty()) {
-                filename = RESULT_SENDER.RESULT_FILE_STDOUT_PREFIX + resultConfig.resultFilesSuffix;
-                error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
-                    null, resultDataStdout, false);
-                if (error != null) {
-                    return error;
-                }
+            error = writeResultFile(resultConfig, RESULT_SENDER.RESULT_FILE_STDOUT_PREFIX, resultDataStdout);
+            if (error != null) {
+                return error;
             }
 
-            if (!resultDataStderr.isEmpty()) {
-                filename = RESULT_SENDER.RESULT_FILE_STDERR_PREFIX + resultConfig.resultFilesSuffix;
-                error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
-                    null, resultDataStderr, false);
-                if (error != null) {
-                    return error;
-                }
+            error = writeResultFile(resultConfig, RESULT_SENDER.RESULT_FILE_STDERR_PREFIX, resultDataStderr);
+            if (error != null) {
+                return error;
             }
 
-            if (!resultDataExitCode.isEmpty()) {
-                filename = RESULT_SENDER.RESULT_FILE_EXIT_CODE_PREFIX + resultConfig.resultFilesSuffix;
-                error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
-                    null, resultDataExitCode, false);
-                if (error != null) {
-                    return error;
-                }
+            error = writeResultFile(resultConfig, RESULT_SENDER.RESULT_FILE_EXIT_CODE_PREFIX, resultDataExitCode);
+            if (error != null) {
+                return error;
             }
 
-            if (resultData.isStateFailed() && !resultDataErrmsg.isEmpty()) {
-                filename = RESULT_SENDER.RESULT_FILE_ERRMSG_PREFIX + resultConfig.resultFilesSuffix;
-                error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
-                    null, resultDataErrmsg, false);
+            if (resultData.isStateFailed()) {
+                error = writeResultFile(resultConfig, RESULT_SENDER.RESULT_FILE_ERRMSG_PREFIX, resultDataErrmsg);
                 if (error != null) {
                     return error;
                 }
@@ -306,22 +273,42 @@ public class ResultSender {
             // Write errCode to temp file
             String temp_filename = RESULT_SENDER.RESULT_FILE_ERR_PREFIX + "-" + AndroidUtils.getCurrentMilliSecondLocalTimeStamp();
             if (!resultConfig.resultFilesSuffix.isEmpty()) temp_filename = temp_filename + "-" + resultConfig.resultFilesSuffix;
-            error = FileUtils.writeTextToFile(temp_filename, resultConfig.resultDirectoryPath + "/" + temp_filename,
-                null, String.valueOf(resultData.getErrCode()), false);
-            if (error != null) {
-                return error;
-            }
-
-            // Move errCode temp file to final destination
             filename = RESULT_SENDER.RESULT_FILE_ERR_PREFIX + resultConfig.resultFilesSuffix;
-            error = FileUtils.moveRegularFile(RESULT_SENDER.RESULT_FILE_ERR_PREFIX + " temp file", resultConfig.resultDirectoryPath + "/" + temp_filename,
-                resultConfig.resultDirectoryPath + "/" + filename, false);
+            error = writeTempFileAndMove(resultConfig, temp_filename, String.valueOf(resultData.getErrCode()),
+                filename, RESULT_SENDER.RESULT_FILE_ERR_PREFIX + " temp file");
             if (error != null) {
                 return error;
             }
         }
 
         return null;
+    }
+
+    private static String applyTruncationIfShorter(String logTag, String label, String name, String original, String truncated) {
+        if (truncated != null && truncated.length() < original.length()) {
+            Logger.logWarn(logTag, "The result for command \"" + label + "\" " + name + " length truncated from " + original.length() + " to " + truncated.length());
+            return truncated;
+        }
+        return original;
+    }
+
+    private static Error writeResultFile(ResultConfig resultConfig, String prefix, String content) {
+        if (content.isEmpty()) return null;
+        String filename = prefix + resultConfig.resultFilesSuffix;
+        return FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
+            null, content, false);
+    }
+
+    private static Error writeTempFileAndMove(ResultConfig resultConfig, String tempFilename, String content,
+                                              String finalFilename, String moveLabel) {
+        Error error = FileUtils.writeTextToFile(tempFilename, resultConfig.resultDirectoryPath + "/" + tempFilename,
+            null, content, false);
+        if (error != null) {
+            return error;
+        }
+
+        return FileUtils.moveRegularFile(moveLabel, resultConfig.resultDirectoryPath + "/" + tempFilename,
+            resultConfig.resultDirectoryPath + "/" + finalFilename, false);
     }
 
 }

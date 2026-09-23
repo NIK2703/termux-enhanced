@@ -136,20 +136,14 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     });
                     break;
                 case "panel open":
-                    activity.runOnUiThread(() -> {
-                        activity.setTextInputVisible(true);
-                        activity.updateToggleTextInputButtonIcon();
-                    });
+                    activity.runOnUiThread(() -> setPanelVisible(activity, true));
                     break;
                 case "panel close":
-                    activity.runOnUiThread(() -> {
-                        activity.setTextInputVisible(false);
-                        activity.updateToggleTextInputButtonIcon();
-                    });
+                    activity.runOnUiThread(() -> setPanelVisible(activity, false));
                     break;
                 case "focus panel":
                     activity.runOnUiThread(() -> {
-                        EditText ti = activity.findViewById(R.id.terminal_toolbar_text_input);
+                        EditText ti = panelEditText(activity);
                         if (ti != null) ti.requestFocus();
                     });
                     break;
@@ -157,18 +151,10 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     activity.runOnUiThread(() -> activity.getTerminalView().requestFocus());
                     break;
                 case "ime show":
-                    activity.runOnUiThread(() -> {
-                        View v = activity.getCurrentFocus();
-                        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
-                        if (v != null && imm != null) imm.showSoftInput(v, 0);
-                    });
+                    activity.runOnUiThread(() -> showIme(activity));
                     break;
                 case "ime hide":
-                    activity.runOnUiThread(() -> {
-                        View v = activity.getCurrentFocus();
-                        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
-                        if (v != null && imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
-                    });
+                    activity.runOnUiThread(() -> hideIme(activity));
                     break;
                 case "kb toggle":
                     // Same code path as the KEYBOARD extra key (onToggleSoftKeyboardRequest).
@@ -233,7 +219,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     final String text = intent.getStringExtra("arg");
                     final String textNorm = text == null ? null : text.replace('~', ' ');
                     activity.runOnUiThread(() -> {
-                        EditText ti = activity.findViewById(R.id.terminal_toolbar_text_input);
+                        EditText ti = panelEditText(activity);
                         if (ti == null) { log("ti text: no edit text"); return; }
                         ti.setText(textNorm == null ? "" : textNorm);
                         if (textNorm != null && textNorm.length() >= 2) {
@@ -245,7 +231,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                 case "type char":
                     final String ch = intent.getStringExtra("arg");
                     activity.runOnUiThread(() -> {
-                        EditText ti2 = activity.findViewById(R.id.terminal_toolbar_text_input);
+                        EditText ti2 = panelEditText(activity);
                         if (ti2 == null || ch == null) { log("type char: no edit text"); return; }
                         int pos = ti2.getSelectionStart() < 0 ? ti2.length() : ti2.getSelectionStart();
                         ti2.getText().insert(pos, ch);
@@ -324,9 +310,10 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     // Snapshot of the tab strip's scroll geometry plus the elastic over-drag
                     // displacement, all through public View API — see the watcher below for why.
                     activity.runOnUiThread(() -> {
-                        android.view.View v = activity.findViewById(com.termux.R.id.session_tabs_scroll);
-                        android.view.View content = activity.findViewById(com.termux.R.id.session_tabs);
-                        if (v == null || content == null) { log("TABS no-strip"); return; }
+                        final View[] strip = findTabStrip(activity);
+                        if (strip == null) { log("TABS no-strip"); return; }
+                        final View v = strip[0];
+                        final View content = strip[1];
                         final int range = stripRange(v, content);
                         log("TABS cls=" + v.getClass().getSimpleName()
                                 + " w=" + v.getWidth()
@@ -351,10 +338,9 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
                     }
                     final long windowMs = Math.max(200L, Math.min(15000L, ms));
                     activity.runOnUiThread(() -> {
-                        android.view.View v = activity.findViewById(com.termux.R.id.session_tabs_scroll);
-                        android.view.View content = activity.findViewById(com.termux.R.id.session_tabs);
-                        if (v == null || content == null) { log("tabs watch: no-strip"); return; }
-                        armStripWatch(v, content, stripRange(v, content), windowMs);
+                        final View[] strip = findTabStrip(activity);
+                        if (strip == null) { log("tabs watch: no-strip"); return; }
+                        armStripWatch(strip[0], strip[1], stripRange(strip[0], strip[1]), windowMs);
                         log("tabs watch: armed for " + windowMs + "ms");
                     });
                     break;
@@ -384,6 +370,39 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         } catch (Exception e) {
             return def;
         }
+    }
+
+    /** The panel's shared EditText, or null before it is inflated. */
+    private static EditText panelEditText(TermuxActivity activity) {
+        return activity.findViewById(R.id.terminal_toolbar_text_input);
+    }
+
+    /** Show or hide the text-input panel and refresh the pencil icon, as the toggle button does. */
+    private static void setPanelVisible(TermuxActivity activity, boolean visible) {
+        activity.setTextInputVisible(visible);
+        activity.updateToggleTextInputButtonIcon();
+    }
+
+    /** Show the soft keyboard for whatever view currently has focus. */
+    private static void showIme(TermuxActivity activity) {
+        View v = activity.getCurrentFocus();
+        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (v != null && imm != null) imm.showSoftInput(v, 0);
+    }
+
+    /** Hide the soft keyboard from whatever view currently has focus. */
+    private static void hideIme(TermuxActivity activity) {
+        View v = activity.getCurrentFocus();
+        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (v != null && imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+    }
+
+    /** @return {strip, content} of the session tab strip, or null when it is not on screen. */
+    private static View[] findTabStrip(TermuxActivity activity) {
+        View strip = activity.findViewById(com.termux.R.id.session_tabs_scroll);
+        View content = activity.findViewById(com.termux.R.id.session_tabs);
+        if (strip == null || content == null) return null;
+        return new View[]{strip, content};
     }
 
     /**
@@ -434,7 +453,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
             sb.append(" live_top=").append(tv.getTopRow());
             sb.append(" live_rows=").append(tv.getScrollTranscriptRows());
         }
-        EditText ti = activity.findViewById(R.id.terminal_toolbar_text_input);
+        EditText ti = panelEditText(activity);
         if (ti != null) {
             sb.append(" live_tilen=").append(ti.getText() == null ? 0 : ti.getText().length());
             sb.append(" live_tihead=").append(sanitizeHead(
@@ -518,7 +537,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
             });
             n = service.getTermuxSessionsSize();
         }
-        try { Thread.sleep(400); } catch (InterruptedException ignored) {}
+        sleepUi(400);
 
         String[] markers = new String[n];
         for (int i = 0; i < n; i++) {
@@ -617,7 +636,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
     private static int verifyLiveSync(TermuxActivity activity, String step, String expected) {
         final String[] got = {null};
         runOnUiThreadSync(activity, () -> {
-            android.widget.EditText et = activity.findViewById(com.termux.R.id.terminal_toolbar_text_input);
+            android.widget.EditText et = panelEditText(activity);
             got[0] = et == null ? null : et.getText().toString();
         });
         boolean ok = expected != null && expected.equals(got[0]);
@@ -630,32 +649,30 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
 
     private static void selectTab(TermuxActivity activity, int idx) {
         runOnUiThreadSync(activity, () -> activity.getTermuxTerminalSessionClient().switchToSession(idx));
-        try { Thread.sleep(250); } catch (InterruptedException ignored) {}   // let pager animation settle
+        sleepUi(250);   // let pager animation settle
     }
 
     private static void openPanel(TermuxActivity activity) {
         runOnUiThreadSync(activity, () -> {
             if (!activity.isTextInputVisible()) {
-                activity.setTextInputVisible(true);
-                activity.updateToggleTextInputButtonIcon();
+                setPanelVisible(activity, true);
             }
         });
-        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+        sleepUi(150);
     }
 
     private static void panelClose(TermuxActivity activity) {
         runOnUiThreadSync(activity, () -> {
             if (activity.isTextInputVisible()) {
-                activity.setTextInputVisible(false);
-                activity.updateToggleTextInputButtonIcon();
+                setPanelVisible(activity, false);
             }
         });
-        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+        sleepUi(150);
     }
 
     private static void setField(TermuxActivity activity, String text) {
         runOnUiThreadSync(activity, () -> {
-            android.widget.EditText ti = activity.findViewById(com.termux.R.id.terminal_toolbar_text_input);
+            android.widget.EditText ti = panelEditText(activity);
             if (ti != null) {
                 ti.setText(text);
                 ti.setSelection(text.length());
@@ -664,23 +681,13 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
     }
 
     private static void kbShow(TermuxActivity activity) {
-        runOnUiThreadSync(activity, () -> {
-            android.view.View v = activity.getCurrentFocus();
-            android.view.inputmethod.InputMethodManager imm =
-                    (android.view.inputmethod.InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-            if (v != null && imm != null) imm.showSoftInput(v, 0);
-        });
-        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+        runOnUiThreadSync(activity, () -> showIme(activity));
+        sleepUi(150);
     }
 
     private static void kbHide(TermuxActivity activity) {
-        runOnUiThreadSync(activity, () -> {
-            android.view.View v = activity.getCurrentFocus();
-            android.view.inputmethod.InputMethodManager imm =
-                    (android.view.inputmethod.InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-            if (v != null && imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
-        });
-        try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+        runOnUiThreadSync(activity, () -> hideIme(activity));
+        sleepUi(150);
     }
 
     private static void sleepUi(long ms) {
@@ -751,7 +758,7 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         View container = activity.findViewById(R.id.terminal_toolbar_container);
         View slot = activity.findViewById(R.id.terminal_toolbar_slot);
         View panel = activity.findViewById(R.id.terminal_toolbar_text_input_container);
-        EditText ti = activity.findViewById(R.id.terminal_toolbar_text_input);
+        EditText ti = panelEditText(activity);
         View term = activity.getTerminalView();
         InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
         sb.append("container=").append(vis(container));

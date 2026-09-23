@@ -137,10 +137,14 @@ public class LocalSocketRunConfig implements Serializable {
 
     /** Set {@link #mFD}. Value must be greater than 0 or -1. */
     public void setFD(int fd) {
+        mFD = normalizeFD(fd);
+    }
+
+    static int normalizeFD(int fd) {
         if (fd >= 0)
-            mFD = fd;
+            return fd;
         else
-            mFD = -1;
+            return -1;
     }
 
     /** Get {@link #mReceiveTimeout} if set, otherwise {@link #DEFAULT_RECEIVE_TIMEOUT}. */

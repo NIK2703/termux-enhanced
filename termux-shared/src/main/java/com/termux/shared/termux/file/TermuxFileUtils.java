@@ -13,8 +13,6 @@ import com.termux.shared.markdown.MarkdownUtils;
 import com.termux.shared.shell.command.ExecutionCommand;
 import com.termux.shared.errors.Error;
 import com.termux.shared.file.FileUtilsErrno;
-import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment;
-import com.termux.shared.shell.command.runner.app.AppShell;
 import com.termux.shared.android.AndroidUtils;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxUtils;
@@ -229,10 +227,8 @@ public class TermuxFileUtils {
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error isTermuxPrefixDirectoryAccessible(boolean createDirectoryIfMissing, boolean setMissingPermissions) {
-           return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix directory", TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                null, createDirectoryIfMissing,
-                FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
-                false, false);
+        return validateTermuxDirectoryAccessible("termux prefix directory", TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+            createDirectoryIfMissing, setMissingPermissions);
     }
 
     /**
@@ -247,10 +243,8 @@ public class TermuxFileUtils {
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error isTermuxPrefixStagingDirectoryAccessible(boolean createDirectoryIfMissing, boolean setMissingPermissions) {
-        return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix staging directory", TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
-            null, createDirectoryIfMissing,
-            FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
-            false, false);
+        return validateTermuxDirectoryAccessible("termux prefix staging directory", TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
+            createDirectoryIfMissing, setMissingPermissions);
     }
 
     /**
@@ -265,7 +259,13 @@ public class TermuxFileUtils {
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error isAppsTermuxAppDirectoryAccessible(boolean createDirectoryIfMissing, boolean setMissingPermissions) {
-        return FileUtils.validateDirectoryFileExistenceAndPermissions("apps/termux-app directory", TermuxConstants.TERMUX_APP.APPS_DIR_PATH,
+        return validateTermuxDirectoryAccessible("apps/termux-app directory", TermuxConstants.TERMUX_APP.APPS_DIR_PATH,
+            createDirectoryIfMissing, setMissingPermissions);
+    }
+
+    private static Error validateTermuxDirectoryAccessible(String label, String filePath, boolean createDirectoryIfMissing,
+                                                           boolean setMissingPermissions) {
+        return FileUtils.validateDirectoryFileExistenceAndPermissions(label, filePath,
             null, createDirectoryIfMissing,
             FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
             false, false);
@@ -323,23 +323,14 @@ public class TermuxFileUtils {
             statScript.toString() + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getName(), true);
         executionCommand.commandLabel = TermuxConstants.TERMUX_APP_NAME + " Files Stat Command";
         executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_OFF;
-        AppShell appShell = AppShell.execute(context, executionCommand, null, new TermuxShellEnvironment(), null, true);
-        if (appShell == null || !executionCommand.isSuccessful()) {
-            Logger.logErrorExtended(LOG_TAG, executionCommand.toString());
+        if (!TermuxUtils.executeQuietAppShell(context, LOG_TAG, executionCommand)) {
             return null;
         }
 
         StringBuilder statOutput = new StringBuilder();
         statOutput.append("$ ").append(statScript.toString());
         statOutput.append("\n\n").append(executionCommand.resultData.stdout.toString());
-
-        boolean stderrSet = !executionCommand.resultData.stderr.toString().isEmpty();
-        if (executionCommand.resultData.exitCode != 0 || stderrSet) {
-            Logger.logErrorExtended(LOG_TAG, executionCommand.toString());
-            if (stderrSet)
-                statOutput.append("\n").append(executionCommand.resultData.stderr.toString());
-            statOutput.append("\n").append("exit code: ").append(executionCommand.resultData.exitCode.toString());
-        }
+        TermuxUtils.appendCommandErrorOutput(statOutput, LOG_TAG, executionCommand);
 
         StringBuilder markdownString = new StringBuilder();
         markdownString.append("## ").append(TermuxConstants.TERMUX_APP_NAME).append(" Files Info\n\n");

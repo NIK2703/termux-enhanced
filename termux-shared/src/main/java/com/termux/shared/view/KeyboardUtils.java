@@ -19,6 +19,14 @@ public class KeyboardUtils {
 
     private static final String LOG_TAG = "KeyboardUtils";
 
+    private static InputMethodManager getInputMethodManager(final Context context) {
+        return (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+    }
+
+    private static boolean hasWindow(final Activity activity) {
+        return activity != null && activity.getWindow() != null;
+    }
+
     /**
      * Toggle the soft keyboard. The {@link InputMethodManager#SHOW_FORCED} is passed as
      * {@code showFlags} so that keyboard is forcefully shown if it needs to be enabled.
@@ -31,7 +39,7 @@ public class KeyboardUtils {
      */
     public static void toggleSoftKeyboard(final Context context) {
         if (context == null) return;
-        InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager inputMethodManager = getInputMethodManager(context);
         if (inputMethodManager != null)
             inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
     }
@@ -54,14 +62,14 @@ public class KeyboardUtils {
      */
     public static void showSoftKeyboard(final Context context, final View view) {
         if (context == null || view == null) return;
-        InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager inputMethodManager = getInputMethodManager(context);
         if (inputMethodManager != null)
             inputMethodManager.showSoftInput(view, 0);
     }
 
     public static void hideSoftKeyboard(final Context context, final View view) {
         if (context == null || view == null) return;
-        InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager inputMethodManager = getInputMethodManager(context);
         if (inputMethodManager != null)
             inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
@@ -73,17 +81,17 @@ public class KeyboardUtils {
     }
 
     public static void setDisableSoftKeyboardFlags(final Activity activity) {
-        if (activity != null && activity.getWindow() != null)
+        if (hasWindow(activity))
             activity.getWindow().setFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM, WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
     }
 
     public static void clearDisableSoftKeyboardFlags(final Activity activity) {
-        if (activity != null && activity.getWindow() != null)
+        if (hasWindow(activity))
             activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
     }
 
     public static boolean areDisableSoftKeyboardFlagsSet(final Activity activity) {
-        if (activity == null ||  activity.getWindow() == null) return false;
+        if (!hasWindow(activity)) return false;
         return (activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM) != 0;
     }
 
@@ -126,7 +134,7 @@ public class KeyboardUtils {
      * Reading {@code getAttributes()} is a plain field read — no IPC — so the check is free.
      */
     private static void setSoftInputMode(final Activity activity, final int mode) {
-        if (activity == null || activity.getWindow() == null) return;
+        if (!hasWindow(activity)) return;
         if (activity.getWindow().getAttributes().softInputMode == mode) return;
         activity.getWindow().setSoftInputMode(mode);
     }
@@ -140,7 +148,7 @@ public class KeyboardUtils {
      */
     @RequiresApi(api = Build.VERSION_CODES.M)
     public static boolean isSoftKeyboardVisible(final Activity activity) {
-        if (activity != null && activity.getWindow() != null) {
+        if (hasWindow(activity)) {
             WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
             if (insets != null) {
                 WindowInsetsCompat insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets);

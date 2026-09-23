@@ -122,9 +122,7 @@ public enum SchemeVariant {
     @NonNull
     public static SchemeVariant parse(@Nullable String value) {
         if (value == null) return DEFAULT;
-        String v = value.trim();
-        if (v.length() >= 2 && v.charAt(0) == '"' && v.charAt(v.length() - 1) == '"')
-            v = v.substring(1, v.length() - 1).trim();
+        String v = ColorMath.stripSurroundingQuotes(value);
         if (v.isEmpty()) return DEFAULT;
 
         for (SchemeVariant variant : values()) {

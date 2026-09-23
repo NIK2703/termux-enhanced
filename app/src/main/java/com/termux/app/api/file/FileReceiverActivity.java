@@ -183,19 +183,13 @@ public class FileReceiverActivity extends AppCompatActivity {
 
                 final Uri scriptUri = UriUtils.getFileUri(EDITOR_PROGRAM);
 
-                Intent executeIntent = new Intent(TERMUX_SERVICE.ACTION_SERVICE_EXECUTE, scriptUri);
-                executeIntent.setClass(FileReceiverActivity.this, TermuxService.class);
-                executeIntent.putExtra(TERMUX_SERVICE.EXTRA_ARGUMENTS, new String[]{outFile.getAbsolutePath()});
-                startService(executeIntent);
+                startTermuxService(scriptUri, new String[]{outFile.getAbsolutePath()}, null);
                 finish();
             },
             R.string.action_file_received_open_directory, text -> {
                 if (saveStreamWithName(in, text) == null) return;
 
-                Intent executeIntent = new Intent(TERMUX_SERVICE.ACTION_SERVICE_EXECUTE);
-                executeIntent.putExtra(TERMUX_SERVICE.EXTRA_WORKDIR, TERMUX_RECEIVEDIR);
-                executeIntent.setClass(FileReceiverActivity.this, TermuxService.class);
-                startService(executeIntent);
+                startTermuxService(null, null, TERMUX_RECEIVEDIR);
                 finish();
             },
             android.R.string.cancel, text -> finish(), dialog -> {
@@ -246,11 +240,17 @@ public class FileReceiverActivity extends AppCompatActivity {
 
         final Uri urlOpenerProgramUri = UriUtils.getFileUri(URL_OPENER_PROGRAM);
 
-        Intent executeIntent = new Intent(TERMUX_SERVICE.ACTION_SERVICE_EXECUTE, urlOpenerProgramUri);
-        executeIntent.setClass(FileReceiverActivity.this, TermuxService.class);
-        executeIntent.putExtra(TERMUX_SERVICE.EXTRA_ARGUMENTS, new String[]{url});
-        startService(executeIntent);
+        startTermuxService(urlOpenerProgramUri, new String[]{url}, null);
         finish();
+    }
+
+    /** Build and start the {@link TermuxService} execute intent (optionally with a script uri, args or workdir). */
+    private void startTermuxService(Uri scriptUri, String[] args, String workdir) {
+        Intent executeIntent = new Intent(TERMUX_SERVICE.ACTION_SERVICE_EXECUTE, scriptUri);
+        executeIntent.setClass(FileReceiverActivity.this, TermuxService.class);
+        if (args != null) executeIntent.putExtra(TERMUX_SERVICE.EXTRA_ARGUMENTS, args);
+        if (workdir != null) executeIntent.putExtra(TERMUX_SERVICE.EXTRA_WORKDIR, workdir);
+        startService(executeIntent);
     }
 
     /**
@@ -265,27 +265,23 @@ public class FileReceiverActivity extends AppCompatActivity {
             public void run() {
                 TermuxAppSharedProperties properties = TermuxAppSharedProperties.getProperties();
 
-                String errmsg;
-                boolean state;
-
-                state = !properties.isFileShareReceiverDisabled();
-                Logger.logVerbose(LOG_TAG, "Setting " + TERMUX_APP.FILE_SHARE_RECEIVER_ACTIVITY_CLASS_NAME + " component state to " + state);
-                errmsg = PackageUtils.setComponentState(context,TermuxConstants.TERMUX_PACKAGE_NAME,
-                    TERMUX_APP.FILE_SHARE_RECEIVER_ACTIVITY_CLASS_NAME,
-                    state, null, false, false);
-                if (errmsg != null)
-                    Logger.logError(LOG_TAG, errmsg);
-
-                state = !properties.isFileViewReceiverDisabled();
-                Logger.logVerbose(LOG_TAG, "Setting " + TERMUX_APP.FILE_VIEW_RECEIVER_ACTIVITY_CLASS_NAME + " component state to " + state);
-                errmsg = PackageUtils.setComponentState(context,TermuxConstants.TERMUX_PACKAGE_NAME,
-                    TERMUX_APP.FILE_VIEW_RECEIVER_ACTIVITY_CLASS_NAME,
-                    state, null, false, false);
-                if (errmsg != null)
-                    Logger.logError(LOG_TAG, errmsg);
+                setReceiverComponentState(context, TERMUX_APP.FILE_SHARE_RECEIVER_ACTIVITY_CLASS_NAME,
+                    !properties.isFileShareReceiverDisabled());
+                setReceiverComponentState(context, TERMUX_APP.FILE_VIEW_RECEIVER_ACTIVITY_CLASS_NAME,
+                    !properties.isFileViewReceiverDisabled());
 
             }
         }.start();
+    }
+
+    /** Log and apply the enabled/disabled state of one receiver component, reporting any error. */
+    private static void setReceiverComponentState(@NonNull Context context, @NonNull String componentName, boolean state) {
+        Logger.logVerbose(LOG_TAG, "Setting " + componentName + " component state to " + state);
+        String errmsg = PackageUtils.setComponentState(context,TermuxConstants.TERMUX_PACKAGE_NAME,
+            componentName,
+            state, null, false, false);
+        if (errmsg != null)
+            Logger.logError(LOG_TAG, errmsg);
     }
 
 }

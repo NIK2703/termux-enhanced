@@ -13,6 +13,7 @@ import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.io.autocomplete.DirectoryHistoryController;
 
 import java.util.ArrayList;
+import java.util.function.Consumer;
 
 /**
  * Owns the state and the behaviour of the directory picker shown on the trailing placeholder page.
@@ -95,6 +96,15 @@ public final class DirectoryPickerController {
      * finger lift — the release is the settle's critical frame.
      */
     private final ValueAnimator mRowFadeAnimator;
+
+    /**
+     * The two surfaces this controller can drive, as one action — the bound view and, when
+     * different, the surface a running commit fade-out still owns. Pre-cached method references:
+     * {@link #setRevealedFraction} runs per scroll frame, so a fresh lambda each call would
+     * allocate on the gesture's hot path.
+     */
+    private final Consumer<DirectoryPickerView> mRevealConsumer = this::applyReveal;
+    private final Consumer<DirectoryPickerView> mColorConsumer = this::applyColors;
 
     public DirectoryPickerController(@NonNull TermuxActivity activity) {
         mActivity = activity;
@@ -196,10 +206,7 @@ public final class DirectoryPickerController {
         final float clamped = Math.max(0f, Math.min(1f, fraction));
         if (clamped == mRevealedFraction) return;
         mRevealedFraction = clamped;
-        if (mView != null) applyReveal(mView);
-        // The overlay being faded out is no longer the bound one, but it is still on screen and its
-        // rows must keep growing with the page until the fade ends.
-        if (mFadingView != null && mFadingView != mView) applyReveal(mFadingView);
+        forEachSurface(mRevealConsumer);
     }
 
     /**
@@ -280,10 +287,7 @@ public final class DirectoryPickerController {
 
     /** Push the current fade onto every surface the controller owns. */
     private void applyRowFade(float alpha) {
-        if (mView != null) mView.setRowFade(mRowFadeKeepRow, alpha);
-        // The commit fade-out hands the overlay of the committed page over to mFadingView; its rows
-        // must keep fading on the same ramp as the page it is still drawn on.
-        if (mFadingView != null && mFadingView != mView) mFadingView.setRowFade(mRowFadeKeepRow, alpha);
+        forEachSurface(v -> v.setRowFade(mRowFadeKeepRow, alpha));
     }
 
     /**
@@ -399,10 +403,18 @@ public final class DirectoryPickerController {
      * Also restyles {@link #mFadingView} so a running commit fade finishes in the new palette.
      */
     public void applyColors() {
-        if (mView != null) applyColors(mView);
+        forEachSurface(mColorConsumer);
+    }
+
+    /**
+     * Run {@code action} on the bound surface and, when different, on the surface a running commit
+     * fade-out still owns — the pair every "push to both handles" path walks.
+     */
+    private void forEachSurface(@NonNull Consumer<DirectoryPickerView> action) {
+        if (mView != null) action.accept(mView);
         // The surface a running commit fade-out still drives is no longer the bound one, but it is
-        // still on screen — restyle it too or it would finish the fade in the old palette.
-        if (mFadingView != null && mFadingView != mView) applyColors(mFadingView);
+        // still on screen — it must keep receiving reveal/colour writes for the rest of the settle.
+        if (mFadingView != null && mFadingView != mView) action.accept(mFadingView);
     }
 
     private void applyColors(@NonNull DirectoryPickerView view) {

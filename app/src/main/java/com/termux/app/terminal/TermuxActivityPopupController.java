@@ -163,37 +163,19 @@ public final class TermuxActivityPopupController {
             TextView hint = new TextView(mContext);
             hint.setText(mContext.getString(R.string.input_history_empty));
             hint.setGravity(Gravity.CENTER);
-            hint.setTextColor(mColorSchemeManager.getHistoryTextColor());
-            hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-            hint.setPadding(padH, padV, padH, padV);
-            content.addView(hint, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            styleHistoryRowText(hint, padH, padV);
+            addFullWidthRow(content, hint);
         }
 
         // Synthetic "CLEAR HISTORY…" row pinned at the TOP. Selecting it opens a confirmation
         // dialog; confirming wipes all history. Shown only when there is history to clear.
         // Coexists with the bottom "Clear" row (clears the input), not a replacement for it.
         if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
-            TextView tv = new TextView(mContext);
-            tv.setText(mContext.getString(R.string.input_history_clear_all));
-            tv.setGravity(Gravity.CENTER);
-            tv.setAllCaps(true);
-            tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-            tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
-            tv.setPadding(padH, padV, padH, padV);
-            tv.setClickable(true);
-            tv.setTag(MESSAGE_HISTORY_CLEAR_ALL_TAG);
-            content.addView(tv, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT));
-            mHistoryItemViews.add(tv);
+            addSyntheticHistoryRow(content, mContext.getString(R.string.input_history_clear_all),
+                    MESSAGE_HISTORY_CLEAR_ALL_TAG, padH, padV);
 
             // Thin separator below the clear all row to visually group it.
-            View sep = new View(mContext);
-            sep.setBackgroundColor(mColorSchemeManager.getHistoryPopupSepColor());
-            content.addView(sep, new LinearLayout.LayoutParams(
+            content.addView(createHistorySeparator(), new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
         }
         // Displayed order (spec): newest at the BOTTOM (nearest the pencil, first reached by a
@@ -217,15 +199,11 @@ public final class TermuxActivityPopupController {
                 tv.setText(display);
                 tv.setMaxLines(2);
                 tv.setEllipsize(TextUtils.TruncateAt.END);
-                tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-                tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-                tv.setPadding(padH, padV, padH, padV);
+                styleHistoryRowText(tv, padH, padV);
                 tv.setClickable(true);
                 // Tag with the real history index so highlight/selection maps back.
                 tv.setTag(i);
-                content.addView(tv, new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT));
+                addFullWidthRow(content, tv);
                 mHistoryItemViews.add(tv);
             }
         }
@@ -233,27 +211,13 @@ public final class TermuxActivityPopupController {
         // Synthetic "Clear" row pinned at the BOTTOM (nearest the pencil): remembers the current
         // input text in history, then empties the input field. Shown only when the panel has text.
         if (!TextUtils.isEmpty(inputText)) {
-            TextView tv = new TextView(mContext);
-            tv.setText(mContext.getString(R.string.input_history_clear));
-            tv.setGravity(Gravity.CENTER);
-            tv.setAllCaps(true);
-            tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-            tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
-            tv.setPadding(padH, padV, padH, padV);
-            tv.setClickable(true);
-            tv.setTag(MESSAGE_HISTORY_CLEAR_TAG);
-            content.addView(tv, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT));
-            mHistoryItemViews.add(tv);
+            addSyntheticHistoryRow(content, mContext.getString(R.string.input_history_clear),
+                    MESSAGE_HISTORY_CLEAR_TAG, padH, padV);
 
             // Thin separator above the bottom "Clear" row: divider between the history list and
             // the action. Only meaningful when there IS a history list to separate it from.
             if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
-                View sepBottom = new View(mContext);
-                sepBottom.setBackgroundColor(mColorSchemeManager.getHistoryPopupSepColor());
-                content.addView(sepBottom, content.getChildCount() - 1,
+                content.addView(createHistorySeparator(), content.getChildCount() - 1,
                         new LinearLayout.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
             }
@@ -369,6 +333,42 @@ public final class TermuxActivityPopupController {
     /** Whether the history popup is currently showing. */
     public boolean isHistoryPopupShowing() {
         return mHistoryPopup != null && mHistoryPopup.isShowing();
+    }
+
+    /** Shared history-row text styling: scheme colour, 15 sp, horizontal/vertical padding. */
+    private void styleHistoryRowText(TextView tv, int padH, int padV) {
+        tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        tv.setPadding(padH, padV, padH, padV);
+    }
+
+    /** Append {@code child} as a full-width wrap-content row of a history popup column. */
+    private static void addFullWidthRow(LinearLayout content, View child) {
+        content.addView(child, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    /** Centred all-caps bold synthetic action row ("CLEAR HISTORY…" / "Clear"). */
+    private void addSyntheticHistoryRow(LinearLayout content, String text, Object tag,
+                                        int padH, int padV) {
+        TextView tv = new TextView(mContext);
+        tv.setText(text);
+        tv.setGravity(Gravity.CENTER);
+        tv.setAllCaps(true);
+        styleHistoryRowText(tv, padH, padV);
+        tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
+        tv.setClickable(true);
+        tv.setTag(tag);
+        addFullWidthRow(content, tv);
+        mHistoryItemViews.add(tv);
+    }
+
+    /** 1 dp full-width history separator in the scheme's separator colour. */
+    private View createHistorySeparator() {
+        View sep = new View(mContext);
+        sep.setBackgroundColor(mColorSchemeManager.getHistoryPopupSepColor());
+        return sep;
     }
 
     /** Get the currently highlighted history index (or -1 / tag value for synthetic rows). */

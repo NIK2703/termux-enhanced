@@ -16,6 +16,12 @@ public class ActivityUtils {
 
     private static final String LOG_TAG = "ActivityUtils";
 
+    private static Error logAndReturnError(Error error, Context context, boolean logErrorMessage, boolean showErrorMessage) {
+        if (logErrorMessage)
+            error.logErrorAndShowToast(showErrorMessage ? context : null, LOG_TAG);
+        return error;
+    }
+
     /**
      * Wrapper for {@link #startActivity(Context, Intent, boolean, boolean)}.
      */
@@ -35,23 +41,18 @@ public class ActivityUtils {
      */
     public static Error startActivity(Context context, @NonNull Intent intent,
                                       boolean logErrorMessage, boolean showErrorMessage) {
-        Error error;
         String activityName = intent.getComponent() != null ? intent.getComponent().getClassName() : "Unknown";
 
         if (context == null) {
-            error = ActivityErrno.ERRNO_STARTING_ACTIVITY_WITH_NULL_CONTEXT.getError(activityName);
-            if (logErrorMessage)
-                error.logErrorAndShowToast(null, LOG_TAG);
-            return error;
+            return logAndReturnError(ActivityErrno.ERRNO_STARTING_ACTIVITY_WITH_NULL_CONTEXT.getError(activityName),
+                context, logErrorMessage, showErrorMessage);
         }
 
         try {
             context.startActivity(intent);
         } catch (Exception e) {
-            error = ActivityErrno.ERRNO_START_ACTIVITY_FAILED_WITH_EXCEPTION.getError(e, activityName, e.getMessage());
-            if (logErrorMessage)
-                error.logErrorAndShowToast(showErrorMessage ? context : null, LOG_TAG);
-            return error;
+            return logAndReturnError(ActivityErrno.ERRNO_START_ACTIVITY_FAILED_WITH_EXCEPTION.getError(e, activityName, e.getMessage()),
+                context, logErrorMessage, showErrorMessage);
         }
 
         return null;
@@ -91,17 +92,14 @@ public class ActivityUtils {
     public static Error startActivityForResult(Context context, int requestCode, @NonNull Intent intent,
                                                boolean logErrorMessage, boolean showErrorMessage,
                                                @Nullable ActivityResultLauncher<Intent> activityResultLauncher) {
-        Error error;
         String activityName = intent.getComponent() != null ? intent.getComponent().getClassName() : "Unknown";
         try {
             if (activityResultLauncher != null) {
                 activityResultLauncher.launch(intent);
             } else {
                 if (context == null) {
-                    error = ActivityErrno.ERRNO_STARTING_ACTIVITY_WITH_NULL_CONTEXT.getError(activityName);
-                    if (logErrorMessage)
-                        error.logErrorAndShowToast(null, LOG_TAG);
-                    return error;
+                    return logAndReturnError(ActivityErrno.ERRNO_STARTING_ACTIVITY_WITH_NULL_CONTEXT.getError(activityName),
+                        context, logErrorMessage, showErrorMessage);
                 }
 
                 if (context instanceof AppCompatActivity)
@@ -109,17 +107,13 @@ public class ActivityUtils {
                 else if (context instanceof Activity)
                     ((Activity) context).startActivityForResult(intent, requestCode);
                 else {
-                    error = FunctionErrno.ERRNO_PARAMETER_NOT_INSTANCE_OF.getError("context", "startActivityForResult", "Activity or AppCompatActivity");
-                    if (logErrorMessage)
-                        error.logErrorAndShowToast(showErrorMessage ? context : null, LOG_TAG);
-                    return error;
+                    return logAndReturnError(FunctionErrno.ERRNO_PARAMETER_NOT_INSTANCE_OF.getError("context", "startActivityForResult", "Activity or AppCompatActivity"),
+                        context, logErrorMessage, showErrorMessage);
                 }
             }
         } catch (Exception e) {
-            error = ActivityErrno.ERRNO_START_ACTIVITY_FOR_RESULT_FAILED_WITH_EXCEPTION.getError(e, activityName, e.getMessage());
-            if (logErrorMessage)
-                error.logErrorAndShowToast(showErrorMessage ? context : null, LOG_TAG);
-            return error;
+            return logAndReturnError(ActivityErrno.ERRNO_START_ACTIVITY_FOR_RESULT_FAILED_WITH_EXCEPTION.getError(e, activityName, e.getMessage()),
+                context, logErrorMessage, showErrorMessage);
         }
 
         return null;

@@ -31,6 +31,7 @@ import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment;
 import com.termux.installer.AbiUtils;
 import com.termux.installer.BootstrapManifest;
+import com.termux.installer.Sha256;
 import com.termux.installer.TermuxBootstrapState;
 
 import java.io.BufferedReader;
@@ -97,6 +98,89 @@ public final class TermuxInstaller {
     private static final int MAX_COMPRESSION_RATIO_NIX = 50000;
 
     private static final AtomicBoolean sInstallInProgress = new AtomicBoolean(false);
+
+    private static void reportInstallProgress(Context context, InstallProgressListener listener, int stageRes, int percent) {
+        if (listener != null) listener.onProgress(context.getString(stageRes), percent);
+    }
+
+    private static void chmodQuietly(File file, int mode) {
+        try {
+            Os.chmod(file.getAbsolutePath(), mode);
+        } catch (Exception ignored) {}
+    }
+
+    private static void copyStream(InputStream in, OutputStream out) throws IOException {
+        byte[] buf = new byte[65536];
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            out.write(buf, 0, n);
+        }
+    }
+
+    private static void mkdirsOrThrow(Context context, File dir) throws IOException {
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) {
+            throw new IOException(context.getString(com.termux.R.string.error_bootstrap_failed_mkdir, dir));
+        }
+    }
+
+    private static void ensureSymlinkParent(Context context, File linkFile) throws IOException {
+        File parent = linkFile.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+            throw new IOException(context.getString(com.termux.R.string.error_bootstrap_symlink_parent_dir, parent));
+        }
+    }
+
+    private static void validateZipEntryName(Context context, String name, Set<String> seenNames) {
+        if (name.isEmpty() || name.contains("..") || name.startsWith("/")) {
+            throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_invalid_zip_entry, name));
+        }
+
+        if (!seenNames.add(name)) {
+            throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_duplicate_zip_entry, name));
+        }
+    }
+
+    private static File createZipEntryDirectory(Context context, File destDir, String name) throws IOException {
+        if (name.equals("SYMLINKS.txt") || name.equals("BOOTSTRAP_INFO")) {
+            throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_directory_metadata_entry, name));
+        }
+        File dir = safeChildFile(context, destDir, name);
+        mkdirsOrThrow(context, dir);
+        return dir;
+    }
+
+    /** Validates size/ratio/entry-count limits; returns the updated total uncompressed size. */
+    private static long validateZipEntryLimits(Context context, String name, ZipEntry entry,
+            long totalUncompressed, int doneEntries, int maxRatio) {
+        if (entry.getSize() > MAX_SINGLE_ENTRY_SIZE) {
+            throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_entry_too_large, name, entry.getSize()));
+        }
+
+        long compressedSize = entry.getCompressedSize();
+        long uncompressedSize = entry.getSize();
+        if (uncompressedSize > 0 && compressedSize > 0) {
+            long ratio = uncompressedSize / compressedSize;
+            if (ratio > maxRatio) {
+                throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_compression_ratio, name));
+            }
+        }
+
+        totalUncompressed += uncompressedSize;
+        if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_SIZE) {
+            throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_total_size_exceeded));
+        }
+
+        if (doneEntries > MAX_ENTRIES) {
+            throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_too_many_entries));
+        }
+        return totalUncompressed;
+    }
+
+    private static boolean reportBootstrapError(Activity activity, Runnable whenDone, Error error) {
+        if (error == null) return false;
+        showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error));
+        return true;
+    }
 
     // ── Home directory helpers ──
 
@@ -253,7 +337,15 @@ public final class TermuxInstaller {
     /** Last verified proot-static identity: {@code path:mtime:size}. */
     private static volatile String sProotVerifiedKey;
 
-    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
+    private static String prootIdentity(File proot) {
+        return proot.getAbsolutePath() + ":" + proot.lastModified() + ":" + proot.length();
+    }
+
+    private static boolean prootShaMatches(File proot, File filesDir) throws IOException {
+        String expectedSha1 = readTrimmed(new File(filesDir, NIX_PROOT_BACKUP_SHA1_NAME));
+        String currentSha1 = proot.isFile() ? sha1Hex(proot) : null;
+        return expectedSha1 != null && currentSha1 != null && expectedSha1.equals(currentSha1);
+    }
 
     /**
      * The upstream login.nix self-updates proot-static on every generation
@@ -279,11 +371,9 @@ public final class TermuxInstaller {
             // the service lock — is pointless when the binary has not changed since the last
             // successful check. Key the cache on (mtime, size).
             if (proot.isFile()) {
-                String prootKey = proot.getAbsolutePath() + ":" + proot.lastModified() + ":" + proot.length();
+                String prootKey = prootIdentity(proot);
                 if (prootKey.equals(sProotVerifiedKey)) return;
-                String expectedSha1 = readTrimmed(new File(filesDir, NIX_PROOT_BACKUP_SHA1_NAME));
-                String currentSha1 = sha1Hex(proot);
-                if (expectedSha1 != null && currentSha1 != null && expectedSha1.equals(currentSha1)) {
+                if (prootShaMatches(proot, filesDir)) {
                     sProotVerifiedKey = prootKey;
                     return;
                 }
@@ -293,11 +383,11 @@ public final class TermuxInstaller {
             String currentSha1 = proot.isFile() ? sha1Hex(proot) : null;
             if (proot.isFile() && expectedSha1 != null && currentSha1 != null
                     && expectedSha1.equals(currentSha1)) {
-                sProotVerifiedKey = proot.getAbsolutePath() + ":" + proot.lastModified() + ":" + proot.length();
+                sProotVerifiedKey = prootIdentity(proot);
                 return;
             }
             copyFile(backup, proot);
-            Os.chmod(proot.getAbsolutePath(), 0700);
+            chmodQuietly(proot, 0700);
             debugLog("restored bootstrap " + NIX_PROOT_REL_PATH
                 + " (was " + (currentSha1 == null ? "missing" : currentSha1)
                 + ", expected " + expectedSha1 + ")");
@@ -315,7 +405,7 @@ public final class TermuxInstaller {
         }
         File backup = new File(context.getFilesDir(), NIX_PROOT_BACKUP_NAME);
         copyFile(proot, backup);
-        try { Os.chmod(backup.getAbsolutePath(), 0700); } catch (Exception ignored) {}
+        chmodQuietly(backup, 0700);
         String sha1 = sha1Hex(backup);
         File shaFile = new File(context.getFilesDir(), NIX_PROOT_BACKUP_SHA1_NAME);
         java.nio.file.Files.write(shaFile.toPath(), (sha1 + "\n").getBytes(StandardCharsets.US_ASCII));
@@ -340,19 +430,13 @@ public final class TermuxInstaller {
             int n;
             while ((n = in.read(buf)) > 0) md.update(buf, 0, n);
         }
-        StringBuilder sb = new StringBuilder(40);
-        for (byte b : md.digest()) {
-            sb.append(HEX_CHARS[(b >> 4) & 0xf]).append(HEX_CHARS[b & 0xf]);
-        }
-        return sb.toString();
+        return Sha256.bytesToHex(md.digest());
     }
 
     private static void copyFile(File from, File to) throws IOException {
         try (java.io.FileInputStream in = new java.io.FileInputStream(from);
              java.io.FileOutputStream out = new java.io.FileOutputStream(to)) {
-            byte[] buf = new byte[65536];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            copyStream(in, out);
         }
     }
 
@@ -368,7 +452,7 @@ public final class TermuxInstaller {
                 java.nio.file.Files.write(login.toPath(), patched.getBytes(StandardCharsets.UTF_8));
                 debugLog("patched hardcoded nix dir in bin/login");
             }
-            try { Os.chmod(login.getAbsolutePath(), 0700); } catch (Exception ignored) {}
+            chmodQuietly(login, 0700);
         } catch (Exception e) {
             debugLogError("failed to patch bin/login", e);
         }
@@ -646,6 +730,38 @@ public final class TermuxInstaller {
     }
 
     private static long sPatchFileCount = 0; // counter for debug logging
+
+    /** Path pairs (and optional same-length ELF bytes) used when rewriting an installed tree. */
+    private static final class PathPatchSpec {
+        final String oldFilesDir;
+        final String newFilesDir;
+        final String oldDataDir;
+        final String newDataDir;
+        final String compatFilesDir;
+        byte[] elfOld;
+        byte[] elfNew;
+
+        PathPatchSpec(Context context) {
+            oldFilesDir = getBootstrapFilesDirPath();
+            newFilesDir = getActualFilesDirPath(context);
+            oldDataDir = getBootstrapDataDirPath();
+            newDataDir = getActualDataDirPath(context);
+            compatFilesDir = getCompatFilesDirPath(context);
+        }
+
+        void prepareElfBytes() {
+            if (compatFilesDir == null) return;
+            elfOld = oldFilesDir.getBytes(StandardCharsets.US_ASCII);
+            elfNew = compatFilesDir.getBytes(StandardCharsets.US_ASCII);
+        }
+    }
+
+    private static void patchDirectoryTree(File dir, PathPatchSpec spec) throws IOException {
+        patchPrefixInDirectory(dir, spec.oldFilesDir, spec.newFilesDir,
+            spec.oldDataDir, spec.newDataDir, spec.elfOld, spec.elfNew, 0);
+        patchSymlinksInDirectory(dir, spec.oldFilesDir, spec.newFilesDir,
+            spec.oldDataDir, spec.newDataDir, 0);
+    }
 
     /**
      * Post-extraction/retroactive pass: walk the directory tree and patch every regular file.
@@ -960,28 +1076,21 @@ public final class TermuxInstaller {
         Logger.logInfo(LOG_TAG, "Patching existing bootstrap paths for package substitution");
         debugLog("patchExistingBootstrapIfNeeded: start");
 
-        String oldFilesDir = getBootstrapFilesDirPath();
-        String newFilesDir = getActualFilesDirPath(context);
-        String oldDataDir = getBootstrapDataDirPath();
-        String newDataDir = getActualDataDirPath(context);
-        String compatFilesDir = getCompatFilesDirPath(context);
-
-        byte[] elfOldFilesDir = null;
-        byte[] elfNewFilesDir = null;
-        if (compatFilesDir == null) {
+        PathPatchSpec spec = new PathPatchSpec(context);
+        if (spec.compatFilesDir == null) {
             Logger.logWarn(LOG_TAG, "No same-length compat path for "
                 + getBootstrapFilesDirPath() + "; ELF binary patching will be skipped. "
                 + "The LD_PRELOAD path-remapping shim (libtermux-prefix-remap.so) must be "
                 + "installed under $PREFIX/lib/ for ELF binaries to work.");
         } else {
-            elfOldFilesDir = oldFilesDir.getBytes(StandardCharsets.US_ASCII);
-            elfNewFilesDir = compatFilesDir.getBytes(StandardCharsets.US_ASCII);
-            if (elfOldFilesDir.length != elfNewFilesDir.length) {
+            spec.elfOld = spec.oldFilesDir.getBytes(StandardCharsets.US_ASCII);
+            spec.elfNew = spec.compatFilesDir.getBytes(StandardCharsets.US_ASCII);
+            if (spec.elfOld.length != spec.elfNew.length) {
                 Logger.logWarn(LOG_TAG, "ELF compat path length mismatch: "
-                    + oldFilesDir + " (" + elfOldFilesDir.length + ") vs "
-                    + compatFilesDir + " (" + elfNewFilesDir.length + "); ELF patching skipped");
-                elfOldFilesDir = null;
-                elfNewFilesDir = null;
+                    + spec.oldFilesDir + " (" + spec.elfOld.length + ") vs "
+                    + spec.compatFilesDir + " (" + spec.elfNew.length + "); ELF patching skipped");
+                spec.elfOld = null;
+                spec.elfNew = null;
             }
         }
 
@@ -990,24 +1099,12 @@ public final class TermuxInstaller {
         File prefixDir = new File(context.getFilesDir(), "usr");
         if (prefixDir.isDirectory()) {
             sPatchFileCount = 0;
-            patchPrefixInDirectory(prefixDir,
-                oldFilesDir, newFilesDir,
-                oldDataDir, newDataDir,
-                elfOldFilesDir, elfNewFilesDir, 0);
-            patchSymlinksInDirectory(prefixDir,
-                oldFilesDir, newFilesDir,
-                oldDataDir, newDataDir, 0);
+            patchDirectoryTree(prefixDir, spec);
         }
 
         File homeDir = new File(context.getFilesDir(), "home");
         if (homeDir.isDirectory()) {
-            patchPrefixInDirectory(homeDir,
-                oldFilesDir, newFilesDir,
-                oldDataDir, newDataDir,
-                elfOldFilesDir, elfNewFilesDir, 0);
-            patchSymlinksInDirectory(homeDir,
-                oldFilesDir, newFilesDir,
-                oldDataDir, newDataDir, 0);
+            patchDirectoryTree(homeDir, spec);
         }
 
         writePathPatchMarker(context);
@@ -1122,7 +1219,7 @@ public final class TermuxInstaller {
             throw new IOException(context.getString(com.termux.R.string.error_bootstrap_zip_not_found, zipFile.getAbsolutePath()));
         }
 
-        if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_verify_manifest), 0);
+        reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_verify_manifest, 0);
 
         BootstrapManifest manifest = BootstrapManifest.fromZip(context, zipFile);
         TermuxBootstrapType bootstrapType;
@@ -1148,7 +1245,7 @@ public final class TermuxInstaller {
             }
             debugLog("tempDir=" + tempDir + " targetType=" + bootstrapType);
 
-            if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_extract), 10);
+            reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_extract, 10);
 
             if (bootstrapType == TermuxBootstrapType.NIX) {
                 // Official nix-on-droid-app installer flow (copied from
@@ -1159,17 +1256,17 @@ public final class TermuxInstaller {
                 // read-only dr-xr-xr-x modes stored in the nix bootstrap zip.
                 debugLog("NIX: using official extraction flow");
                 extractNixBootstrapZipOfficial(context, zipFile, tempDir, listener);
-                if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_finalize), 92);
+                reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_finalize, 92);
                 debugLog("NIX: extraction done, setting up executables");
                 setupNixExecutables(tempDir);
                 backupBootstrapProotStatic(tempDir, context);
-                if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_finalize), 95);
+                reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_finalize, 95);
                 debugLog("NIX: executables done, setting up symlinks");
                 setupNixSymlinks(tempDir);
-                if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_finalize), 97);
+                reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_finalize, 97);
                 debugLog("NIX: symlinks done, patching hardcoded paths");
                 patchNixHardcodedPaths(tempDir, context);
-                if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_finalize), 99);
+                reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_finalize, 99);
                 verifyNixBootstrap(tempDir);
             } else {
                 debugLog("Starting extractZipFile...");
@@ -1178,25 +1275,19 @@ public final class TermuxInstaller {
             }
 
             if (bootstrapType == TermuxBootstrapType.TERMUX && !BOOTSTRAP_TARGET_PKG.equals(context.getPackageName())) {
-                if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_finalize), 85);
-                String oldFilesDir = getBootstrapFilesDirPath();
-                String newFilesDir = getActualFilesDirPath(context);
-                String oldDataDir = getBootstrapDataDirPath();
-                String newDataDir = getActualDataDirPath(context);
-                String compatFilesDir = getCompatFilesDirPath(context);
-                byte[] elfOld = compatFilesDir == null ? null : oldFilesDir.getBytes(StandardCharsets.US_ASCII);
-                byte[] elfNew = compatFilesDir == null ? null : compatFilesDir.getBytes(StandardCharsets.US_ASCII);
+                reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_finalize, 85);
+                PathPatchSpec spec = new PathPatchSpec(context);
+                spec.prepareElfBytes();
                 debugLog("Starting package-name substitution (TERMUX type) in " + tempDir.getAbsolutePath()
-                    + " | oldFilesDir=" + oldFilesDir + " newFilesDir=" + newFilesDir + " compat=" + compatFilesDir);
-                patchPrefixInDirectory(tempDir, oldFilesDir, newFilesDir, oldDataDir, newDataDir, elfOld, elfNew, 0);
-                patchSymlinksInDirectory(tempDir, oldFilesDir, newFilesDir, oldDataDir, newDataDir, 0);
+                    + " | oldFilesDir=" + spec.oldFilesDir + " newFilesDir=" + spec.newFilesDir + " compat=" + spec.compatFilesDir);
+                patchDirectoryTree(tempDir, spec);
                 debugLog("package-name substitution done");
             } else if (bootstrapType == TermuxBootstrapType.NIX) {
                 debugLog("NIX bootstrap: skipping Termux path substitution (proot handles remapping)");
                 patchNixHardcodedPaths(tempDir, context);
             }
 
-            if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_finalize), 90);
+            reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_finalize, 90);
             debugLog("extraction complete, finalizing");
 
             File targetDir = new File(filesDir, targetName);
@@ -1237,7 +1328,7 @@ public final class TermuxInstaller {
             }
 
             if (manifest != null) {
-                if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_write_variant), 95);
+                reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_write_variant, 95);
 
                 try {
                     TermuxBootstrapState.writeVariantMarker(context, manifest.variant);
@@ -1259,7 +1350,7 @@ public final class TermuxInstaller {
             writeBootstrapTypeMarker(context, bootstrapType);
             invalidateBootstrapInstalledCache();
 
-            if (listener != null) listener.onProgress(context.getString(com.termux.R.string.bootstrap_install_progress_done), 100);
+            reportInstallProgress(context, listener, com.termux.R.string.bootstrap_install_progress_done, 100);
 
         } catch (Exception e) {
             debugLogError("installBootstrapFromZipFile FAILED", e);
@@ -1310,55 +1401,20 @@ public final class TermuxInstaller {
                     debugLog("extractZipFile: progress " + doneEntries + "/" + totalEntries);
                 }
 
-                if (name.isEmpty() || name.contains("..") || name.startsWith("/")) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_invalid_zip_entry, name));
-                }
-
-                if (!seenNames.add(name)) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_duplicate_zip_entry, name));
-                }
+                validateZipEntryName(context, name, seenNames);
 
                 if (entry.isDirectory()) {
-                    if (name.equals("SYMLINKS.txt") || name.equals("BOOTSTRAP_INFO")) {
-                        throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_directory_metadata_entry, name));
-                    }
-                    File dir = safeChildFile(context, destDir, name);
-                    if (!dir.isDirectory() && !dir.mkdirs()) {
-                        throw new IOException(context.getString(com.termux.R.string.error_bootstrap_failed_mkdir, dir));
-                    }
+                    File dir = createZipEntryDirectory(context, destDir, name);
                     applyDirectoryMode(dir, entry);
                     doneEntries++;
                     continue;
                 }
 
-                if (entry.getSize() > MAX_SINGLE_ENTRY_SIZE) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_entry_too_large, name, entry.getSize()));
-                }
-
-                long compressedSize = entry.getCompressedSize();
-                long uncompressedSize = entry.getSize();
-                if (uncompressedSize > 0 && compressedSize > 0) {
-                    int maxRatio = (bootstrapType == TermuxBootstrapType.NIX)
-                        ? MAX_COMPRESSION_RATIO_NIX
-                        : MAX_COMPRESSION_RATIO;
-                    long ratio = uncompressedSize / compressedSize;
-                    if (ratio > maxRatio) {
-                        throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_compression_ratio, name));
-                    }
-                    if (bootstrapType == TermuxBootstrapType.NIX && ratio > MAX_COMPRESSION_RATIO) {
-                        Logger.logDebug(LOG_TAG, "NIX high-compression entry (ratio=" + ratio
-                            + "): " + name + " (" + uncompressedSize + " -> " + compressedSize + ")");
-                    }
-                }
-
-                totalUncompressed += uncompressedSize;
-                if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_SIZE) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_total_size_exceeded));
-                }
-
-                if (doneEntries > MAX_ENTRIES) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_too_many_entries));
-                }
+                int maxRatio = (bootstrapType == TermuxBootstrapType.NIX)
+                    ? MAX_COMPRESSION_RATIO_NIX
+                    : MAX_COMPRESSION_RATIO;
+                totalUncompressed = validateZipEntryLimits(context, name, entry,
+                    totalUncompressed, doneEntries, maxRatio);
 
                 int unixMode = getUnixModeReflective(entry);
                 int fileType = unixMode & android.system.OsConstants.S_IFMT;
@@ -1381,10 +1437,7 @@ public final class TermuxInstaller {
                     }
                     String linkPath = destDir.getAbsolutePath() + "/" + name;
                     File linkFile = new File(linkPath);
-                    File parent = linkFile.getParentFile();
-                    if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-                        throw new IOException(context.getString(com.termux.R.string.error_bootstrap_symlink_parent_dir, parent));
-                    }
+                    ensureSymlinkParent(context, linkFile);
                     validateSymlinkTarget(context, destDir, name, target, allowedPrefixPath, bootstrapType);
                     try {
                         Os.symlink(target, linkPath);
@@ -1408,10 +1461,7 @@ public final class TermuxInstaller {
                         }
                         String linkPath = destDir.getAbsolutePath() + "/" + parts[1];
                         File linkFile = new File(linkPath);
-                        File parent = linkFile.getParentFile();
-                        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-                            throw new IOException(context.getString(com.termux.R.string.error_bootstrap_symlink_parent_dir, parent));
-                        }
+                        ensureSymlinkParent(context, linkFile);
                         validateSymlinkTarget(context, destDir, parts[1], target, allowedPrefixPath, bootstrapType);
                         symlinks.add(Pair.create(target, linkPath));
                     }
@@ -1431,10 +1481,7 @@ public final class TermuxInstaller {
                 }
 
                 File outFile = safeChildFile(context, destDir, name);
-                File parent = outFile.getParentFile();
-                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-                    throw new IOException(context.getString(com.termux.R.string.error_bootstrap_failed_mkdir, parent));
-                }
+                mkdirsOrThrow(context, outFile.getParentFile());
                 copyZipEntryToFile(zip, entry, outFile);
                 applyPermissions(outFile, entry, name);
 
@@ -1491,62 +1538,24 @@ public final class TermuxInstaller {
                     debugLog("extractNixBootstrapZipOfficial: progress " + doneEntries + "/" + totalEntries);
                 }
 
-                if (name.isEmpty() || name.contains("..") || name.startsWith("/")) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_invalid_zip_entry, name));
-                }
-
-                if (!seenNames.add(name)) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_duplicate_zip_entry, name));
-                }
+                validateZipEntryName(context, name, seenNames);
 
                 if (entry.isDirectory()) {
-                    if (name.equals("SYMLINKS.txt") || name.equals("BOOTSTRAP_INFO")) {
-                        throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_directory_metadata_entry, name));
-                    }
-                    File dir = safeChildFile(context, destDir, name);
-                    if (!dir.isDirectory() && !dir.mkdirs()) {
-                        throw new IOException(context.getString(com.termux.R.string.error_bootstrap_failed_mkdir, dir));
-                    }
+                    createZipEntryDirectory(context, destDir, name);
                     doneEntries++;
                     continue;
                 }
 
-                if (entry.getSize() > MAX_SINGLE_ENTRY_SIZE) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_entry_too_large, name, entry.getSize()));
-                }
-
-                long compressedSize = entry.getCompressedSize();
-                long uncompressedSize = entry.getSize();
-                if (uncompressedSize > 0 && compressedSize > 0) {
-                    long ratio = uncompressedSize / compressedSize;
-                    if (ratio > MAX_COMPRESSION_RATIO_NIX) {
-                        throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_compression_ratio, name));
-                    }
-                }
-
-                totalUncompressed += uncompressedSize;
-                if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_SIZE) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_total_size_exceeded));
-                }
-
-                if (doneEntries > MAX_ENTRIES) {
-                    throw new SecurityException(context.getString(com.termux.R.string.error_bootstrap_too_many_entries));
-                }
+                totalUncompressed = validateZipEntryLimits(context, name, entry,
+                    totalUncompressed, doneEntries, MAX_COMPRESSION_RATIO_NIX);
 
                 // SYMLINKS.txt / EXECUTABLES.txt / BOOTSTRAP_INFO are handled
                 // by setupNixExecutables / setupNixSymlinks afterwards; still
                 // extract them so the flow matches the official installer.
                 File outFile = safeChildFile(context, destDir, name);
-                File parent = outFile.getParentFile();
-                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-                    throw new IOException(context.getString(com.termux.R.string.error_bootstrap_failed_mkdir, parent));
-                }
+                mkdirsOrThrow(context, outFile.getParentFile());
                 try (InputStream in = zip.getInputStream(entry); FileOutputStream out = new FileOutputStream(outFile)) {
-                    byte[] buffer = new byte[8192];
-                    int read;
-                    while ((read = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, read);
-                    }
+                    copyStream(in, out);
                 }
                 doneEntries++;
 
@@ -1781,11 +1790,7 @@ public final class TermuxInstaller {
     private static void copyZipEntryToFile(ZipFile zip, ZipEntry entry, File outFile) throws IOException {
         try (InputStream in = new BufferedInputStream(zip.getInputStream(entry));
              OutputStream out = new BufferedOutputStream(new FileOutputStream(outFile))) {
-            byte[] buffer = new byte[65536];
-            int n;
-            while ((n = in.read(buffer)) != -1) {
-                out.write(buffer, 0, n);
-            }
+            copyStream(in, out);
             out.flush();
         }
     }
@@ -1798,17 +1803,13 @@ public final class TermuxInstaller {
                 || name.startsWith("lib/apt/apt-helper") || name.startsWith("lib/apt/methods/"))
                 ? 0755 : 0644;
         }
-        try {
-            Os.chmod(file.getAbsolutePath(), mode);
-        } catch (Exception ignored) {}
+        chmodQuietly(file, mode);
     }
 
     private static void applyDirectoryMode(File dir, ZipEntry entry) {
         int mode = getUnixModeReflective(entry) & 0777;
         if (mode == 0) mode = 0755;
-        try {
-            Os.chmod(dir.getAbsolutePath(), mode);
-        } catch (Exception ignored) {}
+        chmodQuietly(dir, mode);
     }
 
     /** {@code ZipEntry.getUnixMode} is a hidden/removed Android API. Resolving the {@link Method}
@@ -1942,10 +1943,10 @@ public final class TermuxInstaller {
                     Error error;
 
                     error = FileUtils.deleteFile("termux prefix staging directory", runtimeStagingPrefixPath, true);
-                    if (error != null) { showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error)); return; }
+                    if (reportBootstrapError(activity, whenDone, error)) return;
 
                     error = FileUtils.deleteFile("termux prefix directory", runtimePrefixPath, true);
-                    if (error != null) { showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error)); return; }
+                    if (reportBootstrapError(activity, whenDone, error)) return;
 
                     if (!new File(runtimeFilesDir).isDirectory() && !new File(runtimeFilesDir).mkdirs()) {
                         showBootstrapErrorDialog(activity, whenDone, "Failed to create files directory: " + runtimeFilesDir);
@@ -1954,7 +1955,6 @@ public final class TermuxInstaller {
 
                     Logger.logInfo(LOG_TAG, "Extracting bootstrap zip to prefix staging directory \"" + runtimeStagingPrefixPath + "\".");
 
-                    final byte[] buffer = new byte[8096];
                     final List<Pair<String, String>> symlinks = new ArrayList<>(50);
                     try (ZipInputStream zipInput = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
                         ZipEntry zipEntry;
@@ -1978,19 +1978,17 @@ public final class TermuxInstaller {
                                     String newPath = runtimeStagingPrefixPath + "/" + parts[1];
                                     symlinks.add(Pair.create(oldPath, newPath));
                                     error = ensureDirectoryExists(new File(newPath).getParentFile());
-                                    if (error != null) { showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error)); return; }
+                                    if (reportBootstrapError(activity, whenDone, error)) return;
                                 }
                             } else {
                                 String zipEntryName = zipEntry.getName();
                                 File targetFile = new File(runtimeStagingPrefixPath, zipEntryName);
                                 boolean isDirectory = zipEntry.isDirectory();
                                 error = ensureDirectoryExists(isDirectory ? targetFile : targetFile.getParentFile());
-                                if (error != null) { showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error)); return; }
+                                if (reportBootstrapError(activity, whenDone, error)) return;
                                 if (!isDirectory) {
                                     try (FileOutputStream outStream = new FileOutputStream(targetFile)) {
-                                        int readBytes;
-                                        while ((readBytes = zipInput.read(buffer)) != -1)
-                                            outStream.write(buffer, 0, readBytes);
+                                        copyStream(zipInput, outStream);
                                     }
                                     if (zipEntryName.startsWith("bin/") || zipEntryName.startsWith("libexec") ||
                                         zipEntryName.startsWith("lib/apt/apt-helper") || zipEntryName.startsWith("lib/apt/methods")) {
@@ -2009,21 +2007,10 @@ public final class TermuxInstaller {
                     }
 
                     if (embeddedType == TermuxBootstrapType.TERMUX && needsPackageSubstitution(activity)) {
-                        String oldFilesDir = getBootstrapFilesDirPath();
-                        String newFilesDir = getActualFilesDirPath(activity);
-                        String oldDataDir = getBootstrapDataDirPath();
-                        String newDataDir = getActualDataDirPath(activity);
-                        String compatFilesDir = getCompatFilesDirPath(activity);
-                        byte[] elfOld = compatFilesDir == null ? null : oldFilesDir.getBytes(StandardCharsets.US_ASCII);
-                        byte[] elfNew = compatFilesDir == null ? null : compatFilesDir.getBytes(StandardCharsets.US_ASCII);
+                        PathPatchSpec spec = new PathPatchSpec(activity);
+                        spec.prepareElfBytes();
                         Logger.logInfo(LOG_TAG, "Starting embedded bootstrap substitution in " + runtimeStagingPrefixDir.getAbsolutePath());
-                        patchPrefixInDirectory(runtimeStagingPrefixDir,
-                            oldFilesDir, newFilesDir,
-                            oldDataDir, newDataDir,
-                            elfOld, elfNew, 0);
-                        patchSymlinksInDirectory(runtimeStagingPrefixDir,
-                            oldFilesDir, newFilesDir,
-                            oldDataDir, newDataDir, 0);
+                        patchDirectoryTree(runtimeStagingPrefixDir, spec);
                         Logger.logInfo(LOG_TAG, "embedded bootstrap package-name substitution: " + BOOTSTRAP_TARGET_PKG + " -> " + activity.getPackageName());
                     } else if (embeddedType == TermuxBootstrapType.NIX) {
                         Logger.logInfo(LOG_TAG, "NIX embedded bootstrap: skipping path substitution");
@@ -2201,15 +2188,11 @@ public final class TermuxInstaller {
             }
             try (InputStream in = new BufferedInputStream(new FileInputStream(src));
                  OutputStream out = new BufferedOutputStream(new FileOutputStream(dest))) {
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) != -1) {
-                    out.write(buf, 0, n);
-                }
+                copyStream(in, out);
             }
             try {
                 StructStat st = Os.stat(src.getAbsolutePath());
-                Os.chmod(dest.getAbsolutePath(), st.st_mode & 0777);
+                chmodQuietly(dest, st.st_mode & 0777);
             } catch (Exception ignored) {}
         } else if (src.exists()) {
             throw new IOException("Unsupported file type: " + src);
@@ -2228,9 +2211,7 @@ public final class TermuxInstaller {
         if (f.isDirectory()) {
             // Old installers left read-only dir modes (dr-xr-xr-x) which block
             // deleting children; make the dir owner-writable first.
-            try {
-                Os.chmod(f.getAbsolutePath(), 0700);
-            } catch (Exception ignored) {}
+            chmodQuietly(f, 0700);
             File[] children = f.listFiles();
             if (children != null) {
                 for (File child : children) deleteRecursive(child);

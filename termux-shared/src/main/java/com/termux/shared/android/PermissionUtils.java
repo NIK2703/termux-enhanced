@@ -41,6 +41,25 @@ public class PermissionUtils {
 
     private static final String LOG_TAG = "PermissionUtils";
 
+    private static void addNewTaskFlagIfNotActivity(@NonNull Context context, @NonNull Intent intent) {
+        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
+        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
+        if (!(context instanceof Activity))
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+
+    private static Error startPermissionIntent(@NonNull Context context, int requestCode, @NonNull Intent intent) {
+        return startPermissionIntent(context, requestCode, intent, true, true);
+    }
+
+    private static Error startPermissionIntent(@NonNull Context context, int requestCode, @NonNull Intent intent,
+                                               boolean logErrorMessage, boolean showErrorMessage) {
+        if (requestCode >= 0)
+            return ActivityUtils.startActivityForResult(context, requestCode, intent, logErrorMessage, showErrorMessage);
+        else
+            return ActivityUtils.startActivity(context, intent, logErrorMessage, showErrorMessage);
+    }
+
     /**
      * Check if app has been granted the required permission.
      *
@@ -343,25 +362,15 @@ public class PermissionUtils {
         intent.addCategory("android.intent.category.DEFAULT");
         intent.setData(Uri.parse("package:" + context.getPackageName()));
 
-        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
-        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
-        if (!(context instanceof Activity))
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        addNewTaskFlagIfNotActivity(context, intent);
 
-        Error error;
-        if (requestCode >=0)
-            error = ActivityUtils.startActivityForResult(context, requestCode, intent, true, false);
-        else
-            error = ActivityUtils.startActivity(context, intent, true, false);
+        Error error = startPermissionIntent(context, requestCode, intent, true, false);
 
         // Use fallback if matching Activity did not exist for ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION.
         if (error != null) {
             intent = new Intent();
             intent.setAction(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-            if (requestCode >=0)
-                return ActivityUtils.startActivityForResult(context, requestCode, intent);
-            else
-                return ActivityUtils.startActivity(context, intent);
+            return startPermissionIntent(context, requestCode, intent);
         }
 
         return null;
@@ -459,15 +468,9 @@ public class PermissionUtils {
         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
         intent.setData(Uri.parse("package:" + context.getPackageName()));
 
-        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
-        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
-        if (!(context instanceof Activity))
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        addNewTaskFlagIfNotActivity(context, intent);
 
-        if (requestCode >=0)
-            return ActivityUtils.startActivityForResult(context, requestCode, intent);
-        else
-            return ActivityUtils.startActivity(context, intent);
+        return startPermissionIntent(context, requestCode, intent);
     }
 
     /**
@@ -534,15 +537,9 @@ public class PermissionUtils {
         Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
         intent.setData(Uri.parse("package:" + context.getPackageName()));
 
-        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
-        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
-        if (!(context instanceof Activity))
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        addNewTaskFlagIfNotActivity(context, intent);
 
-        if (requestCode >=0)
-            return ActivityUtils.startActivityForResult(context, requestCode, intent);
-        else
-            return ActivityUtils.startActivity(context, intent);
+        return startPermissionIntent(context, requestCode, intent);
     }
 
 }

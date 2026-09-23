@@ -61,11 +61,7 @@ public final class MonetOptions {
 
         @NonNull
         static Background parse(@NonNull String raw) {
-            for (Background b : values()) {
-                if (b.key.equalsIgnoreCase(raw) || b.name().equalsIgnoreCase(raw.replace('-', '_')))
-                    return b;
-            }
-            return SURFACE;
+            return parseKeyed(values(), b -> b.key, raw, true, SURFACE);
         }
     }
 
@@ -86,10 +82,7 @@ public final class MonetOptions {
 
         @NonNull
         static AccentSource parse(@NonNull String raw) {
-            for (AccentSource s : values()) {
-                if (s.key.equalsIgnoreCase(raw) || s.name().equalsIgnoreCase(raw)) return s;
-            }
-            return WALLPAPER;
+            return parseKeyed(values(), s -> s.key, raw, false, WALLPAPER);
         }
     }
 
@@ -108,11 +101,22 @@ public final class MonetOptions {
 
         @NonNull
         static Color0 parse(@NonNull String raw) {
-            for (Color0 c : values()) {
-                if (c.key.equalsIgnoreCase(raw) || c.name().equalsIgnoreCase(raw)) return c;
-            }
-            return BG;
+            return parseKeyed(values(), c -> c.key, raw, false, BG);
         }
+    }
+
+    @NonNull
+    private static <E extends Enum<E>> E parseKeyed(@NonNull E[] values,
+                                                    @NonNull java.util.function.Function<E, String> keyFn,
+                                                    @NonNull String raw,
+                                                    boolean nameMatchesDashes,
+                                                    @NonNull E def) {
+        for (E e : values) {
+            boolean name = nameMatchesDashes ? e.name().equalsIgnoreCase(raw.replace('-', '_'))
+                : e.name().equalsIgnoreCase(raw);
+            if (keyFn.apply(e).equalsIgnoreCase(raw) || name) return e;
+        }
+        return def;
     }
 
     @NonNull public final SchemeVariant variant;
@@ -192,16 +196,16 @@ public final class MonetOptions {
         if (prefs == null) {
             Logger.logDebug(LOG_TAG, "Preferences are not available yet, using the default options.");
         } else {
-            copyProperty(props, prefs, KEY_VARIANT);
-            copyProperty(props, prefs, KEY_BACKGROUND);
-            copyProperty(props, prefs, KEY_ACCENT_SOURCE);
-            copyProperty(props, prefs, KEY_ACCENT_CONTRAST);
-            copyProperty(props, prefs, KEY_CHROMA);
-            copyProperty(props, prefs, KEY_TONE);
-            copyProperty(props, prefs, KEY_COLOR0);
+            for (String key : OPTION_KEYS)
+                copyProperty(props, prefs, key);
         }
         return fromProperties(props);
     }
+
+    private static final String[] OPTION_KEYS = {
+        KEY_VARIANT, KEY_BACKGROUND, KEY_ACCENT_SOURCE, KEY_ACCENT_CONTRAST,
+        KEY_CHROMA, KEY_TONE, KEY_COLOR0
+    };
 
     /** Copy one {@code monet-*} value out of the preferences, when it is set. */
     private static void copyProperty(@NonNull Properties props,
@@ -262,10 +266,7 @@ public final class MonetOptions {
     @NonNull
     private static String trim(String value) {
         if (value == null) return "";
-        String v = value.trim();
-        if (v.length() >= 2 && v.charAt(0) == '"' && v.charAt(v.length() - 1) == '"')
-            v = v.substring(1, v.length() - 1).trim();
-        return v;
+        return ColorMath.stripSurroundingQuotes(value);
     }
 
     private static double parseDouble(String value, double fallback) {

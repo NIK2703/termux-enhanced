@@ -546,10 +546,7 @@ public class SharedProperties {
     public static int getDefaultIfNotInRange(String key, int value, int def, int min, int max, boolean logErrorOnInvalidValue, boolean ignoreErrorIfValueZero, String logTag) {
         if (value < min || value > max) {
             if (logErrorOnInvalidValue && (!ignoreErrorIfValueZero || value != 0)) {
-                if (key != null)
-                    Logger.logError(logTag, "The value \"" + value + "\" for the key \"" + key + "\" is not within the range " + min +  "-" + max +  " (inclusive). Using default value \"" + def + "\" instead.");
-                else
-                    Logger.logError(logTag, "The value \"" + value + "\" is not within the range " + min +  "-" + max +  " (inclusive). Using default value \"" + def + "\" instead.");
+                logNotInRangeError(key, value, def, min, max, logTag);
             }
             return def;
         } else {
@@ -575,15 +572,19 @@ public class SharedProperties {
     public static float getDefaultIfNotInRange(String key, float value, float def, float min, float max, boolean logErrorOnInvalidValue, boolean ignoreErrorIfValueZero, String logTag) {
         if (value < min || value > max) {
             if (logErrorOnInvalidValue && (!ignoreErrorIfValueZero || value != 0)) {
-                if (key != null)
-                    Logger.logError(logTag, "The value \"" + value + "\" for the key \"" + key + "\" is not within the range " + min +  "-" + max +  " (inclusive). Using default value \"" + def + "\" instead.");
-                else
-                    Logger.logError(logTag, "The value \"" + value + "\" is not within the range " + min +  "-" + max +  " (inclusive). Using default value \"" + def + "\" instead.");
+                logNotInRangeError(key, value, def, min, max, logTag);
             }
             return def;
         } else {
             return value;
         }
+    }
+
+    private static void logNotInRangeError(String key, Object value, Object def, Object min, Object max, String logTag) {
+        if (key != null)
+            Logger.logError(logTag, "The value \"" + value + "\" for the key \"" + key + "\" is not within the range " + min +  "-" + max +  " (inclusive). Using default value \"" + def + "\" instead.");
+        else
+            Logger.logError(logTag, "The value \"" + value + "\" is not within the range " + min +  "-" + max +  " (inclusive). Using default value \"" + def + "\" instead.");
     }
 
     /**

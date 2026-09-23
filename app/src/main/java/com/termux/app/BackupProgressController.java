@@ -212,14 +212,7 @@ public final class BackupProgressController {
         // Close the dialog but keep the poll dead — the worker is still killing tar and
         // rolling back; once it finishes the service calls stopSelf() itself (mCancelled
         // guard in the worker's finally block).
-        if (mBackupPoll != null) {
-            mBackupPoll.removeCallbacks(mBackupPollRunnable);
-            mBackupPoll = null;
-        }
-        if (mBackupDialog != null && mBackupDialog.isShowing()) {
-            mBackupDialog.dismiss();
-        }
-        mBackupDialog = null;
+        dismiss();
         // Give immediate feedback — "Operation cancelled" toast, matching the notification path.
         FragmentActivity activity = mActivityRef.get();
         if (activity != null && !activity.isFinishing()) {
@@ -264,23 +257,12 @@ public final class BackupProgressController {
             notifyClosed();
             return;
         }
-        if (error == null) {
-            Toast.makeText(activity, activity.getString(mBackupIsRestore
-                    ? R.string.backup_service_notification_restore_success
-                    : R.string.backup_service_notification_success),
-                Toast.LENGTH_LONG).show();
-            if (mBackupLaunchTermuxOnSuccess) {
-                TermuxActivity.startTermuxActivityWithSessionReset(activity);
-            }
-        } else if (error == TermuxBackupUtils.CANCELLED_ERROR) {
-            Toast.makeText(activity, activity.getString(R.string.backup_restore_cancelled),
-                Toast.LENGTH_LONG).show();
-        } else {
-            String failMsg = activity.getString(mBackupIsRestore
-                    ? R.string.backup_service_notification_restore_failed
-                    : R.string.backup_service_notification_failed)
-                + ": " + Error.getMinimalErrorString(error);
-            Toast.makeText(activity, failMsg, Toast.LENGTH_LONG).show();
+        CharSequence toastText = TermuxBackupService.buildResultToastText(activity, mBackupIsRestore, error);
+        if (toastText != null) {
+            Toast.makeText(activity, toastText, Toast.LENGTH_LONG).show();
+        }
+        if (error == null && mBackupLaunchTermuxOnSuccess) {
+            TermuxActivity.startTermuxActivityWithSessionReset(activity);
         }
         // Stop the (now idle) service — the bottom Toast already reported the result, matching the
         // upstream commit behaviour.

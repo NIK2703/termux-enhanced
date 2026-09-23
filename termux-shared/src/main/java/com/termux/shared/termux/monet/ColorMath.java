@@ -140,4 +140,13 @@ public final class ColorMath {
         if (value > max) return max;
         return value;
     }
+
+    /** Strip a matching pair of surrounding double quotes and trim, if present. */
+    @NonNull
+    static String stripSurroundingQuotes(@NonNull String value) {
+        String v = value.trim();
+        if (v.length() >= 2 && v.charAt(0) == '"' && v.charAt(v.length() - 1) == '"')
+            v = v.substring(1, v.length() - 1).trim();
+        return v;
+    }
 }

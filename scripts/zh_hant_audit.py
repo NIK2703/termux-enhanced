@@ -22,23 +22,25 @@ string-array blocks and silently loses ~30 keys.
 Requires: pip install opencc-python-reimplemented
 Run: python scripts/zh_hant_audit.py
 """
-import io
 import os
 import re
 
 import opencc
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from common_helpers import (
+    NAME_RE,
+    REPO_ROOT,
+    STR_RE,
+    TRANS_FALSE_RE as TRANS_FALSE,
+    read_xml_without_comments,
+)
+
 S2T = opencc.OpenCC("s2t")
 
-STR_RE = re.compile(r"<string\s([^>]*?)>(.*?)</string>", re.S)
 SELF_RE = re.compile(r"<string\s([^>]*?)/>", re.S)
 ARR_RE = re.compile(r"<(string-array|array)\s([^>]*?)>(.*?)</\1>", re.S)
-NAME_RE = re.compile(r'\bname="([^"]+)"')
-TRANS_FALSE = re.compile(r'\btranslatable="false"')
 ITEM_RE = re.compile(r"<item\s*>(.*?)</item>", re.S)
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
-COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 MODULES = ["app", "terminal-emulator", "terminal-view", "termux-shared"]
 
@@ -46,9 +48,7 @@ MODULES = ["app", "terminal-emulator", "terminal-view", "termux-shared"]
 def load_strings(path):
     """name -> (text, attrs). XML comments are stripped first."""
     out = {}
-    if not os.path.exists(path):
-        return out
-    raw = COMMENT.sub("", io.open(path, encoding="utf-8").read())
+    raw = read_xml_without_comments(path)
     for m in STR_RE.finditer(raw):
         nm = NAME_RE.search(m.group(1))
         if nm:
@@ -62,9 +62,7 @@ def load_strings(path):
 
 def load_arrays(path):
     out = {}
-    if not os.path.exists(path):
-        return out
-    raw = COMMENT.sub("", io.open(path, encoding="utf-8").read())
+    raw = read_xml_without_comments(path)
     for m in ARR_RE.finditer(raw):
         nm = NAME_RE.search(m.group(2))
         if nm:
@@ -77,7 +75,7 @@ def norm(s):
 
 
 def audit(mod):
-    res = os.path.join(ROOT, mod, "src", "main", "res")
+    res = os.path.join(REPO_ROOT, mod, "src", "main", "res")
     if not os.path.isdir(res):
         return 0
     en = load_strings(os.path.join(res, "values", "strings.xml"))

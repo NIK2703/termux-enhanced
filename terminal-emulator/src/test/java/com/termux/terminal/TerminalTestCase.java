@@ -261,28 +261,33 @@ public abstract class TerminalTestCase extends TestCase {
 	}
 
 	public TerminalTestCase assertEffectAttributesSet(EffectLine... lines) {
-		assertEquals(lines.length, mTerminal.getScreen().mScreenRows);
-		for (int i = 0; i < lines.length; i++) {
-			int[] line = lines[i].styles;
-			for (int j = 0; j < line.length; j++) {
-				int effectsAtCell = TextStyle.decodeEffect(getStyleAt(i, j));
-				int attributes = line[j];
-				if ((effectsAtCell & attributes) != attributes) fail("Line=" + i + ", column=" + j + ", expected "
-						+ describeStyle(attributes) + " set, was " + describeStyle(effectsAtCell));
-			}
-		}
-		return this;
+		return assertEffectLineValues(lines, true);
 	}
 
 	public TerminalTestCase assertForegroundIndices(EffectLine... lines) {
+		return assertEffectLineValues(lines, false);
+	}
+
+	/** Shared walker for effect-subset ({@code effectSubset=true}) and exact foreground-index checks. */
+	private TerminalTestCase assertEffectLineValues(EffectLine[] lines, boolean effectSubset) {
 		assertEquals(lines.length, mTerminal.getScreen().mScreenRows);
 		for (int i = 0; i < lines.length; i++) {
 			int[] line = lines[i].styles;
 			for (int j = 0; j < line.length; j++) {
-				int actualColor = TextStyle.decodeForeColor(getStyleAt(i, j));
-				int expectedColor = line[j];
-				if (actualColor != expectedColor) fail("Line=" + i + ", column=" + j + ", expected color "
-						+ Integer.toHexString(expectedColor) + " set, was " + Integer.toHexString(actualColor));
+				long style = getStyleAt(i, j);
+				if (effectSubset) {
+					int effectsAtCell = TextStyle.decodeEffect(style);
+					int attributes = line[j];
+					if ((effectsAtCell & attributes) != attributes)
+						fail("Line=" + i + ", column=" + j + ", expected "
+							+ describeStyle(attributes) + " set, was " + describeStyle(effectsAtCell));
+				} else {
+					int actualColor = TextStyle.decodeForeColor(style);
+					int expectedColor = line[j];
+					if (actualColor != expectedColor)
+						fail("Line=" + i + ", column=" + j + ", expected color "
+							+ Integer.toHexString(expectedColor) + " set, was " + Integer.toHexString(actualColor));
+				}
 			}
 		}
 		return this;
@@ -300,13 +305,38 @@ public abstract class TerminalTestCase extends TestCase {
 	}
 
 	public void assertForegroundColorAt(int externalRow, int column, int color) {
-		long style = mTerminal.getScreen().mLines[mTerminal.getScreen().externalToInternalRow(externalRow)].getStyle(column);
-		assertEquals(color, TextStyle.decodeForeColor(style));
+		assertColorAt(externalRow, column, color, true);
 	}
 
 	public void assertBackgroundColorAt(int externalRow, int column, int color) {
+		assertColorAt(externalRow, column, color, false);
+	}
+
+	private void assertColorAt(int externalRow, int column, int color, boolean foreground) {
 		long style = mTerminal.getScreen().mLines[mTerminal.getScreen().externalToInternalRow(externalRow)].getStyle(column);
-		assertEquals(color, TextStyle.decodeBackColor(style));
+		assertEquals(color, foreground ? TextStyle.decodeForeColor(style) : TextStyle.decodeBackColor(style));
+	}
+
+	/** Assert foreground and background index at one cell via {@link #getStyleAt(int, int)}. */
+	public TerminalTestCase assertColorsAt(int externalRow, int column, int expectedForeground, int expectedBackground) {
+		long style = getStyleAt(externalRow, column);
+		assertEquals("foreground at row=" + externalRow + ", column=" + column,
+				expectedForeground, TextStyle.decodeForeColor(style));
+		assertEquals("background at row=" + externalRow + ", column=" + column,
+				expectedBackground, TextStyle.decodeBackColor(style));
+		return this;
+	}
+
+	/** Assert full style (foreground, background, effect) at one cell via {@link #getStyleAt(int, int)}. */
+	public TerminalTestCase assertStyleAt(int externalRow, int column, int expectedForeground, int expectedBackground, int expectedEffect) {
+		long style = getStyleAt(externalRow, column);
+		assertEquals("foreground at row=" + externalRow + ", column=" + column,
+				expectedForeground, TextStyle.decodeForeColor(style));
+		assertEquals("background at row=" + externalRow + ", column=" + column,
+				expectedBackground, TextStyle.decodeBackColor(style));
+		assertEquals("effect at row=" + externalRow + ", column=" + column,
+				expectedEffect, TextStyle.decodeEffect(style));
+		return this;
 	}
 
 	public TerminalTestCase assertColor(int colorIndex, int expected) {

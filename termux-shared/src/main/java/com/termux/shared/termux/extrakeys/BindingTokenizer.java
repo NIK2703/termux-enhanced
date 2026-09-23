@@ -167,8 +167,7 @@ public class BindingTokenizer {
      */
     public static boolean hasDelayPrefix(String token) {
         if (token == null) return false;
-        String upper = token.toUpperCase(Locale.US);
-        return upper.startsWith(DELAY_PREFIX) || upper.startsWith(LEGACY_SLEEP_PREFIX);
+        return delayPrefixLength(token.toUpperCase(Locale.US)) >= 0;
     }
 
     /**
@@ -239,14 +238,8 @@ public class BindingTokenizer {
     public static int parseDelayMs(String token) {
         if (token == null) return 0;
         String upper = token.toUpperCase(Locale.US);
-        int prefixLen;
-        if (upper.startsWith(DELAY_PREFIX)) {
-            prefixLen = DELAY_PREFIX.length();
-        } else if (upper.startsWith(LEGACY_SLEEP_PREFIX)) {
-            prefixLen = LEGACY_SLEEP_PREFIX.length();
-        } else {
-            return 0;
-        }
+        int prefixLen = delayPrefixLength(upper);
+        if (prefixLen < 0) return 0;
         int ms = parseUnsignedIntSuffix(upper, prefixLen);
         if (ms < 0) return 0;
         return clamp(ms);
@@ -348,19 +341,17 @@ public class BindingTokenizer {
     @NonNull
     private static String normalize(@NonNull String token) {
         String upper = token.toUpperCase(Locale.US);
-        if (upper.startsWith(LEGACY_SLEEP_PREFIX)) {
-            String suffix = upper.substring(LEGACY_SLEEP_PREFIX.length());
-            int ms = parseUnsignedIntSuffix(suffix, 0);
-            if (ms < 0) return token;
-            return delayToken(ms);
-        }
-        if (upper.startsWith(DELAY_PREFIX)) {
-            String suffix = upper.substring(DELAY_PREFIX.length());
-            int ms = parseUnsignedIntSuffix(suffix, 0);
-            if (ms < 0) return token;
-            return delayToken(ms);
-        }
-        return token;
+        int prefixLen = delayPrefixLength(upper);
+        if (prefixLen < 0) return token;
+        int ms = parseUnsignedIntSuffix(upper, prefixLen);
+        if (ms < 0) return token;
+        return delayToken(ms);
+    }
+
+    private static int delayPrefixLength(@NonNull String upper) {
+        if (upper.startsWith(DELAY_PREFIX)) return DELAY_PREFIX.length();
+        if (upper.startsWith(LEGACY_SLEEP_PREFIX)) return LEGACY_SLEEP_PREFIX.length();
+        return -1;
     }
 
     /**

@@ -176,32 +176,40 @@ public class FileAttributes {
         return lastModifiedTime();
     }
 
+    private static String getEntryString(String label, Object value) {
+        return label + ": `" + value + "`";
+    }
+
+    private boolean isFileType(int type) {
+        return ((st_mode & UnixConstants.S_IFMT) == type);
+    }
+
     public boolean isRegularFile() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFREG);
+        return isFileType(UnixConstants.S_IFREG);
     }
 
     public boolean isDirectory() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFDIR);
+        return isFileType(UnixConstants.S_IFDIR);
     }
 
     public boolean isSymbolicLink() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFLNK);
+        return isFileType(UnixConstants.S_IFLNK);
     }
 
     public boolean isCharacter() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFCHR);
+        return isFileType(UnixConstants.S_IFCHR);
     }
 
     public boolean isFifo() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFIFO);
+        return isFileType(UnixConstants.S_IFIFO);
     }
 
     public boolean isSocket() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFSOCK);
+        return isFileType(UnixConstants.S_IFSOCK);
     }
 
     public boolean isBlock() {
-        return ((st_mode & UnixConstants.S_IFMT) == UnixConstants.S_IFBLK);
+        return isFileType(UnixConstants.S_IFBLK);
     }
 
     public boolean isOther() {
@@ -313,63 +321,63 @@ public class FileAttributes {
     }
 
     public String getFileString() {
-        return "File: `" + file() + "`";
+        return getEntryString("File", file());
     }
 
     public String getTypeString() {
-        return "Type: `" + FileTypes.getFileType(this).getName() + "`";
+        return getEntryString("Type", FileTypes.getFileType(this).getName());
     }
 
     public String getSizeString() {
-        return "Size: `" + size() + "`";
+        return getEntryString("Size", size());
     }
 
     public String getBlocksString() {
-        return "Blocks: `" + blocks() + "`";
+        return getEntryString("Blocks", blocks());
     }
 
     public String getIOBlockString() {
-        return "IO Block: `" + blksize() + "`";
+        return getEntryString("IO Block", blksize());
     }
 
     public String getDeviceString() {
-        return "Device: `" + Long.toHexString(st_dev) + "`";
+        return getEntryString("Device", Long.toHexString(st_dev));
     }
 
     public String getInodeString() {
-        return "Inode: `" + st_ino + "`";
+        return getEntryString("Inode", st_ino);
     }
 
     public String getLinksString() {
-        return "Links: `" + nlink() + "`";
+        return getEntryString("Links", nlink());
     }
 
     public String getDeviceTypeString() {
-        return "Device Type: `" + rdev() + "`";
+        return getEntryString("Device Type", rdev());
     }
 
     public String getOwnerString() {
-        return "Owner: `" + owner() + "`";
+        return getEntryString("Owner", owner());
     }
 
     public String getGroupString() {
-        return "Group: `" + group() + "`";
+        return getEntryString("Group", group());
     }
 
     public String getPermissionString() {
-        return "Permissions: `" + FilePermissions.toString(permissions()) + "`";
+        return getEntryString("Permissions", FilePermissions.toString(permissions()));
     }
 
     public String getAccessTimeString() {
-        return "Access Time: `" + lastAccessTime() + "`";
+        return getEntryString("Access Time", lastAccessTime());
     }
 
     public String getModifiedTimeString() {
-        return "Modified Time: `" + lastModifiedTime() + "`";
+        return getEntryString("Modified Time", lastModifiedTime());
     }
 
     public String getChangeTimeString() {
-        return "Change Time: `" + lastChangeTime() + "`";
+        return getEntryString("Change Time", lastChangeTime());
     }
 
     @NonNull

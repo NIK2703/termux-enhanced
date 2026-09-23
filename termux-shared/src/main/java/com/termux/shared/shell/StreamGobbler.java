@@ -106,17 +106,7 @@ public class StreamGobbler extends Thread {
     public StreamGobbler(@NonNull String shell, @NonNull InputStream inputStream,
                          @Nullable List<String> outputList,
                          @Nullable Integer logLevel) {
-        super("Gobbler#" + incThreadCounter());
-        this.shell = shell;
-        this.inputStream = inputStream;
-        reader = new BufferedReader(new InputStreamReader(inputStream));
-        streamClosedListener = null;
-
-        listWriter = outputList;
-        stringWriter = null;
-        lineListener = null;
-
-        mLogLevel = logLevel;
+        this(shell, inputStream, null, outputList, null, null, logLevel);
     }
 
     /**
@@ -133,17 +123,7 @@ public class StreamGobbler extends Thread {
     public StreamGobbler(@NonNull String shell, @NonNull InputStream inputStream,
                          @Nullable StringBuilder outputString,
                          @Nullable Integer logLevel) {
-        super("Gobbler#" + incThreadCounter());
-        this.shell = shell;
-        this.inputStream = inputStream;
-        reader = new BufferedReader(new InputStreamReader(inputStream));
-        streamClosedListener = null;
-
-        listWriter = null;
-        stringWriter = outputString;
-        lineListener = null;
-
-        mLogLevel = logLevel;
+        this(shell, inputStream, null, null, outputString, null, logLevel);
     }
 
     /**
@@ -159,14 +139,24 @@ public class StreamGobbler extends Thread {
                          @Nullable OnLineListener onLineListener,
                          @Nullable OnStreamClosedListener onStreamClosedListener,
                          @Nullable Integer logLevel) {
+        this(shell, inputStream, onStreamClosedListener, null, null, onLineListener, logLevel);
+    }
+
+    @AnyThread
+    private StreamGobbler(@NonNull String shell, @NonNull InputStream inputStream,
+                          @Nullable OnStreamClosedListener onStreamClosedListener,
+                          @Nullable List<String> outputList,
+                          @Nullable StringBuilder outputString,
+                          @Nullable OnLineListener onLineListener,
+                          @Nullable Integer logLevel) {
         super("Gobbler#" + incThreadCounter());
         this.shell = shell;
         this.inputStream = inputStream;
         reader = new BufferedReader(new InputStreamReader(inputStream));
         streamClosedListener = onStreamClosedListener;
 
-        listWriter = null;
-        stringWriter = null;
+        listWriter = outputList;
+        stringWriter = outputString;
         lineListener = onLineListener;
 
         mLogLevel = logLevel;

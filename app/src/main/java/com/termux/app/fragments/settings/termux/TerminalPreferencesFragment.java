@@ -259,35 +259,28 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
     // --- Add-on visibility (mirrors SettingsActivity.RootPreferencesFragment) ---
 
     private void configureTermuxAPIPreference(Context context) {
-        Preference pref = findPreference("termux_api");
-        if (pref != null) {
-            TermuxAPIAppSharedPreferences preferences = TermuxAPIAppSharedPreferences.build(context, false);
-            pref.setVisible(preferences != null);
-        }
+        configureAddonVisibility("termux_api",
+            TermuxAPIAppSharedPreferences.build(context, false) != null);
     }
 
     private void configureTermuxFloatPreference(Context context) {
-        Preference pref = findPreference("termux_float");
-        if (pref != null) {
-            TermuxFloatAppSharedPreferences preferences = TermuxFloatAppSharedPreferences.build(context, false);
-            pref.setVisible(preferences != null);
-        }
+        configureAddonVisibility("termux_float",
+            TermuxFloatAppSharedPreferences.build(context, false) != null);
     }
 
     private void configureTermuxTaskerPreference(Context context) {
-        Preference pref = findPreference("termux_tasker");
-        if (pref != null) {
-            TermuxTaskerAppSharedPreferences preferences = TermuxTaskerAppSharedPreferences.build(context, false);
-            pref.setVisible(preferences != null);
-        }
+        configureAddonVisibility("termux_tasker",
+            TermuxTaskerAppSharedPreferences.build(context, false) != null);
     }
 
     private void configureTermuxWidgetPreference(Context context) {
-        Preference pref = findPreference("termux_widget");
-        if (pref != null) {
-            TermuxWidgetAppSharedPreferences preferences = TermuxWidgetAppSharedPreferences.build(context, false);
-            pref.setVisible(preferences != null);
-        }
+        configureAddonVisibility("termux_widget",
+            TermuxWidgetAppSharedPreferences.build(context, false) != null);
+    }
+
+    private void configureAddonVisibility(String key, boolean installed) {
+        Preference pref = findPreference(key);
+        if (pref != null) pref.setVisible(installed);
     }
 
 }

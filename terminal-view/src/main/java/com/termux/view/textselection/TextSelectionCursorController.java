@@ -274,89 +274,74 @@ public class TextSelectionCursorController implements CursorController {
         TerminalBuffer screen = terminalView.mEmulator.getScreen();
         final int scrollRows = screen.getActiveRows() - terminalView.mEmulator.mRows;
         if (handle == mStartHandle) {
-            mSelX1 = terminalView.getCursorX(x);
-            mSelY1 = terminalView.getCursorY(y);
-            if (mSelX1 < 0) {
-                mSelX1 = 0;
-            }
-
-            if (mSelY1 < -scrollRows) {
-                mSelY1 = -scrollRows;
-
-            } else if (mSelY1 > terminalView.mEmulator.mRows - 1) {
-                mSelY1 = terminalView.mEmulator.mRows - 1;
-
-            }
-
-            if (mSelY1 > mSelY2) {
-                mSelY1 = mSelY2;
-            }
-            if (mSelY1 == mSelY2 && mSelX1 > mSelX2) {
-                mSelX1 = mSelX2;
-            }
-
-            if (!terminalView.mEmulator.isAlternateBufferActive()) {
-                int topRow = terminalView.getTopRow();
-
-                if (mSelY1 <= topRow) {
-                    topRow--;
-                    if (topRow < -scrollRows) {
-                        topRow = -scrollRows;
-                    }
-                } else if (mSelY1 >= topRow + terminalView.mEmulator.mRows) {
-                    topRow++;
-                    if (topRow > 0) {
-                        topRow = 0;
-                    }
-                }
-
-                terminalView.setTopRow(topRow);
-            }
-
-            mSelX1 = getValidCurX(screen, mSelY1, mSelX1);
-
+            updateHandlePosition(screen, scrollRows, true, x, y);
         } else {
-            mSelX2 = terminalView.getCursorX(x);
-            mSelY2 = terminalView.getCursorY(y);
-            if (mSelX2 < 0) {
-                mSelX2 = 0;
-            }
-
-            if (mSelY2 < -scrollRows) {
-                mSelY2 = -scrollRows;
-            } else if (mSelY2 > terminalView.mEmulator.mRows - 1) {
-                mSelY2 = terminalView.mEmulator.mRows - 1;
-            }
-
-            if (mSelY1 > mSelY2) {
-                mSelY2 = mSelY1;
-            }
-            if (mSelY1 == mSelY2 && mSelX1 > mSelX2) {
-                mSelX2 = mSelX1;
-            }
-
-            if (!terminalView.mEmulator.isAlternateBufferActive()) {
-                int topRow = terminalView.getTopRow();
-
-                if (mSelY2 <= topRow) {
-                    topRow--;
-                    if (topRow < -scrollRows) {
-                        topRow = -scrollRows;
-                    }
-                } else if (mSelY2 >= topRow + terminalView.mEmulator.mRows) {
-                    topRow++;
-                    if (topRow > 0) {
-                        topRow = 0;
-                    }
-                }
-
-                terminalView.setTopRow(topRow);
-            }
-
-            mSelX2 = getValidCurX(screen, mSelY2, mSelX2);
+            updateHandlePosition(screen, scrollRows, false, x, y);
         }
 
         terminalView.invalidate();
+    }
+
+    private void updateHandlePosition(TerminalBuffer screen, int scrollRows, boolean isStart, int x, int y) {
+        int selX = terminalView.getCursorX(x);
+        int selY = terminalView.getCursorY(y);
+        if (selX < 0) {
+            selX = 0;
+        }
+
+        if (selY < -scrollRows) {
+            selY = -scrollRows;
+        } else if (selY > terminalView.mEmulator.mRows - 1) {
+            selY = terminalView.mEmulator.mRows - 1;
+        }
+
+        if (isStart) {
+            if (selY > mSelY2) {
+                selY = mSelY2;
+            }
+            if (selY == mSelY2 && selX > mSelX2) {
+                selX = mSelX2;
+            }
+            mSelX1 = selX;
+            mSelY1 = selY;
+        } else {
+            if (selY < mSelY1) {
+                selY = mSelY1;
+            }
+            if (selY == mSelY1 && selX < mSelX1) {
+                selX = mSelX1;
+            }
+            mSelX2 = selX;
+            mSelY2 = selY;
+        }
+
+        autoScrollForHandle(selY, scrollRows);
+
+        if (isStart) {
+            mSelX1 = getValidCurX(screen, mSelY1, mSelX1);
+        } else {
+            mSelX2 = getValidCurX(screen, mSelY2, mSelX2);
+        }
+    }
+
+    private void autoScrollForHandle(int selY, int scrollRows) {
+        if (terminalView.mEmulator.isAlternateBufferActive()) return;
+
+        int topRow = terminalView.getTopRow();
+
+        if (selY <= topRow) {
+            topRow--;
+            if (topRow < -scrollRows) {
+                topRow = -scrollRows;
+            }
+        } else if (selY >= topRow + terminalView.mEmulator.mRows) {
+            topRow++;
+            if (topRow > 0) {
+                topRow = 0;
+            }
+        }
+
+        terminalView.setTopRow(topRow);
     }
 
     private int getValidCurX(TerminalBuffer screen, int cy, int cx) {

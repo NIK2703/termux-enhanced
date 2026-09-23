@@ -75,14 +75,10 @@ public final class TermuxSettingsBackupUtils {
 
             if (isCancelled(cancelled)) { listener.onResult(CANCELLED_ERROR); return; }
             report(progress, "preferences");
-            writePrefsEntry(zos, PREFERENCES_APP,
-                context.getSharedPreferences(TermuxConstants.TERMUX_DEFAULT_PREFERENCES_FILE_BASENAME_WITHOUT_EXTENSION, Context.MODE_PRIVATE),
+            writePrefsEntry(zos, PREFERENCES_APP, prefsForName(context, PREFERENCES_APP),
                 EXCLUDED_APP_KEYS);
-            writePrefsEntry(zos, PREFERENCES_UI,
-                context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE),
-                null);
-            writePrefsEntry(zos, PREFERENCES_BOOTSTRAP,
-                context.getSharedPreferences("termux_bootstrap_state", Context.MODE_PRIVATE),
+            writePrefsEntry(zos, PREFERENCES_UI, prefsForName(context, PREFERENCES_UI), null);
+            writePrefsEntry(zos, PREFERENCES_BOOTSTRAP, prefsForName(context, PREFERENCES_BOOTSTRAP),
                 null);
 
             if (isCancelled(cancelled)) { listener.onResult(CANCELLED_ERROR); return; }
@@ -275,20 +271,33 @@ public final class TermuxSettingsBackupUtils {
         return true;
     }
 
+    private static void copyStream(InputStream in, OutputStream out) throws IOException {
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) >= 0) {
+            out.write(buf, 0, n);
+        }
+    }
+
+    /** Read a single-line bootstrap_variant marker and write it; null empty message means success. */
+    private static boolean writeVariantFromEntry(Context context, ZipInputStream zis, String emptyMessage) throws IOException {
+        String variant = readLine(zis);
+        if (variant == null || variant.isEmpty()) {
+            Logger.logWarn(LOG_TAG, emptyMessage);
+            return false;
+        }
+        TermuxBootstrapState.writeVariantMarker(context, variant);
+        TermuxBootstrapState.setInstalledVariant(context, variant);
+        return true;
+    }
+
     private static boolean handleStrictMarkerEntry(Context context, String normalizedName, String rawName, ZipInputStream zis) throws IOException {
         String fileName = normalizedName.substring("marker/".length());
         if (!"bootstrap_variant".equals(fileName)) {
             Logger.logWarn(LOG_TAG, "Unrecognized marker entry: \"" + rawName + "\"");
             return false;
         }
-        String variant = readLine(zis);
-        if (variant == null || variant.isEmpty()) {
-            Logger.logWarn(LOG_TAG, "Empty bootstrap_variant marker in backup");
-            return false;
-        }
-        TermuxBootstrapState.writeVariantMarker(context, variant);
-        TermuxBootstrapState.setInstalledVariant(context, variant);
-        return true;
+        return writeVariantFromEntry(context, zis, "Empty bootstrap_variant marker in backup");
     }
 
     // ------------------------------------------------------------------
@@ -316,14 +325,7 @@ public final class TermuxSettingsBackupUtils {
     }
 
     private static boolean handleMarkerBasenameEntry(Context context, ZipInputStream zis) throws IOException {
-        String variant = readLine(zis);
-        if (variant == null || variant.isEmpty()) {
-            Logger.logWarn(LOG_TAG, "Empty bootstrap_variant marker in backup (fallback)");
-            return false;
-        }
-        TermuxBootstrapState.writeVariantMarker(context, variant);
-        TermuxBootstrapState.setInstalledVariant(context, variant);
-        return true;
+        return writeVariantFromEntry(context, zis, "Empty bootstrap_variant marker in backup (fallback)");
     }
 
     /**
@@ -345,11 +347,7 @@ public final class TermuxSettingsBackupUtils {
         byte[] data;
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = zis.read(buf)) >= 0) {
-                baos.write(buf, 0, n);
-            }
+            copyStream(zis, baos);
             data = baos.toByteArray();
         } catch (IOException e) {
             Logger.logWarn(LOG_TAG, "Failed to read XML entry \"" + basename + "\": " + e.getMessage());
@@ -559,11 +557,7 @@ public final class TermuxSettingsBackupUtils {
         if (!f.isFile()) return;
         zos.putNextEntry(new ZipEntry(entryName));
         try (FileInputStream fis = new FileInputStream(f)) {
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = fis.read(buf)) >= 0) {
-                zos.write(buf, 0, n);
-            }
+            copyStream(fis, zos);
         } finally {
             zos.closeEntry();
         }
@@ -576,11 +570,7 @@ public final class TermuxSettingsBackupUtils {
             throw new IOException("Failed to create directory: " + parent);
         }
         try (FileOutputStream fos = new FileOutputStream(f)) {
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = in.read(buf)) >= 0) {
-                fos.write(buf, 0, n);
-            }
+            copyStream(in, fos);
         }
     }
 

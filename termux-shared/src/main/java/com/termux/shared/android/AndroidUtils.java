@@ -225,25 +225,23 @@ public class AndroidUtils {
         return MarkdownUtils.getLiteralSingleLineMarkdownStringEntry(label, value, "-");
     }
 
-    public static String getCurrentTimeStamp() {
+    private static String getTimeStamp(String pattern, TimeZone timeZone) {
         @SuppressLint("SimpleDateFormat")
-        final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z");
-        df.setTimeZone(TimeZone.getTimeZone("UTC"));
+        final SimpleDateFormat df = new SimpleDateFormat(pattern);
+        df.setTimeZone(timeZone);
         return df.format(new Date());
+    }
+
+    public static String getCurrentTimeStamp() {
+        return getTimeStamp("yyyy-MM-dd HH:mm:ss z", TimeZone.getTimeZone("UTC"));
     }
 
     public static String getCurrentMilliSecondUTCTimeStamp() {
-        @SuppressLint("SimpleDateFormat")
-        final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS z");
-        df.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return df.format(new Date());
+        return getTimeStamp("yyyy-MM-dd HH:mm:ss.SSS z", TimeZone.getTimeZone("UTC"));
     }
 
     public static String getCurrentMilliSecondLocalTimeStamp() {
-        @SuppressLint("SimpleDateFormat")
-        final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd_HH.mm.ss.SSS");
-        df.setTimeZone(TimeZone.getDefault());
-        return df.format(new Date());
+        return getTimeStamp("yyyy-MM-dd_HH.mm.ss.SSS", TimeZone.getDefault());
     }
 
 }

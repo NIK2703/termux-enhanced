@@ -84,7 +84,7 @@ public class LocalServerSocket implements Closeable {
 
         JniResult result = LocalSocketManager.createServerSocket(mLocalSocketRunConfig.getLogTitle() + " (server)",
             path.getBytes(StandardCharsets.UTF_8), backlog);
-        if (result == null || result.retval != 0) {
+        if (JniResult.isFailure(result)) {
             return LocalSocketErrno.ERRNO_CREATE_SERVER_SOCKET_FAILED.getError(mLocalSocketRunConfig.getTitle(), JniResult.getErrorString(result));
         }
 
@@ -144,7 +144,7 @@ public class LocalServerSocket implements Closeable {
 
         if (fd >= 0) {
             JniResult result = LocalSocketManager.closeSocket(mLocalSocketRunConfig.getLogTitle() + " (server)", fd);
-            if (result == null || result.retval != 0) {
+            if (JniResult.isFailure(result)) {
                 throw new IOException(JniResult.getErrorString(result));
             }
             // Update fd to signify that server socket has been closed
@@ -176,7 +176,7 @@ public class LocalServerSocket implements Closeable {
             }
 
             JniResult result = LocalSocketManager.accept(mLocalSocketRunConfig.getLogTitle() + " (client)", fd);
-            if (result == null || result.retval != 0) {
+            if (JniResult.isFailure(result)) {
                 mLocalSocketManager.onError(
                     LocalSocketErrno.ERRNO_ACCEPT_CLIENT_SOCKET_FAILED.getError(mLocalSocketRunConfig.getTitle(), JniResult.getErrorString(result)));
                 continue;
@@ -191,18 +191,16 @@ public class LocalServerSocket implements Closeable {
 
             PeerCred peerCred = new PeerCred();
             result = LocalSocketManager.getPeerCred(mLocalSocketRunConfig.getLogTitle() + " (client)", clientFD, peerCred);
-            if (result == null || result.retval != 0) {
-                mLocalSocketManager.onError(
+            if (JniResult.isFailure(result)) {
+                reportErrorAndCloseClientFd(clientFD,
                     LocalSocketErrno.ERRNO_GET_CLIENT_SOCKET_PEER_UID_FAILED.getError(mLocalSocketRunConfig.getTitle(), JniResult.getErrorString(result)));
-                LocalClientSocket.closeClientSocket(mLocalSocketManager, clientFD);
                 continue;
             }
 
             int peerUid = peerCred.uid;
             if (peerUid < 0) {
-                mLocalSocketManager.onError(
+                reportErrorAndCloseClientFd(clientFD,
                     LocalSocketErrno.ERRNO_CLIENT_SOCKET_PEER_UID_INVALID.getError(peerUid, mLocalSocketRunConfig.getTitle()));
-                LocalClientSocket.closeClientSocket(mLocalSocketManager, clientFD);
                 continue;
             }
 
@@ -222,6 +220,19 @@ public class LocalServerSocket implements Closeable {
         }
     }
 
+    private void reportErrorAndCloseClientFd(int clientFD, Error error) {
+        mLocalSocketManager.onError(error);
+        LocalClientSocket.closeClientSocket(mLocalSocketManager, clientFD);
+    }
+
+    private boolean handleClientSocketError(LocalClientSocket clientSocket, Error error) {
+        if (error == null)
+            return false;
+        mLocalSocketManager.onError(clientSocket, error);
+        clientSocket.closeClientSocket(true);
+        return true;
+    }
+
     /** The {@link LocalClientSocket} listener {@link java.lang.Runnable} for {@link LocalServerSocket}. */
     protected class ClientSocketListener implements Runnable {
 
@@ -239,21 +250,11 @@ public class LocalServerSocket implements Closeable {
                         if (clientSocket == null)
                             break;
 
-                        Error error;
-
-                        error = clientSocket.setReadTimeout();
-                        if (error != null) {
-                            mLocalSocketManager.onError(clientSocket, error);
-                            clientSocket.closeClientSocket(true);
+                        if (handleClientSocketError(clientSocket, clientSocket.setReadTimeout()))
                             continue;
-                        }
 
-                        error = clientSocket.setWriteTimeout();
-                        if (error != null) {
-                            mLocalSocketManager.onError(clientSocket, error);
-                            clientSocket.closeClientSocket(true);
+                        if (handleClientSocketError(clientSocket, clientSocket.setWriteTimeout()))
                             continue;
-                        }
 
                         // Start new thread for client logic and pass control to ILocalSocketManager implementation
                         mLocalSocketManager.onClientAccepted(clientSocket);

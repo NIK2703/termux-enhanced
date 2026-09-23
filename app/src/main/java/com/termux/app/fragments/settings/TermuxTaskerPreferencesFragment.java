@@ -5,7 +5,6 @@ import android.os.Bundle;
 
 import androidx.annotation.Keep;
 import androidx.preference.PreferenceDataStore;
-import androidx.preference.PreferenceManager;
 
 import com.termux.R;
 import com.termux.shared.termux.settings.preferences.TermuxTaskerAppSharedPreferences;
@@ -18,10 +17,7 @@ public class TermuxTaskerPreferencesFragment extends TermuxPreferenceFragmentBas
         Context context = getContext();
         if (context == null) return;
 
-        PreferenceManager preferenceManager = getPreferenceManager();
-        preferenceManager.setPreferenceDataStore(TermuxTaskerPreferencesDataStore.getInstance(context));
-
-        setPreferencesFromResource(R.xml.termux_tasker_preferences, rootKey);
+        setupPreferences(TermuxTaskerPreferencesDataStore.getInstance(context), R.xml.termux_tasker_preferences, rootKey);
     }
 
 }

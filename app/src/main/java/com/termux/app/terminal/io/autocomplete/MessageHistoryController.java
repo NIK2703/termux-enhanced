@@ -167,25 +167,38 @@ public final class MessageHistoryController {
     }
 
     private void writeGlobal(@NonNull ArrayList<String> list, boolean syncCommit) {
-        JSONArray arr = new JSONArray();
-        for (String s : list) arr.put(s);
-        SharedPreferences.Editor ed = mPrefs.edit().putString(PREF_MESSAGE_HISTORY, arr.toString());
-        if (syncCommit) ed.commit(); else ed.apply();
+        putPrefsString(PREF_MESSAGE_HISTORY, listToJson(list).toString(), syncCommit);
     }
 
     private void writePerDirectory(@NonNull HashMap<String, ArrayList<String>> map, boolean syncCommit) {
+        JSONObject obj = mapToJson(map);
+        if (obj == null) return;
+        putPrefsString(PREF_MESSAGE_HISTORY_PER_DIR, obj.toString(), syncCommit);
+    }
+
+    private void putPrefsString(@NonNull String key, @NonNull String value, boolean syncCommit) {
+        SharedPreferences.Editor ed = mPrefs.edit().putString(key, value);
+        if (syncCommit) ed.commit(); else ed.apply();
+    }
+
+    @NonNull
+    private static JSONArray listToJson(@NonNull Iterable<String> list) {
+        JSONArray arr = new JSONArray();
+        for (String s : list) arr.put(s);
+        return arr;
+    }
+
+    @Nullable
+    private static JSONObject mapToJson(@NonNull HashMap<String, ArrayList<String>> map) {
         JSONObject obj = new JSONObject();
         try {
             for (Map.Entry<String, ArrayList<String>> e : map.entrySet()) {
-                JSONArray arr = new JSONArray();
-                for (String s : e.getValue()) arr.put(s);
-                obj.put(e.getKey(), arr);
+                obj.put(e.getKey(), listToJson(e.getValue()));
             }
         } catch (JSONException ignored) {
-            return;
+            return null;
         }
-        SharedPreferences.Editor ed = mPrefs.edit().putString(PREF_MESSAGE_HISTORY_PER_DIR, obj.toString());
-        if (syncCommit) ed.commit(); else ed.apply();
+        return obj;
     }
 
     // ── Feature flags ──
@@ -317,23 +330,41 @@ public final class MessageHistoryController {
 
     /** Migrate global history to per-directory under the given CWD. */
     private void migrateGlobalHistory(@NonNull String cwd, @NonNull String globalJson) {
+        ArrayList<String> migrated = parseGlobalJson(globalJson, false);
+        if (migrated == null) return;
+        mMessageHistoryPerDirectory.put(cwd, migrated);
+        mMessageHistory.addAll(migrated);
+        // Persist the migration synchronously: this is a one-time
+        // destructive move (the global store is dropped below).
+        savePerDirectory();
+        mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
+    }
+
+    /** Parse a global-history JSON array into a deduped list, or null when unparseable. */
+    @Nullable
+    private ArrayList<String> parseGlobalJson(@NonNull String globalJson, boolean useSeenSet) {
         try {
             JSONArray globalArr = new JSONArray(globalJson);
-            ArrayList<String> migrated = new ArrayList<>();
-            for (int i = 0; i < globalArr.length(); i++) {
-                String s = globalArr.optString(i, null);
-                if (!TextUtils.isEmpty(s) && !migrated.contains(s)) {
-                    migrated.add(s);
-                }
-            }
-            mMessageHistoryPerDirectory.put(cwd, migrated);
-            mMessageHistory.addAll(migrated);
-            // Persist the migration synchronously: this is a one-time
-            // destructive move (the global store is dropped below).
-            savePerDirectory();
-            mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
-        } catch (JSONException ignored) {
+            return jsonArrayList(globalArr, useSeenSet);
+        } catch (JSONException e) {
+            return null;
         }
+    }
+
+    @NonNull
+    private ArrayList<String> jsonArrayList(@NonNull JSONArray arr, boolean useSeenSet) {
+        ArrayList<String> out = new ArrayList<>(arr.length());
+        HashSet<String> seen = useSeenSet ? new HashSet<>(arr.length()) : null;
+        for (int i = 0; i < arr.length(); i++) {
+            String s = arr.optString(i, null);
+            if (TextUtils.isEmpty(s)) continue;
+            if (seen != null) {
+                if (seen.add(s)) out.add(s);
+            } else if (!out.contains(s)) {
+                out.add(s);
+            }
+        }
+        return out;
     }
 
     // ── Mutations ──
@@ -348,20 +379,11 @@ public final class MessageHistoryController {
     public void addToMessageHistory(@NonNull String message, @Nullable String cwd) {
         if (TextUtils.isEmpty(message)) return;
 
-        if (mPerDirectoryMessageHistory && mHistoryCurrentDirectory != null
-                && cwd != null && !cwd.equals(mHistoryCurrentDirectory)) {
-            // CWD changed inside the current tab (user ran `cd /new/path`).
-            mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
-            mMessageHistory.clear();
-            mHistoryVersion++;
-            mHistoryCurrentDirectory = cwd;
-        }
+        snapshotCurrentDirectoryIfChanged(cwd);
 
         mMessageHistory.remove(message);      // dedup
         mMessageHistory.add(0, message);      // newest first
-        while (mMessageHistory.size() > mMessageHistoryMax) {
-            mMessageHistory.remove(mMessageHistory.size() - 1);
-        }
+        trimToMaxSize();
         schedulePersist();
         mHistoryVersion++;
     }
@@ -376,6 +398,18 @@ public final class MessageHistoryController {
     public void addNewOnTop(@NonNull String message, @Nullable String cwd) {
         if (TextUtils.isEmpty(message)) return;
 
+        snapshotCurrentDirectoryIfChanged(cwd);
+
+        if (mMessageHistory.indexOf(message) >= 0) return; // already present: keep position
+
+        mMessageHistory.add(0, message);      // newest first
+        trimToMaxSize();
+        schedulePersist();
+        mHistoryVersion++;
+    }
+
+    /** Persist the in-memory list under the old CWD and switch to {@code cwd} when it changed. */
+    private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {
         if (mPerDirectoryMessageHistory && mHistoryCurrentDirectory != null
                 && cwd != null && !cwd.equals(mHistoryCurrentDirectory)) {
             mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
@@ -383,15 +417,15 @@ public final class MessageHistoryController {
             mHistoryVersion++;
             mHistoryCurrentDirectory = cwd;
         }
+    }
 
-        if (mMessageHistory.indexOf(message) >= 0) return; // already present: keep position
-
-        mMessageHistory.add(0, message);      // newest first
+    private boolean trimToMaxSize() {
+        boolean trimmed = false;
         while (mMessageHistory.size() > mMessageHistoryMax) {
             mMessageHistory.remove(mMessageHistory.size() - 1);
+            trimmed = true;
         }
-        schedulePersist();
-        mHistoryVersion++;
+        return trimmed;
     }
 
     // ── Load / Persist ──
@@ -411,23 +445,9 @@ public final class MessageHistoryController {
         if (json == null) return;
         // P2: O(N) dedup via a HashSet instead of List.contains (O(N²) on the
         // already-loaded list). Same order, same result.
-        HashSet<String> seen = new HashSet<>(mMessageHistory.size());
-        try {
-            JSONArray arr = new JSONArray(json);
-            for (int i = 0; i < arr.length(); i++) {
-                String s = arr.optString(i, null);
-                if (!TextUtils.isEmpty(s) && seen.add(s)) {
-                    mMessageHistory.add(s);
-                }
-            }
-        } catch (JSONException ignored) {
-        }
-        boolean trimmed = false;
-        while (mMessageHistory.size() > mMessageHistoryMax) {
-            mMessageHistory.remove(mMessageHistory.size() - 1);
-            trimmed = true;
-        }
-        if (trimmed) saveGlobal();
+        ArrayList<String> parsed = parseGlobalJson(json, true);
+        if (parsed != null) mMessageHistory.addAll(parsed);
+        if (trimToMaxSize()) saveGlobal();
         mHistoryVersion++;
     }
 
@@ -445,15 +465,7 @@ public final class MessageHistoryController {
                     JSONArray arr = obj.optJSONArray(dir);
                     if (arr == null) continue;
                     hadPerDirData = true;
-                    ArrayList<String> list = new ArrayList<>();
-                    HashSet<String> seen = new HashSet<>(arr.length());
-                    for (int i = 0; i < arr.length(); i++) {
-                        String s = arr.optString(i, null);
-                        if (!TextUtils.isEmpty(s) && seen.add(s)) {
-                            list.add(s);
-                        }
-                    }
-                    mMessageHistoryPerDirectory.put(dir, list);
+                    mMessageHistoryPerDirectory.put(dir, jsonArrayList(arr, true));
                 }
             } catch (JSONException ignored) {
             }
@@ -468,27 +480,17 @@ public final class MessageHistoryController {
                     mHistoryCurrentDirectory = ".";
                     return;
                 }
-                try {
-                    JSONArray globalArr = new JSONArray(globalJson);
-                    ArrayList<String> migrated = new ArrayList<>();
-                    HashSet<String> seen = new HashSet<>(globalArr.length());
-                    for (int i = 0; i < globalArr.length(); i++) {
-                        String s = globalArr.optString(i, null);
-                        if (!TextUtils.isEmpty(s) && seen.add(s)) {
-                            migrated.add(s);
-                        }
-                    }
-                    mMessageHistoryPerDirectory.put(fallbackCwd, migrated);
-                    mHistoryCurrentDirectory = fallbackCwd;
-                    mMessageHistory.clear();
-                    mMessageHistory.addAll(migrated);
-                    // Persist the migration synchronously: this is a one-time
-                    // destructive move (the global store is dropped below).
-                    savePerDirectory();
-                    mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
-                    return;
-                } catch (JSONException ignored) {
-                }
+                ArrayList<String> migrated = parseGlobalJson(globalJson, true);
+                if (migrated == null) return;
+                mMessageHistoryPerDirectory.put(fallbackCwd, migrated);
+                mHistoryCurrentDirectory = fallbackCwd;
+                mMessageHistory.clear();
+                mMessageHistory.addAll(migrated);
+                // Persist the migration synchronously: this is a one-time
+                // destructive move (the global store is dropped below).
+                savePerDirectory();
+                mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
+                return;
             }
         }
 
@@ -512,9 +514,8 @@ public final class MessageHistoryController {
         // prior keystroke) is superseded rather than clobbering this synchronous
         // write — see the generation-counter contract in persistAsync().
         mPersistGeneration.incrementAndGet();
-        JSONArray arr = new JSONArray();
-        for (String s : mMessageHistory) arr.put(s);
-        mPrefs.edit().putString(PREF_MESSAGE_HISTORY, arr.toString()).apply();
+        mPrefs.edit().putString(PREF_MESSAGE_HISTORY,
+            listToJson(mMessageHistory).toString()).apply();
     }
 
     private void savePerDirectory() {
@@ -525,16 +526,8 @@ public final class MessageHistoryController {
             ArrayList<String> list = new ArrayList<>(mMessageHistory);
             mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, list);
         }
-        JSONObject obj = new JSONObject();
-        try {
-            for (HashMap.Entry<String, ArrayList<String>> entry : mMessageHistoryPerDirectory.entrySet()) {
-                JSONArray arr = new JSONArray();
-                for (String s : entry.getValue()) arr.put(s);
-                obj.put(entry.getKey(), arr);
-            }
-        } catch (JSONException ignored) {
-            return;
-        }
+        JSONObject obj = mapToJson(mMessageHistoryPerDirectory);
+        if (obj == null) return;
         mPrefs.edit().putString(PREF_MESSAGE_HISTORY_PER_DIR, obj.toString()).apply();
     }
 }

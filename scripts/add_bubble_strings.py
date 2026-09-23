@@ -10,6 +10,8 @@ locales are translated from it. Run from the repo root:
 import os
 import sys
 
+from common_helpers import insert_before_resources_end, print_results, require_repo_root, write_text
+
 BASE = "app/src/main/res"
 
 # locale dir -> (open_in_bubble, channel_description, unavailable, no_session, close)
@@ -154,9 +156,6 @@ def patch(locale: str, values) -> str:
     if MARKER in text:
         return f"SKIP  {locale}: already patched"
 
-    if "</resources>" not in text:
-        return f"FAIL  {locale}: no closing </resources>"
-
     block = BLOCK.format(
         open_in_bubble=values[0],
         channel=values[1],
@@ -167,26 +166,18 @@ def patch(locale: str, values) -> str:
     if locale == "values":
         block += KEY_LABELS
 
-    # Insert before the LAST closing tag; some files carry a nested <resources> in comments.
-    index = text.rindex("</resources>")
-    text = text[:index] + block + text[index:]
+    new_text = insert_before_resources_end(text, block)
+    if new_text is None:
+        return f"FAIL  {locale}: no closing </resources>"
 
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(text)
+    write_text(path, new_text)
     return f"OK    {locale}"
 
 def main() -> int:
-    if not os.path.isdir(BASE):
-        print(f"Run this from the repo root; {BASE} not found", file=sys.stderr)
+    if not require_repo_root(BASE):
         return 1
 
-    failures = 0
-    for locale, values in TRANSLATIONS.items():
-        result = patch(locale, values)
-        print(result)
-        if result.startswith("FAIL"):
-            failures += 1
-    return 1 if failures else 0
+    return print_results(patch(locale, values) for locale, values in TRANSLATIONS.items())
 
 if __name__ == "__main__":
     sys.exit(main())

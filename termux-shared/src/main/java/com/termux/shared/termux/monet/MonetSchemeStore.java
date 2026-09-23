@@ -268,8 +268,7 @@ public final class MonetSchemeStore {
     }
 
     private static long mix(long a, int b) {
-        long h = a;
-        h ^= b + 0x9E3779B97F4A7C15L + (h << 6) + (h >>> 2);
+        long h = MonetSource.mix(a, b);
         return h == 0 ? 1 : h;
     }
 

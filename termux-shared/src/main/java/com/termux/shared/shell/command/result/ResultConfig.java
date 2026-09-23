@@ -95,22 +95,14 @@ public class ResultConfig {
 
         resultPendingIntentVariablesString.append("Result PendingIntent Creator: `").append(resultPendingIntent.getCreatorPackage()).append("`");
 
-        if (!ignoreNull || resultBundleKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Bundle Key", resultBundleKey, "-"));
-        if (!ignoreNull || resultStdoutKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Stdout Key", resultStdoutKey, "-"));
-        if (!ignoreNull || resultStderrKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Stderr Key", resultStderrKey, "-"));
-        if (!ignoreNull || resultExitCodeKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Exit Code Key", resultExitCodeKey, "-"));
-        if (!ignoreNull || resultErrCodeKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Err Code Key", resultErrCodeKey, "-"));
-        if (!ignoreNull || resultErrmsgKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Error Key", resultErrmsgKey, "-"));
-        if (!ignoreNull || resultStdoutOriginalLengthKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Stdout Original Length Key", resultStdoutOriginalLengthKey, "-"));
-        if (!ignoreNull || resultStderrOriginalLengthKey != null)
-            resultPendingIntentVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Stderr Original Length Key", resultStderrOriginalLengthKey, "-"));
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultBundleKey, "Result Bundle Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultStdoutKey, "Result Stdout Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultStderrKey, "Result Stderr Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultExitCodeKey, "Result Exit Code Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultErrCodeKey, "Result Err Code Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultErrmsgKey, "Result Error Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultStdoutOriginalLengthKey, "Result Stdout Original Length Key");
+        appendLogEntry(resultPendingIntentVariablesString, ignoreNull, resultStderrOriginalLengthKey, "Result Stderr Original Length Key");
 
         return resultPendingIntentVariablesString.toString();
     }
@@ -123,16 +115,17 @@ public class ResultConfig {
         resultDirectoryVariablesString.append(Logger.getSingleLineLogStringEntry("Result Directory Path", resultDirectoryPath, "-"));
 
         resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Single File", resultSingleFile, "-"));
-        if (!ignoreNull || resultFileBasename != null)
-            resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result File Basename", resultFileBasename, "-"));
-        if (!ignoreNull || resultFileOutputFormat != null)
-            resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result File Output Format", resultFileOutputFormat, "-"));
-        if (!ignoreNull || resultFileErrorFormat != null)
-            resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result File Error Format", resultFileErrorFormat, "-"));
-        if (!ignoreNull || resultFilesSuffix != null)
-            resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Files Suffix", resultFilesSuffix, "-"));
+        appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFileBasename, "Result File Basename");
+        appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFileOutputFormat, "Result File Output Format");
+        appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFileErrorFormat, "Result File Error Format");
+        appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFilesSuffix, "Result Files Suffix");
 
         return resultDirectoryVariablesString.toString();
+    }
+
+    private static void appendLogEntry(StringBuilder builder, boolean ignoreNull, Object value, String label) {
+        if (!ignoreNull || value != null)
+            builder.append("\n").append(Logger.getSingleLineLogStringEntry(label, value, "-"));
     }
 
     /**

@@ -157,8 +157,7 @@ public class ScrollRegionTest extends TerminalTestCase {
 				// margin of 1) should be unmodified, the others should use the current style:
 				int expectedForeground = col == 0 ? TextStyle.COLOR_INDEX_FOREGROUND : newForeground;
 				int expectedBackground = col == 0 ? TextStyle.COLOR_INDEX_BACKGROUND : newBackground;
-				terminal.assertForegroundColorAt(row, col, expectedForeground);
-				terminal.assertBackgroundColorAt(row, col, expectedBackground);
+				terminal.assertColorsAt(row, col, expectedForeground, expectedBackground);
 			}
 		}
 	}

@@ -37,26 +37,51 @@ public class DirectoryPickerLayoutTest {
                 HINT_H, ROW_H);
     }
 
+    @FunctionalInterface
+    private interface AnchorCheck {
+        void run(float anchorY, Result r);
+    }
+
+    @FunctionalInterface
+    private interface LayoutCheck {
+        void run(float anchorY, int items, Result r);
+    }
+
+    /** Run {@code check} at every 5px anchor across the page for a fixed 10-item layout. */
+    private static void forEachAnchor(AnchorCheck check) {
+        for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
+            check.run(anchorY, layout(anchorY, 10));
+        }
+    }
+
+    /** Run {@code check} for every item count 1…10 at every 5px anchor across the page. */
+    private static void forEachLayout(int maxItems, LayoutCheck check) {
+        for (int items = 1; items <= maxItems; items++) {
+            final int n = items;
+            for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
+                check.run(anchorY, n, layout(anchorY, n));
+            }
+        }
+    }
+
     // ── the list is always above the finger ─────────────────────────────────────────────────
 
     @Test
     public void listAlwaysEndsOneGapAboveTheFinger() {
-        for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
-            Result r = layout(anchorY, 10);
-            if (!r.hasList()) continue;
+        forEachAnchor((anchorY, r) -> {
+            if (!r.hasList()) return;
             assertEquals("list bottom must sit one gap above the finger (yA=" + anchorY + ")",
                     anchorY - GAP, r.listBottom, 0.01f);
             assertTrue("the whole list must clear the finger", r.listBottom < anchorY);
-        }
+        });
     }
 
     @Test
     public void thereIsNeverADownwardPlacement() {
-        for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
-            Result r = layout(anchorY, 10);
-            if (r.mode == Mode.NONE) continue;
+        forEachAnchor((anchorY, r) -> {
+            if (r.mode == Mode.NONE) return;
             assertEquals(Mode.UP, r.mode);
-        }
+        });
     }
 
     // ── truncation, down to nothing ─────────────────────────────────────────────────────────
@@ -87,24 +112,18 @@ public class DirectoryPickerLayoutTest {
 
     @Test
     public void entriesAreNeverMoreNumerousThanOffered() {
-        for (int items = 1; items <= 10; items++) {
-            for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
+        forEachLayout(10, (anchorY, items, r) ->
                 assertTrue("more rows than entries offered (n=" + items + ")",
-                        layout(anchorY, items).rows <= items);
-            }
-        }
+                        r.rows <= items));
     }
 
     @Test
     public void rowHeightIsAlwaysTheFixedHeight() {
-        for (int items = 1; items <= 10; items++) {
-            for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
-                Result r = layout(anchorY, items);
-                if (!r.hasList()) continue;
-                assertEquals("rows must never be scaled (yA=" + anchorY + ", n=" + items + ")",
-                        ROW_H, r.rowHeight, 0.01f);
-            }
-        }
+        forEachLayout(10, (anchorY, items, r) -> {
+            if (!r.hasList()) return;
+            assertEquals("rows must never be scaled (yA=" + anchorY + ", n=" + items + ")",
+                    ROW_H, r.rowHeight, 0.01f);
+        });
     }
 
     // ── orientation: the newest entry is the one nearest the finger ─────────────────────────
@@ -136,41 +155,32 @@ public class DirectoryPickerLayoutTest {
 
     @Test
     public void hintIsAlwaysAboveTheList() {
-        for (int items = 1; items <= 10; items++) {
-            for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
-                Result r = layout(anchorY, items);
-                if (!r.hasList()) continue;
-                assertTrue("hint must not overlap the list (yA=" + anchorY + ", n=" + items + ")",
-                        r.hintTop + r.hintHeight <= r.listTop + 0.01f);
-            }
-        }
+        forEachLayout(10, (anchorY, items, r) -> {
+            if (!r.hasList()) return;
+            assertTrue("hint must not overlap the list (yA=" + anchorY + ", n=" + items + ")",
+                    r.hintTop + r.hintHeight <= r.listTop + 0.01f);
+        });
     }
 
     @Test
     public void hintStaysInsideThePage() {
-        for (int items = 1; items <= 10; items++) {
-            for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
-                Result r = layout(anchorY, items);
-                assertTrue("hint top must stay inside the page (yA=" + anchorY + ")",
-                        r.hintTop >= PAD - 0.01f);
-                assertTrue("hint must not run past the bottom (yA=" + anchorY + ")",
-                        r.hintTop + r.hintHeight <= PAGE_H - PAD + 0.01f);
-            }
-        }
+        forEachLayout(10, (anchorY, items, r) -> {
+            assertTrue("hint top must stay inside the page (yA=" + anchorY + ")",
+                    r.hintTop >= PAD - 0.01f);
+            assertTrue("hint must not run past the bottom (yA=" + anchorY + ")",
+                    r.hintTop + r.hintHeight <= PAGE_H - PAD + 0.01f);
+        });
     }
 
     @Test
     public void listFitsOnThePageForEveryAnchor() {
-        for (int items = 1; items <= 10; items++) {
-            for (float anchorY = 0f; anchorY <= PAGE_H; anchorY += 5f) {
-                Result r = layout(anchorY, items);
-                if (!r.hasList()) continue;
-                assertTrue("list starts above the top inset (yA=" + anchorY + ", n=" + items + ")",
-                        r.listTop >= PAD - 0.01f);
-                assertTrue("list runs past the bottom edge (yA=" + anchorY + ", n=" + items + ")",
-                        r.listBottom <= PAGE_H - PAD + 0.01f);
-            }
-        }
+        forEachLayout(10, (anchorY, items, r) -> {
+            if (!r.hasList()) return;
+            assertTrue("list starts above the top inset (yA=" + anchorY + ", n=" + items + ")",
+                    r.listTop >= PAD - 0.01f);
+            assertTrue("list runs past the bottom edge (yA=" + anchorY + ", n=" + items + ")",
+                    r.listBottom <= PAGE_H - PAD + 0.01f);
+        });
     }
 
     // ── hit-testing ─────────────────────────────────────────────────────────────────────────

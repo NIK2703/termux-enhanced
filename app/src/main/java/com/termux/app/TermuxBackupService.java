@@ -16,6 +16,7 @@ import android.os.PowerManager;
 import android.view.Gravity;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.termux.R;
@@ -107,22 +108,22 @@ public final class TermuxBackupService extends Service {
     // ---- Public entry points used by the preferences fragment ----
 
     public static void startBackup(Context context, Uri uri, long estimatedSize, boolean excludeTmp) {
-        Intent intent = new Intent(context, TermuxBackupService.class)
-            .setAction(ACTION_BACKUP)
-            .setData(uri)
-            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            .putExtra(EXTRA_ESTIMATED_SIZE, estimatedSize)
+        Intent intent = baseStartIntent(context, ACTION_BACKUP, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION, estimatedSize)
             .putExtra(EXTRA_EXCLUDE_TMP, excludeTmp);
         start(context, intent);
     }
 
     public static void startRestore(Context context, Uri uri, long estimatedSize) {
-        Intent intent = new Intent(context, TermuxBackupService.class)
-            .setAction(ACTION_RESTORE)
-            .setData(uri)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            .putExtra(EXTRA_ESTIMATED_SIZE, estimatedSize);
+        Intent intent = baseStartIntent(context, ACTION_RESTORE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION, estimatedSize);
         start(context, intent);
+    }
+
+    private static Intent baseStartIntent(Context context, String action, Uri uri, int grantFlag, long estimatedSize) {
+        return new Intent(context, TermuxBackupService.class)
+            .setAction(action)
+            .setData(uri)
+            .addFlags(grantFlag)
+            .putExtra(EXTRA_ESTIMATED_SIZE, estimatedSize);
     }
 
     private static void start(Context context, Intent intent) {
@@ -164,6 +165,25 @@ public final class TermuxBackupService extends Service {
      * started. If the operation already finished, nothing to do (the result notification is gone
      * or will be replaced by the fragment's result handling).
      */
+    private void stopForegroundRemove() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
+    }
+
+    private void cancelBackupNotification() {
+        NotificationManager nm = NotificationUtils.getNotificationManager(this);
+        if (nm != null) nm.cancel(TermuxConstants.TERMUX_BACKUP_NOTIFICATION_ID);
+    }
+
+    private void showBottomToast(CharSequence text, int duration) {
+        Toast bottomToast = Toast.makeText(this, text, duration);
+        bottomToast.setGravity(Gravity.BOTTOM, 0, 0);
+        bottomToast.show();
+    }
+
     public void returnToDialog() {
         if (!mInForeground) return;
         mInForeground = false;
@@ -174,13 +194,8 @@ public final class TermuxBackupService extends Service {
             mMainHandler.removeCallbacks(mAutoDismissRunnable);
         }
         mAutoDismissRunnable = null;
-        NotificationManager nm = NotificationUtils.getNotificationManager(this);
-        if (nm != null) nm.cancel(TermuxConstants.TERMUX_BACKUP_NOTIFICATION_ID);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-        } else {
-            stopForeground(true);
-        }
+        cancelBackupNotification();
+        stopForegroundRemove();
         // The progress notification is gone; a later enterBackground() must re-post the
         // current state instead of being throttled by the stale key.
         mLastPostedProgressKey = PROGRESS_KEY_NONE;
@@ -256,20 +271,13 @@ public final class TermuxBackupService extends Service {
         if (intent != null && ACTION_CANCEL.equals(intent.getAction())) {
             cancelOperation();
             // Immediately remove the notification from the shade — the user asked to cancel.
-            NotificationManager nm = NotificationUtils.getNotificationManager(this);
-            if (nm != null) nm.cancel(TermuxConstants.TERMUX_BACKUP_NOTIFICATION_ID);
+            cancelBackupNotification();
             if (mStartedForeground) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    stopForeground(STOP_FOREGROUND_REMOVE);
-                } else {
-                    stopForeground(true);
-                }
+                stopForegroundRemove();
                 mStartedForeground = false;
             }
             mInForeground = false;
-            Toast bottomToast = Toast.makeText(this, R.string.backup_restore_cancelled, Toast.LENGTH_SHORT);
-            bottomToast.setGravity(Gravity.BOTTOM, 0, 0);
-            bottomToast.show();
+            showBottomToast(getString(R.string.backup_restore_cancelled), Toast.LENGTH_SHORT);
             // If no live operation exists, clean up entirely. Otherwise the worker eventually
             // finishes and sees !mInForeground && isCancelled → stopSelf() by itself.
             if (mWorker == null || !mWorker.isAlive()) {
@@ -352,11 +360,7 @@ public final class TermuxBackupService extends Service {
         // when the service is destroyed while still in foreground mode.
         if (mStartedForeground) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    stopForeground(STOP_FOREGROUND_REMOVE);
-                } else {
-                    stopForeground(true);
-                }
+                stopForegroundRemove();
             } catch (Exception ignored) { }
             mStartedForeground = false;
             mInForeground = false;
@@ -645,27 +649,23 @@ public final class TermuxBackupService extends Service {
         // Also surface the result as a bottom Toast on the service's main looper, so it
         // shows even when no activity is visible. On API 26+ a background Toast may be
         // throttled — the heads-up notification above is the guaranteed fallback.
-        final CharSequence toastText = buildResultToastText(isRestore, error);
+        final CharSequence toastText = buildResultToastText(getApplicationContext(), isRestore, error);
         if (toastText != null && mMainHandler != null) {
-            mMainHandler.post(() -> {
-                Toast t = Toast.makeText(getApplicationContext(), toastText, Toast.LENGTH_LONG);
-                t.setGravity(Gravity.BOTTOM, 0, 0);
-                t.show();
-            });
+            mMainHandler.post(() -> showBottomToast(toastText, Toast.LENGTH_LONG));
         }
     }
 
     /** Build the bottom-Toast text for a finished operation, or null if there is nothing to say. */
     @Nullable
-    private CharSequence buildResultToastText(boolean isRestore, @Nullable Error error) {
+    static CharSequence buildResultToastText(@NonNull Context context, boolean isRestore, @Nullable Error error) {
         if (error == TermuxBackupUtils.CANCELLED_ERROR) {
-            return getString(R.string.backup_restore_cancelled);
+            return context.getString(R.string.backup_restore_cancelled);
         } else if (error == null) {
-            return getString(isRestore
+            return context.getString(isRestore
                 ? R.string.backup_service_notification_restore_success
                 : R.string.backup_service_notification_success);
         } else {
-            return getString(isRestore
+            return context.getString(isRestore
                     ? R.string.backup_service_notification_restore_failed
                     : R.string.backup_service_notification_failed)
                 + ": " + Error.getMinimalErrorString(error);

@@ -14,20 +14,22 @@ Checks, per module:
 
 Run: python scripts/check_zh_hant_quality.py
 """
-import io
 import os
 import re
 import sys
 
 import opencc
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from common_helpers import (
+    NAME_RE,
+    REPO_ROOT,
+    STR_RE,
+    TRANS_FALSE_RE as TRANS_FALSE,
+    read_xml_without_comments,
+)
+
 S2T = opencc.OpenCC("s2t")
 
-STR_RE = re.compile(r"<string\s([^>]*?)>(.*?)</string>", re.S)
-NAME_RE = re.compile(r'\bname="([^"]+)"')
-TRANS_FALSE = re.compile(r'\btranslatable="false"')
-COMMENT = re.compile(r"<!--.*?-->", re.S)
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")
 
 # Simplified-only or Mainland-only vocabulary that must not appear in a
@@ -54,9 +56,7 @@ WHITELIST = {"群": "羣"}
 
 def load(path):
     out = {}
-    if not os.path.exists(path):
-        return out
-    raw = COMMENT.sub("", io.open(path, encoding="utf-8").read())
+    raw = read_xml_without_comments(path)
     for m in STR_RE.finditer(raw):
         nm = NAME_RE.search(m.group(1))
         if nm:
@@ -70,7 +70,7 @@ def mask(text):
 
 
 def check(module):
-    res = os.path.join(ROOT, module, "src", "main", "res")
+    res = os.path.join(REPO_ROOT, module, "src", "main", "res")
     zh = load(os.path.join(res, "values-zh", "strings.xml"))
     ht = load(os.path.join(res, "values-b+zh+Hant", "strings.xml"))
     en = load(os.path.join(res, "values", "strings.xml"))

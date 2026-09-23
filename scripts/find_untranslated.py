@@ -12,8 +12,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RES = os.path.join(ROOT, "app", "src", "main", "res")
+from common_helpers import APP_RES as RES
 
 
 def load(path):

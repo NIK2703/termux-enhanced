@@ -94,13 +94,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult createServerSocket(@NonNull String serverTitle, @NonNull byte[] path, int backlog) {
-        try {
-            return createServerSocketNative(serverTitle, path, backlog);
-        } catch (Throwable t) {
-            String message = "Exception in createServerSocketNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("createServerSocketNative", () -> createServerSocketNative(serverTitle, path, backlog));
     }
 
     /**
@@ -110,13 +104,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult closeSocket(@NonNull String serverTitle, int fd) {
-        try {
-            return closeSocketNative(serverTitle, fd);
-        } catch (Throwable t) {
-            String message = "Exception in closeSocketNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("closeSocketNative", () -> closeSocketNative(serverTitle, fd));
     }
 
     /**
@@ -126,13 +114,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult accept(@NonNull String serverTitle, int fd) {
-        try {
-            return acceptNative(serverTitle, fd);
-        } catch (Throwable t) {
-            String message = "Exception in acceptNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("acceptNative", () -> acceptNative(serverTitle, fd));
     }
 
     /**
@@ -145,13 +127,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult read(@NonNull String serverTitle, int fd, @NonNull byte[] data, long deadline) {
-        try {
-            return readNative(serverTitle, fd, data, deadline);
-        } catch (Throwable t) {
-            String message = "Exception in readNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("readNative", () -> readNative(serverTitle, fd, data, deadline));
     }
 
     /**
@@ -163,13 +139,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult send(@NonNull String serverTitle, int fd, @NonNull byte[] data, long deadline) {
-        try {
-            return sendNative(serverTitle, fd, data, deadline);
-        } catch (Throwable t) {
-            String message = "Exception in sendNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("sendNative", () -> sendNative(serverTitle, fd, data, deadline));
     }
 
     /**
@@ -179,13 +149,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult available(@NonNull String serverTitle, int fd) {
-        try {
-            return availableNative(serverTitle, fd);
-        } catch (Throwable t) {
-            String message = "Exception in availableNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("availableNative", () -> availableNative(serverTitle, fd));
     }
 
     /**
@@ -195,13 +159,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult setSocketReadTimeout(@NonNull String serverTitle, int fd, int timeout) {
-        try {
-            return setSocketReadTimeoutNative(serverTitle, fd, timeout);
-        } catch (Throwable t) {
-            String message = "Exception in setSocketReadTimeoutNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("setSocketReadTimeoutNative", () -> setSocketReadTimeoutNative(serverTitle, fd, timeout));
     }
 
     /**
@@ -211,13 +169,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult setSocketSendTimeout(@NonNull String serverTitle, int fd, int timeout) {
-        try {
-            return setSocketSendTimeoutNative(serverTitle, fd, timeout);
-        } catch (Throwable t) {
-            String message = "Exception in setSocketSendTimeoutNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("setSocketSendTimeoutNative", () -> setSocketSendTimeoutNative(serverTitle, fd, timeout));
     }
 
     /**
@@ -227,13 +179,7 @@ public class LocalSocketManager {
      */
     @Nullable
     public static JniResult getPeerCred(@NonNull String serverTitle, int fd, PeerCred peerCred) {
-        try {
-            return getPeerCredNative(serverTitle, fd, peerCred);
-        } catch (Throwable t) {
-            String message = "Exception in getPeerCredNative()";
-            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
-            return new JniResult(message, t);
-        }
+        return callNativeMethod("getPeerCredNative", () -> getPeerCredNative(serverTitle, fd, peerCred));
     }
 
     /** Wrapper for {@link #onError(LocalClientSocket, Error)} for {@code null} {@link LocalClientSocket}. */
@@ -341,6 +287,20 @@ public class LocalSocketManager {
         }
 
         return markdownString.toString();
+    }
+
+    private interface NativeCall {
+        JniResult call() throws Throwable;
+    }
+
+    private static JniResult callNativeMethod(String nativeMethodName, NativeCall nativeCall) {
+        try {
+            return nativeCall.call();
+        } catch (Throwable t) {
+            String message = "Exception in " + nativeMethodName + "()";
+            Logger.logStackTraceWithMessage(LOG_TAG, message, t);
+            return new JniResult(message, t);
+        }
     }
 
     @Nullable private static native JniResult createServerSocketNative(@NonNull String serverTitle, @NonNull byte[] path, int backlog);

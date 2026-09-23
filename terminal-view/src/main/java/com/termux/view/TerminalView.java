@@ -537,7 +537,7 @@ public final class TerminalView extends View {
                 }
                 scrolledWithFinger = false;
                 mScrollAxis = SCROLL_AXIS_UNDECIDED;
-                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                requestParentDisallowIntercept(false);
                 return false;
             }
 
@@ -573,10 +573,10 @@ public final class TerminalView extends View {
                         }
                         mScrollAxis = (totalY >= totalX) ? SCROLL_AXIS_VERTICAL : SCROLL_AXIS_HORIZONTAL;
                     }
-                    if (mScrollAxis == SCROLL_AXIS_VERTICAL && getParent() != null) {
+                    if (mScrollAxis == SCROLL_AXIS_VERTICAL) {
                         // Claim the gesture: stop ViewPager2 from paging sessions while we scroll
                         // the terminal history vertically.
-                        getParent().requestDisallowInterceptTouchEvent(true);
+                        requestParentDisallowIntercept(true);
                     }
                     // Horizontal axis: session paging belongs to the ViewPager2 — ignore here.
                     if (mScrollAxis == SCROLL_AXIS_HORIZONTAL) {
@@ -609,8 +609,7 @@ public final class TerminalView extends View {
                             return true;
                         }
                     }
-                    int deltaRows = (int) (restY / mRenderer.mFontLineSpacing);
-                    mScrollRemainder = restY - deltaRows * mRenderer.mFontLineSpacing;
+                    int deltaRows = splitScrollPx(restY);
                     doScroll(e, deltaRows);
                 }
                 return true;
@@ -647,7 +646,7 @@ public final class TerminalView extends View {
                 mScrollAxis = SCROLL_AXIS_UNDECIDED;
                 mScrollDownX = x;
                 mScrollDownY = y;
-                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                requestParentDisallowIntercept(false);
                 return false;
             }
 
@@ -675,7 +674,7 @@ public final class TerminalView extends View {
                 releaseOverdrag();
                 scrolledWithFinger = false;
                 mScrollAxis = SCROLL_AXIS_UNDECIDED;
-                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                requestParentDisallowIntercept(false);
             }
         });
         mScroller = new OverScroller(context);
@@ -698,19 +697,28 @@ public final class TerminalView extends View {
         mDensity = context.getResources().getDisplayMetrics().density;
 
         // Interactive scrollbar paint
-        mScrollbarWidth = (int) (24 * context.getResources().getDisplayMetrics().density + 0.5f);
-        mScrollbarThumbSizePx = (int) (SCROLLBAR_THUMB_SIZE_DP * context.getResources().getDisplayMetrics().density + 0.5f);
+        mScrollbarWidth = (int) dpToPx(24f, mDensity);
+        mScrollbarThumbSizePx = (int) dpToPx(SCROLLBAR_THUMB_SIZE_DP, mDensity);
         mScrollbarThumbTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop() + 8;
-        mScrollbarTrackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mScrollbarTrackPaint.setColor(0x33FFFFFF);
-        mScrollbarThumbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mScrollbarThumbPaint.setColor(0x88FFFFFF);
-        mScrollbarThumbActivePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mScrollbarThumbActivePaint.setColor(0xBBFFFFFF);
+        mScrollbarTrackPaint = filledPaint(0x33FFFFFF);
+        mScrollbarThumbPaint = filledPaint(0x88FFFFFF);
+        mScrollbarThumbActivePaint = filledPaint(0xBBFFFFFF);
         mScrollbarThumbStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mScrollbarThumbStrokePaint.setStyle(Paint.Style.STROKE);
-        mScrollbarThumbStrokePaint.setStrokeWidth(0.5f * context.getResources().getDisplayMetrics().density);
+        mScrollbarThumbStrokePaint.setStrokeWidth(0.5f * mDensity);
         mScrollbarThumbStrokePaint.setColor(0xBBFFFFFF);
+    }
+
+    /** Density-independent pixels to physical pixels, rounded to nearest. */
+    private static int dpToPx(float dp, float density) {
+        return (int) (dp * density + 0.5f);
+    }
+
+    /** An anti-aliased {@link Paint} pre-filled with {@code color}. */
+    private static Paint filledPaint(int color) {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(color);
+        return paint;
     }
 
     /** @param client the client for communication between {@link TerminalView} and its owner. */
@@ -738,8 +746,7 @@ public final class TerminalView extends View {
         mLastAnchorRow = Integer.MIN_VALUE;
         // E3: same reasoning for the scrollbar thumb — an extent from the previous session would
         // make the first thumb-only repaint of this one restore the wrong rows.
-        mLastThumbTop = NO_THUMB;
-        mLastThumbBottom = NO_THUMB;
+        clearThumbExtent();
 
         updateSize();
 
@@ -1819,8 +1826,7 @@ public final class TerminalView extends View {
             // fractional deltas (precision touchpads) accumulate in the shared remainder instead
             // of being dropped.
             float px = -axis * mWheelScrollFactorPx + mScrollRemainder;
-            int deltaRows = (int) (px / mRenderer.mFontLineSpacing);
-            mScrollRemainder = px - deltaRows * mRenderer.mFontLineSpacing;
+            int deltaRows = splitScrollPx(px);
             if (deltaRows != 0) {
                 doScroll(event, deltaRows);
             }
@@ -2077,6 +2083,18 @@ public final class TerminalView extends View {
         animator.start();
     }
 
+    /** Quantize {@code px} of scroll into whole rows, leaving the sub-row part in {@link #mScrollRemainder}. */
+    private int splitScrollPx(float px) {
+        int deltaRows = (int) (px / mRenderer.mFontLineSpacing);
+        mScrollRemainder = px - deltaRows * mRenderer.mFontLineSpacing;
+        return deltaRows;
+    }
+
+    /** Ask the parent (if any) to allow or disallow intercepting this touch gesture. */
+    private void requestParentDisallowIntercept(boolean disallow) {
+        if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(disallow);
+    }
+
     /** Stop both the fly-out and the return. Raw is left exactly where it is — see below. */
     private void cancelOverdragAnimators() {
         cancelOverdragSpring();
@@ -2084,28 +2102,29 @@ public final class TerminalView extends View {
     }
 
     private void cancelOverdragSpring() {
-        ValueAnimator spring = mOverdragSpring;
+        cancelAnimator(mOverdragSpring);
         mOverdragSpring = null;
-        if (spring == null) return;
-        // Unhook before cancelling: cancel() delivers onAnimationEnd too, which would snap the
-        // screen back to the boundary mid-gesture.
-        spring.removeAllUpdateListeners();
-        spring.removeAllListeners();
-        spring.cancel();
         // Raw is left exactly where the animation froze it, and since the spring animates raw
         // (not the displacement) a pull that interrupts the bounce simply continues from there —
         // no re-seeding, no second source of truth.
     }
 
     private void cancelOverdragImpact() {
-        ValueAnimator impact = mOverdragImpact;
+        cancelAnimator(mOverdragImpact);
         mOverdragImpact = null;
-        if (impact == null) return;
-        // Same reasoning: cancel() would deliver onAnimationEnd, which releases into the spring
-        // and would fight whatever is taking over (a finger, or a second, harder impact).
-        impact.removeAllUpdateListeners();
-        impact.removeAllListeners();
-        impact.cancel();
+    }
+
+    /**
+     * Unhook a running over-drag animator and cancel it. Unhook first: cancel() delivers
+     * onAnimationEnd too, which would snap the screen back to the boundary mid-gesture (spring)
+     * or release into a second motion (impact) while whatever is taking over — a finger, or a
+     * second harder impact — is already driving raw.
+     */
+    private static void cancelAnimator(@Nullable ValueAnimator animator) {
+        if (animator == null) return;
+        animator.removeAllUpdateListeners();
+        animator.removeAllListeners();
+        animator.cancel();
     }
 
     private void settleOverdragNow() {
@@ -2117,7 +2136,7 @@ public final class TerminalView extends View {
      *  session pager, so both surfaces return to their boundary in exactly the same way. */
 
     private static boolean isFinite(float v) {
-        return !Float.isNaN(v) && !Float.isInfinite(v);
+        return ElasticOverdrag.isFinite(v);
     }
 
     // ── Interactive scrollbar helpers ──
@@ -2192,9 +2211,7 @@ public final class TerminalView extends View {
         float maxOffset = Math.max(viewH - thumbH, 1f);
         // Centre the thumb under the finger so grabbing it does not jump.
         float center = fingerY - thumbH / 2f;
-        float scrollFraction = center / maxOffset;
-        if (scrollFraction < 0f) scrollFraction = 0f;
-        if (scrollFraction > 1f) scrollFraction = 1f;
+        float scrollFraction = clamp01(center / maxOffset);
         return (int) (scrollFraction * range - range);
     }
 
@@ -2210,8 +2227,8 @@ public final class TerminalView extends View {
             // recognizer, so after a background→resume the leftover disallow flag would stick and
             // the right-swipe would just edge-overscroll instead of paging to the placeholder.
             // Reset it here for ACTION_DOWN so the placeholder page stays swipeable.
-            if (event.getAction() == MotionEvent.ACTION_DOWN && getParent() != null) {
-                getParent().requestDisallowInterceptTouchEvent(false);
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                requestParentDisallowIntercept(false);
             }
             stopFlingAndClear();
             return true;
@@ -2251,13 +2268,13 @@ public final class TerminalView extends View {
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
                         mScrollbarDragging = false;
-                        if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                        requestParentDisallowIntercept(false);
                         invalidate();
                         return true;
                 }
             } else if (action == MotionEvent.ACTION_DOWN && isOnThumb(event.getX(), event.getY())) {
                 stopFlingAndClear();
-                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                requestParentDisallowIntercept(true);
                 mScrollbarDragging = true;
                 // Don't jump the thumb: grab the centre and map it straight to mTopRow,
                 // so the thumb stays under the finger and new output doesn't slide it.
@@ -2920,15 +2937,13 @@ public final class TerminalView extends View {
         if (range <= 0) {
             // E3: no thumb was painted, so a later thumb-only repaint has no old position to
             // restore. Record that explicitly rather than leaving a stale rect behind.
-            mLastThumbTop = NO_THUMB;
-            mLastThumbBottom = NO_THUMB;
+            clearThumbExtent();
             return;
         }
 
         RectF thumbRect = computeThumbRect();
         if (thumbRect.width() <= 0 || thumbRect.height() <= 0) {
-            mLastThumbTop = NO_THUMB;
-            mLastThumbBottom = NO_THUMB;
+            clearThumbExtent();
             return;
         }
         // F3: on a partial frame the canvas is clipped, and a clip that does not reach the thumb
@@ -2951,12 +2966,7 @@ public final class TerminalView extends View {
             // Use the pre-computed colour (alpha baked in once at preference-change time).
             color = mScrollbarDragging ? mScrollbarActiveColor : mScrollbarInactiveColor;
         } else {
-            // Fallback: derive from the terminal scheme background on-the-fly (old behaviour).
-            int bg = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
-            boolean isLight = TerminalColors.getPerceivedBrightnessOfColor(bg) >= 130;
-            int alpha = mScrollbarDragging ? 0x1F : 0x0D;
-            int base = isLight ? 0x000000 : 0xFFFFFF;
-            color = (alpha << 24) | base;
+            color = fallbackScrollbarColor(mScrollbarDragging ? 0x1F : 0x0D);
         }
 
         Paint paint = mScrollbarDragging ? mScrollbarThumbActivePaint : mScrollbarThumbPaint;
@@ -2970,13 +2980,32 @@ public final class TerminalView extends View {
             if (mScrollbarColorsSet) {
                 strokeColor = mScrollbarActiveColor;
             } else {
-                int bg = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
-                boolean isLight = TerminalColors.getPerceivedBrightnessOfColor(bg) >= 130;
-                strokeColor = (0x1F << 24) | (isLight ? 0x000000 : 0xFFFFFF);
+                strokeColor = fallbackScrollbarColor(0x1F);
             }
             mScrollbarThumbStrokePaint.setColor(strokeColor);
             canvas.drawRoundRect(thumbRect, radius, radius, mScrollbarThumbStrokePaint);
         }
+    }
+
+    /** Fallback: derive a scrollbar colour from the terminal scheme background on-the-fly (old behaviour). */
+    private static int fallbackScrollbarColor(int alpha) {
+        int bg = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
+        boolean isLight = TerminalColors.getPerceivedBrightnessOfColor(bg) >= 130;
+        int base = isLight ? 0x000000 : 0xFFFFFF;
+        return (alpha << 24) | base;
+    }
+
+    /** Forget the last painted thumb extent ({@link #NO_THUMB}) so a later repaint restores nothing. */
+    private void clearThumbExtent() {
+        mLastThumbTop = NO_THUMB;
+        mLastThumbBottom = NO_THUMB;
+    }
+
+    /** Clamp {@code fraction} into {@code [0, 1]}. */
+    private static float clamp01(float fraction) {
+        if (fraction < 0f) return 0f;
+        if (fraction > 1f) return 1f;
+        return fraction;
     }
 
     public TerminalSession getCurrentSession() {
@@ -3066,8 +3095,7 @@ public final class TerminalView extends View {
         if (savedTranscriptRows > 0 && savedTranscriptRows != liveRows) {
             // Proportional remap: keep the same relative depth in the history.
             float fraction = (savedTranscriptRows + topRow) / (float) savedTranscriptRows; // 1 = bottom
-            if (fraction < 0f) fraction = 0f;
-            if (fraction > 1f) fraction = 1f;
+            fraction = clamp01(fraction);
             target = Math.round(fraction * liveRows) - liveRows;
         } else {
             target = topRow;

@@ -8,6 +8,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.ListPreference;
+import androidx.preference.PreferenceCategory;
+import androidx.preference.PreferenceDataStore;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceScreen;
 
@@ -54,5 +56,21 @@ public abstract class TermuxPreferenceFragmentBase extends PreferenceFragmentCom
         logLevelListPreference.setDefaultValue(Logger.DEFAULT_LOG_LEVEL);
 
         return logLevelListPreference;
+    }
+
+    protected void setupPreferences(@NonNull PreferenceDataStore dataStore, int preferencesResId, String rootKey) {
+        getPreferenceManager().setPreferenceDataStore(dataStore);
+        setPreferencesFromResource(preferencesResId, rootKey);
+    }
+
+    protected void configureLoggingPreferences(@NonNull Context context, int logLevel) {
+        PreferenceCategory loggingCategory = findPreference("logging");
+        if (loggingCategory == null) return;
+
+        ListPreference logLevelListPreference = findPreference("log_level");
+        if (logLevelListPreference != null) {
+            setLogLevelListPreferenceData(logLevelListPreference, context, logLevel);
+            loggingCategory.addPreference(logLevelListPreference);
+        }
     }
 }

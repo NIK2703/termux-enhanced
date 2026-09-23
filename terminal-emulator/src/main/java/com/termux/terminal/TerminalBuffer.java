@@ -75,8 +75,22 @@ public final class TerminalBuffer {
     public void markInternalRowDirty(int internalRow) {
         if (mAllDirty || mDirtyRows == null) return;
         if (internalRow < 0 || internalRow >= mTotalRows) return;
-        mDirtyRows[internalRow >>> 6] |= (1L << (internalRow & 63));
-        mAnyRowDirty = true;
+        setDirtyBit(internalRow, true);
+    }
+
+    private void setDirtyBit(int internalRow, boolean dirty) {
+        final int word = internalRow >>> 6;
+        final long mask = 1L << (internalRow & 63);
+        if (dirty) {
+            mDirtyRows[word] |= mask;
+            mAnyRowDirty = true;
+        } else {
+            mDirtyRows[word] &= ~mask;
+        }
+    }
+
+    private boolean isDirtyBitSet(int internalRow) {
+        return (mDirtyRows[internalRow >>> 6] & (1L << (internalRow & 63))) != 0L;
     }
 
     /** E2: has the content of this external row changed since it was last drawn? */
@@ -85,7 +99,7 @@ public final class TerminalBuffer {
         if (!mAnyRowDirty) return false;
         final int internalRow = externalToInternalRow(externalRow);
         if (internalRow < 0 || internalRow >= mTotalRows) return false;
-        return (mDirtyRows[internalRow >>> 6] & (1L << (internalRow & 63))) != 0L;
+        return isDirtyBitSet(internalRow);
     }
 
     /**
@@ -100,7 +114,7 @@ public final class TerminalBuffer {
         if (mAllDirty || mDirtyRows == null) return;
         final int internalRow = externalToInternalRow(externalRow);
         if (internalRow < 0 || internalRow >= mTotalRows) return;
-        mDirtyRows[internalRow >>> 6] &= ~(1L << (internalRow & 63));
+        setDirtyBit(internalRow, false);
     }
 
     /** Force a complete repaint of this buffer on the next frame. */
@@ -581,13 +595,17 @@ public final class TerminalBuffer {
 
         // Blank the newly revealed line above the bottom margin:
         int blankRow = externalToInternalRow(bottomMargin - 1);
-        if (mLines[blankRow] == null) {
-            mLines[blankRow] = new TerminalRow(mColumns, style);
-        } else {
-            mLines[blankRow].clear(style);
-        }
+        clearOrCreateRow(blankRow, style);
         // E1: the only row whose content actually changed in this scroll.
         markInternalRowDirty(blankRow);
+    }
+
+    private void clearOrCreateRow(int internalRow, long style) {
+        if (mLines[internalRow] == null) {
+            mLines[internalRow] = new TerminalRow(mColumns, style);
+        } else {
+            mLines[internalRow].clear(style);
+        }
     }
 
     /**

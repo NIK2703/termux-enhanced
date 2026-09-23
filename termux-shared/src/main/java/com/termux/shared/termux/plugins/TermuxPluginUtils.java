@@ -75,16 +75,8 @@ public class TermuxPluginUtils {
             !isPluginExecutionCommandWithPendingResult, isExecutionCommandLoggingEnabled));
 
         if (isPluginExecutionCommandWithPendingResult) {
-            if (executionCommand.resultConfig.resultPendingIntent != null)
-                setPluginResultPendingIntentVariables(executionCommand);
-            if (executionCommand.resultConfig.resultDirectoryPath != null)
-                setPluginResultDirectoryVariables(executionCommand);
-
-            error = ResultSender.sendCommandResultData(context, logTag, executionCommand.getCommandIdAndLabelLogString(),
-                executionCommand.resultConfig, executionCommand.resultData, isExecutionCommandLoggingEnabled);
+            error = prepareAndSendPluginResult(context, logTag, executionCommand, isExecutionCommandLoggingEnabled);
             if (error != null) {
-                // error will be added to existing Errors
-                resultData.setStateFailed(error);
                 Logger.logDebugExtended(logTag, ExecutionCommand.getExecutionOutputLogString(executionCommand, true, true, isExecutionCommandLoggingEnabled));
 
                 sendPluginCommandErrorNotification(context, logTag, null,
@@ -98,6 +90,25 @@ public class TermuxPluginUtils {
 
         if (!executionCommand.isStateFailed() && error == null)
             executionCommand.setState(ExecutionCommand.ExecutionState.SUCCESS);
+    }
+
+    /** Set pending-result variables and send the result; returns the send error or {@code null}. */
+    @Nullable
+    private static Error prepareAndSendPluginResult(final Context context, String logTag,
+                                                    final ExecutionCommand executionCommand,
+                                                    boolean isExecutionCommandLoggingEnabled) {
+        if (executionCommand.resultConfig.resultPendingIntent != null)
+            setPluginResultPendingIntentVariables(executionCommand);
+        if (executionCommand.resultConfig.resultDirectoryPath != null)
+            setPluginResultDirectoryVariables(executionCommand);
+
+        Error error = ResultSender.sendCommandResultData(context, logTag, executionCommand.getCommandIdAndLabelLogString(),
+            executionCommand.resultConfig, executionCommand.resultData, isExecutionCommandLoggingEnabled);
+        if (error != null) {
+            // error will be added to existing Errors
+            executionCommand.resultData.setStateFailed(error);
+        }
+        return error;
     }
 
     /**
@@ -171,16 +182,8 @@ public class TermuxPluginUtils {
             !isPluginExecutionCommandWithPendingResult, isExecutionCommandLoggingEnabled));
 
         if (isPluginExecutionCommandWithPendingResult) {
-            if (executionCommand.resultConfig.resultPendingIntent != null)
-                setPluginResultPendingIntentVariables(executionCommand);
-            if (executionCommand.resultConfig.resultDirectoryPath != null)
-                setPluginResultDirectoryVariables(executionCommand);
-
-            error = ResultSender.sendCommandResultData(context, logTag, executionCommand.getCommandIdAndLabelLogString(),
-                executionCommand.resultConfig, executionCommand.resultData, isExecutionCommandLoggingEnabled);
+            error = prepareAndSendPluginResult(context, logTag, executionCommand, isExecutionCommandLoggingEnabled);
             if (error != null) {
-                // error will be added to existing Errors
-                resultData.setStateFailed(error);
                 Logger.logErrorPrivateExtended(logTag, ExecutionCommand.getExecutionOutputLogString(executionCommand, true, true, isExecutionCommandLoggingEnabled));
                 forceNotification = true;
             }

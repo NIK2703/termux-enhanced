@@ -342,12 +342,12 @@ public class ExecutionCommand {
             if (logStdin && (!ignoreNull || !DataUtils.isNullOrEmpty(executionCommand.stdin)))
                 logString.append("\n").append(executionCommand.getStdinLogString());
 
-            if (!ignoreNull || executionCommand.backgroundCustomLogLevel != null)
-                logString.append("\n").append(executionCommand.getBackgroundCustomLogLevelLogString());
+            appendLogEntry(logString, ignoreNull, executionCommand.backgroundCustomLogLevel != null,
+                executionCommand.getBackgroundCustomLogLevelLogString());
         }
 
-        if (!ignoreNull || executionCommand.sessionAction != null)
-            logString.append("\n").append(executionCommand.getSessionActionLogString());
+        appendLogEntry(logString, ignoreNull, executionCommand.sessionAction != null,
+            executionCommand.getSessionActionLogString());
 
         if (!ignoreNull || executionCommand.shellName != null) {
             logString.append("\n").append(executionCommand.getShellNameLogString());
@@ -641,6 +641,11 @@ public class ExecutionCommand {
         }
 
         return argumentsString.toString();
+    }
+
+    private static void appendLogEntry(StringBuilder logString, boolean ignoreNull, boolean valueNotNull, String logEntry) {
+        if (!ignoreNull || valueNotNull)
+            logString.append("\n").append(logEntry);
     }
 
 }

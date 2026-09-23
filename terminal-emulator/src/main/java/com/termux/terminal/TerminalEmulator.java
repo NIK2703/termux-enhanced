@@ -739,12 +739,12 @@ public final class TerminalEmulator {
                     case ESC_CSI_BIGGERTHAN:
                         doCsiBiggerThan(b);
                         break;
-                    case ESC_CSI_DOLLAR:
-                        boolean originMode = isDecsetInternalBitSet(DECSET_BIT_ORIGIN_MODE);
-                        int effectiveTopMargin = originMode ? mTopMargin : 0;
-                        int effectiveBottomMargin = originMode ? mBottomMargin : mRows;
-                        int effectiveLeftMargin = originMode ? mLeftMargin : 0;
-                        int effectiveRightMargin = originMode ? mRightMargin : mColumns;
+                    case ESC_CSI_DOLLAR: {
+                        int[] effectiveMargins = getEffectiveMargins();
+                        int effectiveTopMargin = effectiveMargins[0];
+                        int effectiveBottomMargin = effectiveMargins[1];
+                        int effectiveLeftMargin = effectiveMargins[2];
+                        int effectiveRightMargin = effectiveMargins[3];
                         switch (b) {
                             case 'v': // ${CSI}${SRC_TOP}${SRC_LEFT}${SRC_BOTTOM}${SRC_RIGHT}${SRC_PAGE}${DST_TOP}${DST_LEFT}${DST_PAGE}$v"
                                 // Copy rectangular area (DECCRA - http://vt100.net/docs/vt510-rm/DECCRA):
@@ -788,11 +788,7 @@ public final class TerminalEmulator {
                                     int left = Math.min(getArg(argIndex++, 1, true) + effectiveLeftMargin, effectiveRightMargin + 1);
                                     int bottom = Math.min(getArg(argIndex++, mRows, true) + effectiveTopMargin, effectiveBottomMargin);
                                     int right = Math.min(getArg(argIndex, mColumns, true) + effectiveLeftMargin, effectiveRightMargin);
-                                    long style = getStyle();
-                                    for (int row = top - 1; row < bottom; row++)
-                                        for (int col = left - 1; col < right; col++)
-                                            if (!selective || (TextStyle.decodeEffect(mScreen.getStyleAt(row, col)) & TextStyle.CHARACTER_ATTRIBUTE_PROTECTED) == 0)
-                                                mScreen.setChar(col, row, fillChar, keepVisualAttributes ? mScreen.getStyleAt(row, col) : style);
+                                    fillRect(left - 1, top - 1, right, bottom, fillChar, selective, keepVisualAttributes);
                                 }
                                 break;
                             case 'r': // "${CSI}${TOP}${LEFT}${BOTTOM}${RIGHT}${ATTRIBUTES}$r"
@@ -858,6 +854,7 @@ public final class TerminalEmulator {
                                 unknownSequence(b);
                         }
                         break;
+                    }
                     case ESC_CSI_DOUBLE_QUOTE:
                         if (b == 'q') {
                             // http://www.vt100.net/docs/vt510-rm/DECSCA
@@ -1192,13 +1189,7 @@ public final class TerminalEmulator {
                         unknownSequence(b);
                         break;
                 }
-                long style = getStyle();
-                for (int row = startRow; row < endRow; row++) {
-                    for (int col = startCol; col < endCol; col++) {
-                        if ((TextStyle.decodeEffect(mScreen.getStyleAt(row, col)) & TextStyle.CHARACTER_ATTRIBUTE_PROTECTED) == 0)
-                            mScreen.setChar(col, row, fillChar, style);
-                    }
-                }
+                fillRect(startCol, startRow, endCol, endRow, fillChar, true, false);
                 break;
             case 'h':
             case 'l':
@@ -1381,6 +1372,49 @@ public final class TerminalEmulator {
         mArgsSubParamsBitSet = 0;
     }
 
+    /** Reset the OSC/DCS argument buffer and enter {@code state} (ESC P / ESC ] entry). */
+    private void startStringSequence(int state) {
+        mOSCOrDeviceControlArgs.setLength(0);
+        continueSequence(state);
+    }
+
+    /** Effective page bounds under DECOM: {top, bottom, left, right}. */
+    private int[] getEffectiveMargins() {
+        boolean originMode = isDecsetInternalBitSet(DECSET_BIT_ORIGIN_MODE);
+        return new int[]{
+            originMode ? mTopMargin : 0,
+            originMode ? mBottomMargin : mRows,
+            originMode ? mLeftMargin : 0,
+            originMode ? mRightMargin : mColumns
+        };
+    }
+
+    /** Assign an extended SGR color (38/48/58) to the matching color field. */
+    private void setExtendedSgrColor(int code, int color) {
+        switch (code) {
+            case 38: mForeColor = color; break;
+            case 48: mBackColor = color; break;
+            case 58: mUnderlineColor = color; break;
+        }
+    }
+
+    /**
+     * Fill [left,right) x [top,bottom) with {@code fillChar}. When {@code selective}, cells with
+     * {@link TextStyle#CHARACTER_ATTRIBUTE_PROTECTED} are skipped; when {@code keepVisualAttributes}
+     * the existing cell style is preserved instead of the current style.
+     */
+    private void fillRect(int left, int top, int right, int bottom, int fillChar, boolean selective, boolean keepVisualAttributes) {
+        long style = getStyle();
+        for (int row = top; row < bottom; row++) {
+            for (int col = left; col < right; col++) {
+                long cellStyle = mScreen.getStyleAt(row, col);
+                if (selective && (TextStyle.decodeEffect(cellStyle) & TextStyle.CHARACTER_ATTRIBUTE_PROTECTED) != 0)
+                    continue;
+                mScreen.setChar(col, row, fillChar, keepVisualAttributes ? cellStyle : style);
+            }
+        }
+    }
+
     private void doLinefeed() {
         boolean belowScrollingRegion = mCursorRow >= mBottomMargin;
         int newCursorRow = mCursorRow + 1;
@@ -1483,8 +1517,7 @@ public final class TerminalEmulator {
             case '0': // SS3, ignore.
                 break;
             case 'P': // Device control string
-                mOSCOrDeviceControlArgs.setLength(0);
-                continueSequence(ESC_P);
+                startStringSequence(ESC_P);
                 break;
             case '[':
                 continueSequence(ESC_CSI);
@@ -1493,8 +1526,7 @@ public final class TerminalEmulator {
                 setDecsetinternalBit(DECSET_BIT_APPLICATION_KEYPAD, true);
                 break;
             case ']': // OSC
-                mOSCOrDeviceControlArgs.setLength(0);
-                continueSequence(ESC_OSC);
+                startStringSequence(ESC_OSC);
                 break;
             case '>': // DECKPNM
                 setDecsetinternalBit(DECSET_BIT_APPLICATION_KEYPAD, false);
@@ -1969,11 +2001,7 @@ public final class TerminalEmulator {
                                 finishSequenceAndLogError("Invalid RGB: " + red + "," + green + "," + blue);
                             } else {
                                 int argbColor = 0xff_00_00_00 | (red << 16) | (green << 8) | blue;
-                                switch (code) {
-                                    case 38: mForeColor = argbColor; break;
-                                    case 48: mBackColor = argbColor; break;
-                                    case 58: mUnderlineColor = argbColor; break;
-                                }
+                                setExtendedSgrColor(code, argbColor);
                             }
                             i += 4; // "2;P_r;P_g;P_r"
                         }
@@ -1981,11 +2009,7 @@ public final class TerminalEmulator {
                         int color = getArg(i + 2, 0, false);
                         i += 2; // "5;P_s"
                         if (color >= 0 && color < TextStyle.NUM_INDEXED_COLORS) {
-                            switch (code) {
-                                case 38: mForeColor = color; break;
-                                case 48: mBackColor = color; break;
-                                case 58: mUnderlineColor = color; break;
-                            }
+                            setExtendedSgrColor(code, color);
                         } else {
                             if (LOG_ESCAPE_SEQUENCES) Logger.logWarn(mClient, LOG_TAG, "Invalid color index: " + color);
                         }
@@ -2231,13 +2255,9 @@ public final class TerminalEmulator {
      * {@link #setCursorRowCol(int, int)} for absolute pos.
      */
     private void setCursorPosition(int x, int y) {
-        boolean originMode = isDecsetInternalBitSet(DECSET_BIT_ORIGIN_MODE);
-        int effectiveTopMargin = originMode ? mTopMargin : 0;
-        int effectiveBottomMargin = originMode ? mBottomMargin : mRows;
-        int effectiveLeftMargin = originMode ? mLeftMargin : 0;
-        int effectiveRightMargin = originMode ? mRightMargin : mColumns;
-        int newRow = Math.max(effectiveTopMargin, Math.min(effectiveTopMargin + y, effectiveBottomMargin - 1));
-        int newCol = Math.max(effectiveLeftMargin, Math.min(effectiveLeftMargin + x, effectiveRightMargin - 1));
+        int[] margins = getEffectiveMargins();
+        int newRow = Math.max(margins[0], Math.min(margins[0] + y, margins[1] - 1));
+        int newCol = Math.max(margins[2], Math.min(margins[2] + x, margins[3] - 1));
         setCursorRowCol(newRow, newCol);
     }
 

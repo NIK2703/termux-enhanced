@@ -498,13 +498,7 @@ public class SignalPickerDialogFragment extends DialogFragment {
         );
 
         dialog.setOnShowListener(d -> {
-            WindowInsetsControllerCompat controller =
-                WindowCompat.getInsetsController(dialog.getWindow(), editText);
-            if (controller != null) controller.show(WindowInsetsCompat.Type.ime());
-
-            editText.requestFocus();
-            InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
+            showKeyboardForDialog(dialog, editText, context);
 
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String text = editText.getText().toString().trim();
@@ -544,13 +538,7 @@ public class SignalPickerDialogFragment extends DialogFragment {
         );
 
         dialog.setOnShowListener(d -> {
-            WindowInsetsControllerCompat controller =
-                WindowCompat.getInsetsController(dialog.getWindow(), editText);
-            if (controller != null) controller.show(WindowInsetsCompat.Type.ime());
-
-            editText.requestFocus();
-            InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
+            showKeyboardForDialog(dialog, editText, context);
 
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String text = editText.getText().toString().trim();
@@ -588,6 +576,16 @@ public class SignalPickerDialogFragment extends DialogFragment {
         dialog.setOnCancelListener(d -> hideKeyboard(editText));
         dialog.setOnDismissListener(d -> hideKeyboard(editText));
         dialog.show();
+    }
+
+    private void showKeyboardForDialog(AlertDialog dialog, EditText editText, Context context) {
+        WindowInsetsControllerCompat controller =
+            WindowCompat.getInsetsController(dialog.getWindow(), editText);
+        if (controller != null) controller.show(WindowInsetsCompat.Type.ime());
+
+        editText.requestFocus();
+        InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
     }
 
     private void hideKeyboard(EditText editText) {

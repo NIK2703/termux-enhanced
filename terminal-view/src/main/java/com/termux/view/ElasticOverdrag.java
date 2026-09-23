@@ -462,7 +462,7 @@ public final class ElasticOverdrag {
      */
     public static final Interpolator LINEAR = new LinearInterpolator();
 
-    private static boolean isFinite(float v) {
+    static boolean isFinite(float v) {
         return !Float.isNaN(v) && !Float.isInfinite(v);
     }
 }

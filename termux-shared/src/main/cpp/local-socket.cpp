@@ -227,6 +227,27 @@ string setStringField(JNIEnv *env, jobject obj, jclass clazz, const string field
     return "";
 }
 
+static jobject fail_invalid_fd(JNIEnv *env, jstring title, jint fd, const char *func) {
+    return getJniResult(env, title, -1, string(func) + ": Invalid fd \"" + to_string(fd) + "\" passed");
+}
+
+static bool deadline_exceeded(JNIEnv *env, jstring title, jlong deadline, const char *func) {
+    if (deadline <= 0) return false;
+    struct timespec time = {};
+    if (clock_gettime(CLOCK_REALTIME, &time) == -1) {
+        log_warn(get_title_and_message(env, title,
+                                       string(func) + ": Deadline \"" + to_string(deadline) +
+                                           "\" timeout will not work since failed to get current time"));
+        return false;
+    }
+    return timespec_to_milliseconds(&time) > deadline;
+}
+
+static jobject peer_field_error(JNIEnv *env, jstring title, const string &error) {
+    if (error == JNI_EXCEPTION) return NULL;
+    return getJniResult(env, title, -1, "getPeerCredNative(): " + error);
+}
+
 extern "C" JNIEXPORT jobject JNICALL
 Java_com_termux_shared_net_socket_local_LocalSocketManager_createServerSocketNative(JNIEnv *env, jclass clazz,
                                                                                     jstring logTitle,
@@ -290,7 +311,7 @@ extern "C" JNIEXPORT jobject JNICALL
 Java_com_termux_shared_net_socket_local_LocalSocketManager_closeSocketNative(JNIEnv *env, jclass clazz,
                                                                              jstring logTitle, jint fd) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "closeSocketNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "closeSocketNative()");
     }
 
     if (close(fd) == -1) {
@@ -304,7 +325,7 @@ extern "C" JNIEXPORT jobject JNICALL
 Java_com_termux_shared_net_socket_local_LocalSocketManager_acceptNative(JNIEnv *env, jclass clazz,
                                                                         jstring logTitle, jint fd) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "acceptNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "acceptNative()");
     }
 
     int clientFd = accept(fd, nullptr, nullptr);
@@ -321,7 +342,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_readNative(JNIEnv *en
                                                                       jint fd, jbyteArray dataArray,
                                                                       jlong deadline) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "readNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "readNative()");
     }
 
     jbyte *data = env->GetByteArrayElements(dataArray, nullptr);
@@ -330,26 +351,16 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_readNative(JNIEnv *en
         return getJniResult(env, logTitle, -1, "readNative(): data passed is null");
     }
 
-    struct timespec time = {};
     jbyte *current = data;
     int bytes = env->GetArrayLength(dataArray);
     if (checkJniException(env)) return NULL;
     int bytesRead = 0;
     while (bytesRead < bytes) {
-        if (deadline > 0) {
-            if (clock_gettime(CLOCK_REALTIME, &time) != -1) {
-                // Deadline exceeded
-                if (timespec_to_milliseconds(&time) > deadline) {
-                    env->ReleaseByteArrayElements(dataArray, data, 0);
-                    if (checkJniException(env)) return NULL;
-                    return getJniResult(env, logTitle, -1,
-                                        "readNative(): Deadline \"" + to_string(deadline) + "\" timeout");
-                }
-            } else {
-                log_warn(get_title_and_message(env, logTitle,
-                                               "readNative(): Deadline \"" + to_string(deadline) +
-                                                   "\" timeout will not work since failed to get current time"));
-            }
+        if (deadline_exceeded(env, logTitle, deadline, "readNative()")) {
+            env->ReleaseByteArrayElements(dataArray, data, 0);
+            if (checkJniException(env)) return NULL;
+            return getJniResult(env, logTitle, -1,
+                                "readNative(): Deadline \"" + to_string(deadline) + "\" timeout");
         }
 
         int ret = read(fd, current, bytes);
@@ -380,7 +391,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_sendNative(JNIEnv *en
                                                                       jint fd, jbyteArray dataArray,
                                                                       jlong deadline) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "sendNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "sendNative()");
     }
 
     jbyte *data = env->GetByteArrayElements(dataArray, nullptr);
@@ -389,25 +400,15 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_sendNative(JNIEnv *en
         return getJniResult(env, logTitle, -1, "sendNative(): data passed is null");
     }
 
-    struct timespec time = {};
     jbyte *current = data;
     int bytes = env->GetArrayLength(dataArray);
     if (checkJniException(env)) return NULL;
     while (bytes > 0) {
-        if (deadline > 0) {
-            if (clock_gettime(CLOCK_REALTIME, &time) != -1) {
-                // Deadline exceeded
-                if (timespec_to_milliseconds(&time) > deadline) {
-                    env->ReleaseByteArrayElements(dataArray, data, JNI_ABORT);
-                    if (checkJniException(env)) return NULL;
-                    return getJniResult(env, logTitle, -1,
-                                        "sendNative(): Deadline \"" + to_string(deadline) + "\" timeout");
-                }
-            } else {
-                log_warn(get_title_and_message(env, logTitle,
-                                               "sendNative(): Deadline \"" + to_string(deadline) +
-                                                   "\" timeout will not work since failed to get current time"));
-            }
+        if (deadline_exceeded(env, logTitle, deadline, "sendNative()")) {
+            env->ReleaseByteArrayElements(dataArray, data, JNI_ABORT);
+            if (checkJniException(env)) return NULL;
+            return getJniResult(env, logTitle, -1,
+                                "sendNative(): Deadline \"" + to_string(deadline) + "\" timeout");
         }
 
         int ret = send(fd, current, bytes, MSG_NOSIGNAL);
@@ -432,7 +433,7 @@ extern "C" JNIEXPORT jobject JNICALL
 Java_com_termux_shared_net_socket_local_LocalSocketManager_availableNative(JNIEnv *env, jclass clazz,
                                                                            jstring logTitle, jint fd) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "availableNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "availableNative()");
     }
 
     int available = 0;
@@ -455,7 +456,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_setSocketReadTimeoutN
                                                                                       jstring logTitle,
                                                                                       jint fd, jint timeout) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "setSocketReadTimeoutNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "setSocketReadTimeoutNative()");
     }
 
     if (set_socket_timeout(fd, SO_RCVTIMEO, timeout) == -1) {
@@ -471,7 +472,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_setSocketSendTimeoutN
                                                                                       jstring logTitle,
                                                                                       jint fd, jint timeout) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "setSocketSendTimeoutNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "setSocketSendTimeoutNative()");
     }
 
     if (set_socket_timeout(fd, SO_SNDTIMEO, timeout) == -1) {
@@ -487,7 +488,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_getPeerCredNative(JNI
                                                                              jstring logTitle,
                                                                              jint fd, jobject peerCred) {
     if (fd < 0) {
-        return getJniResult(env, logTitle, -1, "getPeerCredNative(): Invalid fd \"" + to_string(fd) + "\" passed");
+        return fail_invalid_fd(env, logTitle, fd, "getPeerCredNative()");
     }
 
     if (peerCred == nullptr) {
@@ -518,36 +519,21 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_getPeerCredNative(JNI
     string error;
 
     error = setIntField(env, peerCred, peerCredClazz, "pid", cred.pid);
-    if (!error.empty()) {
-        if (error == JNI_EXCEPTION) return NULL;
-        return getJniResult(env, logTitle, -1, "getPeerCredNative(): " + error);
-    }
+    if (!error.empty()) return peer_field_error(env, logTitle, error);
 
     error = setIntField(env, peerCred, peerCredClazz, "uid", cred.uid);
-    if (!error.empty()) {
-        if (error == JNI_EXCEPTION) return NULL;
-        return getJniResult(env, logTitle, -1, "getPeerCredNative(): " + error);
-    }
+    if (!error.empty()) return peer_field_error(env, logTitle, error);
 
     error = setIntField(env, peerCred, peerCredClazz, "gid", cred.gid);
-    if (!error.empty()) {
-        if (error == JNI_EXCEPTION) return NULL;
-        return getJniResult(env, logTitle, -1, "getPeerCredNative(): " + error);
-    }
+    if (!error.empty()) return peer_field_error(env, logTitle, error);
 
     string cmdline = get_process_cmdline(cred.pid);
     if (!cmdline.empty()) {
         error = setStringField(env, peerCred, peerCredClazz, "pname", get_process_name_from_cmdline(cmdline));
-        if (!error.empty()) {
-            if (error == JNI_EXCEPTION) return NULL;
-            return getJniResult(env, logTitle, -1, "getPeerCredNative(): " + error);
-        }
+        if (!error.empty()) return peer_field_error(env, logTitle, error);
 
         error = setStringField(env, peerCred, peerCredClazz, "cmdline", get_process_cmdline_spaced(cmdline));
-        if (!error.empty()) {
-            if (error == JNI_EXCEPTION) return NULL;
-            return getJniResult(env, logTitle, -1, "getPeerCredNative(): " + error);
-        }
+        if (!error.empty()) return peer_field_error(env, logTitle, error);
     }
 
     return getJniResult(env, logTitle);

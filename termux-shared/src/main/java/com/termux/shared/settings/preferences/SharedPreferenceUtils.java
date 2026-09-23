@@ -49,17 +49,14 @@ public class SharedPreferenceUtils {
      * @return the value, otherwise {@code def}.
      */
     public static boolean getBoolean(SharedPreferences sharedPreferences, String key, boolean def) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting boolean value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "boolean");
 
         try {
             return sharedPreferences.getBoolean(key, def);
         }
         catch (ClassCastException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Error getting boolean value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
-            return def;
+            return getDefaultOnClassCastException(key, def, "boolean", e);
         }
     }
 
@@ -71,15 +68,11 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setBoolean(SharedPreferences sharedPreferences, String key, boolean value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting boolean value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "boolean");
             return;
         }
 
-        if (commitToFile)
-            sharedPreferences.edit().putBoolean(key, value).commit();
-        else
-            sharedPreferences.edit().putBoolean(key, value).apply();
-
+        commitOrApply(sharedPreferences.edit().putBoolean(key, value), commitToFile);
     }
 
     /**
@@ -89,17 +82,14 @@ public class SharedPreferenceUtils {
      * @return the value, otherwise {@code def}.
      */
     public static float getFloat(SharedPreferences sharedPreferences, String key, float def) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting float value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "float");
 
         try {
             return sharedPreferences.getFloat(key, def);
         }
         catch (ClassCastException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Error getting float value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
-            return def;
+            return getDefaultOnClassCastException(key, def, "float", e);
         }
     }
 
@@ -111,14 +101,11 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setFloat(SharedPreferences sharedPreferences, String key, float value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting float value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "float");
             return;
         }
 
-        if (commitToFile)
-            sharedPreferences.edit().putFloat(key, value).commit();
-        else
-            sharedPreferences.edit().putFloat(key, value).apply();
+        commitOrApply(sharedPreferences.edit().putFloat(key, value), commitToFile);
     }
 
     /**
@@ -128,17 +115,14 @@ public class SharedPreferenceUtils {
      * @return the value, otherwise {@code def}.
      */
     public static int getInt(SharedPreferences sharedPreferences, String key, int def) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting int value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "int");
 
         try {
             return sharedPreferences.getInt(key, def);
         }
         catch (ClassCastException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Error getting int value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
-            return def;
+            return getDefaultOnClassCastException(key, def, "int", e);
         }
     }
 
@@ -150,14 +134,11 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setInt(SharedPreferences sharedPreferences, String key, int value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting int value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "int");
             return;
         }
 
-        if (commitToFile)
-            sharedPreferences.edit().putInt(key, value).commit();
-        else
-            sharedPreferences.edit().putInt(key, value).apply();
+        commitOrApply(sharedPreferences.edit().putInt(key, value), commitToFile);
     }
 
     /**
@@ -193,17 +174,14 @@ public class SharedPreferenceUtils {
      * @return the value, otherwise {@code def}.
      */
     public static long getLong(SharedPreferences sharedPreferences, String key, long def) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting long value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "long");
 
         try {
             return sharedPreferences.getLong(key, def);
         }
         catch (ClassCastException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Error getting long value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
-            return def;
+            return getDefaultOnClassCastException(key, def, "long", e);
         }
     }
 
@@ -215,14 +193,11 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setLong(SharedPreferences sharedPreferences, String key, long value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting long value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "long");
             return;
         }
 
-        if (commitToFile)
-            sharedPreferences.edit().putLong(key, value).commit();
-        else
-            sharedPreferences.edit().putLong(key, value).apply();
+        commitOrApply(sharedPreferences.edit().putLong(key, value), commitToFile);
     }
 
     /**
@@ -233,10 +208,8 @@ public class SharedPreferenceUtils {
      * @return the value, otherwise {@code def}.
      */
     public static String getString(SharedPreferences sharedPreferences, String key, String def, boolean defIfEmpty) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting String value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "String");
 
         try {
             String value = sharedPreferences.getString(key, def);
@@ -246,8 +219,7 @@ public class SharedPreferenceUtils {
                 return value;
         }
         catch (ClassCastException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Error getting String value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
-            return def;
+            return getDefaultOnClassCastException(key, def, "String", e);
         }
     }
 
@@ -259,14 +231,11 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setString(SharedPreferences sharedPreferences, String key, String value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting String value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "String");
             return;
         }
 
-        if (commitToFile)
-            sharedPreferences.edit().putString(key, value).commit();
-        else
-            sharedPreferences.edit().putString(key, value).apply();
+        commitOrApply(sharedPreferences.edit().putString(key, value), commitToFile);
     }
 
     /**
@@ -276,17 +245,14 @@ public class SharedPreferenceUtils {
      * @return the value, otherwise {@code def}.
      */
     public static Set<String> getStringSet(SharedPreferences sharedPreferences, String key, Set<String> def) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting Set<String> value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "Set<String>");
 
         try {
             return sharedPreferences.getStringSet(key, def);
         }
         catch (ClassCastException e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Error getting Set<String> value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
-            return def;
+            return getDefaultOnClassCastException(key, def, "Set<String>", e);
         }
     }
 
@@ -298,14 +264,11 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setStringSet(SharedPreferences sharedPreferences, String key, Set<String> value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting Set<String> value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "Set<String>");
             return;
         }
 
-        if (commitToFile)
-            sharedPreferences.edit().putStringSet(key, value).commit();
-        else
-            sharedPreferences.edit().putStringSet(key, value).apply();
+        commitOrApply(sharedPreferences.edit().putStringSet(key, value), commitToFile);
     }
 
     /**
@@ -315,10 +278,8 @@ public class SharedPreferenceUtils {
      * @return the parsed value, otherwise {@code def}.
      */
     public static int getIntStoredAsString(SharedPreferences sharedPreferences, String key, int def) {
-        if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Error getting int value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
-            return def;
-        }
+        if (sharedPreferences == null)
+            return getDefaultOnNullPreferences(key, def, "int");
 
         String stringValue;
         int intValue;
@@ -344,14 +305,33 @@ public class SharedPreferenceUtils {
     @SuppressLint("ApplySharedPref")
     public static void setIntStoredAsString(SharedPreferences sharedPreferences, String key, int value, boolean commitToFile) {
         if (sharedPreferences == null) {
-            Logger.logError(LOG_TAG, "Ignoring setting int value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+            logNullPreferencesOnSet(key, value, "int");
             return;
         }
 
+        commitOrApply(sharedPreferences.edit().putString(key, Integer.toString(value)), commitToFile);
+    }
+
+    private static <T> T getDefaultOnNullPreferences(String key, T def, String valueType) {
+        Logger.logError(LOG_TAG, "Error getting " + valueType + " value for the \"" + key + "\" key from null shared preferences. Returning default value \"" + def + "\".");
+        return def;
+    }
+
+    private static <T> T getDefaultOnClassCastException(String key, T def, String valueType, ClassCastException e) {
+        Logger.logStackTraceWithMessage(LOG_TAG, "Error getting " + valueType + " value for the \"" + key + "\" key from shared preferences. Returning default value \"" + def + "\".", e);
+        return def;
+    }
+
+    private static void logNullPreferencesOnSet(String key, Object value, String valueType) {
+        Logger.logError(LOG_TAG, "Ignoring setting " + valueType + " value \"" + value + "\" for the \"" + key + "\" key into null shared preferences.");
+    }
+
+    @SuppressLint("ApplySharedPref")
+    private static void commitOrApply(SharedPreferences.Editor editor, boolean commitToFile) {
         if (commitToFile)
-            sharedPreferences.edit().putString(key, Integer.toString(value)).commit();
+            editor.commit();
         else
-            sharedPreferences.edit().putString(key, Integer.toString(value)).apply();
+            editor.apply();
     }
 
 }

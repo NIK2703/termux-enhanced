@@ -35,6 +35,8 @@ import javax.net.ssl.HttpsURLConnection;
 
 public class BootstrapDownloadService extends Service {
 
+    private static final String LOG_TAG = "BootstrapDownloadService";
+
     private static final String ACTION_DOWNLOAD = "com.termux.action.DOWNLOAD_BOOTSTRAP";
     private static final String ACTION_INSTALL_LOCAL = "com.termux.action.INSTALL_LOCAL_URI";
     private static final String EXTRA_SOURCE = "source";
@@ -118,31 +120,31 @@ public class BootstrapDownloadService extends Service {
     private PowerManager.WakeLock mWakeLock;
     private boolean mForegroundMode = true;
 
+    private static Intent newServiceIntent(Context context, String action) {
+        return new Intent(context, BootstrapDownloadService.class).setAction(action);
+    }
+
     public static void startDownload(Context context, BootstrapSource source) {
-        Intent intent = new Intent(context, BootstrapDownloadService.class);
-        intent.setAction(ACTION_DOWNLOAD);
+        Intent intent = newServiceIntent(context, ACTION_DOWNLOAD);
         intent.putExtra(EXTRA_SOURCE, source);
         startServiceSafe(context, intent);
     }
 
     public static void installLocalUri(Context context, Uri uri) {
-        Intent intent = new Intent(context, BootstrapDownloadService.class);
-        intent.setAction(ACTION_INSTALL_LOCAL);
+        Intent intent = newServiceIntent(context, ACTION_INSTALL_LOCAL);
         intent.putExtra(EXTRA_URI, uri);
         startServiceSafe(context, intent);
     }
 
     public static void startDownloadBackground(Context context, BootstrapSource source) {
-        Intent intent = new Intent(context, BootstrapDownloadService.class);
-        intent.setAction(ACTION_DOWNLOAD);
+        Intent intent = newServiceIntent(context, ACTION_DOWNLOAD);
         intent.putExtra(EXTRA_SOURCE, source);
         intent.putExtra(EXTRA_NO_FOREGROUND, true);
         context.startService(intent);
     }
 
     public static void installLocalUriBackground(Context context, Uri uri) {
-        Intent intent = new Intent(context, BootstrapDownloadService.class);
-        intent.setAction(ACTION_INSTALL_LOCAL);
+        Intent intent = newServiceIntent(context, ACTION_INSTALL_LOCAL);
         intent.putExtra(EXTRA_URI, uri);
         intent.putExtra(EXTRA_NO_FOREGROUND, true);
         context.startService(intent);
@@ -156,6 +158,32 @@ public class BootstrapDownloadService extends Service {
         }
     }
 
+    private File bootstrapCacheDir() throws IOException {
+        File cacheDir = new File(getCacheDir(), "bootstrap");
+        if (!cacheDir.isDirectory() && !cacheDir.mkdirs())
+            throw new IOException(getString(com.termux.R.string.error_bootstrap_download_cache_dir));
+        return cacheDir;
+    }
+
+    private void finishSuccess() {
+        reloadBootstrapVariant();
+        setState(Status.SUCCESS,
+            getString(com.termux.R.string.bootstrap_download_status_done),
+            getString(com.termux.R.string.bootstrap_download_status_installed),
+            100, false, true, false);
+        stopForeground(true);
+        stopSelf();
+    }
+
+    private void finishFailed(Exception e) {
+        setState(Status.FAILED,
+            getString(com.termux.R.string.bootstrap_download_status_failed),
+            e.getMessage(), 0, false, false, true);
+        showFailedNotification(e.getMessage());
+        stopForeground(false);
+        stopSelf();
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -167,17 +195,17 @@ public class BootstrapDownloadService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
         mForegroundMode = !intent.getBooleanExtra(EXTRA_NO_FOREGROUND, false);
-        Logger.i("BootstrapDownloadService", "onStartCommand action=" + intent.getAction()
+        Logger.i(LOG_TAG, "onStartCommand action=" + intent.getAction()
             + " foreground=" + mForegroundMode);
         if (mForegroundMode) startForegroundWithPermissionCheck();
         String action = intent.getAction();
         if (ACTION_DOWNLOAD.equals(action)) {
             BootstrapSource source = (BootstrapSource) intent.getSerializableExtra(EXTRA_SOURCE);
-            Logger.i("BootstrapDownloadService", "ACTION_DOWNLOAD source=" + (source != null ? source.name : "null"));
+            Logger.i(LOG_TAG, "ACTION_DOWNLOAD source=" + (source != null ? source.name : "null"));
             if (source != null) startDownloadTask(source);
         } else if (ACTION_INSTALL_LOCAL.equals(action)) {
             Uri uri = intent.getParcelableExtra(EXTRA_URI);
-            Logger.i("BootstrapDownloadService", "ACTION_INSTALL_LOCAL uri=" + uri);
+            Logger.i(LOG_TAG, "ACTION_INSTALL_LOCAL uri=" + uri);
             if (uri != null) startLocalInstallTask(uri);
         }
         return START_NOT_STICKY;
@@ -195,7 +223,7 @@ public class BootstrapDownloadService extends Service {
                 startForeground(NOTIFICATION_ID, n);
             }
         } catch (SecurityException e) {
-            Logger.i("BootstrapDownloadService", "POST_NOTIFICATIONS not granted, running without notification");
+            Logger.i(LOG_TAG, "POST_NOTIFICATIONS not granted, running without notification");
             mForegroundMode = false;
         }
     }
@@ -205,7 +233,7 @@ public class BootstrapDownloadService extends Service {
 
     @Override
     public void onDestroy() {
-        Logger.i("BootstrapDownloadService", "onDestroy");
+        Logger.i(LOG_TAG, "onDestroy");
         super.onDestroy();
         releaseWakeLock();
         mExecutor.shutdownNow();
@@ -263,7 +291,7 @@ public class BootstrapDownloadService extends Service {
     private void startDownloadTask(BootstrapSource source) {
         clearSavedState();
         acquireWakeLock();
-        Logger.i("BootstrapDownloadService", "startDownloadTask: " + source.name);
+        Logger.i(LOG_TAG, "startDownloadTask: " + source.name);
         setState(Status.CONNECTING,
             getString(com.termux.R.string.bootstrap_download_status_connecting),
             getString(com.termux.R.string.bootstrap_download_progress_preparing),
@@ -274,7 +302,7 @@ public class BootstrapDownloadService extends Service {
                 checkStorageSpace(getFilesDir());
 
                 File downloaded = downloadAndVerify(source);
-                Logger.i("BootstrapDownloadService", "downloadAndVerify returned: " + downloaded.getAbsolutePath() + " size=" + downloaded.length());
+                Logger.i(LOG_TAG, "downloadAndVerify returned: " + downloaded.getAbsolutePath() + " size=" + downloaded.length());
 
                 setState(Status.INSTALLING,
                     getString(com.termux.R.string.bootstrap_download_status_installing),
@@ -289,20 +317,9 @@ public class BootstrapDownloadService extends Service {
                 );
 
                 downloaded.delete();
-                reloadBootstrapVariant();
-                setState(Status.SUCCESS,
-                    getString(com.termux.R.string.bootstrap_download_status_done),
-                    getString(com.termux.R.string.bootstrap_download_status_installed),
-                    100, false, true, false);
-                stopForeground(true);
-                stopSelf();
+                finishSuccess();
             } catch (Exception e) {
-                setState(Status.FAILED,
-                    getString(com.termux.R.string.bootstrap_download_status_failed),
-                    e.getMessage(), 0, false, false, true);
-                showFailedNotification(e.getMessage());
-                stopForeground(false);
-                stopSelf();
+                finishFailed(e);
             } finally {
                 releaseWakeLock();
             }
@@ -312,7 +329,7 @@ public class BootstrapDownloadService extends Service {
     private void startLocalInstallTask(Uri uri) {
         clearSavedState();
         acquireWakeLock();
-        Logger.i("BootstrapDownloadService", "startLocalInstallTask: uri=" + uri);
+        Logger.i(LOG_TAG, "startLocalInstallTask: uri=" + uri);
         setState(Status.INSTALLING,
             getString(com.termux.R.string.bootstrap_download_status_installing),
             getString(com.termux.R.string.bootstrap_download_progress_copying_local),
@@ -322,9 +339,7 @@ public class BootstrapDownloadService extends Service {
             try {
                 checkStorageSpace(getFilesDir());
 
-                File cacheDir = new File(getCacheDir(), "bootstrap");
-                if (!cacheDir.isDirectory() && !cacheDir.mkdirs())
-                    throw new IOException(getString(com.termux.R.string.error_bootstrap_download_cache_dir));
+                File cacheDir = bootstrapCacheDir();
                 File tempFile = new File(cacheDir, "local_bootstrap.zip");
 
                 setState(Status.INSTALLING,
@@ -342,7 +357,7 @@ public class BootstrapDownloadService extends Service {
                         out.write(buf, 0, n);
                         total += n;
                     }
-                    Logger.i("BootstrapDownloadService", "Copied local file: " + total + " bytes");
+                    Logger.i(LOG_TAG, "Copied local file: " + total + " bytes");
                 }
 
                 setState(Status.INSTALLING,
@@ -359,20 +374,9 @@ public class BootstrapDownloadService extends Service {
                 );
 
                 tempFile.delete();
-                reloadBootstrapVariant();
-                setState(Status.SUCCESS,
-                    getString(com.termux.R.string.bootstrap_download_status_done),
-                    getString(com.termux.R.string.bootstrap_download_status_installed),
-                    100, false, true, false);
-                stopForeground(true);
-                stopSelf();
+                finishSuccess();
             } catch (Exception e) {
-                setState(Status.FAILED,
-                    getString(com.termux.R.string.bootstrap_download_status_failed),
-                    e.getMessage(), 0, false, false, true);
-                showFailedNotification(e.getMessage());
-                stopForeground(false);
-                stopSelf();
+                finishFailed(e);
             } finally {
                 releaseWakeLock();
             }
@@ -393,7 +397,7 @@ public class BootstrapDownloadService extends Service {
             com.termux.shared.termux.TermuxBootstrap.initializeFromRuntime(
                 this, com.termux.BuildConfig.TERMUX_PACKAGE_VARIANT);
         } catch (Exception e) {
-            Logger.e("BootstrapDownloadService", "Failed to reload bootstrap variant", e);
+            Logger.e(LOG_TAG, "Failed to reload bootstrap variant", e);
         }
     }
 
@@ -416,14 +420,12 @@ public class BootstrapDownloadService extends Service {
 
     private File downloadAndVerify(BootstrapSource source) throws Exception {
         String resolvedUrl = source.resolveUrl(AbiUtils.getDeviceArch());
-        Logger.i("BootstrapDownloadService", "downloadAndVerify: url=" + resolvedUrl);
+        Logger.i(LOG_TAG, "downloadAndVerify: url=" + resolvedUrl);
 
         if (!resolvedUrl.startsWith("https://"))
             throw new IOException(getString(com.termux.R.string.error_bootstrap_download_https));
 
-        File cacheDir = new File(getCacheDir(), "bootstrap");
-        if (!cacheDir.isDirectory() && !cacheDir.mkdirs())
-            throw new IOException(getString(com.termux.R.string.error_bootstrap_download_cache_dir));
+        File cacheDir = bootstrapCacheDir();
 
         String hashPart = source.sha256 != null ? source.sha256.toLowerCase() : "download";
         File finalFile = new File(cacheDir, hashPart + ".zip");
@@ -431,9 +433,9 @@ public class BootstrapDownloadService extends Service {
         if (finalFile.exists()) {
             if (source.sha256 != null) {
                 String existing = Sha256.hexOfFile(BootstrapDownloadService.this, finalFile);
-                Logger.i("BootstrapDownloadService", "cached file exists, sha256=" + existing);
+                Logger.i(LOG_TAG, "cached file exists, sha256=" + existing);
                 if (existing.equalsIgnoreCase(source.sha256)) {
-                    Logger.i("BootstrapDownloadService", "cache hit, returning cached file");
+                    Logger.i(LOG_TAG, "cache hit, returning cached file");
                     return finalFile;
                 }
             }
@@ -441,7 +443,7 @@ public class BootstrapDownloadService extends Service {
         }
 
         File tempFile = new File(cacheDir, hashPart + ".part");
-        Logger.i("BootstrapDownloadService", "downloading to tempFile=" + tempFile);
+        Logger.i(LOG_TAG, "downloading to tempFile=" + tempFile);
         if (tempFile.exists()) tempFile.delete();
 
         URL url = new URL(resolvedUrl);
@@ -455,7 +457,7 @@ public class BootstrapDownloadService extends Service {
             conn.connect();
 
             int responseCode = conn.getResponseCode();
-            Logger.i("BootstrapDownloadService", "HTTP response=" + responseCode + " content-length=" + conn.getContentLengthLong());
+            Logger.i(LOG_TAG, "HTTP response=" + responseCode + " content-length=" + conn.getContentLengthLong());
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw new IOException(getString(com.termux.R.string.error_bootstrap_download_http, responseCode, resolvedUrl));
             }
@@ -484,7 +486,7 @@ public class BootstrapDownloadService extends Service {
                 }
             }
 
-            Logger.i("BootstrapDownloadService", "download complete: " + downloaded + " bytes");
+            Logger.i(LOG_TAG, "download complete: " + downloaded + " bytes");
 
             if (source.sha256 != null) {
                 setState(Status.VERIFYING,
@@ -492,7 +494,7 @@ public class BootstrapDownloadService extends Service {
                     getString(com.termux.R.string.bootstrap_download_progress_checking_sha),
                     90, true, false, false);
                 String actual = Sha256.hexOfFile(BootstrapDownloadService.this, tempFile);
-                Logger.i("BootstrapDownloadService", "SHA-256 expected=" + source.sha256 + " actual=" + actual);
+                Logger.i(LOG_TAG, "SHA-256 expected=" + source.sha256 + " actual=" + actual);
                 if (!actual.equalsIgnoreCase(source.sha256)) {
                     tempFile.delete();
                     throw new IOException(getString(com.termux.R.string.error_bootstrap_download_sha_mismatch, source.sha256, actual));
@@ -510,7 +512,7 @@ public class BootstrapDownloadService extends Service {
 
     private void setState(Status status, String statusMsg, String progressMsg,
                           int percent, boolean indeterminate, boolean success, boolean failed) {
-        Logger.i("BootstrapDownloadService", "setState: " + status + " pct=" + percent
+        Logger.i(LOG_TAG, "setState: " + status + " pct=" + percent
             + " msg=" + statusMsg + "/" + progressMsg);
         State snapshot;
         Listener listener;
@@ -573,19 +575,19 @@ public class BootstrapDownloadService extends Service {
             if (pm != null) {
                 mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "termux:bootstrap");
                 mWakeLock.setReferenceCounted(false);
-                Logger.i("BootstrapDownloadService", "acquireWakeLock: created");
+                Logger.i(LOG_TAG, "acquireWakeLock: created");
             }
         }
         if (mWakeLock != null && !mWakeLock.isHeld()) {
             mWakeLock.acquire();
-            Logger.i("BootstrapDownloadService", "acquireWakeLock: acquired");
+            Logger.i(LOG_TAG, "acquireWakeLock: acquired");
         }
     }
 
     private void releaseWakeLock() {
         if (mWakeLock != null && mWakeLock.isHeld()) {
             mWakeLock.release();
-            Logger.i("BootstrapDownloadService", "releaseWakeLock: released");
+            Logger.i(LOG_TAG, "releaseWakeLock: released");
         }
     }
 

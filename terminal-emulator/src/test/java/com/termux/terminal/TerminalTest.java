@@ -249,9 +249,7 @@ public class TerminalTest extends TerminalTestCase {
 		withTerminalSized(cols, rows);
 		for (int r = 0; r < rows; r++) {
 			for (int c = 0; c < cols; c++) {
-				long style = getStyleAt(r, c);
-				assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, TextStyle.decodeForeColor(style));
-				assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, TextStyle.decodeBackColor(style));
+				assertColorsAt(r, c, TextStyle.COLOR_INDEX_FOREGROUND, TextStyle.COLOR_INDEX_BACKGROUND);
 			}
 		}
 		// Foreground color to 119:
@@ -262,9 +260,7 @@ public class TerminalTest extends TerminalTestCase {
 		enterString("\033[2J");
 		for (int r = 0; r < rows; r++) {
 			for (int c = 0; c < cols; c++) {
-				long style = getStyleAt(r, c);
-				assertEquals(119, TextStyle.decodeForeColor(style));
-				assertEquals(129, TextStyle.decodeBackColor(style));
+				assertColorsAt(r, c, 119, 129);
 			}
 		}
 		// Background color to 139:

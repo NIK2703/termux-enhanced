@@ -71,13 +71,7 @@ public class Errno {
     }
 
     public Error getError(Object... args) {
-        try {
-            return new Error(getType(), getCode(), String.format(getMessage(), args));
-        } catch (Exception e) {
-            Logger.logWarn(LOG_TAG, "Exception raised while calling String.format() for error message of errno " + this + " with args" + Arrays.toString(args) + "\n" + e.getMessage());
-            // Return unformatted message as a backup
-            return new Error(getType(), getCode(), getMessage() + ": " + Arrays.toString(args));
-        }
+        return getError((List<Throwable>) null, args);
     }
 
     public Error getError(Throwable throwable, Object... args) {

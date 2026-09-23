@@ -72,7 +72,7 @@ public class ShareUtils {
         final Intent shareTextIntent = new Intent(Intent.ACTION_SEND);
         shareTextIntent.setType("text/plain");
         shareTextIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
-        shareTextIntent.putExtra(Intent.EXTRA_TEXT, DataUtils.getTruncatedCommandOutput(text, DataUtils.TRANSACTION_SIZE_LIMIT_IN_BYTES, true, false, false));
+        shareTextIntent.putExtra(Intent.EXTRA_TEXT, truncateForTransaction(text));
 
         openSystemAppChooser(context, shareTextIntent, DataUtils.isNullOrEmpty(title) ? context.getString(R.string.title_share_with) : title);
     }
@@ -102,8 +102,7 @@ public class ShareUtils {
         if (clipboardManager == null) return;
 
         clipboardManager.setPrimaryClip(ClipData.newPlainText(clipDataLabel,
-            DataUtils.getTruncatedCommandOutput(text, DataUtils.TRANSACTION_SIZE_LIMIT_IN_BYTES,
-                true, false, false)));
+            truncateForTransaction(text)));
 
         if (toastString != null && !toastString.isEmpty())
             Logger.showToast(context, toastString, true);
@@ -205,6 +204,10 @@ public class ShareUtils {
             if (showToast)
                 Logger.showToast(context, context.getString(R.string.msg_file_saved_successfully, label, filePath), true);
         }
+    }
+
+    private static String truncateForTransaction(String text) {
+        return DataUtils.getTruncatedCommandOutput(text, DataUtils.TRANSACTION_SIZE_LIMIT_IN_BYTES, true, false, false);
     }
 
 }

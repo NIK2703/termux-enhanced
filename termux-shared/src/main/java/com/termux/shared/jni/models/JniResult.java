@@ -65,6 +65,10 @@ public class JniResult {
         return result.getErrorString();
     }
 
+    public static boolean isFailure(final JniResult result) {
+        return result == null || result.retval != 0;
+    }
+
     /** Get error {@link String} for {@link JniResult}. */
     @NonNull
     public String getErrorString() {

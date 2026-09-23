@@ -79,9 +79,7 @@ public final class ImeVisibilityDetector {
         int h = computeKeyboardHeight();
         boolean v = h > 0;
         if (v != mLastVisible || h != mLastHeightPx) {
-            mLastVisible = v;
-            mLastHeightPx = h;
-            mListener.onImeVisibilityChanged(v, h);
+            publishState(v, h);
         }
     }
 
@@ -98,10 +96,14 @@ public final class ImeVisibilityDetector {
 
         if (visible != mLastVisible
                 || (visible && Math.abs(heightPx - mLastHeightPx) > 40)) {
-            mLastVisible = visible;
-            mLastHeightPx = heightPx;
-            mListener.onImeVisibilityChanged(visible, heightPx);
+            publishState(visible, heightPx);
         }
+    }
+
+    private void publishState(boolean visible, int heightPx) {
+        mLastVisible = visible;
+        mLastHeightPx = heightPx;
+        mListener.onImeVisibilityChanged(visible, heightPx);
     }
 
     private int computeKeyboardHeight() {

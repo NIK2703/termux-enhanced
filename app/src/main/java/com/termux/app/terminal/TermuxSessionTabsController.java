@@ -184,6 +184,23 @@ public class TermuxSessionTabsController {
         return mTabsContainer.getChildCount() - 1; // last child is the (+) button, not a tab
     }
 
+    /** True when both strip views exist (every scroll path early-returns on this). */
+    private boolean isStripReady() {
+        return mTabsContainer != null && mTabsScroll != null;
+    }
+
+    /** Index of {@code currentSession} in {@code sessions}, or -1 when absent. */
+    private static int indexOfCurrentSession(List<TermuxSession> sessions,
+                                             TerminalSession currentSession) {
+        for (int i = 0; i < sessions.size(); i++) {
+            TermuxSession s = sessions.get(i);
+            if (s != null && s.getTerminalSession() == currentSession) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     @Nullable
     private View getTabAt(int index) {
         if (mTabsContainer == null) return null;
@@ -222,14 +239,7 @@ public class TermuxSessionTabsController {
         if (mTabsContainer == null) return;
 
         TerminalSession currentSession = mActivity.getCurrentSession();
-        int currentSessionIndex = -1;
-        for (int i = 0; i < sessions.size(); i++) {
-            TermuxSession s = sessions.get(i);
-            if (s != null && s.getTerminalSession() == currentSession) {
-                currentSessionIndex = i;
-                break;
-            }
-        }
+        int currentSessionIndex = indexOfCurrentSession(sessions, currentSession);
 
         // The add-tab button is the LAST child of mTabsContainer, so the real
         // session count is always childCount - 1.
@@ -255,14 +265,7 @@ public class TermuxSessionTabsController {
         // This covers the equal-count case (no structural change) and also syncs the
         // newly-added tabs above. No removeAllViews(), so the HorizontalScrollView keeps
         // its current scrollX. Skips the add button (last child).
-        final int tabChildCount = mTabsContainer.getChildCount() - 1;
-        for (int i = 0; i < tabChildCount && i < newCount; i++) {
-            TermuxSession termuxSession = sessions.get(i);
-            View tabView = mTabsContainer.getChildAt(i);
-            // Never disturb a tab playing its close animation.
-            if (Boolean.TRUE.equals(tabView.getTag(R.id.session_tab_closing_tag))) continue;
-            populateTabView(tabView, termuxSession, i, i == currentSessionIndex);
-        }
+        populateAllTabs(sessions, currentSessionIndex);
 
         // Scroll after the rebuild, through the single-owner requestScroll() (last-call-wins, so a
         // centre request from setCurrentSession() and this end request can never run two competing
@@ -311,15 +314,14 @@ public class TermuxSessionTabsController {
         if (mTabsContainer == null) return;
         if (sessions.size() != getTabCount()) return;
         TerminalSession currentSession = mActivity.getCurrentSession();
-        int currentSessionIndex = -1;
-        for (int i = 0; i < sessions.size(); i++) {
-            TermuxSession s = sessions.get(i);
-            if (s != null && s.getTerminalSession() == currentSession) {
-                currentSessionIndex = i;
-                break;
-            }
-        }
+        int currentSessionIndex = indexOfCurrentSession(sessions, currentSession);
         if (currentSessionIndex >= 0) mCurrentSessionIndex = currentSessionIndex;
+        populateAllTabs(sessions, currentSessionIndex);
+        clampActiveTabVisible();
+    }
+
+    /** Populate/refresh every existing tab in place (skips the add button and closing tabs). */
+    private void populateAllTabs(List<TermuxSession> sessions, int currentSessionIndex) {
         final int tabCount = getTabCount();
         final int sessionCount = sessions.size();
         for (int i = 0; i < tabCount && i < sessionCount; i++) {
@@ -329,7 +331,6 @@ public class TermuxSessionTabsController {
             if (Boolean.TRUE.equals(tabView.getTag(R.id.session_tab_closing_tag))) continue;
             populateTabView(tabView, sessions.get(i), i, i == currentSessionIndex);
         }
-        clampActiveTabVisible();
     }
 
     /**
@@ -339,7 +340,7 @@ public class TermuxSessionTabsController {
      * in-flight pager swipe.
      */
     private void clampActiveTabVisible() {
-        if (mTabsContainer == null || mTabsScroll == null) return;
+        if (!isStripReady()) return;
         if (mEndScrollActive) return;
         if (mActivity.isTerminalPageSwitchInProgress()) return;
         final int idx = mCurrentSessionIndex;
@@ -406,12 +407,8 @@ public class TermuxSessionTabsController {
      */
     private void populateTabView(View tabView, TermuxSession termuxSession, int position, boolean isSelected) {
         ensureDimens();
-        TabRenderState state = (TabRenderState) tabView.getTag(R.id.session_tab_render_state_tag);
-        final boolean freshState = (state == null);
-        if (freshState) {
-            state = new TabRenderState(tabView);
-            tabView.setTag(R.id.session_tab_render_state_tag, state);
-        }
+        final boolean freshState = tabView.getTag(R.id.session_tab_render_state_tag) == null;
+        TabRenderState state = getRenderState(tabView);
         // Resolved once, in the TabRenderState constructor — never findViewById again.
         final TextView titleView = state.titleView;
         final ImageButton closeButton = state.closeButton;
@@ -742,7 +739,7 @@ public class TermuxSessionTabsController {
             mScrollSeqPending = -1;
             // A newer (higher-priority) request was issued after this runnable was queued: drop.
             if (seq < mScrollSeq) return;
-            if (mTabsContainer == null || mTabsScroll == null) return;
+            if (!isStripReady()) return;
             final int mode = mPendingScrollMode;
             mPendingScrollMode = SCROLL_NONE;
             if (mode == SCROLL_END) {
@@ -780,7 +777,7 @@ public class TermuxSessionTabsController {
     }
 
     private void runEndScroll() {
-        if (mTabsContainer == null || mTabsScroll == null) return;
+        if (!isStripReady()) return;
 
         // Cancel any in-flight end-scroll (a newer request, or a re-entry) before starting fresh.
         cancelEndScroll();
@@ -790,7 +787,7 @@ public class TermuxSessionTabsController {
             @Override
             public void run() {
                 mPendingEndScroll = null;
-                if (mTabsContainer == null || mTabsScroll == null) return;
+                if (!isStripReady()) return;
 
                 // Authoritative scrollable extent: the HorizontalScrollView clamps scroll to
                 // [0, childMeasuredWidth - viewportWidth]. getMeasuredWidth() of the
@@ -806,12 +803,8 @@ public class TermuxSessionTabsController {
                     return;
                 }
                 // Self-driven scroll: we own the target, HSV's per-frame re-clamp is bypassed.
-                mEndScrollAnim = android.animation.ValueAnimator.ofInt(startX, maxScroll);
-                mEndScrollAnim.setDuration(250);
-                mEndScrollAnim.setInterpolator(
+                mEndScrollAnim = buildScrollAnimator(startX, maxScroll, 250,
                         new android.view.animation.AccelerateDecelerateInterpolator());
-                mEndScrollAnim.addUpdateListener(anim ->
-                        mTabsScroll.scrollTo((int) anim.getAnimatedValue(), 0));
                 mEndScrollAnim.addListener(new android.animation.AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(android.animation.Animator animation) {
@@ -827,6 +820,25 @@ public class TermuxSessionTabsController {
             }
         };
         mTabsScroll.postDelayed(mPendingEndScroll, END_SCROLL_DELAY_MS);
+    }
+
+    /**
+     * Non-started self-driven scrollX animator shared by {@link #runEndScroll} and
+     * {@link #runCentreScroll}: HorizontalScrollView.smoothScrollTo() re-clamps an in-flight
+     * animation to its (possibly changing) content width every frame, so both paths drive
+     * scrollTo() themselves against a target computed once.
+     */
+    private android.animation.ValueAnimator buildScrollAnimator(int fromX, int toX,
+                                                                 int durationMs,
+                                                                 android.animation.TimeInterpolator interpolator) {
+        android.animation.ValueAnimator anim = android.animation.ValueAnimator.ofInt(fromX, toX);
+        anim.setDuration(durationMs);
+        anim.setInterpolator(interpolator);
+        anim.addUpdateListener(animation -> {
+            if (mTabsScroll == null) return;
+            mTabsScroll.scrollTo((Integer) animation.getAnimatedValue(), 0);
+        });
+        return anim;
     }
 
     /** Queue a strip scroll. Single owner with a monotonic sequence so END always beats CENTRE. */
@@ -867,7 +879,7 @@ public class TermuxSessionTabsController {
      *            so the runnable can drop itself if a newer (higher-priority) request supersedes it.
      */
     private void runCentreScroll(long seq) {
-        if (mTabsContainer == null || mTabsScroll == null) return;
+        if (!isStripReady()) return;
 
         cancelCentreScroll();
 
@@ -879,7 +891,7 @@ public class TermuxSessionTabsController {
             @Override
             public void run() {
                 mPendingCentreScroll = null;
-                if (mTabsContainer == null || mTabsScroll == null) return;
+                if (!isStripReady()) return;
                 // A newer (higher-priority) request was issued after this runnable was queued: drop.
                 if (seq < mScrollSeq) return;
                 if (idx >= mTabsContainer.getChildCount() - 1) return;
@@ -897,18 +909,8 @@ public class TermuxSessionTabsController {
                 // which could yank the strip left mid-animation on cold start.
                 final int fromX = mTabsScroll.getScrollX();
                 if (fromX == scrollX) return;
-                final android.animation.ValueAnimator anim =
-                        android.animation.ValueAnimator.ofInt(fromX, scrollX);
-                anim.setDuration(220);
-                anim.setInterpolator(new android.view.animation.DecelerateInterpolator());
-                anim.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
-                    @Override
-                    public void onAnimationUpdate(android.animation.ValueAnimator animation) {
-                        if (mTabsScroll == null) return;
-                        mTabsScroll.scrollTo((Integer) animation.getAnimatedValue(), 0);
-                    }
-                });
-                anim.start();
+                buildScrollAnimator(fromX, scrollX, 220,
+                        new android.view.animation.DecelerateInterpolator()).start();
             }
         };
         mTabsScroll.postDelayed(mPendingCentreScroll, END_SCROLL_DELAY_MS);
@@ -921,7 +923,7 @@ public class TermuxSessionTabsController {
      * end-scrolled so a subsequent title-only refresh does not recentre it.
      */
     public void scrollStripToEnd() {
-        if (mTabsContainer == null || mTabsScroll == null) return;
+        if (!isStripReady()) return;
         mEndScrollActive = true;
         requestScroll(SCROLL_END, -1);
     }
@@ -931,7 +933,7 @@ public class TermuxSessionTabsController {
      * fully settled before measuring. Used for normal tab switches (not tab addition).
      */
     public void scrollToTabIndex(int index) {
-        if (mTabsContainer == null || mTabsScroll == null) return;
+        if (!isStripReady()) return;
         final LayoutTransition transition = mTabsContainer.getLayoutTransition();
         if (transition != null && transition.isRunning()) {
             transition.addTransitionListener(new LayoutTransition.TransitionListener() {
@@ -1103,7 +1105,7 @@ public class TermuxSessionTabsController {
      *                       page fully visible)
      */
     public void onPageScrolled(int position, float positionOffset) {
-        if (mTabsContainer == null || mTabsScroll == null) return;
+        if (!isStripReady()) return;
         if (!mSchemeApplied) return;
         // Suppressed while the end-scroll owns the strip (a freshly added tab).
         if (mEndScrollActive) return;
@@ -1194,19 +1196,8 @@ public class TermuxSessionTabsController {
     }
 
     private StateListDrawable buildOvalStateListDrawable() {
-        GradientDrawable idle = new GradientDrawable();
-        idle.setShape(GradientDrawable.OVAL);
-        idle.setColor(mSchemeBg);
-
-        GradientDrawable active = new GradientDrawable();
-        active.setShape(GradientDrawable.OVAL);
-        active.setColor(mSchemeBgActive);
-
-        StateListDrawable states = new StateListDrawable();
-        states.addState(new int[]{android.R.attr.state_pressed}, active);
-        states.addState(new int[]{android.R.attr.state_selected}, active);
-        states.addState(new int[]{}, idle);
-        return states;
+        return TermuxTerminalSessionActivityClient.createOvalStateListDrawable(mSchemeBg,
+                mSchemeBgActive);
     }
 
     /**

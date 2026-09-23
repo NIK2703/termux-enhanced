@@ -30,8 +30,7 @@ import re
 import sys
 import zipfile
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP_RES = os.path.join(REPO, "app", "src", "main", "res")
+from common_helpers import APP_RES
 
 # <XxxPreference> element -> the theme attribute that selects its style (androidx.preference 1.2.1).
 ELEMENT_STYLE_ATTR = {

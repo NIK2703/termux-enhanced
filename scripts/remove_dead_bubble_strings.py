@@ -19,6 +19,8 @@ Idempotent: keys that are already gone are reported as SKIP. Run from the repo r
 import os
 import sys
 
+from common_helpers import print_results, require_repo_root
+
 BASE = "app/src/main/res"
 
 DEAD_KEYS = [
@@ -79,14 +81,16 @@ def patch(locale: str) -> str:
     return f"OK    {locale}: removed {removed} line(s)"
 
 def main() -> int:
-    if not os.path.isdir(BASE):
-        print(f"Run this from the repo root; {BASE} not found", file=sys.stderr)
+    if not require_repo_root(BASE):
         return 1
 
-    for locale in sorted(os.listdir(BASE)):
-        if locale == "values" or locale.startswith("values-"):
-            if os.path.isfile(os.path.join(BASE, locale, "strings.xml")):
-                print(patch(locale))
+    def results():
+        for locale in sorted(os.listdir(BASE)):
+            if locale == "values" or locale.startswith("values-"):
+                if os.path.isfile(os.path.join(BASE, locale, "strings.xml")):
+                    yield patch(locale)
+
+    print_results(results())
     return 0
 
 if __name__ == "__main__":

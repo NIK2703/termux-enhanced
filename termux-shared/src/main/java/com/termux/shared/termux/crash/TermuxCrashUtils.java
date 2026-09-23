@@ -93,11 +93,8 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         String currentPackageName = currentPackageContext.getPackageName();
 
         // Do not notify if is a non-termux app
-        final Context context = TermuxUtils.getTermuxPackageContext(currentPackageContext);
-        if (context == null) {
-            Logger.logWarn(LOG_TAG, "Ignoring call to onPostLogCrash() since failed to get \"" + TermuxConstants.TERMUX_PACKAGE_NAME + "\" package context from \"" + currentPackageName + "\" context");
-            return;
-        }
+        final Context context = getTermuxPackageContextForCrashOps(currentPackageContext, "onPostLogCrash");
+        if (context == null) return;
 
         // If an uncaught exception, then do not notify since the termux app itself would be crashing
         if (TYPE.UNCAUGHT_EXCEPTION.equals(mType) && TermuxConstants.TERMUX_PACKAGE_NAME.equals(currentPackageName))
@@ -143,18 +140,11 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
      */
     public static void notifyAppCrashFromCrashLogFile(final Context currentPackageContext, final String logTagParam) {
         if (currentPackageContext == null) return;
-        String currentPackageName = currentPackageContext.getPackageName();
 
-        final Context context = TermuxUtils.getTermuxPackageContext(currentPackageContext);
-        if (context == null) {
-            Logger.logWarn(LOG_TAG, "Ignoring call to notifyAppCrash() since failed to get \"" + TermuxConstants.TERMUX_PACKAGE_NAME + "\" package context from \"" + currentPackageName + "\" context");
-            return;
-        }
+        final Context context = getTermuxPackageContextForCrashOps(currentPackageContext, "notifyAppCrash");
+        if (context == null) return;
 
-        TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context);
-        if (preferences == null) return;
-
-        if (!preferences.areCrashReportNotificationsEnabled(false))
+        if (!areCrashNotificationsEnabled(context, false, false))
             return;
 
         new Thread() {
@@ -287,16 +277,10 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         if (currentPackageContext == null) return;
         String currentPackageName = currentPackageContext.getPackageName();
 
-        final Context termuxPackageContext = TermuxUtils.getTermuxPackageContext(currentPackageContext);
-        if (termuxPackageContext == null) {
-            Logger.logWarn(LOG_TAG, "Ignoring call to sendCrashReportNotification() since failed to get \"" + TermuxConstants.TERMUX_PACKAGE_NAME + "\" package context from \"" + currentPackageName + "\" context");
-            return;
-        }
+        final Context termuxPackageContext = getTermuxPackageContextForCrashOps(currentPackageContext, "sendCrashReportNotification");
+        if (termuxPackageContext == null) return;
 
-        TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(termuxPackageContext);
-        if (preferences == null) return;
-
-        if (!preferences.areCrashReportNotificationsEnabled(true) && !forceNotification)
+        if (!areCrashNotificationsEnabled(termuxPackageContext, true, forceNotification))
             return;
 
         logTag = DataUtils.getDefaultIfNull(logTag, LOG_TAG);
@@ -392,6 +376,22 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationUtils.setupNotificationChannel(context, TermuxConstants.TERMUX_CRASH_REPORTS_NOTIFICATION_CHANNEL_ID,
             TermuxConstants.TERMUX_CRASH_REPORTS_NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+    }
+
+    @Nullable
+    private static Context getTermuxPackageContextForCrashOps(@NonNull Context currentPackageContext,
+                                                              @NonNull String methodName) {
+        Context context = TermuxUtils.getTermuxPackageContext(currentPackageContext);
+        if (context == null)
+            Logger.logWarn(LOG_TAG, "Ignoring call to " + methodName + "() since failed to get \"" + TermuxConstants.TERMUX_PACKAGE_NAME + "\" package context from \"" + currentPackageContext.getPackageName() + "\" context");
+        return context;
+    }
+
+    private static boolean areCrashNotificationsEnabled(@NonNull Context packageContext, boolean defaultEnabled,
+                                                        boolean forceNotification) {
+        TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(packageContext);
+        if (preferences == null) return false;
+        return preferences.areCrashReportNotificationsEnabled(defaultEnabled) || forceNotification;
     }
 
 }

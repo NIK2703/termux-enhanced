@@ -5,6 +5,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.common.collect.ImmutableBiMap;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.data.DataUtils;
 import com.termux.shared.settings.properties.SharedProperties;
@@ -163,17 +164,11 @@ public class TermuxAppSharedProperties {
             if (TermuxPropertyConstants.isBooleanKey(key)) {
                 prefs.setGenericBoolean(key, SharedProperties.getBooleanValueForStringValue(key, value, false, false, LOG_TAG));
             } else if (TermuxPropertyConstants.KEY_BELL_BEHAVIOUR.equals(key)) {
-                // Stored as int, but the legacy file value is a string enum ("vibrate"/"beep"/"ignore").
-                Integer mapped = TermuxPropertyConstants.MAP_BELL_BEHAVIOUR.get(value);
-                prefs.setGenericInt(key, mapped != null ? mapped : TermuxPropertyConstants.DEFAULT_IVALUE_BELL_BEHAVIOUR);
+                setMappedInt(prefs, key, value, TermuxPropertyConstants.MAP_BELL_BEHAVIOUR, TermuxPropertyConstants.DEFAULT_IVALUE_BELL_BEHAVIOUR);
             } else if (TermuxPropertyConstants.KEY_EXTRA_KEYS_HAPTIC.equals(key)) {
-                // Stored as int, but the legacy file value is a string enum ("all"/"gestures"/"off").
-                Integer mapped = TermuxPropertyConstants.MAP_EXTRA_KEYS_HAPTIC.get(value);
-                prefs.setGenericInt(key, mapped != null ? mapped : TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_HAPTIC);
+                setMappedInt(prefs, key, value, TermuxPropertyConstants.MAP_EXTRA_KEYS_HAPTIC, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_HAPTIC);
             } else if (TermuxPropertyConstants.KEY_TERMINAL_CURSOR_STYLE.equals(key)) {
-                // Same as above: legacy value is a string enum ("block"/"underline"/"bar").
-                Integer mapped = TermuxPropertyConstants.MAP_TERMINAL_CURSOR_STYLE.get(value);
-                prefs.setGenericInt(key, mapped != null ? mapped : TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_CURSOR_STYLE);
+                setMappedInt(prefs, key, value, TermuxPropertyConstants.MAP_TERMINAL_CURSOR_STYLE, TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_CURSOR_STYLE);
             } else if (TermuxPropertyConstants.isIntKey(key)) {
                 prefs.setGenericInt(key, DataUtils.getIntFromString(value, 0));
             } else if (TermuxPropertyConstants.isFloatKey(key)) {
@@ -186,6 +181,14 @@ public class TermuxAppSharedProperties {
         // The file itself is left exactly where it is: it is the user's, and older builds still
         // read from it. The flag below is what makes this a one time operation.
         setPropertiesMigrated(prefs);
+    }
+
+    private static void setMappedInt(@NonNull TermuxAppSharedPreferences prefs, @NonNull String key,
+                                     @NonNull String value,
+                                     @NonNull ImmutableBiMap<String, Integer> map,
+                                     int defValue) {
+        Integer mapped = map.get(value);
+        prefs.setGenericInt(key, mapped != null ? mapped : defValue);
     }
 
     /** Remember that the legacy file has been imported, so it is not processed again. */

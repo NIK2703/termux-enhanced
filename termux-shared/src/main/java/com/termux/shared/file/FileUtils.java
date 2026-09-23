@@ -49,6 +49,23 @@ public class FileUtils {
 
     private static final String LOG_TAG = "FileUtils";
 
+    private static String normalizeLabel(String label) {
+        return (label == null || label.isEmpty() ? "" : label + " ");
+    }
+
+    private static Error getNullOrEmptyParameterError(String parameterName, String functionName) {
+        return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(parameterName, functionName);
+    }
+
+    private static Error getFileError(Errno errno, String label, String filePath) {
+        return errno.getError(label, filePath).setLabel(label);
+    }
+
+    private static Error getIgnorableFileNotFoundError(String label, final String filePath, final boolean ignoreNonExistent, String labelSuffix) {
+        if (ignoreNonExistent) return null;
+        return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH, label + labelSuffix, filePath);
+    }
+
     /**
      * Get canonical path.
      *
@@ -210,8 +227,8 @@ public class FileUtils {
     public static Error validateDirectoryFileEmptyOrOnlyContainsSpecificFiles(String label, String filePath,
                                                                               final List<String> ignoredSubFilePaths,
                                                                               final boolean ignoreNonExistentFile) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "isDirectoryFileEmptyOrOnlyContainsSpecificFiles");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "isDirectoryFileEmptyOrOnlyContainsSpecificFiles");
 
         try {
             File file = new File(filePath);
@@ -219,18 +236,13 @@ public class FileUtils {
 
             // If file exists but not a directory file
             if (fileType != FileType.NO_EXIST && fileType != FileType.DIRECTORY) {
-                return FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND.getError(label + "directory", filePath).setLabel(label + "directory");
+                return getFileError(FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND, label + "directory", filePath);
             }
 
             // If file does not exist
             if (fileType == FileType.NO_EXIST) {
                 // If checking is to be ignored if file does not exist
-                if (ignoreNonExistentFile)
-                    return null;
-                else {
-                    label += "directory to check if is empty or only contains specific files";
-                    return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
-                }
+                return getIgnorableFileNotFoundError(label, filePath, ignoreNonExistentFile, "directory to check if is empty or only contains specific files");
             }
 
             File[] subFiles = file.listFiles();
@@ -409,15 +421,15 @@ public class FileUtils {
     public static Error validateRegularFileExistenceAndPermissions(String label, final String filePath, final String parentDirPath,
                                                                    final String permissionsToCheck, final boolean setPermissions, final boolean setMissingPermissionsOnly,
                                                                    final boolean ignoreErrorsIfPathIsUnderParentDirPath) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "regular file path", "validateRegularFileExistenceAndPermissions");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "regular file path", "validateRegularFileExistenceAndPermissions");
 
         try {
             FileType fileType = getFileType(filePath, false);
 
             // If file exists but not a regular file
             if (fileType != FileType.NO_EXIST && fileType != FileType.REGULAR) {
-                return FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND.getError(label + "file", filePath).setLabel(label + "file");
+                return getFileError(FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND, label + "file", filePath);
             }
 
             boolean isPathUnderParentDirPath = false;
@@ -441,7 +453,7 @@ public class FileUtils {
             // Regular files cannot be automatically created so we do not ignore if missing
             if (fileType != FileType.REGULAR) {
                 label += "regular file";
-                return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
+                return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH, label, filePath);
             }
 
             // If there is not parentDirPath restriction or path is not under parentDirPath or
@@ -490,8 +502,8 @@ public class FileUtils {
     public static Error validateDirectoryFileExistenceAndPermissions(String label, final String filePath, final String parentDirPath, final boolean createDirectoryIfMissing,
                                                                      final String permissionsToCheck, final boolean setPermissions, final boolean setMissingPermissionsOnly,
                                                                      final boolean ignoreErrorsIfPathIsInParentDirPath, final boolean ignoreIfNotExecutable) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "directory file path", "validateDirectoryExistenceAndPermissions");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "directory file path", "validateDirectoryExistenceAndPermissions");
 
         try {
             File file = new File(filePath);
@@ -499,7 +511,7 @@ public class FileUtils {
 
             // If file exists but not a directory file
             if (fileType != FileType.NO_EXIST && fileType != FileType.DIRECTORY) {
-                return FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND.getError(label + "directory", filePath).setLabel(label + "directory");
+                return getFileError(FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND, label + "directory", filePath);
             }
 
             boolean isPathInParentDirPath = false;
@@ -539,7 +551,7 @@ public class FileUtils {
                 // Directories can be automatically created so we can ignore if missing with above check
                 if (fileType != FileType.DIRECTORY) {
                     label += "directory";
-                    return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
+                    return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH, label, filePath);
                 }
 
                 if (permissionsToCheck != null) {
@@ -602,8 +614,8 @@ public class FileUtils {
      */
     public static Error createRegularFile(String label, final String filePath,
                                           final String permissionsToCheck, final boolean setPermissions, final boolean setMissingPermissionsOnly) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "createRegularFile");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "createRegularFile");
 
         Error error;
 
@@ -612,7 +624,7 @@ public class FileUtils {
 
         // If file exists but not a regular file
         if (fileType != FileType.NO_EXIST && fileType != FileType.REGULAR) {
-            return FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND.getError(label + "file", filePath).setLabel(label + "file");
+            return getFileError(FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND, label + "file", filePath);
         }
 
         // If regular file already exists
@@ -651,7 +663,7 @@ public class FileUtils {
      * otherwise {@code null}.
      */
     public static Error createParentDirectoryFile(final String label, final String filePath) {
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "createParentDirectoryFile");
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "createParentDirectoryFile");
 
         File file = new File(filePath);
         String fileParentPath = file.getParent();
@@ -774,9 +786,9 @@ public class FileUtils {
      */
     public static Error createSymlinkFile(String label, final String targetFilePath, final String destFilePath,
                                           final boolean allowDangling, final boolean overwrite, final boolean overwriteOnlyIfDestIsASymlink) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (targetFilePath == null || targetFilePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "target file path", "createSymlinkFile");
-        if (destFilePath == null || destFilePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "destination file path", "createSymlinkFile");
+        label = normalizeLabel(label);
+        if (targetFilePath == null || targetFilePath.isEmpty()) return getNullOrEmptyParameterError(label + "target file path", "createSymlinkFile");
+        if (destFilePath == null || destFilePath.isEmpty()) return getNullOrEmptyParameterError(label + "destination file path", "createSymlinkFile");
 
         Error error;
 
@@ -799,7 +811,7 @@ public class FileUtils {
                 // If dangling symlink should not be allowed, then return with error
                 if (!allowDangling) {
                     label += "symlink target file";
-                    return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, targetFileAbsolutePath).setLabel(label);
+                    return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH, label, targetFileAbsolutePath);
                 }
             }
 
@@ -1044,9 +1056,9 @@ public class FileUtils {
     public static Error copyOrMoveFile(String label, final String srcFilePath, final String destFilePath,
                                        final boolean moveFile, final boolean ignoreNonExistentSrcFile, int allowedFileTypeFlags,
                                        final boolean overwrite, final boolean overwriteOnlyIfDestSameFileTypeAsSrc) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (srcFilePath == null || srcFilePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "source file path", "copyOrMoveFile");
-        if (destFilePath == null || destFilePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "destination file path", "copyOrMoveFile");
+        label = normalizeLabel(label);
+        if (srcFilePath == null || srcFilePath.isEmpty()) return getNullOrEmptyParameterError(label + "source file path", "copyOrMoveFile");
+        if (destFilePath == null || destFilePath.isEmpty()) return getNullOrEmptyParameterError(label + "destination file path", "copyOrMoveFile");
 
         String mode = (moveFile ? "Moving" : "Copying");
         String modePast = (moveFile ? "moved" : "copied");
@@ -1068,12 +1080,7 @@ public class FileUtils {
             // If source file does not exist
             if (srcFileType == FileType.NO_EXIST) {
                 // If copy or move is to be ignored if source file is not found
-                if (ignoreNonExistentSrcFile)
-                    return null;
-                else {
-                    label += "source file";
-                    return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, srcFilePath).setLabel(label);
-                }
+                return getIgnorableFileNotFoundError(label, srcFilePath, ignoreNonExistentSrcFile, "source file");
             }
 
             // If the file type of the source file does not exist in the allowedFileTypeFlags, then return with error
@@ -1268,8 +1275,8 @@ public class FileUtils {
      * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteFile(String label, final String filePath, final boolean ignoreNonExistentFile, final boolean ignoreWrongFileType, int allowedFileTypeFlags) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "deleteFile");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "deleteFile");
 
         try {
             File file = new File(filePath);
@@ -1280,12 +1287,7 @@ public class FileUtils {
             // If file does not exist
             if (fileType == FileType.NO_EXIST) {
                 // If delete is to be ignored if file does not exist
-                if (ignoreNonExistentFile)
-                    return null;
-                else {
-                    label += "file meant to be deleted";
-                    return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
-                }
+                return getIgnorableFileNotFoundError(label, filePath, ignoreNonExistentFile, "file meant to be deleted");
             }
 
             // If the file type of the file does not exist in the allowedFileTypeFlags
@@ -1371,8 +1373,8 @@ public class FileUtils {
      * @return the {@code error} if clearing was not successful, otherwise {@code null}.
      */
     public static Error clearDirectory(String label, final String filePath) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "clearDirectory");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "clearDirectory");
 
         Error error;
 
@@ -1384,7 +1386,7 @@ public class FileUtils {
 
             // If file exists but not a directory file
             if (fileType != FileType.NO_EXIST && fileType != FileType.DIRECTORY) {
-                return FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND.getError(label + "directory", filePath).setLabel(label + "directory");
+                return getFileError(FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND, label + "directory", filePath);
             }
 
             // If directory exists, clear its contents
@@ -1434,8 +1436,8 @@ public class FileUtils {
      * @return the {@code error} if deleting was not successful, otherwise {@code null}.
      */
     public static Error deleteFilesOlderThanXDays(String label, final String filePath, final IOFileFilter dirFilter, int days, final boolean ignoreNonExistentFile, int allowedFileTypeFlags) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "deleteFilesOlderThanXDays");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "deleteFilesOlderThanXDays");
         if (days < 0) return FunctionErrno.ERRNO_INVALID_PARAMETER.getError(label + "days", "deleteFilesOlderThanXDays", " It must be >= 0.");
 
         Error error;
@@ -1448,18 +1450,13 @@ public class FileUtils {
 
             // If file exists but not a directory file
             if (fileType != FileType.NO_EXIST && fileType != FileType.DIRECTORY) {
-                return FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND.getError(label + "directory", filePath).setLabel(label + "directory");
+                return getFileError(FileUtilsErrno.ERRNO_NON_DIRECTORY_FILE_FOUND, label + "directory", filePath);
             }
 
             // If file does not exist
             if (fileType == FileType.NO_EXIST) {
                 // If delete is to be ignored if file does not exist
-                if (ignoreNonExistentFile)
-                    return null;
-                else {
-                    label += "directory under which files had to be deleted";
-                    return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
-                }
+                return getIgnorableFileNotFoundError(label, filePath, ignoreNonExistentFile, "directory under which files had to be deleted");
             }
 
             // TODO: Use FileAttributes with support for atime (default), mtime, ctime. Add regex for ignoring file and dir absolute paths.
@@ -1499,8 +1496,8 @@ public class FileUtils {
      * @return the {@code error} if reading was not successful, otherwise {@code null}.
      */
     public static Error readTextFromFile(String label, final String filePath, Charset charset, @NonNull final StringBuilder dataStringBuilder, final boolean ignoreNonExistentFile) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "readStringFromFile");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "readStringFromFile");
 
         Logger.logVerbose(LOG_TAG, "Reading text from " + label + "file at path \"" + filePath + "\"");
 
@@ -1510,18 +1507,13 @@ public class FileUtils {
 
         // If file exists but not a regular file
         if (fileType != FileType.NO_EXIST && fileType != FileType.REGULAR) {
-            return FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND.getError(label + "file", filePath).setLabel(label + "file");
+            return getFileError(FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND, label + "file", filePath);
         }
 
         // If file does not exist
         if (fileType == FileType.NO_EXIST) {
             // If reading is to be ignored if file does not exist
-            if (ignoreNonExistentFile)
-                return null;
-            else {
-                label += "file meant to be read";
-                return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
-            }
+            return getIgnorableFileNotFoundError(label, filePath, ignoreNonExistentFile, "file meant to be read");
         }
 
         if (charset == null) charset = Charset.defaultCharset();
@@ -1577,8 +1569,8 @@ public class FileUtils {
      */
     @NonNull
     public static <T extends Serializable> ReadSerializableObjectResult readSerializableObjectFromFile(String label, final String filePath, Class<T> readObjectType, final boolean ignoreNonExistentFile) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return new ReadSerializableObjectResult(FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "readSerializableObjectFromFile"), null);
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return new ReadSerializableObjectResult(getNullOrEmptyParameterError(label + "file path", "readSerializableObjectFromFile"), null);
 
         Logger.logVerbose(LOG_TAG, "Reading serializable object from " + label + "file at path \"" + filePath + "\"");
 
@@ -1588,18 +1580,13 @@ public class FileUtils {
 
         // If file exists but not a regular file
         if (fileType != FileType.NO_EXIST && fileType != FileType.REGULAR) {
-            return new ReadSerializableObjectResult(FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND.getError(label + "file", filePath).setLabel(label + "file"), null);
+            return new ReadSerializableObjectResult(getFileError(FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND, label + "file", filePath), null);
         }
 
         // If file does not exist
         if (fileType == FileType.NO_EXIST) {
             // If reading is to be ignored if file does not exist
-                if (ignoreNonExistentFile)
-                    return new ReadSerializableObjectResult(null, null);
-                else {
-                label += "file meant to be read";
-                return new ReadSerializableObjectResult(FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label), null);
-            }
+            return new ReadSerializableObjectResult(getIgnorableFileNotFoundError(label, filePath, ignoreNonExistentFile, "file meant to be read"), null);
         }
 
         FileInputStream fileInputStream = null;
@@ -1630,8 +1617,8 @@ public class FileUtils {
      * @return the {@code error} if writing was not successful, otherwise {@code null}.
      */
     public static Error writeTextToFile(String label, final String filePath, Charset charset, final String dataString, final boolean append) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "writeStringToFile");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "writeStringToFile");
 
         Logger.logVerbose(LOG_TAG, Logger.getMultiLineLogStringEntry("Writing text to " + label + "file at path \"" + filePath + "\"", DataUtils.getTruncatedCommandOutput(dataString, Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD, true, false, true), "-"));
 
@@ -1674,8 +1661,8 @@ public class FileUtils {
      * @return the {@code error} if writing was not successful, otherwise {@code null}.
      */
     public static <T extends Serializable> Error writeSerializableObjectToFile(String label, final String filePath, final T serializableObject) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "writeSerializableObjectToFile");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "writeSerializableObjectToFile");
 
         Logger.logVerbose(LOG_TAG, "Writing serializable object to " + label + "file at path \"" + filePath + "\"");
 
@@ -1710,7 +1697,7 @@ public class FileUtils {
 
         // If file exists but not a regular file
         if (fileType != FileType.NO_EXIST && fileType != FileType.REGULAR) {
-            return FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND.getError(label + "file", filePath).setLabel(label + "file");
+            return getFileError(FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND, label + "file", filePath);
         }
 
         error = createParentDirectoryFile(label + "file parent", filePath);
@@ -1727,7 +1714,7 @@ public class FileUtils {
      * @return the {@code error} if charset is not supported or failed to check it, otherwise {@code null}.
      */
     public static Error isCharsetSupported(final Charset charset) {
-        if (charset == null) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError("charset", "isCharsetSupported");
+        if (charset == null) return getNullOrEmptyParameterError("charset", "isCharsetSupported");
 
         try {
             if (!Charset.isSupported(charset.name())) {
@@ -1756,6 +1743,57 @@ public class FileUtils {
         }
     }
 
+    private static boolean isValidPermissionStringOrLog(String functionName, String paramName, String permissions) {
+        if (isValidPermissionString(permissions)) return true;
+        Logger.logError(LOG_TAG, "Invalid " + paramName + " passed to " + functionName + ": \"" + permissions + "\"");
+        return false;
+    }
+
+    private static boolean hasFilePermission(File file, char permission) {
+        switch (permission) {
+            case 'r': return file.canRead();
+            case 'w': return file.canWrite();
+            default: return file.canExecute();
+        }
+    }
+
+    private static void applyFilePermission(File file, char permission, boolean enable) {
+        switch (permission) {
+            case 'r': file.setReadable(enable); break;
+            case 'w': file.setWritable(enable); break;
+            default: file.setExecutable(enable); break;
+        }
+    }
+
+    private static String getPermissionName(char permission) {
+        switch (permission) {
+            case 'r': return "read";
+            case 'w': return "write";
+            default: return "execute";
+        }
+    }
+
+    private static void updateFilePermission(File file, String label, String filePath, char permission, boolean grant) {
+        if (grant) {
+            if (!hasFilePermission(file, permission)) {
+                Logger.logVerbose(LOG_TAG, "Setting " + getPermissionName(permission) + " permissions for " + label + "file at path \"" + filePath + "\"");
+                applyFilePermission(file, permission, true);
+            }
+        } else {
+            if (hasFilePermission(file, permission)) {
+                Logger.logVerbose(LOG_TAG, "Removing " + getPermissionName(permission) + " permissions for " + label + "file at path \"" + filePath + "\"");
+                applyFilePermission(file, permission, false);
+            }
+        }
+    }
+
+    private static void setMissingFilePermission(File file, String label, String filePath, char permission, boolean grant) {
+        if (grant && !hasFilePermission(file, permission)) {
+            Logger.logVerbose(LOG_TAG, "Setting missing " + getPermissionName(permission) + " permissions for " + label + "file at path \"" + filePath + "\"");
+            applyFilePermission(file, permission, true);
+        }
+    }
+
     /**
      * Set permissions for file at path. Existing permission outside the {@code permissionsToSet}
      * will be removed.
@@ -1776,51 +1814,16 @@ public class FileUtils {
      * @param permissionsToSet The 3 character string that contains the "r", "w", "x" or "-" in-order.
      */
     public static void setFilePermissions(String label, final String filePath, final String permissionsToSet) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
+        label = normalizeLabel(label);
         if (filePath == null || filePath.isEmpty()) return;
 
-        if (!isValidPermissionString(permissionsToSet)) {
-            Logger.logError(LOG_TAG, "Invalid permissionsToSet passed to setFilePermissions: \"" + permissionsToSet + "\"");
-            return;
-        }
+        if (!isValidPermissionStringOrLog("setFilePermissions", "permissionsToSet", permissionsToSet)) return;
 
         File file = new File(filePath);
 
-        if (permissionsToSet.contains("r")) {
-            if (!file.canRead()) {
-                Logger.logVerbose(LOG_TAG, "Setting read permissions for " + label + "file at path \"" + filePath + "\"");
-                file.setReadable(true);
-            }
-        } else {
-            if (file.canRead()) {
-                Logger.logVerbose(LOG_TAG, "Removing read permissions for " + label + "file at path \"" + filePath + "\"");
-                file.setReadable(false);
-            }
-        }
-
-        if (permissionsToSet.contains("w")) {
-            if (!file.canWrite()) {
-                Logger.logVerbose(LOG_TAG, "Setting write permissions for " + label + "file at path \"" + filePath + "\"");
-                file.setWritable(true);
-            }
-        } else {
-            if (file.canWrite()) {
-                Logger.logVerbose(LOG_TAG, "Removing write permissions for " + label + "file at path \"" + filePath + "\"");
-                file.setWritable(false);
-            }
-        }
-
-        if (permissionsToSet.contains("x")) {
-            if (!file.canExecute()) {
-                Logger.logVerbose(LOG_TAG, "Setting execute permissions for " + label + "file at path \"" + filePath + "\"");
-                file.setExecutable(true);
-            }
-        } else {
-            if (file.canExecute()) {
-                Logger.logVerbose(LOG_TAG, "Removing execute permissions for " + label + "file at path \"" + filePath + "\"");
-                file.setExecutable(false);
-            }
-        }
+        updateFilePermission(file, label, filePath, 'r', permissionsToSet.contains("r"));
+        updateFilePermission(file, label, filePath, 'w', permissionsToSet.contains("w"));
+        updateFilePermission(file, label, filePath, 'x', permissionsToSet.contains("x"));
     }
 
     /**
@@ -1843,30 +1846,16 @@ public class FileUtils {
      * @param permissionsToSet The 3 character string that contains the "r", "w", "x" or "-" in-order.
      */
     public static void setMissingFilePermissions(String label, final String filePath, final String permissionsToSet) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
+        label = normalizeLabel(label);
         if (filePath == null || filePath.isEmpty()) return;
 
-        if (!isValidPermissionString(permissionsToSet)) {
-            Logger.logError(LOG_TAG, "Invalid permissionsToSet passed to setMissingFilePermissions: \"" + permissionsToSet + "\"");
-            return;
-        }
+        if (!isValidPermissionStringOrLog("setMissingFilePermissions", "permissionsToSet", permissionsToSet)) return;
 
         File file = new File(filePath);
 
-        if (permissionsToSet.contains("r") && !file.canRead()) {
-            Logger.logVerbose(LOG_TAG, "Setting missing read permissions for " + label + "file at path \"" + filePath + "\"");
-            file.setReadable(true);
-        }
-
-        if (permissionsToSet.contains("w") && !file.canWrite()) {
-            Logger.logVerbose(LOG_TAG, "Setting missing write permissions for " + label + "file at path \"" + filePath + "\"");
-            file.setWritable(true);
-        }
-
-        if (permissionsToSet.contains("x") && !file.canExecute()) {
-            Logger.logVerbose(LOG_TAG, "Setting missing execute permissions for " + label + "file at path \"" + filePath + "\"");
-            file.setExecutable(true);
-        }
+        setMissingFilePermission(file, label, filePath, 'r', permissionsToSet.contains("r"));
+        setMissingFilePermission(file, label, filePath, 'w', permissionsToSet.contains("w"));
+        setMissingFilePermission(file, label, filePath, 'x', permissionsToSet.contains("x"));
     }
 
     /**
@@ -1893,29 +1882,27 @@ public class FileUtils {
      * @return the {@code error} if validating permissions failed, otherwise {@code null}.
      */
     public static Error checkMissingFilePermissions(String label, final String filePath, final String permissionsToCheck, final boolean ignoreIfNotExecutable) {
-        label = (label == null || label.isEmpty() ? "" : label + " ");
-        if (filePath == null || filePath.isEmpty()) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError(label + "file path", "checkMissingFilePermissions");
+        label = normalizeLabel(label);
+        if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "checkMissingFilePermissions");
 
-        if (!isValidPermissionString(permissionsToCheck)) {
-            Logger.logError(LOG_TAG, "Invalid permissionsToCheck passed to checkMissingFilePermissions: \"" + permissionsToCheck + "\"");
+        if (!isValidPermissionStringOrLog("checkMissingFilePermissions", "permissionsToCheck", permissionsToCheck))
             return FileUtilsErrno.ERRNO_INVALID_FILE_PERMISSIONS_STRING_TO_CHECK.getError();
-        }
 
         File file = new File(filePath);
 
         // If file is not readable
         if (permissionsToCheck.contains("r") && !file.canRead()) {
-            return FileUtilsErrno.ERRNO_FILE_NOT_READABLE.getError(label + "file", filePath).setLabel(label + "file");
+            return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_READABLE, label + "file", filePath);
         }
 
         // If file is not writable
         if (permissionsToCheck.contains("w") && !file.canWrite()) {
-            return FileUtilsErrno.ERRNO_FILE_NOT_WRITABLE.getError(label + "file", filePath).setLabel(label + "file");
+            return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_WRITABLE, label + "file", filePath);
         }
         // If file is not executable
         // This canExecute() will give "avc: granted { execute }" warnings for target sdk 29
         else if (permissionsToCheck.contains("x") && !file.canExecute() && !ignoreIfNotExecutable) {
-            return FileUtilsErrno.ERRNO_FILE_NOT_EXECUTABLE.getError(label + "file", filePath).setLabel(label + "file");
+            return getFileError(FileUtilsErrno.ERRNO_FILE_NOT_EXECUTABLE, label + "file", filePath);
         }
 
         return null;

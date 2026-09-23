@@ -140,8 +140,7 @@ public class TextSelectionHandleView extends View {
         initHandle();
         invalidate();
 
-        final int[] coords = mTempCoords;
-        terminalView.getLocationInWindow(coords);
+        final int[] coords = terminalWindowCoords();
         coords[0] += mPointX;
         coords[1] += mPointY;
 
@@ -184,20 +183,16 @@ public class TextSelectionHandleView extends View {
             int[] coords = null;
 
             if (isShowing()) {
-                coords = mTempCoords;
-                terminalView.getLocationInWindow(coords);
-                int x1 = coords[0] + mPointX;
-                int y1 = coords[1] + mPointY;
+                coords = terminalWindowCoords();
                 if (mHandle != null)
-                    mHandle.update(x1, y1, getWidth(), getHeight());
+                    mHandle.update(coords[0] + mPointX, coords[1] + mPointY, getWidth(), getHeight());
             } else {
                 show();
             }
 
             if (mIsDragging) {
                 if (coords == null) {
-                    coords = mTempCoords;
-                    terminalView.getLocationInWindow(coords);
+                    coords = terminalWindowCoords();
                 }
                 if (coords[0] != mLastParentX || coords[1] != mLastParentY) {
                     mTouchToWindowOffsetX += coords[0] - mLastParentX;
@@ -217,6 +212,13 @@ public class TextSelectionHandleView extends View {
         }
     }
 
+    /** Terminal view origin in window coordinates, written into {@link #mTempCoords}. */
+    private int[] terminalWindowCoords() {
+        final int[] coords = mTempCoords;
+        terminalView.getLocationInWindow(coords);
+        return coords;
+    }
+
     private void checkChangedOrientation(int posX, boolean force) {
         if (!mIsDragging && !force) {
             return;
@@ -227,25 +229,11 @@ public class TextSelectionHandleView extends View {
         }
         mLastTime = millis;
 
-        final TerminalView hostView = terminalView;
-        final int left = hostView.getLeft();
-        final int right = hostView.getWidth();
-        final int top = hostView.getTop();
-        final int bottom = hostView.getHeight();
-
-        if (mTempRect == null) {
-            mTempRect = new Rect();
-        }
-        final Rect clip = mTempRect;
-        clip.left = left + terminalView.getPaddingLeft();
-        clip.top = top + terminalView.getPaddingTop();
-        clip.right = right - terminalView.getPaddingRight();
-        clip.bottom = bottom - terminalView.getPaddingBottom();
-
-        final ViewParent parent = hostView.getParent();
-        if (parent == null || !parent.getChildVisibleRect(hostView, clip, null)) {
+        if (!updateVisibleClip(terminalView.getLeft(), terminalView.getTop(),
+                terminalView.getWidth(), terminalView.getHeight())) {
             return;
         }
+        final Rect clip = mTempRect;
 
         if (posX - mHandleWidth < clip.left) {
             changeOrientation(RIGHT);
@@ -256,18 +244,13 @@ public class TextSelectionHandleView extends View {
         }
     }
 
-    private boolean isPositionVisible() {
-        // Always show a dragging handle.
-        if (mIsDragging) {
-            return true;
-        }
-
-        final TerminalView hostView = terminalView;
-        final int left = 0;
-        final int right = hostView.getWidth();
-        final int top = 0;
-        final int bottom = hostView.getHeight();
-
+    /**
+     * Fill {@link #mTempRect} with the terminal view's visible rect (in window coordinates),
+     * inset by padding, via the parent's {@code getChildVisibleRect}.
+     *
+     * @return false when there is no parent or the rect could not be computed (callers bail out).
+     */
+    private boolean updateVisibleClip(int left, int top, int right, int bottom) {
         if (mTempRect == null) {
             mTempRect = new Rect();
         }
@@ -277,13 +260,23 @@ public class TextSelectionHandleView extends View {
         clip.right = right - terminalView.getPaddingRight();
         clip.bottom = bottom - terminalView.getPaddingBottom();
 
-        final ViewParent parent = hostView.getParent();
-        if (parent == null || !parent.getChildVisibleRect(hostView, clip, null)) {
-            return false;
+        final ViewParent parent = terminalView.getParent();
+        return parent != null && parent.getChildVisibleRect(terminalView, clip, null);
+    }
+
+    private boolean isPositionVisible() {
+        // Always show a dragging handle.
+        if (mIsDragging) {
+            return true;
         }
 
-        final int[] coords = mTempCoords;
-        hostView.getLocationInWindow(coords);
+        final TerminalView hostView = terminalView;
+        if (!updateVisibleClip(0, 0, hostView.getWidth(), hostView.getHeight())) {
+            return false;
+        }
+        final Rect clip = mTempRect;
+
+        final int[] coords = terminalWindowCoords();
         final int posX = coords[0] + mPointX + (int) mHotspotX;
         final int posY = coords[1] + mPointY + (int) mHotspotY;
 
@@ -309,8 +302,7 @@ public class TextSelectionHandleView extends View {
                 final float rawY = event.getRawY();
                 mTouchToWindowOffsetX = rawX - mPointX;
                 mTouchToWindowOffsetY = rawY - mPointY;
-                final int[] coords = mTempCoords;
-                terminalView.getLocationInWindow(coords);
+                final int[] coords = terminalWindowCoords();
                 mLastParentX = coords[0];
                 mLastParentY = coords[1];
                 mIsDragging = true;

@@ -142,6 +142,22 @@ public class ReportActivity extends AppCompatActivity {
 
     }
 
+    private boolean isNightUiMode() {
+        return (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int getSurfaceColor() {
+        return getThemeColor(com.google.android.material.R.attr.colorSurface,
+                isNightUiMode() ? 0xFF000000 : 0xFFFFFFFF);
+    }
+
+    private int getOnSurfaceColor() {
+        return getThemeColor(android.R.attr.textColorPrimary,
+                isNightUiMode() ? 0xFFFFFFFF : 0xFF000000);
+    }
+
     /**
      * Paint the window, toolbar and status bar with the app day/night theme colours.
      *
@@ -153,14 +169,8 @@ public class ReportActivity extends AppCompatActivity {
     private void applyAppThemeToChrome() {
         // Fallbacks follow the actual night mode so even an unresolved attribute cannot produce
         // an unreadable (black-on-black / white-on-white) screen.
-        final boolean night = (getResources().getConfiguration().uiMode
-                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-
-        final int surface = getThemeColor(com.google.android.material.R.attr.colorSurface,
-                night ? 0xFF000000 : 0xFFFFFFFF);
-        final int onSurface = getThemeColor(android.R.attr.textColorPrimary,
-                night ? 0xFFFFFFFF : 0xFF000000);
+        final int surface = getSurfaceColor();
+        final int onSurface = getOnSurfaceColor();
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
@@ -310,14 +320,8 @@ public class ReportActivity extends AppCompatActivity {
      * out of the buttons and guarantees readable text in both modes.
      */
     private MaterialButton createReportActionButton() {
-        final boolean night = (getResources().getConfiguration().uiMode
-                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-
-        final int surface = getThemeColor(com.google.android.material.R.attr.colorSurface,
-                night ? 0xFF000000 : 0xFFFFFFFF);
-        final int onSurface = getThemeColor(android.R.attr.textColorPrimary,
-                night ? 0xFFFFFFFF : 0xFF000000);
+        final int surface = getSurfaceColor();
+        final int onSurface = getOnSurfaceColor();
 
         MaterialButton button = new MaterialButton(this, null,
             com.google.android.material.R.attr.materialButtonOutlinedStyle);

@@ -460,9 +460,7 @@ public final class TerminalRenderer {
         // it is part of the program's layout and must stay readable — but it is drawn with
         // the same alpha as the default fill so that every kind of background honours the
         // configured transparency uniformly.
-        final int bgColor = (mBackgroundAlpha >= 255)
-            ? rawBgColor
-            : ((rawBgColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
+        final int bgColor = withBackgroundAlpha(rawBgColor);
         // E2: on a partial repaint the base fill moves into the row loop, so that only the rows
         // whose content actually changed are cleared and redrawn. Filling the whole band here would
         // erase the untouched rows in it — the canvas keeps the previous frame's pixels (the same
@@ -489,16 +487,10 @@ public final class TerminalRenderer {
         // Base-fill paints are dedicated: no other code path (pass A, cursor, mismatch, A2 fast
         // path) ever sets a colour on them, so the colour we set here is the colour every row
         // draws with.
-        final Paint baseFillPaint;
-        if (mBackgroundAlpha >= 255) {
-            // Fast path: identical to the pre-transparency behaviour, no xfermode churn.
-            baseFillPaint = mBaseFillPaint;
-            baseFillPaint.setColor(bgColor);
-        } else {
-            // mBaseFillSrcPaint already carries SRC.
-            baseFillPaint = mBaseFillSrcPaint;
-            baseFillPaint.setColor(bgColor);
-        }
+        // Fast path (mBackgroundAlpha >= 255): identical to the pre-transparency behaviour, no
+        // xfermode churn. Otherwise mBaseFillSrcPaint already carries SRC.
+        final Paint baseFillPaint = (mBackgroundAlpha >= 255) ? mBaseFillPaint : mBaseFillSrcPaint;
+        baseFillPaint.setColor(bgColor);
         // E3: a partial repaint in which *no* row of the clip is dirty cannot be a content change
         // — it is the scrollbar thumb having moved (or the framework clipping a full invalidate
         // below the view bounds). Skipping every row would leave whatever was painted on top of
@@ -611,16 +603,8 @@ public final class TerminalRenderer {
                         resolveRunColors(uniformStyle, reverseVideo, palette, mColorOut);
                         final int backColor = mColorOut[1];
                         if (backColor != rawBgColor) {
-                            final Paint fillPaint;
-                            if (mBackgroundAlpha >= 255) {
-                                fillPaint = mBgPaint;
-                                fillPaint.setColor(backColor);
-                            } else {
-                                fillPaint = mBgSrcPaint;
-                                fillPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
-                            }
                             canvas.drawRect(0f, heightOffset - mFontLineSpacingAndAscent + mFontAscent,
-                                columns * mFontWidth, heightOffset, fillPaint);
+                                columns * mFontWidth, heightOffset, bgFillPaint(backColor));
                         }
                         continue;
                     }
@@ -759,13 +743,8 @@ public final class TerminalRenderer {
                         if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
                             charsSinceLastRun = runContentEnd - lastRunStartIndex;
                         }
-                        int cursorColor = lastRunInsideCursor ? mEmulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
-                        boolean invertCursorTextColor = false;
-                        if (lastRunInsideCursor && cursorShape == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK) {
-                            invertCursorTextColor = true;
-                        }
-                        addRun(lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
-                            lastRunStyle, cursorColor, cursorShape, reverseVideo || invertCursorTextColor || lastRunInsideSelection, lastRunFontWidthMismatch,
+                        addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
+                            lastRunStyle, lastRunInsideCursor, cursorShape, reverseVideo, lastRunInsideSelection, lastRunFontWidthMismatch,
                             lastRunBlockFill);
                     }
                     measuredWidthForRun = 0.f;
@@ -835,15 +814,10 @@ public final class TerminalRenderer {
             if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
                 charsSinceLastRun = runContentEnd - lastRunStartIndex;
             }
-            int cursorColor = lastRunInsideCursor ? mEmulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
-            boolean invertCursorTextColor = false;
-            if (lastRunInsideCursor && cursorShape == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK) {
-                invertCursorTextColor = true;
-            }
             // When g3Start == 0 there is nothing to the left of the tail.
             if (!g3 || g3Start > 0) {
-                addRun(lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
-                    lastRunStyle, cursorColor, cursorShape, reverseVideo || invertCursorTextColor || lastRunInsideSelection, lastRunFontWidthMismatch,
+                addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
+                    lastRunStyle, lastRunInsideCursor, cursorShape, reverseVideo, lastRunInsideSelection, lastRunFontWidthMismatch,
                     lastRunBlockFill);
             }
             if (g3) {
@@ -855,9 +829,9 @@ public final class TerminalRenderer {
                 final long tailStyle = lineObject.getStyle(g3Start);
                 final boolean tailNoTrim = (TextStyle.decodeEffect(tailStyle)
                     & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) != 0;
-                addRun(g3Start, tailColumns, currentCharIndex, tailNoTrim ? tailColumns : 0,
-                    tailColumns * mFontWidth, tailStyle, 0, cursorShape, reverseVideo, false,
-                    false);
+                addRun(mEmulator, g3Start, tailColumns, currentCharIndex, tailNoTrim ? tailColumns : 0,
+                    tailColumns * mFontWidth, tailStyle, false, cursorShape, reverseVideo, false,
+                    false, false);
             }
 
             // Resolve each run's colors once here so that pass A (backgrounds) and pass B (text)
@@ -918,24 +892,14 @@ public final class TerminalRenderer {
 
                 final float left = mRunStartColumn[i] * mFontWidth;
                 final float right = (mRunStartColumn[endRun - 1] + mRunWidthColumns[endRun - 1]) * mFontWidth;
-                final Paint fillPaint;
-                if (mBackgroundAlpha >= 255) {
-                    // Fast path: opaque painted background, default SRC_OVER compositing.
-                    fillPaint = mBgPaint;
-                    fillPaint.setColor(backColor);
-                } else {
-                    // Painted backgrounds (explicit SGR/truecolor colours, inverse video,
-                    // selection) get the same alpha as the default fill so the wallpaper shows
-                    // through them at the same rate as through the default background. The fill
-                    // must use SRC: it replaces the base fill instead of stacking on it — an
-                    // SRC_OVER translucent layer over the translucent base would compose to a
-                    // higher alpha (2A−A²), leaving painted cells more opaque than (and tinted
-                    // by) their neighbours.
-                    // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
-                    fillPaint = mBgSrcPaint;
-                    fillPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
-                }
-                canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, fillPaint);
+                // Painted backgrounds (explicit SGR/truecolor colours, inverse video,
+                // selection) get the same alpha as the default fill so the wallpaper shows
+                // through them at the same rate as through the default background. The fill
+                // must use SRC: it replaces the base fill instead of stacking on it — an
+                // SRC_OVER translucent layer over the translucent base would compose to a
+                // higher alpha (2A−A²), leaving painted cells more opaque than (and tinted
+                // by) their neighbours. bgFillPaint() picks SRC_OVER or SRC accordingly.
+                canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, bgFillPaint(backColor));
 
                 i = endRun - 1;  // skip the runs already covered by this rectangle
             }
@@ -1034,9 +998,11 @@ public final class TerminalRenderer {
         mRunBackColor[to] = mRunBackColor[from];
     }
 
-    private void addRun(int startColumn, int runWidthColumns, int startCharIndex, int runWidthChars, float measuredWidth,
-                        long style, int cursorColor, int cursorStyle, boolean reverseVideo, boolean fontWidthMismatch,
-                        boolean blockFill) {
+    private void addRun(TerminalEmulator emulator, int startColumn, int runWidthColumns, int startCharIndex, int runWidthChars, float measuredWidth,
+                        long style, boolean insideCursor, int cursorStyle, boolean reverseVideo, boolean insideSelection,
+                        boolean fontWidthMismatch, boolean blockFill) {
+        final int cursorColor = insideCursor ? emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
+        final boolean invertCursorTextColor = insideCursor && cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK;
         ensureRunCapacity(mRunCount + 1);
         mRunStartColumn[mRunCount] = startColumn;
         mRunWidthColumns[mRunCount] = runWidthColumns;
@@ -1046,10 +1012,30 @@ public final class TerminalRenderer {
         mRunStyle[mRunCount] = style;
         mRunCursorColor[mRunCount] = cursorColor;
         mRunCursorStyle[mRunCount] = cursorStyle;
-        mRunReverseVideo[mRunCount] = reverseVideo;
+        mRunReverseVideo[mRunCount] = reverseVideo || invertCursorTextColor || insideSelection;
         mRunFontWidthMismatch[mRunCount] = fontWidthMismatch;
         mRunBlockFill[mRunCount] = blockFill;
         mRunCount++;
+    }
+
+    /** The colour {@code color} with {@link #mBackgroundAlpha} applied when below opaque. */
+    private int withBackgroundAlpha(int color) {
+        if (mBackgroundAlpha >= 255) return color;
+        return (color & 0x00FFFFFF) | (mBackgroundAlpha << 24);
+    }
+
+    /**
+     * Selects {@link #mBgPaint} or {@link #mBgSrcPaint} for a background fill of {@code color},
+     * applying {@link #mBackgroundAlpha} to the colour on the translucent path. The chosen paint
+     * already carries the correct xfermode (C2); neither mode is mutated at draw time.
+     */
+    private Paint bgFillPaint(int color) {
+        if (mBackgroundAlpha >= 255) {
+            mBgPaint.setColor(color);
+            return mBgPaint;
+        }
+        mBgSrcPaint.setColor(withBackgroundAlpha(color));
+        return mBgSrcPaint;
     }
 
     /** Resolve a run's style into foreground/background colors (with bold + reverse-video handling). */
@@ -1145,17 +1131,7 @@ public final class TerminalRenderer {
         // showing through. Never set SRC on mTextPaint itself: text is drawn with partial
         // glyph coverage, and SRC would erase the background behind the anti-aliased edges.
         if (fontWidthMismatch && backColor != baseBgColor) {
-            final Paint fillPaint;
-            if (mBackgroundAlpha >= 255) {
-                // Fast path: opaque painted background, default SRC_OVER compositing.
-                fillPaint = mBgPaint;
-                fillPaint.setColor(backColor);
-            } else {
-                // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
-                fillPaint = mBgSrcPaint;
-                fillPaint.setColor((backColor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
-            }
-            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, fillPaint);
+            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, bgFillPaint(backColor));
         }
 
         if (cursor != 0) {
@@ -1168,16 +1144,7 @@ public final class TerminalRenderer {
             // screen — it punched a dense hole through the wallpaper wherever it blinked.
             // Only the *glyph* on top of a block cursor stays opaque (it is text, and it is
             // drawn below by the normal text path with the reverse-video swap applied).
-            final Paint cursorPaint;
-            if (mBackgroundAlpha >= 255) {
-                // Fast path: opaque cursor, default SRC_OVER compositing.
-                cursorPaint = mBgPaint;
-                cursorPaint.setColor(cursor);
-            } else {
-                // C2: mBgSrcPaint already carries SRC, so no mode mutation here.
-                cursorPaint = mBgSrcPaint;
-                cursorPaint.setColor((cursor & 0x00FFFFFF) | (mBackgroundAlpha << 24));
-            }
+            final Paint cursorPaint = bgFillPaint(cursor);
             canvas.drawRect(left, y - cursorHeight, right, y, cursorPaint);
         }
 

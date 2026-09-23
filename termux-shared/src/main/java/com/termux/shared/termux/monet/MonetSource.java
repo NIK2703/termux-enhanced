@@ -73,7 +73,7 @@ public final class MonetSource {
         return h == 0 ? 1 : h;
     }
 
-    private static long mix(long h, long v) {
+    static long mix(long h, long v) {
         h ^= v + 0x9E3779B97F4A7C15L + (h << 6) + (h >>> 2);
         return h;
     }

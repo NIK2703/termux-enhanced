@@ -174,9 +174,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // record the visible intent as hidden so the per-session IME reconcile that runs
         // AFTER the hide cannot re-show. A real user action (tap, toggle) overwrites it again.
         if (mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()
-                && !KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
-                        mActivity.getPreferences().isSoftKeyboardEnabled(),
-                        mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware())
+                && !shouldSoftKeyboardBeDisabled()
                 && mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
             mStartupSoftKeyboardPending = true;
             // Pre-set the window flag now (view-independent): stops the platform's IME auto-show on
@@ -819,6 +817,13 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         }
     }
 
+    /** Whether the soft keyboard is disabled for Termux under the current preferences. */
+    private boolean shouldSoftKeyboardBeDisabled() {
+        return KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
+                mActivity.getPreferences().isSoftKeyboardEnabled(),
+                mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware());
+    }
+
     public void setSoftKeyboardState(boolean isStartup, boolean isReloadTermuxProperties) {
         // The active view is owned by the ViewPager2 and may not be selected yet on a cold-start
         // onResume(). The per-page focus listener is attached in the adapter's onBindViewHolder
@@ -833,9 +838,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // typing without tapping the terminal first would add a colour tint as the focus highlight
         // (test with a light theme; defaultFocusHighlightEnabled is also false in TerminalView).
         // If soft keyboard is disabled by user for Termux (check function docs for Termux behaviour info)
-        if (KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
-            mActivity.getPreferences().isSoftKeyboardEnabled(),
-            mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware())) {
+        if (shouldSoftKeyboardBeDisabled()) {
             Logger.logVerbose(LOG_TAG, "Maintaining disabled soft keyboard");
             KeyboardUtils.disableSoftKeyboard(mActivity, terminalView);
             terminalView.requestFocus();
@@ -922,9 +925,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         mStartupSoftKeyboardPending = false;
 
         // Keyboard fully disabled for Termux: nothing to hide (the disable path owns it).
-        if (KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
-                mActivity.getPreferences().isSoftKeyboardEnabled(),
-                mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware()))
+        if (shouldSoftKeyboardBeDisabled())
             return;
 
         if (mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
@@ -965,9 +966,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private void reassertStartupSoftKeyboardHide() {
         if (mStartupHideReassertsLeft <= 0) return;
         if (!mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) return;
-        if (KeyboardUtils.shouldSoftKeyboardBeDisabled(mActivity,
-                mActivity.getPreferences().isSoftKeyboardEnabled(),
-                mActivity.getPreferences().isSoftKeyboardEnabledOnlyIfNoHardware())) return;
+        if (shouldSoftKeyboardBeDisabled()) return;
 
         performStartupSoftKeyboardHide();
 

@@ -12,14 +12,14 @@ app module's hand-written values-b+zh+Hant already uses (the project authority).
 
 Usage: python scripts/make_zh_hant.py <module> [--write]
 """
-import io
 import os
 import re
 import sys
 
 import opencc
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from common_helpers import REPO_ROOT
+
 S2TWP = opencc.OpenCC("s2twp")
 S2T = opencc.OpenCC("s2t")
 
@@ -101,7 +101,7 @@ def convert(text):
 def main():
     module = sys.argv[1]
     write = "--write" in sys.argv
-    res = os.path.join(ROOT, module, "src", "main", "res")
+    res = os.path.join(REPO_ROOT, module, "src", "main", "res")
     src = os.path.join(res, "values-zh", "strings.xml")
     dst_dir = os.path.join(res, "values-b+zh+Hant")
     dst = os.path.join(dst_dir, "strings.xml")

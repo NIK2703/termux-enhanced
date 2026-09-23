@@ -144,17 +144,18 @@ public class ResultData implements Serializable {
     }
 
     public String getStdoutLogString() {
-        if (stdout.toString().isEmpty())
-            return Logger.getSingleLineLogStringEntry("Stdout", null, "-");
-        else
-            return Logger.getMultiLineLogStringEntry("Stdout", DataUtils.getTruncatedCommandOutput(stdout.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD / 5, false, false, true), "-");
+        return getStreamLogString("Stdout", stdout);
     }
 
     public String getStderrLogString() {
-        if (stderr.toString().isEmpty())
-            return Logger.getSingleLineLogStringEntry("Stderr", null, "-");
+        return getStreamLogString("Stderr", stderr);
+    }
+
+    private String getStreamLogString(String label, StringBuilder stream) {
+        if (stream.toString().isEmpty())
+            return Logger.getSingleLineLogStringEntry(label, null, "-");
         else
-            return Logger.getMultiLineLogStringEntry("Stderr", DataUtils.getTruncatedCommandOutput(stderr.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD / 5, false, false, true), "-");
+            return Logger.getMultiLineLogStringEntry(label, DataUtils.getTruncatedCommandOutput(stream.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD / 5, false, false, true), "-");
     }
 
     public String getExitCodeLogString() {
@@ -162,21 +163,7 @@ public class ResultData implements Serializable {
     }
 
     public static String getErrorsListLogString(final ResultData resultData) {
-        if (resultData == null) return "null";
-
-        StringBuilder logString = new StringBuilder();
-
-        if (resultData.errorsList != null) {
-            for (Error error : resultData.errorsList) {
-                if (error.isStateFailed()) {
-                    if (!logString.toString().isEmpty())
-                        logString.append("\n");
-                    logString.append(Error.getErrorLogString(error));
-                }
-            }
-        }
-
-        return logString.toString();
+        return getErrorsListString(resultData, error -> Error.getErrorLogString(error));
     }
 
     /**
@@ -190,15 +177,8 @@ public class ResultData implements Serializable {
 
         StringBuilder markdownString = new StringBuilder();
 
-        if (resultData.stdout.toString().isEmpty())
-            markdownString.append(MarkdownUtils.getSingleLineMarkdownStringEntry("Stdout", null, "-"));
-        else
-            markdownString.append(MarkdownUtils.getMultiLineMarkdownStringEntry("Stdout", resultData.stdout.toString(), "-"));
-
-        if (resultData.stderr.toString().isEmpty())
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Stderr", null, "-"));
-        else
-            markdownString.append("\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry("Stderr", resultData.stderr.toString(), "-"));
+        markdownString.append(getStreamMarkdownString("Stdout", resultData.stdout));
+        markdownString.append("\n").append(getStreamMarkdownString("Stderr", resultData.stderr));
 
         markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Exit Code", resultData.exitCode, "-"));
 
@@ -207,40 +187,41 @@ public class ResultData implements Serializable {
         return markdownString.toString();
     }
 
+    private static String getStreamMarkdownString(String label, StringBuilder stream) {
+        if (stream.toString().isEmpty())
+            return MarkdownUtils.getSingleLineMarkdownStringEntry(label, null, "-");
+        else
+            return MarkdownUtils.getMultiLineMarkdownStringEntry(label, stream.toString(), "-");
+    }
+
     public static String getErrorsListMarkdownString(final ResultData resultData) {
-        if (resultData == null) return "null";
-
-        StringBuilder markdownString = new StringBuilder();
-
-        if (resultData.errorsList != null) {
-            for (Error error : resultData.errorsList) {
-                if (error.isStateFailed()) {
-                    if (!markdownString.toString().isEmpty())
-                        markdownString.append("\n");
-                    markdownString.append(Error.getErrorMarkdownString(error));
-                }
-            }
-        }
-
-        return markdownString.toString();
+        return getErrorsListString(resultData, error -> Error.getErrorMarkdownString(error));
     }
 
     public static String getErrorsListMinimalString(final ResultData resultData) {
+        return getErrorsListString(resultData, error -> Error.getMinimalErrorString(error));
+    }
+
+    private static String getErrorsListString(final ResultData resultData, ErrorStringGetter errorStringGetter) {
         if (resultData == null) return "null";
 
-        StringBuilder minimalString = new StringBuilder();
+        StringBuilder string = new StringBuilder();
 
         if (resultData.errorsList != null) {
             for (Error error : resultData.errorsList) {
                 if (error.isStateFailed()) {
-                    if (!minimalString.toString().isEmpty())
-                        minimalString.append("\n");
-                    minimalString.append(Error.getMinimalErrorString(error));
+                    if (!string.toString().isEmpty())
+                        string.append("\n");
+                    string.append(errorStringGetter.get(error));
                 }
             }
         }
 
-        return minimalString.toString();
+        return string.toString();
+    }
+
+    private interface ErrorStringGetter {
+        String get(Error error);
     }
 
 }
