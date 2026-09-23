@@ -101,7 +101,6 @@ afterEvaluate {
     // aarch64 Linux workaround: AGP's stripReleaseDebugSymbols expects
     // linux-x86_64/bin/llvm-strip to exist. The NDK's linux-x86_64 prebuilt is
     // x86_64-only and won't run on aarch64.  The script
-    //   scripts/fix-ndk-strip-aarch64.sh
     // replaces that x86_64 binary with a symlink to the native linux-aarch64
     // llvm-strip shipped in android-ndk-r29.  Run that script once after
     // every NDK reinstall to keep AGP stripping working.

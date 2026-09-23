@@ -21,7 +21,6 @@ import androidx.core.content.ContextCompat;
 
 import com.google.common.base.Joiner;
 import com.termux.shared.R;
-import com.termux.shared.file.FileUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.errors.Error;
 import com.termux.shared.errors.FunctionErrno;
@@ -35,9 +34,6 @@ import java.util.List;
 public class PermissionUtils {
 
     public static final int REQUEST_GRANT_STORAGE_PERMISSION = 1000;
-
-    public static final int REQUEST_DISABLE_BATTERY_OPTIMIZATIONS = 2000;
-    public static final int REQUEST_GRANT_DISPLAY_OVER_OTHER_APPS_PERMISSION = 2001;
 
     private static final String LOG_TAG = "PermissionUtils";
 
@@ -173,17 +169,6 @@ public class PermissionUtils {
     }
 
     /**
-     * Check if app has requested the required permission in the manifest.
-     *
-     * @param context context for operations.
-     * @param permission The {@link String} name for permission to check.
-     * @return Returns {@code true} if permission has been requested, otherwise {@code false}.
-     */
-    public static boolean isPermissionRequested(@NonNull Context context, @NonNull String permission) {
-        return getPermissionsNotRequested(context, new String[]{permission}).size() == 0;
-    }
-
-    /**
      * Check if app has requested the required permissions or not in the manifest.
      *
      * @param context context for operations.
@@ -213,27 +198,6 @@ public class PermissionUtils {
         }
 
         return permissionsNotRequested;
-    }
-
-    /** If path is under primary external storage directory and storage permission is missing,
-     * then legacy or manage external storage permission will be requested from the user via a call
-     * to {@link #checkAndRequestLegacyOrManageExternalStoragePermission(Context, int, boolean)}.
-     *
-     * @param context context for operations.
-     * @param filePath The path to check.
-     * @param requestCode The request code to use while asking for permission.
-     * @param showErrorMessage If an error message toast should be shown if permission is not granted.
-     * @return Returns {@code true} if permission is granted, otherwise {@code false}.
-     */
-    @SuppressLint("SdCardPath")
-    public static boolean checkAndRequestLegacyOrManageExternalStoragePermissionIfPathOnPrimaryExternalStorage(
-        @NonNull Context context, String filePath, int requestCode, boolean showErrorMessage) {
-        // If path is under primary external storage directory, then check for missing permissions.
-        if (!FileUtils.isPathInDirPaths(filePath,
-            Arrays.asList(Environment.getExternalStorageDirectory().getAbsolutePath(), "/sdcard"), true))
-            return true;
-
-        return checkAndRequestLegacyOrManageExternalStoragePermission(context, requestCode, showErrorMessage);
     }
 
     /**
@@ -338,12 +302,6 @@ public class PermissionUtils {
         return requestPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE, requestCode);
     }
 
-    /** Wrapper for {@link #requestManageStorageExternalPermission(Context, int)}. */
-    @RequiresApi(api = Build.VERSION_CODES.R)
-    public static Error requestManageStorageExternalPermission(@NonNull Context context) {
-        return requestManageStorageExternalPermission(context, -1);
-    }
-
     /**
      * Request user to grant {@link Manifest.permission#MANAGE_EXTERNAL_STORAGE} permission to the app.
      *
@@ -442,11 +400,6 @@ public class PermissionUtils {
             return Settings.canDrawOverlays(context);
         else
             return true;
-    }
-
-    /** Wrapper for {@link #requestDisplayOverOtherAppsPermission(Context, int)}. */
-    public static Error requestDisplayOverOtherAppsPermission(@NonNull Context context) {
-        return requestDisplayOverOtherAppsPermission(context, -1);
     }
 
     /**

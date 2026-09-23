@@ -6,7 +6,6 @@ import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.text.Layout;
-import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewOutlineProvider;
@@ -108,21 +107,9 @@ final class AutoCompletePopupManager {
         updatePopupContent(newText, inputField);
     }
 
-    void applyGeometry(@NonNull EditText inputField) {
-        applyPopupGeometry(inputField);
-    }
-
-    void reposition() {
-        repositionAutoCompletePopup();
-    }
-
     void dismiss() {
         dismissAutoCompleteSuggestions();
     }
-
-    @Nullable PopupWindow debugHistoryPopup() { return mHistoryPopup; }
-    @Nullable LinearLayout debugHistoryContent() { return mHistoryContent; }
-    int debugGetHistoryY() { return mLastPopupY; }
 
     // ── Width / geometry (shared by both windows) ──
 

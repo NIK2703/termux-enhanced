@@ -99,10 +99,6 @@ public class BootstrapDownloadService extends Service {
 
     private static volatile SavedState sSavedState = new SavedState(Status.IDLE, 0, null);
 
-    public static SavedState getSavedState() {
-        return sSavedState;
-    }
-
     public static void clearSavedState() {
         sSavedState = new SavedState(Status.IDLE, 0, null);
     }

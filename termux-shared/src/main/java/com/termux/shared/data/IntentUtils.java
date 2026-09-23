@@ -10,22 +10,6 @@ import java.util.Arrays;
 
 public class IntentUtils {
 
-    private static final String LOG_TAG = "IntentUtils";
-
-    /**
-     * Get a {@link String} extra from an {@link Intent} if it is not {@code null} or empty.
-     *
-     * @param def default value if the extra is not set.
-     * @param throwExceptionIfNotSet throw if the extra is not set.
-     * @return the extra if set, otherwise {@code null}.
-     */
-    public static String getStringExtraIfSet(@NonNull Intent intent, String key, String def, boolean throwExceptionIfNotSet) throws Exception {
-        String value = getStringExtraIfSet(intent, key, def);
-        if (value == null && throwExceptionIfNotSet)
-            throw new Exception("The \"" + key + "\" key string value is null or empty");
-        return value;
-    }
-
     /**
      * Get a {@link String} extra from an {@link Intent} if it is not {@code null} or empty.
      *
@@ -61,20 +45,6 @@ public class IntentUtils {
         catch (Exception e) {
             return def;
         }
-    }
-
-    /**
-     * Get a {@link String[]} extra from an {@link Intent} if it is not {@code null} or empty.
-     *
-     * @param def default value if the extra is not set.
-     * @param throwExceptionIfNotSet throw if the extra is not set.
-     * @return the extra if set, otherwise {@code null}.
-     */
-    public static String[] getStringArrayExtraIfSet(@NonNull Intent intent, String key, String[] def, boolean throwExceptionIfNotSet) throws Exception {
-        String[] value = getStringArrayExtraIfSet(intent, key, def);
-        if (value == null && throwExceptionIfNotSet)
-            throw new Exception("The \"" + key + "\" key string array is null or empty");
-        return value;
     }
 
     /**

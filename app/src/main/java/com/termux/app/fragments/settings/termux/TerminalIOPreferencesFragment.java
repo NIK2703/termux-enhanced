@@ -33,8 +33,6 @@ import java.util.List;
 @Keep
 public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase {
 
-    private static final String LOG_TAG = "TerminalIOPrefsFragment";
-
     /** The four session shortcuts, in the order they are shown. */
     private static final String[] SESSION_SHORTCUT_KEYS = {
         "shortcut.create-session",
@@ -82,7 +80,6 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         }
 
         configureHistorySlider("message_history_max", 10, 100);
-        configureHistorySlider("directory_history_max", 10, 100);
 
         // Session shortcuts are combinations, not free text, so they are picked with the same
         // dialog the extra-keys editor uses (minus the delay entry) instead of being typed.
@@ -224,18 +221,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
     private final Context mContext;
     private final TermuxAppSharedPreferences mPreferences;
 
-    private static TerminalIOPreferencesDataStore mInstance;
-
     public TerminalIOPreferencesDataStore(Context context) {
         mContext = context;
         mPreferences = TermuxAppSharedPreferences.build(context, true);
-    }
-
-    public static synchronized TerminalIOPreferencesDataStore getInstance(Context context) {
-        if (mInstance == null) {
-            mInstance = new TerminalIOPreferencesDataStore(context);
-        }
-        return mInstance;
     }
 
     private android.content.SharedPreferences getTermuxPrefs() {
@@ -288,9 +276,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "text_input_append_enter":
                 if (mPreferences != null) mPreferences.setTextInputAppendEnter(value);
                 break;
-            case "text_input_insert_at_cursor":
-                if (mPreferences != null) mPreferences.setInsertAtCursorOnHistoryPick(value);
-                break;
             case "per_directory_message_history":
                 getTermuxPrefs().edit().putBoolean("per_directory_message_history", value).apply();
                 break;
@@ -311,13 +296,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 break;
             case "message_history_max":
                 getTermuxPrefs().edit().putInt("message_history_max", value).apply();
-                break;
-            case "directory_history_max":
-                getTermuxPrefs().edit().putInt("directory_history_max", value).apply();
-                break;
-            case "terminal-toolbar-height":
-                mPreferences.setTerminalToolbarHeightScaleFactor(((Integer) value) / 100f);
-                TermuxActivity.updateTermuxActivityStyling(mContext, true);
                 break;
             default:
                 break;
@@ -353,8 +331,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return getTermuxPrefs().getBoolean("text_input_enabled", true);
             case "text_input_append_enter":
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
-            case "text_input_insert_at_cursor":
-                return mPreferences != null && mPreferences.shouldInsertAtCursorOnHistoryPick();
             case "per_directory_message_history":
                 return getTermuxPrefs().getBoolean("per_directory_message_history", false);
             case "save_cleared_to_history":
@@ -372,10 +348,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return getTermuxPrefs().getInt("suggestions_max_count", 4);
             case "message_history_max":
                 return getTermuxPrefs().getInt("message_history_max", 20);
-            case "directory_history_max":
-                return getTermuxPrefs().getInt("directory_history_max", 20);
-            case "terminal-toolbar-height":
-                return mPreferences != null ? Math.round(mPreferences.getTerminalToolbarHeightScaleFactor() * 100f) : 100;
             default:
                 return defValue;
         }
@@ -385,8 +357,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
     public String getString(String key, String defValue) {
         if (key == null || mPreferences == null) return defValue;
         switch (key) {
-            case TermuxPropertyConstants.KEY_EXTRA_KEYS:
-                return mPreferences.getExtraKeys();
             case TermuxPropertyConstants.KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE:
                 return mPreferences.getExtraKeysSpecialButtonMode();
             case "extra-keys-haptic":
@@ -410,10 +380,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
     public void putString(String key, String value) {
         if (key == null || mPreferences == null) return;
         switch (key) {
-            case TermuxPropertyConstants.KEY_EXTRA_KEYS:
-                mPreferences.setExtraKeys(value);
-                TermuxActivity.updateTermuxActivityStyling(mContext, true);
-                break;
             case TermuxPropertyConstants.KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE:
                 mPreferences.setExtraKeysSpecialButtonMode(value);
                 TermuxActivity.updateTermuxActivityStyling(mContext, true);

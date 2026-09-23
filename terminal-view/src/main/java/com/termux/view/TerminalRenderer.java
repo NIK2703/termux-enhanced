@@ -2,7 +2,6 @@ package com.termux.view;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
@@ -356,33 +355,6 @@ public final class TerminalRenderer {
             supplementaryMeasures.put(codePoint, cached);
         }
         return cached;
-    }
-
-    /** Render the terminal to a canvas with at a specified row scroll, and an optional rectangular selection.
-     *
-     * @param xOffset horizontal pixel offset applied to the glyph grid (centering the leftover space).
-     * @param yOffset vertical pixel offset applied to the glyph grid (centering the leftover space).
-     */
-    public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
-                             int selectionY1, int selectionY2, int selectionX1, int selectionX2,
-                             float xOffset, float yOffset) {
-        render(mEmulator, canvas, topRow, selectionY1, selectionY2, selectionX1, selectionX2,
-            xOffset, yOffset, null);
-    }
-
-    /**
-     * Render the terminal to a canvas.
-     *
-     * @param dirtyRect when non-null, only rows intersecting this (view-coordinate) rectangle
-     *                  are re-rendered and only that region is cleared. When null, the whole
-     *                  canvas is cleared and all rows are drawn (full repaint — required after
-     *                  a color-scheme/theme change, a scroll, a resize or a buffer switch).
-     */
-    public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
-                             int selectionY1, int selectionY2, int selectionX1, int selectionX2,
-                             float xOffset, float yOffset, Rect dirtyRect) {
-        render(mEmulator, canvas, topRow, selectionY1, selectionY2, selectionX1, selectionX2,
-            xOffset, yOffset, dirtyRect, false);
     }
 
     /**

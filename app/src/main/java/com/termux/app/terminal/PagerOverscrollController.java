@@ -52,7 +52,7 @@ import com.termux.view.ElasticOverdrag;
  * makes the whole subtree stop being drawn <em>and</em> inverts hit-testing (the reported
  * "output gone for all sessions, restart only"). Three invariants are enforced at every entry
  * point: (1) finite only, no non-finite value ever reaches {@code setTranslationX}; (2) the
- * raw accumulator is capped at the saturation travel, so {@link #damp(float)} cannot overflow;
+ * raw accumulator is capped at the saturation travel, so {@link #damp(float, float)} cannot overflow;
  * (3) never displaced while idle, any leftover is <em>animating</em> to 0
  * ({@link #ensureSettled()}) so enforcing it is never itself the jerk.
  */
@@ -136,12 +136,6 @@ public final class PagerOverscrollController {
         View child = pager.getChildCount() > 0 ? pager.getChildAt(0) : null;
         if (!(child instanceof RecyclerView)) return null;
         return new PagerOverscrollController((RecyclerView) child);
-    }
-
-    /** Enable/disable the effect (a disable also drops any displacement currently held). */
-    public void setEnabled(boolean enabled) {
-        mEnabled = enabled;
-        if (!enabled) reset();
     }
 
     /** Drop any held displacement right now, without animating. */
@@ -347,18 +341,7 @@ public final class PagerOverscrollController {
     }
 
     /**
-     * The rubber-band curve, straight from the shared model: {@code f(x) = MР’В·sin((РџР‚/2)Р’В·x/L)} with
-     * {@code M} = 20 % of the width. {@code f'(0) = 0.42} РІР‚вЂќ a firm band right at the boundary РІР‚вЂќ
-     * and {@code f(L)=M, f'(L)=0}: the cap is arrived at rather than chased, so no knee, no wall,
-     * and the pull can never exceed it. Exactly the curve the terminal transcript uses, so both
-     * surfaces feel like the same material; see {@link ElasticOverdrag}.
-     */
-    private float damp(float rawPx) {
-        return damp(rawPx, extentPx());
-    }
-
-    /**
-     * {@link #damp(float)} against an extent the caller already has. {@link #apply()} needs the
+     * {@link #damp(float, float)} against an extent the caller already has. {@link #apply()} needs the
      * width three times per frame РІР‚вЂќ reading it once keeps {@link #extentPx()} (and the
      * {@code getWidth()} behind it) off the hot path.
      *
@@ -368,7 +351,7 @@ public final class PagerOverscrollController {
         return dampStatic(rawPx, widthPx);
     }
 
-    /** Inverse of {@link #damp(float)}: the raw travel that produces {@code dampedPx}. */
+    /** Inverse of {@link #damp(float, float)}: the raw travel that produces {@code dampedPx}. */
     private float inverseDamp(float dampedPx) {
         return inverseDampStatic(dampedPx, extentPx());
     }

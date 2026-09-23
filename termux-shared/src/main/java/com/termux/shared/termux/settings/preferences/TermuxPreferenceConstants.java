@@ -283,7 +283,6 @@ public final class TermuxPreferenceConstants {
 
         // Whether dynamic font size (based on column count and macro bind count) is enabled
         public static final String KEY_EXTRA_KEYS_DYNAMIC_FONT_SIZE = "extra-keys-dynamic-font-size";
-        public static final boolean DEFAULT_VALUE_EXTRA_KEYS_DYNAMIC_FONT_SIZE = true;
 
         // Whether swipe-direction edge indicators are shown on extra keys
         public static final String KEY_EXTRA_KEYS_EDGE_INDICATORS = "extra-keys-edge-indicators";
@@ -300,7 +299,6 @@ public final class TermuxPreferenceConstants {
          * caller that has none.
          */
         public static final String KEY_EXTRA_KEYS_COMPACT_LANDSCAPE = "extra-keys-compact-landscape";
-        public static final boolean DEFAULT_VALUE_EXTRA_KEYS_COMPACT_LANDSCAPE = false;
 
         /**
          * Order of keys inside a folded row: {@code "rows"} (element by element of the first row,
@@ -464,8 +462,6 @@ public final class TermuxPreferenceConstants {
         public static final String DEFAULT_VALUE_EXTRA_KEYS = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS;
 
         public static final String KEY_EXTRA_KEYS_SESSION = "extra-keys-session";
-        public static final String DEFAULT_VALUE_EXTRA_KEYS_SESSION =
-                TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_SESSION; // ""
 
         public static final String KEY_EXTRA_KEYS_STYLE = "extra-keys-style";
         public static final String DEFAULT_VALUE_EXTRA_KEYS_STYLE = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE;
@@ -503,18 +499,6 @@ public final class TermuxPreferenceConstants {
     }
 
     /**
-     * Termux:Boot app constants.
-     */
-    public static final class TERMUX_BOOT_APP {
-
-        /**
-         * Defines the key for current log level.
-         */
-        public static final String KEY_LOG_LEVEL = "log_level";
-
-    }
-
-    /**
      * Termux:Float app constants.
      */
     public static final class TERMUX_FLOAT_APP {
@@ -546,18 +530,6 @@ public final class TermuxPreferenceConstants {
          */
         public static final String KEY_TERMINAL_VIEW_KEY_LOGGING_ENABLED = "terminal_view_key_logging_enabled";
         public static final boolean DEFAULT_VALUE_TERMINAL_VIEW_KEY_LOGGING_ENABLED = false;
-
-    }
-
-    /**
-     * Termux:Styling app constants.
-     */
-    public static final class TERMUX_STYLING_APP {
-
-        /**
-         * Defines the key for current log level.
-         */
-        public static final String KEY_LOG_LEVEL = "log_level";
 
     }
 

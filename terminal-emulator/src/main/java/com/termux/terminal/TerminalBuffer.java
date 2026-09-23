@@ -129,10 +129,6 @@ public final class TerminalBuffer {
         return mAllDirty;
     }
 
-    public boolean hasDirtyRows() {
-        return mAllDirty || mAnyRowDirty;
-    }
-
     /**
      * Reset dirty tracking once the pending repaint has been drawn.
      *

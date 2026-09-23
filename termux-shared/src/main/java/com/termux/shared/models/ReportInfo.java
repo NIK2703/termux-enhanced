@@ -56,10 +56,6 @@ public class ReportInfo implements Serializable {
         this.reportTimestamp = AndroidUtils.getCurrentMilliSecondUTCTimeStamp();
     }
 
-    public void setReportStringPrefix(String reportStringPrefix) {
-        this.reportStringPrefix = reportStringPrefix;
-    }
-
     public void setReportString(String reportString) {
         this.reportString = reportString;
     }

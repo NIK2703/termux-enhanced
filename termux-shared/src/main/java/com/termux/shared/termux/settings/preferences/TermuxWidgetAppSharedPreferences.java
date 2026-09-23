@@ -17,8 +17,6 @@ import java.util.UUID;
 
 public class TermuxWidgetAppSharedPreferences extends AppSharedPreferences {
 
-    private static final String LOG_TAG = "TermuxWidgetAppSharedPreferences";
-
     private TermuxWidgetAppSharedPreferences(@NonNull Context context) {
         super(context,
             SharedPreferenceUtils.getPrivateSharedPreferences(context,

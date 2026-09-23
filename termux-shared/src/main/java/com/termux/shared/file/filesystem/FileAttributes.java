@@ -31,7 +31,6 @@ import android.system.StructStat;
 import androidx.annotation.NonNull;
 
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.Set;
@@ -44,7 +43,6 @@ import java.util.HashSet;
 
 public class FileAttributes {
     private String filePath;
-    private FileDescriptor fileDescriptor;
 
     private int st_mode;
     private long st_ino;
@@ -66,14 +64,9 @@ public class FileAttributes {
     // created lazily
     private volatile String owner;
     private volatile String group;
-    private volatile FileKey key;
 
     private FileAttributes(String filePath) {
         this.filePath = filePath;
-    }
-
-    private FileAttributes(FileDescriptor fileDescriptor) {
-        this.fileDescriptor = fileDescriptor;
     }
 
     public static FileAttributes get(String filePath, boolean followLinks) throws IOException {
@@ -93,27 +86,11 @@ public class FileAttributes {
         return fileAttributes;
     }
 
-    public static FileAttributes get(FileDescriptor fileDescriptor) throws IOException {
-        FileAttributes fileAttributes = new FileAttributes(fileDescriptor);
-        NativeDispatcher.fstat(fileDescriptor, fileAttributes);
-        return fileAttributes;
-    }
-
     public String file() {
         if (filePath != null)
             return filePath;
-        else if (fileDescriptor != null)
-            return fileDescriptor.toString();
         else
             return null;
-    }
-
-    public boolean isSameFile(FileAttributes attrs) {
-        return ((st_ino == attrs.st_ino) && (st_dev == attrs.st_dev));
-    }
-
-    public int mode() {
-        return st_mode;
     }
 
     public long blksize() {
@@ -124,28 +101,12 @@ public class FileAttributes {
         return st_blocks;
     }
 
-    public long ino() {
-        return st_ino;
-    }
-
-    public long dev() {
-        return st_dev;
-    }
-
     public long rdev() {
         return st_rdev;
     }
 
     public long nlink() {
         return st_nlink;
-    }
-
-    public int uid() {
-        return st_uid;
-    }
-
-    public int gid() {
-        return st_gid;
     }
 
     private static FileTime toFileTime(long sec, long nsec) {
@@ -170,10 +131,6 @@ public class FileAttributes {
 
     public FileTime lastChangeTime() {
         return toFileTime(st_ctime_sec, st_ctime_nsec);
-    }
-
-    public FileTime creationTime() {
-        return lastModifiedTime();
     }
 
     private static String getEntryString(String label, Object value) {
@@ -212,33 +169,8 @@ public class FileAttributes {
         return isFileType(UnixConstants.S_IFBLK);
     }
 
-    public boolean isOther() {
-        int type = st_mode & UnixConstants.S_IFMT;
-        return (type != UnixConstants.S_IFREG &&
-            type != UnixConstants.S_IFDIR &&
-            type != UnixConstants.S_IFLNK);
-    }
-
-    public boolean isDevice() {
-        int type = st_mode & UnixConstants.S_IFMT;
-        return (type == UnixConstants.S_IFCHR ||
-            type == UnixConstants.S_IFBLK ||
-            type == UnixConstants.S_IFIFO);
-    }
-
     public long size() {
         return st_size;
-    }
-
-    public FileKey fileKey() {
-        if (key == null) {
-            synchronized (this) {
-                if (key == null) {
-                    key = new FileKey(st_dev, st_ino);
-                }
-            }
-        }
-        return key;
     }
 
     public String owner() {

@@ -87,66 +87,6 @@ public class TermuxUtils {
         return ctx;
     }
 
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_API_PACKAGE_NAME} package.
-     *
-     * @param context context
-     * @return the {@link Context}, or {@code null} on failure.
-     */
-    public static Context getTermuxAPIPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_API_PACKAGE_NAME);
-    }
-
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_BOOT_PACKAGE_NAME} package.
-     *
-     * @param context context
-     * @return the {@link Context}, or {@code null} on failure.
-     */
-    public static Context getTermuxBootPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_BOOT_PACKAGE_NAME);
-    }
-
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_FLOAT_PACKAGE_NAME} package.
-     *
-     * @param context context
-     * @return the {@link Context}, or {@code null} on failure.
-     */
-    public static Context getTermuxFloatPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_FLOAT_PACKAGE_NAME);
-    }
-
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_STYLING_PACKAGE_NAME} package.
-     *
-     * @param context context
-     * @return the {@link Context}, or {@code null} on failure.
-     */
-    public static Context getTermuxStylingPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME);
-    }
-
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_TASKER_PACKAGE_NAME} package.
-     *
-     * @param context context
-     * @return the {@link Context}, or {@code null} on failure.
-     */
-    public static Context getTermuxTaskerPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_TASKER_PACKAGE_NAME);
-    }
-
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_WIDGET_PACKAGE_NAME} package.
-     *
-     * @param context context
-     * @return the {@link Context}, or {@code null} on failure.
-     */
-    public static Context getTermuxWidgetPackageContext(@NonNull Context context) {
-        return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_WIDGET_PACKAGE_NAME);
-    }
-
     /** Wrapper for {@link PackageUtils#getContextForPackageOrExitApp(Context, String, boolean, String)}. */
     public static Context getContextForPackageOrExitApp(@NonNull Context context, String packageName,
                                                         final boolean exitAppOnError) {
@@ -191,45 +131,6 @@ public class TermuxUtils {
      */
     public static String isTermuxAPIAppInstalled(@NonNull final Context context) {
         return PackageUtils.isAppInstalled(context, TermuxConstants.TERMUX_API_APP_NAME, TermuxConstants.TERMUX_API_PACKAGE_NAME);
-    }
-
-    /**
-     * Check if Termux app is installed and accessible. This can only be used by apps that share
-     * `sharedUserId` with the Termux app.
-     *
-     * This is done by checking if first checking if app is installed and enabled and then if
-     * {@code currentPackageContext} can be used to get the {@link Context} of the app with
-     * {@link TermuxConstants#TERMUX_PACKAGE_NAME} and then if
-     * {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH} exists and has
-     * {@link FileUtils#APP_WORKING_DIRECTORY_PERMISSIONS} permissions. The directory will not
-     * be automatically created and neither the missing permissions automatically set.
-     *
-     * @param currentPackageContext The context of current package.
-     * @return Returns {@code errmsg} if failed to get termux package {@link Context} or
-     * {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH} is accessible, otherwise {@code null}.
-     */
-    public static String isTermuxAppAccessible(@NonNull final Context currentPackageContext) {
-        String errmsg = isTermuxAppInstalled(currentPackageContext);
-        if (errmsg == null) {
-            Context termuxPackageContext = TermuxUtils.getTermuxPackageContext(currentPackageContext);
-            // If failed to get Termux app package context
-            if (termuxPackageContext == null)
-                errmsg = currentPackageContext.getString(R.string.error_termux_app_package_context_not_accessible);
-
-            if (errmsg == null) {
-                // If TermuxConstants.TERMUX_PREFIX_DIR_PATH is not a directory or does not have required permissions
-                Error error = TermuxFileUtils.isTermuxPrefixDirectoryAccessible(false, false);
-                if (error != null)
-                    errmsg = currentPackageContext.getString(R.string.error_termux_prefix_dir_path_not_accessible,
-                        PackageUtils.getAppNameForPackage(currentPackageContext));
-            }
-        }
-
-        if (errmsg != null)
-            return errmsg + " " + currentPackageContext.getString(R.string.msg_termux_app_required_by_app,
-                PackageUtils.getAppNameForPackage(currentPackageContext));
-        else
-            return null;
     }
 
     /**
@@ -281,12 +182,6 @@ public class TermuxUtils {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get \"" + fieldName + "\" value from \"" + clazzName + "\" class", e);
             return null;
         }
-    }
-
-    /** Returns {@code true} if {@link Uri} has `package:` scheme for {@link TermuxConstants#TERMUX_PACKAGE_NAME} or its sub plugin package. */
-    public static boolean isUriDataForTermuxOrPluginPackage(@NonNull Uri data) {
-        return data.toString().equals("package:" + TermuxConstants.TERMUX_PACKAGE_NAME) ||
-            data.toString().startsWith("package:" + TermuxConstants.TERMUX_PACKAGE_NAME + ".");
     }
 
     /** Returns {@code true} if {@link Uri} has `package:` scheme for {@link TermuxConstants#TERMUX_PACKAGE_NAME} sub plugin package. */

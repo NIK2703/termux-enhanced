@@ -29,7 +29,6 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -68,11 +67,6 @@ dependencies {
     testImplementation "junit:junit:4.13.2"
 }
 
-task sourceJar(type: Jar) {
-    from android.sourceSets.main.java.srcDirs
-    archiveClassifier = "sources"
-}
-
 afterEvaluate {
     publishing {
         publications {
@@ -82,7 +76,6 @@ afterEvaluate {
                 groupId = 'com.termux'
                 artifactId = 'terminal-emulator'
                 version = '0.118.0'
-                artifact(sourceJar)
             }
         }
     }

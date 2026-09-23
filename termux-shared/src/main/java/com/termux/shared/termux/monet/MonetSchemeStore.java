@@ -87,14 +87,6 @@ public final class MonetSchemeStore {
         }
     }
 
-    /** Whether the given variant has been generated at all yet. */
-    public static boolean hasScheme(@NonNull SchemeVariant variant) {
-        synchronized (LOCK) {
-            Entry e = ENTRIES.get(variant);
-            return e != null && e.light != null && e.dark != null;
-        }
-    }
-
     // ------------------------------------------------------------------ access ---
 
     /**
@@ -293,15 +285,6 @@ public final class MonetSchemeStore {
             sWallpaperRead = false;
         }
         MonetOptions.invalidate();
-    }
-
-    /** The last snapshot for a variant, for diagnostics. */
-    @Nullable
-    public static MonetSource peekSource(@NonNull SchemeVariant variant) {
-        synchronized (LOCK) {
-            Entry e = ENTRIES.get(variant);
-            return e == null ? null : e.source;
-        }
     }
 
     // ------------------------------------------------------------- wallpaper hook ---

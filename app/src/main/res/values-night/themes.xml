@@ -30,8 +30,6 @@
 
         <!-- Left drawer. -->
         <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Dark</item>
-        <item name="termuxActivityDrawerBackground">@color/scheme_dialog_background</item>
-        <item name="termuxActivityDrawerImageTint">@color/scheme_dialog_foreground</item>
 
         <!-- Extra keys colors: white text on dark/translucent backgrounds in night mode. -->
         <item name="extraKeysButtonTextColor">@color/extra_keys_button_text</item>

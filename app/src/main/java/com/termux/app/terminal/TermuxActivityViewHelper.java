@@ -4,30 +4,25 @@ import android.content.Context;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
 import android.view.Menu;
-import android.view.View;
-import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
-import com.termux.app.terminal.io.autocomplete.DirectoryHistoryPopupController;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.android.PackageUtils;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.monet.MonetSchemeStore;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
 import com.termux.shared.theme.NightMode;
-import com.termux.terminal.TerminalSession;
 import com.termux.view.TerminalView;
 
 /**
  * Extracted View-setup helper for {@link TermuxActivity} — these methods previously lived on the
  * activity god class. They only touch public API on the activity (getters / {@code findViewById} /
- * shared static utilities) plus an injected {@link DirectoryHistoryPopupController}, so they can
- * live in {@code com.termux.app.terminal} without modifying {@link TermuxActivity}. The activity
- * constructs this helper and calls the {@code setup*()} methods from {@code onCreate()}.
+ * shared static utilities), so they can live in {@code com.termux.app.terminal} without modifying
+ * {@link TermuxActivity}. The activity constructs this helper and calls the {@code setup*()} methods
+ * from {@code onCreate()}.
  */
 public class TermuxActivityViewHelper {
 
@@ -48,39 +43,12 @@ public class TermuxActivityViewHelper {
 
     @NonNull
     private final TermuxActivity mActivity;
-    @NonNull
-    private final LayoutInflater mLayoutInflater;
-
-    // Injected by the activity (set after construction) so the new-session tab button can drive
-    // the directory-history swipe-up gesture without the helper reaching into activity-private state.
-    @Nullable
-    private DirectoryHistoryPopupController mDirectoryHistoryPopupCtrl;
 
     public TermuxActivityViewHelper(@NonNull TermuxActivity activity, @NonNull LayoutInflater layoutInflater) {
         this.mActivity = activity;
-        this.mLayoutInflater = layoutInflater;
-    }
-
-    public void setDirectoryHistoryPopupController(@Nullable DirectoryHistoryPopupController controller) {
-        this.mDirectoryHistoryPopupCtrl = controller;
     }
 
     // ── View setup ──
-
-    /** No-op: the new-session button now lives in the tabs bar (see
-     *  {@link #setupSessionsListView(View)}); kept for symmetry with the original activity method. */
-    public void setupNewSessionButton(@NonNull View rootView) {
-    }
-
-    /** No-op: the toggle-keyboard button was removed (functionality moved to the extra keys). */
-    public void setupToggleKeyboardButton(@NonNull View rootView) {
-    }
-
-    /** Intentionally a no-op: the live wiring for the new-session (+) button lives in
-     *  {@code TermuxActivity#setTermuxSessionsListView()} (the path invoked at runtime), so no
-     *  duplicate gesture handler is kept here. */
-    public void setupSessionsListView(@NonNull View rootView) {
-    }
 
     /**
      * Apply the user-selected theme / night mode. Mirrors {@code TermuxActivity#applyTermuxTheme()}.
@@ -95,29 +63,7 @@ public class TermuxActivityViewHelper {
         AppCompatActivityUtils.setNightMode(mActivity, NightMode.getAppNightMode().getName(), true);
     }
 
-    /**
-     * Minimal toolbar setup: show/hide the terminal toolbar container per the user preference.
-     * (The full toolbar wiring remains in {@code TermuxActivity#setTerminalToolbarView(Bundle)}.)
-     */
-    public void setupToolbar() {
-        LinearLayout terminalToolbarContainer = mActivity.getTerminalToolbarContainer();
-        if (terminalToolbarContainer != null && mActivity.getPreferences().shouldShowTerminalToolbar())
-            terminalToolbarContainer.setVisibility(View.VISIBLE);
-    }
-
     // ── Context menu (delegated from TermuxActivity) ──
-
-    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
-        TerminalSession currentSession = mActivity.getCurrentSession();
-        if (currentSession == null) return;
-
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView == null) return;
-
-        buildContextMenu(menu, mActivity, mActivity.getResources(), terminalView,
-            currentSession.getPid(), currentSession.isRunning(),
-            mActivity.getPreferences().shouldKeepScreenOn());
-    }
 
     /**
      * Build the shared terminal context-menu items. The item set and ids are identical between
@@ -158,11 +104,5 @@ public class TermuxActivityViewHelper {
         menu.add(Menu.NONE, CONTEXT_MENU_HELP_ID, Menu.NONE, R.string.action_open_help);
         menu.add(Menu.NONE, CONTEXT_MENU_SETTINGS_ID, Menu.NONE, R.string.action_open_settings);
         menu.add(Menu.NONE, CONTEXT_MENU_REPORT_ID, Menu.NONE, R.string.action_report_issue);
-    }
-
-    public void onContextMenuClosed(Menu menu) {
-        // Triggered twice if the back button (not a tap) dismisses the menu.
-        TerminalView terminalView = mActivity.getTerminalView();
-        if (terminalView != null) terminalView.onContextMenuClosed(menu);
     }
 }

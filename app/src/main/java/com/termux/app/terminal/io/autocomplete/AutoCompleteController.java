@@ -1,6 +1,5 @@
 package com.termux.app.terminal.io.autocomplete;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -14,10 +13,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.Window;
 import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -35,7 +31,7 @@ import com.termux.app.terminal.TermuxColorSchemeManager;
  * (formerly in TermuxActivity): the 3-way dispatch (full rescan / additive filter /
  * reposition), history-version optimization, popup views, and history-add-on-submit.
  * The Activity only wires it up and may call the public entry points
- * ({@link #onTextChanged()}, {@link #dismiss()}, {@link #isShowing()}, {@link #onCaretMoved()}, …).
+ * ({@link #dismiss()}, {@link #isShowing()}, {@link #onCaretMoved()}, …).
  *
  * <p>Candidate filtering is a single linear {@code regionMatches} scan over the capped live
  * history — the old prefix trie was removed because {@code message_history_max} can never
@@ -48,12 +44,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private final MessageHistoryController mMessageHistoryCtrl;
     private final TermuxColorSchemeManager mColorSchemeManager;
     private final SharedPreferences mPrefs;
-
-    /** Called when a suggestion is chosen, so the host can dismiss its message-history popup. */
-    @NonNull private Runnable mMessageHistoryDismissListener = () -> {};
-
-    /** True while the host is in an invalid state and auto-complete must be suppressed. */
-    private boolean mIsInvalidState;
 
     // ── Auto-complete suggestions popup ──
     // The message-history suggestion candidates are shown in a single popup window
@@ -215,52 +205,14 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     @Override public int getDisplayMax() { return mDisplayMax; }
     @Override public boolean isSwipeActive() { return mSwipeHandler.isEngaged(); }
     @Override @Nullable public EditText getInputField() { return mInputField; }
-    @Override @NonNull public TermuxColorSchemeManager getColorSchemeManager() { return mColorSchemeManager; }
-    @Override @Nullable public Window getWindow() { return getWindowInternal(); }
     @Override @NonNull public TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input) {
         return buildSuggestionTextViewInternal(suggestion, input);
     }
     @Override public void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion, @NonNull String input) {
         rebindSuggestionTextViewInternal(tv, suggestion, input);
     }
-    @Override public int getHistoryVersion() { return mMessageHistoryCtrl.getHistoryVersion(); }
     @Override public void onSuggestionDismissed() {
         mCurrentSuggestions.clear();
-    }
-
-    // ── Wiring callbacks (optional) ───────────────────
-
-    public void setMessageHistoryDismissListener(@NonNull Runnable listener) {
-        mMessageHistoryDismissListener = listener;
-    }
-
-    public void setInvalidState(boolean invalid) {
-        mIsInvalidState = invalid;
-    }
-
-    /** Test-only: current merged suggestion list (history only). */
-    java.util.ArrayList<String> debugSuggestions() {
-        return mCurrentSuggestions;
-    }
-
-    /** Test-only: install the text the dispatcher believes preceded this change. */
-    void debugSetPrevText(@NonNull String prev) {
-        mAutoCompletePrevText = prev;
-    }
-
-    /** Test-only: install the change-count (new chars inserted) the dispatcher expects. */
-    void debugSetChangeCount(int count) {
-        mAutoCompleteChangeCount = count;
-    }
-
-    /** Test-only: install the before-count (chars replaced) the dispatcher expects. */
-    void debugSetChangeBefore(int before) {
-        mAutoCompleteChangeBefore = before;
-    }
-
-    /** Test-only: total number of suggestions that will be rendered (capped by maxCount). */
-    int debugDisplayCount() {
-        return Math.min(mCurrentSuggestions.size(), mDisplayMax);
     }
 
     /**
@@ -271,10 +223,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mSwipeSuppressed = false;
         mSuppressAutoComplete = false;
         if (mComposingCoalesce != null) { mImeHandler.removeCallbacks(mComposingCoalesce); mComposingCoalesce = null; }
-    }
-
-    public void setSuppressAutoComplete(boolean suppress) {
-        mSuppressAutoComplete = suppress;
     }
 
 /**
@@ -301,15 +249,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
     // ── Public entry points ───────────────────────────
 
-    /** Called from the host's focus change handler when the input field loses focus. */
-    public void onInputFocusLost() {
-        // A lost focus mid-gesture means the swipe can never complete; clear its
-        // suppression guard so auto-complete is not permanently disabled.
-        mSwipeHandler.resetIfEngaged();
-        mSwipeSuppressed = false;
-        dismissAutoCompleteSuggestions();
-    }
-
     /** Called when the caret position changes without a text change
      *  (e.g. tapping a different position or using arrow keys).
      *  Delegates to {@link #updateAutoCompleteSuggestions()} which
@@ -325,11 +264,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (newCaret >= 0 && newCaret == textLen && !isShowing()) {
             mForceRescanOnNextUpdate = true;
         }
-        updateAutoCompleteSuggestions();
-    }
-
-    /** Triggered by the host when the input text changes (compatibility entry point). */
-    public void onTextChanged() {
         updateAutoCompleteSuggestions();
     }
 
@@ -475,12 +409,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         });
     }
 
-    @Nullable
-    private Window getWindowInternal() {
-        if (mContext instanceof Activity) return ((Activity) mContext).getWindow();
-        return null;
-    }
-
     /**
      * True when the input field's text currently carries an IME composing span.
      * Detected via the public {@link android.text.Spanned#SPAN_COMPOSING} flag
@@ -530,9 +458,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
      * always receives a text-change event.
      */
     private void updateAutoCompleteSuggestions() {
-        if (mIsInvalidState) {
-            return;
-        }
         // Safety net: force-clear stuck swipe suppression if the gesture ended
         // without delivering UP/CANCEL (e.g. app backgrounded mid-swipe).
         if (mSwipeSuppressed && !mSwipeHandler.isEngaged() && !mSwipeHandler.isPointerDown()) {
@@ -850,27 +775,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mPopupManager.update(newText, inputField);
     }
 
-    // ── Package-private debug hooks for unit tests ──
-
-    /** Current incremental-change field used by the additive-detection logic. */
-    void debugSetChangeState(@NonNull String prevText, int changeCount) {
-        mAutoCompletePrevText = prevText;
-        mAutoCompleteChangeCount = changeCount;
-        mAutoCompleteChangeBefore = 0;
-    }
-
-    /**
-     * Seed the current suggestion list with history items. Lets merge tests
-     * populate the controller state without going through the popup-building
-     * code paths.
-     */
-    void debugSeedHistorySuggestions(@NonNull String... history) {
-        mCurrentSuggestions.clear();
-        for (String h : history) {
-            mCurrentSuggestions.add(h);
-        }
-    }
-
     /**
      * Build a single suggestion TextView (reusable helper).
      *
@@ -914,7 +818,6 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             }
             invalidateHistoryVersion();
             dismissAutoCompleteSuggestions();
-            mMessageHistoryDismissListener.run();
         });
         tv.setOnTouchListener(mSwipeHandler::onTouch);
         rebindSuggestionTextViewInternal(tv, suggestion, input);
@@ -1011,71 +914,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mPopupManager.show(inputField);
     }
 
-    /** Reposition the auto-complete popups at the current caret position. */
-    public void repositionAutoCompletePopup() {
-        if (!isShowing()) return;
-        // Hide the popups if the caret is no longer at the end of the input field —
-        // unless a swipe gesture holds a deliberate selection (keep it alive).
-        if (mInputField != null && !isSwipeActive() && !hasComposingSpan(mInputField)) {
-            int caret = mInputField.getSelectionStart();
-            if (caret < 0 || caret != mInputField.getText().length()) {
-                dismissAutoCompleteSuggestions();
-                return;
-            }
-        }
-        final EditText inputField = mInputField;
-        if (inputField == null) return;
-        applyPopupGeometry(inputField);
-    }
-
-    private void applyPopupGeometry(@NonNull EditText inputField) {
-        mPopupManager.applyGeometry(inputField);
-    }
-
     private void dismissAutoCompleteSuggestions() {
         mPopupManager.dismiss();
-    }
-
-    // ── Additional test-only accessors (package-private) ──
-
-    /** Directly inject a history list for deterministic dispatch tests. */
-    void debugSetHistory(@NonNull java.util.List<String> history) {
-        mMessageHistoryCtrl.clearAllPerDirectory();
-        for (String h : history) mMessageHistoryCtrl.addToMessageHistory(h, ".");
-    }
-
-    /** Test-only: install a null input field to exercise the mInputField==null guard. */
-    void debugSetInputFieldNull() {
-        mInputField = null;
-    }
-
-    /** Test-only: restore a (non-null) input field after {@link #debugSetInputFieldNull()}. */
-    void debugSetInputField(@NonNull EditText field) {
-        mInputField = field;
-    }
-
-    /** Test-only: the current input field (so tests can mutate its text). */
-    @Nullable EditText debugGetInputField() {
-        return mInputField;
-    }
-
-    /** Test-only: the message-history window, or null when not shown. */
-    @Nullable PopupWindow debugHistoryPopup() {
-        return mPopupManager.debugHistoryPopup();
-    }
-
-    /** Test-only: the history window's LinearLayout content. */
-    @Nullable LinearLayout debugHistoryContent() {
-        return mPopupManager.debugHistoryContent();
-    }
-
-    /** Test-only: last computed Y of the history window. */
-    int debugGetHistoryY() {
-        return mPopupManager.debugGetHistoryY();
-    }
-
-    /** Test-only: directly (re)compute popup geometry for the current input field. */
-    void debugApplyPopupGeometry() {
-        applyPopupGeometry(debugGetInputField());
     }
 }

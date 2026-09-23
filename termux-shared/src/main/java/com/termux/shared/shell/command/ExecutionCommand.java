@@ -88,13 +88,6 @@ public class ExecutionCommand {
             return null;
         }
 
-        /** Get {@link Runner} for {@code name} if found, otherwise {@code def}. */
-        @NonNull
-        public static Runner runnerOf(@Nullable String name, @NonNull Runner def) {
-            Runner runner = runnerOf(name);
-            return runner != null ? runner : def;
-        }
-
     }
 
     public enum ShellCreateMode {
@@ -117,17 +110,6 @@ public class ExecutionCommand {
 
         public boolean equalsMode(String sessionCreateMode) {
             return sessionCreateMode != null && sessionCreateMode.equals(this.mode);
-        }
-
-        /** Get {@link ShellCreateMode} for {@code mode} if found, otherwise {@code null}. */
-        @Nullable
-        public static ShellCreateMode modeOf(String mode) {
-            for (ShellCreateMode v : ShellCreateMode.values()) {
-                if (v.mode.equals(mode)) {
-                    return v;
-                }
-            }
-            return null;
         }
 
     }
@@ -253,13 +235,6 @@ public class ExecutionCommand {
         return setStateFailed(error.getType(), error.getCode(), error.getMessage(), null);
     }
 
-    public synchronized boolean setStateFailed(@NonNull Error error, Throwable throwable) {
-        return setStateFailed(error.getType(), error.getCode(), error.getMessage(), Collections.singletonList(throwable));
-    }
-    public synchronized boolean setStateFailed(@NonNull Error error, List<Throwable> throwablesList) {
-        return setStateFailed(error.getType(), error.getCode(), error.getMessage(), throwablesList);
-    }
-
     public synchronized boolean setStateFailed(int code, String message) {
         return setStateFailed(null, code, message, null);
     }
@@ -268,9 +243,6 @@ public class ExecutionCommand {
         return setStateFailed(null, code, message, Collections.singletonList(throwable));
     }
 
-    public synchronized boolean setStateFailed(int code, String message, List<Throwable> throwablesList) {
-        return setStateFailed(null, code, message, throwablesList);
-    }
     public synchronized boolean setStateFailed(String type, int code, String message, List<Throwable> throwablesList) {
         if (!this.resultData.setStateFailed(type, code, message, throwablesList)) {
             Logger.logWarn(LOG_TAG, "setStateFailed for "  + getCommandIdAndLabelLogString() + " resultData encountered an error.");
@@ -390,27 +362,6 @@ public class ExecutionCommand {
 
         if (logResultData)
             logString.append("\n").append(ResultData.getResultDataLogString(executionCommand.resultData, logStdoutAndStderr));
-
-        return logString.toString();
-    }
-
-    /**
-     * Get a log friendly {@link String} for {@link ExecutionCommand} with more details.
-     *
-     * @param executionCommand The {@link ExecutionCommand} to convert.
-     * @return Returns the log friendly {@link String}.
-     */
-    public static String getDetailedLogString(final ExecutionCommand executionCommand) {
-        if (executionCommand == null) return "null";
-
-        StringBuilder logString = new StringBuilder();
-
-        logString.append(getExecutionInputLogString(executionCommand, false, true));
-        logString.append(getExecutionOutputLogString(executionCommand, false, true, true));
-
-        logString.append("\n").append(executionCommand.getCommandDescriptionLogString());
-        logString.append("\n").append(executionCommand.getCommandHelpLogString());
-        logString.append("\n").append(executionCommand.getPluginAPIHelpLogString());
 
         return logString.toString();
     }

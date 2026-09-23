@@ -132,14 +132,6 @@ public class ExtraKeysConstants {
             put("PGDN", "⇓"); // no ISO character exists, U+21D3 ⇓ DOWNWARDS DOUBLE ARROW will do the trick
         }};
 
-        public static final ExtraKeyDisplayMap ARROW_TRIANGLE_VARIATION_DISPLAY = new ExtraKeyDisplayMap() {{
-            // alternative to classic arrow keys
-            put("LEFT", "◀"); // U+25C0 ◀ BLACK LEFT-POINTING TRIANGLE
-            put("RIGHT", "▶"); // U+25B6 ▶ BLACK RIGHT-POINTING TRIANGLE
-            put("UP", "▲"); // U+25B2 ▲ BLACK UP-POINTING TRIANGLE
-            put("DOWN", "▼"); // U+25BC ▼ BLACK DOWN-POINTING TRIANGLE
-        }};
-
         public static final ExtraKeyDisplayMap NOT_KNOWN_ISO_CHARACTERS = new ExtraKeyDisplayMap() {{
             // Control chars that are more clear as text // https://en.wikipedia.org/wiki/{Function_key, Alt_key, Control_key, Esc_key}
             put("CTRL", "⎈"); // ISO character "U+2388 ⎈ HELM SYMBOL" is unknown to people and never printed on computers, however "U+25C7 ◇ WHITE DIAMOND" is a nice presentation, and "^" for terminal app and mac is often used

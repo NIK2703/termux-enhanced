@@ -6,8 +6,6 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.termux.app.terminal.TermuxColorSchemeManager;
-
 import java.util.ArrayList;
 
 /**
@@ -34,12 +32,6 @@ interface AutoCompleteDataProvider {
     /** The EditText the popups are anchored to. */
     @Nullable EditText getInputField();
 
-    /** Colour-scheme manager vending popup colours. */
-    @NonNull TermuxColorSchemeManager getColorSchemeManager();
-
-    /** Host window (for the global layout listener), or null if unavailable. */
-    @Nullable android.view.Window getWindow();
-
     /** Build a single suggestion row TextView (wires the tap/swipe handlers). */
     @NonNull TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input);
 
@@ -48,9 +40,6 @@ interface AutoCompleteDataProvider {
      * Must restore the same visual state a fresh {@link #buildSuggestionTextView} would.
      */
     void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion, @NonNull String input);
-
-    /** Current history version (to skip a rebuild when history is unchanged). */
-    int getHistoryVersion();
 
     /** Callback run when the popup is dismissed by a suggestion tap. */
     void onSuggestionDismissed();

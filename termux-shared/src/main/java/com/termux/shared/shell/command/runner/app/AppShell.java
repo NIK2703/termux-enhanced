@@ -315,10 +315,6 @@ public final class AppShell {
         }
     }
 
-    public Process getProcess() {
-        return mProcess;
-    }
-
     public ExecutionCommand getExecutionCommand() {
         return mExecutionCommand;
     }

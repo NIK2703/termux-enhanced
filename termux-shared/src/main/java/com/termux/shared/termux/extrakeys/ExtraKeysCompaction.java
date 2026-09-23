@@ -43,8 +43,6 @@ public final class ExtraKeysCompaction {
 
     private ExtraKeysCompaction() {}
 
-    /** Preference value for {@link Mode#ROWS}. */
-    public static final String MODE_VALUE_ROWS = "rows";
     /** Preference value for {@link Mode#COLUMNS}. */
     public static final String MODE_VALUE_COLUMNS = "columns";
 

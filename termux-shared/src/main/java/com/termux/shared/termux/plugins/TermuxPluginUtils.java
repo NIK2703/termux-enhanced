@@ -29,7 +29,6 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_SERVICE;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
-import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants.TERMUX_APP;
 import com.termux.shared.models.ReportInfo;
 import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 import com.termux.shared.shell.command.ExecutionCommand;
@@ -121,7 +120,7 @@ public class TermuxPluginUtils {
      * @param executionCommand The {@link ExecutionCommand} that failed.
      * @param forceNotification If set to {@code true}, then a flash and notification will be shown
      *                          regardless of if pending intent is {@code null} or
-     *                          {@link TERMUX_APP#KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED}
+     *                          {@link TermuxPreferenceConstants.TERMUX_APP#KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED}
      *                          is {@code false}.
      * @param errmsg The error message to set.
      */
@@ -145,7 +144,7 @@ public class TermuxPluginUtils {
      * {@link ResultConfig#resultPendingIntent} or {@link ResultConfig#resultDirectoryPath}
      * is not {@code null}, then the errors of commands are sent back to the command caller.
      *
-     * Otherwise if the {@link TERMUX_APP#KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED} is
+     * Otherwise if the {@link TermuxPreferenceConstants.TERMUX_APP#KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED} is
      * enabled, then a flash and a notification will be shown for the error as well
      * on the {@link TermuxConstants#TERMUX_PLUGIN_COMMAND_ERRORS_NOTIFICATION_CHANNEL_NAME} channel instead of just logging
      * the error.
@@ -155,7 +154,7 @@ public class TermuxPluginUtils {
      * @param executionCommand The {@link ExecutionCommand} that failed.
      * @param forceNotification If set to {@code true}, then a flash and notification will be shown
      *                          regardless of if pending intent is {@code null} or
-     *                          {@link TERMUX_APP#KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED}
+     *                          {@link TermuxPreferenceConstants.TERMUX_APP#KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED}
      *                          is {@code false}.
      */
     public static void processPluginExecutionCommandError(final Context context, String logTag,

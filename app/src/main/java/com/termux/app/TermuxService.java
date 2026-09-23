@@ -48,7 +48,6 @@ import com.termux.shared.data.DataUtils;
 import com.termux.shared.shell.command.ExecutionCommand;
 import com.termux.shared.shell.command.ExecutionCommand.Runner;
 import com.termux.shared.shell.command.ExecutionCommand.ShellCreateMode;
-import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
@@ -514,12 +513,6 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     }
 
     @Nullable
-    public AppShell createTermuxTask(String executablePath, String[] arguments, String stdin, String workingDirectory) {
-        return createTermuxTask(new ExecutionCommand(TermuxShellManager.getNextShellId(), executablePath,
-            arguments, stdin, workingDirectory, Runner.APP_SHELL.getName(), false));
-    }
-
-    @Nullable
     public synchronized AppShell createTermuxTask(ExecutionCommand executionCommand) {
         if (executionCommand == null) return null;
 
@@ -761,22 +754,6 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
      */
     public synchronized TermuxTerminalSessionClientBase getTermuxTerminalSessionClient() {
         return mMuxClient;
-    }
-
-    /**
-     * Register an additional surface (e.g. the bubble window) that must also receive
-     * {@link TerminalSessionClient} callbacks РІР‚вЂќ a session has exactly one client slot, already taken.
-     */
-    public synchronized void addSecondaryTerminalSessionClient(@NonNull TerminalSessionClient client) {
-        mMuxClient.addSecondary(client);
-    }
-
-    /**
-     * Unregister a secondary surface. Must be called before that surface is destroyed, otherwise
-     * the mux keeps a reference to a dead activity.
-     */
-    public synchronized void removeSecondaryTerminalSessionClient(@NonNull TerminalSessionClient client) {
-        mMuxClient.removeSecondary(client);
     }
 
     /**

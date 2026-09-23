@@ -3,7 +3,6 @@ package com.termux.installer;
 import android.content.Context;
 
 import com.termux.shared.logger.Logger;
-import com.termux.shared.termux.TermuxBootstrapType;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,14 +15,10 @@ public class BootstrapManifest {
 
     public final String variant;
     public final String arch;
-    public final String version;
-    public final TermuxBootstrapType bootstrapType;
 
-    public BootstrapManifest(String variant, String arch, String version) {
+    public BootstrapManifest(String variant, String arch) {
         this.variant = variant;
         this.arch = arch;
-        this.version = version;
-        this.bootstrapType = TermuxBootstrapType.fromVariant(variant);
     }
 
     public static BootstrapManifest fromZip(Context context, File zipFile) throws IOException {
@@ -39,14 +34,13 @@ public class BootstrapManifest {
             }
             String variant = props.getProperty("variant");
             String arch = props.getProperty("arch");
-            String version = props.getProperty("version", "0");
             if (variant == null || variant.isEmpty()) {
                 throw new IOException(context.getString(com.termux.R.string.error_bootstrap_manifest_missing_variant));
             }
             if (arch == null || arch.isEmpty()) {
                 throw new IOException(context.getString(com.termux.R.string.error_bootstrap_manifest_missing_arch));
             }
-            return new BootstrapManifest(variant, arch, version);
+            return new BootstrapManifest(variant, arch);
         }
     }
 }

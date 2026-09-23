@@ -104,15 +104,4 @@ public enum TermuxBootstrapType {
         return TERMUX;
     }
 
-    /**
-     * Validate Nix store path format: /nix/store/<32-base32-chars>-<pkg-name>/...
-     */
-    public static boolean isValidNixStorePath(@NonNull String target) {
-        if (!target.startsWith("/nix/store/")) return false;
-        String rest = target.substring("/nix/store/".length());
-        if (rest.isEmpty() || rest.equals("/")) return true;
-        String[] parts = rest.split("/", 2);
-        String hashPart = parts[0];
-        return hashPart.length() >= 33 && hashPart.charAt(32) == '-';
-    }
 }

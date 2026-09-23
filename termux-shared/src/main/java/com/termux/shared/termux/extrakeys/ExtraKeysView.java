@@ -30,11 +30,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import java.util.HashSet;
 import java.util.stream.Collectors;
 
 import android.view.HapticFeedbackConstants;
-import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -465,37 +463,14 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mSwipeThreshold = Math.max(touchSlop, minThresholdPx);
     }
 
-    /** Get {@link #mExtraKeysViewClient}. */
-    public IExtraKeysView getExtraKeysViewClient() {
-        return mExtraKeysViewClient;
-    }
-
     /** Set {@link #mExtraKeysViewClient}. */
     public void setExtraKeysViewClient(IExtraKeysView extraKeysViewClient) {
         mExtraKeysViewClient = extraKeysViewClient;
     }
 
-    /** Get {@link #mRepetitiveKeys}. */
-    public List<String> getRepetitiveKeys() {
-        if (mRepetitiveKeys == null) return null;
-        return new ArrayList<>(mRepetitiveKeys);
-    }
-
     /** Set {@link #mRepetitiveKeys}. Must not be {@code null}. */
     public void setRepetitiveKeys(@NonNull List<String> repetitiveKeys) {
         mRepetitiveKeys = repetitiveKeys;
-    }
-
-    /** Get {@link #mSpecialButtons}. */
-    public ArrayMap<SpecialButton, SpecialButtonState> getSpecialButtons() {
-        if (mSpecialButtons == null) return null;
-        return mSpecialButtons;
-    }
-
-    /** Get {@link #mSpecialButtonsKeys}. */
-    public Set<String> getSpecialButtonsKeys() {
-        if (mSpecialButtonsKeys == null) return null;
-        return new HashSet<>(mSpecialButtonsKeys);
     }
 
     /** Set {@link #mSpecialButtonsKeys}. Must not be {@code null}. */
@@ -551,19 +526,9 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         return mButtonTextColor;
     }
 
-    /** Set {@link #mButtonTextColor}. */
-    public void setButtonTextColor(int buttonTextColor) {
-        mButtonTextColor = buttonTextColor;
-    }
-
     /** Get {@link #mButtonActiveTextColor}. */
     public int getButtonActiveTextColor() {
         return mButtonActiveTextColor;
-    }
-
-    /** Set {@link #mButtonActiveTextColor}. */
-    public void setButtonActiveTextColor(int buttonActiveTextColor) {
-        mButtonActiveTextColor = buttonActiveTextColor;
     }
 
     /** Get {@link #mButtonBackgroundColor}. */
@@ -571,19 +536,9 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         return mButtonBackgroundColor;
     }
 
-    /** Set {@link #mButtonBackgroundColor}. */
-    public void setButtonBackgroundColor(int buttonBackgroundColor) {
-        mButtonBackgroundColor = buttonBackgroundColor;
-    }
-
     /** Get {@link #mButtonActiveBackgroundColor}. */
     public int getButtonActiveBackgroundColor() {
         return mButtonActiveBackgroundColor;
-    }
-
-    /** Set {@link #mButtonActiveBackgroundColor}. */
-    public void setButtonActiveBackgroundColor(int buttonActiveBackgroundColor) {
-        mButtonActiveBackgroundColor = buttonActiveBackgroundColor;
     }
 
     /** Set {@link #mButtonTextAllCaps}. */
@@ -768,11 +723,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
-    /** Get {@link #mLongPressRepeatDelay}. */
-    public int getLongPressRepeatDelay() {
-        return mLongPressRepeatDelay;
-    }
-
     /** Set {@link #mLongPressRepeatDelay}. */
     public void setLongPressRepeatDelay(int longPressRepeatDelay) {
         if (longPressRepeatDelay >= MIN_LONG_PRESS__REPEAT_DELAY && longPressRepeatDelay <= MAX_LONG_PRESS__REPEAT_DELAY) {
@@ -780,12 +730,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         } else {
             mLongPressRepeatDelay = DEFAULT_LONG_PRESS_REPEAT_DELAY;
         }
-    }
-
-    /** Get {@link #mSpecialButtonMode}. */
-    @NonNull
-    public SpecialButtonMode getSpecialButtonMode() {
-        return mSpecialButtonMode;
     }
 
     /** Set {@link #mSpecialButtonMode}. Must not be {@code null}. */
@@ -1372,28 +1316,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
 
         return true;
     }
-    /**
-     * Returns the {@link ExtraKeyButton} rendered at the given logical preview position,
-     * or {@code null} if there is no button there (empty cell or out of range).
-     *
-     * <p>The preview lays its buttons out row-major in child order, so index {@code row * getColumnCount() + col}
-     * matches the visual grid. The returned button's {@link ExtraKeyButton#getDisplay()} is exactly
-     * the text drawn on the button (after alias + style display-map resolution), so callers can
-     * reuse it instead of recomputing a label themselves.
-     *
-     * @param row zero-based logical row in the preview grid
-     * @param col zero-based logical column in the preview grid
-     */
-    @Nullable
-    public ExtraKeyButton getExtraKeyButtonAt(int row, int col) {
-        if (row < 0 || col < 0 || getColumnCount() <= 0) return null;
-        int index = row * getColumnCount() + col;
-        if (index < 0 || index >= getChildCount()) return null;
-        View child = getChildAt(index);
-        Object tag = child != null ? child.getTag(TAG_EXTRA_KEY_INFO) : null;
-        return tag instanceof ExtraKeyButton ? (ExtraKeyButton) tag : null;
-    }
-
     private String getDisplayTextForCurrentCapsMode(@Nullable String originalText) {
         if (originalText == null) return "";
         if (!mButtonTextAllCaps) return originalText;
@@ -1486,11 +1408,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     /** Set the long-press listener (fires on a held press released without movement). */
     public void setEditorLongPressListener(@Nullable EditorLongPressListener listener) {
         mEditorLongPressListener = listener;
-    }
-
-    /** Cancel any ongoing editor gesture and reset touch state. */
-    public void cancelEditorGesture() {
-        resetTouchState();
     }
 
     /**

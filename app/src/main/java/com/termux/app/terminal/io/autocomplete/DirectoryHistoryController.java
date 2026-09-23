@@ -52,10 +52,6 @@ public final class DirectoryHistoryController {
         mDirectoryHistoryMax = max;
     }
 
-    public int getMaxSize() {
-        return mDirectoryHistoryMax;
-    }
-
     /**
      * Set the path that must never appear in the history (the default working directory) and purge
      * any entry already stored for it. A trailing '/' is ignored, so {@code /a/b} and {@code /a/b/}
@@ -75,21 +71,11 @@ public final class DirectoryHistoryController {
         if (removed) save();
     }
 
-    /** @return the excluded path, or null when no filter is set. */
-    @Nullable
-    public String getExcludedDirectory() {
-        return mExcludedDirectory;
-    }
-
     // ── Observers ──
 
     @NonNull
     public ArrayList<String> getHistoryList() {
         return mDirectoryHistory;
-    }
-
-    public boolean isEmpty() {
-        return mDirectoryHistory.isEmpty();
     }
 
     // ── Mutations ──

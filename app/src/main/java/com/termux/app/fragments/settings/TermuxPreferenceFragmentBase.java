@@ -43,9 +43,6 @@ public abstract class TermuxPreferenceFragmentBase extends PreferenceFragmentCom
     @NonNull
     public static ListPreference setLogLevelListPreferenceData(@NonNull ListPreference logLevelListPreference,
                                                               @NonNull Context context, int logLevel) {
-        if (logLevelListPreference == null)
-            logLevelListPreference = new ListPreference(context);
-
         CharSequence[] logLevels = Logger.getLogLevelsArray();
         CharSequence[] logLevelLabels = Logger.getLogLevelLabelsArray(context, logLevels);
 

@@ -65,20 +65,6 @@ public class UriUtils {
     }
 
     /**
-     * Build a {@code file://} {@link Uri} with {@code authority} for {@code path}.
-     */
-    public static Uri getFileUri(@NonNull String authority, @NonNull String path) {
-        return buildUri(UriScheme.SCHEME_FILE, authority, path);
-    }
-
-    /**
-     * Build a {@code content://} {@link Uri} for {@code path}.
-     */
-    public static Uri getContentUri(@NonNull String path) {
-        return buildUri(UriScheme.SCHEME_CONTENT, null, path);
-    }
-
-    /**
      * Build a {@code content://} {@link Uri} with {@code authority} for {@code path}.
      */
     public static Uri getContentUri(@NonNull String authority, @NonNull String path) {

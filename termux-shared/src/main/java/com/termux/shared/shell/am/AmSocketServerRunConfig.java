@@ -32,20 +32,6 @@ public class AmSocketServerRunConfig extends LocalSocketRunConfig implements Ser
         return mCheckDisplayOverAppsPermission != null ? mCheckDisplayOverAppsPermission : DEFAULT_CHECK_DISPLAY_OVER_APPS_PERMISSION;
     }
 
-    public void setCheckDisplayOverAppsPermission(Boolean checkDisplayOverAppsPermission) {
-        mCheckDisplayOverAppsPermission = checkDisplayOverAppsPermission;
-    }
-
-    /**
-     * Get a log {@link String} for {@link AmSocketServerRunConfig}, or {@code "null"} if
-     * {@code config} is {@code null}.
-     */
-    @NonNull
-    public static String getRunConfigLogString(final AmSocketServerRunConfig config) {
-        if (config == null) return "null";
-        return config.getLogString();
-    }
-
     /** Get a log {@link String} for the {@link AmSocketServerRunConfig}. */
     @NonNull
     public String getLogString() {
@@ -56,15 +42,6 @@ public class AmSocketServerRunConfig extends LocalSocketRunConfig implements Ser
         logString.append("\n").append(Logger.getSingleLineLogStringEntry("CheckDisplayOverAppsPermission", shouldCheckDisplayOverAppsPermission(), "-"));
 
         return logString.toString();
-    }
-
-    /**
-     * Get a markdown {@link String} for {@link AmSocketServerRunConfig}, or {@code "null"} if
-     * {@code config} is {@code null}.
-     */
-    public static String getRunConfigMarkdownString(final AmSocketServerRunConfig config) {
-        if (config == null) return "null";
-        return config.getMarkdownString();
     }
 
     /** Get a markdown {@link String} for the {@link AmSocketServerRunConfig}. */

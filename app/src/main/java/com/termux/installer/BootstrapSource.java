@@ -8,22 +8,16 @@ import java.util.Iterator;
 
 public class BootstrapSource implements Serializable {
 
-    public final String id;
     public final String name;
-    public final String description;
     public final String urlTemplate;
     public final String sha256;
-    public final long size;
     public final String variant;
 
-    public BootstrapSource(String id, String name, String description, String urlTemplate,
-                           String sha256, long size, String variant) {
-        this.id = id;
+    public BootstrapSource(String name, String urlTemplate,
+                           String sha256, String variant) {
         this.name = name;
-        this.description = description;
         this.urlTemplate = urlTemplate;
         this.sha256 = sha256;
-        this.size = size;
         this.variant = variant;
     }
 
@@ -49,18 +43,10 @@ public class BootstrapSource implements Serializable {
         }
 
         return new BootstrapSource(
-            obj.getString("id"),
             obj.optString("name", obj.getString("id")),
-            obj.optString("description", ""),
             urlTemplate,
             sha256,
-            obj.optLong("size", 0),
             obj.optString("variant", obj.getString("id"))
         );
-    }
-
-    @Override
-    public String toString() {
-        return name;
     }
 }

@@ -280,11 +280,6 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         return environment;
     }
 
-    /** Expose for debug logging. */
-    public static String getResolvedHomeDirPath() {
-        return sResolvedHomeDirPath;
-    }
-
     /**
      * Sanitize a working directory path: if it points under the compile-time
      * Termux data dir (/data/data/com.termux/), remap it to the runtime package

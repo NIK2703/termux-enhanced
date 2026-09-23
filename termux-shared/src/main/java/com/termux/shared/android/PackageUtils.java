@@ -4,7 +4,6 @@ import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -22,7 +21,6 @@ import com.termux.shared.interact.MessageDialogUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.reflection.ReflectionUtils;
 
-import java.lang.reflect.Field;
 import java.security.MessageDigest;
 import java.util.List;
 
@@ -92,15 +90,6 @@ public class PackageUtils {
         }
 
         return packageContext;
-    }
-
-    /**
-     * Get the {@link PackageInfo} for the package associated with the {@code context}.
-     *
-     * @return the package info, or {@code null} if an exception is raised.
-     */
-    public static PackageInfo getPackageInfoForPackage(@NonNull final Context context) {
-        return getPackageInfoForPackage(context, context.getPackageName());
     }
 
     /**
@@ -278,19 +267,9 @@ public class PackageUtils {
         return applicationInfo.targetSdkVersion;
     }
 
-    /** Base apk path for the package of {@code context}. */
-    public static String getBaseAPKPathForPackage(@NonNull final Context context) {
-        return getBaseAPKPathForPackage(context.getApplicationInfo());
-    }
-
     /** Base apk path for {@code applicationInfo}. */
     public static String getBaseAPKPathForPackage(@NonNull final ApplicationInfo applicationInfo) {
         return applicationInfo.publicSourceDir;
-    }
-
-    /** Whether the app of {@code context} has {@link ApplicationInfo#FLAG_DEBUGGABLE} set. */
-    public static boolean isAppForPackageADebuggableBuild(@NonNull final Context context) {
-        return isAppForPackageADebuggableBuild(context.getApplicationInfo());
     }
 
     /** Whether {@code applicationInfo} has {@link ApplicationInfo#FLAG_DEBUGGABLE} set. */
@@ -331,26 +310,6 @@ public class PackageUtils {
     }
 
     /**
-     * {@code versionCode} for the package of {@code context}.
-     *
-     * @return the version code, or {@code null} if an exception is raised.
-     */
-    @Nullable
-    public static Integer getVersionCodeForPackage(@NonNull final Context context) {
-        return getVersionCodeForPackage(context, context.getPackageName());
-    }
-
-    /**
-     * {@code versionCode} for {@code packageName}.
-     *
-     * @return the version code, or {@code null} if an exception is raised.
-     */
-    @Nullable
-    public static Integer getVersionCodeForPackage(@NonNull final Context context, @NonNull final String packageName) {
-        return getVersionCodeForPackage(getPackageInfoForPackage(context, packageName));
-    }
-
-    /**
      * {@code versionCode} for {@code packageInfo}.
      *
      * @return the version code, or {@code null} if {@code packageInfo} is {@code null}.
@@ -358,26 +317,6 @@ public class PackageUtils {
     @Nullable
     public static Integer getVersionCodeForPackage(@Nullable final PackageInfo packageInfo) {
         return packageInfo != null ? packageInfo.versionCode : null;
-    }
-
-    /**
-     * {@code versionName} for the package of {@code context}.
-     *
-     * @return the version name, or {@code null} if an exception is raised.
-     */
-    @Nullable
-    public static String getVersionNameForPackage(@NonNull final Context context) {
-        return getVersionNameForPackage(context, context.getPackageName());
-    }
-
-    /**
-     * {@code versionName} for {@code packageName}.
-     *
-     * @return the version name, or {@code null} if an exception is raised.
-     */
-    @Nullable
-    public static String getVersionNameForPackage(@NonNull final Context context, @NonNull final String packageName) {
-        return getVersionNameForPackage(getPackageInfoForPackage(context, packageName));
     }
 
     /**
@@ -523,14 +462,6 @@ public class PackageUtils {
         return errmsg;
     }
 
-    /** Wrapper for {@link #setComponentState(Context, String, String, boolean, String, boolean, boolean)}
-     * with {@code alwaysShowToast} {@code true}. */
-    public static String setComponentState(@NonNull final Context context, @NonNull String packageName,
-                                           @NonNull String className, boolean newState, String toastString,
-                                           boolean showErrorMessage) {
-        return setComponentState(context, packageName, className, newState, toastString, showErrorMessage, true);
-    }
-
     /**
      * Enable or disable a {@link ComponentName} via
      * {@link PackageManager#setComponentEnabledSetting(ComponentName, int, int)}.
@@ -606,29 +537,6 @@ public class PackageUtils {
         }
 
         return null;
-    }
-
-    /**
-     * Whether an activity component can be launched, via
-     * {@link PackageManager#queryIntentActivities(Intent, int)}.
-     *
-     * @param flags filter flags for the query.
-     * @return {@code true} if it exists.
-     */
-    public static boolean doesActivityComponentExist(@NonNull final Context context, @NonNull String packageName,
-                                                     @NonNull String className, int flags) {
-        try {
-            PackageManager packageManager = context.getPackageManager();
-            if (packageManager != null) {
-                Intent intent = new Intent();
-                intent.setClassName(packageName, className);
-                return packageManager.queryIntentActivities(intent, flags).size() > 0;
-            }
-        } catch (final Exception e) {
-            // ignore
-        }
-
-        return false;
     }
 
 }

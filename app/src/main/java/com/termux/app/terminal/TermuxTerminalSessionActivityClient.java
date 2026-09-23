@@ -536,7 +536,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         androidx.viewpager2.widget.ViewPager2 pager = mActivity.getTerminalPager();
         if (pager == null || pager.getAdapter() == null || pager.getAdapter().getItemCount() == 0) {
             mActivity.setPendingInitialSession(session);
-            if (showToast) notifyOfSessionChange();
             return;
         }
 
@@ -559,7 +558,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             if (pagerManager != null) pagerManager.setActiveIndex(index);
             onSessionPageSelected(session);
             mActivity.setTerminalPageSwitchInProgress(false);
-            if (showToast) notifyOfSessionChange();
             return;
         }
 
@@ -580,10 +578,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
                 if (tabs != null) tabs.scrollToTabIndex(index);
             }
-        }
-
-        if (showToast) {
-            notifyOfSessionChange();
         }
     }
 
@@ -606,13 +600,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (mPendingPostStartRecovery) invalidateAppliedScheme();
         checkForFontAndColors();
 
-        // NOTE: we deliberately do NOT call checkAndScrollToSession() here. That helper ends in
-        // termuxSessionListNotifyUpdated(), which calls notifyDataSetChanged() + setCurrentItem(...,
-        // false). On a plain swipe the session COUNT has not changed, so rebuilding the adapter
-        // mid-animation destroys the page ViewHolder and the setCurrentItem(false) snaps without
-        // the smooth settle — that is exactly the "abrupt page switch" bug. The pager itself
-        // already did the smooth scroll to land here; the tab highlight is refreshed separately
-        // in onTerminalPageSelected() via TermuxSessionTabsController.setCurrentSession().
+        // NOTE: the session-change toast path (notifyOfSessionChange()) was removed — the user
+        // requested no popups when switching tabs. The pager itself already did the smooth scroll
+        // to land here; the tab highlight is refreshed separately in onTerminalPageSelected() via
+        // TermuxSessionTabsController.setCurrentSession().
         updateBackgroundColor();
 
         // Tab titles are already populated when the session was created (via
@@ -656,10 +647,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         final boolean reloadExtraKeysMap = mPendingPostStartRecovery;
         mPendingPostStartRecovery = false;
         applySessionExtraKeys(session, reloadExtraKeysMap);
-    }
-
-    void notifyOfSessionChange() {
-        // Suppressed — the user requested no popups when switching tabs.
     }
 
     public void switchToSession(boolean forward) {
@@ -1160,31 +1147,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             if (left != null) return left.getTerminalSession();
         }
         return null;
-    }
-
-    public void checkAndScrollToSession(TerminalSession session) {
-        runIfVisible(() -> {
-            if (indexOfSession(session) < 0) return;
-
-            // Update session tabs
-            termuxSessionListNotifyUpdated();
-        });
-    }
-
-    String toToastTitle(TerminalSession session) {
-        final int indexOfSession = indexOfSession(session);
-        if (indexOfSession < 0) return null;
-        StringBuilder toastTitle = new StringBuilder("[" + (indexOfSession + 1) + "]");
-        if (!TextUtils.isEmpty(session.mSessionName)) {
-            toastTitle.append(" ").append(session.mSessionName);
-        }
-        String title = session.getTitle();
-        if (!TextUtils.isEmpty(title)) {
-            // Space to "[${NR}] or newline after session name:
-            toastTitle.append(session.mSessionName == null ? " " : "\n");
-            toastTitle.append(title);
-        }
-        return toastTitle.toString();
     }
 
     /**

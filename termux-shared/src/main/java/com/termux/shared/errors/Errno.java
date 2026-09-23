@@ -19,7 +19,6 @@ public class Errno {
 
     public static final Errno ERRNO_SUCCESS = new Errno(TYPE, Activity.RESULT_OK, "Success");
     public static final Errno ERRNO_CANCELLED = new Errno(TYPE, Activity.RESULT_CANCELED, "Cancelled");
-    public static final Errno ERRNO_MINOR_FAILURES = new Errno(TYPE, Activity.RESULT_FIRST_USER, "Minor failure");
     public static final Errno ERRNO_FAILED = new Errno(TYPE, Activity.RESULT_FIRST_USER + 1, "Failed");
 
     protected final String type;
@@ -53,17 +52,6 @@ public class Errno {
     @NonNull
     public String getMessage() {
         return message;
-    }
-
-    /**
-     * Get the {@link Errno} of a specific type and code.
-     *
-     * @param type The unique type of the {@link Errno}.
-     * @param code The unique code of the {@link Errno}.
-     */
-    public static Errno valueOf(String type, Integer code) {
-        if (type == null || type.isEmpty() || code == null) return null;
-        return map.get(type + ":" + code);
     }
 
     public Error getError() {

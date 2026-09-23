@@ -219,10 +219,6 @@ public final class MessageHistoryController {
         mMessageHistoryMax = max;
     }
 
-    public int getMaxSize() {
-        return mMessageHistoryMax;
-    }
-
     public void setSaveClearedToHistory(boolean enabled) {
         mSaveClearedToHistory = enabled;
     }
@@ -240,10 +236,6 @@ public final class MessageHistoryController {
 
     public int getHistoryVersion() {
         return mHistoryVersion;
-    }
-
-    public boolean isEmpty() {
-        return mMessageHistory.isEmpty();
     }
 
     @Nullable

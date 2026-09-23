@@ -4,11 +4,6 @@
      https://material.io/develop/android/theming/dark
     -->
 
-    <!-- TermuxApp Light DarkActionBar theme. -->
-    <style name="Theme.TermuxApp.Light.DarkActionBar" parent="Theme.BaseActivity.Light.DarkActionBar"/>
-    <!-- TermuxApp Light NoActionBar theme. -->
-    <style name="Theme.TermuxApp.Light.NoActionBar" parent="Theme.BaseActivity.Light.NoActionBar"/>
-
     <!-- TermuxApp DayNight DarkActionBar theme. -->
     <style name="Theme.TermuxApp.DayNight.DarkActionBar" parent="Theme.BaseActivity.DayNight.DarkActionBar"/>
     <!-- TermuxApp DayNight NoActionBar theme. -->
@@ -137,8 +132,6 @@
 
         <!-- Left drawer. -->
         <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Light</item>
-        <item name="termuxActivityDrawerBackground">@color/scheme_dialog_background</item>
-        <item name="termuxActivityDrawerImageTint">@color/scheme_dialog_foreground</item>
 
         <!-- Extra keys colors. -->
         <item name="extraKeysButtonTextColor">@color/black</item>

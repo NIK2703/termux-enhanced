@@ -30,10 +30,7 @@ public final class TermuxColorSchemeManager {
     private int mSchemeForeground = 0;
 
     // --- Derived surfaces ---
-    private int mHeaderBackground = 0;   // scheme bg + inactive overlay
     private int mDividerColor = 0;       // scheme fg @ ~20%
-    private int mDialogBackground = 0;   // scheme bg (opaque)
-    private int mDialogTextColor = 0;    // scheme fg
 
     // --- Context-popup colours ---
     private int mHistoryPopupBg = 0;
@@ -87,10 +84,7 @@ public final class TermuxColorSchemeManager {
         mTextSelectionHighlightColor = withAlpha(mSchemeForeground, 38);
 
         // Derived surfaces.
-        mHeaderBackground = compositeColors(mSchemeBackground, inactiveTint);
         mDividerColor = withAlpha(mSchemeForeground, 0x33);
-        mDialogBackground = mSchemeBackground;
-        mDialogTextColor = mSchemeForeground;
 
         // Context-popup colours
         mHistoryPopupBg = compositeColors(mSchemeBackground, inactiveTint);
@@ -128,17 +122,8 @@ public final class TermuxColorSchemeManager {
     /** @return Cached raw scheme foreground colour. */
     public int getSchemeForeground() { return mSchemeForeground; }
 
-    /** @return Cached header background (scheme bg + inactive-element overlay). */
-    public int getHeaderBackground() { return mHeaderBackground; }
-
     /** @return Cached divider colour (scheme foreground @ ~20% alpha). */
     public int getDividerColor() { return mDividerColor; }
-
-    /** @return Cached dialog background colour (opaque scheme background). */
-    public int getDialogBackground() { return mDialogBackground; }
-
-    /** @return Cached dialog text colour (scheme foreground). */
-    public int getDialogTextColor() { return mDialogTextColor; }
 
     /** @return Cached context-popup background colour (scheme bg + inactive overlay). */
     public int getHistoryPopupBg() { return mHistoryPopupBg; }

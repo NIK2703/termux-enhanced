@@ -10,7 +10,6 @@ import com.termux.shared.errors.Error;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class ResultData implements Serializable {
@@ -23,68 +22,8 @@ public class ResultData implements Serializable {
     public ResultData() {
     }
 
-    public void clearStdout() {
-        stdout.setLength(0);
-    }
-
-    public StringBuilder prependStdout(String message) {
-        return stdout.insert(0, message);
-    }
-
-    public StringBuilder prependStdoutLn(String message) {
-        return stdout.insert(0, message + "\n");
-    }
-
-    public StringBuilder appendStdout(String message) {
-        return stdout.append(message);
-    }
-
-    public StringBuilder appendStdoutLn(String message) {
-        return stdout.append(message).append("\n");
-    }
-
-    public void clearStderr() {
-        stderr.setLength(0);
-    }
-
-    public StringBuilder prependStderr(String message) {
-        return stderr.insert(0, message);
-    }
-
-    public StringBuilder prependStderrLn(String message) {
-        return stderr.insert(0, message + "\n");
-    }
-
-    public StringBuilder appendStderr(String message) {
-        return stderr.append(message);
-    }
-
-    public StringBuilder appendStderrLn(String message) {
-        return stderr.append(message).append("\n");
-    }
-
     public synchronized boolean setStateFailed(@NonNull Error error) {
         return setStateFailed(error.getType(), error.getCode(), error.getMessage(), null);
-    }
-
-    public synchronized boolean setStateFailed(@NonNull Error error, Throwable throwable) {
-        return setStateFailed(error.getType(), error.getCode(), error.getMessage(), Collections.singletonList(throwable));
-    }
-
-    public synchronized boolean setStateFailed(@NonNull Error error, List<Throwable> throwablesList) {
-        return setStateFailed(error.getType(), error.getCode(), error.getMessage(), throwablesList);
-    }
-
-    public synchronized boolean setStateFailed(int code, String message) {
-        return setStateFailed(null, code, message, null);
-    }
-
-    public synchronized boolean setStateFailed(int code, String message, Throwable throwable) {
-        return setStateFailed(null, code, message, Collections.singletonList(throwable));
-    }
-
-    public synchronized boolean setStateFailed(int code, String message, List<Throwable> throwablesList) {
-        return setStateFailed(null, code, message, throwablesList);
     }
 
     public synchronized boolean setStateFailed(String type, int code, String message, List<Throwable> throwablesList) {

@@ -30,8 +30,6 @@ package com.termux.shared.file.filesystem;
 
 // BEGIN Android-changed: Use constants from android.system.OsConstants. http://b/32203242
 // Those constants are initialized by native code to ensure correctness on different architectures.
-// AT_SYMLINK_NOFOLLOW (used by fstatat) and AT_REMOVEDIR (used by unlinkat) as of July 2018 do not
-// have equivalents in android.system.OsConstants so left unchanged.
 import android.system.OsConstants;
 
 
@@ -40,26 +38,6 @@ import android.system.OsConstants;
  */
 public class UnixConstants {
     private UnixConstants() { }
-
-    static final int O_RDONLY = OsConstants.O_RDONLY;
-
-    static final int O_WRONLY = OsConstants.O_WRONLY;
-
-    static final int O_RDWR = OsConstants.O_RDWR;
-
-    static final int O_APPEND = OsConstants.O_APPEND;
-
-    static final int O_CREAT = OsConstants.O_CREAT;
-
-    static final int O_EXCL = OsConstants.O_EXCL;
-
-    static final int O_TRUNC = OsConstants.O_TRUNC;
-
-    static final int O_SYNC = OsConstants.O_SYNC;
-
-    // O_DSYNC omitted: no static field on Android 5's OsConstants (would crash).
-
-    static final int O_NOFOLLOW = OsConstants.O_NOFOLLOW;
 
     static final int S_IAMB = get_S_IAMB();
 
@@ -97,46 +75,6 @@ public class UnixConstants {
 
     static final int S_IFIFO = OsConstants.S_IFIFO;
 
-    static final int R_OK = OsConstants.R_OK;
-
-    static final int W_OK = OsConstants.W_OK;
-
-    static final int X_OK = OsConstants.X_OK;
-
-    static final int F_OK = OsConstants.F_OK;
-
-    static final int ENOENT = OsConstants.ENOENT;
-
-    static final int EACCES = OsConstants.EACCES;
-
-    static final int EEXIST = OsConstants.EEXIST;
-
-    static final int ENOTDIR = OsConstants.ENOTDIR;
-
-    static final int EINVAL = OsConstants.EINVAL;
-
-    static final int EXDEV = OsConstants.EXDEV;
-
-    static final int EISDIR = OsConstants.EISDIR;
-
-    static final int ENOTEMPTY = OsConstants.ENOTEMPTY;
-
-    static final int ENOSPC = OsConstants.ENOSPC;
-
-    static final int EAGAIN = OsConstants.EAGAIN;
-
-    static final int ENOSYS = OsConstants.ENOSYS;
-
-    static final int ELOOP = OsConstants.ELOOP;
-
-    static final int EROFS = OsConstants.EROFS;
-
-    static final int ENODATA = OsConstants.ENODATA;
-
-    static final int ERANGE = OsConstants.ERANGE;
-
-    static final int EMFILE = OsConstants.EMFILE;
-
     // S_IAMB are access mode bits, therefore, calculated by taking OR of all the read, write and
     // execute permissions bits for owner, group and other.
     private static int get_S_IAMB() {
@@ -145,8 +83,4 @@ public class UnixConstants {
             OsConstants.S_IROTH | OsConstants.S_IWOTH | OsConstants.S_IXOTH);
     }
     // END Android-changed: Use constants from android.system.OsConstants. http://b/32203242
-
-
-    static final int AT_SYMLINK_NOFOLLOW = 0x100;
-    static final int AT_REMOVEDIR = 0x200;
 }

@@ -259,10 +259,6 @@ public final class MonetOptions {
         prefs.setGenericString(key, value);
     }
 
-    public static void persistVariant(@NonNull SchemeVariant variant) {
-        persist(KEY_VARIANT, variant.toPropertyValue());
-    }
-
     @NonNull
     private static String trim(String value) {
         if (value == null) return "";

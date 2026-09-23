@@ -64,28 +64,8 @@ public class TermuxTerminalSessionClientBase implements TerminalSessionClient {
     }
 
     @Override
-    public void logInfo(String tag, String message) {
-        Logger.logInfo(tag, message);
-    }
-
-    @Override
-    public void logDebug(String tag, String message) {
-        Logger.logDebug(tag, message);
-    }
-
-    @Override
-    public void logVerbose(String tag, String message) {
-        Logger.logVerbose(tag, message);
-    }
-
-    @Override
     public void logStackTraceWithMessage(String tag, String message, Exception e) {
         Logger.logStackTraceWithMessage(tag, message, e);
-    }
-
-    @Override
-    public void logStackTrace(String tag, Exception e) {
-        Logger.logStackTrace(tag, e);
     }
 
 }

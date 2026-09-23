@@ -79,11 +79,6 @@ public final class ColorMath {
 
     // ------------------------------------------------------------- Contrast ---
 
-    /** WCAG contrast ratio between two <i>tones</i> (L* values). */
-    public static double contrastOfTones(double toneA, double toneB) {
-        return Contrast.ratioOfTones(toneA, toneB);
-    }
-
     /** WCAG contrast ratio between two ARGB colors, computed through their tones. */
     public static double contrast(int argbA, int argbB) {
         return Contrast.ratioOfTones(toneOf(argbA), toneOf(argbB));

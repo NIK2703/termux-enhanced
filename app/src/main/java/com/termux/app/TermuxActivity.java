@@ -51,7 +51,6 @@ import com.termux.shared.activities.ReportActivity;
 import com.termux.shared.activity.ActivityUtils;
 import com.termux.shared.data.IntentUtils;
 import com.termux.shared.android.PermissionUtils;
-import com.termux.shared.data.DataUtils;
 import com.termux.shared.interact.ShareUtils;
 import com.termux.shared.interact.ToastUtils;
 import com.termux.shared.termux.TermuxConstants;
@@ -498,11 +497,6 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
         mKbStateInheritedSessionHandle = null;
     };
 
-    /** Whether a tab create/close rebuild window is suppressing keyboard-intent recording. */
-    public boolean isSessionUiChurnActive() {
-        return mSessionUiChurn;
-    }
-
     /**
      * True from just before a session is added ({@code createNewSession()}) until the create
      * rebuild window closes — i.e. while the pager is still absorbing the new page.
@@ -638,24 +632,9 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** Default max number of remembered directories. */
     private static final int DIRECTORY_HISTORY_MAX_DEFAULT = 20;
 
-    private static final int CONTEXT_MENU_SELECT_URL_ID = 0;
-    private static final int CONTEXT_MENU_SHARE_TRANSCRIPT_ID = 1;
-    private static final int CONTEXT_MENU_SHARE_SELECTED_TEXT = 10;
-    private static final int CONTEXT_MENU_AUTOFILL_USERNAME = 11;
-    private static final int CONTEXT_MENU_AUTOFILL_PASSWORD = 2;
-    private static final int CONTEXT_MENU_RESET_TERMINAL_ID = 3;
-    private static final int CONTEXT_MENU_KILL_PROCESS_ID = 4;
-    private static final int CONTEXT_MENU_STYLING_ID = 5;
-    private static final int CONTEXT_MENU_FONT_ID = 12;
-    private static final int CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON = 6;
-    private static final int CONTEXT_MENU_HELP_ID = 7;
-    private static final int CONTEXT_MENU_SETTINGS_ID = 8;
-    private static final int CONTEXT_MENU_REPORT_ID = 9;
-
     // NOTE: the per-session Bundle keys (text / caret / visible / focus / scroll / kb-intent)
     // live in SessionUiStateStore, which owns both the L1 store and the L2 Bundle (de)serialisation.
     private static final String ARG_ACTIVITY_RECREATED = "activity_recreated";
-    private static final String PREF_MESSAGE_HISTORY = "message_history";
 
     /** Pref key (in termux_prefs) holding the L3 (process-death) UI state JSON. */
     private static final String PREF_UI_STATE_JSON = "ui_state_json";
@@ -857,7 +836,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
                 mTextInputPanel.applyPanelHeightLimitForContentView(v));
         mViewHelper = new TermuxActivityViewHelper(this, getLayoutInflater());
-        mViewHelper.setDirectoryHistoryPopupController(mDirectoryHistoryPopupCtrl);
 
         // ── Dual IME detection: insets method + visible-frame method ──
         // Both methods run simultaneously and complement each other via OR logic:
@@ -896,8 +874,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mAutoCompleteCtrl = new AutoCompleteController(this,
                 getTerminalToolbarTextInput(),
                 mMessageHistoryCtrl, mColorSchemeManager);
-
-        setNewSessionButtonView();
 
         setToggleTextInputButtonView();
 
@@ -1076,7 +1052,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // once the window has focus.
         if (hasFocus && mPendingKeyboardRestore) {
             runKeyboardRestore();
-        } else if (hasFocus) {
         }
 
         // When Termux regains focus (e.g. after returning from Settings), apply the rotation mode
@@ -2227,19 +2202,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         applyTextInputVisibilityForSession(getCurrentSession(), false);
     }
 
-    private boolean isTerminalToolbarVisible() {
-        LinearLayout toolbar = getTerminalToolbarContainer();
-        if (toolbar == null || toolbar.getVisibility() != View.VISIBLE) return false;
-        if (mExtraKeysView != null && mExtraKeysView.getVisibility() != View.VISIBLE
-                && !isTextInputVisible()) return false;
-        return true;
-    }
-
-    private boolean isFullScreenTerminalMode() {
-        return mProperties.isUsingFullScreen()
-            && (getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
-    }
-
     public void setTerminalToolbarHeight() {
         final ExtraKeysView extraKeysView = getExtraKeysView();
         if (extraKeysView == null) return;
@@ -2638,10 +2600,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalSessionActivityClient != null) {
             mTermuxTerminalSessionActivityClient.applyTerminalFontSizeToAllViews();
         }
-    }
-
-    private void setNewSessionButtonView() {
-        // New session button is now in the tabs bar, handled in setTermuxSessionsListView
     }
 
     private void setToggleTextInputButtonView() {
@@ -3055,21 +3013,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     // ============================================================================
 
     /**
-     * Called when the current terminal session or working directory has changed
-     * (e.g. tab switch). If per-directory message history is enabled, saves the
-     * current directory's history and loads the new directory's entries into
-     * mMessageHistoryCtrl.getHistoryList().
-     *
-     * Also performs lazy migration of global history when a real session CWD
-     * is first encountered and the per-dir store has no entry for it yet
-     * (handles the cold-start case where the session wasn't ready during
-     * {@link #loadMessageHistoryPerDirectory()}).
-     */
-    public void onHistoryDirectoryChanged() {
-        onHistoryDirectoryChanged(getCurrentCwdForHistory());
-    }
-
-    /**
      * Overload taking an already-resolved cwd (one /proc read per switch serves
      * both the directory history and the message history).
      */
@@ -3137,20 +3080,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /** Dismiss the auto-complete suggestions popup (handled by AutoCompleteController). */
     public void dismissAutoCompleteSuggestions() {
         mAutoCompleteCtrl.dismiss();
-    }
-
-    /**
-    public void showMessageHistoryPopup(@NonNull View anchor) {
-        mPopupCtrl.showMessageHistoryPopup(anchor);
-    }
-
-    /** Wipe message history for ALL directories (per-directory mode only). */
-    public void clearAllDirectoriesHistory() {
-        mMessageHistoryCtrl.clearAllPerDirectory();
-    }
-
-    public void clearAllHistory() {
-        mMessageHistoryCtrl.clearCurrent(getCurrentCwdForHistory());
     }
 
     /** Dismiss the history popup and reset highlight state. */
@@ -3292,16 +3221,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Resolve the current session's working directory (a /proc readlink) once per
-     * switch; null when no session or the read fails.
-     */
-    @Nullable
-    public String getCurrentSessionCwd() {
-        TerminalSession session = getCurrentSession();
-        return session == null ? null : session.getCwd();
-    }
-
-    /**
      * Resolve the current session's working directory OFF the UI thread (it is a filesystem readlink
      * on /proc/&lt;pid&gt;/cwd) and deliver the result to {@code consumer} on the main thread (P3-2).
      * Used during tab switches so the readlink never blocks a swipe/fling. The consumers — recent
@@ -3332,20 +3251,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /** Load the persisted directory history from preferences (JSON array). */
     private void loadDirectoryHistory() {
         mDirectoryHistoryCtrl.load();
-    }
-
-    /** Persist the current directory history to preferences as a JSON array. */
-    private void saveDirectoryHistory() {
-        mDirectoryHistoryCtrl.save();
-    }
-
-    /**
-     * Alpha-composite {@code overlay} (with alpha) on top of {@code background}
-     * (assumed opaque) using standard over operator.
-     * @return Fully opaque ARGB colour.
-     */
-    private static int compositeColors(int background, int overlay) {
-        return TermuxColorSchemeManager.compositeColors(background, overlay);
     }
 
     private static int deriveActiveTextColor(int foreground) {
@@ -3538,7 +3443,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     private void setToggleKeyboardView() {
-        if (mViewHelper != null) mViewHelper.setupToggleKeyboardButton(mTermuxActivityRootView);
     }
 
     @SuppressLint("RtlHardcoded")
@@ -4035,10 +3939,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     }
 
-    public TermuxActivityRootView getTermuxActivityRootView() {
-        return mTermuxActivityRootView;
-    }
-
     public ExtraKeysView getExtraKeysView() {
         return mExtraKeysView;
     }
@@ -4203,11 +4103,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return mTermuxSessionTabsController;
     }
 
-    @Override
-    public void onToggleTextInput(boolean nowVisible) {
-        mTextInputPanel.updateToggleTextInputButtonIcon();
-    }
-
     @Nullable public EditText getTerminalToolbarTextInput() {
         // Cached: this is the shared text-input field, inflated once with the
         // toolbar; the hot paths (session switch bind/save, pause capture) hit it
@@ -4223,20 +4118,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Nullable
     private EditText mTerminalToolbarTextInput;
 
-    public MessageHistoryController getMessageHistoryController() {
-        return mMessageHistoryCtrl;
-    }
-
     public TermuxColorSchemeManager getColorSchemeManager() {
         return mColorSchemeManager;
-    }
-
-    public TermuxTerminalViewClient getTerminalViewClient() {
-        return mTermuxTerminalViewClient;
-    }
-
-    public TermuxTerminalSessionActivityClient getTerminalSessionActivityClient() {
-        return mTermuxTerminalSessionActivityClient;
     }
 
     @Override
@@ -4291,11 +4174,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     public TermuxAppSharedProperties getProperties() {
         return mProperties;
-    }
-
-    /** @return The {@link TermuxSessionSnapshotManager} owning session snapshot/restore. */
-    public TermuxSessionSnapshotManager getSessionSnapshotManager() {
-        return mSessionSnapshotManager;
     }
 
     /**

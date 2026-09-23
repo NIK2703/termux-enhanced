@@ -8,8 +8,6 @@ import android.widget.LinearLayout;
 import androidx.annotation.Nullable;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.termux.shared.logger.Logger;
-
 /**
  * The root view of the {@link TermuxActivity}.
  * <p>
@@ -38,10 +36,6 @@ import com.termux.shared.logger.Logger;
  */
 public class TermuxActivityRootView extends LinearLayout {
 
-    private boolean ROOT_VIEW_LOGGING_ENABLED = false;
-
-    private static final String LOG_TAG = "TermuxActivityRootView";
-
     public TermuxActivityRootView(Context context) {
         super(context);
     }
@@ -52,15 +46,6 @@ public class TermuxActivityRootView extends LinearLayout {
 
     public TermuxActivityRootView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-    }
-
-    /**
-     * Sets whether root view logging is enabled or not.
-     *
-     * @param value whether logging is enabled.
-     */
-    public void setIsRootViewLoggingEnabled(boolean value) {
-        ROOT_VIEW_LOGGING_ENABLED = value;
     }
 
     @Override
@@ -86,10 +71,6 @@ public class TermuxActivityRootView extends LinearLayout {
 
         int current = getPaddingBottom();
         if (current >= want) return;
-
-        if (ROOT_VIEW_LOGGING_ENABLED)
-            Logger.logVerbose(LOG_TAG, "Raising bottom padding " + current + " -> " + want +
-                " (ime " + imeBottom + ", systemBars " + systemBarsBottom + ")");
 
         setPadding(getPaddingLeft(), getPaddingTop(), getPaddingRight(), want);
     }

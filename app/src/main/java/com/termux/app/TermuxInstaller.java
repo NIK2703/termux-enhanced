@@ -653,15 +653,6 @@ public final class TermuxInstaller {
             || c == ',' || c == ';';
     }
 
-    private static boolean isPathBoundaryByte(byte b) {
-        return b == (byte) '/' || b == (byte) '\0' || b == (byte) ':'
-            || b == (byte) ' ' || b == (byte) '\t' || b == (byte) '\r'
-            || b == (byte) '\n' || b == (byte) '"' || b == (byte) '\''
-            || b == (byte) '(' || b == (byte) ')' || b == (byte) '['
-            || b == (byte) ']' || b == (byte) '<' || b == (byte) '>'
-            || b == (byte) ',' || b == (byte) ';';
-    }
-
     /**
      * Replace oldPrefix with newPrefix only when oldPrefix ends at a path boundary.
      * Prevents corruption like com.termux.debug → com.termux.debug.debug.
@@ -997,15 +988,6 @@ public final class TermuxInstaller {
 
     // ── Bootstrap installation state ──
 
-    public static boolean isBootstrapInstalled() {
-        File prefix = TERMUX_PREFIX_DIR;
-        if (!prefix.isDirectory()) return false;
-        File binDir = new File(prefix, "bin");
-        if (!binDir.isDirectory()) return false;
-        String[] children = binDir.list();
-        return children != null && children.length > 0;
-    }
-
     /**
      * Cache for {@link #isBootstrapInstalled(Context)}: the check lists $PREFIX/bin (a full
      * readdir of hundreds of entries) plus a file read, and was being run several times per
@@ -1112,10 +1094,6 @@ public final class TermuxInstaller {
 
         Logger.logInfo(LOG_TAG, "Existing bootstrap path patch complete");
         debugLog("patchExistingBootstrapIfNeeded: done");
-    }
-
-    public static boolean isPrefixValid() {
-        return isBootstrapInstalled();
     }
 
     public static void cleanupInterruptedInstall() {

@@ -74,19 +74,8 @@ public interface TerminalViewClient {
      *
      * @return {@code true} if the code point was consumed and must not reach the terminal.
      */
-    default boolean onCodePoint(int codePoint, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown,
-                               TerminalSession session) {
-        return onCodePoint(codePoint, ctrlDown, session);
-    }
-
-    /**
-     * @deprecated Implement
-     * {@link #onCodePoint(int, boolean, boolean, boolean, boolean, TerminalSession)} instead, which
-     * also carries the Alt, Shift and Fn state. This overload only exists so that existing clients
-     * keep compiling.
-     */
-    @Deprecated
-    boolean onCodePoint(int codePoint, boolean ctrlDown, TerminalSession session);
+    boolean onCodePoint(int codePoint, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown,
+                        TerminalSession session);
 
 
     /**
@@ -105,16 +94,8 @@ public interface TerminalViewClient {
 
     void logError(String tag, String message);
 
-    void logWarn(String tag, String message);
-
-    void logInfo(String tag, String message);
-
-    void logDebug(String tag, String message);
-
     void logVerbose(String tag, String message);
 
     void logStackTraceWithMessage(String tag, String message, Exception e);
-
-    void logStackTrace(String tag, Exception e);
 
 }

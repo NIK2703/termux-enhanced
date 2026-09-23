@@ -91,8 +91,6 @@ import java.util.Set;
  */
 public final class TermuxPropertyConstants {
 
-    private static final String LOG_TAG = "TermuxPropertyConstants";
-
     /* boolean */
 
     /** Defines the key for whether file share receiver of the app is enabled. */
@@ -121,10 +119,6 @@ public final class TermuxPropertyConstants {
 
     /** Defines the key for whether url links in terminal transcript will automatically open on click or on tap */
     public static final String KEY_TERMINAL_ONCLICK_URL_OPEN =  "terminal-onclick-url-open";
-
-    /** Defines the key for whether to use black UI */
-    @Deprecated
-    public static final String KEY_USE_BLACK_UI =  "use-black-ui";
 
     /** Defines the key for whether to use ctrl space workaround to fix the issue where ctrl+space does not work on some ROMs */
     public static final String KEY_USE_CTRL_SPACE_WORKAROUND =  "ctrl-space-workaround";
@@ -296,13 +290,6 @@ public final class TermuxPropertyConstants {
     public static final String IVALUE_BACK_KEY_BEHAVIOUR_ESCAPE = "escape";
     public static final String DEFAULT_IVALUE_BACK_KEY_BEHAVIOUR = IVALUE_BACK_KEY_BEHAVIOUR_BACK;
 
-    /** Defines the bidirectional map for back key behaviour values and their internal values */
-    public static final ImmutableBiMap<String, String> MAP_BACK_KEY_BEHAVIOUR =
-        new ImmutableBiMap.Builder<String, String>()
-            .put(IVALUE_BACK_KEY_BEHAVIOUR_BACK, IVALUE_BACK_KEY_BEHAVIOUR_BACK)
-            .put(IVALUE_BACK_KEY_BEHAVIOUR_ESCAPE, IVALUE_BACK_KEY_BEHAVIOUR_ESCAPE)
-            .build();
-
     /** Defines the key for the default working directory */
     public static final String KEY_DEFAULT_WORKING_DIRECTORY =  "default-working-directory";
     /** Defines the default working directory */
@@ -346,24 +333,10 @@ public final class TermuxPropertyConstants {
     public static final String IVALUE_NIGHT_MODE_SYSTEM = NightMode.SYSTEM.getName();
     public static final String DEFAULT_IVALUE_NIGHT_MODE = IVALUE_NIGHT_MODE_SYSTEM;
 
-    /** Defines the bidirectional map for {@link NightMode} values and their internal values */
-    public static final ImmutableBiMap<String, String> MAP_NIGHT_MODE =
-        new ImmutableBiMap.Builder<String, String>()
-            .put(IVALUE_NIGHT_MODE_TRUE, IVALUE_NIGHT_MODE_TRUE)
-            .put(IVALUE_NIGHT_MODE_FALSE, IVALUE_NIGHT_MODE_FALSE)
-            .put(IVALUE_NIGHT_MODE_SYSTEM, IVALUE_NIGHT_MODE_SYSTEM)
-            .build();
-
     /** Defines the key for the per-theme terminal color scheme for the light app theme. */
     public static final String KEY_COLOR_SCHEME_LIGHT = "color-scheme-light";
     /** Defines the key for the per-theme terminal color scheme for the dark app theme. */
     public static final String KEY_COLOR_SCHEME_DARK = "color-scheme-dark";
-
-    /**
-     * Default value for {@link #KEY_COLOR_SCHEME_LIGHT} / {@link #KEY_COLOR_SCHEME_DARK}: no
-     * scheme selected, i.e. the built-in (non-Material) light/dark terminal scheme.
-     */
-    public static final String DEFAULT_IVALUE_COLOR_SCHEME = "Default";
 
     /**
      * Defines the key for the "color scheme type" of the wallpaper-derived (Monet) terminal
@@ -398,26 +371,12 @@ public final class TermuxPropertyConstants {
     public static final String IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_ENABLE_DISABLE = "enable/disable";
     public static final String DEFAULT_IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR = IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_SHOW_HIDE;
 
-    /** Defines the bidirectional map for toggle soft keyboard behaviour values and their internal values */
-    public static final ImmutableBiMap<String, String> MAP_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR =
-        new ImmutableBiMap.Builder<String, String>()
-            .put(IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_SHOW_HIDE, IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_SHOW_HIDE)
-            .put(IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_ENABLE_DISABLE, IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_ENABLE_DISABLE)
-            .build();
-
     /** Defines the key for whether volume keys will behave as virtual or literal volume keys */
     public static final String KEY_VOLUME_KEYS_BEHAVIOUR =  "volume-keys";
 
     public static final String IVALUE_VOLUME_KEY_BEHAVIOUR_VIRTUAL = "virtual";
     public static final String IVALUE_VOLUME_KEY_BEHAVIOUR_VOLUME = "volume";
     public static final String DEFAULT_IVALUE_VOLUME_KEYS_BEHAVIOUR = IVALUE_VOLUME_KEY_BEHAVIOUR_VIRTUAL;
-
-    /** Defines the bidirectional map for volume keys behaviour values and their internal values */
-    public static final ImmutableBiMap<String, String> MAP_VOLUME_KEYS_BEHAVIOUR =
-        new ImmutableBiMap.Builder<String, String>()
-            .put(IVALUE_VOLUME_KEY_BEHAVIOUR_VIRTUAL, IVALUE_VOLUME_KEY_BEHAVIOUR_VIRTUAL)
-            .put(IVALUE_VOLUME_KEY_BEHAVIOUR_VOLUME, IVALUE_VOLUME_KEY_BEHAVIOUR_VOLUME)
-            .build();
 
     /** Defines the set for keys loaded by termux
      * Setting this to {@code null} will make {@link SharedProperties} throw an exception.
@@ -506,22 +465,6 @@ public final class TermuxPropertyConstants {
         KEY_RUN_TERMUX_AM_SOCKET_SERVER
     ));
 
-    /** Defines the set for keys loaded by termux that have default inverted boolean behaviour with false as default.
-     * "false" -> true
-     * "true" -> false
-     * default: false
-     */
-    public static final Set<String> TERMUX_DEFAULT_INVERETED_FALSE_BOOLEAN_BEHAVIOUR_PROPERTIES_LIST = new HashSet<>(Arrays.asList(
-    ));
-
-    /** Defines the set for keys loaded by termux that have default inverted boolean behaviour with true as default.
-     * "false" -> true
-     * "true" -> false
-     * default: true
-     */
-    public static final Set<String> TERMUX_DEFAULT_INVERETED_TRUE_BOOLEAN_BEHAVIOUR_PROPERTIES_LIST = new HashSet<>(Arrays.asList(
-    ));
-
     /** The boolean keys (both default-false and default-true behaviour). */
     public static final Set<String> TERMUX_APP_PROPERTIES_BOOLEAN_KEYS = Collections.unmodifiableSet(
         new HashSet<String>() {{
@@ -546,32 +489,6 @@ public final class TermuxPropertyConstants {
     /** The float keys. */
     public static final Set<String> TERMUX_APP_PROPERTIES_FLOAT_KEYS = new HashSet<>(Arrays.asList(
         KEY_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR
-    ));
-
-    /** The String keys. */
-    public static final Set<String> TERMUX_APP_PROPERTIES_STRING_KEYS = new HashSet<>(Arrays.asList(
-        KEY_BACK_KEY_BEHAVIOUR,
-        KEY_SHORTCUT_CREATE_SESSION,
-        KEY_SHORTCUT_NEXT_SESSION,
-        KEY_SHORTCUT_PREVIOUS_SESSION,
-        KEY_SHORTCUT_RENAME_SESSION,
-        KEY_COLOR_SCHEME_DARK,
-        KEY_COLOR_SCHEME_LIGHT,
-        KEY_MONET_VARIANT,
-        KEY_MONET_BACKGROUND,
-        KEY_MONET_ACCENT_SOURCE,
-        KEY_MONET_ACCENT_CONTRAST,
-        KEY_MONET_CHROMA,
-        KEY_MONET_TONE,
-        KEY_MONET_COLOR0,
-        KEY_DEFAULT_WORKING_DIRECTORY,
-        KEY_EXTRA_KEYS,
-        KEY_EXTRA_KEYS_STYLE,
-        KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE,
-        KEY_EXTRA_KEYS_SESSION,
-        KEY_NIGHT_MODE,
-        KEY_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR,
-        KEY_VOLUME_KEYS_BEHAVIOUR
     ));
 
     public static boolean isBooleanKey(String key) {

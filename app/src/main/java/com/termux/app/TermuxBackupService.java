@@ -145,9 +145,6 @@ public final class TermuxBackupService extends Service {
         return sLastResult;
     }
 
-    /** @return true once the operation has been cancelled by the user. */
-    public boolean isCancelled() { return mCancelled.get(); }
-
     /** Cancel the running operation: the worker observes this and kills the tar process. */
     public void cancelOperation() {
         mCancelled.set(true);
@@ -203,8 +200,6 @@ public final class TermuxBackupService extends Service {
     public boolean isFinished() { return mFinished; }
     public long getProgressCopied() { return mProgressCopied; }
     public long getProgressTotal() { return mProgressTotal; }
-    @Nullable
-    public Error getResult() { return mResult.get(); }
 
     /**
      * Switch this service into foreground (notification) mode. Safe to call multiple times.

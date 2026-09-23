@@ -72,8 +72,6 @@ public final class SessionUiStateStore {
     private boolean mSoftKeyboardVisibleIntent = true;
     /** Active session index recorded at save time (Bundle restore path). */
     private int mActiveSessionIndex = -1;
-    /** Active index read back from persisted JSON (process-death path). */
-    private int mImportedActiveIndex = -1;
 
     @NonNull
     private SessionUiState state(@NonNull String handle) {
@@ -105,11 +103,6 @@ public final class SessionUiStateStore {
         return s != null ? s.textInput : null;
     }
 
-    public boolean hasInput(@NonNull String handle) {
-        SessionUiState s = mStates.get(handle);
-        return s != null && s.textInput != null;
-    }
-
     // ── Panel visibility ────────────────────────────────────────────────
 
     public void setVisible(@NonNull String handle, boolean visible) {
@@ -129,10 +122,6 @@ public final class SessionUiStateStore {
     }
 
     // ── Focus (panel vs terminal) ───────────────────────────────────────
-
-    public void setFocusOnInput(@NonNull String handle, boolean focusOnInput) {
-        state(handle).focusOnInput = focusOnInput;
-    }
 
     public void setFocusOnInput(@Nullable TerminalSession session, boolean focusOnInput) {
         if (session != null) state(session.mHandle).focusOnInput = focusOnInput;
@@ -161,11 +150,6 @@ public final class SessionUiStateStore {
     public int getCaret(@NonNull String handle) {
         SessionUiState s = mStates.get(handle);
         return (s != null) ? s.caret : -1;
-    }
-
-    public boolean hasCaret(@NonNull String handle) {
-        SessionUiState s = mStates.get(handle);
-        return s != null && s.caret >= 0;
     }
 
     // ── Terminal scroll position (TerminalView.mTopRow) ─────────────────
@@ -238,15 +222,6 @@ public final class SessionUiStateStore {
         mActiveSessionIndex = index;
     }
 
-    public int getActiveSessionIndex() {
-        return mActiveSessionIndex;
-    }
-
-    /** Active index restored from persisted JSON (process-death path); -1 if none. */
-    public int getImportedActiveIndex() {
-        return mImportedActiveIndex;
-    }
-
     // ── Cleanup ─────────────────────────────────────────────────────────
 
     /**
@@ -267,12 +242,6 @@ public final class SessionUiStateStore {
 
     public void clear(@Nullable TerminalSession session) {
         if (session != null) clear(session.mHandle);
-    }
-
-    public void clearAll() {
-        mStates.clear();
-        mActiveSessionIndex = -1;
-        mImportedActiveIndex = -1;
     }
 
     // ── L2: Bundle (activity recreation; handles still valid) ───────────
@@ -436,7 +405,6 @@ public final class SessionUiStateStore {
         if (json == null || json.isEmpty()) return;
         try {
             JSONObject root = new JSONObject(json);
-            mImportedActiveIndex = root.optInt("activeIndex", -1);
             // Panel/focus/keyboard keys are RAM-only and not read back (old JSON may carry them).
             JSONArray arr = root.optJSONArray("sessions");
             if (arr == null) return;

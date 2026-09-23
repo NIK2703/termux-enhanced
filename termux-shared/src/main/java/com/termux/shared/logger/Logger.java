@@ -134,18 +134,9 @@ public class Logger {
         logExtendedMessage(Log.ERROR, tag, message);
     }
 
-    public static void logErrorExtended(String message) {
-        logExtendedMessage(Log.ERROR, DEFAULT_LOG_TAG, message);
-    }
-
     public static void logErrorPrivate(String tag, String message) {
         if (CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG)
             logMessage(Log.ERROR, tag, message);
-    }
-
-    public static void logErrorPrivate(String message) {
-        if (CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG)
-            logMessage(Log.ERROR, DEFAULT_LOG_TAG, message);
     }
 
     public static void logErrorPrivateExtended(String tag, String message) {
@@ -153,41 +144,16 @@ public class Logger {
             logExtendedMessage(Log.ERROR, tag, message);
     }
 
-    public static void logErrorPrivateExtended(String message) {
-        if (CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG)
-            logExtendedMessage(Log.ERROR, DEFAULT_LOG_TAG, message);
-    }
-
     public static void logWarn(String tag, String message) {
         logMessage(Log.WARN, tag, message);
-    }
-
-    public static void logWarn(String message) {
-        logMessage(Log.WARN, DEFAULT_LOG_TAG, message);
     }
 
     public static void logWarnExtended(String tag, String message) {
         logExtendedMessage(Log.WARN, tag, message);
     }
 
-    public static void logWarnExtended(String message) {
-        logExtendedMessage(Log.WARN, DEFAULT_LOG_TAG, message);
-    }
-
     public static void logInfo(String tag, String message) {
         logMessage(Log.INFO, tag, message);
-    }
-
-    public static void logInfo(String message) {
-        logMessage(Log.INFO, DEFAULT_LOG_TAG, message);
-    }
-
-    public static void logInfoExtended(String tag, String message) {
-        logExtendedMessage(Log.INFO, tag, message);
-    }
-
-    public static void logInfoExtended(String message) {
-        logExtendedMessage(Log.INFO, DEFAULT_LOG_TAG, message);
     }
 
     public static void logDebug(String tag, String message) {
@@ -202,10 +168,6 @@ public class Logger {
         logExtendedMessage(Log.DEBUG, tag, message);
     }
 
-    public static void logDebugExtended(String message) {
-        logExtendedMessage(Log.DEBUG, DEFAULT_LOG_TAG, message);
-    }
-
     public static void logVerbose(String tag, String message) {
         logMessage(Log.VERBOSE, tag, message);
     }
@@ -218,10 +180,6 @@ public class Logger {
         logExtendedMessage(Log.VERBOSE, tag, message);
     }
 
-    public static void logVerboseExtended(String message) {
-        logExtendedMessage(Log.VERBOSE, DEFAULT_LOG_TAG, message);
-    }
-
     public static void logVerboseForce(String tag, String message) {
         Log.v(tag, message);
     }
@@ -230,24 +188,8 @@ public class Logger {
         logAndShowToast(context, tag, message, Log.INFO, LOG_LEVEL_NORMAL);
     }
 
-    public static void logInfoAndShowToast(Context context, String message) {
-        logInfoAndShowToast(context, DEFAULT_LOG_TAG, message);
-    }
-
     public static void logErrorAndShowToast(Context context, String tag, String message) {
         logAndShowToast(context, tag, message, Log.ERROR, LOG_LEVEL_NORMAL);
-    }
-
-    public static void logErrorAndShowToast(Context context, String message) {
-        logErrorAndShowToast(context, DEFAULT_LOG_TAG, message);
-    }
-
-    public static void logDebugAndShowToast(Context context, String tag, String message) {
-        logAndShowToast(context, tag, message, Log.DEBUG, LOG_LEVEL_DEBUG);
-    }
-
-    public static void logDebugAndShowToast(Context context, String message) {
-        logDebugAndShowToast(context, DEFAULT_LOG_TAG, message);
     }
 
     private static void logAndShowToast(Context context, String tag, String message, int logPriority, int requiredLogLevel) {
@@ -265,18 +207,6 @@ public class Logger {
         logStackTraceWithMessage(DEFAULT_LOG_TAG, message, throwable);
     }
 
-    public static void logStackTrace(String tag, Throwable throwable) {
-        logStackTraceWithMessage(tag, null, throwable);
-    }
-
-    public static void logStackTrace(Throwable throwable) {
-        logStackTraceWithMessage(DEFAULT_LOG_TAG, null, throwable);
-    }
-
-    public static void logStackTracesWithMessage(String tag, String message, List<Throwable> throwablesList) {
-        Logger.logErrorExtended(tag, getMessageAndStackTracesString(message, throwablesList));
-    }
-
     public static String getMessageAndStackTraceString(String message, Throwable throwable) {
         if (message == null && throwable == null)
             return null;
@@ -286,17 +216,6 @@ public class Logger {
             return message;
         else
             return getStackTraceString(throwable);
-    }
-
-    public static String getMessageAndStackTracesString(String message, List<Throwable> throwablesList) {
-        if (message == null && (throwablesList == null || throwablesList.size() == 0))
-            return null;
-        else if (message != null && (throwablesList != null && throwablesList.size() != 0))
-            return message + ":\n" + getStackTracesString(null, getStackTracesStringArray(throwablesList));
-        else if (throwablesList == null || throwablesList.size() == 0)
-            return message;
-        else
-            return getStackTracesString(null, getStackTracesStringArray(throwablesList));
     }
 
     public static String getStackTraceString(Throwable throwable) {

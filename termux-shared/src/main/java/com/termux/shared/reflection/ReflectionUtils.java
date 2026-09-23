@@ -9,7 +9,6 @@ import com.termux.shared.logger.Logger;
 
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -38,10 +37,6 @@ public class ReflectionUtils {
         }
     }
 
-    public static boolean areHiddenAPIReflectionRestrictionsBypassed() {
-        return HIDDEN_API_REFLECTION_RESTRICTIONS_BYPASSED;
-    }
-
     /**
      * Get a {@link Field} for the specified class.
      *
@@ -67,7 +62,6 @@ public class ReflectionUtils {
         public Object value;
 
         FieldInvokeResult(boolean success, Object value) {
-            this.value = success;
             this.value = value;
         }
     }
@@ -125,40 +119,12 @@ public class ReflectionUtils {
         }
     }
 
-    /**
-     * Wrapper for {@link #invokeVoidMethod(Method, Object, Object...)} without arguments.
-     */
-    public static boolean invokeVoidMethod(@NonNull Method method, Object obj) {
-        return invokeVoidMethod(method, obj, new Object[0]);
-    }
-
-    /**
-     * Invoke a {@link Method} on the specified object with the specified arguments that returns
-     * {@code void}.
-     *
-     * @param method The {@link Method} to invoke.
-     * @param obj The {@link Object} the method should be invoked from.
-     * @param args The arguments to pass to the method.
-     * @return Returns {@code true} if invoking the method was successful, otherwise {@code false}.
-     */
-    public static boolean invokeVoidMethod(@NonNull Method method, Object obj, Object... args) {
-        try {
-            method.setAccessible(true);
-            method.invoke(obj, args);
-            return true;
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to invoke \"" + method.getName() + "\" method with object \"" + obj + "\" and args: " + Arrays.toString(args), e);
-            return false;
-        }
-    }
-
     /** Class that represents result of invoking a method that has a non-void return type. */
     public static class MethodInvokeResult {
         public boolean success;
         public Object value;
 
         MethodInvokeResult(boolean success, Object value) {
-            this.value = success;
             this.value = value;
         }
     }
@@ -190,73 +156,6 @@ public class ReflectionUtils {
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to invoke \"" + method.getName() + "\" method with object \"" + obj + "\" and args: " + Arrays.toString(args), e);
             return new MethodInvokeResult(false, null);
-        }
-    }
-
-    /**
-     * Wrapper for {@link #getConstructor(String, Class[])} without parameters.
-     */
-    @Nullable
-    public static Constructor<?> getConstructor(@NonNull String className) {
-        return getConstructor(className, new Class<?>[0]);
-    }
-
-    /**
-     * Wrapper for {@link #getConstructor(Class, Class[])} to get a {@link Constructor} for the
-     * {@code className}.
-     */
-    @Nullable
-    public static Constructor<?> getConstructor(@NonNull String className, Class<?>... parameterTypes) {
-        try {
-            return getConstructor(Class.forName(className), parameterTypes);
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get constructor for \"" + className + "\" class with parameter types: " + Arrays.toString(parameterTypes), e);
-            return null;
-        }
-    }
-
-    /**
-     * Get a {@link Constructor} for the specified class with the specified parameters.
-     *
-     * @param clazz The {@link Class} for which to return the constructor.
-     * @param parameterTypes The parameter types of the constructor.
-     * @return Returns the {@link Constructor} if getting the it was successful, otherwise {@code null}.
-     */
-    @Nullable
-    public static Constructor<?> getConstructor(@NonNull Class<?> clazz, Class<?>... parameterTypes) {
-        try {
-            Constructor<?> constructor = clazz.getConstructor(parameterTypes);
-            constructor.setAccessible(true);
-            return constructor;
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to get constructor for \"" + clazz.getName() + "\" class with parameter types: " + Arrays.toString(parameterTypes), e);
-            return null;
-        }
-    }
-
-    /**
-     * Wrapper for {@link #invokeConstructor(Constructor, Object...)} without arguments.
-     */
-    @Nullable
-    public static Object invokeConstructor(@NonNull Constructor<?> constructor) {
-        return invokeConstructor(constructor, new Object[0]);
-    }
-
-    /**
-     * Invoke a {@link Constructor} with the specified arguments.
-     *
-     * @param constructor The {@link Constructor} to invoke.
-     * @param args The arguments to pass to the constructor.
-     * @return Returns the new instance if invoking the constructor was successful, otherwise {@code null}.
-     */
-    @Nullable
-    public static Object invokeConstructor(@NonNull Constructor<?> constructor, Object... args) {
-        try {
-            constructor.setAccessible(true);
-            return constructor.newInstance(args);
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to invoke \"" + constructor.getName() + "\" constructor with args: " + Arrays.toString(args), e);
-            return null;
         }
     }
 

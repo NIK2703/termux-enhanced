@@ -3,7 +3,6 @@
     <!-- Translucent overlay no longer used; header colour is defined in termux-shared. -->
     <color name="bootstrap_selector_background">#000000</color>
     <color name="signal_picker_underlay_fill">#0DFFFFFF</color>
-    <color name="signal_picker_underlay_stroke">#1AFFFFFF</color>
 
     <!-- Disabled preference text (dark theme): muted grey, dimmer than the active white title
          so an inactive item reads as disabled. -->

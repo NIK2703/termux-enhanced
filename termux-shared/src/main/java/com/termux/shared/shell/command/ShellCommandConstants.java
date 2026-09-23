@@ -3,7 +3,6 @@ package com.termux.shared.shell.command;
 import com.termux.shared.errors.Errno;
 import com.termux.shared.shell.command.result.ResultConfig;
 
-import java.util.Formatter;
 import java.util.IllegalFormatException;
 
 public class ShellCommandConstants {

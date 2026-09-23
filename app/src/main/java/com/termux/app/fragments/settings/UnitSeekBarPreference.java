@@ -66,19 +66,6 @@ public class UnitSeekBarPreference extends SeekBarPreference implements TextWatc
         mDivisor = readDivisor(context, attrs);
     }
 
-    public UnitSeekBarPreference(Context context, AttributeSet attrs, int defStyleAttr) {
-        super(context, attrs, defStyleAttr);
-        mUnit = readUnit(context, attrs);
-        mDivisor = readDivisor(context, attrs);
-    }
-
-    public UnitSeekBarPreference(Context context, AttributeSet attrs, int defStyleAttr,
-                                 int defStyleRes) {
-        super(context, attrs, defStyleAttr, defStyleRes);
-        mUnit = readUnit(context, attrs);
-        mDivisor = readDivisor(context, attrs);
-    }
-
     private static String readUnit(Context context, AttributeSet attrs) {
         if (attrs == null) return "";
         TypedArray a = context.obtainStyledAttributes(attrs, new int[]{R.attr.valueUnit});

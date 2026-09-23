@@ -266,11 +266,6 @@ public class LocalClientSocket implements Closeable {
             mLocalSocketRunConfig.getTitle());
     }
 
-    /** Get {@link #mFD} for the client socket. */
-    public int getFD() {
-        return mFD;
-    }
-
     /** Store {@code fd}; values below 0 are normalized to -1 (closed). */
     private void setFD(int fd) {
         mFD = LocalSocketRunConfig.normalizeFD(fd);
@@ -279,11 +274,6 @@ public class LocalClientSocket implements Closeable {
     /** Get {@link #mPeerCred} for the client socket. */
     public PeerCred getPeerCred() {
         return mPeerCred;
-    }
-
-    /** Get {@link #mCreationTime} for the client socket. */
-    public long getCreationTime() {
-        return mCreationTime;
     }
 
     /** Get {@link #mOutputStream} for the client socket. The stream will automatically close when client socket is closed. */

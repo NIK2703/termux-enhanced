@@ -21,19 +21,14 @@ public final class TextInputPanelController {
 
     public interface Host {
         @Nullable TerminalSession getCurrentSession();
-        void onToggleTextInput(boolean nowVisible);
     }
 
-    @NonNull private final Context mContext;
     @NonNull private final Host mHost;
     @NonNull private final SessionUiStateStore mTextInputState;
 
     @Nullable private EditText mEditText;
     @Nullable private View mTextInputContainer;
     @Nullable private ImageButton mToggleTextInputButton;
-
-    private static final String PREF_TEXT_INPUT_VISIBLE = "text_input_visible";
-    private static final String PREF_TEXT_INPUT_ENABLED = "text_input_enabled";
 
     /**
      * The input panel may never occupy more than a {@code 1/MAX_HEIGHT_FRACTION} share of the
@@ -59,7 +54,6 @@ public final class TextInputPanelController {
     public TextInputPanelController(@NonNull Context context,
                                     @NonNull Host host,
                                     @NonNull SessionUiStateStore textInputState) {
-        mContext = context;
         mHost = host;
         mTextInputState = textInputState;
     }
@@ -137,50 +131,6 @@ public final class TextInputPanelController {
         mAppliedPanelHeightPx = targetHeightPx;
     }
 
-    /** Designed (unclamped) panel height in px, or -1 before {@link #setup}. */
-    public int getPanelBaseHeightPx() { return mPanelBaseHeightPx; }
-
-    /** Panel height in px currently applied, or -1 before {@link #setup}. */
-    public int getAppliedPanelHeightPx() { return mAppliedPanelHeightPx; }
-
-    public void saveTextInputForCurrentSession() {
-        TerminalSession session = mHost.getCurrentSession();
-        if (session == null || mEditText == null) return;
-        String handle = session.mHandle;
-        String text = mEditText.getText() != null ? mEditText.getText().toString() : "";
-        mTextInputState.saveInput(handle, text);
-        mTextInputState.setCaret(handle, mEditText.getSelectionStart());
-        mTextInputState.setVisible(handle, mTextInputContainer != null
-                && mTextInputContainer.getVisibility() == View.VISIBLE);
-        mTextInputState.setFocusOnInput(handle, mEditText.hasFocus());
-    }
-
-    public void restoreTextInputForSession(@Nullable String sessionHandle) {
-        if (mEditText == null) return;
-        if (sessionHandle == null) {
-            mEditText.setText("");
-            return;
-        }
-        String text = mTextInputState.getInputText(sessionHandle);
-        mEditText.setText(text != null ? text : "");
-        int caret = mTextInputState.getCaret(sessionHandle);
-        if (caret >= 0) {
-            mEditText.setSelection(Math.min(caret, mEditText.length()));
-        }
-    }
-
-    public void clearTextInputForSession(@NonNull String sessionHandle) {
-        mTextInputState.clear(sessionHandle);
-    }
-
-    public void setFocusOnInputForCurrentSession(boolean focusOnInput) {
-        TerminalSession session = mHost.getCurrentSession();
-        if (session == null) return;
-        mTextInputState.setFocusOnInput(session, focusOnInput);
-        if (focusOnInput && mEditText != null) mEditText.requestFocus();
-        if (!focusOnInput && mEditText != null && mEditText.hasFocus()) mEditText.clearFocus();
-    }
-
     public void updateToggleTextInputButtonIcon() {
         if (mToggleTextInputButton == null) return;
         boolean isVisible = mTextInputContainer != null
@@ -189,8 +139,4 @@ public final class TextInputPanelController {
                 ? com.termux.R.drawable.ic_keyboard_hide
                 : com.termux.R.drawable.ic_keyboard_show);
     }
-
-    @Nullable public EditText getEditText() { return mEditText; }
-    @Nullable public View getTextInputContainer() { return mTextInputContainer; }
-    @Nullable public ImageButton getToggleTextInputButton() { return mToggleTextInputButton; }
 }

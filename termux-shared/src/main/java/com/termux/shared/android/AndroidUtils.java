@@ -232,10 +232,6 @@ public class AndroidUtils {
         return df.format(new Date());
     }
 
-    public static String getCurrentTimeStamp() {
-        return getTimeStamp("yyyy-MM-dd HH:mm:ss z", TimeZone.getTimeZone("UTC"));
-    }
-
     public static String getCurrentMilliSecondUTCTimeStamp() {
         return getTimeStamp("yyyy-MM-dd HH:mm:ss.SSS z", TimeZone.getTimeZone("UTC"));
     }

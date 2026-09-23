@@ -1,7 +1,5 @@
 package com.termux.shared.termux.file;
 
-import static com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR_PATH;
-
 import android.content.Context;
 import android.os.Environment;
 
@@ -18,30 +16,11 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxUtils;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Pattern;
 
 public class TermuxFileUtils {
 
     private static final String LOG_TAG = "TermuxFileUtils";
-
-    /**
-     * Replace "$PREFIX/" or "~/" prefix with termux absolute paths.
-     *
-     * @param paths The {@code paths} to expand.
-     * @return Returns the {@code expand paths}.
-     */
-    public static List<String> getExpandedTermuxPaths(List<String> paths) {
-        if (paths == null) return null;
-        List<String> expandedPaths = new ArrayList<>();
-
-        for (int i = 0; i < paths.size(); i++) {
-            expandedPaths.add(getExpandedTermuxPath(paths.get(i)));
-        }
-
-        return expandedPaths;
-    }
 
     /**
      * Replace "$PREFIX/" or "~/" prefix with termux absolute paths.
@@ -58,23 +37,6 @@ public class TermuxFileUtils {
         }
 
         return path;
-    }
-
-    /**
-     * Replace termux absolute paths with "$PREFIX/" or "~/" prefix.
-     *
-     * @param paths The {@code paths} to unexpand.
-     * @return Returns the {@code unexpand paths}.
-     */
-    public static List<String> getUnExpandedTermuxPaths(List<String> paths) {
-        if (paths == null) return null;
-        List<String> unExpandedPaths = new ArrayList<>();
-
-        for (int i = 0; i < paths.size(); i++) {
-            unExpandedPaths.add(getUnExpandedTermuxPath(paths.get(i)));
-        }
-
-        return unExpandedPaths;
     }
 
     /**
@@ -232,22 +194,6 @@ public class TermuxFileUtils {
     }
 
     /**
-     * Validate if {@link TermuxConstants#TERMUX_STAGING_PREFIX_DIR_PATH} exists and has
-     * {@link FileUtils#APP_WORKING_DIRECTORY_PERMISSIONS} permissions.
-     *
-     * @param createDirectoryIfMissing The {@code boolean} that decides if directory file
-     *                                 should be created if its missing.
-     * @param setMissingPermissions The {@code boolean} that decides if permissions are to be
-     *                              automatically set.
-     * @return Returns the {@code error} if path is not a directory file, failed to create it,
-     * or validating permissions failed, otherwise {@code null}.
-     */
-    public static Error isTermuxPrefixStagingDirectoryAccessible(boolean createDirectoryIfMissing, boolean setMissingPermissions) {
-        return validateTermuxDirectoryAccessible("termux prefix staging directory", TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
-            createDirectoryIfMissing, setMissingPermissions);
-    }
-
-    /**
      * Validate if {@link TermuxConstants.TERMUX_APP#APPS_DIR_PATH} exists and has
      * {@link FileUtils#APP_WORKING_DIRECTORY_PERMISSIONS} permissions.
      *
@@ -269,21 +215,6 @@ public class TermuxFileUtils {
             null, createDirectoryIfMissing,
             FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
             false, false);
-    }
-
-    /**
-     * If {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH} doesn't exist, is empty or only contains
-     * files in {@link TermuxConstants#TERMUX_PREFIX_DIR_IGNORED_SUB_FILES_PATHS_TO_CONSIDER_AS_EMPTY}.
-     */
-    public static boolean isTermuxPrefixDirectoryEmpty() {
-        Error error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles("termux prefix",
-            TERMUX_PREFIX_DIR_PATH, TermuxConstants.TERMUX_PREFIX_DIR_IGNORED_SUB_FILES_PATHS_TO_CONSIDER_AS_EMPTY, true);
-        if (error == null)
-            return true;
-
-        if (!FileUtilsErrno.ERRNO_NON_EMPTY_DIRECTORY_FILE.equalsErrorTypeAndCode(error))
-            Logger.logErrorExtended(LOG_TAG, "Failed to check if termux prefix directory is empty:\n" + error.getErrorLogString());
-        return false;
     }
 
     /**

@@ -20,8 +20,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
     private int MAX_FONTSIZE;
     private int DEFAULT_FONTSIZE;
 
-    private static final String LOG_TAG = "TermuxFloatAppSharedPreferences";
-
     private TermuxFloatAppSharedPreferences(@NonNull Context context) {
         super(context,
             SharedPreferenceUtils.getPrivateSharedPreferences(context,
@@ -58,42 +56,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
             return null;
         else
             return new TermuxFloatAppSharedPreferences(termuxFloatPackageContext);
-    }
-
-    public int getWindowX() {
-        return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_X, 200);
-
-    }
-
-    public void setWindowX(int value) {
-        SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_X, value, false);
-    }
-
-    public int getWindowY() {
-        return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_Y, 200);
-
-    }
-
-    public void setWindowY(int value) {
-        SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_Y, value, false);
-    }
-
-    public int getWindowWidth() {
-        return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_WIDTH, 500);
-
-    }
-
-    public void setWindowWidth(int value) {
-        SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_WIDTH, value, false);
-    }
-
-    public int getWindowHeight() {
-        return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_HEIGHT, 500);
-
-    }
-
-    public void setWindowHeight(int value) {
-        SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_HEIGHT, value, false);
     }
 
     public void setFontVariables(Context context) {

@@ -14,8 +14,6 @@ import com.termux.shared.markdown.MarkdownUtils;
 @Keep
 public class PeerCred {
 
-    public static final String LOG_TAG = "PeerCred";
-
     public int pid;
     public String pname;
 
@@ -58,15 +56,6 @@ public class PeerCred {
             pname = ProcessUtils.getAppProcessNameForPid(context, pid);
     }
 
-    /**
-     * Get a log {@link String} for {@link PeerCred}.
-     */
-    @NonNull
-    public static String getPeerCredLogString(final PeerCred peerCred) {
-        if (peerCred == null) return "null";
-        return peerCred.getLogString();
-    }
-
     /** Get a log {@link String} for the {@link PeerCred}. */
     @NonNull
     public String getLogString() {
@@ -81,14 +70,6 @@ public class PeerCred {
             logString.append("\n").append(Logger.getMultiLineLogStringEntry("Cmdline", cmdline, "-"));
 
         return logString.toString();
-    }
-
-    /**
-     * Get a markdown {@link String} for {@link PeerCred}.
-     */
-    public static String getPeerCredMarkdownString(final PeerCred peerCred) {
-        if (peerCred == null) return "null";
-        return peerCred.getMarkdownString();
     }
 
     /** Get a markdown {@link String} for the {@link PeerCred}. */

@@ -70,28 +70,6 @@ public final class TermuxPrefixRemap {
         return new File(getRemapLibPath(libDirPath)).canRead();
     }
 
-    /**
-     * Resolve the runtime files dir.  Prefers the cached sResolvedHomeDirPath
-     * (set from Application context in TermuxShellEnvironment.init()) over
-     * direct context.getFilesDir().
-     */
-    @NonNull
-    public static String resolveRuntimeFilesDir(@NonNull Context context) {
-        String home = null;
-        try {
-            java.lang.reflect.Field f = Class.forName("com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment")
-                .getDeclaredField("sResolvedHomeDirPath");
-            f.setAccessible(true);
-            home = (String) f.get(null);
-        } catch (Exception ignored) {}
-
-        if (home != null && home.endsWith("/home")) {
-            String fd = home.substring(0, home.length() - 5);
-            return toDataDataPath(fd);
-        }
-        return toDataDataPath(context.getFilesDir().getAbsolutePath());
-    }
-
     public static String toDataDataPath(@NonNull String path) {
         return path.replaceFirst("^/data/user/0/", "/data/data/");
     }

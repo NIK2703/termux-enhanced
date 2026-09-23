@@ -363,15 +363,4 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
     public boolean isSessionSwitchingEnabled() {
         return !mSessionLayouts.isEmpty();
     }
-    /** @return the live prefix→layout map (for testing/debugging). */
-    @NonNull
-    public Map<String, String> getSessionLayouts() {
-        return mSessionLayouts;
-    }
-
-    /** @return the currently active session profile name, or {@code null} for default. */
-    @Nullable
-    public String getCurrentSessionContext() {
-        return mCurrentSessionContext;
-    }
 }

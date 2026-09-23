@@ -6,7 +6,6 @@ import com.google.android.material.color.utilities.DynamicColor;
 import com.google.android.material.color.utilities.DynamicScheme;
 import com.google.android.material.color.utilities.Hct;
 import com.google.android.material.color.utilities.MaterialDynamicColors;
-import com.google.android.material.color.utilities.TonalPalette;
 
 import java.util.Properties;
 
@@ -42,8 +41,6 @@ import java.util.Properties;
  * {@link #build(MonetSource, boolean, MonetOptions)}.
  */
 public final class TerminalPaletteBuilder {
-
-    private static final String LOG_TAG = "TerminalPaletteBuilder";
 
     /** kde's minimum contrast for the foreground against the background. */
     public static final double MIN_FOREGROUND_CONTRAST = 7.0;
@@ -276,11 +273,4 @@ public final class TerminalPaletteBuilder {
         }
     }
 
-    /** Exposed for diagnostics: the palette a snapshot resolves to, without slot layout. */
-    @NonNull
-    static TonalPalette[] palettesOf(@NonNull MonetSource source) {
-        return new TonalPalette[]{
-                source.primary, source.secondary, source.tertiary,
-                source.neutral, source.neutralVariant};
-    }
 }

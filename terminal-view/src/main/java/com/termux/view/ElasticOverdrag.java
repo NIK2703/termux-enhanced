@@ -203,19 +203,6 @@ public final class ElasticOverdrag {
         return m;
     }
 
-    /** {@link #saturationTravel(float, float)} without a quantum. */
-    public static float saturationTravel(float extentPx) {
-        return saturationTravel(extentPx, 0f);
-    }
-
-    /**
-     * The finger travel, in px, that reaches {@link #maxPull(float, float)} — and the bound the
-     * raw accumulator is clamped to. Derived from the cap, so it inherits its quantization: a
-     * whole number of units of cap means a whole number of units of travel.
-     */
-    public static float saturationTravel(float extentPx, float unitPx) {
-        return maxPull(extentPx, unitPx) * SATURATION_RATIO;
-    }
 
     // ── the rubber band ────────────────────────────────────────────────────────────────────
 
@@ -286,20 +273,6 @@ public final class ElasticOverdrag {
         if (!isFinite(rawPx)) return 0f;
         final float l = maxPull(extentPx, unitPx) * SATURATION_RATIO;
         return Math.max(-l, Math.min(l, rawPx));
-    }
-
-    /**
-     * The impact speed, <b>in dp/s</b>, that just bottoms the band out (the flick that reaches
-     * the full cap); slower reaches {@code INITIAL_SLOPE·v/ω}, faster is clamped anyway. Useful
-     * as the scale for reasoning about {@link #MAX_ABSORB_VELOCITY_DP}: at the current slope it
-     * is ≈13.0 · extent_dp, so the 8000 dp/s cap loads a pager all the way to its cap and a
-     * taller transcript to ~77 % of its own — a hard flick ends up deep in the band on both.
-     *
-     * @param extentDp the surface's extent along the drag axis, <b>in dp</b>.
-     */
-    public static float saturationVelocityDp(float extentDp) {
-        final float m = Math.max(1f, extentDp) * MAX_FRACTION;
-        return (float) (Math.sqrt(2d) * bandOmega() * m / (BOUNDARY_SLOPE * Math.PI / 2d));
     }
 
     // ── the impulse: the only density-dependent step in the system ──────────────────────────

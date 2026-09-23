@@ -517,9 +517,4 @@ public final class TermuxBubbleManager {
         return Math.round(screenHeightDp * 0.6f);
     }
 
-    /** @return the bubble activity class name, for diagnostics. */
-    @Nullable
-    public static String getBubbleActivityClassName() {
-        return TermuxBubbleActivity.class.getName();
-    }
 }

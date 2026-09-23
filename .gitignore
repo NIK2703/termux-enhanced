@@ -9,6 +9,8 @@ agent*.diff
 *.patch
 patches/
 storm_results.txt
+scripts/__pycache__/
+_stray_backup/
 
 # Secrets / generated
 app/keystore.properties

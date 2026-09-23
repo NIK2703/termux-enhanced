@@ -115,12 +115,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="input_history_clear_all">VERLAUF LÖSCHEN…</string>
     <string name="input_history_clear_all_button">Alle</string>
     <string name="input_history_clear_all_question">Dadurch werden dauerhaft alle gespeicherten Eingaben gelöscht.</string>
-    <string name="input_history_clear_confirm_all">Den gesamten Eingabeverlauf löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.</string>
-    <string name="input_history_clear_confirm_current">Alle gespeicherten Eingaben des aktuellen Verzeichnisses löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.</string>
     <string name="input_history_clear_current_only_question">Nur den Verlauf des aktuellen Verzeichnisses löschen?</string>
-    <string name="input_history_clear_dialog_title">Eingabeverlauf löschen</string>
     <string name="input_history_clear_question">Eingabeverlauf löschen?</string>
-    <string name="input_history_cleared">Eingabeverlauf gelöscht</string>
     <string name="input_history_empty">Kein Eingabeverlauf</string>
     <string name="input_history_max_title">Maximal gespeicherte Eingaben</string>
     <string name="msg_add_termux_debug_info">Termux-Debug-Informationen zum Bericht hinzufügen?</string>
@@ -160,20 +156,11 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_api_preferences_summary">Einstellungen für die Termux:API-App</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Hintergrunddeckkraft aktiver Elemente</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Hintergrunddeckkraft inaktiver Elemente</string>
-        <!-- ORPHANED: <string name="termux_crash_report_notifications_enabled_off">Benachrichtigungen für Absturzberichte deaktivieren.</string> -->
-        <!-- ORPHANED: <string name="termux_crash_report_notifications_enabled_on">Benachrichtigungen für Absturzberichte anzeigen.</string> -->
     <string name="termux_crash_report_notifications_enabled_title">Benachrichtigungen für Absturzberichte</string>
     <string name="termux_debugging_preferences_summary">Debugging-Einstellungen</string>
     <string name="termux_float_preferences_summary">Einstellungen für die Termux:Float-App</string>
     <string name="termux_log_level_title">Protokollebene</string>
-        <!-- ORPHANED: <string name="termux_logging_header">Protokollierung</string> -->
-        <!-- ORPHANED: <string name="termux_plugin_error_notifications_enabled_off">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler deaktivieren.</string> -->
-        <!-- ORPHANED: <string name="termux_plugin_error_notifications_enabled_on">Kurzanzeigen und Benachrichtigungen für Plugin-Fehler anzeigen.</string> -->
     <string name="termux_plugin_error_notifications_enabled_title">Benachrichtigungen für Plugin-Fehler</string>
-        <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_off">Die Soft-Tastatur wird deaktiviert.</string> -->
-        <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_on">Die Soft-Tastatur wird aktiviert.</string> -->
-        <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Die Soft-Tastatur wird auch bei angeschlossener Hardware-Tastatur aktiviert.</string> -->
-        <!-- ORPHANED: <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Die Soft-Tastatur wird nur aktiviert, wenn keine Hardware-Tastatur angeschlossen ist.</string> -->
 
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Tastaturzustand beim Tab-Wechsel</string>
@@ -185,10 +172,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_terminal_view_key_logging_enabled_on">Logcat-Protokolle enthalten Einträge zu Terminaltasten. Diese Einträge sind sehr ausführlich; die Protokollierung sollte bei normaler Nutzung deaktiviert sein, da sie Leistungsprobleme verursachen kann.</string>
     <string name="termux_terminal_view_key_logging_enabled_title">Protokollierung der Terminaltasten</string>
     <string name="termux_widget_preferences_summary">Einstellungen für die Termux:Widget-App</string>
-        <!-- ORPHANED: <string name="text_input_append_enter_summary">Beim Senden aus dem Eingabefeld auch die Zeile absenden (Eingabetaste drücken). Deaktivieren, um Rohtext ohne abschließende neue Zeile zu senden.</string> -->
     <string name="text_input_append_enter_title">Enter beim Senden anhängen</string>
-        <!-- ORPHANED: <string name="text_input_show_summary_off">Texteingabefeld ist ausgeblendet</string> -->
-        <!-- ORPHANED: <string name="text_input_show_summary_on">Texteingabefeld ist über den Zusatztasten sichtbar</string> -->
     <string name="text_input_toggle_button_title">Schalter für die Eingabeleiste</string>
 
     <string name="text_input_action_on_send_title">Aktion beim Senden</string>
@@ -253,7 +237,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="backup_restore_preferences_title">Sicherung &amp; Wiederherstellung</string>
     <string name="backup_restore_preferences_summary">Termux-Container, App-Einstellungen</string>
     <string name="plugin_logging_category_title">Protokollierung</string>
-        <!-- ORPHANED: <string name="failure_notifications_category_title">Fehlerbenachrichtigungen</string> -->
     <string name="extra_keys_special_button_mode_title">Verhalten der Sondertasten</string>
     <string name="extra_keys_special_button_mode_sticky">Einrastend (Umschalten / Feststellen)</string>
     <string name="extra_keys_special_button_mode_hold">Halten (während gedrückt)</string>
@@ -265,7 +248,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_style_all">Alle</string>
     <string name="extra_keys_style_none">Keine</string>
     <string name="extra_keys_text_all_caps_title">Beschriftungen in Großbuchstaben</string>
-        <!-- ORPHANED: <string name="extra_keys_text_all_caps_summary">Zusatztastenbeschriftungen in Großbuchstaben anzeigen.</string> -->
     <string name="extra_keys_corner_radius_title">Eckenradius der Tasten</string>
     <string name="window_category_title">Fenster</string>
     <string name="input_panel_title">Eingabeleiste</string>
@@ -289,16 +271,13 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     
     <string name="extra_keys_editor_title">Zusatztasten-Editor</string>
     <string name="extra_keys_editor_columns_title">Spalten</string>
-        <!-- ORPHANED: <string name="extra_keys_editor_columns_summary">Anzahl der Tasten pro Zeile (1 bis 10).</string> -->
     <string name="extra_keys_editor_rows_title">Zeilen</string>
-        <!-- ORPHANED: <string name="extra_keys_editor_rows_summary">Anzahl der Tasten-Zeilen (1 bis 4).</string> -->
     <string name="extra_keys_editor_signal_dialog_title">Signal zuweisen</string>
     <string name="extra_keys_editor_custom_text_title">Zeichen/Text</string>
     <string name="extra_keys_editor_max_signals">Maximal 8 Signale pro Taste</string>
     <string name="extra_keys_editor_done">Fertig</string>
     <string name="extra_keys_editor_open_editor">Zusatztasten bearbeiten</string>
     <string name="extra_keys_edge_indicators_title">Indikatoren für Gestenrichtungen</string>
-        <!-- ORPHANED: <string name="extra_keys_edge_indicators_summary">Wischrichtungssymbole für Aktionen auf Zusatztasten anzeigen</string> -->
     <string name="extra_keys_editor_hint">Tippen, um die Hauptaktion zuzuweisen.\nNach oben, unten, links oder rechts wischen, um die entsprechende Geste zuzuweisen.\nLange auf eine Taste drücken, um die Beschriftung festzulegen.</string>
     <string name="extra_keys_editor_mode_assign">Zuweisen</string>
     <string name="extra_keys_editor_mode_move">Verschieben</string>
@@ -368,7 +347,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     <string name="invalid_number">Bitte geben Sie eine gültige Zahl ein.</string>
 
-        <!-- ORPHANED: <string name="shortcut_invalid_format">Ungültiges Kürzel. Verwenden Sie das Format \"ctrl+x\" oder lassen Sie es leer zum Deaktivieren.</string> -->
 
     <string name="terminal_cursor_style_title">Cursor-Stil</string>
 
@@ -390,7 +368,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_background_blur_radius_summary">Kann bei dynamischen Hintergründen mit hohem Unschärferadius den Energieverbrauch erhöhen. Bei statischen Hintergründen ist der Energieverbrauch vernachlässigbar.</string>
 
     <string name="terminal_toolbar_scale_title">Skalierung der Leiste</string>
-        <!-- ORPHANED: <string name="terminal_toolbar_height_summary">Skalierungsfaktor für die Höhe der Zusatztasten-/Terminal-Symbolleiste.</string> -->
 
     <string name="default_working_directory_title">Standard-Arbeitsverzeichnis</string>
     <string name="default_working_directory_summary">Verzeichnis für neue Sitzungen (leer lassen für das Home-Verzeichnis).</string>
@@ -419,7 +396,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
 
 
-        <!-- ORPHANED: <string name="shortcut_summary">Format: Ctrl+TASTE (z. B. Ctrl+a). Leer lassen zum Deaktivieren.</string> -->
     <string name="shortcut_create_session_title">Neue Sitzung</string>
     <string name="shortcut_next_session_title">Nächste Sitzung</string>
     <string name="shortcut_previous_session_title">Vorherige Sitzung</string>
@@ -446,12 +422,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="bell_character_ignore">Ignorieren</string>
 
     
-        <!-- ORPHANED: <string name="back_key_back">Zurück-Taste</string> -->
-        <!-- ORPHANED: <string name="back_key_escape">Escape-Taste</string> -->
 
     
-        <!-- ORPHANED: <string name="volume_keys_virtual">Virtuell (Lautstärketasten fungieren als Tasten)</string> -->
-        <!-- ORPHANED: <string name="volume_keys_volume">Lautstärke (Gerätelautstärke regeln)</string> -->
 
     
     <string name="soft_keyboard_toggle_show_hide">Anzeigen / ausblenden</string>
@@ -472,13 +444,11 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     
     <string name="extra_keys_button_margin_title">Tastenabstand</string>
-        <!-- ORPHANED: <string name="extra_keys_button_margin_summary">Abstand zwischen den Tasten</string> -->
 
     
     <string name="extra_keys_dynamic_font_size_title">Dynamische Schriftgröße</string>
     <string name="extra_keys_dynamic_font_size_summary">Schriftgröße reduzieren, wenn die Spaltenanzahl steigt oder Makros auf Hauptaktionen zugewiesen werden</string>
     <string name="extra_keys_font_size_title">Basis-Schriftgröße</string>
-        <!-- ORPHANED: <string name="extra_keys_font_size_summary">Basis-Textgröße für Tastenbeschriftungen</string> -->
     <string name="extra_keys_editor_tap_suffix"> (Tippen)</string>
 
     <string name="extra_keys_editor_remove_signal">%s entfernen</string>

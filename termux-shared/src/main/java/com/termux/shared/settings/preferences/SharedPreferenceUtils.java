@@ -6,8 +6,6 @@ import android.content.SharedPreferences;
 
 import com.termux.shared.logger.Logger;
 
-import java.util.Set;
-
 public class SharedPreferenceUtils {
 
     private static final String LOG_TAG = "SharedPreferenceUtils";
@@ -168,39 +166,6 @@ public class SharedPreferenceUtils {
     }
 
     /**
-     * Get a {@code long} from {@link SharedPreferences}.
-     *
-     * @param def default on missing/null prefs or {@link ClassCastException}.
-     * @return the value, otherwise {@code def}.
-     */
-    public static long getLong(SharedPreferences sharedPreferences, String key, long def) {
-        if (sharedPreferences == null)
-            return getDefaultOnNullPreferences(key, def, "long");
-
-        try {
-            return sharedPreferences.getLong(key, def);
-        }
-        catch (ClassCastException e) {
-            return getDefaultOnClassCastException(key, def, "long", e);
-        }
-    }
-
-    /**
-     * Set a {@code long} in {@link SharedPreferences}.
-     *
-     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
-     */
-    @SuppressLint("ApplySharedPref")
-    public static void setLong(SharedPreferences sharedPreferences, String key, long value, boolean commitToFile) {
-        if (sharedPreferences == null) {
-            logNullPreferencesOnSet(key, value, "long");
-            return;
-        }
-
-        commitOrApply(sharedPreferences.edit().putLong(key, value), commitToFile);
-    }
-
-    /**
      * Get a {@code String} from {@link SharedPreferences}.
      *
      * @param def default on missing/null prefs or {@link ClassCastException}.
@@ -236,39 +201,6 @@ public class SharedPreferenceUtils {
         }
 
         commitOrApply(sharedPreferences.edit().putString(key, value), commitToFile);
-    }
-
-    /**
-     * Get a {@code Set<String>} from {@link SharedPreferences}.
-     *
-     * @param def default on missing/null prefs or {@link ClassCastException}.
-     * @return the value, otherwise {@code def}.
-     */
-    public static Set<String> getStringSet(SharedPreferences sharedPreferences, String key, Set<String> def) {
-        if (sharedPreferences == null)
-            return getDefaultOnNullPreferences(key, def, "Set<String>");
-
-        try {
-            return sharedPreferences.getStringSet(key, def);
-        }
-        catch (ClassCastException e) {
-            return getDefaultOnClassCastException(key, def, "Set<String>", e);
-        }
-    }
-
-    /**
-     * Set a {@code Set<String>} in {@link SharedPreferences}.
-     *
-     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
-     */
-    @SuppressLint("ApplySharedPref")
-    public static void setStringSet(SharedPreferences sharedPreferences, String key, Set<String> value, boolean commitToFile) {
-        if (sharedPreferences == null) {
-            logNullPreferencesOnSet(key, value, "Set<String>");
-            return;
-        }
-
-        commitOrApply(sharedPreferences.edit().putStringSet(key, value), commitToFile);
     }
 
     /**

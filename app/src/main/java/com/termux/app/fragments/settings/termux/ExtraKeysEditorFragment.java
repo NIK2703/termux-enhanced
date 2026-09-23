@@ -108,8 +108,6 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
     // every slider tick / signal assignment (including the per-call getResources().getStringArray()
     // reads) is wasted work.
     private boolean mColorSchemeReady;
-    @Nullable
-    private TermuxColorSchemeManager mColorSchemeManager;
     private int mCachedSchemeBg, mCachedButtonBg, mCachedButtonActiveBg, mCachedButtonText, mCachedEdgeGray;
 
     private ExtraKeysView.EditorMode mCurrentMode = ExtraKeysView.EditorMode.ASSIGN;
@@ -853,7 +851,6 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
 
             TermuxColorSchemeManager cm = new TermuxColorSchemeManager();
             cm.recompute(mPrefs);
-            mColorSchemeManager = cm;
             mCachedEdgeGray = cm.isSchemeLight() ? 0xFF555555 : 0xFFAAAAAA;
             mCachedSchemeBg = cm.getSchemeBackground();
             mCachedButtonText = cm.getButtonText();

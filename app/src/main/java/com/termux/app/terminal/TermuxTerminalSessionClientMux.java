@@ -42,11 +42,6 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
         mPrimary = primary;
     }
 
-    @Nullable
-    public TermuxTerminalSessionClientBase getPrimary() {
-        return mPrimary;
-    }
-
     /** Register an extra surface (e.g. the bubble window) that wants the session callbacks. */
     public void addSecondary(@NonNull TerminalSessionClient client) {
         mSecondaries.addIfAbsent(client);
@@ -55,10 +50,6 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
     /** Unregister an extra surface. Must be called before that surface is destroyed. */
     public void removeSecondary(@NonNull TerminalSessionClient client) {
         mSecondaries.remove(client);
-    }
-
-    public boolean hasSecondaries() {
-        return !mSecondaries.isEmpty();
     }
 
     // ── TerminalSessionClient fan-out ──
@@ -180,38 +171,10 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
     }
 
     @Override
-    public void logInfo(String tag, String message) {
-        TermuxTerminalSessionClientBase primary = mPrimary;
-        if (primary != null) primary.logInfo(tag, message);
-        else super.logInfo(tag, message);
-    }
-
-    @Override
-    public void logDebug(String tag, String message) {
-        TermuxTerminalSessionClientBase primary = mPrimary;
-        if (primary != null) primary.logDebug(tag, message);
-        else super.logDebug(tag, message);
-    }
-
-    @Override
-    public void logVerbose(String tag, String message) {
-        TermuxTerminalSessionClientBase primary = mPrimary;
-        if (primary != null) primary.logVerbose(tag, message);
-        else super.logVerbose(tag, message);
-    }
-
-    @Override
     public void logStackTraceWithMessage(String tag, String message, Exception e) {
         TermuxTerminalSessionClientBase primary = mPrimary;
         if (primary != null) primary.logStackTraceWithMessage(tag, message, e);
         else super.logStackTraceWithMessage(tag, message, e);
-    }
-
-    @Override
-    public void logStackTrace(String tag, Exception e) {
-        TermuxTerminalSessionClientBase primary = mPrimary;
-        if (primary != null) primary.logStackTrace(tag, e);
-        else super.logStackTrace(tag, e);
     }
 
     /** Run one fan-out step, isolating a broken delegate from the rest. */

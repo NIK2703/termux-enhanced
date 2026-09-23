@@ -270,57 +270,6 @@ public class BindingTokenizer {
     }
 
     /**
-     * Compute the sum of all delay values from individual tokens.
-     *
-     * @param tokens the list of tokens.
-     * @return the total delay in milliseconds.
-     */
-    public static int totalDelayMs(@NonNull List<String> tokens) {
-        int total = 0;
-        for (String token : tokens) {
-            total += parseDelayMs(token);
-        }
-        return total;
-    }
-
-    /**
-     * Collapse consecutive delay tokens into a single delay whose value is the sum of the
-     * individual delays (clamped to [{@link #MIN_DELAY_MS}, {@link #MAX_DELAY_MS}]).
-     * <p>
-     * Non-delay tokens are preserved in their original order.
-     *
-     * @param tokens the input list of tokens.
-     * @return a new list with consecutive delays merged.
-     */
-    @NonNull
-    public static List<String> collapseConsecutiveDelays(@NonNull List<String> tokens) {
-        List<String> result = new ArrayList<>();
-        int pendingDelay = 0;
-
-        for (String token : tokens) {
-            int ms = parseDelayMs(token);
-            if (ms > 0) {
-                pendingDelay += ms;
-                while (pendingDelay >= MAX_DELAY_MS) {
-                    result.add(delayToken(MAX_DELAY_MS));
-                    pendingDelay -= MAX_DELAY_MS;
-                }
-            } else {
-                if (pendingDelay > 0) {
-                    result.add(delayToken(pendingDelay));
-                    pendingDelay = 0;
-                }
-                result.add(token);
-            }
-        }
-        if (pendingDelay > 0) {
-            result.add(delayToken(pendingDelay));
-        }
-
-        return result;
-    }
-
-    /**
      * Clamp a value to [{@link #MIN_DELAY_MS}, {@link #MAX_DELAY_MS}].
      *
      * @param ms the value to clamp.

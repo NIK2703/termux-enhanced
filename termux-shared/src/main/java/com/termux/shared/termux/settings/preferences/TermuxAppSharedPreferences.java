@@ -22,8 +22,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     private int MAX_FONTSIZE;
     private int DEFAULT_FONTSIZE;
 
-    private static final String LOG_TAG = "TermuxAppSharedPreferences";
-
     private TermuxAppSharedPreferences(@NonNull Context context) {
         super(context,
             SharedPreferenceUtils.getPrivateSharedPreferences(context,
@@ -171,19 +169,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
     public void setInsertAtCursorOnHistoryPick(boolean value) {
         setGenericBoolean(TERMUX_APP.KEY_TEXT_INPUT_INSERT_AT_CURSOR, value);
-    }
-
-    /**
-     * Get the maximum number of auto-complete suggestions to show in the text input popup.
-     *
-     * @return Returns the max suggestions count (clamped to 1-10, default 4).
-     */
-    public int getSuggestionsMaxCount() {
-        return getInt(TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT, TERMUX_APP.DEFAULT_VALUE_SUGGESTIONS_MAX_COUNT);
-    }
-
-    public void setSuggestionsMaxCount(int value) {
-        setIntClamped(TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT, value, TERMUX_APP.SUGGESTIONS_MAX_COUNT_MIN, TERMUX_APP.SUGGESTIONS_MAX_COUNT_MAX);
     }
 
     public boolean isSoftKeyboardEnabled() {
@@ -367,16 +352,8 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return getInt(TERMUX_APP.KEY_BUTTON_BG_INACTIVE_ALPHA, TERMUX_APP.DEFAULT_BUTTON_BG_INACTIVE_ALPHA);
     }
 
-    public void setButtonBgInactiveAlpha(int value) {
-        setGenericInt(TERMUX_APP.KEY_BUTTON_BG_INACTIVE_ALPHA, value);
-    }
-
     public int getButtonBgActiveAlpha() {
         return getInt(TERMUX_APP.KEY_BUTTON_BG_ACTIVE_ALPHA, TERMUX_APP.DEFAULT_BUTTON_BG_ACTIVE_ALPHA);
-    }
-
-    public void setButtonBgActiveAlpha(int value) {
-        setGenericInt(TERMUX_APP.KEY_BUTTON_BG_ACTIVE_ALPHA, value);
     }
 
     public boolean areCrashReportNotificationsEnabled(boolean readFromFile) {
@@ -431,10 +408,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return getBooleanByKey(TERMUX_APP.KEY_DISABLE_TERMINAL_SESSION_CHANGE_TOAST, TERMUX_APP.DEFAULT_VALUE_DISABLE_TERMINAL_SESSION_CHANGE_TOAST);
     }
 
-    public void setTerminalSessionChangeToastsDisabled(boolean value) {
-        setGenericBoolean(TERMUX_APP.KEY_DISABLE_TERMINAL_SESSION_CHANGE_TOAST, value);
-    }
-
     public boolean isEnforcingCharBasedInput() {
         return getBooleanByKey(TERMUX_APP.KEY_ENFORCE_CHAR_BASED_INPUT, TERMUX_APP.DEFAULT_VALUE_ENFORCE_CHAR_BASED_INPUT);
     }
@@ -462,10 +435,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
     public boolean isExtraKeysEdgeIndicatorsEnabled() {
         return getBooleanByKey(TERMUX_APP.KEY_EXTRA_KEYS_EDGE_INDICATORS, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_EDGE_INDICATORS);
-    }
-
-    public void setExtraKeysEdgeIndicatorsEnabled(boolean value) {
-        setGenericBoolean(TERMUX_APP.KEY_EXTRA_KEYS_EDGE_INDICATORS, value);
     }
 
     /**

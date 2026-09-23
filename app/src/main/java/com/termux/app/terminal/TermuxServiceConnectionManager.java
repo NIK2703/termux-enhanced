@@ -55,13 +55,6 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
     }
 
     /**
-     * @return true if the {@link TermuxService} is currently bound.
-     */
-    public boolean isServiceBound() {
-        return mTermuxService != null;
-    }
-
-    /**
      * Start the {@link TermuxService} and bind to it (started first so it keeps running regardless
      * of who is bound).
      *

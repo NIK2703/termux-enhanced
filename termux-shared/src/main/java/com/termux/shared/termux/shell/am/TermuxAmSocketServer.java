@@ -119,29 +119,6 @@ public class TermuxAmSocketServer {
     }
     
     /**
-     * Update the state of the {@link AmSocketServer} {@link LocalServerSocket} depending on current
-     * value of {@link TermuxPropertyConstants#KEY_RUN_TERMUX_AM_SOCKET_SERVER}.
-     */
-    public static synchronized void updateState(@NonNull Context context) {
-        TermuxAppSharedProperties properties = TermuxAppSharedProperties.getProperties();
-        if (properties.shouldRunTermuxAmSocketServer()) {
-            if (termuxAmSocketServer == null) {
-                Logger.logDebug(LOG_TAG, "updateState: Starting " + TITLE + " socket server");
-                start(context);
-            }
-        } else {
-            if (termuxAmSocketServer != null) {
-                Logger.logDebug(LOG_TAG, "updateState: Disabling " + TITLE + " socket server");
-                stop();
-            }
-        }
-    }
-    
-    public static synchronized LocalSocketManager getTermuxAmSocketServer() {
-        return termuxAmSocketServer;
-    }
-
-    /**
      * Show a plugin error notification for a socket server error.
      *
      * @param clientSocket optional client socket the error came from.

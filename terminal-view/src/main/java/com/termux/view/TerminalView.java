@@ -36,11 +36,9 @@ import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityManager;
 import android.view.autofill.AutofillManager;
 import android.view.autofill.AutofillValue;
-import android.view.animation.LinearInterpolator;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
-import android.widget.EdgeEffect;
 import android.widget.OverScroller;
 
 import androidx.annotation.Nullable;
@@ -53,7 +51,6 @@ import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TextStyle;
 
-import com.termux.view.support.ScrollImpulseTracker;
 import com.termux.view.textselection.TextSelectionCursorController;
 
 /** View displaying and interacting with a {@link TerminalSession}. */
@@ -241,12 +238,6 @@ public final class TerminalView extends View {
     /** Raw gesture-space velocity of the current fling (px/s). */
     private float mFlingRawVelocity;
 
-    /** Residual fling velocity captured when user touched during active fling. */
-    private float mCapturedFlingVelocityY;
-
-    /** Time when residual velocity was captured. */
-    private long mCapturedFlingTime;
-
     /** Minimum fling velocity from ViewConfiguration. */
     private int mMinFlingVelocity;
 
@@ -255,25 +246,6 @@ public final class TerminalView extends View {
 
     /** Pixels per mouse-wheel axis unit, system-calibrated (ViewConfiguration). */
     private float mWheelScrollFactorPx;
-
-    /**
-     * AOSP impulse accumulator for the wheel / precision-trackpad axis. {@code AXIS_VSCROLL} is a
-     * <em>differential</em> axis and the system {@code VelocityTracker} tracks those with the
-     * IMPULSE strategy (planar X/Y use LSQ2, which the platform GestureDetector already does for
-     * us). This is that algorithm, used to turn a burst of wheel ticks into one velocity.
-     */
-    private final ScrollImpulseTracker mWheelImpulse = new ScrollImpulseTracker();
-
-    /** Fires once a wheel series has settled, to launch a single fling from the summed impulse. */
-    private final Runnable mWheelImpulseRunnable = new Runnable() {
-        @Override
-        public void run() {
-            launchWheelImpulseFling();
-        }
-    };
-
-    /** Optional overscroll edge glow (visual only, content never moves past the edge). */
-    private EdgeEffect mEdgeGlowTop, mEdgeGlowBottom;
 
     /**
      * Elastic over-drag: accumulated (undamped) finger travel past a boundary, in px.
@@ -329,28 +301,6 @@ public final class TerminalView extends View {
     /** Deferred {@link #settleOverdragNow()}: the "never displaced while idle" safety net. */
     private final Runnable mOverdragSettleRunnable = this::settleOverdragNow;
 
-    /**
-     * Carry the residual velocity of a fling interrupted by a touch into the next fling, so
-     * re-swiping over still-moving text speeds it up instead of restarting it.
-     *
-     * <p><b>Not system behaviour.</b> AOSP lists (RecyclerView / AbsListView / ScrollView) call
-     * {@code abortAnimation()} on ACTION_DOWN and throw the residual away; VelocityTracker is
-     * re-armed from scratch for the new gesture. The "carry-over" people associate with system
-     * lists comes for free from VelocityTracker measuring the <em>absolute</em> speed of the
-     * finger, so a finger that chases the moving content already reports the content's speed.
-     * Adding the scroller's residual on top of that double-counts the impulse and makes a
-     * re-flick overshoot.</p>
-     *
-     * <p>OFF by default, i.e. the terminal matches the system. Flip to true for the old,
-     * deliberately non-system flywheel feel.</p>
-     */
-    private static final boolean FLING_RESIDUAL_ENABLED = false;
-
-    /** Weight of the captured residual, used only when {@link #FLING_RESIDUAL_ENABLED} is on. */
-    private static final float FLING_RESIDUAL_FACTOR = 0.6f;
-    /** Decay time constant (ms) of the captured residual. */
-    private static final float FLING_CAPTURE_TAU_MS = 150f;
-
     /** Finish a fling early once it slows below this many rows/s: the remaining travel is
      *  on the order of a row, but the quantized steps become individually visible. */
     private static final float FLING_TAIL_ROWS_PER_SEC = 4f;
@@ -368,10 +318,6 @@ public final class TerminalView extends View {
      * which reads as "the fling stopped the instant I lifted my finger".
      */
     private static final int FLING_DELTA_AXIS_LIMIT_PX = 1_000_000;
-
-    /** Draw an overscroll edge glow instead of a purely hard stop. OFF by default: commit
-     *  0fab152e deliberately chose a hard decelerated stop without overscroll bounce/glow. */
-    private static final boolean EDGE_GLOW_ENABLED = false;
 
     // ── Elastic over-drag of the vertical (history) scroll ───────────────────────────────────
     //
@@ -393,21 +339,6 @@ public final class TerminalView extends View {
     // The absorbed-velocity cap and the fling threshold used to live here (in dp/s, scaled by
     // density). They are now part of the shared model — ElasticOverdrag.MAX_ABSORB_VELOCITY_DP and
     // MIN_ABSORB_VELOCITY_DP — so the pager and the transcript cannot drift apart again.
-
-    /**
-     * Turn a wheel gesture into a fling once it settles (Chromebook-style inertia). Ticks are
-     * summed with the AOSP IMPULSE algorithm and the result is applied as a single fling, rather
-     * than restarting the fling on every tick. OFF by default: system Android lists apply the
-     * wheel distance immediately and never fling on the wheel.
-     */
-    private static final boolean WHEEL_FLING_ENABLED = false;
-
-    /**
-     * Quiet period after the last wheel tick before the summed impulse becomes a fling. Equal to
-     * the AOSP VelocityTracker horizon: once the newest sample is that old, the gesture is over by
-     * the platform's own definition, and {@code getVelocity()} would start returning 0 anyway.
-     */
-    private static final long WHEEL_IMPULSE_SETTLE_MS = 100L;
 
     /**
      * Axis lock for the current finger gesture. Once the dominant direction is decided by the
@@ -527,8 +458,6 @@ public final class TerminalView extends View {
                 // sub-pixel position across gestures, and the leftover is always < 1 row.
                 // It is only dropped when the geometry changes (zoom, session, cancel) — see
                 // stopFlingAndClear().
-                clearCapturedFlingVelocity();
-                releaseEdgeGlow();
                 releaseOverdrag();
                 if (mEmulator != null && mEmulator.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText() && !scrolledWithFinger) {
                     sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, true);
@@ -589,26 +518,6 @@ public final class TerminalView extends View {
                     // back; the surplus is what actually becomes rows.
                     final float scrollY = distanceY + mScrollRemainder;
                     final float restY = ELASTIC_OVERDRAG_ENABLED ? applyOverdrag(scrollY) : scrollY;
-                    if (EDGE_GLOW_ENABLED && restY == scrollY
-                            && !mEmulator.isMouseTrackingActive() && !mEmulator.isAlternateBufferActive()) {
-                        // Pulling past an edge feeds the glow (visual only) instead of the
-                        // scroll accumulator — content never moves past the boundary.
-                        // Sign convention (matches doScroll() and the px fling axis, which is
-                        // verified against the working upstream drag path): distanceY < 0 moves
-                        // INTO HISTORY (mTopRow decreases), distanceY > 0 towards the bottom.
-                        float h = Math.max(1, getHeight());
-                        int transcript = mEmulator.getScreen().getActiveTranscriptRows();
-                        if (distanceY < 0 && mTopRow <= -transcript && mEdgeGlowTop != null) {
-                            mEdgeGlowTop.onPull(-distanceY / h, 1f - e.getX() / Math.max(1, getWidth()));
-                            invalidate();
-                            return true;
-                        }
-                        if (distanceY > 0 && mTopRow >= 0 && mEdgeGlowBottom != null) {
-                            mEdgeGlowBottom.onPull(distanceY / h, e.getX() / Math.max(1, getWidth()));
-                            invalidate();
-                            return true;
-                        }
-                    }
                     int deltaRows = splitScrollPx(restY);
                     doScroll(e, deltaRows);
                 }
@@ -670,7 +579,6 @@ public final class TerminalView extends View {
             @Override
             public void onCancel(MotionEvent event) {
                 stopFlingAndClear();
-                releaseEdgeGlow();
                 releaseOverdrag();
                 scrolledWithFinger = false;
                 mScrollAxis = SCROLL_AXIS_UNDECIDED;
@@ -689,10 +597,6 @@ public final class TerminalView extends View {
         // (GestureDetector already clamps to this value; this is just a belt-and-braces clamp.)
         mMaxFlingVelocity = vc.getScaledMaximumFlingVelocity();
         mWheelScrollFactorPx = vc.getScaledVerticalScrollFactor();
-        if (EDGE_GLOW_ENABLED) {
-            mEdgeGlowTop = new EdgeEffect(context);
-            mEdgeGlowBottom = new EdgeEffect(context);
-        }
 
         mDensity = context.getResources().getDisplayMetrics().density;
 
@@ -1335,10 +1239,6 @@ public final class TerminalView extends View {
         invalidate();
     }
 
-    public int getBackgroundTransparencyPercent() {
-        return mBackgroundTransparencyPercent;
-    }
-
     @Override
     public boolean onCheckIsTextEditor() {
         return true;
@@ -1431,31 +1331,7 @@ public final class TerminalView extends View {
      */
     private void stopFlingAndClear() {
         stopFlingAnimation();
-        clearCapturedFlingVelocity();
         mScrollRemainder = 0f;
-    }
-
-    public void stopFling() {
-        stopFlingAndClear();
-    }
-
-    private void clearCapturedFlingVelocity() {
-        mCapturedFlingVelocityY = 0f;
-        mCapturedFlingTime = 0;
-    }
-
-    private void captureCurrentFlingVelocity() {
-        if (!isFlingActive()) return;
-        // OverScroller#getCurrVelocity() returns the NORM of the per-axis velocities — always
-        // >= 0 — so the direction must come from the velocity the fling was launched with. The
-        // scroller axis is the negated gesture velocity, hence residual = sign(raw) * |v|.
-        // (The previous code negated the norm directly, which pinned every captured residual to
-        // the same direction regardless of where the fling was actually going.)
-        float magnitude = Math.abs(mScroller.getCurrVelocity());
-        if (magnitude == 0f) magnitude = Math.abs(mFlingRawVelocity);
-        if (magnitude == 0f) return;
-        mCapturedFlingVelocityY = (mFlingRawVelocity >= 0f ? magnitude : -magnitude);
-        mCapturedFlingTime = SystemClock.uptimeMillis();
     }
 
     /**
@@ -1501,31 +1377,8 @@ public final class TerminalView extends View {
 
     private void interruptFlingForNewTouch() {
         if (!isFlingActive()) return;
-        if (FLING_RESIDUAL_ENABLED) captureCurrentFlingVelocity();
         captureFlingRemainder();
         stopFlingAnimation();
-    }
-
-    private float getDecayedCapturedVelocity(long now) {
-        if (mCapturedFlingVelocityY == 0f) return 0f;
-        long dt = now - mCapturedFlingTime;
-        if (dt <= 0) return mCapturedFlingVelocityY;
-        if (dt > FLING_CAPTURE_TAU_MS * 4f) return 0f;
-        double decay = Math.exp(-dt / (double) FLING_CAPTURE_TAU_MS);
-        return (float) (mCapturedFlingVelocityY * decay);
-    }
-
-    private float combineFlingVelocity(float residual, float gesture) {
-        if (residual == 0f) return clampFlingVelocity(gesture);
-        if (gesture == 0f) return 0f;
-        float result;
-        if (Math.signum(residual) == Math.signum(gesture)) {
-            result = gesture + residual * FLING_RESIDUAL_FACTOR;
-        } else {
-            result = gesture + residual;
-            if (Math.abs(result) < mMinFlingVelocity) result = 0f;
-        }
-        return clampFlingVelocity(result);
     }
 
     private float clampFlingVelocity(float velocity) {
@@ -1554,21 +1407,11 @@ public final class TerminalView extends View {
             stopFlingAndClear();
             return true;
         }
-        final float rawVelocity;
-        if (FLING_RESIDUAL_ENABLED) {
-            if (isFlingActive() && mCapturedFlingVelocityY == 0f) {
-                captureCurrentFlingVelocity();
-            }
-            long now = SystemClock.uptimeMillis();
-            rawVelocity = combineFlingVelocity(getDecayedCapturedVelocity(now), velocityY);
-        } else {
-            // System behaviour (AbsListView / RecyclerView / ScrollView): use the new gesture's
-            // velocity as-is and throw the interrupted fling's residual away. Any "carry-over"
-            // is already physically in that number, because VelocityTracker measures the absolute
-            // speed of the finger — a finger chasing the moving content reports its speed.
-            rawVelocity = clampFlingVelocity(velocityY);
-        }
-        clearCapturedFlingVelocity();
+        // System behaviour (AbsListView / RecyclerView / ScrollView): use the new gesture's
+        // velocity as-is and throw the interrupted fling's residual away. Any "carry-over"
+        // is already physically in that number, because VelocityTracker measures the absolute
+        // speed of the finger — a finger chasing the moving content reports its speed.
+        final float rawVelocity = clampFlingVelocity(velocityY);
         MotionEvent newFlingEvent = MotionEvent.obtain(e);
         stopFlingAnimation();
         if (Math.abs(rawVelocity) < mMinFlingVelocity) {
@@ -1663,30 +1506,13 @@ public final class TerminalView extends View {
             doScroll(mFlingEvent, diff);
         }
 
-        if (EDGE_GLOW_ENABLED && !mFlingDeltaMode && !mFlingAbsorbedAtEdge) {
-            // The fling hit an edge with remaining velocity: absorb it into the glow once.
-            float v = mScroller.getCurrVelocity();
-            if (v > mMinFlingVelocity) {
-                int transcriptPx = mEmulator.getScreen().getActiveTranscriptRows() * rowHeight;
-                if (posPx <= -transcriptPx && mEdgeGlowTop != null) {
-                    mEdgeGlowTop.onAbsorb((int) v);
-                    mFlingAbsorbedAtEdge = true;
-                    invalidate();
-                } else if (posPx >= 0 && mEdgeGlowBottom != null) {
-                    mEdgeGlowBottom.onAbsorb((int) v);
-                    mFlingAbsorbedAtEdge = true;
-                    invalidate();
-                }
-            }
-        }
-
         if (ELASTIC_OVERDRAG_ENABLED && !mFlingDeltaMode && !mFlingAbsorbedAtEdge) {
             // The fling ran into a boundary with velocity left over. Turn that impact into an
             // over-drag proportional to it and spring straight back, so a hard flick visibly
             // slams the screen against its limit instead of being swallowed by a hard stop.
             // getCurrVelocity() is a NORM (always >= 0), so the direction comes from the gesture
-            // velocity the fling was launched with — the same source captureCurrentFlingVelocity()
-            // uses. mTopRow is the truth for "are we actually on the boundary".
+            // velocity the fling was launched with. mTopRow is the truth for "are we actually on
+            // the boundary".
             float v = mScroller.getCurrVelocity();
             if (v > mMinFlingVelocity) {
                 final int transcriptRows = mEmulator.getScreen().getActiveTranscriptRows();
@@ -1734,45 +1560,6 @@ public final class TerminalView extends View {
         return px / rowHeight;
     }
 
-    /**
-     * Start (or restart) a fling from the current position at {@code velocityY} gesture px/s.
-     * Positive velocity scrolls into the history, matching {@code GestureDetector#onFling}.
-     *
-     * <p>The optional wheel-inertia mode is the only caller: it feeds this the velocity the AOSP
-     * impulse accumulator derived from a whole series of wheel ticks.</p>
-     */
-    public void accelerateFling(float velocityY) {
-        if (mEmulator == null) return;
-        MotionEvent e;
-        if (mFlingEvent != null) {
-            e = MotionEvent.obtain(mFlingEvent);
-        } else {
-            long now = SystemClock.uptimeMillis();
-            e = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, getWidth() / 2f, getHeight() / 2f, 0);
-        }
-        startFling(e, 0f, velocityY);
-        e.recycle();
-    }
-
-    /**
-     * A wheel series has settled — turn the impulse summed from its ticks into a single fling.
-     *
-     * <p>{@code AXIS_VSCROLL} is a <em>differential</em> axis: its values are already deltas, not
-     * positions, so a least-squares fit is the wrong model. AOSP tracks such axes with the IMPULSE
-     * strategy; this applies exactly that velocity. Launching the fling once, after the series
-     * ends, is what keeps the motion smooth — firing one per tick would restart the scroller on
-     * every notch and stutter.</p>
-     */
-    private void launchWheelImpulseFling() {
-        // axis-units/s -> px/s (getScaledVerticalScrollFactor() is px per axis unit).
-        // Positive axis = scroll up = into history = positive gesture-space velocity, the same
-        // convention GestureDetector#onFling and doScroll() use.
-        final float velocityY = mWheelImpulse.getVelocity() * mWheelScrollFactorPx;
-        mWheelImpulse.clear();
-        if (Math.abs(velocityY) < mMinFlingVelocity) return;
-        accelerateFling(velocityY);
-    }
-
     /** Perform a scroll, either from dragging the screen or by scrolling a mouse wheel. */
     void doScroll(MotionEvent event, int rowsDown) {
         boolean up = rowsDown < 0;
@@ -1810,16 +1597,6 @@ public final class TerminalView extends View {
             // Handle mouse wheel scrolling.
             float axis = event.getAxisValue(MotionEvent.AXIS_VSCROLL);
             if (axis == 0f) return true;
-
-            if (WHEEL_FLING_ENABLED) {
-                // Optional Chromebook-style inertia. AXIS_VSCROLL is differential, so the ticks
-                // are summed with the AOSP IMPULSE strategy (the same one VelocityTracker uses
-                // for this axis) instead of being treated as positions. Every tick resets the
-                // settle timer; the fling is launched once, when the series ends.
-                mWheelImpulse.addSample(event.getEventTime(), axis);
-                removeCallbacks(mWheelImpulseRunnable);
-                postDelayed(mWheelImpulseRunnable, WHEEL_IMPULSE_SETTLE_MS);
-            }
 
             // The wheel distance itself is applied immediately, exactly like a system list: in
             // pixels, through the same px -> rows quantization the finger-drag path uses, so
@@ -2183,7 +1960,6 @@ public final class TerminalView extends View {
 
         // Thumb height: fixed size (not proportional)
         float thumbH = Math.min(mScrollbarThumbSizePx, viewH);
-        if (thumbH > viewH) thumbH = viewH;
 
         // Vertical position: offset from top of the track
         // At mTopRow = 0 (bottom) → thumb at bottom of track
@@ -2594,16 +2370,6 @@ public final class TerminalView extends View {
         }
     }
 
-    /**
-     * @deprecated Use the overload that also takes the Shift and Fn state; this one is only kept
-     * so that existing callers keep compiling. The two missing flags are read here instead, which
-     * is only correct when the caller has not already spent them.
-     */
-    @Deprecated
-    public void inputCodePoint(int eventSource, int codePoint, boolean controlDownFromEvent, boolean leftAltDownFromEvent) {
-        inputCodePoint(eventSource, codePoint, controlDownFromEvent, leftAltDownFromEvent, false, false);
-    }
-
     /** Input the specified keyCode if applicable and return if the input was consumed. */
     public boolean handleKeyCode(int keyCode, int keyMod) {
         // Ensure cursor is shown when a key is pressed down like long hold on (arrow) keys
@@ -2861,10 +2627,6 @@ public final class TerminalView extends View {
             // the thumb; gating it to full repaints would gouge the thumb out on each partial repaint.
             drawScrollbar(canvas);
 
-            // Overscroll glow (optional, EDGE_GLOW_ENABLED): purely visual overlay, the glyph
-            // content itself is never offset past the edges.
-            drawEdgeGlow(canvas);
-
             // We drew into a partial clip with the surface still "unknown" — this frame painted
             // every visible row, but only within the clip. Rows outside the clip may still not
             // hold valid pixels, so ask the framework for a full-frame draw next time. The
@@ -2875,37 +2637,6 @@ public final class TerminalView extends View {
                 invalidate();
                 mFullFramePending = true;
             }
-        }
-    }
-
-    /** Release both edge glows (finger up / gesture cancel). No-op when glow is disabled. */
-    private void releaseEdgeGlow() {
-        if (mEdgeGlowTop != null) mEdgeGlowTop.onRelease();
-        if (mEdgeGlowBottom != null) mEdgeGlowBottom.onRelease();
-    }
-
-    /** Draw the optional overscroll glow over the content; keeps the animation frames going. */
-    private void drawEdgeGlow(Canvas canvas) {
-        if (!EDGE_GLOW_ENABLED) return;
-        boolean needsInvalidate = false;
-        final int width = getWidth();
-        final int height = getHeight();
-        if (mEdgeGlowTop != null && !mEdgeGlowTop.isFinished()) {
-            final int restore = canvas.save();
-            mEdgeGlowTop.setSize(width, height);
-            needsInvalidate |= mEdgeGlowTop.draw(canvas);
-            canvas.restoreToCount(restore);
-        }
-        if (mEdgeGlowBottom != null && !mEdgeGlowBottom.isFinished()) {
-            final int restore = canvas.save();
-            // Rotate the canvas 180° about the view centre so the glow lands on the bottom edge.
-            canvas.rotate(180f, width / 2f, height / 2f);
-            mEdgeGlowBottom.setSize(width, height);
-            needsInvalidate |= mEdgeGlowBottom.draw(canvas);
-            canvas.restoreToCount(restore);
-        }
-        if (needsInvalidate) {
-            postInvalidateOnAnimation();
         }
     }
 
@@ -3377,7 +3108,6 @@ public final class TerminalView extends View {
                     // which checks with TerminalEmulator.shouldCursorBeVisible() to decide whether
                     // to draw the cursor or not
                     mCursorVisible = !mCursorVisible;
-                    //mClient.logVerbose(LOG_TAG, "Toggling cursor blink state to " + mCursorVisible);
                     mEmulator.setCursorBlinkState(mCursorVisible);
                     invalidateCursorCell();
                 }
@@ -3443,14 +3173,6 @@ public final class TerminalView extends View {
         getTextSelectionCursorController().setActionModeColors(bgColor, textColor);
     }
 
-    /** Get the currently selected text if selecting. */
-    public String getSelectedText() {
-        if (isSelectingText() && mTextSelectionCursorController != null)
-            return mTextSelectionCursorController.getSelectedText();
-        else
-            return null;
-    }
-
     /** Get the selected text stored before "MORE" button was pressed on the context menu. */
     @Nullable
     public String getStoredSelectedText() {
@@ -3513,8 +3235,6 @@ public final class TerminalView extends View {
         // finally block after the view has been torn down.
         stopTerminalCursorBlinker();
 
-        removeCallbacks(mWheelImpulseRunnable);
-        mWheelImpulse.clear();
         stopFlingAndClear();
         // A detached view can no longer be sprung back, and the displacement must not survive
         // into the next attachment (the pager rebinds these views across sessions).

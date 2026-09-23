@@ -35,8 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Keep
 public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBase {
 
-    private static final String LOG_TAG = "BackupRestorePreferencesFragment";
-
     private static final int REQUEST_CODE_BACKUP = 1001;
     private static final int REQUEST_CODE_RESTORE = 1002;
     private static final int REQUEST_CODE_BACKUP_SETTINGS = 1003;

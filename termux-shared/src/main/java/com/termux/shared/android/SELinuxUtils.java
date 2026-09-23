@@ -45,17 +45,6 @@ public class SELinuxUtils {
     }
 
     /**
-     * Get the security context of a given process id.
-     *
-     * @param pid The pid of process.
-     * @return the security context, or {@code null} if an exception is raised.
-     */
-    @Nullable
-    public static String getPidContext(int pid) {
-        return invokeSELinuxMethod("getPidContext", new Class<?>[]{int.class}, pid);
-    }
-
-    /**
      * Get the security context of a file object.
      *
      * @param path The pathname of the file object.

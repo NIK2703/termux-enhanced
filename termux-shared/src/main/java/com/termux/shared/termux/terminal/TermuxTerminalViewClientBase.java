@@ -79,7 +79,8 @@ public class TermuxTerminalViewClientBase implements TerminalViewClient {
     }
 
     @Override
-    public boolean onCodePoint(int codePoint, boolean ctrlDown, TerminalSession session) {
+    public boolean onCodePoint(int codePoint, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown,
+                               TerminalSession session) {
         return false;
     }
 
@@ -94,21 +95,6 @@ public class TermuxTerminalViewClientBase implements TerminalViewClient {
     }
 
     @Override
-    public void logWarn(String tag, String message) {
-        Logger.logWarn(tag, message);
-    }
-
-    @Override
-    public void logInfo(String tag, String message) {
-        Logger.logInfo(tag, message);
-    }
-
-    @Override
-    public void logDebug(String tag, String message) {
-        Logger.logDebug(tag, message);
-    }
-
-    @Override
     public void logVerbose(String tag, String message) {
         Logger.logVerbose(tag, message);
     }
@@ -116,11 +102,6 @@ public class TermuxTerminalViewClientBase implements TerminalViewClient {
     @Override
     public void logStackTraceWithMessage(String tag, String message, Exception e) {
         Logger.logStackTraceWithMessage(tag, message, e);
-    }
-
-    @Override
-    public void logStackTrace(String tag, Exception e) {
-        Logger.logStackTrace(tag, e);
     }
 
 }

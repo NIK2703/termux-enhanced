@@ -224,14 +224,6 @@ public class LocalSocketManager {
         return mLocalSocketRunConfig;
     }
 
-    public ILocalSocketManager getLocalSocketManagerClient() {
-        return mLocalSocketManagerClient;
-    }
-
-    public LocalServerSocket getServerSocket() {
-        return mServerSocket;
-    }
-
     public Thread.UncaughtExceptionHandler getLocalSocketManagerClientThreadUEH() {
         return mLocalSocketManagerClientThreadUEH;
     }

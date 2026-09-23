@@ -352,20 +352,6 @@ public class FileUtils {
     }
 
     /**
-     * Checks whether a regular or directory file exists at {@code filePath}.
-     *
-     * @param filePath The {@code path} for regular file to check.
-     * @param followLinks whether symlinks will be followed while
-     *                       finding if file exists. Check {@link #getFileType(String, boolean)}
-     *                       for details.
-     * @return {@code true} if regular or directory file exists, otherwise {@code false}.
-     */
-    public static boolean regularOrDirectoryFileExists(final String filePath, final boolean followLinks) {
-        FileType fileType = getFileType(filePath, followLinks);
-        return fileType == FileType.REGULAR || fileType == FileType.DIRECTORY;
-    }
-
-    /**
      * Checks whether any file exists at {@code filePath}.
      *
      * @param filePath The {@code path} for file to check.
@@ -572,20 +558,6 @@ public class FileUtils {
      * This function is a wrapper for
      * {@link #validateDirectoryFileExistenceAndPermissions(String, String, String, boolean, String, boolean, boolean, boolean, boolean)}.
      *
-     * @param filePath The {@code path} for regular file to create.
-     * @return the {@code error} if path is not a regular file or failed to create it,
-     * otherwise {@code null}.
-     */
-    public static Error createRegularFile(final String filePath) {
-        return createRegularFile(null, filePath);
-    }
-
-    /**
-     * Create a regular file at path.
-     *
-     * This function is a wrapper for
-     * {@link #validateDirectoryFileExistenceAndPermissions(String, String, String, boolean, String, boolean, boolean, boolean, boolean)}.
-     *
      * @param label The optional label for the regular file. This can optionally be {@code null}.
      * @param filePath The {@code path} for regular file to create.
      * @return the {@code error} if path is not a regular file or failed to create it,
@@ -727,25 +699,6 @@ public class FileUtils {
             null, true,
             permissionsToCheck, setPermissions, setMissingPermissionsOnly,
             false, false);
-    }
-
-    /**
-     * Create a symlink file at path.
-     *
-     * This function is a wrapper for
-     * {@link #createSymlinkFile(String, String, String, boolean, boolean, boolean)}.
-     *
-     * Dangling symlinks will be allowed.
-     * Symlink destination will be overwritten if it already exists but only if its a symlink.
-     *
-     * @param targetFilePath The {@code path} TO which the symlink file will be created.
-     * @param destFilePath The {@code path} AT which the symlink file will be created.
-     * @return the {@code error} if path is not a symlink file, failed to create it,
-     * otherwise {@code null}.
-     */
-    public static Error createSymlinkFile(final String targetFilePath, final String destFilePath) {
-        return createSymlinkFile(null, targetFilePath, destFilePath,
-            true, true, true);
     }
 
     /**
@@ -953,72 +906,6 @@ public class FileUtils {
     public static Error copySymlinkFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
             false, ignoreNonExistentSrcFile, FileType.SYMLINK.getValue(),
-            true, true);
-    }
-
-    /**
-     * Move a symlink file from {@code sourceFilePath} to {@code destFilePath}.
-     *
-     * This function is a wrapper for
-     * {@link #copyOrMoveFile(String, String, String, boolean, boolean, int, boolean, boolean)}.
-     *
-     * If destination file already exists, then it will be overwritten, but only if its a symlink
-     * file, otherwise an error will be returned.
-     *
-     * @param label The optional label for file to move. This can optionally be {@code null}.
-     * @param srcFilePath The {@code source path} for file to move.
-     * @param destFilePath The {@code destination path} for file to move.
-     * @param ignoreNonExistentSrcFile whether it should be considered an
-     *                              error if source file to moved doesn't exist.
-     * @return the {@code error} if move was not successful, otherwise {@code null}.
-     */
-    public static Error moveSymlinkFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
-        return copyOrMoveFile(label, srcFilePath, destFilePath,
-            true, ignoreNonExistentSrcFile, FileType.SYMLINK.getValue(),
-            true, true);
-    }
-
-    /**
-     * Copy a file from {@code sourceFilePath} to {@code destFilePath}.
-     *
-     * This function is a wrapper for
-     * {@link #copyOrMoveFile(String, String, String, boolean, boolean, int, boolean, boolean)}.
-     *
-     * If destination file already exists, then it will be overwritten, but only if its the same file
-     * type as the source, otherwise an error will be returned.
-     *
-     * @param label The optional label for file to copy. This can optionally be {@code null}.
-     * @param srcFilePath The {@code source path} for file to copy.
-     * @param destFilePath The {@code destination path} for file to copy.
-     * @param ignoreNonExistentSrcFile whether it should be considered an
-     *                              error if source file to copied doesn't exist.
-     * @return the {@code error} if copy was not successful, otherwise {@code null}.
-     */
-    public static Error copyFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
-        return copyOrMoveFile(label, srcFilePath, destFilePath,
-            false, ignoreNonExistentSrcFile, FileTypes.FILE_TYPE_NORMAL_FLAGS,
-            true, true);
-    }
-
-    /**
-     * Move a file from {@code sourceFilePath} to {@code destFilePath}.
-     *
-     * This function is a wrapper for
-     * {@link #copyOrMoveFile(String, String, String, boolean, boolean, int, boolean, boolean)}.
-     *
-     * If destination file already exists, then it will be overwritten, but only if its the same file
-     * type as the source, otherwise an error will be returned.
-     *
-     * @param label The optional label for file to move. This can optionally be {@code null}.
-     * @param srcFilePath The {@code source path} for file to move.
-     * @param destFilePath The {@code destination path} for file to move.
-     * @param ignoreNonExistentSrcFile whether it should be considered an
-     *                              error if source file to moved doesn't exist.
-     * @return the {@code error} if move was not successful, otherwise {@code null}.
-     */
-    public static Error moveFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
-        return copyOrMoveFile(label, srcFilePath, destFilePath,
-            true, ignoreNonExistentSrcFile, FileTypes.FILE_TYPE_NORMAL_FLAGS,
             true, true);
     }
 
@@ -1345,20 +1232,6 @@ public class FileUtils {
         }
 
         return null;
-    }
-
-    /**
-     * Clear contents of directory at path without deleting the directory. If directory does not exist
-     * it will be created automatically.
-     *
-     * This function is a wrapper for
-     * {@link #clearDirectory(String, String)}.
-     *
-     * @param filePath The {@code path} for directory to clear.
-     * @return the {@code error} if clearing was not successful, otherwise {@code null}.
-     */
-    public static Error clearDirectory(String filePath) {
-        return clearDirectory(null, filePath);
     }
 
     /**
@@ -1798,17 +1671,6 @@ public class FileUtils {
      * Set permissions for file at path. Existing permission outside the {@code permissionsToSet}
      * will be removed.
      *
-     * @param filePath The {@code path} for file to set permissions to.
-     * @param permissionsToSet The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     */
-    public static void setFilePermissions(final String filePath, final String permissionsToSet) {
-        setFilePermissions(null, filePath, permissionsToSet);
-    }
-
-    /**
-     * Set permissions for file at path. Existing permission outside the {@code permissionsToSet}
-     * will be removed.
-     *
      * @param label The optional label for the file. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to set permissions to.
      * @param permissionsToSet The 3 character string that contains the "r", "w", "x" or "-" in-order.
@@ -1830,17 +1692,6 @@ public class FileUtils {
      * Set missing permissions for file at path. Existing permission outside the {@code permissionsToSet}
      * will not be removed.
      *
-     * @param filePath The {@code path} for file to set permissions to.
-     * @param permissionsToSet The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     */
-    public static void setMissingFilePermissions(final String filePath, final String permissionsToSet) {
-        setMissingFilePermissions(null, filePath, permissionsToSet);
-    }
-
-    /**
-     * Set missing permissions for file at path. Existing permission outside the {@code permissionsToSet}
-     * will not be removed.
-     *
      * @param label The optional label for the file. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to set permissions to.
      * @param permissionsToSet The 3 character string that contains the "r", "w", "x" or "-" in-order.
@@ -1856,19 +1707,6 @@ public class FileUtils {
         setMissingFilePermission(file, label, filePath, 'r', permissionsToSet.contains("r"));
         setMissingFilePermission(file, label, filePath, 'w', permissionsToSet.contains("w"));
         setMissingFilePermission(file, label, filePath, 'x', permissionsToSet.contains("x"));
-    }
-
-    /**
-     * Checking missing permissions for file at path.
-     *
-     * @param filePath The {@code path} for file to check permissions for.
-     * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param ignoreIfNotExecutable whether missing executable permission
-     *                              error is to be ignored.
-     * @return the {@code error} if validating permissions failed, otherwise {@code null}.
-     */
-    public static Error checkMissingFilePermissions(final String filePath, final String permissionsToCheck, final boolean ignoreIfNotExecutable) {
-        return checkMissingFilePermissions(null, filePath, permissionsToCheck, ignoreIfNotExecutable);
     }
 
     /**
@@ -1925,38 +1763,6 @@ public class FileUtils {
     }
 
     /**
-     * Get a {@link Error} that contains a shorter version of {@link Errno} message.
-     *
-     * @param error The original {@link Error} returned by one of the {@link FileUtils} functions.
-     * @return the shorter {@link Error} if one exists, otherwise original {@code error}.
-     */
-    public static Error getShortFileUtilsError(final Error error) {
-        String type = error.getType();
-        if (!FileUtilsErrno.TYPE.equals(type)) return error;
-
-        Errno shortErrno = FileUtilsErrno.ERRNO_SHORT_MAPPING.get(Errno.valueOf(type, error.getCode()));
-        if (shortErrno == null) return error;
-
-        List<Throwable> throwables = error.getThrowablesList();
-        if (throwables.isEmpty())
-            return shortErrno.getError(DataUtils.getDefaultIfNull(error.getLabel(), "file"));
-        else
-            return shortErrno.getError(throwables, error.getLabel(), "file");
-    }
-
-    /**
-     * Get file dirname for file at {@code filePath}.
-     *
-     * @param filePath The {@code path} for file.
-     * @return the file dirname if not {@code null}.
-     */
-    public static String getFileDirname(String filePath) {
-        if (DataUtils.isNullOrEmpty(filePath)) return null;
-        int lastSlash = filePath.lastIndexOf('/');
-        return (lastSlash == -1) ? null : filePath.substring(0, lastSlash);
-    }
-
-    /**
      * Get file basename for file at {@code filePath}.
      *
      * @param filePath The {@code path} for file.
@@ -1966,19 +1772,6 @@ public class FileUtils {
         if (DataUtils.isNullOrEmpty(filePath)) return null;
         int lastSlash = filePath.lastIndexOf('/');
         return (lastSlash == -1) ? filePath : filePath.substring(lastSlash + 1);
-    }
-
-    /**
-     * Get file basename for file at {@code filePath} without extension.
-     *
-     * @param filePath The {@code path} for file.
-     * @return the file basename without extension if not {@code null}.
-     */
-    public static String getFileBasenameWithoutExtension(String filePath) {
-        String fileBasename = getFileBasename(filePath);
-        if (DataUtils.isNullOrEmpty(fileBasename)) return null;
-        int lastDot = fileBasename.lastIndexOf('.');
-        return (lastDot == -1) ? fileBasename : fileBasename.substring(0, lastDot);
     }
 
 }

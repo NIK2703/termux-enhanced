@@ -31,32 +31,12 @@ public class Error implements Serializable {
         InitError(type, code, message, throwablesList);
     }
 
-    public Error(String type, Integer code, String message, Throwable throwable) {
-        InitError(type, code, message, Collections.singletonList(throwable));
-    }
-
     public Error(String type, Integer code, String message) {
         InitError(type, code, message, null);
     }
 
-    public Error(Integer code, String message, List<Throwable> throwablesList) {
-        InitError(null, code, message, throwablesList);
-    }
-
-    public Error(Integer code, String message, Throwable throwable) {
-        InitError(null, code, message, Collections.singletonList(throwable));
-    }
-
-    public Error(Integer code, String message) {
-        InitError(null, code, message, null);
-    }
-
     public Error(String message, Throwable throwable) {
         InitError(null, null, message, Collections.singletonList(throwable));
-    }
-
-    public Error(String message, List<Throwable> throwablesList) {
-        InitError(null, null, message, throwablesList);
     }
 
     public Error(String message) {
@@ -85,11 +65,6 @@ public class Error implements Serializable {
         return this;
     }
 
-    public String getLabel() {
-        return label;
-    }
-
-
     public String getType() {
         return type;
     }
@@ -100,11 +75,6 @@ public class Error implements Serializable {
 
     public String getMessage() {
         return message;
-    }
-
-    public void prependMessage(String message) {
-        if (message != null && isStateFailed())
-            this.message = message + this.message;
     }
 
     public void appendMessage(String message) {
@@ -208,17 +178,6 @@ public class Error implements Serializable {
             logString.append("\n").append(geStackTracesLogString());
 
         return logString.toString();
-    }
-
-    /**
-     * Get a minimal log friendly {@link String} for {@link Error} error parameters.
-     *
-     * @param error The {@link Error} to convert.
-     * @return Returns the log friendly {@link String}.
-     */
-    public static String getMinimalErrorLogString(final Error error) {
-        if (error == null) return "null";
-        return error.getMinimalErrorLogString();
     }
 
     public String getMinimalErrorLogString() {

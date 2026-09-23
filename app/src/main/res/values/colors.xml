@@ -3,11 +3,9 @@
     <!-- Minimal color definitions referenced by the night theme overrides. These
          are standard Material greys so the dark theme resolves without pulling
          extra palette resources. -->
-    <color name="grey_100">#f5f5f5</color>
     <color name="bootstrap_selector_background">#FFFFFF</color>
     <color name="grey_200">#eeeeee</color>
     <color name="signal_picker_underlay_fill">#0D000000</color>
-    <color name="signal_picker_underlay_stroke">#1A000000</color>
 
     <!-- Disabled preference text (light theme): neutral grey, clearly set apart from the
          active near-black title so an inactive item reads as disabled. -->

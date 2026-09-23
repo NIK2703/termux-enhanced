@@ -45,7 +45,6 @@
         app:title="@string/about_preference_title"
         android:persistent="false"
         app:iconSpaceReserved="false"/>
-    <!-- app:layout="@layout/preference_markdown_text" -->
 
     <Preference
         app:key="donate"

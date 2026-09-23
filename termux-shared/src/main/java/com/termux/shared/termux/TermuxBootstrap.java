@@ -85,24 +85,6 @@ public class TermuxBootstrap {
     }
 
     /**
-     * Set {@link #TERMUX_APP_PACKAGE_VARIANT} and {@link #TERMUX_APP_PACKAGE_MANAGER} with the
-     * {@link #BUILD_CONFIG_FIELD_TERMUX_PACKAGE_VARIANT} field value from the
-     * {@link TERMUX_APP#BUILD_CONFIG_CLASS_NAME} class of the Termux app APK installed on the device.
-     * This can only be used by apps that share `sharedUserId` with the Termux app and can be used
-     * by plugin apps.
-     *
-     * @param currentPackageContext The context of current package.
-     */
-    public static void setTermuxPackageManagerAndVariantFromTermuxApp(@NonNull Context currentPackageContext) {
-        String packageVariantName = getTermuxAppBuildConfigPackageVariantFromTermuxApp(currentPackageContext);
-        if (packageVariantName != null) {
-            TermuxBootstrap.setTermuxPackageManagerAndVariant(packageVariantName);
-        } else {
-            Logger.logError(LOG_TAG, "Failed to set TERMUX_APP_PACKAGE_VARIANT and TERMUX_APP_PACKAGE_MANAGER from the termux app");
-        }
-    }
-
-    /**
      * Get {@link #BUILD_CONFIG_FIELD_TERMUX_PACKAGE_VARIANT} field value from the
      * {@link TERMUX_APP#BUILD_CONFIG_CLASS_NAME} class of the Termux app APK installed on the device.
      * This can only be used by apps that share `sharedUserId` with the Termux app.
@@ -127,11 +109,6 @@ public class TermuxBootstrap {
         return PackageManager.APT.equals(TERMUX_APP_PACKAGE_MANAGER);
     }
 
-    /** Is {@link PackageVariant#APT_ANDROID_7} set as {@link #TERMUX_APP_PACKAGE_VARIANT}. */
-    public static boolean isAppPackageVariantAPTAndroid7() {
-        return PackageVariant.APT_ANDROID_7.equals(TERMUX_APP_PACKAGE_VARIANT);
-    }
-
     /** Is {@link PackageVariant#APT_ANDROID_5} set as {@link #TERMUX_APP_PACKAGE_VARIANT}. */
     public static boolean isAppPackageVariantAPTAndroid5() {
         return PackageVariant.APT_ANDROID_5.equals(TERMUX_APP_PACKAGE_VARIANT);
@@ -154,10 +131,6 @@ public class TermuxBootstrap {
 
         public String getName() {
             return name;
-        }
-
-        public boolean equalsManager(String manager) {
-            return manager != null && manager.equals(this.name);
         }
 
         /** Get {@link PackageManager} for {@code name} if found, otherwise {@code null}. */
@@ -193,10 +166,6 @@ public class TermuxBootstrap {
 
         public String getName() {
             return name;
-        }
-
-        public boolean equalsVariant(String variant) {
-            return variant != null && variant.equals(this.name);
         }
 
         /** Get {@link PackageVariant} for {@code name} if found, otherwise {@code null}. */

@@ -13,17 +13,11 @@ public class Logger {
             switch (level) {
                 case 0: client.logError(logTag, message); break;
                 case 1: client.logWarn(logTag, message); break;
-                case 2: client.logInfo(logTag, message); break;
-                case 3: client.logDebug(logTag, message); break;
-                default: client.logVerbose(logTag, message); break;
             }
         } else {
             switch (level) {
                 case 0: Log.e(logTag, message); break;
                 case 1: Log.w(logTag, message); break;
-                case 2: Log.i(logTag, message); break;
-                case 3: Log.d(logTag, message); break;
-                default: Log.v(logTag, message); break;
             }
         }
     }
@@ -34,18 +28,6 @@ public class Logger {
 
     public static void logWarn(TerminalSessionClient client, String logTag, String message) {
         log(1, client, logTag, message);
-    }
-
-    public static void logInfo(TerminalSessionClient client, String logTag, String message) {
-        log(2, client, logTag, message);
-    }
-
-    public static void logDebug(TerminalSessionClient client, String logTag, String message) {
-        log(3, client, logTag, message);
-    }
-
-    public static void logVerbose(TerminalSessionClient client, String logTag, String message) {
-        log(4, client, logTag, message);
     }
 
     public static void logStackTraceWithMessage(TerminalSessionClient client, String tag, String message, Throwable throwable) {

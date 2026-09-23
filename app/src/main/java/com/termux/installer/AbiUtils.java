@@ -6,13 +6,8 @@ import android.os.Build;
 import com.termux.app.TermuxInstaller;
 
 import java.util.Arrays;
-import java.util.List;
 
 public final class AbiUtils {
-
-    private static final List<String> SUPPORTED_ABIS = Arrays.asList(
-        "arm64-v8a", "armeabi-v7a", "x86", "x86_64"
-    );
 
     private AbiUtils() {}
 

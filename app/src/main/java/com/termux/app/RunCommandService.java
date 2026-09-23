@@ -38,7 +38,6 @@ public class RunCommandService extends Service {
     private static final String LOG_TAG = "RunCommandService";
 
     class LocalBinder extends Binder {
-        public final RunCommandService service = RunCommandService.this;
     }
 
     private final IBinder mBinder = new RunCommandService.LocalBinder();

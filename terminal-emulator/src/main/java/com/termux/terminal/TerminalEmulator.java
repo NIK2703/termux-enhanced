@@ -89,8 +89,6 @@ public final class TerminalEmulator {
     private static final int ESC_CSI_QUESTIONMARK = 7;
     /** Escape processing: ESC [ $ */
     private static final int ESC_CSI_DOLLAR = 8;
-    /** Escape processing: ESC % */
-    private static final int ESC_PERCENT = 9;
     /** Escape processing: ESC ] (AKA OSC - Operating System Controls) */
     private static final int ESC_OSC = 10;
     /** Escape processing: ESC ] (AKA OSC - Operating System Controls) ESC */
@@ -280,7 +278,7 @@ public final class TerminalEmulator {
      *
      * @see TextStyle
      */
-    int mForeColor, mBackColor, mUnderlineColor;
+    int mForeColor, mBackColor;
 
     /** Current {@link TextStyle} effect. */
     int mEffect;
@@ -888,8 +886,6 @@ public final class TerminalEmulator {
                             unknownSequence(b);
                         }
                         break;
-                    case ESC_PERCENT:
-                        break;
                     case ESC_OSC:
                         doOsc(b);
                         break;
@@ -1394,7 +1390,7 @@ public final class TerminalEmulator {
         switch (code) {
             case 38: mForeColor = color; break;
             case 48: mBackColor = color; break;
-            case 58: mUnderlineColor = color; break;
+            case 58: break;
         }
     }
 
@@ -2028,7 +2024,6 @@ public final class TerminalEmulator {
                     mBackColor = TextStyle.COLOR_INDEX_BACKGROUND;
                     break;
                 case 59: // Set default underline color.
-                    mUnderlineColor = TextStyle.COLOR_INDEX_FOREGROUND;
                     break;
                 case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97: // Bright foreground colors (aixterm codes).
                     mForeColor = code - 90 + 8;
@@ -2314,9 +2309,6 @@ public final class TerminalEmulator {
                 if (b == ':') {
                     mArgsSubParamsBitSet |= 1 << mArgIndex;
                 }
-            } else {
-                // #13: only build the diagnostic string when escape-sequence logging is enabled.
-                if (LOG_ESCAPE_SEQUENCES) logError("Too many parameters when in state: " + mEscapeState);
             }
             continueSequence(mEscapeState);
         } else {
@@ -2350,48 +2342,15 @@ public final class TerminalEmulator {
     }
 
     private void unimplementedSequence(int b) {
-        // #13: only build the diagnostic string (incl. String.format) when logging is enabled.
-        if (LOG_ESCAPE_SEQUENCES)
-            logError("Unimplemented sequence char '" + (char) b + "' (U+" + String.format("%04x", b) + ")");
         finishSequence();
     }
 
     private void unknownSequence(int b) {
-        // #13: only build the diagnostic string when logging is enabled.
-        if (LOG_ESCAPE_SEQUENCES)
-            logError("Unknown sequence char '" + (char) b + "' (numeric value=" + b + ")");
         finishSequence();
     }
 
     private void unknownParameter(int parameter) {
-        // #13: only build the diagnostic string when logging is enabled.
-        if (LOG_ESCAPE_SEQUENCES) logError("Unknown parameter: " + parameter);
         finishSequence();
-    }
-
-    private void logError(String errorType) {
-        if (LOG_ESCAPE_SEQUENCES) {
-            StringBuilder buf = new StringBuilder();
-            buf.append(errorType);
-            buf.append(", escapeState=");
-            buf.append(mEscapeState);
-            boolean firstArg = true;
-            if (mArgIndex >= mArgs.length) mArgIndex = mArgs.length - 1;
-            for (int i = 0; i <= mArgIndex; i++) {
-                int value = mArgs[i];
-                if (value >= 0) {
-                    if (firstArg) {
-                        firstArg = false;
-                        buf.append(", args={");
-                    } else {
-                        buf.append(',');
-                    }
-                    buf.append(value);
-                }
-            }
-            if (!firstArg) buf.append('}');
-            finishSequenceAndLogError(buf.toString());
-        }
     }
 
     private void finishSequenceAndLogError(String error) {

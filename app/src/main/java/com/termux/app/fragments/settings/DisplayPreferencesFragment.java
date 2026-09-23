@@ -324,7 +324,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         final Preference pref = findPreference(key);
         if (pref == null) return;
         pref.setPersistent(false);
-        updateIntEditSummary(pref, current, min, max);
+        updateIntEditSummary(pref, current);
 
         AtomicInteger currentRef = new AtomicInteger(current);
         pref.setOnPreferenceClickListener(preference -> {
@@ -347,7 +347,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
                         if (value > max) value = max;
                         setter.set(value);
                         currentRef.set(value);
-                        updateIntEditSummary(pref, currentRef.get(), min, max);
+                        updateIntEditSummary(pref, currentRef.get());
                         updateStyling();
                     } catch (NumberFormatException e) {
                         Toast.makeText(ctx, R.string.invalid_number, Toast.LENGTH_SHORT).show();
@@ -359,7 +359,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         });
     }
 
-    private void updateIntEditSummary(Preference pref, int value, int min, int max) {
+    private void updateIntEditSummary(Preference pref, int value) {
         pref.setSummary(String.valueOf(value));
     }
 

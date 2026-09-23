@@ -7,7 +7,6 @@ import androidx.annotation.Keep;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
-import androidx.preference.SeekBarPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
 import com.termux.R;
@@ -28,8 +27,6 @@ import com.termux.shared.termux.settings.preferences.TermuxWidgetAppSharedPrefer
  */
 @Keep
 public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
-
-    private static final String LOG_TAG = "TerminalPrefsFragment";
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -119,20 +116,6 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         });
     }
 
-    private void configureSeekBarInt(String key, int current,
-                                     PreferenceValueSetter<Integer> setter, boolean affectsStyling) {
-        SeekBarPreference pref = findPreference(key);
-        if (pref == null) return;
-        pref.setPersistent(false);
-        pref.setValue(current);
-        pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            int value = (Integer) newValue;
-            setter.set(value);
-            if (affectsStyling) updateStyling();
-            return true;
-        });
-    }
-
     private void configureListPreference(String key, String current, int valueArrayRes,
                                          PreferenceValueSetter<String> setter, boolean affectsStyling) {
         ListPreference pref = findPreference(key);
@@ -158,33 +141,6 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
             String value = (String) newValue;
             setter.set(value);
             pref.setSummary(value != null && !value.isEmpty() ? value : getString(R.string.empty_value_summary));
-            if (affectsStyling) updateStyling();
-            return true;
-        });
-    }
-
-    private void configureFloatEditText(String key, float current,
-                                        PreferenceValueSetter<Float> setter, boolean affectsStyling) {
-        EditTextPreference pref = findPreference(key);
-        if (pref == null) return;
-        pref.setPersistent(false);
-        String currentStr = String.valueOf(current);
-        pref.setText(currentStr);
-        pref.setSummary(currentStr);
-        pref.setOnPreferenceChangeListener((preference, newValue) -> {
-            String raw = (String) newValue;
-            float value;
-            try {
-                value = Float.parseFloat(raw);
-            } catch (NumberFormatException e) {
-                value = 1f;
-            }
-            if (value < 0.4f) value = 0.4f;
-            if (value > 3f) value = 3f;
-            String normalized = String.valueOf(value);
-            pref.setText(normalized);
-            pref.setSummary(normalized);
-            setter.set(value);
             if (affectsStyling) updateStyling();
             return true;
         });
@@ -226,21 +182,7 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         void set(T value);
     }
 
-    // --- TerminalEmulator cursor-style / bell-behaviour converters ---
-
-    private String cursorStyleToString(int style) {
-        switch (style) {
-            case 1: return "underline";
-            case 2: return "bar";
-            default: return "block";
-        }
-    }
-
-    private int stringToCursorStyle(String value) {
-        if ("underline".equals(value)) return 1;
-        if ("bar".equals(value)) return 2;
-        return 0;
-    }
+    // --- TerminalEmulator bell-behaviour converters ---
 
     private String bellBehaviourToString(int behaviour) {
         switch (behaviour) {

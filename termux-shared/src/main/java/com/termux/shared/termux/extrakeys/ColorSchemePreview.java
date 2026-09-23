@@ -70,11 +70,6 @@ public final class ColorSchemePreview {
         return mPalette;
     }
 
-    /** @return The ANSI color at {@code index}, or {@code 0} when out of range. */
-    public int paletteColor(int index) {
-        return (index < 0 || index >= PALETTE_SIZE) ? 0 : mPalette[index];
-    }
-
     // ------------------------------------------------------------------ resolution ---
 
     /**

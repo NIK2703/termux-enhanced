@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
  * represent the time that the file was last
  * {@link FileAttributes#lastModifiedTime() modified},
  * {@link FileAttributes#lastAccessTime() accessed},
- * or {@link FileAttributes#creationTime() created}.
+ * or created.
  *
  * <p> Instances of this class are immutable.
  *
@@ -87,37 +87,6 @@ public final class FileTime {
     public static FileTime from(long value, @NonNull TimeUnit unit) {
         Objects.requireNonNull(unit, "unit");
         return new FileTime(value, unit);
-    }
-
-    /**
-     * Returns a {@code FileTime} representing the given value in milliseconds.
-     *
-     * @param   value
-     *          the value, in milliseconds, since the epoch
-     *          (1970-01-01T00:00:00Z); can be negative
-     *
-     * @return  a {@code FileTime} representing the given value
-     */
-    public static FileTime fromMillis(long value) {
-        return new FileTime(value, TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * Returns the value at the given unit of granularity.
-     *
-     * <p> Conversion from a coarser granularity that would numerically overflow
-     * saturate to {@code Long.MIN_VALUE} if negative or {@code Long.MAX_VALUE}
-     * if positive.
-     *
-     * @param   unit
-     *          the unit of granularity for the return value
-     *
-     * @return  value in the given unit of granularity, since the epoch
-     *          (1970-01-01T00:00:00Z); can be negative
-     */
-    public long to(TimeUnit unit) {
-        Objects.requireNonNull(unit, "unit");
-        return unit.convert(this.value, this.unit);
     }
 
     /**

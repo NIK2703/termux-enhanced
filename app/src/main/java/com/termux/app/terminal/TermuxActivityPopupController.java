@@ -44,7 +44,6 @@ public final class TermuxActivityPopupController {
         TerminalView getTerminalView();
 
         // History / directory sync
-        void onHistoryDirectoryChanged();
         /** Overload taking an already-resolved CWD, so the caller can avoid a
          *  second /proc readlink when it already resolved one. */
         void onHistoryDirectoryChanged(@Nullable String resolvedCwd);
@@ -526,25 +525,6 @@ public final class TermuxActivityPopupController {
         }
 
         androidx.appcompat.app.AlertDialog dialog = builder.create();
-        dialog.show();
-    }
-
-    /** "Clear message history..." item: ask for confirmation, then wipe all history. */
-    private void confirmClearHistory() {
-        final MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(mContext);
-        b.setIcon(android.R.drawable.ic_dialog_alert);
-        b.setTitle(mContext.getString(R.string.input_history_clear_dialog_title));
-        String msg = (mMessageHistoryCtrl != null && mMessageHistoryCtrl.isPerDirectoryEnabled())
-                ? mContext.getString(R.string.input_history_clear_confirm_current)
-                : mContext.getString(R.string.input_history_clear_confirm_all);
-        b.setMessage(msg);
-        b.setPositiveButton(android.R.string.yes, (dialog, id) -> {
-            dialog.dismiss();
-            clearAllHistory();
-            showToast(mContext.getString(R.string.input_history_cleared), true);
-        });
-        b.setNegativeButton(android.R.string.no, null);
-        androidx.appcompat.app.AlertDialog dialog = b.create();
         dialog.show();
     }
 

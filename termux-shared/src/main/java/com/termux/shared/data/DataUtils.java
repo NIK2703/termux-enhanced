@@ -1,7 +1,5 @@
 package com.termux.shared.data;
 
-import android.os.Bundle;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -115,31 +113,10 @@ public class DataUtils {
     }
 
     /**
-     * Get an {@code int} from {@link Bundle} that is stored as a {@link String}.
-     *
-     * @param def The default value if failed to read a valid value.
-     * @return the parsed value, or {@code def} when absent or unparseable.
-     */
-    public static int getIntStoredAsStringFromBundle(Bundle bundle, String key, int def) {
-        if (bundle == null) return def;
-        return getIntFromString(bundle.getString(key, Integer.toString(def)), def);
-    }
-
-    /**
      * If value is not in the range [min, max], set it to either min or max.
      */
     public static int clamp(int value, int min, int max) {
         return Math.min(Math.max(value, min), max);
-    }
-
-    /**
-     * If value is not in the range [min, max], set it to default.
-     */
-    public static float rangedOrDefault(float value, float def, float min, float max) {
-        if (value < min || value > max)
-            return def;
-        else
-            return value;
     }
 
     /**
@@ -152,18 +129,6 @@ public class DataUtils {
             return string;
         else
             return getIndentedString(string, "    ", count);
-    }
-
-    /**
-     * Add a tab indent to a {@link String}. Each indent is 1 tab character long.
-     *
-     * @return the indented string, or {@code string} unchanged when null/empty.
-     */
-    public static String getTabIndentedString(String string, int count) {
-        if (string == null || string.isEmpty())
-            return string;
-        else
-            return getIndentedString(string, "\t", count);
     }
 
     /**
@@ -185,13 +150,6 @@ public class DataUtils {
      */
     public static <T> T getDefaultIfNull(@Nullable T object, @Nullable T def) {
         return (object == null) ? def : object;
-    }
-
-    /**
-     * Get the {@link String} itself if it is not {@code null} or empty, otherwise default.
-     */
-    public static String getDefaultIfUnset(@Nullable String value, String def) {
-        return (value == null || value.isEmpty()) ? def : value;
     }
 
     /** Check if a string is null or empty. */

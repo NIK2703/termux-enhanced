@@ -337,10 +337,6 @@ public class TextSelectionHandleView extends View {
         return mHandleHeight;
     }
 
-    public int getHandleWidth() {
-        return mHandleWidth;
-    }
-
     public boolean isShowing() {
         if (mHandle != null)
             return mHandle.isShowing();

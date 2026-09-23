@@ -152,19 +152,9 @@ public class LocalSocketRunConfig implements Serializable {
         return mReceiveTimeout != null ? mReceiveTimeout : DEFAULT_RECEIVE_TIMEOUT;
     }
 
-    /** Set {@link #mReceiveTimeout}. */
-    public void setReceiveTimeout(Integer receiveTimeout) {
-        mReceiveTimeout = receiveTimeout;
-    }
-
     /** Get {@link #mSendTimeout} if set, otherwise {@link #DEFAULT_SEND_TIMEOUT}. */
     public Integer getSendTimeout() {
         return mSendTimeout != null ? mSendTimeout : DEFAULT_SEND_TIMEOUT;
-    }
-
-    /** Set {@link #mSendTimeout}. */
-    public void setSendTimeout(Integer sendTimeout) {
-        mSendTimeout = sendTimeout;
     }
 
     /** Get {@link #mDeadline} if set, otherwise {@link #DEFAULT_DEADLINE}. */
@@ -172,34 +162,11 @@ public class LocalSocketRunConfig implements Serializable {
         return mDeadline != null ? mDeadline : DEFAULT_DEADLINE;
     }
 
-    /** Set {@link #mDeadline}. */
-    public void setDeadline(Long deadline) {
-        mDeadline = deadline;
-    }
-
     /** Get {@link #mBacklog} if set, otherwise {@link #DEFAULT_BACKLOG}. */
     public Integer getBacklog() {
         return mBacklog != null ? mBacklog : DEFAULT_BACKLOG;
     }
 
-    /** Set {@link #mBacklog}. Value must be greater than 0. */
-    public void setBacklog(Integer backlog) {
-        if (backlog > 0)
-            mBacklog = backlog;
-    }
-
-
-    /**
-     * Get a log {@link String} for {@link LocalSocketRunConfig}.
-     *
-     * @param config The {@link LocalSocketRunConfig} to get info of.
-     * @return Returns the log {@link String}.
-     */
-    @NonNull
-    public static String getRunConfigLogString(final LocalSocketRunConfig config) {
-        if (config == null) return "null";
-        return config.getLogString();
-    }
 
     /** Get a log {@link String} for the {@link LocalSocketRunConfig}. */
     @NonNull
@@ -217,17 +184,6 @@ public class LocalSocketRunConfig implements Serializable {
         logString.append("\n").append(Logger.getSingleLineLogStringEntry("Backlog", getBacklog(), "-"));
 
         return logString.toString();
-    }
-
-    /**
-     * Get a markdown {@link String} for {@link LocalSocketRunConfig}.
-     *
-     * @param config The {@link LocalSocketRunConfig} to get info of.
-     * @return Returns the markdown {@link String}.
-     */
-    public static String getRunConfigMarkdownString(final LocalSocketRunConfig config) {
-        if (config == null) return "null";
-        return config.getMarkdownString();
     }
 
     /** Get a markdown {@link String} for the {@link LocalSocketRunConfig}. */

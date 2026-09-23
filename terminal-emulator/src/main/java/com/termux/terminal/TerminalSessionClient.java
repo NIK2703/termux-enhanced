@@ -30,14 +30,6 @@ public interface TerminalSessionClient {
 
     void logWarn(String tag, String message);
 
-    void logInfo(String tag, String message);
-
-    void logDebug(String tag, String message);
-
-    void logVerbose(String tag, String message);
-
     void logStackTraceWithMessage(String tag, String message, Exception e);
-
-    void logStackTrace(String tag, Exception e);
 
 }
