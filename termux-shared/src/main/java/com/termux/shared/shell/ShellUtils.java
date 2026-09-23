@@ -46,8 +46,6 @@ public class ShellUtils {
         return FileUtils.getFileBasename(executable);
     }
 
-
-
     /** Get transcript for {@link TerminalSession}. */
     public static String getTerminalSessionTranscriptText(TerminalSession terminalSession, boolean linesJoined, boolean trim) {
         if (terminalSession == null) return null;

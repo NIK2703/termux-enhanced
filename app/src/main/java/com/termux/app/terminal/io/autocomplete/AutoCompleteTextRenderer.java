@@ -12,17 +12,9 @@ import android.util.LruCache;
 import androidx.annotation.NonNull;
 
 /**
- * Pure text-rendering helpers for auto-complete suggestion rows.
- *
- * <p>Responsibility split:
- * <ul>
- *   <li>{@code AutoCompleteTextRenderer} — how a suggestion STRING is drawn
- *       (word truncation, bold prefix, line-fitting);</li>
- *   <li>{@code AutoCompletePopupManager} — how the popup WINDOW is built,
- *       positioned and shown;</li>
- *   <li>{@code AutoCompleteController} — orchestration (fetch, filter, input
- *       handling, insertion) and ownership of the suggestion data.</li>
- * </ul>
+ * Pure text-rendering helpers for auto-complete suggestion rows: drawing only
+ * (truncation, bold prefix, line-fitting). Popup/window logic lives in
+ * {@code AutoCompletePopupManager}, orchestration in {@code AutoCompleteController}.
  */
 final class AutoCompleteTextRenderer {
 
@@ -31,11 +23,9 @@ final class AutoCompleteTextRenderer {
     private static final StyleSpan BOLD_SPAN = new StyleSpan(Typeface.BOLD);
 
     /**
-     * StaticLayout cache. Kept small (64 entries): the display-text memoization
-     * below removes almost all truncation work from the per-keystroke path, so a
-     * large StaticLayout pool is no longer needed and would only waste memory
-     * (each entry holds a copy of the text + run arrays). sizeOf is charged by
-     * text length — the real memory cost — instead of line count.
+     * StaticLayout cache, kept small (64): the display-text memoization below already
+     * skips most per-keystroke truncation, and each entry holds a copy of the text.
+     * sizeOf is charged by text length (the real memory cost), not line count.
      */
     private static final int LAYOUT_CACHE_MAX = 64;
     private static final LruCache<String, StaticLayout> sLayoutCache =
@@ -50,13 +40,9 @@ final class AutoCompleteTextRenderer {
 
     /**
      * Memoization of the (expensive) truncation step in {@link #buildSuggestionSpannable}.
-     * The truncated display text for a given suggestion depends only on
-     * (suggestion, wordStart, availWidth, maxLines) — and within a single popup
-     * session availWidth/maxLines are constant while wordStart changes only when
-     * the caret crosses a word boundary. So caching here short-circuits the whole
-     * StaticLayout / cache-key / binary-search pipeline for the steady-state case
-     * (every keystroke on every shown row), leaving only the cheap SpannableString
-     * + setText that the bold-prefix offset genuinely requires.
+     * The truncated display text depends only on (suggestion, wordStart, availWidth, maxLines),
+     * and within a popup session availWidth/maxLines are constant вЂ” so a hit skips the whole
+     * StaticLayout / binary-search pipeline for every keystroke on every shown row.
      */
     private static final class DisplayKey {
         final String suggestion;
@@ -95,9 +81,7 @@ final class AutoCompleteTextRenderer {
      */
     static int wordStartOffset(@NonNull String s) {
         int i = s.length();
-        // Skip trailing separators so a space at the end of the typed text
-        // (e.g. "hello ") is treated as "still finishing word 0", not as a
-        // boundary into an empty next word.
+        // Skip trailing separators: "hello " is still word 0, not an empty next word.
         while (i > 0) {
             char c = s.charAt(i - 1);
             if (c != ' ' && c != '/') break;
@@ -112,21 +96,15 @@ final class AutoCompleteTextRenderer {
     }
 
     /**
-     * Build the display {@link SpannableString} for an auto-complete suggestion.
-     * Applies the word-based leading truncation (the {@code "... "} prefix added
-     * when the match starts mid-word) and, when the result would exceed
-     * {@code maxLines} lines, manually truncates it and appends a trailing
-     * {@code '…'}.
+     * Build the display {@link SpannableString} for an auto-complete suggestion: word-based
+     * leading truncation (the {@code "... "} prefix when the match starts mid-word), manual
+     * end-truncation with a trailing {@code 'вЂ¦'} when it would exceed {@code maxLines}, and the
+     * matched input prefix rendered in BOLD.
      *
-     * <p>Why manual truncation instead of {@code TextView.setEllipsize(END)}:
-     * on Android (API 21-28 in particular) {@code ellipsize=end} is only reliably
-     * honored for <b>single-line</b> text. With {@code setMaxLines(n)} where
-     * {@code n > 1} the framework routes to {@code StaticLayout} but the trailing
-     * ellipsis on the last line is unreliable and frequently never appears. We
-     * therefore measure and cut the text ourselves so the {@code '…'} is
-     * guaranteed for long suggestions/messages regardless of OS version. The
-     * matched input prefix is rendered in BOLD on top of the (possibly truncated)
-     * display text.
+     * <p>Manual truncation instead of {@code TextView.setEllipsize(END)}: on Android (API 21-28
+     * in particular) {@code ellipsize=end} is only reliably honored for single-line text вЂ” with
+     * {@code setMaxLines(n > 1)} the trailing ellipsis frequently never appears, so we measure and
+     * cut the text ourselves to guarantee the {@code 'вЂ¦'} on every OS version.
      *
      * @param availWidth available text width in px (popup width minus padding);
      *                   pass {@code 0} to skip truncation (e.g. not yet laid out).
@@ -143,9 +121,8 @@ final class AutoCompleteTextRenderer {
 
         String displayText;
         if (availWidth > 0) {
-            // P0 memoization: the truncated text is a pure function of
-            // (suggestion, wordStart, availWidth, maxLines) — look it up instead
-            // of rebuilding a StaticLayout + running a binary search every time.
+            // Pure function of (suggestion, wordStart, availWidth, maxLines) вЂ” look it up
+            // instead of rebuilding a StaticLayout + binary search on every keystroke.
             DisplayKey key = new DisplayKey(suggestion, wordStart, availWidth, 2);
             String cached = sDisplayCache.get(key);
             if (cached != null) {
@@ -172,17 +149,15 @@ final class AutoCompleteTextRenderer {
     /**
      * Truncate {@code text} so it fits within {@code maxLines} lines of width
      * {@code availWidth}. Returns the original text unchanged if it already fits.
-     * Otherwise keeps the start and appends a single {@code '…'}.
+     * Otherwise keeps the start and appends a single {@code 'вЂ¦'}.
      */
     @NonNull
     static String truncateToLines(@NonNull String text, int availWidth,
             @NonNull TextPaint paint, int maxLines) {
         if (text.length() == 0) return text;
-        // P0 cheap necessary-check: the summed glyph widths already exceed
-        // maxLines*availWidth, so the text cannot possibly fit even on maxLines
-        // lines — skip the (wasted) initial full-width layout and go straight to
-        // the binary search. The reverse direction ("definitely fits") cannot be
-        // proven this cheaply, so we still run fitsLines there.
+        // Cheap necessary-check: summed glyph widths already exceed maxLines*availWidth, so the
+        // text cannot fit вЂ” skip the wasted full-width layout and go straight to the binary
+        // search. ("Definitely fits" cannot be proven this cheaply, so fitsLines still runs.)
         if (paint.measureText(text) > (long) maxLines * availWidth) {
             return binarySearchTruncate(text, availWidth, paint, maxLines);
         }
@@ -190,13 +165,13 @@ final class AutoCompleteTextRenderer {
         return binarySearchTruncate(text, availWidth, paint, maxLines);
     }
 
-    /** Slice-aware variant: builds layout only for [start, end) (+ "…" when {@code ellipsis}). */
+    /** Slice-aware variant: builds layout only for [start, end) (+ "вЂ¦" when {@code ellipsis}). */
     static boolean fitsLines(@NonNull String text, int start, int end, boolean ellipsis,
             int availWidth, @NonNull TextPaint paint, int maxLines) {
         String key = layoutKey(text, start, end, end, end, ellipsis, availWidth, maxLines);
         StaticLayout layout = sLayoutCache.get(key);
         if (layout == null) {
-            String slice = (ellipsis ? text.substring(start, end) + "…" : text.substring(start, end));
+            String slice = (ellipsis ? text.substring(start, end) + "вЂ¦" : text.substring(start, end));
             layout = buildLayout(slice, availWidth, paint, maxLines);
             sLayoutCache.put(key, layout);
         }
@@ -226,7 +201,7 @@ final class AutoCompleteTextRenderer {
                 hi = mid - 1;
             }
         }
-        return text.substring(0, lo) + "…";
+        return text.substring(0, lo) + "вЂ¦";
     }
 
     private static StaticLayout buildLayout(@NonNull String text, int availWidth,
@@ -236,7 +211,7 @@ final class AutoCompleteTextRenderer {
             // D-1: build with maxLines+1 so a text that needs strictly more than
             // maxLines lines is detected (getLineCount() would otherwise be capped
             // at maxLines and report "fits"). fitsLines then keeps the "<= maxLines"
-            // comparison, yielding a guaranteed '…' on every API level.
+            // comparison, yielding a guaranteed 'вЂ¦' on every API level.
             layout = StaticLayout.Builder.obtain(
                     text, 0, text.length(), paint, availWidth)
                     .setMaxLines(maxLines + 1)

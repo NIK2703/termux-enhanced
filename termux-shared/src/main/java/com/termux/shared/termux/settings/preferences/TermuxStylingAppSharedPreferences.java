@@ -26,11 +26,10 @@ public class TermuxStylingAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Get {@link TermuxStylingAppSharedPreferences}.
+     * Get {@link TermuxStylingAppSharedPreferences} for the Termux:Style package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_STYLING_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxStylingAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to reach the {@link TermuxConstants#TERMUX_STYLING_PACKAGE_NAME} package
+     * @return the preferences, or {@code null} if the package context could not be obtained
      */
     @Nullable
     public static TermuxStylingAppSharedPreferences build(@NonNull final Context context) {
@@ -42,13 +41,12 @@ public class TermuxStylingAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Get {@link TermuxStylingAppSharedPreferences}.
+     * Get {@link TermuxStylingAppSharedPreferences} for the Termux:Style package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_STYLING_PACKAGE_NAME}.
-     * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
-     *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxStylingAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to reach the {@link TermuxConstants#TERMUX_STYLING_PACKAGE_NAME} package
+     * @param exitAppOnError If {@code true} and failed to get package context, a dialog is shown
+     *                       which, when dismissed, exits the app
+     * @return the preferences, or {@code null} if the package context could not be obtained
      */
     public static TermuxStylingAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxStylingPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME, exitAppOnError);

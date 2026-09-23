@@ -260,7 +260,6 @@ public final class TermuxPrefixRemap {
 
         String executable = argv[0];
 
-        // Only wrap if the binary needs loader wrapping
         if (!elfNeedsLoaderWrap(executable, libDirPath))
             return argv;
 

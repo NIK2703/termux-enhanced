@@ -76,7 +76,6 @@ public class FileAttributes {
         this.fileDescriptor = fileDescriptor;
     }
 
-    // get the FileAttributes for a given file
     public static FileAttributes get(String filePath, boolean followLinks) throws IOException {
         FileAttributes fileAttributes;
 
@@ -91,12 +90,9 @@ public class FileAttributes {
             NativeDispatcher.lstat(filePath, fileAttributes);
         }
 
-        // Logger.logDebug(fileAttributes.toString());
-
         return fileAttributes;
     }
 
-    // get the FileAttributes for an open file
     public static FileAttributes get(FileDescriptor fileDescriptor) throws IOException {
         FileAttributes fileAttributes = new FileAttributes(fileDescriptor);
         NativeDispatcher.fstat(fileDescriptor, fileAttributes);
@@ -112,12 +108,10 @@ public class FileAttributes {
             return null;
     }
 
-    // package-private
     public boolean isSameFile(FileAttributes attrs) {
         return ((st_ino == attrs.st_ino) && (st_dev == attrs.st_dev));
     }
 
-    // package-private
     public int mode() {
         return st_mode;
     }

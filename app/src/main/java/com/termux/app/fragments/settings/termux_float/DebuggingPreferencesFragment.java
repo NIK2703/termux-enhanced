@@ -66,8 +66,6 @@ class DebuggingPreferencesDataStore extends PreferenceDataStore {
         return mInstance;
     }
 
-
-
     @Override
     @Nullable
     public String getString(String key, @Nullable String defValue) {

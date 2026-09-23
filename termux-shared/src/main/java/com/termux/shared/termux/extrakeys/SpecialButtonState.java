@@ -7,12 +7,9 @@ import com.google.android.material.button.MaterialButton;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The {@link Class} that maintains a state of a {@link SpecialButton} */
 public class SpecialButtonState {
 
-    /** If special button has been created for the view. */
     boolean isCreated = false;
-    /** If special button is active. */
     boolean isActive = false;
     /** If special button is locked due to long hold on it and should not be deactivated if its
      * state is read. */
@@ -25,11 +22,7 @@ public class SpecialButtonState {
 
     SpecialButtonStateOwner mOwner;
 
-    /**
-     * Initialize a {@link SpecialButtonState} to maintain state of a {@link SpecialButton}.
-     *
-     * @param owner The {@link SpecialButtonStateOwner} that owns this state and provides colors.
-     */
+    /** @param owner owner of this state; provides the active/idle button colors. */
     public SpecialButtonState(SpecialButtonStateOwner owner) {
         mOwner = owner;
     }

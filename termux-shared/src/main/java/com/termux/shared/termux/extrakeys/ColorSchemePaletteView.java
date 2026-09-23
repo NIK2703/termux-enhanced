@@ -12,20 +12,13 @@ import androidx.annotation.Nullable;
 
 /**
  * The 16 ANSI colors ({@code color0}..{@code color15}) of a terminal color scheme, drawn as a
- * two-row by eight-column table — the "little palette swatch" shown opposite every entry of the
- * color-scheme picker.
+ * two-row by eight-column table вЂ” the swatch shown opposite every entry of the color-scheme
+ * picker. Top row is the dim half (0-7), bottom the bright half (8-15).
  *
- * <p>Rows are the ANSI split: the top row is the dim half (0-7), the bottom row the bright half
- * (8-15), columns are black/red/green/yellow/blue/magenta/cyan/white.
- *
- * <p>Why a custom {@link View} and not sixteen child views: the swatch is bound from
- * {@code ListAdapter#getView} on every scroll, and sixteen nested {@code View}s would mean sixteen
- * measure/layout/draw passes per row for something that is, in the end, sixteen filled rectangles.
- * Drawing them directly costs one canvas pass and no view objects at all.
- *
- * <p>The cells are drawn edge to edge from the same float grid, so neighbouring cells share their
- * boundary exactly and no seams can appear between them; only the outer frame is inset by half a
- * stroke so it stays inside the view's bounds.
+ * <p>A custom {@link View}, not sixteen child views: the swatch is rebound on every list scroll
+ * and sixteen nested views would mean sixteen measure/layout/draw passes for sixteen rectangles.
+ * Cells are drawn edge to edge from one float grid so neighbours share boundaries exactly (no
+ * seams); only the outer frame is inset by half a stroke.
  */
 public class ColorSchemePaletteView extends View {
 
@@ -89,9 +82,8 @@ public class ColorSchemePaletteView extends View {
     }
 
     /**
-     * Set the color of the one-pixel frame around the table. It is meant to be a blend of the
-     * scheme's own foreground and background, so the swatch reads as a table on any background
-     * without importing a color the scheme does not contain.
+     * Frame color around the table: ideally a blend of the scheme's own foreground and
+     * background, so it reads on any background without importing a foreign color.
      */
     public void setFrameColor(int color) {
         mFrameColor = color;

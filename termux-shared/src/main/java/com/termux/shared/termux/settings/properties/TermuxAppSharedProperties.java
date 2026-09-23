@@ -37,7 +37,6 @@ public class TermuxAppSharedProperties {
 
     private final TermuxAppSharedPreferences mPreferences;
 
-
     private TermuxAppSharedProperties(@NonNull Context context) {
         mPreferences = TermuxAppSharedPreferences.build(context, true);
     }
@@ -87,7 +86,6 @@ public class TermuxAppSharedProperties {
      * Values now come from {@link android.content.SharedPreferences} which are always up to date.
      */
     public void loadTermuxPropertiesFromDisk() {
-        // Intentionally empty. Configuration is now backed by SharedPreferences.
     }
 
     /**
@@ -218,7 +216,6 @@ public class TermuxAppSharedProperties {
         return null;
     }
 
-
     /* boolean */
 
     public boolean shouldAllowExternalApps() {
@@ -291,7 +288,6 @@ public class TermuxAppSharedProperties {
         return prefs().getTerminalCursorBlinkEnabled();
     }
 
-
     public int getTerminalCursorStyle() {
         return prefs().getTerminalCursorStyle();
     }
@@ -332,13 +328,11 @@ public class TermuxAppSharedProperties {
         return prefs().getTerminalBackgroundBlurRadius();
     }
 
-
     /* float */
 
     public float getTerminalToolbarHeightScaleFactor() {
         return prefs().getTerminalToolbarHeightScaleFactor();
     }
-
 
     /* int */
 
@@ -346,20 +340,17 @@ public class TermuxAppSharedProperties {
         return prefs().getExtraKeysCornerRadius();
     }
 
-
     /* float */
 
     public float getExtraKeysButtonMargin() {
         return prefs().getExtraKeysButtonMargin();
     }
 
-
     /* int */
 
     public int getExtraKeysFontSize() {
         return prefs().getExtraKeysFontSize();
     }
-
 
     /* String */
 
@@ -389,7 +380,6 @@ public class TermuxAppSharedProperties {
     public boolean areVirtualVolumeKeysDisabled() {
         return prefs().areVirtualVolumeKeysDisabled();
     }
-
 
     /**
      * Resolve a raw key to its internal value from {@link TermuxAppSharedPreferences}.

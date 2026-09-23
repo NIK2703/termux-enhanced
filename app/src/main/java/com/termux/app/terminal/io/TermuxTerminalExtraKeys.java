@@ -79,13 +79,11 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
      * the {@link ExtraKeysInfo}. Call this after those properties change at runtime so the panel
      * updates without restarting the app.
      *
-     * <p>Unlike the original implementation, the logically active session profile (or the profile
-     * matching the last known session name) is re-asserted AFTER the reload instead of being
-     * permanently dropped — otherwise any styling reload (theme change, returning from settings,
-     * {@code reload_style} broadcast) would silently reset the panel to the default layout until
-     * the next manual tab switch.</p>
-     */
-    /**
+     * <p>Unlike the original implementation, the active session profile is re-asserted AFTER the
+     * reload instead of being dropped — otherwise a styling reload (theme change, returning from
+     * settings, {@code reload_style} broadcast) would silently reset the panel to the default
+     * layout until the next manual tab switch.</p>
+     *
      * @return {@code true} if a session-specific layout was (re)applied to the view by this call,
      *         {@code false} if the default layout should be reloaded by the caller.
      */
@@ -106,13 +104,10 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
 
     /**
      * Route extra-key input to the live active pager page rather than the cached
-     * {@code mTerminalView}. The cached pointer is normally kept in sync by
-     * {@link TermuxActivity#onTerminalPageSelected(int)}, but it can stay {@code null} in a window
-     * where {@code onPageSelected} is not re-fired (e.g. the very first session being added to an
-     * otherwise-empty pager: {@code setCurrentItem(0, false)} is a no-op and does not emit a page
-     * change). Without this fallback every extra-keys press would hit the {@code null} guard and be
-     * silently dropped — the "buttons don't send" symptom. Falling back to the activity's active
-     * page resolves the correct, bound view instead.
+     * {@code mTerminalView}. The cached pointer can stay {@code null} in a window where
+     * {@code onPageSelected} is not re-fired (e.g. the first session added to an empty pager:
+     * {@code setCurrentItem(0, false)} is a no-op) — without this fallback every extra-keys press
+     * hits the {@code null} guard and is silently dropped ("buttons don't send").
      */
     @Override
     @Nullable
@@ -121,10 +116,6 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         return active != null ? active : super.getTerminalViewForInput();
     }
 
-
-    /**
-     * Set the terminal extra keys and style.
-     */
     private void setExtraKeys() {
         mExtraKeysInfo = null;
         String extrakeys = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS, true);
@@ -263,11 +254,9 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         }
     }
 
-
     /**
-     * Session-based trigger: called when the active session is switched or renamed.
-     * Resolves the session name against the configured prefixes and applies the matching
-     * profile, or reverts to the default layout when nothing matches.
+     * Called when the active session is switched or renamed. Resolves the name against the
+     * configured prefixes and applies the matching profile, or reverts to the default layout.
      *
      * @param sessionName the (possibly null) name of the newly active session
      */
@@ -276,7 +265,6 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         if (!isSessionSwitchingEnabled()) return;
 
         String sessionContext = resolveSessionForPrefix(sessionName);
-
 
         if (sessionContext == null) {
             // No prefix match — revert to the default layout if a session profile was shown.
@@ -312,8 +300,6 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         }
         return bestMatch;
     }
-
-
 
     /**
      * Load and apply the ExtraKeys layout for the given session profile name.
@@ -360,9 +346,7 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         }
     }
 
-    /**
-     * Core: reload the default "extra-keys" property layout into the view (no state guard).
-     */
+    /** Reload the default "extra-keys" layout into the view (no state guard). */
     private void reloadDefaultLayout() {
         ExtraKeysInfo previousInfo = mExtraKeysInfo;
         setExtraKeys(); // Re-reads the "extra-keys" property from disk
@@ -375,12 +359,11 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         }
     }
 
-
     /** @return {@code true} if session-based switching is configured and non-empty. */
     public boolean isSessionSwitchingEnabled() {
         return !mSessionLayouts.isEmpty();
     }
-    /** @return unmodifiable view of the prefix→layout map (for testing/debugging). */
+    /** @return the live prefix→layout map (for testing/debugging). */
     @NonNull
     public Map<String, String> getSessionLayouts() {
         return mSessionLayouts;

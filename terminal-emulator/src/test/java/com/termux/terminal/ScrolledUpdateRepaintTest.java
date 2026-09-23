@@ -3,41 +3,13 @@ package com.termux.terminal;
 import junit.framework.AssertionFailedError;
 
 /**
- * Shadow-canvas regression tests for the glyph-scroll repaint optimizations (E1/E2/E3/F2 in
- * glyph-scroll-optimization-2.md, F0-F7/G1-G7 in the later audits).
+ * Shadow-canvas regression tests for the glyph-scroll repaint optimizations (E1/E2/E3/F2,
+ * F0-F7/G1-G7). Mirrors the {@code TerminalView}/{@code TerminalRenderer} pipeline and, after every
+ * frame, compares a per-slot copy of drawn pixels against the buffer — a changed-but-unrepainted
+ * row shows up as a stale slot.
  *
- * <h2>What is being tested</h2>
- *
- * The optimizations replaced "every output chunk forces a full frame" with a sparse, content-based
- * decision: {@code TerminalBuffer} keeps one dirty bit per ring row, and
- * {@code TerminalView.repaintAfterUpdate()} decides between a full repaint and a partial one from
- * (a) the <em>content anchor</em> (the internal ring row under the top visible line) and (b) the
- * dirty rows that are currently visible. {@code TerminalRenderer.render()} then skips any row that
- * is neither dirty nor inside the damage rectangle.
- *
- * <p>That is exactly the machinery that can go wrong in the two situations this suite pins down:
- * <ul>
- *   <li>the view is scrolled up N lines from the live bottom (so {@code mTopRow &lt; 0} and output
- *       arriving at the bottom is compensated away by the follow-text shift);</li>
- *   <li>a program changes data at the <em>top</em> of its screen (status line, progress bar,
- *       {@code tput cup 0 0} rewrite) without scrolling anything.</li>
- * </ul>
- *
- * <h2>Method: a shadow canvas</h2>
- *
- * A unit test cannot instantiate {@code TerminalView} (it is an Android {@code View}), so the view
- * half of the pipeline is mirrored here — the same technique {@link ScrollFollowTextTest} and
- * {@link DirtyStateTest} already use. What makes this suite stronger than a pure state assertion is
- * that it keeps a <b>shadow canvas</b>: a per-visible-slot copy of the pixels that the renderer has
- * actually drawn. After every simulated frame the canvas is compared against the true content of
- * the buffer. A row whose content changed but was never repainted shows up as a stale canvas slot —
- * i.e. exactly the user-visible bug ("the terminal did not update").
- *
- * <p>Mirrored from {@code TerminalView.onScreenUpdated()}, {@code repaintAfterUpdate()},
- * {@code invalidateScrollbarBand()}, {@code invalidateRowRange()} and
- * {@code TerminalRenderer.render()}. The scrollbar is modelled in row units; its real thumb has a
- * fixed pixel height, so the exact row count is a modelling choice and does not change any
- * assertion. The cursor is pinned visible (a single frame has no blink timer).</p>
+ * <p>Pins down scrolled-up follow-text compensation and top-of-screen rewrites without scrolling.
+ * Scrollbar thumb height is a modelling choice (row units); the cursor is pinned visible.
  */
 public class ScrolledUpdateRepaintTest extends TerminalTestCase {
 

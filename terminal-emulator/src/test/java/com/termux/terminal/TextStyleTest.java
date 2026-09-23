@@ -37,7 +37,6 @@ public class TextStyleTest extends TestCase {
 		}
 	}
 
-
 	public void testEncodingCombinations() {
 		for (int f1 : ALL_EFFECTS) {
 			for (int f2 : ALL_EFFECTS) {

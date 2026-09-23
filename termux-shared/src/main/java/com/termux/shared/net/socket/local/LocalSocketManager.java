@@ -27,34 +27,16 @@ public class LocalSocketManager {
     /** The native JNI local socket library. */
     protected static String LOCAL_SOCKET_LIBRARY = "local-socket";
 
-    /** Whether {@link #LOCAL_SOCKET_LIBRARY} has been loaded or not. */
+    /** Whether {@link #LOCAL_SOCKET_LIBRARY} has been loaded. */
     protected static boolean localSocketLibraryLoaded;
 
-    /** The {@link Context} that may needed for various operations. */
     @NonNull protected final Context mContext;
-
-    /** The {@link LocalSocketRunConfig} containing run config for the {@link LocalSocketManager}. */
     @NonNull protected final LocalSocketRunConfig mLocalSocketRunConfig;
-
-    /** The {@link LocalServerSocket} for the {@link LocalSocketManager}. */
     @NonNull protected final LocalServerSocket mServerSocket;
-
-    /** The {@link ILocalSocketManager} client for the {@link LocalSocketManager}. */
     @NonNull protected final ILocalSocketManager mLocalSocketManagerClient;
-
-    /** The {@link Thread.UncaughtExceptionHandler} used for client thread started by {@link LocalSocketManager}. */
     @NonNull protected final Thread.UncaughtExceptionHandler mLocalSocketManagerClientThreadUEH;
-
-    /** Whether the {@link LocalServerSocket} managed by {@link LocalSocketManager} in running or not. */
     protected boolean mIsRunning;
 
-
-    /**
-     * Create an new instance of {@link LocalSocketManager}.
-     *
-     * @param context The {@link #mContext} value.
-     * @param localSocketRunConfig The {@link #mLocalSocketRunConfig} value.
-     */
     public LocalSocketManager(@NonNull Context context, @NonNull LocalSocketRunConfig localSocketRunConfig) {
         mContext = context.getApplicationContext();
         mLocalSocketRunConfig = localSocketRunConfig;
@@ -98,9 +80,6 @@ public class LocalSocketManager {
         return null;
     }
 
-
-
-
     /*
      Note: Exceptions thrown from JNI must be caught with Throwable class instead of Exception,
      otherwise exception will be sent to UncaughtExceptionHandler of the thread.
@@ -109,17 +88,9 @@ public class LocalSocketManager {
     /**
      * Creates an AF_UNIX/SOCK_STREAM local server socket at {@code path}, with the specified backlog.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param path The path at which to create the socket.
-     *             For a filesystem socket, this must be an absolute path to the socket file.
-     *             For an abstract namespace socket, the first byte must be a null `\0` character.
-     *             Max allowed length is 108 bytes as per sun_path size (UNIX_PATH_MAX) on Linux.
-     * @param backlog The maximum length to which the queue of pending connections for the socket
-     *                may grow. This value may be ignored or may not have one-to-one mapping
-     *                in kernel implementation. Value must be greater than 0.
-     * @return Returns the {@link JniResult}. If server creation was successful, then
-     * {@link JniResult#retval} will be 0 and {@link JniResult#intData} will contain the server socket
-     * fd.
+     * @param path absolute filesystem path, or abstract-namespace name (leading {@code \0}); max 108 bytes (sun_path).
+     * @param backlog pending-connection queue length; must be greater than 0 (may be ignored by the kernel).
+     * @return {@link JniResult} with {@link JniResult#intData} = server fd on success.
      */
     @Nullable
     public static JniResult createServerSocket(@NonNull String serverTitle, @NonNull byte[] path, int backlog) {
@@ -135,10 +106,7 @@ public class LocalSocketManager {
     /**
      * Closes the socket with fd.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @return Returns the {@link JniResult}. If closing socket was successful, then
-     * {@link JniResult#retval} will be 0.
+     * @return {@link JniResult} with {@link JniResult#retval} 0 on success.
      */
     @Nullable
     public static JniResult closeSocket(@NonNull String serverTitle, int fd) {
@@ -154,11 +122,7 @@ public class LocalSocketManager {
     /**
      * Accepts a connection on the supplied server socket fd.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The server socket fd.
-     * @return Returns the {@link JniResult}. If accepting socket was successful, then
-     * {@link JniResult#retval} will be 0 and {@link JniResult#intData} will contain the client socket
-     * fd.
+     * @return {@link JniResult} with {@link JniResult#intData} = client fd on success.
      */
     @Nullable
     public static JniResult accept(@NonNull String serverTitle, int fd) {
@@ -172,21 +136,12 @@ public class LocalSocketManager {
     }
 
     /**
-     * Attempts to read up to data buffer length bytes from file descriptor fd into the data buffer.
-     * On success, the number of bytes read is returned (zero indicates end of file).
-     * It is not an error if bytes read is smaller than the number of bytes requested; this may happen
-     * for example because fewer bytes are actually available right now (maybe because we were close
-     * to end-of-file, or because we are reading from a pipe), or because read() was interrupted by
-     * a signal. On error, the {@link JniResult#errno} and {@link JniResult#errmsg} will be set.
+     * Read up to {@code data.length} bytes; short reads are not errors (EOF yields 0). On error
+     * {@link JniResult#errno}/{@link JniResult#errmsg} are set. Fails if the deadline elapses
+     * before all available data is read.
      *
-     * If while reading the deadline elapses but all the data has not been read, the call will fail.
-     *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @param data The data buffer to read bytes into.
-     * @param deadline The deadline milliseconds since epoch.
-     * @return Returns the {@link JniResult}. If reading was successful, then {@link JniResult#retval}
-     * will be 0 and {@link JniResult#intData} will contain the bytes read.
+     * @param deadline milliseconds since epoch.
+     * @return {@link JniResult} with {@link JniResult#intData} = bytes read on success.
      */
     @Nullable
     public static JniResult read(@NonNull String serverTitle, int fd, @NonNull byte[] data, long deadline) {
@@ -200,17 +155,11 @@ public class LocalSocketManager {
     }
 
     /**
-     * Attempts to send data buffer to the file descriptor. On error, the {@link JniResult#errno} and
-     * {@link JniResult#errmsg} will be set.
+     * Send {@code data}; on error {@link JniResult#errno}/{@link JniResult#errmsg} are set. Fails
+     * if the deadline elapses before all data is sent.
      *
-     * If while sending the deadline elapses but all the data has not been sent, the call will fail.
-     *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @param data The data buffer containing bytes to send.
-     * @param deadline The deadline milliseconds since epoch.
-     * @return Returns the {@link JniResult}. If sending was successful, then {@link JniResult#retval}
-     * will be 0.
+     * @param deadline milliseconds since epoch.
+     * @return {@link JniResult} with {@link JniResult#retval} 0 on success.
      */
     @Nullable
     public static JniResult send(@NonNull String serverTitle, int fd, @NonNull byte[] data, long deadline) {
@@ -224,12 +173,9 @@ public class LocalSocketManager {
     }
 
     /**
-     * Gets the number of bytes available to read on the socket.
+     * Bytes available to read on the socket.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @return Returns the {@link JniResult}. If checking availability was successful, then
-     * {@link JniResult#retval} will be 0 and {@link JniResult#intData} will contain the bytes available.
+     * @return {@link JniResult} with {@link JniResult#intData} = bytes available on success.
      */
     @Nullable
     public static JniResult available(@NonNull String serverTitle, int fd) {
@@ -245,11 +191,7 @@ public class LocalSocketManager {
     /**
      * Set receiving (SO_RCVTIMEO) timeout in milliseconds for socket.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @param timeout The timeout value in milliseconds.
-     * @return Returns the {@link JniResult}. If setting timeout was successful, then
-     * {@link JniResult#retval} will be 0.
+     * @return {@link JniResult} with {@link JniResult#retval} 0 on success.
      */
     @Nullable
     public static JniResult setSocketReadTimeout(@NonNull String serverTitle, int fd, int timeout) {
@@ -265,11 +207,7 @@ public class LocalSocketManager {
     /**
      * Set sending (SO_SNDTIMEO) timeout in milliseconds for fd.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @param timeout The timeout value in milliseconds.
-     * @return Returns the {@link JniResult}. If setting timeout was successful, then
-     * {@link JniResult#retval} will be 0.
+     * @return {@link JniResult} with {@link JniResult#retval} 0 on success.
      */
     @Nullable
     public static JniResult setSocketSendTimeout(@NonNull String serverTitle, int fd, int timeout) {
@@ -283,13 +221,9 @@ public class LocalSocketManager {
     }
 
     /**
-     * Get the {@link PeerCred} for the socket.
+     * Fill {@code peerCred} with the peer credentials of the socket.
      *
-     * @param serverTitle The server title used for logging and errors.
-     * @param fd The socket fd.
-     * @param peerCred The {@link PeerCred} object that should be filled.
-     * @return Returns the {@link JniResult}. If setting timeout was successful, then
-     * {@link JniResult#retval} will be 0.
+     * @return {@link JniResult} with {@link JniResult#retval} 0 on success.
      */
     @Nullable
     public static JniResult getPeerCred(@NonNull String serverTitle, int fd, PeerCred peerCred) {
@@ -301,8 +235,6 @@ public class LocalSocketManager {
             return new JniResult(message, t);
         }
     }
-
-
 
     /** Wrapper for {@link #onError(LocalClientSocket, Error)} for {@code null} {@link LocalClientSocket}. */
     public void onError(@NonNull Error error) {
@@ -327,7 +259,7 @@ public class LocalSocketManager {
             mLocalSocketManagerClient.onClientAccepted(this, clientSocket));
     }
 
-    /** All client accept logic must be run on separate threads so that incoming client acceptance is not blocked. */
+    /** All client accept logic runs on separate threads so incoming accepts are not blocked. */
     public void startLocalSocketManagerClientThread(@NonNull Runnable runnable) {
         Thread thread = new Thread(runnable);
         thread.setUncaughtExceptionHandler(getLocalSocketManagerClientThreadUEH());
@@ -338,38 +270,27 @@ public class LocalSocketManager {
         }
     }
 
-
-
-    /** Get {@link #mContext}. */
     public Context getContext() {
         return mContext;
     }
 
-    /** Get {@link #mLocalSocketRunConfig}. */
     public LocalSocketRunConfig getLocalSocketRunConfig() {
         return mLocalSocketRunConfig;
     }
 
-    /** Get {@link #mLocalSocketManagerClient}. */
     public ILocalSocketManager getLocalSocketManagerClient() {
         return mLocalSocketManagerClient;
     }
 
-    /** Get {@link #mServerSocket}. */
     public LocalServerSocket getServerSocket() {
         return mServerSocket;
     }
 
-    /** Get {@link #mLocalSocketManagerClientThreadUEH}. */
     public Thread.UncaughtExceptionHandler getLocalSocketManagerClientThreadUEH() {
         return mLocalSocketManagerClientThreadUEH;
     }
 
-    /**
-     * Get {@link Thread.UncaughtExceptionHandler} returned by call to
-     * {@link ILocalSocketManager#getLocalSocketManagerClientThreadUEH(LocalSocketManager)}
-     * or the default handler that just logs the exception.
-     */
+    /** Client-provided UEH, or a default that just logs the exception. */
     protected Thread.UncaughtExceptionHandler getLocalSocketManagerClientThreadUEHOrDefault() {
         Thread.UncaughtExceptionHandler uncaughtExceptionHandler =
             mLocalSocketManagerClient.getLocalSocketManagerClientThreadUEH(this);
@@ -379,12 +300,9 @@ public class LocalSocketManager {
         return uncaughtExceptionHandler;
     }
 
-    /** Get {@link #mIsRunning}. */
     public boolean isRunning() {
         return mIsRunning;
     }
-
-
 
     /** Get an error log {@link String} for the {@link LocalSocketManager}. */
     public static String getErrorLogString(@NonNull Error error,
@@ -424,10 +342,6 @@ public class LocalSocketManager {
 
         return markdownString.toString();
     }
-
-
-
-
 
     @Nullable private static native JniResult createServerSocketNative(@NonNull String serverTitle, @NonNull byte[] path, int backlog);
 

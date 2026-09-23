@@ -52,41 +52,16 @@ import com.termux.shared.termux.terminal.io.TerminalExtraKeys;
 import com.termux.shared.theme.ThemeUtils;
 
 /**
- * A {@link View} showing extra keys (such as Escape, Ctrl, Alt) not normally available on an Android soft
- * keyboards.
+ * A {@link View} showing extra keys (Escape, Ctrl, Alt, …) not normally available on an Android
+ * soft keyboard.
  *
- * To use it, add following to a layout file and import it in your activity layout file or inflate
- * it with a {@link androidx.viewpager.widget.ViewPager}.:
- * {@code
- * <?xml version="1.0" encoding="utf-8"?>
- * <com.termux.shared.termux.extrakeys.ExtraKeysView xmlns:android="http://schemas.android.com/apk/res/android"
- *     android:id="@+id/extra_keys"
- *     style="?android:attr/buttonBarStyle"
- *     android:layout_width="match_parent"
- *     android:layout_height="match_parent"
- *     android:layout_alignParentBottom="true"
- *     android:orientation="horizontal" />
- * }
- *
- * Then in your activity, get its reference by a call to {@link android.app.Activity#findViewById(int)}
- * or {@link LayoutInflater#inflate(int, ViewGroup)} if using {@link androidx.viewpager.widget.ViewPager}.
- * Then call {@link #setExtraKeysViewClient(IExtraKeysView)} and pass it the implementation of
- * {@link IExtraKeysView} so that you can receive callbacks. You can also override other values set
- * in {@link ExtraKeysView#ExtraKeysView(Context, AttributeSet)} by calling the respective functions.
- * If you extend {@link ExtraKeysView}, you can also set them in the constructor, but do call super().
- *
- * After this you will have to make a call to {@link ExtraKeysView#reload(ExtraKeysInfo, float) and pass
- * it the {@link ExtraKeysInfo} to load and display the extra keys. Read its class javadocs for more
- * info on how to create it.
- *
- * Termux app defines the view in res/layout/view_terminal_toolbar_extra_keys and
- * inflates it in TerminalToolbarViewPager.instantiateItem() and sets the {@link ExtraKeysView} client
- * and calls {@link ExtraKeysView#reload(ExtraKeysInfo).
- * The {@link ExtraKeysInfo} is created by TermuxAppSharedProperties.setExtraKeys().
- * Then its got and the view height is adjusted in TermuxActivity.setTerminalToolbarHeight().
- * The client used is TermuxTerminalExtraKeys, which extends
- * {@link TerminalExtraKeys } to handle Termux app specific logic and
- * leave the rest to the super class.
+ * <p>Wire-up: declare it in a layout (or inflate it into a pager), call
+ * {@link #setExtraKeysViewClient(IExtraKeysView)} for click/haptic callbacks, then
+ * {@link #reload(ExtraKeysInfo, float)} with the keys to show. The Termux app defines it in
+ * {@code res/layout/view_terminal_toolbar_extra_keys}, inflates it in
+ * {@code TerminalToolbarViewPager.instantiateItem()}, loads it via
+ * {@code TermuxAppSharedProperties.setExtraKeys()} and uses {@code TermuxTerminalExtraKeys}
+ * (extends {@link TerminalExtraKeys}) as the client.
  */
 public final class ExtraKeysView extends GridLayout implements SpecialButtonStateOwner {
 
@@ -114,18 +89,11 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public interface EditorGestureListener {
         /**
          * Called when a button is tapped (short press without significant movement).
-         * @param button The button view that was tapped.
-         * @param row Row index of the button.
-         * @param col Column index of the button.
          */
         void onKeyTap(View button, int row, int col);
 
         /**
          * Called when a swipe gesture is detected on a button.
-         * @param button The button view that was swiped.
-         * @param row Row index of the button.
-         * @param col Column index of the button.
-         * @param direction The direction of the swipe.
          */
         void onKeySwipe(View button, int row, int col, SwipeDirection direction);
     }
@@ -134,9 +102,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public interface EditorLongPressListener {
         /**
          * Called when a button is held long enough to be a long press (release without movement).
-         * @param button The button view that was long-pressed.
-         * @param row Row index of the button.
-         * @param col Column index of the button.
          */
         void onKeyLongPress(View button, int row, int col);
     }
@@ -171,7 +136,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
          */
         default void onExtraKeyButtonGestureRelease(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
         }
-
         /**
          * This is called by {@link ExtraKeysView} when a button is clicked so that the client
          * can perform any hepatic feedback. This is only called in the {@link MaterialButton.OnClickListener}
@@ -187,7 +151,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button);
 
     }
-
 
     /** Defines the default value for {@link #mButtonTextColor} defined by current theme. */
     public static final int ATTR_BUTTON_TEXT_COLOR = R.attr.extraKeysButtonTextColor;
@@ -266,7 +229,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
-
     /** Defines the minimum allowed duration in milliseconds for {@link #mLongPressTimeout}. */
     public static final int MIN_LONG_PRESS_DURATION = 200;
     /** Defines the maximum allowed duration in milliseconds for {@link #mLongPressTimeout}. */
@@ -281,8 +243,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     /** Defines the default duration in milliseconds for {@link #mLongPressRepeatDelay}. */
     public static final int DEFAULT_LONG_PRESS_REPEAT_DELAY = 80;
 
-
-
     /** The implementation of the {@link IExtraKeysView} that acts as a client for the {@link ExtraKeysView}. */
     protected IExtraKeysView mExtraKeysViewClient;
 
@@ -294,15 +254,13 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
      * set when the call to {@link #setSpecialButtons(Map)} is made. */
     protected Set<String> mSpecialButtonsKeys;
 
-
     /**
-     * The list of keys for which auto repeat of key should be triggered if its extra keys button
-     * is long pressed. This is done by calling {@link IExtraKeysView#onExtraKeyButtonClick(View, ExtraKeyButton, MaterialButton)}
-     * every {@link #mLongPressRepeatDelay} seconds after {@link #mLongPressTimeout} has passed.
-     * The default keys are defined by {@link ExtraKeysConstants#PRIMARY_REPETITIVE_KEYS}.
+     * The list of keys that auto-repeat when their extra keys button is long pressed, by calling
+     * {@link IExtraKeysView#onExtraKeyButtonClick(View, ExtraKeyButton, MaterialButton)} every
+     * {@link #mLongPressRepeatDelay} <em>milliseconds</em> after {@link #mLongPressTimeout} has
+     * passed. Defaults to {@link ExtraKeysConstants#PRIMARY_REPETITIVE_KEYS}.
      */
     protected List<String> mRepetitiveKeys;
-
 
     /** The text color for the extra keys button. Defaults to {@link #DEFAULT_BUTTON_TEXT_COLOR}. */
     protected int mButtonTextColor;
@@ -337,16 +295,9 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     private int mLastReloadedRowCount;
 
     /**
-     * The fold state the grid <em>on screen</em> was built with, recorded by the same
-     * {@link #reload(ExtraKeysInfo, float)} that built it.
-     *
-     * <p>This is what {@link #setLandscapeCompact(boolean, ExtraKeysCompaction.Mode)} compares
-     * against when it answers "does the grid need a rebuild?". Comparing the flag with its own
-     * previous value instead looks equivalent and is not: a caller is allowed to set the flag and
-     * then skip the rebuild (there is nothing to rebuild with yet), and from that moment the flag
-     * describes a grid that does not exist. A flag comparison then answers "nothing to do" —
-     * forever, because the flag never changes again, so the panel stays unfolded for the rest of
-     * the session. What was built is the only thing that can be compared honestly.
+     * The fold state the grid <em>on screen</em> was built with. {@link #setLandscapeCompact}
+     * compares a new request against this, not the previous request: a caller may set the flag and
+     * skip the rebuild, after which a flag-to-flag comparison would answer "nothing to do" forever.
      */
     private boolean mBuiltCompactLandscape;
     @NonNull
@@ -361,16 +312,10 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     private float mCachedFittedFontSp = -1f;
 
     /**
-     * What the last dynamic-font pass was computed for: this view's size <em>and</em> the grid
-     * dimensions. The fit is a function of the cell size, and a cell is the view's size divided by the
-     * grid dimensions — so the result belongs to that whole combination, and either a new size (a
-     * rotation, split screen, the IME) or a new column/row count (a rebuild, a folded layout, a session
-     * profile with other dimensions) makes it stale. Written by {@link #recordFittedFontState()},
-     * zeroed by {@link #invalidateFittedFont()}; a grid that has been built always has at least one
-     * column and one row, so a zeroed record can never compare equal to the live one.
-     *
-     * <p>{@link #onLayout(boolean, int, int, int, int)} re-measures whenever this no longer matches,
-     * which is what keeps the fitted size the same across any sequence of rotations.
+     * What the last dynamic-font pass was computed for: this view's size and the grid dimensions.
+     * Either half changing makes the record stale, so {@link #onLayout} re-measures whenever it no
+     * longer matches. Written by {@link #recordFittedFontState()}, zeroed by
+     * {@link #invalidateFittedFont()}.
      */
     private int mFittedFontWidth;
     private int mFittedFontHeight;
@@ -382,7 +327,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
 
     /** Tag key for storing {@link ExtraKeyButton} on each MaterialButton. */
     private static final int TAG_EXTRA_KEY_INFO = R.id.tag_extra_key_info;
-
 
     /**
      * Defines the duration in milliseconds before a press turns into a long press. The default
@@ -401,15 +345,8 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
      */
     protected int mLongPressRepeatDelay;
 
-
-    /**
-     * Defines how the {@link #mSpecialButtons} behave when pressed.
-     * {@link SpecialButtonMode#STICKY} (default): a tap toggles the button on/off (latching), and a
-     * long hold locks it on until toggled off.
-     * {@link SpecialButtonMode#HOLD}: a touch activates the button immediately and it stays active
-     * only while the finger is held down, deactivating on release. No long-press competition since
-     * the hold engages as soon as the button is touched.
-     */
+    /** Behaviour of {@link #mSpecialButtons}: {@link SpecialButtonMode#STICKY} (default) or
+     *  {@link SpecialButtonMode#HOLD} — see the enum for the exact interaction. */
     protected SpecialButtonMode mSpecialButtonMode = SpecialButtonMode.STICKY;
 
     /** The behaviour mode for the {@link #mSpecialButtons}. */
@@ -419,7 +356,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         /** Button is active only while touched, deactivating on release. */
         HOLD
     }
-
 
     /** Editor gesture listener. When non-null, the view is in editor mode. */
     @Nullable
@@ -465,9 +401,9 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     protected Runnable mRepetitiveRunnable;
     protected int mLongPressCount;
 
-    // C8: haptic state is cached here so that performExtraKeyButtonHapticFeedback() never has to
-    // perform a per-press Binder IPC to the SettingsProvider. Refreshed on attach,
-    // on every reloadActivityStyling(), and via a ContentObserver when the system toggles change.
+    // Haptic state is cached so performExtraKeyButtonHapticFeedback() never has to perform a
+    // per-press Binder IPC to the SettingsProvider. Refreshed on attach, on every
+    // reloadActivityStyling(), and via a ContentObserver when the system toggles change.
     private int mHapticMode = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_HAPTIC;
     private boolean mHapticFeedbackEnabled;
     private boolean mZenModeAllowsSound = true;
@@ -480,11 +416,10 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     private final List<MaterialButton> mButtonPool = new ArrayList<>();
 
     /**
-     * Display density, used to turn the dp margins and the sp font sizes into pixels. Not final: the
-     * activity declares {@code density} in its {@code configChanges}, so a display-size change reaches
-     * this view without recreating it, and a stale density would make the margins (and therefore the
-     * fitted font) disagree with the sp-to-px conversion the fit itself performs with the live
-     * metrics. Refreshed on every {@link #reload(ExtraKeysInfo, float)}.
+     * Display density, used to turn dp margins and sp font sizes into pixels. Not final: the
+     * activity declares {@code density} in its {@code configChanges}, so a display-size change
+     * reaches this view without recreating it. Refreshed on every
+     * {@link #reload(ExtraKeysInfo, float)}.
      */
     private float mDensity;
 
@@ -504,7 +439,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     /** Listener for move-mode drag-and-drop operations. Null unless MOVE mode is active. */
     @Nullable
     private EditorMoveListener mEditorMoveListener;
-
 
     public ExtraKeysView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -531,7 +465,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mSwipeThreshold = Math.max(touchSlop, minThresholdPx);
     }
 
-
     /** Get {@link #mExtraKeysViewClient}. */
     public IExtraKeysView getExtraKeysViewClient() {
         return mExtraKeysViewClient;
@@ -541,7 +474,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public void setExtraKeysViewClient(IExtraKeysView extraKeysViewClient) {
         mExtraKeysViewClient = extraKeysViewClient;
     }
-
 
     /** Get {@link #mRepetitiveKeys}. */
     public List<String> getRepetitiveKeys() {
@@ -553,7 +485,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public void setRepetitiveKeys(@NonNull List<String> repetitiveKeys) {
         mRepetitiveKeys = repetitiveKeys;
     }
-
 
     /** Get {@link #mSpecialButtons}. */
     public ArrayMap<SpecialButton, SpecialButtonState> getSpecialButtons() {
@@ -572,7 +503,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mSpecialButtons = specialButtons;
         mSpecialButtonsKeys = this.mSpecialButtons.keySet().stream().map(SpecialButton::getKey).collect(Collectors.toSet());
     }
-
 
     /**
      * Set the {@link ExtraKeysView} button colors.
@@ -613,7 +543,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
-
     /** Get {@link #mButtonTextColor}. */
     public int getButtonTextColor() {
         return mButtonTextColor;
@@ -623,7 +552,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public void setButtonTextColor(int buttonTextColor) {
         mButtonTextColor = buttonTextColor;
     }
-
 
     /** Get {@link #mButtonActiveTextColor}. */
     public int getButtonActiveTextColor() {
@@ -635,7 +563,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mButtonActiveTextColor = buttonActiveTextColor;
     }
 
-
     /** Get {@link #mButtonBackgroundColor}. */
     public int getButtonBackgroundColor() {
         return mButtonBackgroundColor;
@@ -645,7 +572,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public void setButtonBackgroundColor(int buttonBackgroundColor) {
         mButtonBackgroundColor = buttonBackgroundColor;
     }
-
 
     /** Get {@link #mButtonActiveBackgroundColor}. */
     public int getButtonActiveBackgroundColor() {
@@ -709,28 +635,18 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Turn the landscape compaction on or off and pick the order of keys inside a folded row.
-     *
-     * <p>The flag is read by the next {@link #reload(ExtraKeysInfo, float)}; this method does not
-     * rebuild the grid itself, because the caller that changes the flag (the activity on a
-     * configuration change, the editor on a preference change) also decides when to reload.
-     *
-     * <p>The fitted-font cache is dropped when the layout really changes: it was measured for the
-     * previous column count, and reusing it would render the first frame of the new layout with the
-     * wrong text size.
+     * Turn landscape compaction on/off and pick the order of keys inside a folded row. The flag is
+     * read by the next {@link #reload(ExtraKeysInfo, float)}; this method does not rebuild the grid
+     * itself — the caller also decides when to reload. The fitted-font cache is dropped when the
+     * layout really changes, since it was measured for the previous column count.
      *
      * @param active {@code true} to fold the rows, {@code false} to render the stored layout as-is
      * @param mode   order of keys inside a folded row, must not be {@code null}
-     * @return {@code true} when the next reload would build a different grid than the one currently
-     *         on screen, i.e. when a reload is actually needed. Callers that run on every layout
-     *         pass rely on this to avoid rebuilding the grid for nothing. Switching {@code mode}
-     *         while the fold is off is <em>not</em> a change: an unfolded panel renders the stored
-     *         layout either way, and the new mode is still remembered for when the fold engages.
+     * @return {@code true} when a reload would build a different grid than the one on screen.
+     *         Switching {@code mode} while the fold is off is not a change.
      */
     public boolean setLandscapeCompact(boolean active, @NonNull ExtraKeysCompaction.Mode mode) {
-        // Compare the request with the grid that is on screen, not with the previous request. See
-        // mBuiltCompactLandscape: the flag can get ahead of the grid, and a flag-to-flag comparison
-        // then answers "nothing to do" for the rest of the session.
+        // Compare with the grid on screen, not the previous request — see mBuiltCompactLandscape.
         final boolean layoutChanged = !mBuiltGrid
             || mBuiltCompactLandscape != active
             || (active && mBuiltCompactMode != mode);
@@ -795,19 +711,9 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Apply asymmetric (collapsing) margins so the gap between adjacent buttons is the
-     * configured margin on BOTH axes and the panel stays flush with its container edges.
-     * <p>
-     * Unlike symmetric per-side margins (which double the gap because GridLayout adds the
-     * facing margins of neighbouring views), only the <em>trailing</em> side of each button
-     * carries the margin; the leading side is left at zero. The first row keeps its top margin
-     * only when top-margin mode is enabled (e.g. session tabs sit above the panel).
-     *
-     * @param param  the {@link GridLayout.LayoutParams} of the button being laid out
-     * @param row    zero-based row index of the button
-     * @param col    zero-based column index of the button
-     * @param rows   total number of rows
-     * @param cols   total number of columns
+     * Apply margins for one button. Only the trailing side of each button carries the margin
+     * (symmetric margins would double the gap, since GridLayout adds facing margins of neighbours);
+     * the first row keeps its top margin only when top-margin mode is enabled.
      */
     private void applyButtonMargins(GridLayout.LayoutParams param, int row, int col, int rows, int cols) {
         int marginHorizontalPx = (int) (mButtonMarginHorizontalDp * mDensity);
@@ -822,7 +728,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     public void requestDynamicFontUpdate() {
         post(this::applyDynamicFontAfterLayout);
     }
-
 
     /** Get {@link #mLongPressTimeout}. */
     public int getLongPressTimeout() {
@@ -852,7 +757,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
-
     /** Get {@link #mSpecialButtonMode}. */
     @NonNull
     public SpecialButtonMode getSpecialButtonMode() {
@@ -864,7 +768,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         mSpecialButtonMode = specialButtonMode;
     }
 
-
     /** Get the default map that can be used for {@link #mSpecialButtons}. */
     @NonNull
     public ArrayMap<SpecialButton, SpecialButtonState> getDefaultSpecialButtons(SpecialButtonStateOwner owner) {
@@ -875,8 +778,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         map.put(SpecialButton.FN, new SpecialButtonState(owner));
         return map;
     }
-
-
 
     /**
      * Reload this instance of {@link ExtraKeysView} with the info passed in {@code extraKeysInfo}.
@@ -1183,19 +1084,14 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
             }
         }
 
-        // The grid was just rebuilt, so any fit measured for the previous grid is void: it was taken
-        // for another cell size, which depends on the column/row count as much as on this view's own
-        // dimensions. Drop the record rather than measuring right here — this method runs from
-        // onConfigurationChanged(), i.e. before the window (and with it this view) has been laid out
-        // again, so a measurement taken now would divide the OLD width by the NEW column count. The
-        // rebuild has requested a layout, and the pass that answers it ends in onLayout(), which
-        // measures against the real size. The cached *value* is deliberately kept: it seeds the first
-        // frame's text size, so dropping it would only trade this bug for a visible jump.
+        // Drop the fit record (measured for the previous grid) rather than measuring here: this runs
+        // before the window has been re-laid out, so a measurement now would divide the OLD width by
+        // the NEW column count. onLayout() measures against the real size. The cached value itself is
+        // kept so the first frame does not jump.
         invalidateFittedFont();
 
-        // The grid on screen now matches the fold state it was built with. That — and not the
-        // requested flag — is what the next setLandscapeCompact() compares a new request against,
-        // so a later call can still tell "the window wants a folded panel, but this one is not".
+        // Record the fold state the grid on screen was built with; the next setLandscapeCompact()
+        // compares a new request against this, not against the requested flag.
         mBuiltCompactLandscape = mCompactLandscape;
         mBuiltCompactMode = mCompactMode;
         mBuiltGrid = true;
@@ -1233,10 +1129,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
             && mFittedFontHeight == getHeight();
     }
 
-
-
-
-
     public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
         if (mExtraKeysViewClient != null)
             mExtraKeysViewClient.onExtraKeyButtonClick(view, buttonInfo, button);
@@ -1249,7 +1141,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         if (!isGesture && mHapticMode == TermuxPropertyConstants.IVALUE_EXTRA_KEYS_HAPTIC_GESTURES) return;
 
         if (mExtraKeysViewClient != null) {
-            // If client handled the feedback, then just return
             if (mExtraKeysViewClient.performExtraKeyButtonHapticFeedback(view, buttonInfo, button))
                 return;
         }
@@ -1307,8 +1198,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
-
-
     public void onAnyExtraKeyButtonClick(View view, @NonNull ExtraKeyButton buttonInfo, MaterialButton button) {
         if (isSpecialButton(buttonInfo)) {
             if (mLongPressCount > 0) return;
@@ -1326,7 +1215,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
             onExtraKeyButtonClick(view, buttonInfo, button);
         }
     }
-
 
     public void startScheduledExecutors(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
         stopScheduledExecutors();
@@ -1423,16 +1311,11 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
 
         public void run() {
-            // Toggle active and lock state
             mState.setIsLocked(!mState.isActive);
             mState.setIsActive(!mState.isActive);
             mLongPressCount++;
         }
     }
-
-
-
-
 
     /** Check whether a {@link ExtraKeyButton} is a {@link SpecialButton}. */
     public boolean isSpecialButton(ExtraKeyButton button) {
@@ -1485,17 +1368,17 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         return tag instanceof ExtraKeyButton ? (ExtraKeyButton) tag : null;
     }
 
-    /**
-     * Create a MaterialButton configured with zero internal padding/insets.
-     * This ensures the text area equals the button area for accurate multi-line
-     * measurement. Boilerplate is defined once here instead of at every creation site.
-     */
     private String getDisplayTextForCurrentCapsMode(@Nullable String originalText) {
         if (originalText == null) return "";
         if (!mButtonTextAllCaps) return originalText;
         return originalText.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * Create a MaterialButton configured with zero internal padding/insets.
+     * This ensures the text area equals the button area for accurate multi-line
+     * measurement. Boilerplate is defined once here instead of at every creation site.
+     */
     static MaterialButton createDefaultMaterialButton(Context context) {
         MaterialButton button = new MaterialButton(context, null, android.R.attr.buttonBarButtonStyle);
         button.setPadding(0, 0, 0, 0);
@@ -1522,8 +1405,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
         return button;
     }
-
-
 
     @Nullable
     private static ExtraKeyButton getSwipeExtraKeyButton(ExtraKeyButton buttonInfo, SwipeDirection direction) {
@@ -1620,14 +1501,10 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Called via {@code post()} after a layout pass ({@link #onLayout(boolean, int, int, int, int)}),
-     * after {@link #reload(ExtraKeysInfo, float)}, or from one of the setters that changes an input of
-     * the fit. Measures the actual button width and picks a font size so that "WWWW"
-     * (four uppercase letters) fits in every multi-character button.
-     * Afterwards runs macro-text truncation.
-     *
-     * <p>Everything it reads — this view's size, the column/row count, the buttons — must belong to the
-     * same layout, which is why it is only ever reached from a post-layout point; see {@code onLayout()}.
+     * Called via {@code post()} after a layout pass, after {@link #reload(ExtraKeysInfo, float)},
+     * or from a setter that changes an input of the fit. Picks a font size so "WWWW" fits in every
+     * multi-character button, then runs macro-text truncation. Only reached from a post-layout
+     * point, because everything it reads must belong to the same layout (see {@code onLayout()}).
      */
     private void applyDynamicFontAfterLayout() {
         if (getWidth() <= 0 || getColumnCount() <= 0) {
@@ -1753,22 +1630,10 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Re-fit the button font after a layout pass, whenever the last fit no longer describes what was
-     * laid out.
-     *
-     * <p>This is the hook the fit was missing. Its inputs are split in two: the grid dimensions, which
-     * change the instant {@link #reload(ExtraKeysInfo, float)} calls {@code setColumnCount()}, and this
-     * view's own size, which only changes on a layout pass. A measurement taken between those two
-     * moments therefore divides the <em>old</em> width by the <em>new</em> column count — with the rows
-     * folded in landscape that is half a panel wide instead of a whole one, so the fit collapsed to its
-     * floor and, because the value it stored looked valid, nothing ever asked for another measurement.
-     * {@code onLayout()} is the first point at which both halves describe the same layout:
-     * {@code super.onLayout()} has just given every button its real bounds.
-     *
-     * <p>Posted rather than run inline, because setting a child's text size re-requests layout. The
-     * runnable runs after this pass, so it reads final bounds — and because it records what it measured
-     * ({@link #isFittedFontCurrent()}), the extra pass that the text-size change triggers costs one
-     * comparison instead of another measurement.
+     * First point at which the grid dimensions and this view's size describe the same layout: a
+     * measurement between {@code reload()} (which changes the column count) and this pass would
+     * divide the old width by the new column count. Posted rather than run inline because setting
+     * a child's text size re-requests layout; the runnable reads final bounds.
      */
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -1887,21 +1752,11 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
     }
 
     /**
-     * Draw swipe-direction edge indicators in runtime mode.
-     * <p>
-     * Each indicator is a thin STROKE path inset from the child's edge by
-     * {@code halfThick}, so the outer edge of the stroke exactly aligns with
-     * the child boundary (no protrusion into the margin gap). Uses the same
-     * arc-path geometry as the editor dispatchDraw code.
-     * <p>
-     * Color per edge:
-     *   inactive → luminance-shifted variant of {@link #mButtonBackgroundColor}
-     *              (subtle contrast, always visible on the button face)
-     *   active   → {@link #mButtonActiveBackgroundColor}
-     *              (prominent highlight when the gesture fires)
-     * <p>
-     * Active when: the gesture swiped on THIS button matches this direction,
-     * OR the swipe target is a modifier in active/locked state.
+     * Draw swipe-direction edge indicators in runtime mode: a thin STROKE path inset so the outer
+     * stroke edge aligns with the child boundary (same geometry as the editor {@code dispatchDraw}).
+     * Inactive edges use a luminance-shifted {@link #mButtonBackgroundColor}; active edges use
+     * {@link #mButtonActiveBackgroundColor}. An edge is active when the gesture swiped on this
+     * button in its direction, or the swipe target is a modifier in active/locked state.
      */
     private void drawRuntimeEdgeIndicators(Canvas canvas) {
         if (!mRuntimeEdgeIndicatorsEnabled) return;
@@ -2335,9 +2190,6 @@ public final class ExtraKeysView extends GridLayout implements SpecialButtonStat
         }
     }
 
-    /**
-     * General util function to compute the longest column length in a matrix.
-     */
     public static int maximumLength(Object[][] matrix) {
         int m = 0;
         for (Object[] row : matrix)

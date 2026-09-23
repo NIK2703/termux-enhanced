@@ -253,7 +253,6 @@ public class ReportActivity extends AppCompatActivity {
             finish(); return;
         }
 
-
         final ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
             if (mReportInfo.reportTitle != null)
@@ -261,7 +260,6 @@ public class ReportActivity extends AppCompatActivity {
             else
                 actionBar.setTitle(TermuxConstants.TERMUX_APP_NAME + " App Report");
         }
-
 
         RecyclerView recyclerView = findViewById(R.id.recycler_view);
 
@@ -271,8 +269,6 @@ public class ReportActivity extends AppCompatActivity {
             .include(FencedCodeBlock.class, SimpleEntry.create(R.layout.markdown_adapter_node_code_block, R.id.code_text_view))
             .build();
 
-        // The host app's action buttons are the first items of the report list, so they sit at the
-        // very top of the report and scroll away with it (see ReportListAdapter).
         mReportListAdapter = new ReportListAdapter(adapter);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -286,8 +282,8 @@ public class ReportActivity extends AppCompatActivity {
     }
 
     /**
-     * Hand the host app's action buttons to the list, which shows them as its first items — at the
-     * very top of the report and scrolling away with it, rather than pinned under the toolbar.
+     * Hand the host app's action buttons to the list, which shows them as its first items
+     * (see {@link ReportListAdapter}).
      */
     private void setupReportActions() {
         if (mReportListAdapter == null) return;
@@ -309,9 +305,9 @@ public class ReportActivity extends AppCompatActivity {
     }
 
     /**
-     * Build one outlined action button, coloured from the app day/night theme rather than from the
-     * button style defaults — this keeps the theme's red {@code colorPrimary} (which the rest of
-     * this screen deliberately avoids) out of the buttons and guarantees readable text in both modes.
+     * Build one outlined action button, coloured from the app day/night theme rather than the
+     * button style defaults — keeps the theme's red colorPrimary (avoided elsewhere on this screen)
+     * out of the buttons and guarantees readable text in both modes.
      */
     private MaterialButton createReportActionButton() {
         final boolean night = (getResources().getConfiguration().uiMode
@@ -346,11 +342,9 @@ public class ReportActivity extends AppCompatActivity {
 
     /**
      * Wraps the markdown adapter so the host app's action buttons become the report list's FIRST
-     * items: they then sit at the very top of the report and scroll away with it, instead of being
-     * pinned under the toolbar.
-     *
-     * <p>This is what {@code ConcatAdapter} does, but this module compiles against RecyclerView
-     * 1.1.0, which does not have it yet, so the one-item header is prepended by hand.
+     * items: they sit at the very top of the report and scroll away with it, rather than being
+     * pinned under the toolbar. This is what {@code ConcatAdapter} does, but this module compiles
+     * against RecyclerView 1.1.0, which does not have it yet, so the header is prepended by hand.
      */
     private final class ReportListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -433,7 +427,6 @@ public class ReportActivity extends AppCompatActivity {
         }
 
     }
-
 
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
@@ -519,9 +512,6 @@ public class ReportActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * Generate the markdown {@link String} to be shown in {@link ReportActivity}.
-     */
     private void generateReportActivityMarkdownString() {
         // We need to reduce chances of OutOfMemoryError happening so reduce new allocations and
         // do not keep output of getReportInfoMarkdownString in memory
@@ -561,10 +551,6 @@ public class ReportActivity extends AppCompatActivity {
 
     }
 
-
-
-
-
     public static class NewInstanceResult {
         /** An intent that can be used to start the {@link ReportActivity}. */
         public Intent contentIntent;
@@ -595,13 +581,10 @@ public class ReportActivity extends AppCompatActivity {
      * Get content and delete intents for the {@link ReportActivity} that can be used to start it
      * and do cleanup.
      *
-     * If {@link ReportInfo} size is too large, then a TransactionTooLargeException will be thrown
-     * so its object may be saved to a file in the {@link Context#getCacheDir()}. Then when activity
-     * starts, its read back and the file is deleted in {@link #onDestroy()}.
-     * Note that files may still be left if {@link #onDestroy()} is not called or doesn't finish.
-     * A separate cleanup routine is implemented from that case by
-     * {@link #deleteReportInfoFilesOlderThanXDays(Context, int, boolean)} which should be called
-     * incrementally or at app startup.
+     * If {@link ReportInfo} is too large for a Bundle (TransactionTooLargeException), its object is
+     * written to a file in {@link Context#getCacheDir()}, read back on start, and deleted in
+     * {@link #onDestroy()}. If that never runs, sweep leftovers with
+     * {@link #deleteReportInfoFilesOlderThanXDays(Context, int, boolean)} at app startup.
      *
      * @param context The {@link Context} for operations.
      * @param reportInfo The {@link ReportInfo} containing info that needs to be displayed.
@@ -649,7 +632,6 @@ public class ReportActivity extends AppCompatActivity {
         return intent;
     }
 
-
     private static Intent createDeleteIntent(@NonNull final Context context, final String reportInfoFilePath) {
         if (reportInfoFilePath == null) return null;
 
@@ -662,10 +644,6 @@ public class ReportActivity extends AppCompatActivity {
 
         return intent;
     }
-
-
-
-
 
     @NotNull
     private static String getReportInfoDirectoryPath(Context context) {
@@ -691,19 +669,15 @@ public class ReportActivity extends AppCompatActivity {
     }
 
     /**
-     * Delete {@link ReportInfo} serialized object files from cache older than x days. If a notification
-     * has still not been opened after x days that's using a PendingIntent to ReportActivity, then
-     * opening the notification will throw a file not found error, so choose days value appropriately
-     * or check if a notification is still active if tracking notification ids.
-     * The {@link Context} object passed must be of the same package with which {@link #newInstance(Context, ReportInfo)}
-     * was called since a call to {@link Context#getCacheDir()} is made.
+     * Delete {@link ReportInfo} serialized object files from cache older than x days. If a
+     * notification has still not been opened after x days, opening it will throw a file-not-found
+     * error — choose the days value accordingly. The {@link Context} must be of the same package
+     * {@link #newInstance(Context, ReportInfo)} was called with ({@link Context#getCacheDir()}).
      *
      * @param context The {@link Context} for operations.
      * @param days The x amount of days before which files should be deleted. This must be `>=0`.
-     * @param isSynchronous If set to {@code true}, then the command will be executed in the
-     *                      caller thread and results returned synchronously.
-     *                      If set to {@code false}, then a new thread is started run the commands
-     *                      asynchronously in the background and control is returned to the caller thread.
+     * @param isSynchronous If {@code true}, run on the caller thread and return the result;
+     *                      otherwise start a background thread, log any error and return null.
      * @return Returns the {@code error} if deleting was not successful, otherwise {@code null}.
      */
     public static Error deleteReportInfoFilesOlderThanXDays(@NonNull final Context context, int days, final boolean isSynchronous) {
@@ -726,7 +700,6 @@ public class ReportActivity extends AppCompatActivity {
         Logger.logVerbose(LOG_TAG, "Deleting " + ReportInfo.class.getSimpleName() + " serialized object files under directory path \"" + reportInfoDirectoryPath + "\" older than " + days + " days");
         return FileUtils.deleteFilesOlderThanXDays(ReportInfo.class.getSimpleName(), reportInfoDirectoryPath, null, days, true, FileType.REGULAR.getValue());
     }
-
 
     /**
      * Implemented by the host app to add custom action buttons to report screens — e.g. the
@@ -772,7 +745,6 @@ public class ReportActivity extends AppCompatActivity {
                                           int requestCode, int resultCode, @Nullable Intent data);
 
     }
-
 
     /**
      * The {@link BroadcastReceiver} for {@link ReportActivity} that currently does cleanup when

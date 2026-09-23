@@ -39,7 +39,6 @@ DEAD_COMMENT_MARKERS = [
     "Bubble key row.",
 ]
 
-
 def patch(locale: str) -> str:
     path = os.path.join(BASE, locale, "strings.xml")
     if not os.path.isfile(path):
@@ -79,7 +78,6 @@ def patch(locale: str) -> str:
         handle.write("\n".join(kept))
     return f"OK    {locale}: removed {removed} line(s)"
 
-
 def main() -> int:
     if not os.path.isdir(BASE):
         print(f"Run this from the repo root; {BASE} not found", file=sys.stderr)
@@ -90,7 +88,6 @@ def main() -> int:
             if os.path.isfile(os.path.join(BASE, locale, "strings.xml")):
                 print(patch(locale))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

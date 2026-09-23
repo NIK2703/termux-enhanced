@@ -14,14 +14,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * A {@link Class} that defines the info needed by {@link ExtraKeysView} to display the extra key
- * views.
+ * Info needed by {@link ExtraKeysView} to display the extra key views.
  *
- * The {@code propertiesInfo} passed to the constructors of this class must be json array of arrays.
+ * The {@code propertiesInfo} passed to the constructors of this class must be a JSON array of arrays.
  * Each array element of the json array will be considered a separate row of keys.
  * Each key can either be simple string that defines the name of the key or a json dict that defines
  * advance info for the key. The syntax can be `'KEY'` or `{key: 'KEY'}`.
- * For example `HOME` or `{key: 'HOME', ...}.
+ * For example `HOME` or `{key: 'HOME', ...}`.
  *
  * In advance json dict mode, the key can also be a sequence of space separated keys instead of one
  * key. This can be done by replacing `key` key/value pair of the dict with a `macro` key/value pair.
@@ -88,23 +87,14 @@ import org.json.JSONObject;
  */
 public class ExtraKeysInfo {
 
-    /**
-     * Matrix of buttons to be displayed in {@link ExtraKeysView}.
-     */
     private final ExtraKeyButton[][] mButtons;
 
     /**
-     * Initialize {@link ExtraKeysInfo}.
-     *
-     * @param propertiesInfo The {@link String} containing the info to create the {@link ExtraKeysInfo}.
-     *                       Check the class javadoc for details.
-     * @param style The style to pass to {@link #getCharDisplayMapForStyle(String)} to get the
-     *              {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the display text
-     *              mapping for the keys if a custom value is not defined by
-     *              {@link ExtraKeyButton#KEY_DISPLAY_NAME} for a key.
-     * @param extraKeyAliasMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           aliases for the actual key names. You can create your own or
-     *                           optionally pass {@link ExtraKeysConstants#CONTROL_CHARS_ALIASES}.
+     * @param propertiesInfo JSON matrix; see the class javadoc.
+     * @param style style for {@link #getCharDisplayMapForStyle(String)} (display fallback when
+     *              the key has no explicit {@link ExtraKeyButton#KEY_DISPLAY_NAME}).
+     * @param extraKeyAliasMap alias map for actual key names, e.g.
+     *                         {@link ExtraKeysConstants#CONTROL_CHARS_ALIASES}.
      */
     public ExtraKeysInfo(@NonNull String propertiesInfo, String style,
                          @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyAliasMap) throws JSONException {
@@ -112,18 +102,12 @@ public class ExtraKeysInfo {
     }
 
     /**
-     * Initialize {@link ExtraKeysInfo}.
-     *
-     * @param propertiesInfo The {@link String} containing the info to create the {@link ExtraKeysInfo}.
-     *                       Check the class javadoc for details.
-     * @param extraKeyDisplayMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           display text mapping for the keys if a custom value is not defined
-     *                           by {@link ExtraKeyButton#KEY_DISPLAY_NAME} for a key. You can create
-     *                           your own or optionally pass one of the values defined in
+     * @param propertiesInfo JSON matrix; see the class javadoc.
+     * @param extraKeyDisplayMap display text map for keys without an explicit
+     *                           {@link ExtraKeyButton#KEY_DISPLAY_NAME}; see
      *                           {@link #getCharDisplayMapForStyle(String)}.
-     * @param extraKeyAliasMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           aliases for the actual key names. You can create your own or
-     *                           optionally pass {@link ExtraKeysConstants#CONTROL_CHARS_ALIASES}.
+     * @param extraKeyAliasMap alias map for actual key names, e.g.
+     *                         {@link ExtraKeysConstants#CONTROL_CHARS_ALIASES}.
      */
     public ExtraKeysInfo(@NonNull String propertiesInfo,
                          @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyDisplayMap,

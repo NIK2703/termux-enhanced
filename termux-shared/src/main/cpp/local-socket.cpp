@@ -18,7 +18,6 @@
 
 using namespace std;
 
-/* Convert a jstring to a std:string. */
 string jstring_to_stdstr(JNIEnv *env, jstring jString) {
     jclass stringClass = env->FindClass("java/lang/String");
     jmethodID getBytes = env->GetMethodID(stringClass, "getBytes", "()[B");
@@ -30,7 +29,6 @@ string jstring_to_stdstr(JNIEnv *env, jstring jString) {
     return stdString;
 }
 
-/* Get characters before first occurrence of the delim in a std:string. */
 string get_string_till_first_delim(string str, char delim) {
     if (!str.empty()) {
         stringstream cmdline_args(str);
@@ -41,7 +39,6 @@ string get_string_till_first_delim(string str, char delim) {
     return "";
 }
 
-/* Replace `\0` values with spaces in a std:string. */
 string replace_null_with_space(string str) {
     if (str.empty())
         return "";
@@ -61,7 +58,6 @@ string replace_null_with_space(string str) {
     return str_spaced;
 }
 
-/* Get class name of a jclazz object with a call to `Class.getName()`. */
 string get_class_name(JNIEnv *env, jclass clazz) {
     jclass classClass = env->FindClass("java/lang/Class");
     jmethodID getName = env->GetMethodID(classClass, "getName", "()Ljava/lang/String;");
@@ -91,39 +87,32 @@ string get_process_cmdline(const pid_t pid) {
     return cmdline;
 }
 
-/* Extract process name from /proc/[pid]/cmdline value of a process. */
 string get_process_name_from_cmdline(string cmdline) {
     return get_string_till_first_delim(cmdline, '\0');
 }
 
-/* Replace `\0` values with spaces in /proc/[pid]/cmdline value of a process. */
 string get_process_cmdline_spaced(string cmdline) {
     return replace_null_with_space(cmdline);
 }
 
-/* Send an ERROR log message to android logcat. */
 void log_error(string message) {
     __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, message.c_str());
 }
 
-/* Send an WARN log message to android logcat. */
 void log_warn(string message) {
     __android_log_write(ANDROID_LOG_WARN, LOG_TAG, message.c_str());
 }
 
-/* Get "title: message" formatted string. */
 string get_title_and_message(JNIEnv *env, jstring title, string message) {
     if (title)
         message = jstring_to_stdstr(env, title) + ": " + message;
     return message;
 }
 
-/* Convert timespec to milliseconds. */
 int64_t timespec_to_milliseconds(const struct timespec *const time) {
     return (((int64_t)time->tv_sec) * 1000) + (((int64_t)time->tv_nsec) / 1000000);
 }
 
-/* Convert milliseconds to timeval. */
 timeval milliseconds_to_timeval(int milliseconds) {
     struct timeval tv = {};
     tv.tv_sec = milliseconds / 1000;
@@ -154,7 +143,7 @@ string getJniResultString(const int retvalParam, const int errnoParam,
            ", errmsg=\"" + errmsgParam + "\"" + ", intData=" + to_string(intDataParam);
 }
 
-/* Get "com/termux/shared/jni/models/JniResult" object that can be returned as result for a JNI call. */
+/* Build a JniResult for the given retval/errno/errmsg/intData. */
 jobject getJniResult(JNIEnv *env, jstring title, const int retvalParam, const int errnoParam,
                      string errmsgParam, const int intDataParam) {
     jclass clazz = env->FindClass("com/termux/shared/jni/models/JniResult");
@@ -210,7 +199,6 @@ jobject getJniResult(JNIEnv *env, jstring title) {
     return getJniResult(env, title, 0, 0, "", 0);
 }
 
-/* Set int fieldName field for clazz to value. */
 string setIntField(JNIEnv *env, jobject obj, jclass clazz, const string fieldName, const int value) {
     jfieldID field = env->GetFieldID(clazz, fieldName.c_str(), "I");
     if (checkJniException(env)) return JNI_EXCEPTION;
@@ -225,7 +213,6 @@ string setIntField(JNIEnv *env, jobject obj, jclass clazz, const string fieldNam
     return "";
 }
 
-/* Set String fieldName field for clazz to value. */
 string setStringField(JNIEnv *env, jobject obj, jclass clazz, const string fieldName, const string value) {
     jfieldID field = env->GetFieldID(clazz, fieldName.c_str(), "Ljava/lang/String;");
     if (checkJniException(env)) return JNI_EXCEPTION;
@@ -249,7 +236,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_createServerSocketNat
         return getJniResult(env, logTitle, -1, "createServerSocketNative(): Backlog \"" + to_string(backlog) + "\" is not between 1-500");
     }
 
-    // Create server socket
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) {
         return getJniResult(env, logTitle, -1, errno, "createServerSocketNative(): Create local socket failed");
@@ -275,7 +261,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_createServerSocketNat
     struct sockaddr_un adr = {.sun_family = AF_UNIX};
     memcpy(&adr.sun_path, path, chars);
 
-    // Bind path to server socket
     if (::bind(fd, reinterpret_cast<struct sockaddr *>(&adr), sizeof(adr)) == -1) {
         int errnoBackup = errno;
         env->ReleaseByteArrayElements(pathArray, path, JNI_ABORT);
@@ -285,7 +270,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_createServerSocketNat
                             "createServerSocketNative(): Bind to local socket at path \"" + string(adr.sun_path) + "\" with fd " + to_string(fd) + " failed");
     }
 
-    // Start listening for client sockets on server socket
+    // Listen for client sockets
     if (listen(fd, backlog) == -1) {
         int errnoBackup = errno;
         env->ReleaseByteArrayElements(pathArray, path, JNI_ABORT);
@@ -298,7 +283,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_createServerSocketNat
     env->ReleaseByteArrayElements(pathArray, path, JNI_ABORT);
     if (checkJniException(env)) return NULL;
 
-    // Return success and server socket fd in JniResult.intData field
     return getJniResult(env, logTitle, fd);
 }
 
@@ -313,7 +297,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_closeSocketNative(JNI
         return getJniResult(env, logTitle, -1, errno, "closeSocketNative(): Failed to close socket fd " + to_string(fd));
     }
 
-    // Return success
     return getJniResult(env, logTitle);
 }
 
@@ -324,13 +307,11 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_acceptNative(JNIEnv *
         return getJniResult(env, logTitle, -1, "acceptNative(): Invalid fd \"" + to_string(fd) + "\" passed");
     }
 
-    // Accept client socket
     int clientFd = accept(fd, nullptr, nullptr);
     if (clientFd == -1) {
         return getJniResult(env, logTitle, -1, errno, "acceptNative(): Failed to accept client on fd " + to_string(fd));
     }
 
-    // Return success and client socket fd in JniResult.intData field
     return getJniResult(env, logTitle, clientFd);
 }
 
@@ -357,7 +338,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_readNative(JNIEnv *en
     while (bytesRead < bytes) {
         if (deadline > 0) {
             if (clock_gettime(CLOCK_REALTIME, &time) != -1) {
-                // If current time is greater than the time defined in deadline
+                // Deadline exceeded
                 if (timespec_to_milliseconds(&time) > deadline) {
                     env->ReleaseByteArrayElements(dataArray, data, 0);
                     if (checkJniException(env)) return NULL;
@@ -371,7 +352,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_readNative(JNIEnv *en
             }
         }
 
-        // Read data from socket
         int ret = read(fd, current, bytes);
         if (ret == -1) {
             int errnoBackup = errno;
@@ -391,7 +371,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_readNative(JNIEnv *en
     env->ReleaseByteArrayElements(dataArray, data, 0);
     if (checkJniException(env)) return NULL;
 
-    // Return success and bytes read in JniResult.intData field
     return getJniResult(env, logTitle, bytesRead);
 }
 
@@ -417,7 +396,7 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_sendNative(JNIEnv *en
     while (bytes > 0) {
         if (deadline > 0) {
             if (clock_gettime(CLOCK_REALTIME, &time) != -1) {
-                // If current time is greater than the time defined in deadline
+                // Deadline exceeded
                 if (timespec_to_milliseconds(&time) > deadline) {
                     env->ReleaseByteArrayElements(dataArray, data, JNI_ABORT);
                     if (checkJniException(env)) return NULL;
@@ -431,7 +410,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_sendNative(JNIEnv *en
             }
         }
 
-        // Send data to socket
         int ret = send(fd, current, bytes, MSG_NOSIGNAL);
         if (ret == -1) {
             int errnoBackup = errno;
@@ -447,7 +425,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_sendNative(JNIEnv *en
     env->ReleaseByteArrayElements(dataArray, data, JNI_ABORT);
     if (checkJniException(env)) return NULL;
 
-    // Return success
     return getJniResult(env, logTitle);
 }
 
@@ -464,11 +441,9 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_availableNative(JNIEn
                             "availableNative(): Failed to get number of unread bytes in the receive buffer of fd " + to_string(fd));
     }
 
-    // Return success and bytes available in JniResult.intData field
     return getJniResult(env, logTitle, available);
 }
 
-/* Sets socket option timeout in milliseconds. */
 int set_socket_timeout(int fd, int option, int timeout) {
     struct timeval tv = milliseconds_to_timeval(timeout);
     socklen_t len = sizeof(tv);
@@ -488,7 +463,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_setSocketReadTimeoutN
                             "setSocketReadTimeoutNative(): Failed to set socket receiving (SO_RCVTIMEO) timeout for fd " + to_string(fd));
     }
 
-    // Return success
     return getJniResult(env, logTitle);
 }
 
@@ -505,7 +479,6 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_setSocketSendTimeoutN
                             "setSocketSendTimeoutNative(): Failed to set socket sending (SO_SNDTIMEO) timeout for fd " + to_string(fd));
     }
 
-    // Return success
     return getJniResult(env, logTitle);
 }
 
@@ -521,7 +494,8 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_getPeerCredNative(JNI
         return getJniResult(env, logTitle, -1, "getPeerCredNative(): peerCred passed is null");
     }
 
-    // Initialize to -1 instead of 0 in case a failed getsockopt() call somehow doesn't report failure and returns the uid of root
+    // Initialize to -1 instead of 0 in case a failed getsockopt() somehow reports success
+    // and returns the uid of root
     struct ucred cred = {};
     cred.pid = -1;
     cred.uid = -1;
@@ -533,10 +507,8 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_getPeerCredNative(JNI
         return getJniResult(env, logTitle, -1, errno, "getPeerCredNative(): Failed to get peer credentials for fd " + to_string(fd));
     }
 
-    // Fill "com.termux.shared.net.socket.local.PeerCred" object.
-    // The pid, uid and gid will always be set based on ucred.
-    // The pname and cmdline will only be set if current process has access to "/proc/[pid]/cmdline"
-    // of peer process. Processes of other users/apps are not normally accessible.
+    // Fill PeerCred: pid/uid/gid always; pname/cmdline only if this process can read
+    // /proc/[pid]/cmdline of the peer (other users' processes normally cannot).
     jclass peerCredClazz = env->GetObjectClass(peerCred);
     if (checkJniException(env)) return NULL;
     if (!peerCredClazz) {
@@ -578,6 +550,5 @@ Java_com_termux_shared_net_socket_local_LocalSocketManager_getPeerCredNative(JNI
         }
     }
 
-    // Return success since PeerCred was filled successfully
     return getJniResult(env, logTitle);
 }

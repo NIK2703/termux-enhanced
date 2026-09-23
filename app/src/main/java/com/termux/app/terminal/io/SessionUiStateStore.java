@@ -45,7 +45,6 @@ public final class SessionUiStateStore {
     public static final String ARG_SCROLL_ROWS_PER_SESSION = "scroll_rows_per_session";
     public static final String ARG_SOFT_KEYBOARD_VISIBLE = "soft_keyboard_visible";
     public static final String ARG_ACTIVE_SESSION_INDEX = "active_session_index";
-    // New keys.
     public static final String ARG_KB_INTENT_PER_SESSION = "kb_intent_per_session";
 
     /** Hard cap for stored per-session input text so Bundle/JSON can never explode. */
@@ -334,10 +333,8 @@ public final class SessionUiStateStore {
     }
 
     public void saveToBundle(@NonNull Bundle outState) {
-        // Each per-category Bundle is allocated LAZILY, on the first value that actually needs it.
-        // The previous version created all seven up front even when every one of them stayed empty
-        // (cold start, or a session whose only recorded state is the default) — seven allocations
-        // plus seven isEmpty() checks per recreation for nothing.
+        // Per-category Bundles are allocated lazily, on the first value that needs one —
+        // up front they would mostly be empty (cold start / default-only sessions).
         Bundle textBundle = null;
         Bundle visBundle = null;
         Bundle focusBundle = null;
@@ -357,11 +354,9 @@ public final class SessionUiStateStore {
                 if (visBundle == null) visBundle = new Bundle();
                 visBundle.putBoolean(key, s.panelVisible);
             }
-            // Only a TRUE focus is written. {@code SessionUiState.focusOnInput} defaults to false
-            // and restoreFromBundle() reads it with getBoolean(key) — which also yields false for a
-            // missing key — so dropping the false entries is behaviourally identical while keeping
-            // the bundle from carrying one entry per session for the overwhelmingly common
-            // "focus is on the terminal" case.
+            // Only TRUE focus is stored: focusOnInput defaults to false and restore reads
+            // getBoolean(key) (false for a missing key), so dropping false entries is
+            // behaviourally identical and avoids one entry per session for the common case.
             if (s.focusOnInput) {
                 if (focusBundle == null) focusBundle = new Bundle();
                 focusBundle.putBoolean(key, true);
@@ -410,11 +405,7 @@ public final class SessionUiStateStore {
             JSONObject root = new JSONObject();
             root.put("version", 1);
             root.put("activeIndex", activeIndex);
-            // NOTE: panel visibility, panel focus and the keyboard intents are
-            // deliberately NOT persisted — they are RAM-only (L1) by design and
-            // must not survive the app. A fresh run starts with closed panels and
-            // the platform-default keyboard state.
-
+            // Panel visibility/focus and keyboard intents are RAM-only (not persisted).
             JSONArray arr = new JSONArray();
             for (TerminalSession session : sessionsInOrder) {
                 SessionUiState s = (session != null) ? mStates.get(session.mHandle) : null;
@@ -446,10 +437,7 @@ public final class SessionUiStateStore {
         try {
             JSONObject root = new JSONObject(json);
             mImportedActiveIndex = root.optInt("activeIndex", -1);
-            // NOTE: keyboardVisible / panelVisible / hasPanelVisible / focusOnInput /
-            // "kb" are NOT read back: those states are RAM-only and must not survive
-            // the app. Old JSON files may still carry the keys — they are ignored.
-
+            // Panel/focus/keyboard keys are RAM-only and not read back (old JSON may carry them).
             JSONArray arr = root.optJSONArray("sessions");
             if (arr == null) return;
             int n = Math.min(arr.length(), sessionsInOrder.size());

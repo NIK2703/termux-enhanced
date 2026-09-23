@@ -29,7 +29,6 @@ public final class TermuxColorSchemeManager {
     private int mSchemeBackground = 0;
     private int mSchemeForeground = 0;
 
-
     // --- Derived surfaces ---
     private int mHeaderBackground = 0;   // scheme bg + inactive overlay
     private int mDividerColor = 0;       // scheme fg @ ~20%
@@ -45,7 +44,7 @@ public final class TermuxColorSchemeManager {
     /**
      * (Re)compute ALL cached colours from the scheme and panel alpha percentages.
      *
-     * @param prefs The app preferences (used to read button alpha percentages).
+     * @param prefs app preferences (button alpha percentages).
      */
     public void recompute(@NonNull TermuxAppSharedPreferences prefs) {
         recompute(prefs.getButtonBgInactiveAlpha(), prefs.getButtonBgActiveAlpha());

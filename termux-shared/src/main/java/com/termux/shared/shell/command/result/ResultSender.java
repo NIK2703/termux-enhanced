@@ -26,14 +26,10 @@ public class ResultSender {
      * {@link ResultConfig#resultDirectoryPath}. If both are not {@code null}, then result will be
      * sent via both.
      *
-     * @param context The {@link Context} for operations.
-     * @param logTag The log tag to use for logging.
-     * @param label The label for the command.
-     * @param resultConfig The {@link ResultConfig} object containing information on how to send the result.
-     * @param resultData The {@link ResultData} object containing result data.
-     * @param logStdoutAndStderr Set to {@code true} if {@link ResultData#stdout} and {@link ResultData#stderr}
-     *                           should be logged.
-     * @return Returns the {@link Error} if failed to send the result, otherwise {@code null}.
+     * @param resultConfig how to send the result.
+     * @param resultData the result data.
+     * @param logStdoutAndStderr whether {@link ResultData#stdout} and {@link ResultData#stderr} should be logged.
+     * @return the {@link Error} if failed to send the result, otherwise {@code null}.
      */
     public static Error sendCommandResultData(Context context, String logTag, String label, ResultConfig resultConfig, ResultData resultData, boolean logStdoutAndStderr) {
         if (context == null || resultConfig == null || resultData == null)
@@ -57,14 +53,10 @@ public class ResultSender {
     /**
      * Send result stored in {@link ResultConfig} to command caller via {@link ResultConfig#resultPendingIntent}.
      *
-     * @param context The {@link Context} for operations.
-     * @param logTag The log tag to use for logging.
-     * @param label The label for the command.
-     * @param resultConfig The {@link ResultConfig} object containing information on how to send the result.
-     * @param resultData The {@link ResultData} object containing result data.
-     * @param logStdoutAndStderr Set to {@code true} if {@link ResultData#stdout} and {@link ResultData#stderr}
-     *                           should be logged.
-     * @return Returns the {@link Error} if failed to send the result, otherwise {@code null}.
+     * @param resultConfig how to send the result.
+     * @param resultData the result data.
+     * @param logStdoutAndStderr whether {@link ResultData#stdout} and {@link ResultData#stderr} should be logged.
+     * @return the {@link Error} if failed to send the result, otherwise {@code null}.
      */
     public static Error sendCommandResultDataWithPendingIntent(Context context, String logTag, String label, ResultConfig resultConfig, ResultData resultData, boolean logStdoutAndStderr) {
         if (context == null || resultConfig == null || resultData == null || resultConfig.resultPendingIntent == null || resultConfig.resultBundleKey == null)
@@ -83,7 +75,7 @@ public class ResultSender {
         String stdoutOriginalLength = String.valueOf(resultDataStdout.length());
         String stderrOriginalLength = String.valueOf(resultDataStderr.length());
 
-        // Truncate stdout and stdout to max TRANSACTION_SIZE_LIMIT_IN_BYTES
+        // Truncate stdout and stderr to max TRANSACTION_SIZE_LIMIT_IN_BYTES
         if (resultDataStderr.isEmpty()) {
             truncatedStdout = DataUtils.getTruncatedCommandOutput(resultDataStdout, DataUtils.TRANSACTION_SIZE_LIMIT_IN_BYTES, false, false, false);
         } else if (resultDataStdout.isEmpty()) {
@@ -119,7 +111,6 @@ public class ResultSender {
             resultDataErrmsg = truncatedErrmsg;
         }
 
-
         final Bundle resultBundle = new Bundle();
         resultBundle.putString(resultConfig.resultStdoutKey, resultDataStdout);
         resultBundle.putString(resultConfig.resultStdoutOriginalLengthKey, stdoutOriginalLength);
@@ -148,14 +139,10 @@ public class ResultSender {
      * Send result stored in {@link ResultConfig} to command caller by writing it to files in
      * {@link ResultConfig#resultDirectoryPath}.
      *
-     * @param context The {@link Context} for operations.
-     * @param logTag The log tag to use for logging.
-     * @param label The label for the command.
-     * @param resultConfig The {@link ResultConfig} object containing information on how to send the result.
-     * @param resultData The {@link ResultData} object containing result data.
-     * @param logStdoutAndStderr Set to {@code true} if {@link ResultData#stdout} and {@link ResultData#stderr}
-     *                           should be logged.
-     * @return Returns the {@link Error} if failed to send the result, otherwise {@code null}.
+     * @param resultConfig how to send the result.
+     * @param resultData the result data.
+     * @param logStdoutAndStderr whether {@link ResultData#stdout} and {@link ResultData#stderr} should be logged.
+     * @return the {@link Error} if failed to send the result, otherwise {@code null}.
      */
     public static Error sendCommandResultDataToDirectory(Context context, String logTag, String label, ResultConfig resultConfig, ResultData resultData, boolean logStdoutAndStderr) {
         if (context == null || resultConfig == null || resultData == null || DataUtils.isNullOrEmpty(resultConfig.resultDirectoryPath))
@@ -197,7 +184,6 @@ public class ResultSender {
         }
 
         if (resultConfig.resultSingleFile) {
-            // If resultFileBasename is null, empty or contains forward slashes "/"
             if (DataUtils.isNullOrEmpty(resultConfig.resultFileBasename) ||
                     resultConfig.resultFileBasename.contains("/")) {
                 error = ResultSenderErrno.ERROR_RESULT_FILE_BASENAME_NULL_OR_INVALID.getError(resultConfig.resultFileBasename);
@@ -247,8 +233,7 @@ public class ResultSender {
                 }
             }
 
-            // Write error or output to temp file
-            // Check errCode file creation below for explanation for why temp file is used
+            // Temp file first: see the errCode note below вЂ” a partial read of the final file is worse.
             String temp_filename = resultConfig.resultFileBasename + "-" + AndroidUtils.getCurrentMilliSecondLocalTimeStamp();
             error = FileUtils.writeTextToFile(temp_filename, resultConfig.resultDirectoryPath + "/" + temp_filename,
                 null, error_or_output, false);
@@ -269,15 +254,11 @@ public class ResultSender {
             if (resultConfig.resultFilesSuffix == null)
                 resultConfig.resultFilesSuffix = "";
 
-            // If resultFilesSuffix contains forward slashes "/"
             if (resultConfig.resultFilesSuffix.contains("/")) {
                 error = ResultSenderErrno.ERROR_RESULT_FILES_SUFFIX_INVALID.getError(resultConfig.resultFilesSuffix);
                 return error;
             }
 
-            // Write result to result files under resultDirectoryPath
-
-            // Write stdout to file
             if (!resultDataStdout.isEmpty()) {
                 filename = RESULT_SENDER.RESULT_FILE_STDOUT_PREFIX + resultConfig.resultFilesSuffix;
                 error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
@@ -287,7 +268,6 @@ public class ResultSender {
                 }
             }
 
-            // Write stderr to file
             if (!resultDataStderr.isEmpty()) {
                 filename = RESULT_SENDER.RESULT_FILE_STDERR_PREFIX + resultConfig.resultFilesSuffix;
                 error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
@@ -297,7 +277,6 @@ public class ResultSender {
                 }
             }
 
-            // Write exitCode to file
             if (!resultDataExitCode.isEmpty()) {
                 filename = RESULT_SENDER.RESULT_FILE_EXIT_CODE_PREFIX + resultConfig.resultFilesSuffix;
                 error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,
@@ -307,7 +286,6 @@ public class ResultSender {
                 }
             }
 
-            // Write errmsg to file
             if (resultData.isStateFailed() && !resultDataErrmsg.isEmpty()) {
                 filename = RESULT_SENDER.RESULT_FILE_ERRMSG_PREFIX + resultConfig.resultFilesSuffix;
                 error = FileUtils.writeTextToFile(filename, resultConfig.resultDirectoryPath + "/" + filename,

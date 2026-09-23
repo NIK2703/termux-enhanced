@@ -10,9 +10,6 @@ import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 
 
-/**
- * Run config for {@link LocalSocketManager}.
- */
 public class LocalSocketRunConfig implements Serializable {
 
     /** The {@link LocalSocketManager} title. */
@@ -29,11 +26,7 @@ public class LocalSocketRunConfig implements Serializable {
      *
      * For an abstract namespace socket, the first byte must be a null `\0` character. Note that on
      * Android 9+, if server app is using `targetSdkVersion` `28`, then other apps will not be able
-     * to connect to it due to selinux restrictions.
-     * > Per-app SELinux domains
-     * > Apps that target Android 9 or higher cannot share data with other apps using world-accessible
-     * Unix permissions. This change improves the integrity of the Android Application Sandbox,
-     * particularly the requirement that an app's private data is accessible only by that app.
+     * to connect to it due to selinux restrictions (per-app SELinux domains):
      * https://developer.android.com/about/versions/pie/android-9.0-changes-28
      * https://github.com/android/ndk/issues/1469
      * https://stackoverflow.com/questions/63806516/avc-denied-connectto-when-using-uds-on-android-10
@@ -96,11 +89,8 @@ public class LocalSocketRunConfig implements Serializable {
 
 
     /**
-     * Create an new instance of {@link LocalSocketRunConfig}.
-     *
-     * @param title The {@link #mTitle} value.
-     * @param path The {@link #mPath} value.
-     * @param localSocketManagerClient The {@link #mLocalSocketManagerClient} value.
+     * An abstract-namespace socket is detected from a leading {@code \0} byte; filesystem paths
+     * are canonicalized.
      */
     public LocalSocketRunConfig(@NonNull String title, @NonNull String path, @NonNull ILocalSocketManager localSocketManagerClient) {
         mTitle = title;

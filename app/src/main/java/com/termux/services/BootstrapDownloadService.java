@@ -16,7 +16,6 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.StatFs;
 
-
 import com.termux.app.TermuxInstaller;
 import com.termux.installer.AbiUtils;
 import com.termux.installer.BootstrapSource;
@@ -443,7 +442,6 @@ public class BootstrapDownloadService extends Service {
 
         File tempFile = new File(cacheDir, hashPart + ".part");
         Logger.i("BootstrapDownloadService", "downloading to tempFile=" + tempFile);
-        // Delete stale part file
         if (tempFile.exists()) tempFile.delete();
 
         URL url = new URL(resolvedUrl);

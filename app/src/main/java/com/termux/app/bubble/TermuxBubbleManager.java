@@ -30,40 +30,24 @@ import com.termux.shared.termux.TermuxConstants;
 import java.lang.reflect.Method;
 
 /**
- * Publishes the floating "bubble" window that hosts a terminal session over other apps.
- *
- * <p>A bubble is not a window owned by this app: it is a window owned by SystemUI, into which the
- * app's activity is embedded through an {@code ActivityView}. All the app does is post a
- * notification carrying a {@link Notification.BubbleMetadata} and, on Android 11+, a long-lived
- * sharing shortcut. Requirements that are easy to miss:
+ * Posts the floating "bubble" notification that embeds a terminal session via SystemUI's
+ * {@code ActivityView}. Easy-to-miss requirements:
  *
  * <ul>
- *   <li>The bubble activity must declare BOTH {@code android:resizeableActivity="true"} and
- *       {@code android:allowEmbedded="true"}. If either is missing the system silently shows a
- *       plain notification instead — no error anywhere.</li>
- *   <li>On Android 10 the notification must additionally be a "conversation" (MessagingStyle with a
- *       {@link Person}) or be posted while the app is in the foreground. This app targets API 28,
- *       so the conversation requirements that apply to apps targeting API 30+ are not enforced for
- *       us — but both belt-and-braces conditions are satisfied here anyway, because a bubble that
- *       never appears is indistinguishable from a crash to the user.</li>
- *   <li>{@code setSuppressNotification(true)} (post the bubble without a notification in the shade)
- *       requires the app to be in the foreground, and a foreground <em>service</em> does not count.
- *       It is therefore only requested when it cannot cost the user anything: suppression is a
- *       trade — the notification is dropped in exchange for the bubble — and if the platform then
- *       refuses to bubble, the notification is gone with nothing to replace it. So it is asked for
- *       only when the channel itself reports that it can bubble; otherwise the notification stays
- *       visible as a fallback. See {@link #showBubbleInternal}.</li>
- *   <li>The app cannot switch bubbles on for itself. {@code NotificationChannel.setAllowBubbles()}
- *       is overwritten by the platform for a normal (target) app, both when the channel is created
- *       and when it is updated, so the flag that actually decides whether a bubble appears belongs
- *       to the user's per-app bubble setting. {@link #areBubblesAvailable} is therefore the honest
- *       gate for every entry point, and the notification is deliberately a conversation
- *       ({@code MessagingStyle} + {@link Person} + a long-lived shortcut) so that the channel shows
- *       up in the user's bubble settings where it can be enabled.</li>
- *   <li>Whether the feature exists at all is decided by {@link #isSupported(Context)} — the Android
- *       version, the framework's own availability API, and the Android Go / low-RAM case. Nothing
- *       user-visible may be offered without it: the "bubble" button on the service notification and
- *       the {@code bubble-on-background} switch in Settings are both gated on it.</li>
+ *   <li>Bubble activity needs BOTH {@code resizeableActivity="true"} and
+ *       {@code allowEmbedded="true"}, or the system silently shows a plain notification.</li>
+ *   <li>On Android 10 the notification must be a conversation (MessagingStyle + {@link Person})
+ *       or be posted from the foreground; this app targets API 28 so the API-30+ conversation
+ *       rules are not enforced, but both belt-and-braces conditions are met anyway.</li>
+ *   <li>{@code setSuppressNotification(true)} needs the app in the <em>foreground</em> (a
+ *       foreground service does not count) and trades the shade notification for the bubble —
+ *       only requested when the channel already reports it can bubble, so a refused bubble never
+ *       loses the notification. See {@link #showBubbleInternal}.</li>
+ *   <li>{@code setAllowBubbles()} is overwritten by the platform for target apps; the real gate
+ *       is the user's per-app bubble setting, read via {@link #areBubblesAvailable}. The
+ *       conversation style keeps the channel visible in that settings screen.</li>
+ *   <li>Feature existence is {@link #isSupported(Context)} (API level, framework API, non-low-RAM);
+ *       the notification's "bubble" button and the Settings switch both hang off it.</li>
  * </ul>
  */
 public final class TermuxBubbleManager {
@@ -112,21 +96,14 @@ public final class TermuxBubbleManager {
     private TermuxBubbleManager() {}
 
     /**
-     * The framework call that reads the user's bubble preference, resolved once per process.
+     * Framework call that reads the user's bubble preference, resolved once per process.
+     * Tries {@code areBubblesEnabled()} (API 31) then {@code areBubblesAllowed()} (API 29).
      *
-     * <p>{@code areBubblesEnabled()} is the per-user switch and exists from API 31;
-     * {@code areBubblesAllowed()} is the per-app flag it supersedes and exists from API 29 (deprecated
-     * from 31). Both are asked for, in that order.
-     *
-     * <p><b>Why reflection instead of an {@code SDK_INT} comparison.</b> The version table that used
-     * to live here was wrong: it treated {@code areBubblesEnabled()} as an API 30 method, so on
-     * Android 11 (API 30, where the method does not exist at all) a plain {@code SDK_INT >= R} branch
-     * threw {@link NoSuchMethodError} out of the service's own {@code onCreate} and took the app down
-     * at startup. Asking the running framework which of the two calls it actually has cannot go stale
-     * that way, and it keeps Android 10 and 11 working through the API 29 method instead of losing the
-     * feature on them.
-     *
-     * <p>{@code null} means this framework exposes neither call — see {@link #isSupported}.
+     * <p><b>Why reflection, not {@code SDK_INT}.</b> The old version table wrongly treated
+     * {@code areBubblesEnabled()} as an API 30 method, so on Android 11 (API 30, method absent)
+     * an {@code SDK_INT >= R} branch threw {@link NoSuchMethodError} from the service's
+     * {@code onCreate} and took the app down at startup. Asking the running framework which call
+     * it has cannot go stale that way. {@code null} = neither call exists — see {@link #isSupported}.
      */
     @Nullable
     private static final Method BUBBLE_PREFERENCE_METHOD = resolveBubblePreferenceMethod();
@@ -145,24 +122,9 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether this device can show a bubble at all.
-     *
-     * <p>Three conditions, because each one on its own is a way to offer a feature that cannot work:
-     *
-     * <ul>
-     *   <li><b>Android version</b> — bubbles exist from Android 10 (API 29); below that the whole
-     *       feature is inert.</li>
-     *   <li><b>The framework API</b> — {@link #BUBBLE_PREFERENCE_METHOD} has to be present. Without it
-     *       the app cannot tell whether the user allows bubbles, and a build that assumed it could
-     *       crashed the service at startup on Android 11 (see that field).</li>
-     *   <li><b>Android Go</b> — the platform itself refuses to bubble on a low-RAM device, so there a
-     *       bubble notification can only ever degrade into an ordinary one. See
-     *       {@link #isLowRamDevice}.</li>
-     * </ul>
-     *
-     * <p>This is the gate for everything the user can see: the "bubble" button on the service
-     * notification and the {@code bubble-on-background} switch in Settings both hang off it, so a
-     * device that cannot bubble offers neither.
+     * Whether this device can show a bubble at all: API 29+, {@link #BUBBLE_PREFERENCE_METHOD}
+     * present, and not a low-RAM device (the platform refuses to bubble there — see
+     * {@link #isLowRamDevice}). Gate for the notification's "bubble" button and the Settings switch.
      */
     public static boolean isSupported(@NonNull Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
@@ -171,20 +133,11 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether this is a low-RAM device — which is what an Android Go device is.
-     *
-     * <p>Not a guess about Go builds: the platform's own bubble eligibility test in
-     * {@code BubbleExtractor.process()} reads
-     * {@code notifCanPresentAsBubble = canPresentAsBubble(record) && !mActivityManager.isLowRamDevice() && …},
-     * and when that comes out false the bubble metadata is stripped from the notification before it is
-     * ever ranked. So this asks the platform's own question, and a device that answers "low RAM" here
-     * is a device where posting a bubble can only produce a plain notification.
-     *
-     * <p>{@code isLowRamDevice()} is the documented low-RAM predicate ({@code ro.config.low_ram}), and
-     * it is true on Android Go.
-     *
-     * <p>Advisory, like every other check in this class: failing to read it assumes a normal device and
-     * leaves the decision to the post itself.
+     * Whether this is a low-RAM (Android Go) device. The platform's own bubble test in
+     * {@code BubbleExtractor.process()} includes {@code !mActivityManager.isLowRamDevice()};
+     * when false it strips bubble metadata before ranking. {@code isLowRamDevice()} is the
+     * documented predicate ({@code ro.config.low_ram}). Advisory: a failed read assumes a
+     * normal device and leaves the decision to the post.
      */
     private static boolean isLowRamDevice(@NonNull Context context) {
         try {
@@ -198,12 +151,9 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether the system will actually show a bubble right now.
-     *
-     * <p>This is advisory: it gates the "bubble" button on the app's own notification (a button
-     * that cannot work is worse than no button) and the automatic path. The posting path itself
-     * still tolerates a refusal, because these per-app flags can lag behind a setting the user just
-     * changed.
+     * Whether the system will actually show a bubble right now. Advisory: gates the
+     * notification's "bubble" button and the automatic path; the post itself still tolerates
+     * a refusal because per-app flags can lag a just-changed setting.
      */
     public static boolean areBubblesAvailable(@NonNull Context context) {
         if (!isSupported(context)) return false;
@@ -214,12 +164,10 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Read the user's bubble preference through whichever call this framework has.
-     *
-     * <p>On a framework with neither call this returns {@code false} — there is no feature to be
-     * allowed — but callers normally never get this far, because {@link #isSupported} has already
-     * refused. A call that fails at runtime is a different case and is treated as "allowed", so that an
-     * advisory check can never be the reason the user does not get a bubble.
+     * Read the user's bubble preference through whichever call this framework has. Neither call
+     * present → {@code false} (no feature; callers rarely get here because {@link #isSupported}
+     * already refused). A runtime failure is treated as "allowed" so an advisory check can never
+     * cost the user a bubble.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private static boolean areBubblesAllowed(@NonNull NotificationManager notificationManager) {
@@ -237,25 +185,15 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Create the notification channel used by bubbles, if it does not exist yet.
+     * Create the notification channel used by bubbles, if missing. Separate from the
+     * foreground-service channel (bubble channels must be cancellable, not ongoing).
      *
-     * <p>Kept separate from the foreground-service channel: a bubble channel must be cancellable and
-     * not ongoing, while the service notification is ongoing by design.
-     *
-     * <p><b>{@code setAllowBubbles(true)} below is advisory only.</b> For an app that is not the
-     * system, the platform discards it: {@code PreferencesHelper.createNotificationChannel} ends its
-     * new-channel branch with
-     * {@code channel.setAllowBubbles(existing != null ? existing.getAllowBubbles() : DEFAULT_ALLOW_BUBBLE)},
-     * so a freshly created channel always starts at {@code DEFAULT_ALLOW_BUBBLE} (-1). The
-     * existing-channel branch does not copy {@code allowBubbles} at all — only the name, description,
-     * group, blockable and importance — so a later call cannot raise it either. And because
-     * {@code NotificationChannel.canBubble()} is {@code mAllowBubbles == ALLOW_BUBBLE_ON}, a channel
-     * left at -1 does <em>not</em> bubble. Confirmed on device: the channel sat at
-     * {@code mAllowBubbles=-1} and the notification posted with {@code mAllowBubble=false}.
-     *
-     * <p>The switch that actually decides this is the user's bubble preference for the app, which is
-     * what {@link #areBubblesAvailable} reads. The call is kept because some ROMs do honour it and it
-     * costs nothing, but nothing here may rely on it.
+     * <p><b>{@code setAllowBubbles(true)} is advisory only.</b> The platform discards it for
+     * non-system apps: {@code PreferencesHelper.createNotificationChannel} always leaves a fresh
+     * channel at {@code DEFAULT_ALLOW_BUBBLE} (-1), and {@code canBubble()} only returns true for
+     * {@code ALLOW_BUBBLE_ON} — so a -1 channel does <em>not</em> bubble (confirmed on device).
+     * The real switch is the user's per-app preference, read by {@link #areBubblesAvailable};
+     * the call is kept only because some ROMs honour it.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     public static void createNotificationChannel(@NonNull Context context) {
@@ -276,14 +214,9 @@ public final class TermuxBubbleManager {
 
     /**
      * Publish the long-lived sharing shortcut the bubble is associated with, then return its id.
-     *
-     * <p>Only mandatory for apps targeting API 30+, and this app targets 28 — but SystemUI also
-     * uses the shortcut id as the identity of a bubble, so publishing it costs nothing and removes
-     * a class of device-specific surprises.
-     *
-     * <p>The shortcut carries the <em>real</em> bubble intent, not a placeholder: some platforms
-     * resolve a bubble's launch intent from its shortcut, so a placeholder would send the bubble to
-     * the wrong place (or nowhere).
+     * Mandatory only for API 30+ targets (this app targets 28), but SystemUI also uses the shortcut
+     * id as the bubble identity, and some platforms resolve the bubble's launch intent from its
+     * shortcut — so the shortcut carries the real bubble intent, not a placeholder.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private static String publishShortcut(@NonNull Context context, @NonNull CharSequence label,
@@ -310,24 +243,15 @@ public final class TermuxBubbleManager {
     /**
      * Show (or refresh) the bubble.
      *
-     * <p>Takes a plain {@link Context}, not an {@link Activity}, because the callers sit in very
-     * different positions in the lifecycle: the automatic path runs from an activity lifecycle
-     * callback (the app on its way to the background) and the notification's button from a broadcast
-     * receiver (normally with the app already in the background). Posting from the background is
-     * allowed here because the notification is a conversation — {@code MessagingStyle} plus a
-     * {@link Person} plus the long-lived sharing shortcut published below are exactly what the
-     * platform asks for to let a bubble be created without the app being in the foreground. The one
-     * thing the background path cannot have is suppression (see {@link #showBubbleInternal}), so it
-     * is decided there rather than assumed here.
-     *
-     * <p>No session is named on purpose. The bubble hosts a second instance of the app's own window
-     * ({@link TermuxBubbleActivity}), and that window resolves its own current session the same way
-     * the full-screen one does; handing it a session handle would create a second source of truth
-     * that the window's own tab handling would immediately fight with.
+     * <p>Takes a plain {@link Context}: callers sit in different lifecycle positions (activity
+     * callback vs. broadcast receiver). Background posting works because the notification is a
+     * conversation; suppression is decided in {@link #showBubbleInternal} since the background path
+     * cannot use it. No session is named on purpose — the bubble hosts a second
+     * {@link TermuxBubbleActivity} that resolves its own session like the full-screen window, and a
+     * handed-over session handle would fight the window's tab handling.
      *
      * @param sessionTitle human readable title, used for the notification and shortcut label.
-     * @return {@code true} if the notification was posted (which is as far as this app can tell;
-     *         whether SystemUI renders a bubble or a plain notification is its decision).
+     * @return {@code true} if the notification was posted (SystemUI still decides bubble vs. plain).
      */
     public static boolean showBubble(@NonNull Context context, @NonNull CharSequence sessionTitle) {
         if (!isSupported(context)) return false;
@@ -343,14 +267,10 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Log the first stack frame outside this class, so that "who opened the bubble" is answerable
-     * from logcat.
-     *
-     * <p>Three different entry points post a bubble — the notification's button (a broadcast
-     * receiver), the automatic path in {@link TermuxActivity} (an activity lifecycle callback) and,
-     * in debug builds, an adb hook — and from the outside they are indistinguishable: they all end
-     * in the same {@code notify()} call, and a bubble appearing at an unexpected moment otherwise
-     * costs a bisect to explain. Posting is rare, so the stack walk is free in practice.
+     * Log the first stack frame outside this class, so "who opened the bubble" is answerable from
+     * logcat. Three entry points (notification button, activity lifecycle, debug adb hook) all end
+     * in the same {@code notify()} and are otherwise indistinguishable; posting is rare, so the
+     * stack walk is free in practice.
      */
     private static void logCaller() {
         for (StackTraceElement frame : new Throwable().getStackTrace()) {
@@ -372,18 +292,14 @@ public final class TermuxBubbleManager {
 
         Intent bubbleTarget = new Intent(context, TermuxBubbleActivity.class)
             .setAction(Intent.ACTION_VIEW);
-        // A single PendingIntent for the bubble: there is one bubble per app, and re-posting the
-        // notification refreshes it rather than stacking another one. FLAG_UPDATE_CURRENT keeps the
-        // intent's contents current when the title changes.
+        // Single PendingIntent: one bubble per app; re-posting refreshes rather than stacks.
+        // FLAG_UPDATE_CURRENT keeps the intent current when the title changes.
         //
-        // This one MUST be mutable, unlike every other PendingIntent in this file. SystemUI fills
-        // in the launch parameters (which bubble, where it sits, whether it opens expanded) by
-        // mutating this intent, and NotificationManagerService rejects an immutable one outright:
-        // "PendingIntents attached to bubbles must be mutable" — thrown from
-        // checkDisqualifyingFeatures(), which is a RemoteException from notify(), so the failure
-        // surfaces as "nothing happened" unless the caller logs it. This is the documented
-        // exception to the "always prefer FLAG_IMMUTABLE" rule. FLAG_MUTABLE only exists from
-        // API 31; below that PendingIntents are mutable by default and the flag is not needed.
+        // This one MUST be mutable (documented exception to FLAG_IMMUTABLE): SystemUI fills in the
+        // launch parameters by mutating the intent, and NotificationManagerService rejects an
+        // immutable one outright ("PendingIntents attached to bubbles must be mutable" from
+        // checkDisqualifyingFeatures → RemoteException → "nothing happened" unless logged).
+        // FLAG_MUTABLE only exists from API 31; below that PendingIntents are mutable by default.
         int bubbleIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             bubbleIntentFlags |= PendingIntent.FLAG_MUTABLE;
@@ -403,19 +319,16 @@ public final class TermuxBubbleManager {
         PendingIntent deleteIntent = PendingIntent.getBroadcast(context, REQUEST_CODE_DELETE,
             deleteTarget, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        // The intent-based builder is used rather than the shortcut-id one (Builder(String), API 30,
-        // deprecated in 31). That overload makes SystemUI resolve the bubble's launch intent from the
-        // shortcut itself and ignore the intent handed to it, which is a behaviour this app has no
-        // reason to depend on. The shortcut is still published and referenced from the notification,
-        // which is where the long-lived-sharing association is actually read from.
+        // Intent-based builder (not Builder(String), API 30/deprecated 31): that overload makes
+        // SystemUI resolve the launch intent from the shortcut and ignore the intent handed to it.
+        // The shortcut is still published and referenced — that is where the long-lived-sharing
+        // association is read from.
         //
-        // The intent-based form has two shapes, and the older one is the only one API 29 has. Verified
-        // in AOSP: android-10's Notification.BubbleMetadata.Builder declares just the no-arg
-        // constructor plus setIntent()/setIcon(), and Builder(PendingIntent, Icon) first appears in
-        // android-11. So calling the two-argument constructor unconditionally would throw
-        // NoSuchMethodError on Android 10 — the same failure as the areBubblesEnabled() one, in the
-        // same feature. The no-arg constructor is deprecated from API 30 but not removed, and both
-        // shapes produce the same metadata (the two-argument one only assigns the same two fields).
+        // Two shapes exist and only the older one is on API 29: verified in AOSP, android-10's
+        // BubbleMetadata.Builder has only the no-arg constructor + setIntent()/setIcon();
+        // Builder(PendingIntent, Icon) first appears in android-11, so the two-arg call would throw
+        // NoSuchMethodError on Android 10 — the same failure class as areBubblesEnabled(). The
+        // no-arg form is deprecated from API 30 but not removed, and both set the same fields.
         final Icon bubbleIcon = Icon.createWithResource(context, R.mipmap.ic_launcher);
         Notification.BubbleMetadata.Builder bubbleMetadata;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -429,26 +342,18 @@ public final class TermuxBubbleManager {
             .setDesiredHeight(desiredHeightDp(context))
             .setAutoExpandBubble(true);
 
-        // Suppressing the notification only makes sense when a bubble is guaranteed to replace it —
-        // otherwise the user would see nothing at all. Both halves of that condition are checked:
-        // the user's app-level bubble preference, and the channel's own flag, because the channel
-        // can still refuse (the platform forces DEFAULT_ALLOW_BUBBLE on a target app, and only the
-        // user's per-channel toggle raises it). Without the second check, an app-level "bubbles on"
-        // with a channel that cannot bubble would silently swallow the notification.
+        // Suppress only when a bubble is guaranteed to replace the notification, or the user sees
+        // nothing: check both the app-level preference and the channel flag (the platform forces
+        // DEFAULT_ALLOW_BUBBLE on target apps; only the per-channel user toggle raises it).
         if (areBubblesAllowed(notificationManager) && channelCanBubble(context)) {
             bubbleMetadata.setSuppressNotification(true);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // There is deliberately no setShortcutId() here: the builder has no such method, and the
-            // shortcut-id constructor above is avoided on purpose.
-            //
-            // The guard is kept from the original implementation, where this was believed to be an API
-            // 30 method. It is in fact API 29 — verified in AOSP: android-10's BubbleMetadata.Builder
-            // already declares setDeleteIntent — so on Android 10 the guard costs the "bubble
-            // dismissed" callback, which is what lets the service notification put its button back
-            // after the user throws the bubble away. Left alone on purpose: it is a behaviour change in
-            // a flow that cannot be tested here, and the callback is only missed until the app is
-            // brought back to the foreground.
+            // No setShortcutId(): the builder has none, and the shortcut-id constructor above is
+            // deliberately avoided. The SDK_INT >= R guard is kept from the original code (it
+            // believed setDeleteIntent was API 30; it is actually API 29 — verified in android-10),
+            // so Android 10 misses the "bubble dismissed" callback until the app returns to the
+            // foreground: left alone because it cannot be tested here.
             bubbleMetadata.setDeleteIntent(deleteIntent);
         }
 
@@ -503,21 +408,21 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Remove the bubble, optionally forcing the service notification to be rebuilt.
+     * Remove the bubble, optionally forcing the service notification rebuild.
      *
-     * @param stateChangedOutside {@code true} when the caller already knows the bubble went away
-     *        without this app cancelling it — SystemUI removes the bubble's notification before it
-     *        delivers the dismiss intent, so the "was it posted?" test below reads {@code false} in
-     *        exactly the case where the service notification most needs rebuilding.
+     * @param stateChangedOutside {@code true} when the bubble went away without this app
+     *        cancelling it — SystemUI removes the bubble's notification before delivering the
+     *        dismiss intent, so {@code isBubblePosted} reads {@code false} in exactly the case
+     *        where the service notification most needs rebuilding.
      */
     public static void cancel(@NonNull Context context, boolean stateChangedOutside) {
         if (!isSupported(context)) return;
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager == null) return;
 
-        // Whether the state actually changes decides whether the service notification needs rebuilding:
-        // the automatic path calls this on every resume of the full-screen window, and re-posting the
-        // service notification each time would be pure churn. Read before the cancel, obviously.
+        // Only rebuild the service notification when the state actually changes: the automatic
+        // path calls this on every resume, and re-posting each time would be pure churn. Read
+        // before the cancel, obviously.
         final boolean wasPosted = isBubblePosted(context);
 
         notificationManager.cancel(TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_ID);
@@ -531,21 +436,10 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Ask the service to rebuild its notification, so that the "bubble" button on it appears and
-     * disappears with the bubble itself.
-     *
-     * <p>{@code TermuxService} builds that notification once and then only when it has a reason to:
-     * a session or task change, or a wake-lock toggle. Posting or dropping the bubble is such a reason
-     * but happens outside the service, so the service has to be told. The request carries no
-     * description of what changed — the service re-reads the bubble state itself, which is the only
-     * way the two cannot drift apart.
-     *
-     * <p>Sent as a start command because the service is {@code exported="false"}: the app can reach it,
-     * nothing else can. The service is already in the foreground (that is where the notification comes
-     * from), so this is allowed from the background as well.
-     *
-     * <p>Never fatal: a missed refresh leaves a stale button, not a broken feature, and this is called
-     * from the posting path whose result must not be changed by it.
+     * Ask the service to rebuild its notification so the "bubble" button tracks the bubble.
+     * Sent as a start command (service is {@code exported="false"}; already in the foreground, so
+     * allowed from background). Carries no state — the service re-reads bubble state itself so the
+     * two cannot drift. Never fatal: a missed refresh leaves a stale button, not a broken feature.
      */
     private static void requestServiceNotificationRefresh(@NonNull Context context) {
         try {
@@ -557,35 +451,22 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether a bubble is currently up, as far as this app can tell.
+     * Whether a bubble is currently up, as far as this app can tell. Two OR-ed sources, neither
+     * complete alone: the notification record (system's answer — catches a bubble SystemUI took
+     * down without telling us) and {@link #sBubblePosted} (a suppressed bubble notification can be
+     * filtered out of {@code getActiveNotifications()}, which would read {@code false} exactly
+     * while a bubble is on screen).
      *
-     * <p>Two sources, OR-ed, because neither is complete on its own:
+     * <p><b>Only records posted by this process count.</b> A notification outlives its process —
+     * measured on device: the bubble record (id 1342) still listed after {@code am force-stop} —
+     * and nothing in a new process would cancel it, so a pre-process record would keep this
+     * {@code true} forever and hide the "bubble" button for good. That is the failure this guard
+     * prevents; a genuinely up bubble was posted by this process, where the flag already says so.
      *
-     * <ul>
-     *   <li>the notification record, which is the system's own answer and therefore the only way to
-     *       notice a bubble that went away without telling this app (SystemUI took it down, the user
-     *       dismissed it and the delete intent never arrived);</li>
-     *   <li>{@link #sBubblePosted}, because the bubble notification is posted with
-     *       {@code setSuppressNotification(true)} — it is deliberately kept out of the shade — and a
-     *       suppressed bubble notification can be filtered out of
-     *       {@code NotificationManager.getActiveNotifications()}. Were that the case here, the
-     *       record-based answer alone would read {@code false} exactly while a bubble is on screen,
-     *       which is the state the "bubble" button on the service notification has to react to.</li>
-     * </ul>
-     *
-     * <p><b>Only records posted by this process count.</b> A notification outlives the process that
-     * posted it — measured on device: the bubble's record (id 1342) was still listed after
-     * {@code am force-stop} — and nothing in the new process would ever cancel it, so trusting a
-     * record from before the process started would keep {@code true} forever and hide the "bubble"
-     * button for good. That is exactly the failure this guard exists to prevent. A bubble that is
-     * genuinely up was posted by this process, where the flag above already says so.
-     *
-     * <p>The flag is cleared by every path that takes a bubble down — {@link #cancel}, and through it
-     * the dismiss broadcast and the service stopping — and it dies with the process, which takes the
-     * bubble with it, so it cannot outlive the thing it describes.
-     *
-     * <p>Used both to avoid re-posting a bubble that is already up, and to decide whether the
-     * service notification still has any business offering its "bubble" button.
+     * <p>The flag is cleared by every path that takes a bubble down ({@link #cancel}, and through
+     * it the dismiss broadcast and service stop) and dies with the process, which takes the bubble
+     * with it. Used to avoid re-posting an already-up bubble and to decide whether the service
+     * notification should still offer its "bubble" button.
      */
     public static boolean isBubblePosted(@NonNull Context context) {
         if (!isSupported(context)) return false;
@@ -609,14 +490,11 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether the bubble channel itself is allowed to bubble.
-     *
-     * <p>This is not the same question as {@link #areBubblesAvailable}, which reads the user's
-     * app-level preference. The channel carries an independent flag that the app cannot set (the
-     * platform overwrites {@code setAllowBubbles} for target apps and never applies it on update),
-     * so a channel can read as not-bubblable even with bubbles enabled for the app. That state is
-     * exactly the one in which suppression must not be requested, because no bubble would take the
-     * notification's place.
+     * Whether the bubble channel itself is allowed to bubble. Not the same as
+     * {@link #areBubblesAvailable} (app-level preference): the channel carries an independent flag
+     * the app cannot set (platform overwrites {@code setAllowBubbles} for target apps and never
+     * applies it on update), so a channel can read non-bubblable with app bubbles enabled — exactly
+     * the state where suppression must not be requested.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private static boolean channelCanBubble(@NonNull Context context) {

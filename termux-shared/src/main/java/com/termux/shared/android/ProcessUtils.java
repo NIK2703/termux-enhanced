@@ -28,9 +28,9 @@ public class ProcessUtils {
      * https://cs.android.com/android/_/android/platform/frameworks/base/+/refs/tags/android-12.0.0_r32:services/core/java/com/android/server/am/PhantomProcessList.java
      * https://cs.android.com/android/_/android/platform/frameworks/base/+/refs/tags/android-12.0.0_r32:services/core/java/com/android/server/am/PhantomProcessRecord.java
      *
-     * @param context The {@link Context} for operations.
-     * @param pid The pid of the process.
-     * @return Returns the app process name if found, otherwise {@code null}.
+     * @param context context.
+     * @param pid pid of the process.
+     * @return the app process name if found, otherwise {@code null}.
      */
     @Nullable
     public static String getAppProcessNameForPid(@NonNull Context context, int pid) {

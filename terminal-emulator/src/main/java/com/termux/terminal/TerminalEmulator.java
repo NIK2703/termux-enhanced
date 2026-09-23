@@ -162,7 +162,6 @@ public final class TerminalEmulator {
     /** Not really DECSET bit... - http://www.vt100.net/docs/vt510-rm/DECSACE */
     private static final int DECSET_BIT_RECTANGULAR_CHANGEATTRIBUTE = 1 << 12;
 
-
     private String mTitle;
     private final ArrayDeque<String> mTitleStack = new ArrayDeque<>();
 
@@ -180,7 +179,6 @@ public final class TerminalEmulator {
     public static final int TERMINAL_TRANSCRIPT_ROWS_MAX = 50000;
     public static final int DEFAULT_TERMINAL_TRANSCRIPT_ROWS = 2000;
 
-
     /* The supported terminal cursor styles. */
 
     public static final int TERMINAL_CURSOR_STYLE_BLOCK = 0;
@@ -191,7 +189,6 @@ public final class TerminalEmulator {
 
     /** The terminal cursor styles. */
     private int mCursorStyle = DEFAULT_TERMINAL_CURSOR_STYLE;
-
 
     /** The normal screen buffer. Stores the characters that appear on the screen of the emulated terminal. */
     private final TerminalBuffer mMainBuffer;
@@ -353,7 +350,6 @@ public final class TerminalEmulator {
                 return DECSET_BIT_BRACKETED_PASTE_MODE;
             default:
                 return -1;
-            // throw new IllegalArgumentException("Unsupported decset: " + decsetBit);
         }
     }
 
@@ -514,8 +510,6 @@ public final class TerminalEmulator {
         return isDecsetInternalBitSet(DECSET_BIT_REVERSE_VIDEO);
     }
 
-
-
     public boolean isCursorEnabled() {
         return isDecsetInternalBitSet(DECSET_BIT_CURSOR_ENABLED);
     }
@@ -537,8 +531,6 @@ public final class TerminalEmulator {
     public void setCursorBlinkState(boolean cursorBlinkState) {
         this.mCursorBlinkState = cursorBlinkState;
     }
-
-
 
     public boolean isKeypadApplicationMode() {
         return isDecsetInternalBitSet(DECSET_BIT_APPLICATION_KEYPAD);
@@ -769,10 +761,8 @@ public final class TerminalEmulator {
                                 // Inclusive, so do not subtract one:
                                 int bottomSource = Math.min(Math.max(getArg(2, mRows, true) + effectiveTopMargin, topSource), mRows);
                                 int rightSource = Math.min(Math.max(getArg(3, mColumns, true) + effectiveLeftMargin, leftSource), mColumns);
-                                // int sourcePage = getArg(4, 1, true);
                                 int destionationTop = Math.min(getArg(5, 1, true) - 1 + effectiveTopMargin, mRows);
                                 int destinationLeft = Math.min(getArg(6, 1, true) - 1 + effectiveLeftMargin, mColumns);
-                                // int destinationPage = getArg(7, 1, true);
                                 int heightToCopy = Math.min(mRows - destionationTop, bottomSource - topSource);
                                 int widthToCopy = Math.min(mColumns - destinationLeft, rightSource - leftSource);
                                 mScreen.blockCopy(leftSource, topSource, widthToCopy, heightToCopy, destinationLeft, destionationTop);
@@ -862,8 +852,6 @@ public final class TerminalEmulator {
                                                 effectiveLeftMargin, effectiveRightMargin, top, left, bottom, right);
                                         }
                                     }
-                                } else {
-                                    // Do nothing.
                                 }
                                 break;
                             default:
@@ -1375,62 +1363,9 @@ public final class TerminalEmulator {
                 mSession.write("\033[>41;320;0c");
                 break;
             case 'm':
-                // https://bugs.launchpad.net/gnome-terminal/+bug/96676/comments/25
-                // Depending on the first number parameter, this can set one of the xterm resources
-                // modifyKeyboard, modifyCursorKeys, modifyFunctionKeys and modifyOtherKeys.
-                // http://invisible-island.net/xterm/manpage/xterm.html#RESOURCES
-
-                // * modifyKeyboard (parameter=1):
-                // Normally xterm makes a special case regarding modifiers (shift, control, etc.) to handle special keyboard
-                // layouts (legacy and vt220). This is done to provide compatible keyboards for DEC VT220 and related
-                // terminals that implement user-defined keys (UDK).
-                // The bits of the resource value selectively enable modification of the given category when these keyboards
-                // are selected. The default is "0":
-                // (0) The legacy/vt220 keyboards interpret only the Control-modifier when constructing numbered
-                // function-keys. Other special keys are not modified.
-                // (1) allows modification of the numeric keypad
-                // (2) allows modification of the editing keypad
-                // (4) allows modification of function-keys, overrides use of Shift-modifier for UDK.
-                // (8) allows modification of other special keys
-
-                // * modifyCursorKeys (parameter=2):
-                // Tells how to handle the special case where Control-, Shift-, Alt- or Meta-modifiers are used to add a
-                // parameter to the escape sequence returned by a cursor-key. The default is "2".
-                // - Set it to -1 to disable it.
-                // - Set it to 0 to use the old/obsolete behavior.
-                // - Set it to 1 to prefix modified sequences with CSI.
-                // - Set it to 2 to force the modifier to be the second parameter if it would otherwise be the first.
-                // - Set it to 3 to mark the sequence with a ">" to hint that it is private.
-
-                // * modifyFunctionKeys (parameter=3):
-                // Tells how to handle the special case where Control-, Shift-, Alt- or Meta-modifiers are used to add a
-                // parameter to the escape sequence returned by a (numbered) function-
-                // key. The default is "2". The resource values are similar to modifyCursorKeys:
-                // Set it to -1 to permit the user to use shift- and control-modifiers to construct function-key strings
-                // using the normal encoding scheme.
-                // - Set it to 0 to use the old/obsolete behavior.
-                // - Set it to 1 to prefix modified sequences with CSI.
-                // - Set it to 2 to force the modifier to be the second parameter if it would otherwise be the first.
-                // - Set it to 3 to mark the sequence with a ">" to hint that it is private.
-                // If modifyFunctionKeys is zero, xterm uses Control- and Shift-modifiers to allow the user to construct
-                // numbered function-keys beyond the set provided by the keyboard:
-                // (Control) adds the value given by the ctrlFKeys resource.
-                // (Shift) adds twice the value given by the ctrlFKeys resource.
-                // (Control/Shift) adds three times the value given by the ctrlFKeys resource.
-                //
-                // As a special case, legacy (when oldFunctionKeys is true) or vt220 (when sunKeyboard is true)
-                // keyboards interpret only the Control-modifier when constructing numbered function-keys.
-                // This is done to provide compatible keyboards for DEC VT220 and related terminals that
-                // implement user-defined keys (UDK).
-
-                // * modifyOtherKeys (parameter=4):
-                // Like modifyCursorKeys, tells xterm to construct an escape sequence for other keys (such as "2") when
-                // modified by Control-, Alt- or Meta-modifiers. This feature does not apply to function keys and
-                // well-defined keys such as ESC or the control keys. The default is "0".
-                // (0) disables this feature.
-                // (1) enables this feature for keys except for those with well-known behavior, e.g., Tab, Backarrow and
-                // some special control character cases, e.g., Control-Space to make a NUL.
-                // (2) enables this feature for keys including the exceptions listed.
+                // CSI > m sets xterm resources modifyKeyboard/CursorKeys/FunctionKeys/OtherKeys.
+                // Ignored; see http://invisible-island.net/xterm/manpage/xterm.html#RESOURCES
+                // and https://bugs.launchpad.net/gnome-terminal/+bug/96676/comments/25
                 Logger.logError(mClient, LOG_TAG, "(ignored) CSI > MODIFY RESOURCE: " + getArg0(-1) + " to " + getArg1(-1));
                 break;
             default:
@@ -1587,7 +1522,7 @@ public final class TerminalEmulator {
         state.mUseLineDrawingUsesG0 = mUseLineDrawingUsesG0;
     }
 
-    /** DECRS restore cursor - http://www.vt100.net/docs/vt510-rm/DECRC. See {@link #saveCursor()}. */
+    /** DECRC restore cursor - http://www.vt100.net/docs/vt510-rm/DECRC. See {@link #saveCursor()}. */
     private void restoreCursor() {
         SavedScreenState state = (mScreen == mMainBuffer) ? mSavedStateMain : mSavedStateAlt;
         setCursorRowCol(state.mSavedCursorRow, state.mSavedCursorCol);
@@ -2645,7 +2580,6 @@ public final class TerminalEmulator {
         mAutoScrollDisabled = !mAutoScrollDisabled;
     }
 
-
     /** Reset terminal state so user can interact with it regardless of present state. */
     public void reset() {
         setCursorStyle();
@@ -2709,7 +2643,6 @@ public final class TerminalEmulator {
         // Second: Replace all newlines (\n) or CRLF (\r\n) with carriage returns (\r).
         text = PASTE_NEWLINE_PATTERN.matcher(text).replaceAll("\r");
 
-        // Then: Implement bracketed paste mode if enabled:
         boolean bracketed = isDecsetInternalBitSet(DECSET_BIT_BRACKETED_PASTE_MODE);
         if (bracketed) mSession.write("\033[200~");
         mSession.write(text);

@@ -8,18 +8,15 @@ import android.view.ContextThemeWrapper;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.termux.shared.R;
 
-
-
 public class MessageDialogUtils {
 
     /**
      * Show a message in a dialog
      *
-     * @param context The {@link Context} to use to start the dialog. An {@link Activity} {@link Context}
-     *                must be passed, otherwise exceptions will be thrown.
-     * @param titleText The title text of the dialog.
-     * @param messageText The message text of the dialog.
-     * @param onDismiss The {@link DialogInterface.OnDismissListener} to run when dialog is dismissed.
+     * @param context dialog context; must be an {@link Activity} context or exceptions are thrown.
+     * @param titleText dialog title.
+     * @param messageText dialog message.
+     * @param onDismiss listener run when the dialog is dismissed.
      */
     public static void showMessage(Context context, String titleText, String messageText, final DialogInterface.OnDismissListener onDismiss) {
         showMessage(context, titleText, messageText, null, null, null, null, onDismiss);
@@ -28,18 +25,14 @@ public class MessageDialogUtils {
     /**
      * Show a message in a dialog
      *
-     * @param context The {@link Context} to use to start the dialog. An {@link Activity} {@link Context}
-     *                must be passed, otherwise exceptions will be thrown.
-     * @param titleText The title text of the dialog.
-     * @param messageText The message text of the dialog.
-     * @param positiveText The positive button text of the dialog.
-     * @param onPositiveButton The {@link DialogInterface.OnClickListener} to run when positive button
-     *                         is pressed.
-     * @param negativeText The negative button text of the dialog. If this is {@code null}, then
-     *                         negative button will not be shown.
-     * @param onNegativeButton The {@link DialogInterface.OnClickListener} to run when negative button
-     *                         is pressed.
-     * @param onDismiss The {@link DialogInterface.OnDismissListener} to run when dialog is dismissed.
+     * @param context dialog context; must be an {@link Activity} context or exceptions are thrown.
+     * @param titleText dialog title.
+     * @param messageText dialog message.
+     * @param positiveText positive button text.
+     * @param onPositiveButton listener run when the positive button is pressed.
+     * @param negativeText negative button text; {@code null} hides the negative button.
+     * @param onNegativeButton listener run when the negative button is pressed.
+     * @param onDismiss listener run when the dialog is dismissed.
      */
     public static void showMessage(Context context, String titleText, String messageText,
                                     String positiveText,

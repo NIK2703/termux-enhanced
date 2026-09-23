@@ -56,7 +56,6 @@ static int create_subprocess(JNIEnv* env,
     tios.c_iflag &= ~(IXON | IXOFF);
     tcsetattr(ptm, TCSANOW, &tios);
 
-    /** Set initial winsize. */
     struct winsize sz = {.ws_row = (unsigned short)rows, .ws_col = (unsigned short)columns, .ws_xpixel = (unsigned short)(columns * cell_width), .ws_ypixel = (unsigned short)(rows * cell_height)};
     ioctl(ptm, TIOCSWINSZ, &sz);
 

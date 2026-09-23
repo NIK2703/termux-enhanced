@@ -33,7 +33,7 @@ public final class TextStyle {
     public final static int CHARACTER_ATTRIBUTE_DIM = 1 << 8;
     /** If true (24-bit) color is used for the cell for foreground. */
     private final static int CHARACTER_ATTRIBUTE_TRUECOLOR_FOREGROUND = 1 << 9;
-    /** If true (24-bit) color is used for the cell for foreground. */
+    /** If true (24-bit) color is used for the cell for background. */
     private final static int CHARACTER_ATTRIBUTE_TRUECOLOR_BACKGROUND= 1 << 10;
 
     public final static int COLOR_INDEX_FOREGROUND = 256;

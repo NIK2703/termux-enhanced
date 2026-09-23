@@ -51,17 +51,17 @@ public class TermuxUtils {
 
     private static final String LOG_TAG = "TermuxUtils";
 
-    /**
-     * Get the {@link Context} for {@link TermuxConstants#TERMUX_PACKAGE_NAME} package with the
-     * {@link Context#CONTEXT_RESTRICTED} flag.
-     *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
-     */
     /** Cache for {@link #getTermuxPackageContext}: createPackageContext is a Binder call that builds
      * a LoadedApk, and it was being hit on every onResume (via crash-report check) plus per command. */
     private static volatile Context sTermuxPackageContext;
 
+    /**
+     * Get the {@link Context} for {@link TermuxConstants#TERMUX_PACKAGE_NAME} package with the
+     * {@link Context#CONTEXT_RESTRICTED} flag.
+     *
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
+     */
     public static Context getTermuxPackageContext(@NonNull Context context) {
         Context cached = sTermuxPackageContext;
         if (cached != null) return cached;
@@ -70,15 +70,15 @@ public class TermuxUtils {
         return ctx;
     }
 
+    private static volatile Context sTermuxPackageContextWithCode;
+
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_PACKAGE_NAME} package with the
      * {@link Context#CONTEXT_INCLUDE_CODE} flag.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
-    private static volatile Context sTermuxPackageContextWithCode;
-
     public static Context getTermuxPackageContextWithCode(@NonNull Context context) {
         Context cached = sTermuxPackageContextWithCode;
         if (cached != null) return cached;
@@ -90,8 +90,8 @@ public class TermuxUtils {
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_API_PACKAGE_NAME} package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
     public static Context getTermuxAPIPackageContext(@NonNull Context context) {
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_API_PACKAGE_NAME);
@@ -100,8 +100,8 @@ public class TermuxUtils {
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_BOOT_PACKAGE_NAME} package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
     public static Context getTermuxBootPackageContext(@NonNull Context context) {
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_BOOT_PACKAGE_NAME);
@@ -110,8 +110,8 @@ public class TermuxUtils {
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_FLOAT_PACKAGE_NAME} package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
     public static Context getTermuxFloatPackageContext(@NonNull Context context) {
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_FLOAT_PACKAGE_NAME);
@@ -120,8 +120,8 @@ public class TermuxUtils {
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_STYLING_PACKAGE_NAME} package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
     public static Context getTermuxStylingPackageContext(@NonNull Context context) {
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_STYLING_PACKAGE_NAME);
@@ -130,8 +130,8 @@ public class TermuxUtils {
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_TASKER_PACKAGE_NAME} package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
     public static Context getTermuxTaskerPackageContext(@NonNull Context context) {
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_TASKER_PACKAGE_NAME);
@@ -140,8 +140,8 @@ public class TermuxUtils {
     /**
      * Get the {@link Context} for {@link TermuxConstants#TERMUX_WIDGET_PACKAGE_NAME} package.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the package.
-     * @return Returns the {@link Context}. This will {@code null} if an exception is raised.
+     * @param context context
+     * @return the {@link Context}, or {@code null} on failure.
      */
     public static Context getTermuxWidgetPackageContext(@NonNull Context context) {
         return PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_WIDGET_PACKAGE_NAME);
@@ -173,7 +173,7 @@ public class TermuxUtils {
      * </manifest>
      * }
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns {@code errmsg} if {@link TermuxConstants#TERMUX_PACKAGE_NAME} is not installed
      * or disabled, otherwise {@code null}.
      */
@@ -185,7 +185,7 @@ public class TermuxUtils {
      * Check if Termux:API app is installed and enabled. This can be used by external apps that don't
      * share `sharedUserId` with the Termux:API app.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns {@code errmsg} if {@link TermuxConstants#TERMUX_API_PACKAGE_NAME} is not installed
      * or disabled, otherwise {@code null}.
      */
@@ -231,8 +231,6 @@ public class TermuxUtils {
         else
             return null;
     }
-
-
 
     /**
      * Get a field value from the {@link TERMUX_APP#BUILD_CONFIG_CLASS_NAME} class of the Termux app
@@ -285,8 +283,6 @@ public class TermuxUtils {
         }
     }
 
-
-
     /** Returns {@code true} if {@link Uri} has `package:` scheme for {@link TermuxConstants#TERMUX_PACKAGE_NAME} or its sub plugin package. */
     public static boolean isUriDataForTermuxOrPluginPackage(@NonNull Uri data) {
         return data.toString().equals("package:" + TermuxConstants.TERMUX_PACKAGE_NAME) ||
@@ -318,8 +314,6 @@ public class TermuxUtils {
             context.sendBroadcast(explicitBroadcast);
         }
     }
-
-
 
     /**
      * Wrapper for {@link #getAppInfoMarkdownString(Context, AppInfoMode, String)}.
@@ -460,7 +454,6 @@ public class TermuxUtils {
 
         boolean isTermuxPackage = (termuxPackageName != null && termuxPackageName.equals(currentPackageName));
 
-
         if (returnTermuxPackageInfoToo && !isTermuxPackage)
             markdownString.append("## ").append(currentAppName).append(" App Info (Current)\n");
         else
@@ -474,14 +467,13 @@ public class TermuxUtils {
             markdownString.append("\n##\n");
         }
 
-
         return markdownString.toString();
     }
 
     /**
      * Get a markdown {@link String} for the app info for the package associated with the {@code context}.
      *
-     * @param context The context for operations for the package.
+     * @param context context
      * @return Returns the markdown {@link String}.
      */
     public static String getAppInfoMarkdownStringInner(@NonNull final Context context) {
@@ -513,7 +505,7 @@ public class TermuxUtils {
     /**
      * Get a markdown {@link String} for reporting an issue.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns the markdown {@link String}.
      */
     public static String getReportIssueMarkdownString(@NonNull final Context context) {
@@ -551,7 +543,7 @@ public class TermuxUtils {
     /**
      * Get a markdown {@link String} for important links.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns the markdown {@link String}.
      */
     public static String getImportantLinksMarkdownString(@NonNull final Context context) {
@@ -587,14 +579,12 @@ public class TermuxUtils {
         return markdownString.toString();
     }
 
-
-
     /**
      * Get a markdown {@link String} for APT info of the app.
      *
      * This will take a few seconds to run due to running {@code apt update} command.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns the markdown {@link String}.
      */
     public static String geAPTInfoMarkdownString(@NonNull final Context context) {
@@ -643,7 +633,7 @@ public class TermuxUtils {
     /**
      * Get a markdown {@link String} for info for termux debugging.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns the markdown {@link String}.
      */
     public static String getTermuxDebugMarkdownString(@NonNull final Context context) {
@@ -662,20 +652,15 @@ public class TermuxUtils {
     /**
      * Get a markdown {@link String} for logcat command dump.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns the markdown {@link String}.
      */
     public static String getLogcatDumpMarkdownString(@NonNull final Context context) {
-        // Build script
-        // We need to prevent OutOfMemoryError since StreamGobbler StringBuilder + StringBuilder.toString()
-        // may require lot of memory if dump is too large.
-        // Putting a limit at 3000 lines. Assuming average 160 chars/line will result in 500KB usage
-        // per object.
-        // That many lines should be enough for debugging for recent issues anyways assuming termux
-        // has not been granted READ_LOGS permission s.
+        // Prevent OutOfMemoryError: StreamGobbler's StringBuilder + toString() may need a lot of
+        // memory if the dump is too large. Cap at 3000 lines (~500KB per object at ~160 ch/line) —
+        // enough for recent issues, assuming termux has not been granted READ_LOGS.
         String logcatScript = "/system/bin/logcat -d -t 3000 2>&1";
 
-        // Run script
         // Logging must be disabled for output of logcat command itself in StreamGobbler
         ExecutionCommand executionCommand = new ExecutionCommand(-1, "/system/bin/sh",
             null, logcatScript + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getName(), true);
@@ -687,7 +672,6 @@ public class TermuxUtils {
             return null;
         }
 
-        // Build script output
         StringBuilder logcatOutput = new StringBuilder();
         logcatOutput.append("$ ").append(logcatScript);
         logcatOutput.append("\n").append(executionCommand.resultData.stdout.toString());
@@ -700,7 +684,6 @@ public class TermuxUtils {
             logcatOutput.append("\n").append("exit code: ").append(executionCommand.resultData.exitCode.toString());
         }
 
-        // Build markdown output
         StringBuilder markdownString = new StringBuilder();
         markdownString.append("## Logcat Dump\n\n");
         markdownString.append("\n\n").append(MarkdownUtils.getMarkdownCodeForString(logcatOutput.toString(), true));
@@ -708,8 +691,6 @@ public class TermuxUtils {
 
         return markdownString.toString();
     }
-
-
 
     public static String getAPKRelease(String signingCertificateSHA256Digest) {
         if (signingCertificateSHA256Digest == null) return "null";
@@ -728,12 +709,11 @@ public class TermuxUtils {
         }
     }
 
-
     /**
      * Get a process id of the main app process of the {@link TermuxConstants#TERMUX_PACKAGE_NAME}
      * package.
      *
-     * @param context The context for operations.
+     * @param context context
      * @return Returns the process if found and running, otherwise {@code null}.
      */
     public static String getTermuxAppPID(final Context context) {

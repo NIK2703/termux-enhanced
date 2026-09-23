@@ -30,9 +30,8 @@ public class TermuxWidgetAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxWidgetAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_WIDGET_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxWidgetAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to get the {@link TermuxConstants#TERMUX_WIDGET_PACKAGE_NAME} package context.
+     * @return the {@link TermuxWidgetAppSharedPreferences}, or {@code null} if an exception is raised.
      */
     @Nullable
     public static TermuxWidgetAppSharedPreferences build(@NonNull final Context context) {
@@ -46,11 +45,10 @@ public class TermuxWidgetAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get the {@link TermuxWidgetAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_WIDGET_PACKAGE_NAME}.
+     * @param context context used to get the {@link TermuxConstants#TERMUX_WIDGET_PACKAGE_NAME} package context.
      * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
      *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxWidgetAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @return the {@link TermuxWidgetAppSharedPreferences}, or {@code null} if an exception is raised.
      */
     public static TermuxWidgetAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxWidgetPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_WIDGET_PACKAGE_NAME, exitAppOnError);
@@ -59,8 +57,6 @@ public class TermuxWidgetAppSharedPreferences extends AppSharedPreferences {
         else
             return new TermuxWidgetAppSharedPreferences(termuxWidgetPackageContext);
     }
-
-
 
     public static String getGeneratedToken(@NonNull Context context) {
         TermuxWidgetAppSharedPreferences preferences = TermuxWidgetAppSharedPreferences.build(context, true);
@@ -76,8 +72,6 @@ public class TermuxWidgetAppSharedPreferences extends AppSharedPreferences {
         }
         return token;
     }
-
-
 
     public int getLogLevel(boolean readFromFile) {
         if (readFromFile)

@@ -31,7 +31,11 @@ import androidx.annotation.WorkerThread;
 import com.termux.shared.logger.Logger;
 
 /**
- * Thread utility class continuously reading from an InputStream
+ * Thread utility class continuously reading from an InputStream.
+ *
+ * <p>Shell STDOUT and STDERR must be read as quickly as possible to prevent a
+ * deadlock where {@code Process.waitFor()} never returns (buffer full, native
+ * process paused).
  *
  * https://github.com/Chainfire/libsuperuser/blob/1.1.0.201907261845/libsuperuser/src/eu/chainfire/libsuperuser/Shell.java#L141
  * https://github.com/Chainfire/libsuperuser/blob/1.1.0.201907261845/libsuperuser/src/eu/chainfire/libsuperuser/StreamGobbler.java
@@ -67,9 +71,6 @@ public class StreamGobbler extends Thread {
      * Stream closed callback interface
      */
     public interface OnStreamClosedListener {
-        /**
-         * <p>Stream closed callback</p>
-         */
         void onStreamClosed();
     }
 
@@ -95,12 +96,6 @@ public class StreamGobbler extends Thread {
     private static final String LOG_TAG = "StreamGobbler";
 
     /**
-     * <p>StreamGobbler constructor</p>
-     *
-     * <p>We use this class because shell STDOUT and STDERR should be read as quickly as
-     * possible to prevent a deadlock from occurring, or Process.waitFor() never
-     * returning (as the buffer is full, pausing the native process)</p>
-     *
      * @param shell Name of the shell
      * @param inputStream InputStream to read from
      * @param outputList {@literal List<String>} to write to, or null
@@ -125,17 +120,12 @@ public class StreamGobbler extends Thread {
     }
 
     /**
-     * <p>StreamGobbler constructor</p>
-     *
-     * <p>We use this class because shell STDOUT and STDERR should be read as quickly as
-     * possible to prevent a deadlock from occurring, or Process.waitFor() never
-     * returning (as the buffer is full, pausing the native process)</p>
-     * Do not use this for concurrent reading for STDOUT and STDERR for the same StringBuilder since
-     * its not synchronized.
+     * Do not use this for concurrent reading of STDOUT and STDERR into the same
+     * StringBuilder since it is not synchronized.
      *
      * @param shell Name of the shell
      * @param inputStream InputStream to read from
-     * @param outputString {@literal List<String>} to write to, or null
+     * @param outputString {@link StringBuilder} to append to, or null
      * @param logLevel The custom log level to use for logging the command output. If set to
      *                 {@code null}, then {@link Logger#LOG_LEVEL_VERBOSE} will be used.
      */
@@ -157,12 +147,6 @@ public class StreamGobbler extends Thread {
     }
 
     /**
-     * <p>StreamGobbler constructor</p>
-     *
-     * <p>We use this class because shell STDOUT and STDERR should be read as quickly as
-     * possible to prevent a deadlock from occurring, or Process.waitFor() never
-     * returning (as the buffer is full, pausing the native process)</p>
-     *
      * @param shell Name of the shell
      * @param inputStream InputStream to read from
      * @param onLineListener OnLineListener callback
@@ -224,7 +208,6 @@ public class StreamGobbler extends Thread {
             }
         }
 
-        // make sure our stream is closed and resources will be freed
         try {
             reader.close();
         } catch (IOException e) {
@@ -285,8 +268,6 @@ public class StreamGobbler extends Thread {
 
     /**
      * <p>Is gobbling suspended ?</p>
-     *
-     * @return is gobbling suspended?
      */
     @AnyThread
     public boolean isSuspended() {
@@ -297,8 +278,6 @@ public class StreamGobbler extends Thread {
 
     /**
      * <p>Get current source InputStream</p>
-     *
-     * @return source InputStream
      */
     @NonNull
     @AnyThread
@@ -308,8 +287,6 @@ public class StreamGobbler extends Thread {
 
     /**
      * <p>Get current OnLineListener</p>
-     *
-     * @return OnLineListener
      */
     @Nullable
     @AnyThread

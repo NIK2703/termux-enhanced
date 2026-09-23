@@ -37,9 +37,8 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to resolve the {@link TermuxConstants#TERMUX_PACKAGE_NAME} package context.
+     * @return the preferences, or {@code null} if an exception is raised.
      */
     @Nullable
     public static TermuxAppSharedPreferences build(@NonNull final Context context) {
@@ -58,11 +57,10 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_PACKAGE_NAME}.
-     * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
-     *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to resolve the {@link TermuxConstants#TERMUX_PACKAGE_NAME} package context.
+     * @param exitAppOnError if {@code true} and the package context cannot be obtained, show a
+     *                       dialog whose dismissal exits the app.
+     * @return the preferences, or {@code null} if an exception is raised.
      */
     public static TermuxAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxPackageContext;
@@ -76,8 +74,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         else
             return new TermuxAppSharedPreferences(termuxPackageContext);
     }
-
-
 
     public boolean shouldShowTerminalToolbar() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_SHOW_TERMINAL_TOOLBAR, TERMUX_APP.DEFAULT_VALUE_SHOW_TERMINAL_TOOLBAR);
@@ -93,11 +89,8 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return !currentValue;
     }
 
-
     /**
      * Get whether extra keys should be hidden when the soft keyboard is hidden.
-     *
-     * @return Returns {@code true} if extra keys should be hidden with keyboard.
      */
     public boolean shouldHideExtraKeysWithKeyboard() {
         if (!SharedPreferenceUtils.isKeyPresent(mSharedPreferences, TERMUX_APP.KEY_HIDE_EXTRA_KEYS_WITH_KEYBOARD)) {
@@ -110,7 +103,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_HIDE_EXTRA_KEYS_WITH_KEYBOARD, value, false);
     }
 
-
     public boolean shouldTextInputAppendEnter() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_TEXT_INPUT_APPEND_ENTER, TERMUX_APP.DEFAULT_VALUE_TEXT_INPUT_APPEND_ENTER);
     }
@@ -118,7 +110,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setTextInputAppendEnter(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_TEXT_INPUT_APPEND_ENTER, value, false);
     }
-
 
     public boolean shouldTextInputHideOnSend() {
         String action = getTextInputActionOnSend();
@@ -171,7 +162,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT, value, false);
     }
 
-
     public boolean isSoftKeyboardEnabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED, TERMUX_APP.DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED);
     }
@@ -196,8 +186,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE, value, false);
     }
 
-
-
     public boolean shouldKeepScreenOn() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_KEEP_SCREEN_ON, TERMUX_APP.DEFAULT_VALUE_KEEP_SCREEN_ON);
     }
@@ -205,8 +193,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setKeepScreenOn(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_KEEP_SCREEN_ON, value, false);
     }
-
-
 
     public static int[] getDefaultFontSizes(Context context) {
         float dipInPixels = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, context.getResources().getDisplayMetrics());
@@ -256,10 +242,9 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     /**
      * Store the terminal font size, in pixels.
      *
-     * <p>Clamped to the same bounds {@link #getFontSize()} clamps to, so a value that came from
-     * outside the app (an old preferences file, a settings UI that computed its own range) can
-     * never be persisted out of range and then read back — the read-side clamp stays as the second
-     * line of defence, but the stored value is now always valid on its own.
+     * <p>Clamped to the same bounds {@link #getFontSize()} uses, so a value from outside the app
+     * (old preferences file, external UI) can never be persisted out of range; the read-side
+     * clamp stays as the second line of defence.
      */
     public void setFontSize(int value) {
         value = DataUtils.clamp(value, MIN_FONTSIZE, MAX_FONTSIZE);
@@ -296,8 +281,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setFontSize(fontSize);
     }
 
-
-
     public String getCurrentSession() {
         return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_CURRENT_SESSION, null, true);
     }
@@ -305,8 +288,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setCurrentSession(String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_CURRENT_SESSION, value, false);
     }
-
-
 
     public int getLogLevel() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_LOG_LEVEL, Logger.DEFAULT_LOG_LEVEL);
@@ -317,8 +298,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_LOG_LEVEL, logLevel, false);
     }
 
-
-
     public int getLastNotificationId() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_LAST_NOTIFICATION_ID, TERMUX_APP.DEFAULT_VALUE_KEY_LAST_NOTIFICATION_ID);
     }
@@ -326,7 +305,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setLastNotificationId(int notificationId) {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_LAST_NOTIFICATION_ID, notificationId, false);
     }
-
 
     public synchronized int getAndIncrementAppShellNumberSinceBoot() {
         // Keep value at MAX_VALUE on integer overflow and not 0, since not first shell
@@ -350,7 +328,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             TERMUX_APP.DEFAULT_VALUE_TERMINAL_SESSION_NUMBER_SINCE_BOOT, true);
     }
 
-
     public boolean arePluginErrorNotificationsEnabled(boolean readFromFile) {
         if (readFromFile)
             return SharedPreferenceUtils.getBoolean(mMultiProcessSharedPreferences, TERMUX_APP.KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED, TERMUX_APP.DEFAULT_VALUE_PLUGIN_ERROR_NOTIFICATIONS_ENABLED);
@@ -361,10 +338,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setPluginErrorNotificationsEnabled(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED, value, false);
     }
-
-
-
-
 
     public int getButtonBgInactiveAlpha() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_BUTTON_BG_INACTIVE_ALPHA, TERMUX_APP.DEFAULT_BUTTON_BG_INACTIVE_ALPHA);
@@ -382,7 +355,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_BUTTON_BG_ACTIVE_ALPHA, value, false);
     }
 
-
     public boolean areCrashReportNotificationsEnabled(boolean readFromFile) {
         if (readFromFile)
             return SharedPreferenceUtils.getBoolean(mMultiProcessSharedPreferences, TERMUX_APP.KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED, TERMUX_APP.DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED);
@@ -394,12 +366,8 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED, value, false);
     }
 
-
-    /* #######################################################################
-     * Settings migrated from the ~/.termux/termux.properties file.
-     * Keys intentionally match the old termux.properties keys so that values
-     * can be migrated on first launch.
-     * ####################################################################### */
+    /* Settings migrated from ~/.termux/termux.properties — keys intentionally match the old
+     * termux.properties keys so that values can be migrated on first launch. */
 
     /* boolean */
 
@@ -411,7 +379,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_ALLOW_EXTERNAL_APPS, value, false);
     }
 
-
     public boolean isFileShareReceiverDisabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_FILE_SHARE_RECEIVER, TERMUX_APP.DEFAULT_VALUE_DISABLE_FILE_SHARE_RECEIVER);
     }
@@ -419,7 +386,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setFileShareReceiverDisabled(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_FILE_SHARE_RECEIVER, value, false);
     }
-
 
     public boolean isFileViewReceiverDisabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_FILE_VIEW_RECEIVER, TERMUX_APP.DEFAULT_VALUE_DISABLE_FILE_VIEW_RECEIVER);
@@ -429,7 +395,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_FILE_VIEW_RECEIVER, value, false);
     }
 
-
     public boolean areHardwareKeyboardShortcutsDisabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_HARDWARE_KEYBOARD_SHORTCUTS, TERMUX_APP.DEFAULT_VALUE_DISABLE_HARDWARE_KEYBOARD_SHORTCUTS);
     }
@@ -437,7 +402,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setHardwareKeyboardShortcutsDisabled(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_HARDWARE_KEYBOARD_SHORTCUTS, value, false);
     }
-
 
     public boolean areTerminalSessionChangeToastsDisabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_TERMINAL_SESSION_CHANGE_TOAST, TERMUX_APP.DEFAULT_VALUE_DISABLE_TERMINAL_SESSION_CHANGE_TOAST);
@@ -447,7 +411,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_DISABLE_TERMINAL_SESSION_CHANGE_TOAST, value, false);
     }
 
-
     public boolean isEnforcingCharBasedInput() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_ENFORCE_CHAR_BASED_INPUT, TERMUX_APP.DEFAULT_VALUE_ENFORCE_CHAR_BASED_INPUT);
     }
@@ -455,7 +418,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setEnforceCharBasedInput(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_ENFORCE_CHAR_BASED_INPUT, value, false);
     }
-
 
     public boolean shouldExtraKeysTextBeAllCaps() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_TEXT_ALL_CAPS, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_TEXT_ALL_CAPS);
@@ -476,7 +438,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             TERMUX_APP.KEY_EXTRA_KEYS_DYNAMIC_FONT_SIZE, value, false);
     }
 
-
     public boolean isExtraKeysEdgeIndicatorsEnabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences,
             TERMUX_APP.KEY_EXTRA_KEYS_EDGE_INDICATORS, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_EDGE_INDICATORS);
@@ -486,7 +447,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences,
             TERMUX_APP.KEY_EXTRA_KEYS_EDGE_INDICATORS, value, false);
     }
-
 
     /**
      * Whether the extra keys panel may fold its rows into one or two when the window is wider than
@@ -498,10 +458,7 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
      *                must be a {@code Context} whose resources describe the device.
      */
     public boolean isExtraKeysCompactLandscapeEnabled(Context context) {
-        // Device-dependent default, the same split the dynamic font uses: a phone in landscape is
-        // short on height, so the panel folds unless the user says otherwise; a tablet has room for
-        // the stored layout, so it does not. Only applies until the user touches the switch — from
-        // then on the stored value wins, on either device.
+        // Phone/tablet default (see javadoc); stored value wins once the user touches the switch.
         boolean isTablet = context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
         return SharedPreferenceUtils.getBoolean(mSharedPreferences,
             TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE, !isTablet);
@@ -527,7 +484,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_MODE, value, false);
     }
 
-
     public boolean isScrollOnNewOutputEnabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences,
             TERMUX_APP.KEY_SCROLL_ON_NEW_OUTPUT,
@@ -539,7 +495,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             TERMUX_APP.KEY_SCROLL_ON_NEW_OUTPUT, value, false);
     }
 
-
     public boolean shouldSoftKeyboardBeHiddenOnStartup() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_HIDE_SOFT_KEYBOARD_ON_STARTUP, TERMUX_APP.DEFAULT_VALUE_HIDE_SOFT_KEYBOARD_ON_STARTUP);
     }
@@ -547,7 +502,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setSoftKeyboardHiddenOnStartup(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_HIDE_SOFT_KEYBOARD_ON_STARTUP, value, false);
     }
-
 
     public boolean shouldRunTermuxAmSocketServer() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_RUN_TERMUX_AM_SOCKET_SERVER, TERMUX_APP.DEFAULT_VALUE_RUN_TERMUX_AM_SOCKET_SERVER);
@@ -557,7 +511,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_RUN_TERMUX_AM_SOCKET_SERVER, value, false);
     }
 
-
     public boolean shouldOpenTerminalTranscriptURLOnClick() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_ONCLICK_URL_OPEN, TERMUX_APP.DEFAULT_VALUE_TERMINAL_ONCLICK_URL_OPEN);
     }
@@ -565,7 +518,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setOpenTerminalTranscriptURLOnClick(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_ONCLICK_URL_OPEN, value, false);
     }
-
 
     public boolean isUsingCtrlSpaceWorkaround() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_CTRL_SPACE_WORKAROUND, TERMUX_APP.DEFAULT_VALUE_USE_CTRL_SPACE_WORKAROUND);
@@ -575,7 +527,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_CTRL_SPACE_WORKAROUND, value, false);
     }
 
-
     public boolean isUsingFullScreen() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_FULLSCREEN, TERMUX_APP.DEFAULT_VALUE_USE_FULLSCREEN);
     }
@@ -583,7 +534,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setFullScreen(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_USE_FULLSCREEN, value, false);
     }
-
 
     public boolean isBubbleOnBackgroundEnabled() {
         return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_BUBBLE_ON_BACKGROUND, TERMUX_APP.DEFAULT_VALUE_BUBBLE_ON_BACKGROUND);
@@ -605,7 +555,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_BELL_BEHAVIOUR, value, false);
     }
 
-
     public int getExtraKeysHaptic() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_HAPTIC, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_HAPTIC);
     }
@@ -616,7 +565,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_HAPTIC, value, false);
     }
 
-
     public int getDeleteTMPDIRFilesOlderThanXDaysOnExit() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_DELETE_TMPDIR_FILES_OLDER_THAN_X_DAYS_ON_EXIT, TERMUX_APP.DEFAULT_VALUE_DELETE_TMPDIR_FILES_OLDER_THAN_X_DAYS_ON_EXIT);
     }
@@ -626,7 +574,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         if (value > TERMUX_APP.MAX_DELETE_TMPDIR_FILES_OLDER_THAN_X_DAYS_ON_EXIT) value = TERMUX_APP.MAX_DELETE_TMPDIR_FILES_OLDER_THAN_X_DAYS_ON_EXIT;
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_DELETE_TMPDIR_FILES_OLDER_THAN_X_DAYS_ON_EXIT, value, false);
     }
-
 
     public int getTerminalCursorBlinkRate() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_CURSOR_BLINK_RATE, TERMUX_APP.DEFAULT_VALUE_TERMINAL_CURSOR_BLINK_RATE);
@@ -646,8 +593,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_CURSOR_BLINK_ENABLED, value, false);
     }
 
-
-
     public int getTerminalCursorStyle() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_CURSOR_STYLE, TERMUX_APP.DEFAULT_VALUE_TERMINAL_CURSOR_STYLE);
     }
@@ -657,7 +602,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         if (value > TermuxPropertyConstants.IVALUE_TERMINAL_CURSOR_STYLE_BAR) value = TermuxPropertyConstants.IVALUE_TERMINAL_CURSOR_STYLE_BAR;
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_CURSOR_STYLE, value, false);
     }
-
 
     /**
      * Get the terminal margin for one side. For a left/right side, if the new per-side
@@ -717,7 +661,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_MARGIN_BOTTOM, value, false);
     }
 
-
     /**
      * Get the terminal background transparency in percent.
      *
@@ -762,7 +705,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_TRANSCRIPT_ROWS, value, false);
     }
 
-
     /* float */
 
     public float getTerminalToolbarHeightScaleFactor() {
@@ -774,7 +716,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         if (value > TERMUX_APP.MAX_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR) value = TERMUX_APP.MAX_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR;
         SharedPreferenceUtils.setFloat(mSharedPreferences, TERMUX_APP.KEY_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR, value, false);
     }
-
 
     /* int (extra keys corner radius) */
 
@@ -788,7 +729,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_CORNER_RADIUS, value, false);
     }
 
-
     /* float (extra keys button margin in dp) - stored as int (value × 10) */
 
     public float getExtraKeysButtonMargin() {
@@ -801,7 +741,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         if (value > TERMUX_APP.MAX_EXTRA_KEYS_BUTTON_MARGIN) value = TERMUX_APP.MAX_EXTRA_KEYS_BUTTON_MARGIN;
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_BUTTON_MARGIN, Math.round(value * 10f), false);
     }
-
 
     /* int (extra keys base font size in sp) */
 
@@ -818,7 +757,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             TERMUX_APP.KEY_EXTRA_KEYS_FONT_SIZE, value, false);
     }
 
-
     /* String (session shortcuts, raw "Ctrl+KEY" form) */
 
     public String getShortcutString(String key) {
@@ -828,7 +766,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setShortcutString(String key, String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, key, value, false);
     }
-
 
     /* String */
 
@@ -843,7 +780,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setBackKeyBehaviour(String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_BACK_KEY_BEHAVIOUR, value, false);
     }
-
 
     public String getDefaultWorkingDirectory() {
         String value = SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_DEFAULT_WORKING_DIRECTORY, TERMUX_APP.DEFAULT_VALUE_DEFAULT_WORKING_DIRECTORY, true);
@@ -862,7 +798,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setDefaultWorkingDirectory(String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_DEFAULT_WORKING_DIRECTORY, value, false);
     }
-
 
     public String getExtraKeys() {
         return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS, true);
@@ -887,10 +822,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             TERMUX_APP.KEY_EXTRA_KEYS_SESSION, value, false);
     }
 
-
-
-
-
     public String getExtraKeysStyle() {
         return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_STYLE, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_STYLE, true);
     }
@@ -898,7 +829,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setExtraKeysStyle(String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_STYLE, value, false);
     }
-
 
     public String getExtraKeysSpecialButtonMode() {
         return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE, TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_SPECIAL_BUTTON_MODE, true);
@@ -908,7 +838,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_EXTRA_KEYS_SPECIAL_BUTTON_MODE, value, false);
     }
 
-
     public String getNightMode() {
         return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_NIGHT_MODE, TERMUX_APP.DEFAULT_VALUE_NIGHT_MODE, true);
     }
@@ -916,7 +845,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setNightMode(String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_NIGHT_MODE, value, false);
     }
-
 
     public boolean shouldEnableDisableSoftKeyboardOnToggle() {
         return TermuxPropertyConstants.IVALUE_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR_ENABLE_DISABLE.equals(getSoftKeyboardToggleBehaviour());
@@ -930,7 +858,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_SOFT_KEYBOARD_TOGGLE_BEHAVIOUR, value, false);
     }
 
-
     public boolean areVirtualVolumeKeysDisabled() {
         return TermuxPropertyConstants.IVALUE_VOLUME_KEY_BEHAVIOUR_VOLUME.equals(getVolumeKeysBehaviour());
     }
@@ -942,7 +869,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     public void setVolumeKeysBehaviour(String value) {
         SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_VOLUME_KEYS_BEHAVIOUR, value, false);
     }
-
 
     /* Generic key based accessors used by the properties facade. */
 

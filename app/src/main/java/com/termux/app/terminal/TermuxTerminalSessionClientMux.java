@@ -14,21 +14,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * A {@link TerminalSessionClient} that fans every callback out to one <em>primary</em> delegate
  * plus any number of <em>secondary</em> delegates.
  *
- * <p>Background: a {@link TerminalSession} holds exactly ONE client, and that client is the only
- * channel through which the session announces that the screen changed
- * ({@link TerminalSession#notifyScreenUpdate()} → {@link #onTextChanged}). So a second surface
- * showing the same session — the floating bubble window — cannot simply replace the client: doing
- * so would silently freeze the main activity's terminal, and replacing it back would freeze the
- * bubble instead.
+ * <p>A {@link TerminalSession} holds exactly ONE client — the only channel through which it
+ * announces screen changes ({@link TerminalSession#notifyScreenUpdate()} →
+ * {@link #onTextChanged}) — so a second surface (the floating bubble window) cannot replace it
+ * without freezing the main activity's terminal, and replacing it back would freeze the bubble.
  *
- * <p>This mux is installed once, in {@link com.termux.app.TermuxService}, and stays the session's
- * client for the whole lifetime of the service. The service swaps the <em>primary</em> delegate
- * when {@link com.termux.app.TermuxActivity} binds/unbinds (mirroring the previous behaviour,
- * where the session's client was swapped between the activity client and the service client), and
- * secondary delegates come and go as extra surfaces are created and destroyed.
- *
- * <p>A misbehaving delegate must never take the other surfaces down with it, so every fan-out is
- * guarded: one delegate throwing is logged and the rest still receive the callback.
+ * <p>Installed once in {@link com.termux.app.TermuxService} and kept for the service's lifetime:
+ * the service swaps the <em>primary</em> delegate on activity bind/unbind, secondaries come and
+ * go with extra surfaces. Every fan-out is guarded — a throwing delegate is logged and the rest
+ * still receive the callback.
  */
 public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionClientBase {
 
@@ -67,9 +61,7 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
         return !mSecondaries.isEmpty();
     }
 
-    // ==================================================================================
-    // TerminalSessionClient fan-out
-    // ==================================================================================
+    // ── TerminalSessionClient fan-out ──
 
     @Override
     public void onTextChanged(@NonNull TerminalSession changedSession) {
@@ -171,9 +163,7 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
         return null;
     }
 
-    // ==================================================================================
-    // Logging — only the primary delegate logs, so the log does not get duplicated per surface
-    // ==================================================================================
+    // ── Logging: only the primary logs, so the log is not duplicated per surface ──
 
     @Override
     public void logError(String tag, String message) {

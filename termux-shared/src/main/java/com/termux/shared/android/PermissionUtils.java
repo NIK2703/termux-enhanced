@@ -41,11 +41,10 @@ public class PermissionUtils {
 
     private static final String LOG_TAG = "PermissionUtils";
 
-
     /**
      * Check if app has been granted the required permission.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param permission The {@link String} name for permission to check.
      * @return Returns {@code true} if permission is granted, otherwise {@code false}.
      */
@@ -56,7 +55,7 @@ public class PermissionUtils {
     /**
      * Check if app has been granted the required permissions.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param permissions The {@link String[]} names for permissions to check.
      * @return Returns {@code true} if permissions are granted, otherwise {@code false}.
      */
@@ -81,13 +80,10 @@ public class PermissionUtils {
         return true;
     }
 
-
-
     /**
      * Request user to grant required permissions to the app.
      *
-     * @param context The context for operations. It must be an instance of {@link Activity} or
-     * {@link AppCompatActivity}.
+     * @param context context; must be an {@link Activity} or {@link AppCompatActivity}.
      * @param permission The {@link String} name for permission to request.
      * @param requestCode The request code to use while asking for permission. It must be `>=0` or
      *                    will fail silently and will log an exception.
@@ -110,8 +106,7 @@ public class PermissionUtils {
      * option in prompt. The user will have to manually enable permission in app info in Android
      * settings. If user grants and then denies in settings, then next time prompt will shown.
      *
-     * @param context The context for operations. It must be an instance of {@link Activity} or
-     * {@link AppCompatActivity}.
+     * @param context context; must be an {@link Activity} or {@link AppCompatActivity}.
      * @param permissions The {@link String[]} names for permissions to request.
      * @param requestCode The request code to use while asking for permissions. It must be `>=0` or
      *                    will fail silently and will log an exception.
@@ -158,13 +153,10 @@ public class PermissionUtils {
         return true;
     }
 
-
-
-
     /**
      * Check if app has requested the required permission in the manifest.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param permission The {@link String} name for permission to check.
      * @return Returns {@code true} if permission has been requested, otherwise {@code false}.
      */
@@ -175,7 +167,7 @@ public class PermissionUtils {
     /**
      * Check if app has requested the required permissions or not in the manifest.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param permissions The {@link String[]} names for permissions to check.
      * @return Returns {@link List<String>} of permissions that have not been requested. It will have
      * size 0 if all permissions have been requested.
@@ -204,14 +196,11 @@ public class PermissionUtils {
         return permissionsNotRequested;
     }
 
-
-
-
     /** If path is under primary external storage directory and storage permission is missing,
      * then legacy or manage external storage permission will be requested from the user via a call
      * to {@link #checkAndRequestLegacyOrManageExternalStoragePermission(Context, int, boolean)}.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param filePath The path to check.
      * @param requestCode The request code to use while asking for permission.
      * @param showErrorMessage If an error message toast should be shown if permission is not granted.
@@ -254,7 +243,7 @@ public class PermissionUtils {
      *    </application>
      * </manifest>
      *}
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param requestCode The request code to use while asking for permission.
      * @param showErrorMessage If an error message toast should be shown if permission is not granted.
      * @return Returns {@code true} if permission is granted, otherwise {@code false}.
@@ -276,7 +265,6 @@ public class PermissionUtils {
             return true;
         }
 
-
         errmsg = context.getString(R.string.msg_storage_permission_not_granted);
         Logger.logError(LOG_TAG, errmsg);
         if (showErrorMessage)
@@ -297,7 +285,7 @@ public class PermissionUtils {
     /**
      * Check if app has been granted storage permission.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param checkLegacyStoragePermission If set to {@code true}, then it will be checked if app
      *                                     has been granted {@link Manifest.permission#READ_EXTERNAL_STORAGE}
      *                                     and {@link Manifest.permission#WRITE_EXTERNAL_STORAGE}
@@ -320,8 +308,7 @@ public class PermissionUtils {
      * Request user to grant {@link Manifest.permission#READ_EXTERNAL_STORAGE} and
      * {@link Manifest.permission#WRITE_EXTERNAL_STORAGE} permissions to the app.
      *
-     * @param context The context for operations. It must be an instance of {@link Activity} or
-     * {@link AppCompatActivity}.
+     * @param context context; must be an {@link Activity} or {@link AppCompatActivity}.
      * @param requestCode The request code to use while asking for permission. It must be `>=0` or
      *                    will fail silently and will log an exception.
      * @return Returns {@code true} if requesting the permission was successful, otherwise {@code false}.
@@ -341,10 +328,9 @@ public class PermissionUtils {
     /**
      * Request user to grant {@link Manifest.permission#MANAGE_EXTERNAL_STORAGE} permission to the app.
      *
-     * @param context The context for operations, like an {@link Activity} or {@link Service} context.
-     *                It must be an instance of {@link Activity} or {@link AppCompatActivity} if
-     *                result is required via the Activity#onActivityResult() callback and
-     *                {@code requestCode} is `>=0`.
+     * @param context context, like an {@link Activity} or {@link Service}. Must be an
+     *                {@link Activity}/{@link AppCompatActivity} if result is required via
+     *                Activity#onActivityResult() and {@code requestCode} is `>=0`.
      * @param requestCode The request code to use while asking for permission. It must be `>=0` if
      *                    result it required.
      * @return Returns the {@code error} if requesting the permission was not successful, otherwise {@code null}.
@@ -357,8 +343,8 @@ public class PermissionUtils {
         intent.addCategory("android.intent.category.DEFAULT");
         intent.setData(Uri.parse("package:" + context.getPackageName()));
 
-        // Flag must not be passed for activity contexts, otherwise onActivityResult() will not be called with permission grant result.
-        // Flag must be passed for non-activity contexts like services, otherwise "Calling startActivity() from outside of an Activity context requires the FLAG_ACTIVITY_NEW_TASK flag" exception will be raised.
+        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
+        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
         if (!(context instanceof Activity))
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
@@ -433,18 +419,13 @@ public class PermissionUtils {
                 Logger.showToast(context, errmsg, true);
             return false;
         }
-
         return true;
     }
-
-
-
-
 
     /**
      * Check if {@link Manifest.permission#SYSTEM_ALERT_WINDOW} permission has been granted.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @return Returns {@code true} if permission is granted, otherwise {@code false}.
      */
     public static boolean checkDisplayOverOtherAppsPermission(@NonNull Context context) {
@@ -462,10 +443,9 @@ public class PermissionUtils {
     /**
      * Request user to grant {@link Manifest.permission#SYSTEM_ALERT_WINDOW} permission to the app.
      *
-     * @param context The context for operations, like an {@link Activity} or {@link Service} context.
-     *                It must be an instance of {@link Activity} or {@link AppCompatActivity} if
-     *                result is required via the Activity#onActivityResult() callback and
-     *                {@code requestCode} is `>=0`.
+     * @param context context, like an {@link Activity} or {@link Service}. Must be an
+     *                {@link Activity}/{@link AppCompatActivity} if result is required via
+     *                Activity#onActivityResult() and {@code requestCode} is `>=0`.
      * @param requestCode The request code to use while asking for permission. It must be `>=0` if
      *                    result it required.
      * @return Returns the {@code error} if requesting the permission was not successful, otherwise {@code null}.
@@ -479,8 +459,8 @@ public class PermissionUtils {
         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
         intent.setData(Uri.parse("package:" + context.getPackageName()));
 
-        // Flag must not be passed for activity contexts, otherwise onActivityResult() will not be called with permission grant result.
-        // Flag must be passed for non-activity contexts like services, otherwise "Calling startActivity() from outside of an Activity context requires the FLAG_ACTIVITY_NEW_TASK flag" exception will be raised.
+        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
+        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
         if (!(context instanceof Activity))
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
@@ -494,7 +474,7 @@ public class PermissionUtils {
      * Check if running on sdk 29 (android 10) or higher and {@link Manifest.permission#SYSTEM_ALERT_WINDOW}
      * permission has been granted or not.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @param logResults If it should be logged that permission has been granted or not.
      * @return Returns {@code true} if permission is granted, otherwise {@code false}.
      */
@@ -513,15 +493,11 @@ public class PermissionUtils {
         }
     }
 
-
-
-
-
     /**
      * Check if {@link Manifest.permission#REQUEST_IGNORE_BATTERY_OPTIMIZATIONS} permission has been
      * granted.
      *
-     * @param context The context for operations.
+     * @param context context for operations.
      * @return Returns {@code true} if permission is granted, otherwise {@code false}.
      */
     public static boolean checkIfBatteryOptimizationsDisabled(@NonNull Context context) {
@@ -541,10 +517,9 @@ public class PermissionUtils {
      * Request user to grant {@link Manifest.permission#REQUEST_IGNORE_BATTERY_OPTIMIZATIONS}
      * permission to the app.
      *
-     * @param context The context for operations, like an {@link Activity} or {@link Service} context.
-     *                It must be an instance of {@link Activity} or {@link AppCompatActivity} if
-     *                result is required via the Activity#onActivityResult() callback and
-     *                {@code requestCode} is `>=0`.
+     * @param context context, like an {@link Activity} or {@link Service}. Must be an
+     *                {@link Activity}/{@link AppCompatActivity} if result is required via
+     *                Activity#onActivityResult() and {@code requestCode} is `>=0`.
      * @param requestCode The request code to use while asking for permission. It must be `>=0` if
      *                    result it required.
      * @return Returns the {@code error} if requesting the permission was not successful, otherwise {@code null}.
@@ -559,8 +534,8 @@ public class PermissionUtils {
         Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
         intent.setData(Uri.parse("package:" + context.getPackageName()));
 
-        // Flag must not be passed for activity contexts, otherwise onActivityResult() will not be called with permission grant result.
-        // Flag must be passed for non-activity contexts like services, otherwise "Calling startActivity() from outside of an Activity context requires the FLAG_ACTIVITY_NEW_TASK flag" exception will be raised.
+        // Flag must not be passed for activity contexts (onActivityResult would not fire), but must
+        // be passed for non-activity contexts (otherwise FLAG_ACTIVITY_NEW_TASK exception).
         if (!(context instanceof Activity))
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 

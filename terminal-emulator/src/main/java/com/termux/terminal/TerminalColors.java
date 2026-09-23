@@ -5,7 +5,6 @@ import android.graphics.Color;
 /** Current terminal colors (if different from default). */
 public final class TerminalColors {
 
-    /** Static data - a bit ugly but ok for now. */
     public static final TerminalColorScheme COLOR_SCHEME = new TerminalColorScheme();
 
     /**
@@ -14,7 +13,6 @@ public final class TerminalColors {
      */
     public final int[] mCurrentColors = new int[TextStyle.NUM_INDEXED_COLORS];
 
-    /** Create a new instance with default colors from the theme. */
     public TerminalColors() {
         reset();
     }

@@ -43,7 +43,7 @@ public final class ToastUtils {
      * Show a toast with scheme-safe colours. May be called from any thread — the call is
      * posted to the main thread.
      *
-     * @param context      The {@link Context} to show the toast with.
+     * @param context      context.
      * @param text         The text to show. Nothing is shown if {@code null} or empty.
      * @param longDuration Whether {@link Toast#LENGTH_LONG} should be used instead of
      *                     {@link Toast#LENGTH_SHORT}.

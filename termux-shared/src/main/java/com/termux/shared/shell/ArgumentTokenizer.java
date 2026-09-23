@@ -72,10 +72,9 @@ public abstract class ArgumentTokenizer {
         LinkedList<String> argList = new LinkedList<String>();
         StringBuilder currArg = new StringBuilder();
         boolean escaped = false;
-        int state = NO_TOKEN_STATE;  // start in the NO_TOKEN_STATE
+        int state = NO_TOKEN_STATE;
         int len = arguments.length();
 
-        // Loop over each character in the string
         for (int i = 0; i < len; i++) {
             char c = arguments.charAt(i);
             if (escaped) {
@@ -115,27 +114,6 @@ public abstract class ArgumentTokenizer {
                             currArg.append(c);
                         }
                         break;
-//          case NORMAL_TOKEN_STATE:
-//            if (Character.isWhitespace(c)) {
-//              // Whitespace ends the token; start a new one
-//              argList.add(currArg.toString());
-//              currArg = new StringBuffer();
-//              state = NO_TOKEN_STATE;
-//            }
-//            else if (c == '\\') {
-//              // Backslash in a normal token: escape the next character
-//              escaped = true;
-//            }
-//            else if (c == '\'') {
-//              state = SINGLE_QUOTE_STATE;
-//            }
-//            else if (c == '"') {
-//              state = DOUBLE_QUOTE_STATE;
-//            }
-//            else {
-//              currArg.append(c);
-//            }
-//            break;
                     case NO_TOKEN_STATE:
                     case NORMAL_TOKEN_STATE:
                         switch(c) {

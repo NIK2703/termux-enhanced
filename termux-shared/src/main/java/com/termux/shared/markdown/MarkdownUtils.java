@@ -77,7 +77,6 @@ public class MarkdownUtils {
         else
             backticksCountToUse = maxConsecutiveBackTicksCount + 1;
 
-        // create a string with n backticks where n==backticksCountToUse
         String backticksToUse = Strings.repeat(backtick, backticksCountToUse);
 
         if (codeBlock)
@@ -93,12 +92,7 @@ public class MarkdownUtils {
         }
     }
 
-    /**
-     * Get the max consecutive backticks "`" in a {@link String}.
-     *
-     * @param string The {@link String} to check.
-     * @return Returns the max consecutive backticks count.
-     */
+    /** Max consecutive backticks "`" in {@code string}. */
     public static int getMaxConsecutiveBackTicksCount(String string) {
         if (string == null || string.isEmpty()) return 0;
 

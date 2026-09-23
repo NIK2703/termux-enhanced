@@ -37,7 +37,6 @@ public class ExtraKeyButton {
     /** The key name for the nested dict to define swipe right extra key info. */
     public static final String KEY_SWIPE_RIGHT = "swipeRight";
 
-
     /**
      * The key that will be sent to the terminal, either a control character, like defined in
      * {@link ExtraKeysConstants#PRIMARY_KEY_CODES_FOR_STRINGS} (LEFT, RIGHT, PGUP...) or some text.
@@ -49,38 +48,24 @@ public class ExtraKeyButton {
      */
     private final boolean macro;
 
-    /**
-     * The text that will be displayed on the button.
-     */
     private final String display;
 
     /**
-     * The {@link ExtraKeyButton} containing the information of the popup button (triggered by swipe up).
+     * The {@link ExtraKeyButton} containing the information of the popup button (triggered by
+     * swipe up).
      */
     @Nullable
     private final ExtraKeyButton popup;
 
-    /**
-     * The {@link ExtraKeyButton} containing the information of the swipe up button.
-     */
     @Nullable
     private final ExtraKeyButton swipeUp;
 
-    /**
-     * The {@link ExtraKeyButton} containing the information of the swipe down button.
-     */
     @Nullable
     private final ExtraKeyButton swipeDown;
 
-    /**
-     * The {@link ExtraKeyButton} containing the information of the swipe left button.
-     */
     @Nullable
     private final ExtraKeyButton swipeLeft;
 
-    /**
-     * The {@link ExtraKeyButton} containing the information of the swipe right button.
-     */
     @Nullable
     private final ExtraKeyButton swipeRight;
 
@@ -88,14 +73,9 @@ public class ExtraKeyButton {
     private boolean mHasDelay;
 
     /**
-     * Initialize a {@link ExtraKeyButton}.
-     *
-     * @param config The {@link JSONObject} containing the info to create the {@link ExtraKeyButton}.
-     * @param extraKeyDisplayMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           display text mapping for the keys if a custom value is not defined
-     *                           by {@link #KEY_DISPLAY_NAME}.
-     * @param extraKeyAliasMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           aliases for the actual key names.
+     * @param config button configuration.
+     * @param extraKeyDisplayMap display text mapping when {@link #KEY_DISPLAY_NAME} is absent.
+     * @param extraKeyAliasMap aliases for the actual key names.
      */
     public ExtraKeyButton(@NonNull JSONObject config,
                           @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyDisplayMap,
@@ -104,15 +84,10 @@ public class ExtraKeyButton {
     }
 
     /**
-     * Initialize a {@link ExtraKeyButton}.
-     *
-     * @param config The {@link JSONObject} containing the info to create the {@link ExtraKeyButton}.
-     * @param popup The {@link ExtraKeyButton} optional {@link #popup} button.
-     * @param extraKeyDisplayMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           display text mapping for the keys if a custom value is not defined
-     *                           by {@link #KEY_DISPLAY_NAME}.
-     * @param extraKeyAliasMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           aliases for the actual key names.
+     * @param config button configuration.
+     * @param popup optional popup button (legacy alias of swipe up).
+     * @param extraKeyDisplayMap display text mapping when {@link #KEY_DISPLAY_NAME} is absent.
+     * @param extraKeyAliasMap aliases for the actual key names.
      */
     public ExtraKeyButton(@NonNull JSONObject config, @Nullable ExtraKeyButton popup,
                           @NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyDisplayMap,
@@ -121,18 +96,13 @@ public class ExtraKeyButton {
     }
 
     /**
-     * Initialize a {@link ExtraKeyButton}.
-     *
-     * @param config The {@link JSONObject} containing the info to create the {@link ExtraKeyButton}.
-     * @param swipeUp The {@link ExtraKeyButton} optional swipe up button.
-     * @param swipeDown The {@link ExtraKeyButton} optional swipe down button.
-     * @param swipeLeft The {@link ExtraKeyButton} optional swipe left button.
-     * @param swipeRight The {@link ExtraKeyButton} optional swipe right button.
-     * @param extraKeyDisplayMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           display text mapping for the keys if a custom value is not defined
-     *                           by {@link #KEY_DISPLAY_NAME}.
-     * @param extraKeyAliasMap The {@link ExtraKeysConstants.ExtraKeyDisplayMap} that defines the
-     *                           aliases for the actual key names.
+     * @param config button configuration.
+     * @param swipeUp optional swipe up button.
+     * @param swipeDown optional swipe down button.
+     * @param swipeLeft optional swipe left button.
+     * @param swipeRight optional swipe right button.
+     * @param extraKeyDisplayMap display text mapping when {@link #KEY_DISPLAY_NAME} is absent.
+     * @param extraKeyAliasMap aliases for the actual key names.
      */
     public ExtraKeyButton(@NonNull JSONObject config,
                           @Nullable ExtraKeyButton swipeUp,

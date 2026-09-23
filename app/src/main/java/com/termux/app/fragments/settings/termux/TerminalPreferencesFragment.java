@@ -22,7 +22,7 @@ import com.termux.shared.termux.settings.preferences.TermuxWidgetAppSharedPrefer
 /**
  * The "Terminal" screen. Every migrated {@code termux.properties} key now lives in
  * {@link TermuxAppSharedPreferences}. No {@link androidx.preference.PreferenceDataStore}
- * is used — each preference is wired with a non-persistent backing (setPersistent(false))
+ * is used вЂ” each preference is wired with a non-persistent backing (setPersistent(false))
  * plus an explicit OnPreferenceChangeListener that writes through to
  * TermuxAppSharedPreferences and refreshes the activity styling where relevant.
  */
@@ -55,9 +55,8 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
             value -> prefs.setDefaultWorkingDirectory(value), false);
 
         // --- Key behaviour ---
-        // (Previously hosted the Back key, Volume keys, keyboard toggle, Ctrl+Space workaround,
-        // char-based input, hardware keyboard shortcuts, session-change toast and URL-on-click
-        // toggles. These were migrated to the "Input" screen's TerminalIOPreferencesDataStore.)
+        // Back/Volume/keyboard/shortcut toggles etc. migrated to the "Input" screen
+        // (TerminalIOPreferencesDataStore).
 
         // Night/theme mode is configured on the Display screen (theme_mode) to avoid a duplicate.
 
@@ -104,9 +103,7 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         }.start();
     }
 
-    // -----------------------------------------------------------------------
-    //  Helpers
-    // -----------------------------------------------------------------------
+    // --- Helpers ---
 
     private void configureSwitch(String key, boolean current,
                                  PreferenceValueSetter<Boolean> setter, boolean affectsStyling) {
@@ -229,9 +226,7 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         void set(T value);
     }
 
-    // -----------------------------------------------------------------------
-    //  TerminalEmulator cursor-style / bell-behaviour converters
-    // -----------------------------------------------------------------------
+    // --- TerminalEmulator cursor-style / bell-behaviour converters ---
 
     private String cursorStyleToString(int style) {
         switch (style) {
@@ -261,9 +256,7 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         return 1;
     }
 
-    // -----------------------------------------------------------------------
-    //  Add-on visibility (mirrors SettingsActivity.RootPreferencesFragment)
-    // -----------------------------------------------------------------------
+    // --- Add-on visibility (mirrors SettingsActivity.RootPreferencesFragment) ---
 
     private void configureTermuxAPIPreference(Context context) {
         Preference pref = findPreference("termux_api");

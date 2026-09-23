@@ -29,7 +29,6 @@ public class ExecutionCommand {
     perspective.
     */
 
-    /** The {@link Enum} that defines {@link ExecutionCommand} state. */
     public enum ExecutionState {
 
         PRE_EXECUTION("Pre-Execution", 0),
@@ -54,7 +53,6 @@ public class ExecutionCommand {
             return value;
         }
 
-
     }
 
     public enum Runner {
@@ -64,12 +62,6 @@ public class ExecutionCommand {
 
         /** Run command in {@link AppShell}. */
         APP_SHELL("app-shell");
-
-        ///** Run command in {@link AdbShell}. */
-        //ADB_SHELL("adb-shell"),
-
-        ///** Run command in {@link RootShell}. */
-        //ROOT_SHELL("root-shell");
 
         private final String name;
 
@@ -140,103 +132,72 @@ public class ExecutionCommand {
 
     }
 
-    /** The optional unique id for the {@link ExecutionCommand}. This should equal -1 if execution
-     * command is not going to be managed by a shell manager. */
+    /** The optional unique id; {@code -1} when not managed by a shell manager. */
     public Integer id;
 
-    /** The process id of command. */
+    /** The process id of the command, {@code -1} if not started. */
     public int mPid = -1;
 
-    /** The current state of the {@link ExecutionCommand}. */
     private ExecutionState currentState = ExecutionState.PRE_EXECUTION;
-    /** The previous state of the {@link ExecutionCommand}. */
     private ExecutionState previousState = ExecutionState.PRE_EXECUTION;
 
-
-    /** The executable for the {@link ExecutionCommand}. */
     public String executable;
-    /** The executable Uri for the {@link ExecutionCommand}. */
     public Uri executableUri;
-    /** The executable arguments array for the {@link ExecutionCommand}. */
     public String[] arguments;
-    /** The stdin string for the {@link ExecutionCommand}. */
     public String stdin;
-    /** The current working directory for the {@link ExecutionCommand}. */
     public String workingDirectory;
 
-
-    /** The terminal transcript rows for the {@link ExecutionCommand}. */
     public Integer terminalTranscriptRows;
 
-
-    /** The {@link Runner} for the {@link ExecutionCommand}. */
     public String runner;
 
     /** If the {@link ExecutionCommand} is meant to start a failsafe terminal session. */
     public boolean isFailsafe;
 
     /**
-     * The {@link ExecutionCommand} custom log level for background {@link AppShell}
-     * commands. By default, @link com.termux.shared.shell.StreamGobbler} only logs stdout and
-     * stderr if {@link Logger} `CURRENT_LOG_LEVEL` is >= {@link Logger#LOG_LEVEL_VERBOSE} and
-     * {@link AppShell} only logs stdin if `CURRENT_LOG_LEVEL` is >=
+     * Custom log level for background {@link AppShell} commands. By default,
+     * {@code com.termux.shared.shell.StreamGobbler} only logs stdout/stderr at
+     * {@link Logger#LOG_LEVEL_VERBOSE} and {@link AppShell} only logs stdin at
      * {@link Logger#LOG_LEVEL_DEBUG}.
      */
     public Integer backgroundCustomLogLevel;
 
-
     /** The session action of {@link Runner#TERMINAL_SESSION} commands. */
     public String sessionAction;
 
-
-    /** The shell name of commands. */
     public String shellName;
 
-    /** The {@link ShellCreateMode} of commands. */
     public String shellCreateMode;
 
-    /** Whether to set {@link ExecutionCommand} shell environment. */
     public boolean setShellCommandShellEnvironment;
 
-
-
-
-    /** The command label for the {@link ExecutionCommand}. */
     public String commandLabel;
+
     /** The markdown text for the command description for the {@link ExecutionCommand}. */
     public String commandDescription;
-    /** The markdown text for the help of command for the {@link ExecutionCommand}. This can be used
-     * to provide useful info to the user if an internal error is raised. */
+
+    /** Markdown help for the command; shown to the user if an internal error is raised. */
     public String commandHelp;
 
-
-    /** Defines the markdown text for the help of the Termux plugin API that was used to start the
-     * {@link ExecutionCommand}. This can be used to provide useful info to the user if an internal
-     * error is raised. */
+    /** Markdown help for the plugin API that started the command; shown on internal errors. */
     public String pluginAPIHelp;
 
-
-    /** Defines the {@link Intent} received which started the command. */
+    /** The {@link Intent} received which started the command. */
     public Intent commandIntent;
 
-    /** Defines if {@link ExecutionCommand} was started because of an external plugin request
-     * like with an intent or from within Termux app itself. */
+    /** True if started because of an external plugin request (intent) or from within Termux. */
     public boolean isPluginExecutionCommand;
 
-    /** Defines the {@link ResultConfig} for the {@link ExecutionCommand} containing information
-     * on how to handle the result. */
+    /** How to handle the result of the command (pending intent, files, formats). */
     public final ResultConfig resultConfig = new ResultConfig();
 
-    /** Defines the {@link ResultData} for the {@link ExecutionCommand} containing information
-     * of the result. */
+    /** The result of the command (stdout, stderr, exit code, errors). */
     public final ResultData resultData = new ResultData();
-
 
     /** Defines if processing results already called for this {@link ExecutionCommand}. */
     public boolean processingResultsAlreadyCalled;
 
     private static final String LOG_TAG = "ExecutionCommand";
-
 
     public ExecutionCommand() {
     }
@@ -255,11 +216,9 @@ public class ExecutionCommand {
         this.isFailsafe = isFailsafe;
     }
 
-
     public boolean isPluginExecutionCommandWithPendingResult() {
         return isPluginExecutionCommand && resultConfig.isCommandWithPendingResult();
     }
-
 
     public synchronized boolean setState(ExecutionState newState) {
         // The state transition cannot go back or change if already at {@link ExecutionState#SUCCESS}
@@ -289,7 +248,6 @@ public class ExecutionCommand {
     public synchronized boolean isSuccessful() {
         return currentState == ExecutionState.SUCCESS;
     }
-
 
     public synchronized boolean setStateFailed(@NonNull Error error) {
         return setStateFailed(error.getType(), error.getCode(), error.getMessage(), null);
@@ -341,7 +299,6 @@ public class ExecutionCommand {
             return true;
         }
     }
-
 
     @NonNull
     @Override
@@ -520,7 +477,6 @@ public class ExecutionCommand {
         return markdownString.toString();
     }
 
-
     public String getIdLogString() {
         if (id != null)
             return "(" + id + ") ";
@@ -621,9 +577,8 @@ public class ExecutionCommand {
         return "isPluginExecutionCommand: `" + isPluginExecutionCommand + "`";
     }
 
-
     /**
-     * Get a log friendly {@link String} for {@link List<String>} argumentsArray.
+     * Get a log friendly {@link String} for a {@code String[]} arguments array.
      * If argumentsArray are null or of size 0, then `Arguments: -` is returned. Otherwise
      * following format is returned:
      *

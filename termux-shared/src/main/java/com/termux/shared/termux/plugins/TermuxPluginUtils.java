@@ -74,15 +74,12 @@ public class TermuxPluginUtils {
         Logger.logDebugExtended(logTag, ExecutionCommand.getExecutionOutputLogString(executionCommand, true,
             !isPluginExecutionCommandWithPendingResult, isExecutionCommandLoggingEnabled));
 
-        // If execution command was started by a plugin which expects the result back
         if (isPluginExecutionCommandWithPendingResult) {
-            // Set variables which will be used by sendCommandResultData to send back the result
             if (executionCommand.resultConfig.resultPendingIntent != null)
                 setPluginResultPendingIntentVariables(executionCommand);
             if (executionCommand.resultConfig.resultDirectoryPath != null)
                 setPluginResultDirectoryVariables(executionCommand);
 
-            // Send result to caller
             error = ResultSender.sendCommandResultData(context, logTag, executionCommand.getCommandIdAndLabelLogString(),
                 executionCommand.resultConfig, executionCommand.resultData, isExecutionCommandLoggingEnabled);
             if (error != null) {
@@ -90,7 +87,6 @@ public class TermuxPluginUtils {
                 resultData.setStateFailed(error);
                 Logger.logDebugExtended(logTag, ExecutionCommand.getExecutionOutputLogString(executionCommand, true, true, isExecutionCommandLoggingEnabled));
 
-                // Flash and send notification for the error
                 sendPluginCommandErrorNotification(context, logTag, null,
                     ResultData.getErrorsListMinimalString(resultData),
                     ExecutionCommand.getExecutionCommandMarkdownString(executionCommand),
@@ -174,15 +170,12 @@ public class TermuxPluginUtils {
         Logger.logErrorPrivateExtended(logTag, ExecutionCommand.getExecutionOutputLogString(executionCommand, true,
             !isPluginExecutionCommandWithPendingResult, isExecutionCommandLoggingEnabled));
 
-        // If execution command was started by a plugin which expects the result back
         if (isPluginExecutionCommandWithPendingResult) {
-            // Set variables which will be used by sendCommandResultData to send back the result
             if (executionCommand.resultConfig.resultPendingIntent != null)
                 setPluginResultPendingIntentVariables(executionCommand);
             if (executionCommand.resultConfig.resultDirectoryPath != null)
                 setPluginResultDirectoryVariables(executionCommand);
 
-            // Send result to caller
             error = ResultSender.sendCommandResultData(context, logTag, executionCommand.getCommandIdAndLabelLogString(),
                 executionCommand.resultConfig, executionCommand.resultData, isExecutionCommandLoggingEnabled);
             if (error != null) {
@@ -196,7 +189,6 @@ public class TermuxPluginUtils {
             if (!forceNotification) return;
         }
 
-        // Flash and send notification for the error
         sendPluginCommandErrorNotification(context, logTag, null,
             ResultData.getErrorsListMinimalString(resultData),
             ExecutionCommand.getExecutionCommandMarkdownString(executionCommand),
@@ -231,9 +223,6 @@ public class TermuxPluginUtils {
         if (resultConfig.resultSingleFile && resultConfig.resultFileBasename == null)
             resultConfig.resultFileBasename = ShellUtils.getExecutableBasename(executionCommand.executable) + "-" + AndroidUtils.getCurrentMilliSecondLocalTimeStamp() + ".log";
     }
-
-
-
 
     /**
      * Send a plugin error report notification for {@link TermuxConstants#TERMUX_PLUGIN_COMMAND_ERRORS_NOTIFICATION_CHANNEL_ID}
@@ -348,8 +337,6 @@ public class TermuxPluginUtils {
         if (showToast)
             Logger.showToast(currentPackageContext, notificationTextString, true);
 
-        // Send a notification to show the error which when clicked will open the ReportActivity
-        // to show the details of the error
         if (title == null || title.toString().isEmpty())
             title = currentPackageContext.getString(com.termux.shared.R.string.title_plugin_execution_command_error, TermuxConstants.TERMUX_APP_NAME);
 
@@ -386,20 +373,15 @@ public class TermuxPluginUtils {
         if (result.deleteIntent != null)
             deleteIntent = PendingIntent.getBroadcast(termuxPackageContext, nextNotificationId, result.deleteIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-        // Setup the notification channel if not already set up
         setupPluginCommandErrorsNotificationChannel(termuxPackageContext);
 
-        // Use markdown in notification
         CharSequence notificationTextCharSequence = MarkdownUtils.getSpannedMarkdownText(termuxPackageContext, notificationTextString);
-        //CharSequence notificationTextCharSequence = notificationTextString;
 
-        // Build the notification
         Notification.Builder builder = getPluginCommandErrorsNotificationBuilder(currentPackageContext, termuxPackageContext,
             title, notificationTextCharSequence, notificationTextCharSequence, contentIntent, deleteIntent,
             NotificationUtils.NOTIFICATION_MODE_VIBRATE);
         if (builder == null) return;
 
-        // Send the notification
         NotificationManager notificationManager = NotificationUtils.getNotificationManager(termuxPackageContext);
         if (notificationManager != null)
             notificationManager.notify(nextNotificationId, builder.build());
@@ -445,8 +427,6 @@ public class TermuxPluginUtils {
         NotificationUtils.setupNotificationChannel(context, TermuxConstants.TERMUX_PLUGIN_COMMAND_ERRORS_NOTIFICATION_CHANNEL_ID,
             TermuxConstants.TERMUX_PLUGIN_COMMAND_ERRORS_NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
     }
-
-
 
     /**
      * Check if {@link TermuxConstants#PROP_ALLOW_EXTERNAL_APPS} property is not set to "true".

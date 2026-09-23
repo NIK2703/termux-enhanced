@@ -28,8 +28,7 @@ TOTAL=0; PASS=0; FAIL=0; SKIP=0
 
 # ---- helpers --------------------------------------------------------------
 # assemble <scenario_basename> -> writes $TMP/<name>.sh and echoes the path.
-# Strips the leading shebang/comment-only lines? No: we just concatenate
-# common.sh + the scenario file, as Java does (common is prepended).
+# Concatenates common.sh + the scenario file (common is prepended), as Java does at runtime.
 assemble() {
   local scen="$1"
   local out="$TMP/${scen}.assembled.sh"
@@ -99,7 +98,7 @@ fi
 # 1c. ssh - -> options or empty; must not crash
 CL="ssh -"; CP=5; CW="-"
 OUT=$(run "$F" "$CL" "$CP" "$CW")
-# We can't guarantee ssh compspec; accept non-crash (rc handled by run) + rc=0.
+# We can't guarantee an ssh compspec in the sandbox; accept non-crash only.
 if [ -n "$OUT" ] || [ -z "$OUT" ]; then
   record PASS "compspec: ssh - -> no crash ($(printf '%s\n' "$OUT" | wc -l) candidates)"
 fi

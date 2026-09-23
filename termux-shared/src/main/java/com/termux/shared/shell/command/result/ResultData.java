@@ -15,20 +15,13 @@ import java.util.List;
 
 public class ResultData implements Serializable {
 
-    /** The stdout of command. */
     public final StringBuilder stdout = new StringBuilder();
-    /** The stderr of command. */
     public final StringBuilder stderr = new StringBuilder();
-    /** The exit code of command. */
     public Integer exitCode;
-
-    /** The internal errors list of command. */
     public List<Error> errorsList =  new ArrayList<>();
-
 
     public ResultData() {
     }
-
 
     public void clearStdout() {
         stdout.setLength(0);
@@ -50,7 +43,6 @@ public class ResultData implements Serializable {
         return stdout.append(message).append("\n");
     }
 
-
     public void clearStderr() {
         stderr.setLength(0);
     }
@@ -71,7 +63,6 @@ public class ResultData implements Serializable {
         return stderr.append(message).append("\n");
     }
 
-
     public synchronized boolean setStateFailed(@NonNull Error error) {
         return setStateFailed(error.getType(), error.getCode(), error.getMessage(), null);
     }
@@ -79,6 +70,7 @@ public class ResultData implements Serializable {
     public synchronized boolean setStateFailed(@NonNull Error error, Throwable throwable) {
         return setStateFailed(error.getType(), error.getCode(), error.getMessage(), Collections.singletonList(throwable));
     }
+
     public synchronized boolean setStateFailed(@NonNull Error error, List<Throwable> throwablesList) {
         return setStateFailed(error.getType(), error.getCode(), error.getMessage(), throwablesList);
     }
@@ -122,7 +114,6 @@ public class ResultData implements Serializable {
             return Errno.ERRNO_SUCCESS.getCode();
     }
 
-
     @NonNull
     @Override
     public String toString() {
@@ -151,8 +142,6 @@ public class ResultData implements Serializable {
 
         return logString.toString();
     }
-
-
 
     public String getStdoutLogString() {
         if (stdout.toString().isEmpty())
@@ -214,7 +203,6 @@ public class ResultData implements Serializable {
         markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Exit Code", resultData.exitCode, "-"));
 
         markdownString.append("\n\n").append(getErrorsListMarkdownString(resultData));
-
 
         return markdownString.toString();
     }

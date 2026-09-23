@@ -144,8 +144,8 @@ public final class ColorSchemeUtils {
     }
 
     /**
-     *         panel buttons need a dark or light translucent background and whether the status
-     *         bar needs dark or light icons).
+     * Whether {@code argb} is perceived as light — decides e.g. whether panel buttons need a dark
+     * or light translucent background and whether the status bar needs dark or light icons.
      */
     public static boolean isColorLight(int argb) {
         return TerminalColors.getPerceivedBrightnessOfColor(argb) >= LIGHTNESS_THRESHOLD;
@@ -220,41 +220,29 @@ public final class ColorSchemeUtils {
     }
 
     /**
-     * Ensure the static {@link TerminalColors#COLOR_SCHEME} reflects the given night mode.
-     * <p>
-     * If a per-theme color file exists ({@code colors.light.properties} /
-     * {@code colors.dark.properties}), it is loaded first. Otherwise the built-in default
-     * scheme is applied: the default dark scheme (black background) for night mode, or the
-     * provided {@code lightScheme} for light mode.
+     * Ensure the static {@link TerminalColors#COLOR_SCHEME} reflects the given night mode — see
+     * {@link #applyColorSchemeForTheme(Context, boolean, Properties)} for the resolution chain.
+     * The Monet step needs a {@code Context}, so with this overload it is always skipped.
      *
      * @param isNight     {@code true} for night (dark) mode.
-     * @param lightScheme A {@link Properties} with light color scheme values (background=white,
-     *                    foreground=black, etc.) to use in light mode when no custom file exists.
-     *                    May be {@code null} — in that case dark scheme is used as fallback.
-     * @return {@code true} if a custom per-theme color file was loaded,
-     *         {@code false} if the built-in default scheme was applied instead.
+     * @param lightScheme light-mode fallback colors; may be {@code null} (dark is used).
+     * @return {@code true} if a custom per-theme color file was loaded, {@code false} if the
+     * built-in default scheme was applied instead.
      */
     public static boolean ensureColorSchemeForTheme(boolean isNight, Properties lightScheme) {
         return ensureColorSchemeForTheme(null, isNight, lightScheme);
     }
 
     /**
-     * Ensure the static {@link TerminalColors#COLOR_SCHEME} reflects the given night mode.
-     * <p>
-     * If a per-theme color file exists ({@code colors.light.properties} /
-     * {@code colors.dark.properties}), it is loaded first. Otherwise, when the selected scheme is
-     * {@link #SCHEME_MONET}, the wallpaper-derived scheme is generated and applied.
-     * Otherwise the built-in default scheme is applied: the default dark scheme (black background)
-     * for night mode, or the provided {@code lightScheme} for light mode.
+     * Ensure the static {@link TerminalColors#COLOR_SCHEME} reflects the given night mode — see
+     * {@link #applyColorSchemeForTheme(Context, boolean, Properties)} for the resolution chain.
      *
-     * @param context  A context used to read the system palette; may be {@code null}, in which case
-     *                 the Monet path is skipped (it needs a Context).
-     * @param isNight  {@code true} for night (dark) mode.
-     * @param lightScheme A {@link Properties} with light color scheme values (background=white,
-     *                    foreground=black, etc.) to use in light mode when no custom file exists.
-     *                    May be {@code null} — in that case dark scheme is used as fallback.
-     * @return {@code true} if a custom or generated scheme was applied,
-     *         {@code false} if the built-in default scheme was applied instead.
+     * @param context     Used to read the system palette; may be {@code null}, in which case the
+     *                    Monet step is skipped.
+     * @param isNight     {@code true} for night (dark) mode.
+     * @param lightScheme light-mode fallback colors; may be {@code null} (dark is used).
+     * @return {@code true} if a custom or generated scheme was applied, {@code false} if the
+     * built-in default scheme was applied instead.
      */
     public static boolean ensureColorSchemeForTheme(Context context, boolean isNight,
                                                     Properties lightScheme) {
@@ -362,12 +350,10 @@ public final class ColorSchemeUtils {
      * {@link #monetToken(boolean)} already reports a stable, non-zero value when
      * {@code buildSchemeKey()} reads it.
      *
-     * <p>Why this has to happen before the key is built: the token is {@code 0} until the variant
-     * exists in the cache, so a key built first and a key built afterwards disagree — the caller
-     * then sees a "changed" key and re-applies the scheme a second time for nothing. Warming is a
-     * cheap map lookup once the variant exists (the wallpaper is read at most once per process).
-     *
-     * <p>No-op when the theme did not select Monet or the device does not support it.
+     * <p>Why before the key is built: the token is {@code 0} until the variant exists in the
+     * cache, so a key built before and after disagree — the caller then sees a "changed" key and
+     * re-applies the scheme a second time for nothing. No-op when the theme did not select Monet
+     * or the device does not support it.
      */
     public static void warmUpMonet(Context context, boolean isNight) {
         if (context == null || !isMonetSelected(isNight)) return;

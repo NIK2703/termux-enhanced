@@ -22,30 +22,21 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /**
- * Owns the {@link TermuxService} {@link ServiceConnection} lifecycle for {@link TermuxActivity}.
- * <p/>
- * The connection used to live inside {@link TermuxActivity} (which implemented {@link ServiceConnection}
- * directly): the field, the {@code bindService}/{@code unbindService} plumbing, the cold-start
- * bootstrap and the session-restore logic all sat there. That responsibility is now centralised here
- * so the activity no longer implements {@link ServiceConnection} and the binding bookkeeping is
- * reusable/testable in isolation.
- * <p/>
- * The manager holds the bound {@link TermuxService} and, once connected, drives the activity through
- * its public API (see {@link TermuxActivity#setTermuxSessionsListView()},
- * {@link TermuxActivity#restoreSessionSnapshot()}, {@link TermuxActivity#syncTerminalPagerToService()},
- * {@link TermuxActivity#setColdStartSessionPending(boolean)}, etc.).
+ * Owns the {@link TermuxService} {@link ServiceConnection} lifecycle for {@link TermuxActivity}
+ * (extracted from the activity, which used to implement {@link ServiceConnection} directly, so the
+ * binding bookkeeping is reusable/testable in isolation). Holds the bound service and, once
+ * connected, drives the activity through its public API (see {@link TermuxActivity#setTermuxSessionsListView()},
+ * {@link TermuxActivity#restoreSessionSnapshot()}, {@link TermuxActivity#syncTerminalPagerToService()}, etc.).
  */
 public class TermuxServiceConnectionManager implements ServiceConnection {
 
     private static final String LOG_TAG = "TermuxServiceConnectionManager";
 
-    /** The {@link TermuxActivity} that owns this connection manager. */
     private final TermuxActivity mActivity;
 
     /**
-     * The connection to the {@link TermuxService}. Requested via
-     * {@link #startAndBindService()} and obtained/stored in
-     * {@link #onServiceConnected(ComponentName, IBinder)}.
+     * Bound service; {@code null} until connected — set in
+     * {@link #onServiceConnected(ComponentName, IBinder)}, cleared by {@link #unbindService()}.
      */
     @Nullable
     private TermuxService mTermuxService;
@@ -71,22 +62,17 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
     }
 
     /**
-     * Start the {@link TermuxService} and bind to it. Mirrors the original
-     * {@link TermuxActivity#onCreate(Bundle)} logic: the service is started so it keeps running
-     * regardless of who is bound, then bound so {@link #onServiceConnected(ComponentName, IBinder)}
-     * fires.
+     * Start the {@link TermuxService} and bind to it (started first so it keeps running regardless
+     * of who is bound).
      *
      * @return true on success, false if the service could not be started/bound (the caller should
      * mark the activity as invalid and stop).
      */
     public boolean startAndBindService() {
         try {
-            // Start the {@link TermuxService} and make it run regardless of who is bound to it
             Intent serviceIntent = new Intent(mActivity, TermuxService.class);
             mActivity.startService(serviceIntent);
 
-            // Attempt to bind to the service, this will call the {@link #onServiceConnected(ComponentName, IBinder)}
-            // callback if it succeeds.
             if (!mActivity.bindService(serviceIntent, this, 0))
                 throw new RuntimeException(mActivity.getString(com.termux.R.string.error_bind_service));
             return true;
@@ -101,13 +87,11 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
     }
 
     /**
-     * Unbind from the {@link TermuxService} and clear the reference. Mirrors the original
-     * {@link TermuxActivity#onDestroy()} logic: releases the session client so the service no longer
-     * holds an activity reference, then unbinds (best-effort).
+     * Unbind from the {@link TermuxService} and clear the reference (best-effort).
      *
-     * <p>Only <em>this</em> window's client is released. The app can have a second window bound at
-     * the same time (the floating bubble), and it must keep receiving session callbacks — so this is
-     * deliberately not a "clear everything" call.
+     * <p>Only <em>this</em> window's client is released: the floating bubble can be bound at the
+     * same time and must keep receiving session callbacks — so this is deliberately not a
+     * "clear everything" call.
      */
     public void unbindService() {
         if (mTermuxService != null) {
@@ -123,10 +107,6 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
         }
     }
 
-    /**
-     * Part of the {@link ServiceConnection} interface. The service is bound with
-     * {@link #startAndBindService()} which will cause a call to this callback method.
-     */
     @Override
     public void onServiceConnected(ComponentName componentName, IBinder service) {
         Logger.logDebug(LOG_TAG, "onServiceConnected");
@@ -147,7 +127,6 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
         }
 
         if (mTermuxService.isTermuxSessionsEmpty()) {
-            // Check if bootstrap is installed; if not, show the selector activity.
             if (!TermuxInstaller.isBootstrapInstalled(mActivity)) {
                 if (mActivity.isVisible()) {
                     TermuxInstaller.cleanupInterruptedInstall();
@@ -173,14 +152,10 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
                             // restored sessions (process-death restore path). Must run
                             // AFTER the sessions exist and BEFORE the pager sync.
                             mActivity.restorePersistedUiState();
-                            // Sessions restored from snapshot, but their emulators are
-                            // not yet initialized (no JNI.createSubprocess / fork has
-                            // run).  The immediate syncTerminalPagerToService() below
-                            // would trigger fork() for every restored session on the UI
-                            // thread during the first layout pass, causing the visible
-                            // stutter the user reported.
-                            // Instead, initialize all restored sessions on a background
-                            // thread and defer the pager sync until they are ready.
+                            // Restored sessions have no emulator yet (no JNI.createSubprocess /
+                            // fork has run); an immediate syncTerminalPagerToService() below would
+                            // fork() them all on the UI thread during the first layout pass and
+                            // stutter. Initialize on a background thread, then defer the sync.
                             if (!mActivity.isColdStartSessionPending()) {
                                 List<TermuxSession> restoredSessions = mTermuxService.getTermuxSessions();
                                 if (!restoredSessions.isEmpty()) {
@@ -228,7 +203,6 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
             }
         }
 
-        // Update the {@link TerminalSession} and {@link TerminalEmulator} clients.
         mTermuxService.setTermuxTerminalSessionClient(mActivity.getTermuxTerminalSessionClient());
 
         // Re-apply terminal fonts/colors now that the session is bound. This is required when the
@@ -237,17 +211,15 @@ public class TermuxServiceConnectionManager implements ServiceConnection {
         if (mActivity.getTermuxTerminalSessionClient() != null)
             mActivity.getTermuxTerminalSessionClient().checkForFontAndColors();
 
-        // Populate the horizontal pager with the now-available sessions and select the initial
-        // page (honouring a pending session requested before the adapter had items, otherwise the
-        // stored/last session). Safe to call even if sessions were added asynchronously above —
-        // it is a no-op when the list is still empty.
+        // Populate the pager with the now-available sessions, honouring a pending session
+        // requested before the adapter had items (otherwise the stored/last session). Safe even
+        // if sessions were added asynchronously above — a no-op when the list is still empty.
         mActivity.syncTerminalPagerToService();
 
-        // Populate the tab strip with existing sessions after activity recreate (theme change
-        // or back-finish + reopen). onStart() ran before the service connected and skipped
-        // termuxSessionListNotifyUpdated() because getTermuxService() was null, so the
-        // freshly-created tabs controller still has only the (+) button. Without this call
-        // the tabs stay empty until a new session is added via the (+) button.
+        // Populate the tab strip after an activity recreate (theme change or back-finish +
+        // reopen): onStart() ran before the service connected and skipped
+        // termuxSessionListNotifyUpdated() because getTermuxService() was null, so the freshly
+        // created tabs controller still has only the (+) button.
         if (mTermuxService != null && !mTermuxService.isTermuxSessionsEmpty()) {
             mActivity.termuxSessionListNotifyUpdated();
         }

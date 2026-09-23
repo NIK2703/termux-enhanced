@@ -30,25 +30,19 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Adds the "back up the container" and "back up app settings" buttons to the app's crash report
- * screen — the {@link ReportActivity} that shows the crash log after a crash — so a copy of the
- * container and of the app settings can be taken right from the screen a crash leaves the user on.
+ * Adds "back up the container" and "back up app settings" buttons to the crash-report screen
+ * ({@link ReportActivity}) so a copy can be taken right from the screen a crash leaves the user on.
  *
  * <p>Registered from {@link TermuxApplication#onCreate()} via
- * {@link ReportActivity#setReportActionHost(ReportActivity.ReportActionHost)}. The button labels are
- * the existing backup/restore settings strings, so the actions read exactly like the ones on the
- * "Backup / restore" settings screen and no new resources are needed.
- *
- * <p>Both actions reuse the existing backup machinery: the container backup is handed to
- * {@link BackupDialogActivity}, which starts {@link TermuxBackupService} and shows its progress
- * dialog over the report screen, and the settings backup runs
+ * {@link ReportActivity#setReportActionHost}; labels reuse the existing backup/restore strings, so
+ * no new resources are needed. Container backup is handed to {@link BackupDialogActivity} (starts
+ * {@link TermuxBackupService}, progress dialog over the report screen); settings backup runs
  * {@link TermuxSettingsBackupUtils#exportSettings} in the background.
  */
 public final class TermuxReportActionHost implements ReportActivity.ReportActionHost {
 
     private static final String LOG_TAG = "TermuxReportActionHost";
 
-    /** Ids of the actions contributed by this host. */
     private static final String ACTION_BACKUP_CONTAINER = "backup_container";
     private static final String ACTION_BACKUP_SETTINGS = "backup_settings";
 
@@ -58,19 +52,16 @@ public final class TermuxReportActionHost implements ReportActivity.ReportAction
     private static final String MIME_TYPE_GZIP = "application/gzip";
 
     /**
-     * Whether the backup started from the crash report screen must skip {@code usr/tmp/}.
-     *
-     * <p>{@code false} — a backup taken after a crash is a rescue copy, so it contains everything,
-     * which is also what the confirmation message promises ("a compressed archive of your data
-     * directory"). The "Backup / restore" settings screen asks separately and offers the choice.
+     * Whether the crash-report backup skips {@code usr/tmp/}. {@code false} — a rescue copy
+     * contains everything, as the confirmation message promises; the settings screen asks
+     * separately.
      */
     private static final boolean EXCLUDE_TMP_FROM_REPORT_BACKUP = false;
 
     @Nullable
     @Override
     public List<ReportAction> getReportActions(@NonNull Activity activity, @NonNull ReportInfo reportInfo) {
-        // Only the crash report screen gets these buttons; all other reports (About, "report issue
-        // from transcript", plugin reports) stay exactly as they were.
+        // Only the crash report screen gets these buttons; other reports stay as they were.
         if (!UserAction.CRASH_REPORT.getName().equals(reportInfo.userAction)) return null;
 
         List<ReportAction> actions = new ArrayList<>(2);
@@ -102,23 +93,20 @@ public final class TermuxReportActionHost implements ReportActivity.ReportAction
         final Uri uri = data.getData();
 
         if (requestCode == REQUEST_CODE_BACKUP_CONTAINER) {
-            // The report screen has no progress UI of its own: hand the destination over to the
-            // transparent BackupDialogActivity, which starts the service and shows its progress
-            // dialog over this screen, then finishes itself when the operation ends.
+            // No progress UI here: hand the destination to the transparent BackupDialogActivity,
+            // which starts the service and shows its dialog over this screen, then finishes itself.
             BackupDialogActivity.startBackup(activity, uri, EXCLUDE_TMP_FROM_REPORT_BACKUP);
         } else if (requestCode == REQUEST_CODE_BACKUP_SETTINGS) {
             exportSettings(activity.getApplicationContext(), uri);
         }
     }
 
-    // ------------------------------------------------------------------
     // Settings export
-    // ------------------------------------------------------------------
 
     /**
      * Export the app settings to {@code uri} on a background thread and report the outcome with
-     * toasts. The report screen owns no progress dialog (and the export is small — preferences plus
-     * a few config files), so this keeps the whole operation independent of the screen's lifetime.
+     * toasts. The report screen owns no progress dialog (and the export is small), so this keeps
+     * the operation independent of the screen's lifetime.
      */
     private static void exportSettings(@NonNull final Context appContext, @NonNull final Uri uri) {
         Toast.makeText(appContext, appContext.getString(R.string.settings_backup_progress),
@@ -150,9 +138,7 @@ public final class TermuxReportActionHost implements ReportActivity.ReportAction
         }, "ReportSettingsExport").start();
     }
 
-    // ------------------------------------------------------------------
     // Shared helpers
-    // ------------------------------------------------------------------
 
     /** Show the same warning dialog the "Backup / restore" settings screen shows before an action. */
     private static void confirm(@NonNull Activity activity, int messageRes, @NonNull Runnable onConfirm) {

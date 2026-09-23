@@ -6,7 +6,6 @@ public class LocalSocketErrno extends Errno {
 
     public static final String TYPE = "LocalSocket Error";
 
-
     /** Errors for {@link LocalSocketManager} (100-150) */
     public static final Errno ERRNO_START_LOCAL_SOCKET_LIB_LOAD_FAILED_WITH_EXCEPTION = new Errno(TYPE, 100, "Failed to load \"%1$s\" library.\nException: %2$s");
 

@@ -42,10 +42,10 @@ import java.util.regex.Pattern;
 public class FileUtils {
 
     /** Required file permissions for the executable file for app usage. Executable file must have read and execute permissions */
-    public static final String APP_EXECUTABLE_FILE_PERMISSIONS = "r-x"; // Default: "r-x"
+    public static final String APP_EXECUTABLE_FILE_PERMISSIONS = "r-x";
     /** Required file permissions for the working directory for app usage. Working directory must have read and write permissions.
      * Execute permissions should be attempted to be set, but ignored if they are missing */
-    public static final String APP_WORKING_DIRECTORY_PERMISSIONS = "rwx"; // Default: "rwx"
+    public static final String APP_WORKING_DIRECTORY_PERMISSIONS = "rwx";
 
     private static final String LOG_TAG = "FileUtils";
 
@@ -65,7 +65,7 @@ public class FileUtils {
      *                                 can be set to {@code null} if non-absolute paths should
      *                                 be prefixed with "/". The call to {@link File#getCanonicalPath()}
      *                                 will automatically do this anyways.
-     * @return Returns the {@code canonical path}.
+     * @return the {@code canonical path}.
      */
     public static String getCanonicalPath(String path, final String prefixForNonAbsolutePath) {
         if (path == null) path = "";
@@ -90,20 +90,20 @@ public class FileUtils {
         return absolutePath;
     }
 
-    /**
-     * Removes one or more forward slashes "//" with single slash "/"
-     * Removes "./"
-     * Removes trailing forward slash "/"
-     *
-     * @param path The {@code path} to convert.
-     * @return Returns the {@code normalized path}.
-     */
     /** Precompiled — {@code String.replaceAll} compiles the pattern on every call, and this
      * method runs once per candidate path inside {@code isPathInDirPaths}. */
     private static final Pattern PATTERN_MULTIPLE_SLASHES = Pattern.compile("/+");
     private static final Pattern PATTERN_DOT_SLASH = Pattern.compile("\\./");
     private static final Pattern PATTERN_TRAILING_SLASHES = Pattern.compile("/+$");
 
+    /**
+     * Removes one or more forward slashes "//" with single slash "/"
+     * Removes "./"
+     * Removes trailing forward slash "/"
+     *
+     * @param path The {@code path} to convert.
+     * @return the {@code normalized path}.
+     */
     @Nullable
     public static String normalizePath(String path) {
         if (path == null) return null;
@@ -125,7 +125,7 @@ public class FileUtils {
      * @param sanitizeWhitespaces If set to {@code true}, then white space characters ` \t\n` will be
      *                            converted.
      * @param toLower If set to {@code true}, then file name will be converted to lower case.
-     * @return Returns the {@code sanitized name}.
+     * @return the {@code sanitized name}.
      */
     public static String sanitizeFileName(String fileName, boolean sanitizeWhitespaces, boolean toLower) {
         if (fileName == null) return null;
@@ -149,7 +149,7 @@ public class FileUtils {
      * @param dirPath The {@code directory path} to check in.
      * @param ensureUnder If set to {@code true}, then it will be ensured that {@code path} is
      *                    under the directory and does not equal it.
-     * @return Returns {@code true} if path in {@code dirPath}, otherwise returns {@code false}.
+     * @return {@code true} if path in {@code dirPath}, otherwise returns {@code false}.
      */
     public static boolean isPathInDirPath(String path, final String dirPath, final boolean ensureUnder) {
         return isPathInDirPaths(path, Collections.singletonList(dirPath), ensureUnder);
@@ -163,7 +163,7 @@ public class FileUtils {
      * @param dirPaths The {@code directory paths} to check in.
      * @param ensureUnder If set to {@code true}, then it will be ensured that {@code path} is
      *                    under the directories and does not equal it.
-     * @return Returns {@code true} if path in {@code dirPaths}, otherwise returns {@code false}.
+     * @return {@code true} if path in {@code dirPaths}, otherwise returns {@code false}.
      */
     public static boolean isPathInDirPaths(String path, final List<String> dirPaths, final boolean ensureUnder) {
         if (path == null || path.isEmpty() || dirPaths == null || dirPaths.size() < 1) return false;
@@ -190,8 +190,6 @@ public class FileUtils {
         return false;
     }
 
-
-
     /**
      * Validate that directory is empty or contains only files in {@code ignoredSubFilePaths}.
      *
@@ -202,9 +200,9 @@ public class FileUtils {
      * @param filePath The {@code path} for directory to check.
      * @param ignoredSubFilePaths The list of absolute file paths under {@code filePath} dir.
      *                            Validation is done for the paths.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to be checked doesn't exist.
-     * @return Returns {@code null} if directory is empty or contains only files in {@code ignoredSubFilePaths}.
+     * @return {@code null} if directory is empty or contains only files in {@code ignoredSubFilePaths}.
      * Returns {@code FileUtilsErrno#ERRNO_NON_EMPTY_DIRECTORY_FILE} if a file was found that did not
      * exist in the {@code ignoredSubFilePaths}, otherwise returns an appropriate {@code error} if
      * checking was not successful.
@@ -267,7 +265,7 @@ public class FileUtils {
      * @param subFiles The list of files of a directory to check.
      * @param ignoredSubFilePaths The list of absolute file paths under {@code filePath} dir.
      *                            Validation is done for the paths.
-     * @return Returns {@code true} if a file was found that did not exist in the {@code ignoredSubFilePaths},
+     * @return {@code true} if a file was found that did not exist in the {@code ignoredSubFilePaths},
      * otherwise  {@code false}.
      */
     public static boolean nonIgnoredSubFileExists(File[] subFiles, @NonNull List<String> ignoredSubFilePaths) {
@@ -305,16 +303,14 @@ public class FileUtils {
         return false;
     }
 
-
-
     /**
      * Checks whether a regular file exists at {@code filePath}.
      *
      * @param filePath The {@code path} for regular file to check.
-     * @param followLinks The {@code boolean} that decides if symlinks will be followed while
+     * @param followLinks whether symlinks will be followed while
      *                       finding if file exists. Check {@link #getFileType(String, boolean)}
      *                       for details.
-     * @return Returns {@code true} if regular file exists, otherwise {@code false}.
+     * @return {@code true} if regular file exists, otherwise {@code false}.
      */
     public static boolean regularFileExists(final String filePath, final boolean followLinks) {
         return getFileType(filePath, followLinks) == FileType.REGULAR;
@@ -324,10 +320,10 @@ public class FileUtils {
      * Checks whether a directory file exists at {@code filePath}.
      *
      * @param filePath The {@code path} for directory file to check.
-     * @param followLinks The {@code boolean} that decides if symlinks will be followed while
+     * @param followLinks whether symlinks will be followed while
      *                       finding if file exists. Check {@link #getFileType(String, boolean)}
      *                       for details.
-     * @return Returns {@code true} if directory file exists, otherwise {@code false}.
+     * @return {@code true} if directory file exists, otherwise {@code false}.
      */
     public static boolean directoryFileExists(final String filePath, final boolean followLinks) {
         return getFileType(filePath, followLinks) == FileType.DIRECTORY;
@@ -337,7 +333,7 @@ public class FileUtils {
      * Checks whether a symlink file exists at {@code filePath}.
      *
      * @param filePath The {@code path} for symlink file to check.
-     * @return Returns {@code true} if symlink file exists, otherwise {@code false}.
+     * @return {@code true} if symlink file exists, otherwise {@code false}.
      */
     public static boolean symlinkFileExists(final String filePath) {
         return getFileType(filePath, false) == FileType.SYMLINK;
@@ -347,10 +343,10 @@ public class FileUtils {
      * Checks whether a regular or directory file exists at {@code filePath}.
      *
      * @param filePath The {@code path} for regular file to check.
-     * @param followLinks The {@code boolean} that decides if symlinks will be followed while
+     * @param followLinks whether symlinks will be followed while
      *                       finding if file exists. Check {@link #getFileType(String, boolean)}
      *                       for details.
-     * @return Returns {@code true} if regular or directory file exists, otherwise {@code false}.
+     * @return {@code true} if regular or directory file exists, otherwise {@code false}.
      */
     public static boolean regularOrDirectoryFileExists(final String filePath, final boolean followLinks) {
         FileType fileType = getFileType(filePath, followLinks);
@@ -361,10 +357,10 @@ public class FileUtils {
      * Checks whether any file exists at {@code filePath}.
      *
      * @param filePath The {@code path} for file to check.
-     * @param followLinks The {@code boolean} that decides if symlinks will be followed while
+     * @param followLinks whether symlinks will be followed while
      *                       finding if file exists. Check {@link #getFileType(String, boolean)}
      *                       for details.
-     * @return Returns {@code true} if file exists, otherwise {@code false}.
+     * @return {@code true} if file exists, otherwise {@code false}.
      */
     public static boolean fileExists(final String filePath, final boolean followLinks) {
         return getFileType(filePath, followLinks) != FileType.NO_EXIST;
@@ -377,19 +373,17 @@ public class FileUtils {
      * {@link FileTypes#getFileType(String, boolean)}
      *
      * @param filePath The {@code path} for file to check.
-     * @param followLinks The {@code boolean} that decides if symlinks will be followed while
+     * @param followLinks whether symlinks will be followed while
      *                       finding type. If set to {@code true}, then type of symlink target will
      *                       be returned if file at {@code filePath} is a symlink. If set to
      *                       {@code false}, then type of file at {@code filePath} itself will be
      *                       returned.
-     * @return Returns the {@link FileType} of file.
+     * @return the {@link FileType} of file.
      */
     @NonNull
     public static FileType getFileType(final String filePath, final boolean followLinks) {
         return FileTypes.getFileType(filePath, followLinks);
     }
-
-
 
     /**
      * Validate the existence and permissions of regular file at path.
@@ -402,14 +396,14 @@ public class FileUtils {
      * @param parentDirPath The optional {@code parent directory path} to restrict operations to.
      *                      This can optionally be {@code null}. It is not canonicalized and only normalized.
      * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param setPermissions The {@code boolean} that decides if permissions are to be
+     * @param setPermissions whether permissions are to be
      *                              automatically set defined by {@code permissionsToCheck}.
-     * @param setMissingPermissionsOnly The {@code boolean} that decides if only missing permissions
+     * @param setMissingPermissionsOnly whether only missing permissions
      *                                  are to be set or if they should be overridden.
-     * @param ignoreErrorsIfPathIsUnderParentDirPath The {@code boolean} that decides if permission
+     * @param ignoreErrorsIfPathIsUnderParentDirPath whether permission
      *                                               errors are to be ignored if path is under
      *                                               {@code parentDirPath}.
-     * @return Returns the {@code error} if path is not a regular file, or validating permissions
+     * @return the {@code error} if path is not a regular file, or validating permissions
      * failed, otherwise {@code null}.
      */
     public static Error validateRegularFileExistenceAndPermissions(String label, final String filePath, final String parentDirPath,
@@ -477,20 +471,20 @@ public class FileUtils {
      * @param filePath The {@code path} for file to validate or create. Symlinks will not be followed.
      * @param parentDirPath The optional {@code parent directory path} to restrict operations to.
      *                      This can optionally be {@code null}. It is not canonicalized and only normalized.
-     * @param createDirectoryIfMissing The {@code boolean} that decides if directory file
+     * @param createDirectoryIfMissing whether directory file
      *                                 should be created if its missing.
      * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param setPermissions The {@code boolean} that decides if permissions are to be
+     * @param setPermissions whether permissions are to be
      *                              automatically set defined by {@code permissionsToCheck}.
-     * @param setMissingPermissionsOnly The {@code boolean} that decides if only missing permissions
+     * @param setMissingPermissionsOnly whether only missing permissions
      *                                  are to be set or if they should be overridden.
-     * @param ignoreErrorsIfPathIsInParentDirPath The {@code boolean} that decides if existence
+     * @param ignoreErrorsIfPathIsInParentDirPath whether existence
      *                                  and permission errors are to be ignored if path is
      *                                  in {@code parentDirPath}.
-     * @param ignoreIfNotExecutable The {@code boolean} that decides if missing executable permission
+     * @param ignoreIfNotExecutable whether missing executable permission
      *                              error is to be ignored. This allows making an attempt to set
      *                              executable permissions, but ignoring if it fails.
-     * @return Returns the {@code error} if path is not a directory file, failed to create it,
+     * @return the {@code error} if path is not a directory file, failed to create it,
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error validateDirectoryFileExistenceAndPermissions(String label, final String filePath, final String parentDirPath, final boolean createDirectoryIfMissing,
@@ -560,8 +554,6 @@ public class FileUtils {
         return null;
     }
 
-
-
     /**
      * Create a regular file at path.
      *
@@ -569,7 +561,7 @@ public class FileUtils {
      * {@link #validateDirectoryFileExistenceAndPermissions(String, String, String, boolean, String, boolean, boolean, boolean, boolean)}.
      *
      * @param filePath The {@code path} for regular file to create.
-     * @return Returns the {@code error} if path is not a regular file or failed to create it,
+     * @return the {@code error} if path is not a regular file or failed to create it,
      * otherwise {@code null}.
      */
     public static Error createRegularFile(final String filePath) {
@@ -584,7 +576,7 @@ public class FileUtils {
      *
      * @param label The optional label for the regular file. This can optionally be {@code null}.
      * @param filePath The {@code path} for regular file to create.
-     * @return Returns the {@code error} if path is not a regular file or failed to create it,
+     * @return the {@code error} if path is not a regular file or failed to create it,
      * otherwise {@code null}.
      */
     public static Error createRegularFile(final String label, final String filePath) {
@@ -601,11 +593,11 @@ public class FileUtils {
      * @param label The optional label for the regular file. This can optionally be {@code null}.
      * @param filePath The {@code path} for regular file to create.
      * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param setPermissions The {@code boolean} that decides if permissions are to be
+     * @param setPermissions whether permissions are to be
      *                              automatically set defined by {@code permissionsToCheck}.
-     * @param setMissingPermissionsOnly The {@code boolean} that decides if only missing permissions
+     * @param setMissingPermissionsOnly whether only missing permissions
      *                                  are to be set or if they should be overridden.
-     * @return Returns the {@code error} if path is not a regular file, failed to create it,
+     * @return the {@code error} if path is not a regular file, failed to create it,
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error createRegularFile(String label, final String filePath,
@@ -628,7 +620,6 @@ public class FileUtils {
             return null;
         }
 
-        // Create the file parent directory
         error = createParentDirectoryFile(label + "regular file parent", filePath);
         if (error != null)
             return error;
@@ -648,8 +639,6 @@ public class FileUtils {
             false);
     }
 
-
-
     /**
      * Create parent directory of file at path.
      *
@@ -658,7 +647,7 @@ public class FileUtils {
      *
      * @param label The optional label for the parent directory file. This can optionally be {@code null}.
      * @param filePath The {@code path} for file whose parent needs to be created.
-     * @return Returns the {@code error} if parent path is not a directory file or failed to create it,
+     * @return the {@code error} if parent path is not a directory file or failed to create it,
      * otherwise {@code null}.
      */
     public static Error createParentDirectoryFile(final String label, final String filePath) {
@@ -681,7 +670,7 @@ public class FileUtils {
      * {@link #validateDirectoryFileExistenceAndPermissions(String, String, String, boolean, String, boolean, boolean, boolean, boolean)}.
      *
      * @param filePath The {@code path} for directory file to create.
-     * @return Returns the {@code error} if path is not a directory file or failed to create it,
+     * @return the {@code error} if path is not a directory file or failed to create it,
      * otherwise {@code null}.
      */
     public static Error createDirectoryFile(final String filePath) {
@@ -696,7 +685,7 @@ public class FileUtils {
      *
      * @param label The optional label for the directory file. This can optionally be {@code null}.
      * @param filePath The {@code path} for directory file to create.
-     * @return Returns the {@code error} if path is not a directory file or failed to create it,
+     * @return the {@code error} if path is not a directory file or failed to create it,
      * otherwise {@code null}.
      */
     public static Error createDirectoryFile(final String label, final String filePath) {
@@ -713,11 +702,11 @@ public class FileUtils {
      * @param label The optional label for the directory file. This can optionally be {@code null}.
      * @param filePath The {@code path} for directory file to create.
      * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param setPermissions The {@code boolean} that decides if permissions are to be
+     * @param setPermissions whether permissions are to be
      *                              automatically set defined by {@code permissionsToCheck}.
-     * @param setMissingPermissionsOnly The {@code boolean} that decides if only missing permissions
+     * @param setMissingPermissionsOnly whether only missing permissions
      *                                  are to be set or if they should be overridden.
-     * @return Returns the {@code error} if path is not a directory file, failed to create it,
+     * @return the {@code error} if path is not a directory file, failed to create it,
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error createDirectoryFile(final String label, final String filePath,
@@ -727,8 +716,6 @@ public class FileUtils {
             permissionsToCheck, setPermissions, setMissingPermissionsOnly,
             false, false);
     }
-
-
 
     /**
      * Create a symlink file at path.
@@ -741,7 +728,7 @@ public class FileUtils {
      *
      * @param targetFilePath The {@code path} TO which the symlink file will be created.
      * @param destFilePath The {@code path} AT which the symlink file will be created.
-     * @return Returns the {@code error} if path is not a symlink file, failed to create it,
+     * @return the {@code error} if path is not a symlink file, failed to create it,
      * otherwise {@code null}.
      */
     public static Error createSymlinkFile(final String targetFilePath, final String destFilePath) {
@@ -761,7 +748,7 @@ public class FileUtils {
      * @param label The optional label for the symlink file. This can optionally be {@code null}.
      * @param targetFilePath The {@code path} TO which the symlink file will be created.
      * @param destFilePath The {@code path} AT which the symlink file will be created.
-     * @return Returns the {@code error} if path is not a symlink file, failed to create it,
+     * @return the {@code error} if path is not a symlink file, failed to create it,
      * otherwise {@code null}.
      */
     public static Error createSymlinkFile(String label, final String targetFilePath, final String destFilePath) {
@@ -775,14 +762,14 @@ public class FileUtils {
      * @param label The optional label for the symlink file. This can optionally be {@code null}.
      * @param targetFilePath The {@code path} TO which the symlink file will be created.
      * @param destFilePath The {@code path} AT which the symlink file will be created.
-     * @param allowDangling The {@code boolean} that decides if it should be considered an
+     * @param allowDangling whether it should be considered an
      *                              error if source file doesn't exist.
-     * @param overwrite The {@code boolean} that decides if destination file should be overwritten if
+     * @param overwrite whether destination file should be overwritten if
      *                  it already exists. If set to {@code true}, then destination file will be
      *                  deleted before symlink is created.
-     * @param overwriteOnlyIfDestIsASymlink The {@code boolean} that decides if overwrite should
+     * @param overwriteOnlyIfDestIsASymlink whether overwrite should
      *                                         only be done if destination file is also a symlink.
-     * @return Returns the {@code error} if path is not a symlink file, failed to create it,
+     * @return the {@code error} if path is not a symlink file, failed to create it,
      * or validating permissions failed, otherwise {@code null}.
      */
     public static Error createSymlinkFile(String label, final String targetFilePath, final String destFilePath,
@@ -832,7 +819,6 @@ public class FileUtils {
                 if (error != null)
                     return error;
             } else {
-                // Create the destination file parent directory
                 error = createParentDirectoryFile(label + "symlink destination file parent", destFilePath);
                 if (error != null)
                     return error;
@@ -848,8 +834,6 @@ public class FileUtils {
         return null;
     }
 
-
-
     /**
      * Copy a regular file from {@code sourceFilePath} to {@code destFilePath}.
      *
@@ -862,9 +846,9 @@ public class FileUtils {
      * @param label The optional label for file to copy. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to copy.
      * @param destFilePath The {@code destination path} for file to copy.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to copied doesn't exist.
-     * @return Returns the {@code error} if copy was not successful, otherwise {@code null}.
+     * @return the {@code error} if copy was not successful, otherwise {@code null}.
      */
     public static Error copyRegularFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -884,9 +868,9 @@ public class FileUtils {
      * @param label The optional label for file to move. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to move.
      * @param destFilePath The {@code destination path} for file to move.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to moved doesn't exist.
-     * @return Returns the {@code error} if move was not successful, otherwise {@code null}.
+     * @return the {@code error} if move was not successful, otherwise {@code null}.
      */
     public static Error moveRegularFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -906,9 +890,9 @@ public class FileUtils {
      * @param label The optional label for file to copy. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to copy.
      * @param destFilePath The {@code destination path} for file to copy.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to copied doesn't exist.
-     * @return Returns the {@code error} if copy was not successful, otherwise {@code null}.
+     * @return the {@code error} if copy was not successful, otherwise {@code null}.
      */
     public static Error copyDirectoryFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -928,9 +912,9 @@ public class FileUtils {
      * @param label The optional label for file to move. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to move.
      * @param destFilePath The {@code destination path} for file to move.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to moved doesn't exist.
-     * @return Returns the {@code error} if move was not successful, otherwise {@code null}.
+     * @return the {@code error} if move was not successful, otherwise {@code null}.
      */
     public static Error moveDirectoryFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -950,9 +934,9 @@ public class FileUtils {
      * @param label The optional label for file to copy. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to copy.
      * @param destFilePath The {@code destination path} for file to copy.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to copied doesn't exist.
-     * @return Returns the {@code error} if copy was not successful, otherwise {@code null}.
+     * @return the {@code error} if copy was not successful, otherwise {@code null}.
      */
     public static Error copySymlinkFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -972,9 +956,9 @@ public class FileUtils {
      * @param label The optional label for file to move. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to move.
      * @param destFilePath The {@code destination path} for file to move.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to moved doesn't exist.
-     * @return Returns the {@code error} if move was not successful, otherwise {@code null}.
+     * @return the {@code error} if move was not successful, otherwise {@code null}.
      */
     public static Error moveSymlinkFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -994,9 +978,9 @@ public class FileUtils {
      * @param label The optional label for file to copy. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to copy.
      * @param destFilePath The {@code destination path} for file to copy.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to copied doesn't exist.
-     * @return Returns the {@code error} if copy was not successful, otherwise {@code null}.
+     * @return the {@code error} if copy was not successful, otherwise {@code null}.
      */
     public static Error copyFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -1016,9 +1000,9 @@ public class FileUtils {
      * @param label The optional label for file to move. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to move.
      * @param destFilePath The {@code destination path} for file to move.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to moved doesn't exist.
-     * @return Returns the {@code error} if move was not successful, otherwise {@code null}.
+     * @return the {@code error} if move was not successful, otherwise {@code null}.
      */
     public static Error moveFile(final String label, final String srcFilePath, final String destFilePath, final boolean ignoreNonExistentSrcFile) {
         return copyOrMoveFile(label, srcFilePath, destFilePath,
@@ -1039,23 +1023,23 @@ public class FileUtils {
      * @param label The optional label for file to copy or move. This can optionally be {@code null}.
      * @param srcFilePath The {@code source path} for file to copy or move.
      * @param destFilePath The {@code destination path} for file to copy or move.
-     * @param moveFile The {@code boolean} that decides if source file needs to be copied or moved.
+     * @param moveFile whether source file needs to be copied or moved.
      *                 If set to {@code true}, then source file will be moved, otherwise it will be
      *                 copied.
-     * @param ignoreNonExistentSrcFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentSrcFile whether it should be considered an
      *                              error if source file to copied or moved doesn't exist.
      * @param allowedFileTypeFlags The flags that are matched against the source file's {@link FileType}
      *                             to see if it should be copied/moved or not. This is a safety measure
      *                             to prevent accidental copy/move/delete of the wrong type of file,
      *                             like a directory instead of a regular file. You can pass
      *                             {@link FileTypes#FILE_TYPE_ANY_FLAGS} to allow copy/move of any file type.
-     * @param overwrite The {@code boolean} that decides if destination file should be overwritten if
+     * @param overwrite whether destination file should be overwritten if
      *                  it already exists. If set to {@code true}, then destination file will be
      *                  deleted before source is copied or moved.
-     * @param overwriteOnlyIfDestSameFileTypeAsSrc The {@code boolean} that decides if overwrite should
+     * @param overwriteOnlyIfDestSameFileTypeAsSrc whether overwrite should
      *                                         only be done if destination file is also the same file
      *                                          type as the source file.
-     * @return Returns the {@code error} if copy or move was not successful, otherwise {@code null}.
+     * @return the {@code error} if copy or move was not successful, otherwise {@code null}.
      */
     public static Error copyOrMoveFile(String label, final String srcFilePath, final String destFilePath,
                                        final boolean moveFile, final boolean ignoreNonExistentSrcFile, int allowedFileTypeFlags,
@@ -1086,7 +1070,6 @@ public class FileUtils {
                 // If copy or move is to be ignored if source file is not found
                 if (ignoreNonExistentSrcFile)
                     return null;
-                    // Else return with error
                 else {
                     label += "source file";
                     return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, srcFilePath).setLabel(label);
@@ -1118,8 +1101,6 @@ public class FileUtils {
                     return error;
             }
 
-
-            // Copy or move source file to dest
             boolean copyFile = !moveFile;
 
             // If moveFile is true
@@ -1146,7 +1127,6 @@ public class FileUtils {
             if (copyFile) {
                 Logger.logVerbose(LOG_TAG, "Attempting to copy source to destination.");
 
-                // Create the dest file parent directory
                 error = createParentDirectoryFile(label + "dest file parent", destFilePath);
                 if (error != null)
                     return error;
@@ -1191,8 +1171,6 @@ public class FileUtils {
         return null;
     }
 
-
-
     /**
      * Delete regular file at path.
      *
@@ -1200,9 +1178,9 @@ public class FileUtils {
      *
      * @param label The optional label for file to delete. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to delete.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
-     * @return Returns the {@code error} if deletion was not successful, otherwise {@code null}.
+     * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteRegularFile(String label, final String filePath, final boolean ignoreNonExistentFile) {
         return deleteFile(label, filePath, ignoreNonExistentFile, false, FileType.REGULAR.getValue());
@@ -1215,9 +1193,9 @@ public class FileUtils {
      *
      * @param label The optional label for file to delete. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to delete.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
-     * @return Returns the {@code error} if deletion was not successful, otherwise {@code null}.
+     * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteDirectoryFile(String label, final String filePath, final boolean ignoreNonExistentFile) {
         return deleteFile(label, filePath, ignoreNonExistentFile, false, FileType.DIRECTORY.getValue());
@@ -1230,9 +1208,9 @@ public class FileUtils {
      *
      * @param label The optional label for file to delete. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to delete.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
-     * @return Returns the {@code error} if deletion was not successful, otherwise {@code null}.
+     * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteSymlinkFile(String label, final String filePath, final boolean ignoreNonExistentFile) {
         return deleteFile(label, filePath, ignoreNonExistentFile, false, FileType.SYMLINK.getValue());
@@ -1245,9 +1223,9 @@ public class FileUtils {
      *
      * @param label The optional label for file to delete. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to delete.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
-     * @return Returns the {@code error} if deletion was not successful, otherwise {@code null}.
+     * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteSocketFile(String label, final String filePath, final boolean ignoreNonExistentFile) {
         return deleteFile(label, filePath, ignoreNonExistentFile, false, FileType.SOCKET.getValue());
@@ -1260,9 +1238,9 @@ public class FileUtils {
      *
      * @param label The optional label for file to delete. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to delete.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
-     * @return Returns the {@code error} if deletion was not successful, otherwise {@code null}.
+     * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteFile(String label, final String filePath, final boolean ignoreNonExistentFile) {
         return deleteFile(label, filePath, ignoreNonExistentFile, false, FileTypes.FILE_TYPE_NORMAL_FLAGS);
@@ -1278,16 +1256,16 @@ public class FileUtils {
      *
      * @param label The optional label for file to delete. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to delete.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
-     * @param ignoreWrongFileType The {@code boolean} that decides if it should be considered an
+     * @param ignoreWrongFileType whether it should be considered an
      *                              error if file type is not one from {@code allowedFileTypeFlags}.
      * @param allowedFileTypeFlags The flags that are matched against the file's {@link FileType} to
      *                             see if it should be deleted or not. This is a safety measure to
      *                             prevent accidental deletion of the wrong type of file, like a
      *                             directory instead of a regular file. You can pass
      *                             {@link FileTypes#FILE_TYPE_ANY_FLAGS} to allow deletion of any file type.
-     * @return Returns the {@code error} if deletion was not successful, otherwise {@code null}.
+     * @return the {@code error} if deletion was not successful, otherwise {@code null}.
      */
     public static Error deleteFile(String label, final String filePath, final boolean ignoreNonExistentFile, final boolean ignoreWrongFileType, int allowedFileTypeFlags) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1304,7 +1282,6 @@ public class FileUtils {
                 // If delete is to be ignored if file does not exist
                 if (ignoreNonExistentFile)
                     return null;
-                    // Else return with error
                 else {
                     label += "file meant to be deleted";
                     return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
@@ -1319,7 +1296,6 @@ public class FileUtils {
                     return null;
                 }
 
-                // Else return with error
                 return FileUtilsErrno.ERRNO_FILE_NOT_AN_ALLOWED_FILE_TYPE.getError(label + "file meant to be deleted", filePath, fileType.getName(), FileTypes.convertFileTypeFlagsToNamesString(allowedFileTypeFlags));
             }
 
@@ -1369,8 +1345,6 @@ public class FileUtils {
         return null;
     }
 
-
-
     /**
      * Clear contents of directory at path without deleting the directory. If directory does not exist
      * it will be created automatically.
@@ -1379,7 +1353,7 @@ public class FileUtils {
      * {@link #clearDirectory(String, String)}.
      *
      * @param filePath The {@code path} for directory to clear.
-     * @return Returns the {@code error} if clearing was not successful, otherwise {@code null}.
+     * @return the {@code error} if clearing was not successful, otherwise {@code null}.
      */
     public static Error clearDirectory(String filePath) {
         return clearDirectory(null, filePath);
@@ -1394,7 +1368,7 @@ public class FileUtils {
      *
      * @param label The optional label for directory to clear. This can optionally be {@code null}.
      * @param filePath The {@code path} for directory to clear.
-     * @return Returns the {@code error} if clearing was not successful, otherwise {@code null}.
+     * @return the {@code error} if clearing was not successful, otherwise {@code null}.
      */
     public static Error clearDirectory(String label, final String filePath) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1450,14 +1424,14 @@ public class FileUtils {
      *                   If this parameter is {@code null}, subdirectories will not be included in the
      *                   search. Use TrueFileFilter.INSTANCE to match all directories.
      * @param days The x amount of days before which files should be deleted. This must be `>=0`.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to deleted doesn't exist.
      * @param allowedFileTypeFlags The flags that are matched against the file's {@link FileType} to
      *                             see if it should be deleted or not. This is a safety measure to
      *                             prevent accidental deletion of the wrong type of file, like a
      *                             directory instead of a regular file. You can pass
      *                             {@link FileTypes#FILE_TYPE_ANY_FLAGS} to allow deletion of any file type.
-     * @return Returns the {@code error} if deleting was not successful, otherwise {@code null}.
+     * @return the {@code error} if deleting was not successful, otherwise {@code null}.
      */
     public static Error deleteFilesOlderThanXDays(String label, final String filePath, final IOFileFilter dirFilter, int days, final boolean ignoreNonExistentFile, int allowedFileTypeFlags) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1482,7 +1456,6 @@ public class FileUtils {
                 // If delete is to be ignored if file does not exist
                 if (ignoreNonExistentFile)
                     return null;
-                    // Else return with error
                 else {
                     label += "directory under which files had to be deleted";
                     return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
@@ -1513,10 +1486,6 @@ public class FileUtils {
 
     }
 
-
-
-
-
     /**
      * Read a text {@link String} from file at path with a specific {@link Charset} into {@code dataString}.
      *
@@ -1525,9 +1494,9 @@ public class FileUtils {
      * @param charset The {@link Charset} of the file. If this is {@code null},
      *                then default {@link Charset} will be used.
      * @param dataStringBuilder The {@code StringBuilder} to read data into.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to read doesn't exist.
-     * @return Returns the {@code error} if reading was not successful, otherwise {@code null}.
+     * @return the {@code error} if reading was not successful, otherwise {@code null}.
      */
     public static Error readTextFromFile(String label, final String filePath, Charset charset, @NonNull final StringBuilder dataStringBuilder, final boolean ignoreNonExistentFile) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1549,7 +1518,6 @@ public class FileUtils {
             // If reading is to be ignored if file does not exist
             if (ignoreNonExistentFile)
                 return null;
-                // Else return with error
             else {
                 label += "file meant to be read";
                 return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label);
@@ -1558,7 +1526,6 @@ public class FileUtils {
 
         if (charset == null) charset = Charset.defaultCharset();
 
-        // Check if charset is supported
         error = isCharsetSupported(charset);
         if (error != null)
             return error;
@@ -1566,7 +1533,6 @@ public class FileUtils {
         FileInputStream fileInputStream = null;
         BufferedReader bufferedReader = null;
         try {
-            // Read text from file
             fileInputStream = new FileInputStream(filePath);
             bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, charset));
 
@@ -1605,9 +1571,9 @@ public class FileUtils {
      * @param label The optional label for file to read. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to read.
      * @param readObjectType The {@link Class} of the object.
-     * @param ignoreNonExistentFile The {@code boolean} that decides if it should be considered an
+     * @param ignoreNonExistentFile whether it should be considered an
      *                              error if file to read doesn't exist.
-     * @return Returns the {@code error} if reading was not successful, otherwise {@code null}.
+     * @return the {@code error} if reading was not successful, otherwise {@code null}.
      */
     @NonNull
     public static <T extends Serializable> ReadSerializableObjectResult readSerializableObjectFromFile(String label, final String filePath, Class<T> readObjectType, final boolean ignoreNonExistentFile) {
@@ -1628,10 +1594,9 @@ public class FileUtils {
         // If file does not exist
         if (fileType == FileType.NO_EXIST) {
             // If reading is to be ignored if file does not exist
-            if (ignoreNonExistentFile)
-                return new ReadSerializableObjectResult(null, null);
-                // Else return with error
-            else {
+                if (ignoreNonExistentFile)
+                    return new ReadSerializableObjectResult(null, null);
+                else {
                 label += "file meant to be read";
                 return new ReadSerializableObjectResult(FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError(label, filePath).setLabel(label), null);
             }
@@ -1640,13 +1605,9 @@ public class FileUtils {
         FileInputStream fileInputStream = null;
         ObjectInputStream objectInputStream = null;
         try {
-            // Read serializable object from file
             fileInputStream = new FileInputStream(filePath);
             objectInputStream = new ObjectInputStream(fileInputStream);
-            //serializableObject = (T) objectInputStream.readObject();
             serializableObject = readObjectType.cast(objectInputStream.readObject());
-
-            //Logger.logVerbose(LOG_TAG, Logger.getMultiLineLogStringEntry("String", DataUtils.getTruncatedCommandOutput(dataStringBuilder.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD, true, false, true), "-"));
         } catch (Exception e) {
             return new ReadSerializableObjectResult(FileUtilsErrno.ERRNO_READING_SERIALIZABLE_OBJECT_TO_FILE_FAILED_WITH_EXCEPTION.getError(e, label + "file", filePath, e.getMessage()), null);
         } finally {
@@ -1665,8 +1626,8 @@ public class FileUtils {
      * @param charset The {@link Charset} of the {@code dataString}. If this is {@code null},
      *                then default {@link Charset} will be used.
      * @param dataString The data to write to file.
-     * @param append The {@code boolean} that decides if file should be appended to or not.
-     * @return Returns the {@code error} if writing was not successful, otherwise {@code null}.
+     * @param append whether file should be appended to or not.
+     * @return the {@code error} if writing was not successful, otherwise {@code null}.
      */
     public static Error writeTextToFile(String label, final String filePath, Charset charset, final String dataString, final boolean append) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1682,7 +1643,6 @@ public class FileUtils {
 
         if (charset == null) charset = Charset.defaultCharset();
 
-        // Check if charset is supported
         error = isCharsetSupported(charset);
         if (error != null)
             return error;
@@ -1690,7 +1650,6 @@ public class FileUtils {
         FileOutputStream fileOutputStream = null;
         BufferedWriter bufferedWriter = null;
         try {
-            // Write text to file
             fileOutputStream = new FileOutputStream(filePath, append);
             bufferedWriter = new BufferedWriter(new OutputStreamWriter(fileOutputStream, charset));
 
@@ -1712,7 +1671,7 @@ public class FileUtils {
      * @param label The optional label for file to write. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to write.
      * @param serializableObject The object to write to file.
-     * @return Returns the {@code error} if writing was not successful, otherwise {@code null}.
+     * @return the {@code error} if writing was not successful, otherwise {@code null}.
      */
     public static <T extends Serializable> Error writeSerializableObjectToFile(String label, final String filePath, final T serializableObject) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1729,7 +1688,6 @@ public class FileUtils {
         FileOutputStream fileOutputStream = null;
         ObjectOutputStream objectOutputStream = null;
         try {
-            // Write serializable object to file
             fileOutputStream = new FileOutputStream(filePath);
             objectOutputStream = new ObjectOutputStream(fileOutputStream);
 
@@ -1755,7 +1713,6 @@ public class FileUtils {
             return FileUtilsErrno.ERRNO_NON_REGULAR_FILE_FOUND.getError(label + "file", filePath).setLabel(label + "file");
         }
 
-        // Create the file parent directory
         error = createParentDirectoryFile(label + "file parent", filePath);
         if (error != null)
             return error;
@@ -1763,13 +1720,11 @@ public class FileUtils {
         return null;
     }
 
-
-
     /**
      * Check if a specific {@link Charset} is supported.
      *
      * @param charset The {@link Charset} to check.
-     * @return Returns the {@code error} if charset is not supported or failed to check it, otherwise {@code null}.
+     * @return the {@code error} if charset is not supported or failed to check it, otherwise {@code null}.
      */
     public static Error isCharsetSupported(final Charset charset) {
         if (charset == null) return FunctionErrno.ERRNO_NULL_OR_EMPTY_PARAMETER.getError("charset", "isCharsetSupported");
@@ -1784,8 +1739,6 @@ public class FileUtils {
 
         return null;
     }
-
-
 
     /**
      * Close a {@link Closeable} object if not {@code null} and ignore any exceptions raised.
@@ -1802,8 +1755,6 @@ public class FileUtils {
             }
         }
     }
-
-
 
     /**
      * Set permissions for file at path. Existing permission outside the {@code permissionsToSet}
@@ -1847,7 +1798,6 @@ public class FileUtils {
             }
         }
 
-
         if (permissionsToSet.contains("w")) {
             if (!file.canWrite()) {
                 Logger.logVerbose(LOG_TAG, "Setting write permissions for " + label + "file at path \"" + filePath + "\"");
@@ -1859,7 +1809,6 @@ public class FileUtils {
                 file.setWritable(false);
             }
         }
-
 
         if (permissionsToSet.contains("x")) {
             if (!file.canExecute()) {
@@ -1873,8 +1822,6 @@ public class FileUtils {
             }
         }
     }
-
-
 
     /**
      * Set missing permissions for file at path. Existing permission outside the {@code permissionsToSet}
@@ -1922,16 +1869,14 @@ public class FileUtils {
         }
     }
 
-
-
     /**
      * Checking missing permissions for file at path.
      *
      * @param filePath The {@code path} for file to check permissions for.
      * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param ignoreIfNotExecutable The {@code boolean} that decides if missing executable permission
+     * @param ignoreIfNotExecutable whether missing executable permission
      *                              error is to be ignored.
-     * @return Returns the {@code error} if validating permissions failed, otherwise {@code null}.
+     * @return the {@code error} if validating permissions failed, otherwise {@code null}.
      */
     public static Error checkMissingFilePermissions(final String filePath, final String permissionsToCheck, final boolean ignoreIfNotExecutable) {
         return checkMissingFilePermissions(null, filePath, permissionsToCheck, ignoreIfNotExecutable);
@@ -1943,9 +1888,9 @@ public class FileUtils {
      * @param label The optional label for the file. This can optionally be {@code null}.
      * @param filePath The {@code path} for file to check permissions for.
      * @param permissionsToCheck The 3 character string that contains the "r", "w", "x" or "-" in-order.
-     * @param ignoreIfNotExecutable The {@code boolean} that decides if missing executable permission
+     * @param ignoreIfNotExecutable whether missing executable permission
      *                              error is to be ignored.
-     * @return Returns the {@code error} if validating permissions failed, otherwise {@code null}.
+     * @return the {@code error} if validating permissions failed, otherwise {@code null}.
      */
     public static Error checkMissingFilePermissions(String label, final String filePath, final String permissionsToCheck, final boolean ignoreIfNotExecutable) {
         label = (label == null || label.isEmpty() ? "" : label + " ");
@@ -1976,14 +1921,12 @@ public class FileUtils {
         return null;
     }
 
-
-
     /**
      * Checks whether string exactly matches the 3 character permission string that
      * contains the "r", "w", "x" or "-" in-order.
      *
      * @param string The {@link String} to check.
-     * @return Returns {@code true} if string exactly matches a permission string, otherwise {@code false}.
+     * @return {@code true} if string exactly matches a permission string, otherwise {@code false}.
      */
     public static boolean isValidPermissionString(final String string) {
         if (string == null || string.isEmpty()) return false;
@@ -1994,13 +1937,11 @@ public class FileUtils {
         return (c0 == 'r' || c0 == '-') && (c1 == 'w' || c1 == '-') && (c2 == 'x' || c2 == '-');
     }
 
-
-
     /**
      * Get a {@link Error} that contains a shorter version of {@link Errno} message.
      *
      * @param error The original {@link Error} returned by one of the {@link FileUtils} functions.
-     * @return Returns the shorter {@link Error} if one exists, otherwise original {@code error}.
+     * @return the shorter {@link Error} if one exists, otherwise original {@code error}.
      */
     public static Error getShortFileUtilsError(final Error error) {
         String type = error.getType();
@@ -2016,12 +1957,11 @@ public class FileUtils {
             return shortErrno.getError(throwables, error.getLabel(), "file");
     }
 
-
     /**
      * Get file dirname for file at {@code filePath}.
      *
      * @param filePath The {@code path} for file.
-     * @return Returns the file dirname if not {@code null}.
+     * @return the file dirname if not {@code null}.
      */
     public static String getFileDirname(String filePath) {
         if (DataUtils.isNullOrEmpty(filePath)) return null;
@@ -2033,7 +1973,7 @@ public class FileUtils {
      * Get file basename for file at {@code filePath}.
      *
      * @param filePath The {@code path} for file.
-     * @return Returns the file basename if not {@code null}.
+     * @return the file basename if not {@code null}.
      */
     public static String getFileBasename(String filePath) {
         if (DataUtils.isNullOrEmpty(filePath)) return null;
@@ -2045,7 +1985,7 @@ public class FileUtils {
      * Get file basename for file at {@code filePath} without extension.
      *
      * @param filePath The {@code path} for file.
-     * @return Returns the file basename without extension if not {@code null}.
+     * @return the file basename without extension if not {@code null}.
      */
     public static String getFileBasenameWithoutExtension(String filePath) {
         String fileBasename = getFileBasename(filePath);

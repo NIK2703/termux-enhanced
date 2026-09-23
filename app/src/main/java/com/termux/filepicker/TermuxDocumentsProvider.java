@@ -40,9 +40,7 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
 
     private static final File BASE_DIR = TermuxConstants.TERMUX_HOME_DIR;
 
-
-    // The default columns to return information about a root if no specific
-    // columns are requested in a query.
+    // Columns returned when a root query does not specify a projection.
     private static final String[] DEFAULT_ROOT_PROJECTION = new String[]{
         Root.COLUMN_ROOT_ID,
         Root.COLUMN_MIME_TYPES,
@@ -54,8 +52,7 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
         Root.COLUMN_AVAILABLE_BYTES
     };
 
-    // The default columns to return information about a document if no specific
-    // columns are requested in a query.
+    // Columns returned when a document query does not specify a projection.
     private static final String[] DEFAULT_DOCUMENT_PROJECTION = new String[]{
         Document.COLUMN_DOCUMENT_ID,
         Document.COLUMN_MIME_TYPE,
@@ -165,10 +162,7 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
         final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
         final File parent = getFileForDocId(rootId);
 
-        // This example implementation searches file names for the query and doesn't rank search
-        // results, so we can stop as soon as we find a sufficient number of matches.  Other
-        // implementations might rank results and use other data about files, rather than the file
-        // name, to produce a match.
+        // Searches file names without ranking, so we can stop at a sufficient number of matches.
         final LinkedList<File> pending = new LinkedList<>();
         pending.add(parent);
 

@@ -2,14 +2,13 @@
 """Add `bubble_open_failed_message` to every locale's strings.xml.
 
 Why this string exists: `TermuxBubbleManager.showBubble()` returns false both when bubbles are
-genuinely unavailable AND when the system refuses the post for some other reason (the platform
-rejects a bubble notification with an IllegalArgumentException from
-NotificationManagerService.checkDisqualifyingFeatures, which arrives as a RemoteException). Mapping
-both onto "bubbles are unavailable, enable them in notification settings" sent at least one
-debugging session down the wrong path, so the second case now says what actually happened.
+unavailable AND when the system refuses the post for other reasons (e.g. IllegalArgumentException
+from NotificationManagerService.checkDisqualifyingFeatures arriving as a RemoteException). Mapping
+both onto "bubbles are unavailable" sent debugging down the wrong path, so the second case now
+says what actually happened.
 
-RU is the source of truth for this fork. The insert is anchored on `bubble_no_session_message`, so
-re-running is a no-op. Run from the repo root:
+RU is the source of truth for this fork. The insert is anchored on `bubble_no_session_message`,
+so re-running is a no-op. Run from the repo root:
 
     python scripts/add_bubble_open_failed_string.py
 """
@@ -50,7 +49,7 @@ def patch(locale: str, text_value: str) -> str:
     if KEY in text:
         return f"SKIP  {locale}: already present"
 
-    # Find the anchor line and insert immediately after it, preserving indentation.
+    # Insert immediately after the anchor line, preserving indentation.
     lines = text.split("\n")
     for index, line in enumerate(lines):
         if f'name="{ANCHOR}"' in line:

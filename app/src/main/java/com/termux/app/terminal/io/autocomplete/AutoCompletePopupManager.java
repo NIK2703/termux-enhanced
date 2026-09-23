@@ -22,14 +22,10 @@ import androidx.annotation.Nullable;
 import com.termux.app.terminal.TermuxColorSchemeManager;
 
 /**
- * Owns the message-history auto-complete popup window and all of its lifecycle:
- * building, showing, positioning, content rebuild, bold-span refresh and
- * dismissal.
- *
- * <p>This class contains NO suggestion data and NO input/fetch logic — it is
- * handed everything it needs through {@link AutoCompleteDataProvider} and a
- * small bundle of pre-read resource dimensions. That keeps the rendering
- * concern fully isolated from {@code AutoCompleteController}'s orchestration.
+ * Owns the message-history auto-complete popup window and its lifecycle: building, showing,
+ * positioning, content rebuild, bold-span refresh and dismissal. Contains no suggestion data and
+ * no input/fetch logic — everything comes through {@link AutoCompleteDataProvider} and pre-read
+ * resource dimensions, keeping rendering isolated from {@code AutoCompleteController}.
  */
 final class AutoCompletePopupManager {
 
@@ -54,10 +50,9 @@ final class AutoCompletePopupManager {
     @Nullable private PopupWindow mHistoryPopup;
     @Nullable private LinearLayout mHistoryContent;
     /**
-     * Layout-change listener attached to the INPUT FIELD (not the decor view), so a
-     * reposition is only triggered when the input field's own layout changes — not
-     * on every Activity-wide layout pass (which caused a redundant second reposition
-     * and visible jitter).
+     * Layout-change listener attached to the INPUT FIELD (not the decor view), so a reposition is
+     * only triggered when the input field's own layout changes — not on every Activity-wide layout
+     * pass (which caused a redundant second reposition and visible jitter).
      */
     @Nullable private View.OnLayoutChangeListener mSuggestionsLayoutListener;
     /** The view the layout listener is registered on, so we can unregister the exact same view. */
@@ -387,13 +382,9 @@ final class AutoCompletePopupManager {
         boolean prefixChanged = !newText.equals(mLastAppliedPrefix);
 
         if ((historyChanged || prefixChanged) && mHistoryContent != null) {
-            // Rebuild the views whenever the shown set OR the typed prefix changed.
-            // Rebuilding (instead of mutating bold spans in place) is what makes the
-            // highlight track deletions reliably: an in-place Spannable mutation on a
-            // TextView inside an already-showing PopupWindow is not guaranteed to
-            // repaint (and the geometry guard below can skip popup.update()), so a
-            // backspace would leave the old characters bold. A fresh rebuild always
-            // renders the correct bold region.
+            // Rebuild (not in-place Spannable mutation): an in-place bold-span edit on a TextView
+            // inside a showing PopupWindow is not guaranteed to repaint (and the geometry guard
+            // below can skip popup.update()), so a backspace would leave old characters bold.
             final int savedScroll = mHistoryContent.getScrollY();
             rebuildHistoryViews(mHistoryContent, newText);
             mHistoryContent.setScrollY(savedScroll);
@@ -441,7 +432,6 @@ final class AutoCompletePopupManager {
         // as a prefix change and rebuild unconditionally.
         mLastAppliedPrefix = input;
     }
-
 
     // ── Display math ──
 

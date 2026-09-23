@@ -9,7 +9,6 @@ import androidx.annotation.Nullable;
 /** A class that holds {@link SharedPreferences} objects for apps. */
 public class AppSharedPreferences {
 
-    /** The {@link Context} for operations. */
     protected final Context mContext;
 
     /** The {@link SharedPreferences} that ideally should be created with {@link SharedPreferenceUtils#getPrivateSharedPreferences(Context, String)}. */
@@ -28,8 +27,6 @@ public class AppSharedPreferences {
         mSharedPreferences = sharedPreferences;
         mMultiProcessSharedPreferences = multiProcessSharedPreferences;
     }
-
-
 
     /** Get {@link #mContext}. */
     public Context getContext() {

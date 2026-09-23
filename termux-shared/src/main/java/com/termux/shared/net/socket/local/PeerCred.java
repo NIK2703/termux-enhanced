@@ -16,19 +16,13 @@ public class PeerCred {
 
     public static final String LOG_TAG = "PeerCred";
 
-    /** Process Id. */
     public int pid;
-    /** Process Name. */
     public String pname;
 
-    /** User Id. */
     public int uid;
-    /** User name. */
     public String uname;
 
-    /** Group Id. */
     public int gid;
-    /** Group name. */
     public String gname;
 
     /** Command line that started the process. */
@@ -45,7 +39,7 @@ public class PeerCred {
         fillPname(context);
     }
 
-    /** Set {@link #uname} and {@link #gname} if not set. */
+    /** Set {@link #uname} and {@link #gname} from {@link #uid} and {@link #gid}. */
     public void fillUnameAndGname(@NonNull Context context) {
        uname = UserUtils.getNameForUid(context, uid);
 
@@ -66,9 +60,6 @@ public class PeerCred {
 
     /**
      * Get a log {@link String} for {@link PeerCred}.
-     *
-     * @param peerCred The {@link PeerCred} to get info of.
-     * @return Returns the log {@link String}.
      */
     @NonNull
     public static String getPeerCredLogString(final PeerCred peerCred) {
@@ -94,9 +85,6 @@ public class PeerCred {
 
     /**
      * Get a markdown {@link String} for {@link PeerCred}.
-     *
-     * @param peerCred The {@link PeerCred} to get info of.
-     * @return Returns the markdown {@link String}.
      */
     public static String getPeerCredMarkdownString(final PeerCred peerCred) {
         if (peerCred == null) return "null";

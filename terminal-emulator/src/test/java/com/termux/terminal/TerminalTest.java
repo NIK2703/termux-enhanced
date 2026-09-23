@@ -66,13 +66,9 @@ public class TerminalTest extends TerminalTestCase {
 	}
 
 	public void testNormalization() throws UnsupportedEncodingException {
-		// int lowerCaseN = 0x006E;
-		// int combiningTilde = 0x0303;
-		// int combined = 0x00F1;
 		withTerminalSized(3, 3).assertLinesAre("   ", "   ", "   ");
 		enterString("\u006E\u0303");
 		assertEquals(1, WcWidth.width("\u006E\u0303".toCharArray(), 0));
-		// assertEquals("\u00F1  ", new String(mTerminal.getScreen().getLine(0)));
 		assertLinesAre("\u006E\u0303  ", "   ", "   ");
 	}
 

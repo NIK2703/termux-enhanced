@@ -57,11 +57,7 @@ public class UnixConstants {
 
     static final int O_SYNC = OsConstants.O_SYNC;
 
-    // Crash on Android 5.
-    // No static field O_DSYNC of type I in class Landroid/system/OsConstants; or its superclasses
-    // (declaration of 'android.system.OsConstants' appears in /system/framework/core-libart.jar)
-    //@RequiresApi(Build.VERSION_CODES.O_MR1)
-    //static final int O_DSYNC = OsConstants.O_DSYNC;
+    // O_DSYNC omitted: no static field on Android 5's OsConstants (would crash).
 
     static final int O_NOFOLLOW = OsConstants.O_NOFOLLOW;
 

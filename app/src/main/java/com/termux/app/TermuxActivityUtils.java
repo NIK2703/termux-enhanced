@@ -29,16 +29,11 @@ public final class TermuxActivityUtils {
      * Apply the rotation mode of the window the given activity is drawn in.
      *
      * <p>The full-screen window obeys Settings → Screen orientation. The bubble's window must not:
-     * it is a floating window drawn in the orientation the device is actually in, so a
-     * fixed-orientation request cannot resize it — the platform letterboxes the content into a strip
-     * inside it instead. The request is therefore cleared there, and only when it differs from the
-     * current value, so repeated calls stay idempotent (see the MIUI/HyperOS hazard at the call site
-     * in {@link TermuxActivity#onWindowFocusChanged(boolean)}).
-     *
-     * <p>Every screen of the app asks this, not just the terminal: a screen opened from the bubble is
-     * drawn inside the bubble's window and is letterboxed the same way.
-     *
-     * <p>Called from onCreate and onWindowFocusChanged.
+     * it is a floating window drawn in the device's orientation, so a fixed-orientation request
+     * cannot resize it — the platform letterboxes the content instead. The request is cleared
+     * there, only when it differs (idempotent; see the MIUI/HyperOS hazard in
+     * {@link TermuxActivity#onWindowFocusChanged(boolean)}). Every screen opened from the bubble
+     * is letterboxed the same way, so all of them ask this — from onCreate and onWindowFocusChanged.
      */
     public static void applyScreenOrientation(@NonNull Activity activity) {
         if (isBubbleWindow(activity)) {
@@ -81,11 +76,9 @@ public final class TermuxActivityUtils {
      * Whether the given activity is drawn in the bubble's floating window rather than in the app's
      * own full-screen one.
      *
-     * <p>The bubble is a second instance of {@link TermuxActivity} and answers for itself. Any other
-     * screen in that window — Settings, opened from the bubble's context menu — is an ordinary
-     * activity of the app's stack and cannot know from its class where it is drawn, so the answer is
-     * handed to it at launch: the window that opens it says which window it is, see
-     * {@link #newSettingsIntent(TermuxActivity)}.
+     * <p>The bubble is a second {@link TermuxActivity} and answers for itself. Other screens in
+     * that window (e.g. Settings) cannot know from their class where they are drawn, so the answer
+     * is handed to them at launch via {@link #newSettingsIntent(TermuxActivity)}.
      */
     private static boolean isBubbleWindow(@NonNull Activity activity) {
         if (activity instanceof TermuxActivity)
@@ -96,12 +89,9 @@ public final class TermuxActivityUtils {
     }
 
     /**
-     * Intent for the Settings screen, marked with the window it is being opened into.
-     *
-     * <p>Everything opened from the bubble is drawn inside the bubble's window, which follows the
-     * device instead of Settings → Screen orientation; see
-     * {@link #applyScreenOrientation(Activity)}. The launching window is the only one that knows
-     * which of the two it is, so it is what passes the answer on.
+     * Intent for the Settings screen, marked with the window it is being opened into (see
+     * {@link #applyScreenOrientation(Activity)}). The launching window is the only one that knows
+     * which window it is, so it passes the answer on.
      */
     public static Intent newSettingsIntent(@NonNull TermuxActivity from) {
         final Intent intent = new Intent(from, SettingsActivity.class);

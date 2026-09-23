@@ -15,7 +15,7 @@ public interface IShellEnvironment {
      * Get the default working directory path for the environment in case the path that was passed
      * was {@code null} or empty.
      *
-     * @return Should return the default working directory path.
+     * @return the default working directory path
      */
     @NonNull
     String getDefaultWorkingDirectoryPath();
@@ -23,7 +23,7 @@ public interface IShellEnvironment {
     /**
      * Get the default "/bin" path, like $PREFIX/bin.
      *
-     * @return Should return the "/bin" path.
+     * @return the "/bin" path
      */
     @NonNull
     String getDefaultBinPath();
@@ -33,7 +33,7 @@ public interface IShellEnvironment {
      *
      * @param fileToExecute The file to execute.
      * @param arguments The arguments to pass to the executable.
-     * @return Should return the final process arguments.
+     * @return the final process arguments
      */
     @NonNull
     String[] setupShellCommandArguments(@NonNull String fileToExecute, @Nullable String[] arguments);
@@ -43,7 +43,7 @@ public interface IShellEnvironment {
      *
      * @param currentPackageContext The {@link Context} for the current package.
      * @param executionCommand The {@link ExecutionCommand} for which to set environment.
-     * @return Should return the shell environment.
+     * @return the shell environment
      */
     @NonNull
     HashMap<String, String> setupShellCommandEnvironment(@NonNull Context currentPackageContext,

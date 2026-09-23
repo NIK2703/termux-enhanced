@@ -25,18 +25,14 @@ public class TermuxApplication extends Application {
     private static final String LOG_TAG = "TermuxApplication";
 
     /**
-     * How many of this app's activities are currently in the started state (i.e. at least visible).
+     * How many of this app's activities are currently in the started state (at least visible).
      *
-     * <p>This exists to answer one question that no single activity can answer on its own: when the
-     * terminal window goes to {@code onStop()}, did the user leave the app, or did the app simply put
-     * another of its own screens (Settings, Help, the bootstrap selector) in front of it? Only the
-     * second case has {@code count > 0} once our own stop has been accounted for.
+     * <p>Answers whether the terminal window going to {@code onStop()} means the user left the app
+     * or another of its own screens (Settings, Help, …) is in front of it — only the second case
+     * has {@code count > 0} once our own stop is accounted for. The bubble window is another
+     * instance of the same activity class and is counted too.
      *
-     * <p>The bubble's own window is a second instance of the same activity class, so it is counted
-     * here as well; the auto-open code never consults this from inside the bubble window.
-     *
-     * <p>Written and read on the main thread only (the activity lifecycle callbacks are dispatched
-     * there), so no synchronization is needed.
+     * <p>Main thread only (lifecycle callbacks are dispatched there); no synchronization needed.
      */
     private static int sStartedActivityCount;
 
@@ -52,7 +48,6 @@ public class TermuxApplication extends Application {
 
         registerActivityLifecycleCallbacks(new StartedActivityCounter());
 
-        // Set crash handler for the app
         TermuxCrashUtils.setDefaultCrashHandler(this);
 
         // Add the container/settings backup buttons to the app crash report screen. The host is a
@@ -61,7 +56,6 @@ public class TermuxApplication extends Application {
         // (crash notification, recents, ...).
         ReportActivity.setReportActionHost(new TermuxReportActionHost());
 
-        // Set log config for the app
         setLogConfig(context);
 
         Logger.logDebug("Starting Application");
@@ -76,23 +70,18 @@ public class TermuxApplication extends Application {
         // Init app wide SharedProperties loaded from SharedPreferences
         TermuxAppSharedProperties properties = TermuxAppSharedProperties.init(context);
 
-        // Init app wide shell manager
         TermuxShellManager shellManager = TermuxShellManager.init(context);
 
-        // Set NightMode.APP_NIGHT_MODE
         TermuxThemeUtils.setAppNightMode(properties.getNightMode());
 
         // Apply the app display language (per-app locale) at startup so the chosen
         // language (e.g. Russian) is used everywhere without re-selecting it.
         TermuxLocaleUtils.applyLocale(TermuxLocaleUtils.getLocaleOverride());
 
-        // Notify about a crash of a previous run as early as possible — deliberately here, and not
-        // in TermuxActivity, because that only runs after the whole terminal UI (view, sessions,
-        // pager, IME state) has been created: a crash during start-up — exactly the case where a
-        // crash report is most needed — would then never produce a notification at all. Reading the
-        // crash log and posting the notification happen on a background thread, so the app start is
-        // not delayed. Called after the locale is applied so the notification is in the user's
-        // language, and before the files directory checks below, which can return early.
+        // Notify about a previous-run crash as early as possible — not in TermuxActivity, which
+        // only runs after the whole terminal UI is created, so a start-up crash would otherwise
+        // never notify. Log reading and the notification post run on a background thread. After the
+        // locale (user's language), before the files-directory checks below, which can return early.
         TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
 
         // Init TermuxShellEnvironment constants and caches BEFORE any early return,
@@ -119,7 +108,6 @@ public class TermuxApplication extends Application {
                 return;
             }
 
-            // Setup termux-am-socket server
             TermuxAmSocketServer.setupTermuxAmSocketServer(context);
 
             // Off the main thread: several PackageManager/ActivityManager Binder calls plus two
@@ -143,14 +131,9 @@ public class TermuxApplication extends Application {
     /**
      * Keeps {@link #sStartedActivityCount} in step with the app's activities.
      *
-     * <p>Registered for every activity of the app, including ones that have nothing to do with the
-     * terminal, because that is the whole point: the terminal window has to be able to tell whether
-     * one of them is on screen when it is itself stopped.
-     *
-     * <p>The pair {@code onActivityStarted}/{@code onActivityStopped} is always balanced, so the
-     * counter cannot drift; the clamp below only guards against a callback arriving for an activity
-     * that was started before this application object registered its callbacks (which cannot happen
-     * in practice, since registration happens in {@code onCreate()}).
+     * <p>Registered for every activity (including non-terminal ones): the terminal window must be
+     * able to tell whether any app screen is on screen when it is itself stopped. The
+     * start/stop pair is always balanced, so the counter cannot drift.
      */
     private static final class StartedActivityCounter implements ActivityLifecycleCallbacks {
 

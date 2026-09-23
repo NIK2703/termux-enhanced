@@ -57,7 +57,7 @@ public final class TerminalSession extends TerminalOutput {
     /** The pid of the shell process. 0 if not started and -1 if finished running. */
     int mShellPid;
 
-    /** The exit status of the shell process. Only valid if ${@link #mShellPid} is -1. */
+    /** The exit status of the shell process. Only valid if {@link #mShellPid} is -1. */
     int mShellExitStatus;
 
     /**
@@ -90,8 +90,7 @@ public final class TerminalSession extends TerminalOutput {
     }
 
     /**
-     * @param client The {@link TerminalSessionClient} interface implementation to allow
-     *               for communication between {@link TerminalSession} and its client.
+     * @param client client notified of session events.
      */
     public void updateTerminalSessionClient(TerminalSessionClient client) {
         mClient = client;
@@ -118,8 +117,8 @@ public final class TerminalSession extends TerminalOutput {
     /**
      * Set the terminal emulator's window size and start terminal emulation.
      *
-     * @param columns The number of columns in the terminal window.
-     * @param rows    The number of rows in the terminal window.
+     * @param columns column count.
+     * @param rows    row count.
      */
     public void initializeEmulator(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
         mEmulator = new TerminalEmulator(this, columns, rows, cellWidthPixels, cellHeightPixels, mTranscriptRows, mClient);
@@ -249,7 +248,7 @@ public final class TerminalSession extends TerminalOutput {
         mChoreographer.postFrameCallback(mScreenUpdateFrameCallback);
     }
 
-    /** Reset state for terminal emulator state. */
+    /** Reset the terminal emulator. */
     public void reset() {
         mEmulator.reset();
         notifyScreenUpdate();

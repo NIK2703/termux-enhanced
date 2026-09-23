@@ -154,7 +154,6 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context);
         if (preferences == null) return;
 
-        // If user has disabled notifications for crashes
         if (!preferences.areCrashReportNotificationsEnabled(false))
             return;
 
@@ -175,14 +174,12 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         Error error;
         StringBuilder reportStringBuilder = new StringBuilder();
 
-        // Read report string from crash log file
         error = FileUtils.readTextFromFile("crash log", TermuxConstants.TERMUX_CRASH_LOG_FILE_PATH, Charset.defaultCharset(), reportStringBuilder, false);
         if (error != null) {
             Logger.logErrorExtended(logTag, error.toString());
             return;
         }
 
-        // Move crash log file to backup location if it exists
         error = FileUtils.moveRegularFile("crash log", TermuxConstants.TERMUX_CRASH_LOG_FILE_PATH, TermuxConstants.TERMUX_CRASH_LOG_BACKUP_FILE_PATH, true);
         if (error != null) {
             Logger.logErrorExtended(logTag, error.toString());
@@ -197,9 +194,6 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
 
         sendCrashReportNotification(context, logTag, null, null, reportString, false, false, null, false);
     }
-
-
-
 
     /**
      * Send a crash report notification for {@link TermuxConstants#TERMUX_CRASH_REPORTS_NOTIFICATION_CHANNEL_ID}
@@ -302,7 +296,6 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(termuxPackageContext);
         if (preferences == null) return;
 
-        // If user has disabled notifications for crashes
         if (!preferences.areCrashReportNotificationsEnabled(true) && !forceNotification)
             return;
 
@@ -311,8 +304,6 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         if (showToast)
             Logger.showToast(currentPackageContext, notificationTextString, true);
 
-        // Send a notification to show the crash log which when clicked will open the {@link ReportActivity}
-        // to show the details of the crash
         if (title == null || title.toString().isEmpty())
             title = currentPackageContext.getString(com.termux.shared.R.string.title_crash_report, TermuxConstants.TERMUX_APP_NAME);
 
@@ -348,20 +339,15 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         if (result.deleteIntent != null)
             deleteIntent = PendingIntent.getBroadcast(termuxPackageContext, nextNotificationId, result.deleteIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-        // Setup the notification channel if not already set up
         setupCrashReportsNotificationChannel(termuxPackageContext);
 
-        // Use markdown in notification
         CharSequence notificationTextCharSequence = MarkdownUtils.getSpannedMarkdownText(termuxPackageContext, notificationTextString);
-        //CharSequence notificationTextCharSequence = notificationTextString;
 
-        // Build the notification
         Notification.Builder builder = getCrashReportsNotificationBuilder(currentPackageContext, termuxPackageContext,
             title, notificationTextCharSequence, notificationTextCharSequence, contentIntent, deleteIntent,
             NotificationUtils.NOTIFICATION_MODE_VIBRATE);
         if (builder == null) return;
 
-        // Send the notification
         NotificationManager notificationManager = NotificationUtils.getNotificationManager(termuxPackageContext);
         if (notificationManager != null)
             notificationManager.notify(nextNotificationId, builder.build());

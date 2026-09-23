@@ -16,9 +16,6 @@ import com.termux.terminal.TerminalSession;
  * Centralised home for every user-facing dialog and toast previously living in
  * {@link TermuxActivity}. Moving them here keeps the activity lean and makes the
  * dialog logic reusable and unit-testable.
- *
- * Each dialog is built with {@link MaterialAlertDialogBuilder} using the
- * {@code ThemeOverlay_TermuxActivity_Dialog} style so it matches the rest of the UI.
  */
 public class TermuxDialogs {
 
@@ -59,8 +56,6 @@ public class TermuxDialogs {
 
     /**
      * Convenience overload for the simple (single-confirm) case.
-     *
-     * @param onConfirm run when the user confirms clearing the history.
      */
     public void showConfirmClearAllHistory(@NonNull Runnable onConfirm) {
         showConfirmClearAllHistory(false, onConfirm, onConfirm);

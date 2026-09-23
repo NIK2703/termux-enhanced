@@ -143,7 +143,6 @@ KEY_LABELS = """
 
 MARKER = "action_open_in_bubble"
 
-
 def patch(locale: str, values) -> str:
     path = os.path.join(BASE, locale, "strings.xml")
     if not os.path.isfile(path):
@@ -176,7 +175,6 @@ def patch(locale: str, values) -> str:
         handle.write(text)
     return f"OK    {locale}"
 
-
 def main() -> int:
     if not os.path.isdir(BASE):
         print(f"Run this from the repo root; {BASE} not found", file=sys.stderr)
@@ -189,7 +187,6 @@ def main() -> int:
         if result.startswith("FAIL"):
             failures += 1
     return 1 if failures else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -28,13 +28,10 @@ import java.util.regex.Pattern;
 public class AndroidUtils {
 
     /**
-     * Get a markdown {@link String} for the app info for the package associated with the {@code context}.
-     * This will contain additional info about the app in addition to the one returned by
-     * {@link #getAppInfoMarkdownString(Context, String)}, which will be got via the {@code context}
-     * object.
+     * Markdown {@link String} of the app info for the {@code context}'s package, plus extras
+     * (files dir, user id, profile owner) gathered via the {@code context}.
      *
-     * @param context The context for operations for the package.
-     * @return Returns the markdown {@link String}.
+     * @param context context for the package's operations.
      */
     public static String getAppInfoMarkdownString(@NonNull final Context context) {
         StringBuilder markdownString = new StringBuilder();
@@ -50,7 +47,6 @@ public class AndroidUtils {
             !filesDir.equals("/data/data/" + context.getPackageName() + "/files"))
             AndroidUtils.appendPropertyToMarkdown(markdownString,"FILES_DIR", filesDir);
 
-
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Long userId = PackageUtils.getUserIdForPackage(context);
             if (userId == null || userId != 0)
@@ -63,11 +59,10 @@ public class AndroidUtils {
     }
 
     /**
-     * Get a markdown {@link String} for the app info for the {@code packageName}.
+     * Markdown {@link String} of the app info for {@code packageName}.
      *
-     * @param context The {@link Context} for operations.
-     * @param packageName The package name of the package.
-     * @return Returns the markdown {@link String}.
+     * @param context the {@link Context} for operations.
+     * @param packageName the package name.
      */
     public static String getAppInfoMarkdownString(@NonNull final Context context, @NonNull final String packageName) {
         PackageInfo packageInfo = PackageUtils.getPackageInfoForPackage(context, packageName);
@@ -105,11 +100,10 @@ public class AndroidUtils {
     }
 
     /**
-     * Get a markdown {@link String} for the device info.
+     * Markdown {@link String} of the device info (software + hardware).
      *
-     * @param context The context for operations.
-     * @param addPhantomProcessesInfo If phantom processes info should be added on Android >= 12.
-     * @return Returns the markdown {@link String}.
+     * @param context the {@link Context} for operations.
+     * @param addPhantomProcessesInfo add phantom processes info on Android >= 12.
      */
     public static String getDeviceInfoMarkdownString(@NonNull final Context context, boolean addPhantomProcessesInfo) {
         // Some properties cannot be read with {@link System#getProperty(String)} but can be read
@@ -123,7 +117,6 @@ public class AndroidUtils {
         markdownString.append("\n\n### Software\n");
         appendPropertyToMarkdown(markdownString,"OS_VERSION", getSystemPropertyWithAndroidAPI("os.version"));
         appendPropertyToMarkdown(markdownString, "SDK_INT", Build.VERSION.SDK_INT);
-        // If its a release version
         if ("REL".equals(Build.VERSION.CODENAME))
             appendPropertyToMarkdown(markdownString, "RELEASE", Build.VERSION.RELEASE);
         else
@@ -165,18 +158,10 @@ public class AndroidUtils {
         return markdownString.toString();
     }
 
-
-
     public static Properties getSystemProperties() {
         Properties systemProperties = new Properties();
 
-        // getprop commands returns values in the format `[key]: [value]`
-        // Regex matches string starting with a literal `[`,
-        // followed by one or more characters that do not match a closing square bracket as the key,
-        // followed by a literal `]: [`,
-        // followed by one or more characters as the value,
-        // followed by string ending with literal `]`
-        // multiline values will be ignored
+        // getprop prints `[key]: [value]` lines; multiline values are ignored.
         Pattern propertiesPattern = Pattern.compile("^\\[([^]]+)]: \\[(.+)]$");
 
         try {
@@ -205,10 +190,6 @@ public class AndroidUtils {
         } catch (IOException e) {
             Logger.logStackTraceWithMessage("Failed to get run \"/system/bin/getprop\" to get system properties.", e);
         }
-
-        //for (String key : systemProperties.stringPropertyNames()) {
-        //    Logger.logVerbose(key + ": " +  systemProperties.get(key));
-        //}
 
         return systemProperties;
     }
@@ -243,8 +224,6 @@ public class AndroidUtils {
     public static String getLiteralPropertyMarkdown(String label, Object value) {
         return MarkdownUtils.getLiteralSingleLineMarkdownStringEntry(label, value, "-");
     }
-
-
 
     public static String getCurrentTimeStamp() {
         @SuppressLint("SimpleDateFormat")

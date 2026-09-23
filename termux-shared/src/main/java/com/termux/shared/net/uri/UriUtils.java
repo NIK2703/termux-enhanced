@@ -58,42 +58,28 @@ public class UriUtils {
     }
 
     /**
-     * Get {@link UriScheme#SCHEME_FILE} {@link Uri} for path.
-     *
-     * @param path The path for the {@link Uri}.
-     * @return Returns the {@link Uri}.
+     * Build a {@code file://} {@link Uri} for {@code path}.
      */
     public static Uri getFileUri(@NonNull String path) {
         return new Uri.Builder().scheme(UriScheme.SCHEME_FILE).path(path).build();
     }
 
     /**
-     * Get {@link UriScheme#SCHEME_FILE} {@link Uri} for path.
-     *
-     * @param authority The authority for the {@link Uri}.
-     * @param path The path for the {@link Uri}.
-     * @return Returns the {@link Uri}.
+     * Build a {@code file://} {@link Uri} with {@code authority} for {@code path}.
      */
     public static Uri getFileUri(@NonNull String authority, @NonNull String path) {
         return new Uri.Builder().scheme(UriScheme.SCHEME_FILE).authority(authority).path(path).build();
     }
 
     /**
-     * Get {@link UriScheme#SCHEME_CONTENT} {@link Uri} for path.
-     *
-     * @param path The path for the {@link Uri}.
-     * @return Returns the {@link Uri}.
+     * Build a {@code content://} {@link Uri} for {@code path}.
      */
     public static Uri getContentUri(@NonNull String path) {
         return new Uri.Builder().scheme(UriScheme.SCHEME_CONTENT).path(path).build();
     }
 
     /**
-     * Get {@link UriScheme#SCHEME_CONTENT} {@link Uri} for path.
-     *
-     * @param authority The authority for the {@link Uri}.
-     * @param path The path for the {@link Uri}.
-     * @return Returns the {@link Uri}.
+     * Build a {@code content://} {@link Uri} with {@code authority} for {@code path}.
      */
     public static Uri getContentUri(@NonNull String authority, @NonNull String path) {
         return new Uri.Builder().scheme(UriScheme.SCHEME_CONTENT).authority(authority).path(path).build();

@@ -12,7 +12,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.termux.shared.errors.Error;
 import com.termux.shared.errors.FunctionErrno;
 
-
 public class ActivityUtils {
 
     private static final String LOG_TAG = "ActivityUtils";
@@ -27,11 +26,10 @@ public class ActivityUtils {
     /**
      * Start an {@link Activity}.
      *
-     * @param context The context for operations.
-     * @param intent The {@link Intent} to send to start the activity.
-     * @param logErrorMessage If an error message should be logged if failed to start activity.
-     * @param showErrorMessage If an error message toast should be shown if failed to start activity
-     *                         in addition to logging a message. The {@code context} must not be
+     * @param context context.
+     * @param intent intent to start the activity with.
+     * @param logErrorMessage log an error message on failure.
+     * @param showErrorMessage also toast the error on failure; {@code context} must not be
      *                         {@code null}.
      * @return Returns the {@code error} if starting activity was not successful, otherwise {@code null}.
      */
@@ -59,8 +57,6 @@ public class ActivityUtils {
         return null;
     }
 
-
-
     /**
      * Wrapper for {@link #startActivityForResult(Context, int, Intent, boolean, boolean, ActivityResultLauncher)}.
      */
@@ -79,22 +75,17 @@ public class ActivityUtils {
     /**
      * Start an {@link Activity} for result.
      *
-     * @param context The context for operations. It must be an instance of {@link Activity} or
-     *               {@link AppCompatActivity}. It is ignored if {@code activityResultLauncher}
-     *                is not {@code null}.
-     * @param requestCode The request code to use while sending intent. This must be >= 0, otherwise
-     *                    exception will be raised. This is ignored if {@code activityResultLauncher}
-     *                    is {@code null}.
-     * @param intent The {@link Intent} to send to start the activity.
-     * @param logErrorMessage If an error message should be logged if failed to start activity.
-     * @param showErrorMessage If an error message toast should be shown if failed to start activity
-     *                         in addition to logging a message. The {@code context} must not be
+     * @param context context; must be an {@link Activity} or {@link AppCompatActivity}, ignored
+     *                if {@code activityResultLauncher} is not {@code null}.
+     * @param requestCode request code (&gt;= 0); ignored if {@code activityResultLauncher} is
+     *                    {@code null}.
+     * @param intent intent to start the activity with.
+     * @param logErrorMessage log an error message on failure.
+     * @param showErrorMessage also toast the error on failure; {@code context} must not be
      *                         {@code null}.
-     * @param activityResultLauncher The {@link ActivityResultLauncher<Intent>} to use for start the
-     *                               activity. If this is {@code null}, then
-     *                               {@link Activity#startActivityForResult(Intent, int)} will be
-     *                               used instead.
-     *                               Note that later is deprecated.
+     * @param activityResultLauncher launcher to use; if {@code null},
+     *                               {@link Activity#startActivityForResult(Intent, int)} is used
+     *                               instead (deprecated).
      * @return Returns the {@code error} if starting activity was not successful, otherwise {@code null}.
      */
     public static Error startActivityForResult(Context context, int requestCode, @NonNull Intent intent,

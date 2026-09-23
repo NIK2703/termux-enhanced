@@ -121,7 +121,6 @@ public class TermuxSession {
 
         }
 
-        // Setup command args
         String[] commandArgs = shellEnvironmentClient.setupShellCommandArguments(executionCommand.executable, executionCommand.arguments);
 
         executionCommand.executable = commandArgs[0];
@@ -136,7 +135,6 @@ public class TermuxSession {
         if (executionCommand.commandLabel == null)
             executionCommand.commandLabel = processName;
 
-        // Setup command environment
         HashMap<String, String> environment = shellEnvironmentClient.setupShellCommandEnvironment(currentPackageContext,
             executionCommand);
         if (additionalEnvironment != null)
@@ -168,16 +166,14 @@ public class TermuxSession {
     }
 
     /**
-     * Signal that this {@link TermuxSession} has finished.  This should be called when
-     * {@link TerminalSessionClient#onSessionFinished(TerminalSession)} callback is received by the caller.
+     * Signal that this {@link TermuxSession} has finished. This should be called when the
+     * {@link TerminalSessionClient#onSessionFinished(TerminalSession)} callback is received.
      *
-     * If the processes has finished, then sets {@link ResultData#stdout}, {@link ResultData#stderr}
-     * and {@link ResultData#exitCode} for the {@link #mExecutionCommand} of the {@code termuxTask}
-     * and then calls {@link #processTermuxSessionResult(TermuxSession, ExecutionCommand)} to process the result}.
-     *
+     * If the process has finished, sets {@link ResultData#stdout}, {@link ResultData#stderr}
+     * and {@link ResultData#exitCode} then calls
+     * {@link #processTermuxSessionResult(TermuxSession, ExecutionCommand)} to process the result.
      */
     public void finish() {
-        // If process is still running, then ignore the call
         if (mTerminalSession.isRunning()) return;
 
         int exitCode = mTerminalSession.getExitStatus();
@@ -205,7 +201,7 @@ public class TermuxSession {
     }
 
     /**
-     * Kill this {@link TermuxSession} by sending a {@link OsConstants#SIGILL} to its {@link #mTerminalSession}
+     * Kill this {@link TermuxSession} by sending a {@link OsConstants#SIGKILL} to its {@link #mTerminalSession}
      * if its still executing.
      *
      * @param context The {@link Context} for operations.
@@ -282,8 +278,6 @@ public class TermuxSession {
     public ExecutionCommand getExecutionCommand() {
         return mExecutionCommand;
     }
-
-
 
     public interface TermuxSessionClient {
 

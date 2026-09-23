@@ -291,7 +291,6 @@ public final class MessageHistoryController {
         // so keep the in-memory state untouched.
         if (newCwd.equals(oldCwd)) return;
 
-        // Save current CWD's history before switching
         if (mHistoryCurrentDirectory != null) {
             mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
         }
@@ -423,7 +422,6 @@ public final class MessageHistoryController {
             }
         } catch (JSONException ignored) {
         }
-        // Trim to configured max
         boolean trimmed = false;
         while (mMessageHistory.size() > mMessageHistoryMax) {
             mMessageHistory.remove(mMessageHistory.size() - 1);
@@ -448,7 +446,6 @@ public final class MessageHistoryController {
                     if (arr == null) continue;
                     hadPerDirData = true;
                     ArrayList<String> list = new ArrayList<>();
-                    // P2: O(N) dedup instead of List.contains (O(N²)).
                     HashSet<String> seen = new HashSet<>(arr.length());
                     for (int i = 0; i < arr.length(); i++) {
                         String s = arr.optString(i, null);
@@ -474,7 +471,6 @@ public final class MessageHistoryController {
                 try {
                     JSONArray globalArr = new JSONArray(globalJson);
                     ArrayList<String> migrated = new ArrayList<>();
-                    // P2: O(N) dedup instead of List.contains (O(N²)).
                     HashSet<String> seen = new HashSet<>(globalArr.length());
                     for (int i = 0; i < globalArr.length(); i++) {
                         String s = globalArr.optString(i, null);

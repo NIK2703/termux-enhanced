@@ -61,15 +61,12 @@ public class UserUtils {
     }
 
     /**
-     * Get the user name for user id with a call to `Libcore.os.getpwuid()`.
+     * Get the user name for user id via `Libcore.os.getpwuid()` (reflection). Returns names for
+     * non-app ids like root (0), but is expensive and needs
+     * {@link ReflectionUtils#bypassHiddenAPIReflectionRestrictions()}.
      *
-     * This will return user names for non app user id like for root user 0 as well, but this call
-     * is expensive due to usage of reflection, and requires hidden API bypass, check
-     * {@link ReflectionUtils#bypassHiddenAPIReflectionRestrictions()} for details.
-     *
-     * `BlockGuardOs` implements the `Os` interface and its instance is stored in `Libcore` class static `os` field.
-     * The `getpwuid` method is implemented by `ForwardingOs`, which is the super class of `BlockGuardOs`.
-     * The `getpwuid` method returns `StructPasswd` object whose `pw_name` contains the user name for id.
+     * `Libcore.os` holds a `BlockGuardOs` (superclass `ForwardingOs`) whose `getpwuid()` returns
+     * a `StructPasswd` with `pw_name`.
      *
      * https://stackoverflow.com/a/28057167/14686958
      * https://cs.android.com/android/platform/superproject/+/android-12.0.0_r32:libcore/luni/src/main/java/libcore/io/Libcore.java;l=39

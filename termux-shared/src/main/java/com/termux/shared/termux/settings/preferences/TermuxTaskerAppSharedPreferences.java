@@ -28,9 +28,9 @@ public class TermuxTaskerAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxTaskerAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_TASKER_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxTaskerAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context, used to get the {@link TermuxConstants#TERMUX_TASKER_PACKAGE_NAME}
+     *                package context.
+     * @return the preferences, or {@code null} if getting the package context failed.
      */
     @Nullable
     public static TermuxTaskerAppSharedPreferences build(@NonNull final Context context) {
@@ -44,11 +44,11 @@ public class TermuxTaskerAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxTaskerAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_TASKER_PACKAGE_NAME}.
-     * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
-     *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxTaskerAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context, used to get the {@link TermuxConstants#TERMUX_TASKER_PACKAGE_NAME}
+     *                package context.
+     * @param exitAppOnError If {@code true} and failed to get package context, a dialog is shown
+     *                       which exits the app when dismissed.
+     * @return the preferences, or {@code null} if getting the package context failed.
      */
     public static  TermuxTaskerAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxTaskerPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_TASKER_PACKAGE_NAME, exitAppOnError);
@@ -57,8 +57,6 @@ public class TermuxTaskerAppSharedPreferences extends AppSharedPreferences {
         else
             return new TermuxTaskerAppSharedPreferences(termuxTaskerPackageContext);
     }
-
-
 
     public int getLogLevel(boolean readFromFile) {
         if (readFromFile)
@@ -71,8 +69,6 @@ public class TermuxTaskerAppSharedPreferences extends AppSharedPreferences {
         logLevel = Logger.setLogLevel(context, logLevel);
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_TASKER_APP.KEY_LOG_LEVEL, logLevel, commitToFile);
     }
-
-
 
     public int getLastPendingIntentRequestCode() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_TASKER_APP.KEY_LAST_PENDING_INTENT_REQUEST_CODE, TERMUX_TASKER_APP.DEFAULT_VALUE_KEY_LAST_PENDING_INTENT_REQUEST_CODE);

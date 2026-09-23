@@ -153,8 +153,6 @@ public class RunCommandService extends Service {
             return stopService();
         }
 
-
-
         // If executable is null or empty, then exit here instead of getting canonical path which would expand to "/"
         if (executionCommand.executable == null || executionCommand.executable.isEmpty()) {
             errmsg  = this.getString(R.string.error_run_command_service_mandatory_extra_missing, RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH);
@@ -163,7 +161,6 @@ public class RunCommandService extends Service {
             return stopService();
         }
 
-        // Get canonical path of executable
         executionCommand.executable = TermuxFileUtils.getCanonicalPath(executionCommand.executable, null, true);
 
         // If executable is not a regular file, or is not readable or executable, then just return
@@ -177,11 +174,7 @@ public class RunCommandService extends Service {
             return stopService();
         }
 
-
-
-        // If workingDirectory is not null or empty
         if (executionCommand.workingDirectory != null && !executionCommand.workingDirectory.isEmpty()) {
-            // Get canonical path of workingDirectory
             executionCommand.workingDirectory = TermuxFileUtils.getCanonicalPath(executionCommand.workingDirectory, null, true);
 
             // If workingDirectory is not a directory, or is not readable or writable, then just return
@@ -267,7 +260,6 @@ public class RunCommandService extends Service {
     }
 
     private Notification buildNotification() {
-        // Build the notification
         Notification.Builder builder =  NotificationUtils.geNotificationBuilder(this,
             TermuxConstants.TERMUX_RUN_COMMAND_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_LOW,
             TermuxConstants.TERMUX_RUN_COMMAND_NOTIFICATION_CHANNEL_NAME, null, null,
@@ -277,10 +269,8 @@ public class RunCommandService extends Service {
         // No need to show a timestamp:
         builder.setShowWhen(false);
 
-        // Set notification icon
         builder.setSmallIcon(R.drawable.ic_service_notification);
 
-        // Set background color for small notification icon
         builder.setColor(0xFF607D8B);
 
         return builder.build();

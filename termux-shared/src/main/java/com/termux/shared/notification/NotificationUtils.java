@@ -35,10 +35,7 @@ public class NotificationUtils {
     private static final String LOG_TAG = "NotificationUtils";
 
     /**
-     * Get the {@link NotificationManager}.
-     *
-     * @param context The {@link Context} for operations.
-     * @return Returns the {@link NotificationManager}.
+     * Get the {@link NotificationManager} system service, or {@code null} if context is null.
      */
     @Nullable
     public static NotificationManager getNotificationManager(final Context context) {
@@ -47,20 +44,11 @@ public class NotificationUtils {
     }
 
     /**
-     * Get {@link Notification.Builder}.
+     * Build a {@link Notification.Builder} for the given channel, priority and content.
      *
-     * @param context The {@link Context} for operations.
-     * @param title The title for the notification.
-     * @param channelId The channel id for the notification.
-     * @param priority The priority for the notification.
-     * @param notificationText The second line text of the notification.
-     * @param notificationBigText The full text of the notification that may optionally be styled.
-     * @param contentIntent The {@link PendingIntent} which should be sent when notification is clicked.
-     * @param deleteIntent The {@link PendingIntent} which should be sent when notification is deleted.
-     * @param notificationMode The notification mode. It must be one of {@code NotificationUtils.NOTIFICATION_MODE_*}.
-     *                         The builder returned will be {@code null} if {@link #NOTIFICATION_MODE_NONE}
-     *                         is passed. That case should ideally be handled before calling this function.
-     * @return Returns the {@link Notification.Builder}.
+     * @param notificationMode one of {@code NOTIFICATION_MODE_*}; {@link #NOTIFICATION_MODE_NONE}
+     *                         makes this return {@code null} (handle that before calling).
+     * @return the builder, or {@code null} if context is null or mode is NONE.
      */
     @Nullable
     public static Notification.Builder geNotificationBuilder(
@@ -88,14 +76,8 @@ public class NotificationUtils {
     }
 
     /**
-     * Setup the notification channel if Android version is greater than or equal to
-     * {@link Build.VERSION_CODES#O}.
-     *
-     * @param context The {@link Context} for operations.
-     * @param channelId The id of the channel. Must be unique per package.
-     * @param channelName The user visible name of the channel.
-     * @param importance The importance of the channel. This controls how interruptive notifications
-     *                   posted to this channel are.
+     * Setup the notification channel on API {@link Build.VERSION_CODES#O}+. Channel id must be
+     * unique per package; importance controls how interruptive its notifications are.
      */
     public static void setupNotificationChannel(final Context context, final String channelId, final CharSequence channelName, final int importance) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;

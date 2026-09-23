@@ -26,7 +26,6 @@ public class AndroidShellEnvironment extends UnixShellEnvironment {
         shellCommandShellEnvironment = new ShellCommandShellEnvironment();
     }
 
-    /** Get shell environment for Android. */
     @NonNull
     @Override
     public HashMap<String, String> getEnvironment(@NonNull Context currentPackageContext, boolean isFailSafe) {
@@ -64,14 +63,11 @@ public class AndroidShellEnvironment extends UnixShellEnvironment {
         return environment;
     }
 
-
-
     @NonNull
     @Override
     public String getDefaultWorkingDirectoryPath() {
         return "/";
     }
-
 
     @NonNull
     @Override

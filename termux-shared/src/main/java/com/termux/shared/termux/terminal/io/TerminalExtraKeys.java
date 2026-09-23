@@ -14,12 +14,10 @@ import com.termux.shared.termux.extrakeys.SpecialButton;
 import com.termux.terminal.TerminalSession;
 import com.termux.view.TerminalView;
 
-
 import java.util.List;
 import androidx.annotation.Nullable;
 
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
-
 
 public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
 

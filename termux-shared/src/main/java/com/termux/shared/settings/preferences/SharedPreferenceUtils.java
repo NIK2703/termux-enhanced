@@ -15,9 +15,7 @@ public class SharedPreferenceUtils {
     /**
      * Check if a key is present in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to check the key in.
-     * @param key The key to check.
-     * @return Returns {@code true} if the key is present, otherwise {@code false}.
+     * @return {@code true} if present; {@code false} if absent or prefs are {@code null}.
      */
     public static boolean isKeyPresent(SharedPreferences sharedPreferences, String key) {
         if (sharedPreferences == null)
@@ -26,43 +24,29 @@ public class SharedPreferenceUtils {
     }
 
     /**
-     * Get {@link SharedPreferences} instance of the preferences file 'name' with the operating mode
-     * {@link Context#MODE_PRIVATE}. This file will be created in the app package's default
-     * shared preferences directory.
+     * Get {@link SharedPreferences} for file {@code name} with {@link Context#MODE_PRIVATE}.
      *
-     * @param context The {@link Context} to get the {@link SharedPreferences} instance.
-     * @param name The preferences file basename without extension.
-     * @return The single {@link SharedPreferences} instance that can be used to retrieve and
-     * modify the preference values.
+     * @param name preferences file basename without extension.
      */
     public static SharedPreferences getPrivateSharedPreferences(Context context, String name) {
         return context.getSharedPreferences(name, Context.MODE_PRIVATE);
     }
 
     /**
-     * Get {@link SharedPreferences} instance of the preferences file 'name' with the operating mode
-     * {@link Context#MODE_PRIVATE} and {@link Context#MODE_MULTI_PROCESS}. This file will be
-     * created in the app package's default shared preferences directory.
+     * Get {@link SharedPreferences} for file {@code name} with {@link Context#MODE_PRIVATE} and
+     * {@link Context#MODE_MULTI_PROCESS}.
      *
-     * @param context The {@link Context} to get the {@link SharedPreferences} instance.
-     * @param name The preferences file basename without extension.
-     * @return The single {@link SharedPreferences} instance that can be used to retrieve and
-     * modify the preference values.
+     * @param name preferences file basename without extension.
      */
     public static SharedPreferences getPrivateAndMultiProcessSharedPreferences(Context context, String name) {
         return context.getSharedPreferences(name, Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS);
     }
 
-
-
     /**
      * Get a {@code boolean} from {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @return Returns the {@code boolean} value stored in {@link SharedPreferences}, otherwise returns
-     * default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs or {@link ClassCastException}.
+     * @return the value, otherwise {@code def}.
      */
     public static boolean getBoolean(SharedPreferences sharedPreferences, String key, boolean def) {
         if (sharedPreferences == null) {
@@ -82,12 +66,7 @@ public class SharedPreferenceUtils {
     /**
      * Set a {@code boolean} in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setBoolean(SharedPreferences sharedPreferences, String key, boolean value, boolean commitToFile) {
@@ -103,16 +82,11 @@ public class SharedPreferenceUtils {
 
     }
 
-
-
     /**
      * Get a {@code float} from {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @return Returns the {@code float} value stored in {@link SharedPreferences}, otherwise returns
-     * default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs or {@link ClassCastException}.
+     * @return the value, otherwise {@code def}.
      */
     public static float getFloat(SharedPreferences sharedPreferences, String key, float def) {
         if (sharedPreferences == null) {
@@ -132,12 +106,7 @@ public class SharedPreferenceUtils {
     /**
      * Set a {@code float} in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setFloat(SharedPreferences sharedPreferences, String key, float value, boolean commitToFile) {
@@ -152,16 +121,11 @@ public class SharedPreferenceUtils {
             sharedPreferences.edit().putFloat(key, value).apply();
     }
 
-
-
     /**
      * Get an {@code int} from {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @return Returns the {@code int} value stored in {@link SharedPreferences}, otherwise returns
-     * default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs or {@link ClassCastException}.
+     * @return the value, otherwise {@code def}.
      */
     public static int getInt(SharedPreferences sharedPreferences, String key, int def) {
         if (sharedPreferences == null) {
@@ -181,12 +145,7 @@ public class SharedPreferenceUtils {
     /**
      * Set an {@code int} in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setInt(SharedPreferences sharedPreferences, String key, int value, boolean commitToFile) {
@@ -202,18 +161,12 @@ public class SharedPreferenceUtils {
     }
 
     /**
-     * Set an {@code int} in {@link SharedPreferences}.
+     * Increment an {@code int} in {@link SharedPreferences}, returning the value before increment.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
-     * @param resetValue The value if not {@code null} that should be set if current or incremented
-     *                   value is less than 0.
-     * @return Returns the {@code int} value stored in {@link SharedPreferences} before increment,
-     * otherwise returns default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
+     * @param resetValue if non-null, used when the current/new value would go negative.
+     * @return the value before increment, otherwise {@code def}.
      */
     @SuppressLint("ApplySharedPref")
     public static int getAndIncrementInt(SharedPreferences sharedPreferences, String key, int def,
@@ -233,16 +186,11 @@ public class SharedPreferenceUtils {
         return curValue;
     }
 
-
-
     /**
      * Get a {@code long} from {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @return Returns the {@code long} value stored in {@link SharedPreferences}, otherwise returns
-     * default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs or {@link ClassCastException}.
+     * @return the value, otherwise {@code def}.
      */
     public static long getLong(SharedPreferences sharedPreferences, String key, long def) {
         if (sharedPreferences == null) {
@@ -262,12 +210,7 @@ public class SharedPreferenceUtils {
     /**
      * Set a {@code long} in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setLong(SharedPreferences sharedPreferences, String key, long value, boolean commitToFile) {
@@ -282,17 +225,12 @@ public class SharedPreferenceUtils {
             sharedPreferences.edit().putLong(key, value).apply();
     }
 
-
-
     /**
      * Get a {@code String} from {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @param defIfEmpty If set to {@code true}, then {@code def} will be returned if value is empty.
-     * @return Returns the {@code String} value stored in {@link SharedPreferences}, otherwise returns
-     * default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs or {@link ClassCastException}.
+     * @param defIfEmpty also return {@code def} when the stored value is empty.
+     * @return the value, otherwise {@code def}.
      */
     public static String getString(SharedPreferences sharedPreferences, String key, String def, boolean defIfEmpty) {
         if (sharedPreferences == null) {
@@ -316,12 +254,7 @@ public class SharedPreferenceUtils {
     /**
      * Set a {@code String} in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setString(SharedPreferences sharedPreferences, String key, String value, boolean commitToFile) {
@@ -336,16 +269,11 @@ public class SharedPreferenceUtils {
             sharedPreferences.edit().putString(key, value).apply();
     }
 
-
-
     /**
      * Get a {@code Set<String>} from {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @return Returns the {@code Set<String>} value stored in {@link SharedPreferences}, otherwise returns
-     * default if failed to read a valid value, like in case of an exception.
+     * @param def default on missing/null prefs or {@link ClassCastException}.
+     * @return the value, otherwise {@code def}.
      */
     public static Set<String> getStringSet(SharedPreferences sharedPreferences, String key, Set<String> def) {
         if (sharedPreferences == null) {
@@ -365,12 +293,7 @@ public class SharedPreferenceUtils {
     /**
      * Set a {@code Set<String>} in {@link SharedPreferences}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setStringSet(SharedPreferences sharedPreferences, String key, Set<String> value, boolean commitToFile) {
@@ -385,17 +308,11 @@ public class SharedPreferenceUtils {
             sharedPreferences.edit().putStringSet(key, value).apply();
     }
 
-
-
     /**
      * Get an {@code int} from {@link SharedPreferences} that is stored as a {@link String}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to get the value from.
-     * @param key The key for the value.
-     * @param def The default value if failed to read a valid value.
-     * @return Returns the {@code int} value after parsing the {@link String} value stored in
-     * {@link SharedPreferences}, otherwise returns default if failed to read a valid value,
-     * like in case of an exception.
+     * @param def default on missing/null prefs or parse failure.
+     * @return the parsed value, otherwise {@code def}.
      */
     public static int getIntStoredAsString(SharedPreferences sharedPreferences, String key, int def) {
         if (sharedPreferences == null) {
@@ -422,12 +339,7 @@ public class SharedPreferenceUtils {
     /**
      * Set an {@code int} into {@link SharedPreferences} that is stored as a {@link String}.
      *
-     * @param sharedPreferences The {@link SharedPreferences} to set the value in.
-     * @param key The key for the value.
-     * @param value The value to store.
-     * @param commitToFile If set to {@code true}, then value will be set to shared preferences
-     *                     in-memory cache and the file synchronously. Ideally, only to be used for
-     *                     multi-process use-cases.
+     * @param commitToFile {@code true} commits synchronously (multi-process use-cases); else apply().
      */
     @SuppressLint("ApplySharedPref")
     public static void setIntStoredAsString(SharedPreferences sharedPreferences, String key, int value, boolean commitToFile) {

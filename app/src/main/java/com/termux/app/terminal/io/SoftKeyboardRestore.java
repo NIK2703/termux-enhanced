@@ -10,19 +10,15 @@ import androidx.annotation.Nullable;
 import com.termux.shared.logger.Logger;
 
 /**
- * Reliable soft-keyboard show helper.
+ * Reliable soft-keyboard show helper: showSoftInput() silently fails when the window is not
+ * focused yet, the target view has no focus, or the IME service is still settling after a
+ * resume/recreate. Retries with a short delay and STOPS as soon as the probe reports the IME is
+ * actually visible, so it never hammers the IME longer than necessary.
  *
- * showSoftInput() silently fails when the window is not focused yet, the target
- * view has no focus, or the IME service is still settling after a resume/recreate.
- * This helper retries with a short delay and STOPS as soon as the probe reports
- * the IME is actually visible (the activity's combined insets + visible-frame
- * detection), so it never hammers the IME longer than necessary.
- *
- * <p>This is the single funnel for every <em>automatic</em> IME show in the app (the user-driven
- * paths — a tap on the terminal, the KEYBOARD toggle — call {@code KeyboardUtils.showSoftKeyboard}
- * directly). That makes it the place to look when asking "who opened the keyboard?" — which is not
- * answerable from the {@code InputMethodManager} log line alone, because several call sites share
- * this helper. {@link #logCaller} records the first caller outside this class for that reason.
+ * <p>Single funnel for every <em>automatic</em> IME show in the app (user-driven paths — a tap on
+ * the terminal, the KEYBOARD toggle — call {@code KeyboardUtils.showSoftKeyboard} directly),
+ * which is why {@link #logCaller} can identify the caller: the call sites are otherwise
+ * indistinguishable in the {@code InputMethodManager} log line.
  */
 public final class SoftKeyboardRestore {
 
@@ -39,13 +35,8 @@ public final class SoftKeyboardRestore {
     private SoftKeyboardRestore() {}
 
     /**
-     * Report which call site is about to request the IME.
-     *
-     * <p>Existed as a debugging aid and kept because the answer is genuinely non-obvious: the six
-     * call sites of {@link #showWithRetry} are spread over the resume path, the tab-switch reconcile
-     * and three deferred re-asserts, and they are indistinguishable in the
-     * {@code InputMethodManager} log line. Only the first frame outside this class is reported, so
-     * the line stays short.
+     * Report which call site is about to request the IME — only the first frame outside this
+     * class, so the line stays short.
      */
     private static void logCaller() {
         StackTraceElement[] frames = new Throwable().getStackTrace();
@@ -63,15 +54,11 @@ public final class SoftKeyboardRestore {
     }
 
     /**
-     * @param onSettled optional one-shot callback, run exactly once when this helper stops
-     *                  trying — either because the probe confirmed the IME is up, or because the
-     *                  last attempt ran out (or the view never became servable at all).
-     *                  <p>
-     *                  Callers use it to release their "restore in flight" latch the moment the
-     *                  outcome is known, instead of parking a blind timer sized for the worst
-     *                  case (4 × 120 ms). That matters beyond latency: while such a latch is up
-     *                  the IME-visibility handler refuses to record the user's own keyboard
-     *                  intent, so an over-long latch silently swallows a real user action.
+     * @param onSettled optional one-shot callback, run exactly once when the helper stops
+     *                  trying (IME up, attempts exhausted, or view never servable). Callers
+     *                  release their "restore in flight" latch here instead of a blind
+     *                  4 × 120 ms timer — while it is up the IME-visibility handler ignores
+     *                  the user's own keyboard intent, so a long latch swallows a real keypress.
      */
     public static void showWithRetry(@NonNull View target,
                                      @NonNull ImeVisibilityProbe probe,

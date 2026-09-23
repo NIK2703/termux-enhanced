@@ -2,10 +2,8 @@ package com.termux.shared.shell.command.environment;
 
 public class ShellEnvironmentVariable implements Comparable<ShellEnvironmentVariable> {
 
-    /** The name for environment variable */
     public String name;
 
-    /** The value for environment variable */
     public String value;
 
     /** If environment variable {@link #value} is already escaped. */

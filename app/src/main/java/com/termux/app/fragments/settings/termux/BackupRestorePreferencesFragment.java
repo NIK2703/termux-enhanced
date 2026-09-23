@@ -64,9 +64,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         configureRestoreSettingsPreference();
     }
 
-    // ------------------------------------------------------------------
-    // Full-data backup (existing)
-    // ------------------------------------------------------------------
+    // ---- Full-data backup (existing) ----
 
     private void configureBackupPreference() {
         final Preference pref = findPreference("backup_container");
@@ -153,9 +151,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         startActivityForResult(intent, REQUEST_CODE_RESTORE);
     }
 
-    // ------------------------------------------------------------------
-    // Settings backup
-    // ------------------------------------------------------------------
+    // ---- Settings backup ----
 
     private void configureBackupSettingsPreference() {
         final Preference pref = findPreference("backup_settings_container");
@@ -218,9 +214,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
             + dateFmt.format(now) + "_" + timeFmt.format(now) + ".zip";
     }
 
-    // ------------------------------------------------------------------
-    // Activity results
-    // ------------------------------------------------------------------
+    // ---- Activity results ----
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
@@ -248,9 +242,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         }
     }
 
-    // ------------------------------------------------------------------
-    // Settings export / import (lightweight, no foreground service)
-    // ------------------------------------------------------------------
+    // ---- Settings export / import (lightweight, no foreground service) ----
 
     private void runSettingsExport(FragmentActivity activity, Uri uri) {
         if (mSettingsRunning) return;
@@ -352,9 +344,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         android.widget.Toast.makeText(activity, text, android.widget.Toast.LENGTH_LONG).show();
     }
 
-    // ------------------------------------------------------------------
-    // Lifecycle
-    // ------------------------------------------------------------------
+    // ---- Lifecycle ----
 
     @Override
     public void onResume() {

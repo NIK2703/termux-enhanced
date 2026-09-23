@@ -48,11 +48,6 @@ public class UnicodeInputTest extends TerminalTestCase {
 		input = new byte[]{(byte) 0xe0, (byte) 0xa0, ' '};
 		mTerminal.append(input, input.length);
 		assertLinesAre("\uFFFD    ", "     ");
-
-		// withTerminalSized(5, 2);
-		// input = new byte[]{(byte) 0xe0, (byte) 0x80, 'a'};
-		// mTerminal.append(input, input.length);
-		// assertLinesAre("\uFFFD\uFFFDa  ", "     ");
 	}
 
 	public void testUnassignedCodePoint() throws UnsupportedEncodingException {

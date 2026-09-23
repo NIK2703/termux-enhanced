@@ -34,11 +34,9 @@ public class SendActionEditText extends EditText {
     }
 
     private void init() {
-        // Use the default ArrowKeyMovementMethod (singleton) instead of
-        // ScrollingMovementMethod: the latter only scrolls and drops the
-        // touch-selection path, so long-press + drag to select text stopped
-        // working. ArrowKeyMovementMethod keeps text selection AND still
-        // scrolls vertically when the selection is dragged past the edge.
+        // ArrowKeyMovementMethod instead of ScrollingMovementMethod: the latter drops the
+        // touch-selection path, so long-press + drag to select stopped working. ArrowKey
+        // keeps selection AND still scrolls when the selection is dragged past the edge.
         setMovementMethod(ArrowKeyMovementMethod.getInstance());
     }
 
@@ -46,8 +44,6 @@ public class SendActionEditText extends EditText {
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         InputConnection ic = super.onCreateInputConnection(outAttrs);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            // Force a SEND action and drop the "no enter action" flag so the
-            // soft keyboard shows the send button instead of a newline key.
             outAttrs.imeOptions = (outAttrs.imeOptions & ~EditorInfo.IME_MASK_ACTION)
                     | EditorInfo.IME_ACTION_SEND;
             outAttrs.imeOptions &= ~EditorInfo.IME_FLAG_NO_ENTER_ACTION;

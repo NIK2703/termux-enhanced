@@ -100,7 +100,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.util.Arrays;
 import java.util.function.Consumer;
 
-
 /**
  * A terminal emulator activity.
  * <p/>
@@ -625,19 +624,11 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** Message history controller — owns command history list and per-directory store. */
     private MessageHistoryController mMessageHistoryCtrl = null;
 
-
-
     /** Cached color scheme manager — computes and vends all scheme-derived colours. */
     private final TermuxColorSchemeManager mColorSchemeManager = new TermuxColorSchemeManager();
 
-
-
-
     /** Default max number of remembered messages (overridable in Settings). */
     private static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
-
-
-
 
     /** Directory history controller — owns visited-CWD list. */
     private DirectoryHistoryController mDirectoryHistoryCtrl = null;
@@ -829,16 +820,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mTermuxActivityRootView = findViewById(R.id.activity_termux_root_view);
         mTextInputPanel.setup(savedInstanceState, mTermuxActivityRootView);
 
-        // Keep the input panel under a quarter of the height it shares with the terminal (the rule
-        // itself lives in TextInputPanelController.applyPanelHeightLimitForContentView).
-        //
-        // The root view's layout is where every way that height can change converges: rotation,
-        // split-screen resize, a bubble being dragged, the keyboard resizing the window, and — when
-        // the keyboard covers the window without a resize — this view's own IME padding top-up,
-        // which changes the content box without changing the measured height. So one unconditional
-        // call per layout pass is complete, and there is deliberately no "only when the height
-        // changed" gate here: such a gate compares bounds and would miss the padding-only case.
-        // The controller is already a no-op when the height it computes is the one in place.
+        // Panel height limit recomputed on every root layout pass: rotation, split-screen,
+        // bubble drag, keyboard resize and IME padding-only changes all land here. No
+        // height-changed gate (would miss padding-only); the controller is a no-op when equal.
         mTermuxActivityRootView.addOnLayoutChangeListener(
             (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
                 mTextInputPanel.applyPanelHeightLimitForContentView(v));
@@ -875,7 +859,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // composited below the window even if the renderer draws a translucent background.
         applyWallpaperWindowFlags();
 
-
         setTermuxTerminalViewAndClients();
 
         setTerminalToolbarView(savedInstanceState);
@@ -901,7 +884,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Register broadcast receiver in onCreate so it works even when activity is in background
         registerTermuxActivityBroadcastReceiver();
 
-        // Create the service connection manager that owns the TermuxService binding lifecycle.
         mServiceConnectionManager = new TermuxServiceConnectionManager(this);
 
         // Start the {@link TermuxService} and bind to it. On failure mark the activity invalid
@@ -911,8 +893,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             return;
         }
 
-        // Send the {@link TermuxConstants#BROADCAST_TERMUX_OPENED} broadcast to notify apps that Termux
-        // app has been opened.
+        // Send the {@link TermuxConstants#BROADCAST_TERMUX_OPENED} broadcast so apps know Termux opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
 
         // Monet: build the selected variants up front so the token is stable before the
@@ -1129,7 +1110,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // recreate). A fresh cold start (first resume after onCreate) keeps the historical
         // "show keyboard on launch" behaviour and skips the restore.
         final boolean willRestoreKeyboard = !mIsOnResumeAfterOnCreate || mIsActivityRecreated;
-
 
         // Raise the restore latch BEFORE the view client runs setSoftKeyboardState(), so the
         // per-page focus listener suppresses ALL IME / panel churn triggered by its
@@ -1681,16 +1661,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         });
     }
 
-
-
-
-
-
-
-
-
-
-
     private void reloadProperties() {
         mProperties.loadTermuxPropertiesFromDisk();
 
@@ -1704,8 +1674,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onReloadProperties();
     }
-
-
 
     public void applyTermuxTheme() {
         if (mViewHelper != null) mViewHelper.applyTheme();
@@ -1966,10 +1934,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         updateFloatingButtonMargin();
     }
 
-
-
     private void setTermuxTerminalViewAndClients() {
-        // Set termux terminal view and session clients
         mTermuxTerminalSessionActivityClient = new TermuxTerminalSessionActivityClient(this);
         mTermuxTerminalViewClient = new TermuxTerminalViewClient(this, mTermuxTerminalSessionActivityClient);
 
@@ -1987,10 +1952,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     public void setTermuxSessionsListView() {
-        // Initialize session tabs controller
         mTermuxSessionTabsController = new TermuxSessionTabsController(this);
-        
-        // Set up new session tab button
+
         ImageButton newSessionTabButton = findViewById(R.id.new_session_tab_button);
         if (newSessionTabButton != null) {
             // Tap opens a new tab (default cwd); long-press creates a named session.
@@ -2097,7 +2060,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
         if (p != null) p.requestDisallowInterceptTouchEvent(disallow);
     }
-
 
     private void setTerminalToolbarView(Bundle savedInstanceState) {
         mTermuxTerminalExtraKeys = new TermuxTerminalExtraKeys(this, getTerminalView(),
@@ -2237,10 +2199,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         applyTextInputVisibilityForSession(getCurrentSession(), false);
     }
 
-
-
-
-
     private boolean isTerminalToolbarVisible() {
         LinearLayout toolbar = getTerminalToolbarContainer();
         if (toolbar == null || toolbar.getVisibility() != View.VISIBLE) return false;
@@ -2253,7 +2211,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return mProperties.isUsingFullScreen()
             && (getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
     }
-
 
     public void setTerminalToolbarHeight() {
         final ExtraKeysView extraKeysView = getExtraKeysView();
@@ -2503,8 +2460,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public boolean isFocusOnInputForSession(@Nullable TerminalSession session) {
         return mTextInputState.isFocusOnInput(session);
     }
-
-
 
     /**
      * Move the session tabs panel (session_tabs_container) to the top or bottom of the
@@ -2782,16 +2737,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 return false;
             });
 
-            // Set initial visibility based on settings
             boolean enabled = isTextInputEnabled();
             toggleTextInputButton.setVisibility(enabled ? View.VISIBLE : View.GONE);
 
-            // Set initial icon if visible
             if (enabled) {
                 updateToggleTextInputButtonIcon();
             }
 
-            // Set initial margin based on scrollbar state
             updateFloatingButtonMargin();
 
             // Apply the configured tab panel position (top/bottom).
@@ -3158,16 +3110,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mMessageHistoryCtrl.load(getCurrentCwdForHistory());
     }
 
-
-
-
     // ── Auto-complete suggestions from message history ────────────────
 
     /** Dismiss the auto-complete suggestions popup (handled by AutoCompleteController). */
     public void dismissAutoCompleteSuggestions() {
         mAutoCompleteCtrl.dismiss();
     }
-
 
     /**
     public void showMessageHistoryPopup(@NonNull View anchor) {
@@ -3516,7 +3464,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         decorView.setSystemUiVisibility(flags);
     }
 
-
     /** @return Cached panel/button background colour. */
     public int getButtonBg() { return mColorSchemeManager.getButtonBg(); }
     /** @return Cached panel/button active background colour. */
@@ -3580,10 +3527,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mViewHelper != null) mViewHelper.setupToggleKeyboardButton(mTermuxActivityRootView);
     }
 
-
-
-
-
     @SuppressLint("RtlHardcoded")
     @Override
     public void onBackPressed() {
@@ -3625,8 +3568,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mLastToast.setGravity(Gravity.TOP, 0, 0);
         mLastToast.show();
     }
-
-
 
     @Override
     public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) {
@@ -4025,8 +3966,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mUserLeaveHintSeen = true;
     }
 
-
-
     /**
      * For processes to access primary external storage (/sdcard, /storage/emulated/0, ~/storage/shared),
      * termux needs to be granted legacy WRITE_EXTERNAL_STORAGE or MANAGE_EXTERNAL_STORAGE permissions
@@ -4082,8 +4021,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     }
 
-
-
     public TermuxActivityRootView getTermuxActivityRootView() {
         return mTermuxActivityRootView;
     }
@@ -4118,7 +4055,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mExtraKeysView.setSpecialButtonMode(buttonMode);
     }
 
-
     public LinearLayout getTerminalToolbarContainer() {
         return (LinearLayout) findViewById(R.id.terminal_toolbar_container);
     }
@@ -4126,7 +4062,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public float getTerminalToolbarDefaultHeight() {
         return mTerminalToolbarDefaultHeight;
     }
-
 
     /**
      * Sync the pager adapter and tab strip with the live session list.
@@ -4144,17 +4079,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *               afterwards. null for non-removal updates, which keep the current session.
      */
     public void termuxSessionListNotifyUpdated(@Nullable TerminalSession target) {
-        // The horizontal pager sync (adapter rebuild + page re-selection + per-session bookkeeping)
-        // now lives in SessionPagerManager. It fixes the active index and re-points mTerminalView to
-        // the correct page; we then refresh the tab strip and snapshot below.
-        //
-        // NOTE: updateTabs() runs BEFORE the pager sync so that scrollStripToEnd() (called when
-        // newCount > sessionCount) sets mEndScrollActive=true before onScrollFinished() fires from
-        // the pager's setCurrentItem(false). This prevents snapToTabCenter() from centering the
-        // new tab just before the end-scroll scrolls to the right edge — which was the root cause of
-        // the jerky "double movement" on tab creation. The tab strip no longer depends on that
-        // ordering for correctness: getCurrentSession() always resolves to a LIVE session now (see
-        // there), and the pager sync re-highlights the landed tab from the live session list.
+        // Pager sync lives in SessionPagerManager. updateTabs() runs first so scrollStripToEnd()
+        // arms mEndScrollActive before the pager's setCurrentItem(false) fires onScrollFinished —
+        // otherwise snapToTabCenter() re-centers the new tab just before the end-scroll (jerky
+        // "double movement" on tab creation). Correctness no longer depends on that order:
+        // getCurrentSession() resolves a live session and the pager re-highlights the landed tab.
         if (mTermuxSessionTabsController != null && mServiceConnectionManager.getTermuxService() != null) {
             mTermuxSessionTabsController.updateTabs(mServiceConnectionManager.getTermuxService().getTermuxSessions());
         }
@@ -4179,8 +4108,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public boolean isActivityRecreated() {
         return mIsActivityRecreated;
     }
-
-
 
     public TermuxService getTermuxService() {
         return mServiceConnectionManager != null ? mServiceConnectionManager.getTermuxService() : null;
@@ -4208,29 +4135,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
         mTerminalView = view;
         if (view != null) {
-            // During a ViewPager2 page switch the OnScreenUpdateListener must NOT override the
-            // interpolated margin set by
-            // SessionPagerManager.updateFloatingButtonMarginForScroll(). The guard lives inside
-            // updateFloatingButtonMargin() itself and keys off the pager's OWN scroll state rather
-            // than mTerminalPageSwitchInProgress: that flag is cleared one frame after
-            // onPageSelected() fires, and onPageSelected() fires at the START of the settle, so it
-            // was already down for most of the animation — which let every chunk of terminal output
-            // overwrite the interpolated margin with the settled one and made the button tremble.
+            // Guard inside updateFloatingButtonMargin() keys off the pager's own scroll state (not
+            // mTerminalPageSwitchInProgress, which drops one frame after onPageSelected): mid-settle
+            // terminal output must not overwrite the interpolated margin (button used to tremble).
             view.setOnScreenUpdateListener(() -> updateFloatingButtonMargin());
-            // Also update margin immediately for the new page. No-op while the pager is still
-            // scrolling — the settled value is applied by the refresh SessionPagerManager posts
-            // from onPageScrollStateChanged(IDLE).
+            // No-op while the pager still scrolls — IDLE-time refresh from SessionPagerManager wins.
             updateFloatingButtonMargin();
         }
     }
 
     /**
-     * Resolve the {@link TerminalView} of the currently active pager page, resolving it live rather
-     * than from the cached {@link #mTerminalView}. Returns {@link #getTerminalView()} when that is
-     * already set, otherwise falls back to the pager's selected page so callers that run in a window
-     * where {@code mTerminalView} has not yet been refreshed (e.g. extra-key input right after a
-     * session is added to an empty pager, where {@code onPageSelected} is not re-fired for page 0)
-     * still reach the correct, bound view instead of getting {@code null} and dropping the action.
+     * Live {@link TerminalView} of the active pager page (falls back to {@link #getTerminalView()}).
+     * Needed when the cached pointer is not yet refreshed — e.g. extra-key input right after the
+     * first session is added (no {@code onPageSelected} for page 0) — so the action is not dropped.
      */
     @Nullable
     public TerminalView getActiveTerminalView() {
@@ -4336,16 +4253,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * The session the user is currently on.
      *
-     * <p>Reads the cached {@link #mTerminalView} exactly as it always has — that is the value every
-     * caller during a page transition expects (tab-strip rebuild, text-input restore, the new-tab
-     * create path), and re-ordering that resolution for those callers changed the transition.
-     *
-     * <p>The one thing the plain cache got wrong: it has no liveness check, so after a tab close it
-     * kept returning the session that had just been killed — which is how the app could keep
-     * displaying a terminal with the {@code signal 9} line in it while the tab strip highlighted a
-     * different tab. So when — and only when — the cached session is no longer in the service's
-     * session list, fall back to the pager's active index resolved against the live list. In every
-     * normal case this method returns precisely what it returned before.
+     * <p>Reads the cached {@link #mTerminalView} first — the value every caller during a page
+     * transition expects. The cache has no liveness check, so after a tab close it can return a
+     * just-killed session (terminal kept showing {@code signal 9} under a different tab): when the
+     * cached session is no longer in the service list, fall back to the pager's active index
+     * against the live list.
      */
     @Nullable
     public TerminalSession getCurrentSession() {
@@ -4400,13 +4312,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mSessionSnapshotManager.saveSessionSnapshot();
     }
 
-
-    /**
-     * Set the shared slot below the tabs: text input container vs extra keys.
-     * Showing the text input panel hides the extra keys and vice versa.
-     * When the text input panel is hidden, the extra keys visibility also
-     * respects the {@code hide_extra_keys_with_keyboard} preference.
-     */
     /** True if the extra keys panel should currently be shown (honours preference). */
     private boolean shouldShowExtraKeys() {
         return !(mPreferences.shouldHideExtraKeysWithKeyboard() && !mSoftKeyboardVisible);
@@ -4423,18 +4328,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Combines the two IME detection methods into a single visibility signal.
-     *
-     * On API 30+ the insets method ({@link WindowInsetsCompat.Type#ime()}) is the
-     * AUTHORITY once the platform has delivered at least one insets dispatch
-     * ({@link #mImeInsetsSeen}); the visible-frame method is only consulted before
-     * that, and on API &lt; 30 where ime() insets are not delivered even with
-     * ADJUST_RESIZE.
-     *
-     * Why not OR (the previous logic): the visible-frame method has false positives
-     * — a transient mid-resize frame at onPause, or any multi-window/split-screen
-     * configuration where the window is half the screen height — that poisoned the
-     * persisted keyboard intent ("hidden" became "visible") and made the keyboard
+     * Combines insets + visible-frame IME detection. On API 30+ with at least one insets
+     * dispatch, insets is authoritative; the frame method is only a fallback (API &lt; 30 or
+     * pre-first-dispatch). Not a plain OR: frame false positives (mid-resize frame at onPause,
+     * multi-window half-height) poisoned the persisted keyboard intent and made the keyboard
      * pop back up on resume.
      */
     public boolean computeImeVisibility() {
@@ -4475,19 +4372,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             View focusedNow = getCurrentFocus();
             boolean systemDrop = !imeVisible
                     && (focusedNow == null || !focusedNow.isAttachedToWindow());
-            // Any of these states means the change is NOT an honest user action we should
-            // record or react to:
-            //  - mIsPaused: system hides the IME when we go to background;
-            //  - mJustResumed: transient post-return insets frames (400ms window);
-            //  - mRestoringKeyboard / mPendingKeyboardRestore: runKeyboardRestore() is the
-            //    authority and is still applying the real state;
-            //  - isTerminalPageSwitchInProgress(): the shared IME must not churn mid-switch;
-            //  - systemDrop: the served view was detached by a close/create rebind — the HIDE
-            //    belongs to the old session, not to the now-current (landed) one;
-            //  - mSessionUiChurn: a tab create/close rebuild window (see beginSessionUiChurn) —
-            //    the same spurious HIDE, but with the new page already focused and attached, so
-            //    systemDrop cannot see it. Recording it here overwrote the keyboard intent to
-            //    "hidden" and broke the state memory for every following new tab.
+            // Not an honest user action to record/react to:
+            //  - mIsPaused / mJustResumed: background or transient post-return insets;
+            //  - mRestoringKeyboard / mPendingKeyboardRestore: restore path is still applying;
+            //  - page switch / mSessionUiChurn: no IME churn mid-switch or create/close rebuild;
+            //  - systemDrop: served view detached by close/create rebind — the HIDE belongs to
+            //    the old session, but getCurrentSession() already points at the landed one, so
+            //    recording "hidden" would clobber the landed session's keyboard memory.
             boolean inTransition = mIsPaused
                     || mJustResumed
                     || mRestoringKeyboard
@@ -4496,9 +4387,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     || mSessionUiChurn
                     || systemDrop;
 
-            // Record the keyboard INTENT only in honest foreground states. Both the global
-            // fallback and the CURRENT session's own memory: each tab remembers whether ITS
-            // keyboard was open, so switching back to it re-opens (or hides) the keyboard.
+            // Record keyboard INTENT only in honest foreground states — global fallback plus
+            // CURRENT session memory, so returning to a tab re-opens (or hides) its keyboard.
             if (!inTransition) {
                 mTextInputState.setSoftKeyboardVisibleIntent(imeVisible);
                 mTextInputState.setSoftKeyboardIntent(getCurrentSession(), imeVisible);
@@ -4513,8 +4403,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 updateToggleTextInputButtonIcon();
             }
 
-            // Auto-show/hide extra keys with keyboard. Kept OUTSIDE the transition guard on
-            // purpose: the extra-keys panel must always mirror the REAL IME visibility.
+            // Extra keys mirror the REAL IME visibility — deliberately outside the transition guard.
             if (mExtraKeysView != null
                     && getTerminalToolbarContainer().getVisibility() == View.VISIBLE
                     && !isTextInputVisible()
@@ -4579,27 +4468,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * @param visible true to show, false to hide
      */
     public void setTextInputVisible(boolean visible) {
-        // Dismiss auto-complete suggestions when hiding the panel. Use the
-        // controller's dismiss() (not the raw popup dismiss) so any in-progress
-        // swipe-gesture suppression guard is also cleared and auto-complete is
-        // not left permanently disabled.
+        // Use the controller dismiss() so the swipe-gesture suppression guard is also cleared.
         if (!visible && mAutoCompleteCtrl != null) mAutoCompleteCtrl.dismiss();
         else if (!visible) dismissAutoCompleteSuggestions();
 
         View textInputContainer = findViewById(R.id.terminal_toolbar_text_input_container);
         if (textInputContainer != null) {
-            // The text input panel and the extra keys share one slot below the tabs:
-            // showing one hides the other.
             setTextInputSlotVisible(visible);
-            // Re-anchor the pencil button: when toolbar was GONE (show_extra_keys = never),
-            // the pencil was at ALIGN_PARENT_BOTTOM. After showing the toolbar for text
-            // input, it must move to ABOVE the toolbar so it doesn't overlap the input panel.
+            // Re-anchor pencil: after temp-showing a GONE toolbar it must sit ABOVE the panel.
             updateTextInputToggleButtonAnchor();
-            // NOTE: no global-pref write here. The per-session store below is the
-            // single authority for panel visibility; the legacy "text_input_visible"
-            // pref had NO readers left (isTextInputVisible() falls back to hidden),
-            // and this path runs on every programmatic toggle (IME auto-close etc.),
-            // so the write was pure overhead.
+            // No global-pref write: the per-session store below is the single authority; the
+            // legacy "text_input_visible" pref has no readers left and the write was pure overhead.
 
             // Track per-session panel visibility so each tab remembers its own state.
             final TerminalSession session = getCurrentSession();
@@ -4609,18 +4488,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
             // Must come after mTextInputState.setVisible() so isTextInputVisible() is correct.
 
-            // Switch focus based on visibility
             if (visible) {
-                // Bind the field to this session (idempotent — no-op when already bound;
-                // the switch path has already bound it below, visible panel or not).
                 restoreTextInputForSession(getCurrentSession());
-                // Focus on text input and show keyboard
                 EditText textInput = getTerminalToolbarTextInput();
                 if (textInput != null) {
                     textInput.requestFocus();
-                    // Opening the panel is an explicit user intent to type: clear
-                    // SOFT_INPUT_STATE_ALWAYS_HIDDEN (set by a resume-with-hidden-intent)
-                    // so the SHOW_IMPLICIT below is not silently ignored.
+                    // Clear SOFT_INPUT_STATE_ALWAYS_HIDDEN so SHOW_IMPLICIT below is not ignored.
                     KeyboardUtils.setSoftInputModeAdjustResize(this);
                     textInput.post(() -> {
                         android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -4630,22 +4503,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     });
                 }
             } else {
-                // Save the current input text for this session before hiding the panel.
-                // force=true: the panel is the authority for THIS session's text at hide
-                // time (the general guard skips saves while the panel is hidden — that
-                // guard is for the shared-EditText-is-stale case, not this one).
+                // Save for THIS session (force: the panel is its authority at hide time).
                 saveTextInputForCurrentSession(true);
-                // Focus on terminal view without reopening the keyboard. The focus listener does
-                // not schedule any show (see registerTerminalViewFocusListener), so this focus
-                // change cannot pop the IME by itself — nothing is left queued to cancel.
-                //
-                // Resolve the target LIVE (the pager's current page), not from the cached pointer:
-                // after a jump of two or more tabs the cached pointer is null at landing time, and
-                // then the panel's EditText keeps the focus while the panel itself is already
-                // hidden — the IME stays served to that invisible field, typing goes into it and
-                // its auto-complete popup floats over the terminal while the text lands nowhere
-                // visible. When no terminal view can be resolved at all, the invisible field must
-                // at least give the focus up so it cannot swallow input.
+                // Focus the live terminal view (not the cached pointer — after a 2+ tab jump the
+                // cache is null and the hidden EditText would keep the IME, swallowing input).
+                // The focus listener never schedules an IME show, so this cannot pop the keyboard.
                 final TerminalView terminalTarget = getActiveTerminalView();
                 if (terminalTarget != null) {
                     terminalTarget.requestFocus();
@@ -4700,25 +4562,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         View textInputContainer = findViewById(R.id.terminal_toolbar_text_input_container);
         if (textInputContainer == null) return;
 
-        // Cold start + "hide keyboard on startup": the startup per-session reconcile must not pop
-        // the IME, even though a freshly created session's default keyboard intent is "visible"
-        // (SessionUiStateStore) — otherwise SoftKeyboardRestore.showWithRetry runs after the startup
-        // hide and the keyboard appears on launch despite the preference. The gate is raised in
-        // TermuxTerminalViewClient.onResume() and cleared once the startup page selection is done
-        // (consumePendingKeyboardRestoreIfReady), so later user-driven shows are unaffected.
-        // Resolved into a final local (the parameter is captured by the whenViewLaidOut lambda).
+        // Cold start + "hide keyboard on startup": default keyboard intent is "visible", which
+        // would pop the IME after the startup hide (gate: isStartupSoftKeyboardHidePending).
         final boolean showKeyboardIfFocused = showKeyboardIfFocusedParam
                 && !(mTermuxTerminalViewClient != null
                         && mTermuxTerminalViewClient.isStartupSoftKeyboardHidePending());
 
         boolean enabled = isTextInputEnabled();
         boolean hasRecorded = session != null && mTextInputState.hasVisible(session.mHandle);
-        // Sessions with no recorded panel state fall back to the CURRENT session's record. Inside a
-        // tab create that fallback is wrong twice over: getCurrentSession() already points at the
-        // new, unrecorded session, so isTextInputVisible() reads "hidden" — and the reconcile then
-        // CLOSES the panel the user was typing in, which also drops the IME (the focused EditText
-        // inside the container goes GONE). Resolve from what is actually on screen instead, so the
-        // create reconcile is a no-op for the panel and the seeded state has the last word.
+        // No record + tab create: fall back to the CURRENT record would read "hidden" for the new
+        // session and CLOSE the panel the user was typing in (IME drops with the EditText). Use
+        // what is on screen instead so the create reconcile is a no-op for the panel.
         boolean visible;
         if (!enabled) {
             visible = false;
@@ -4730,37 +4584,26 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             visible = isTextInputVisible();
         }
 
-        // Startup / tab switch restore: just set the slot state (no animation).
-        // Record the resolved per-session visibility so isTextInputVisible() and
-        // onBackPressed() stay authoritative even when the panel was shown via a
-        // tab-switch or startup restore (which otherwise left hasVisible()==false
-        // and made Back finish the app instead of hiding the panel).
+        // Record resolved visibility so isTextInputVisible()/onBackPressed() stay authoritative
+        // after a tab-switch/startup restore (otherwise Back finished the app instead of hiding
+        // the panel).
         if (session != null) {
             mTextInputState.setVisible(session.mHandle, visible);
         }
         setTextInputSlotVisible(visible);
 
-        // Ownership transfer: bind the shared field to THIS session on every switch —
-        // visible panel or not. The field is the live buffer of the CURRENT session at
-        // all times, so the save-outgoing before the switch never captures a previous
-        // session's leftover, and nothing needs to defensively clear the field in
-        // between. Idempotent: same-session binds are skipped inside
-        // restoreTextInputForSession(), so unsaved typing is never clobbered.
+        // Bind the shared field to THIS session on every switch (visible panel or not): it is
+        // always the live buffer of the CURRENT session, so the outgoing save never captures a
+        // previous session's leftover. Same-session binds are skipped — unsaved typing survives.
         restoreTextInputForSession(session);
 
         if (applyFocus) {
-            // "Keyboard state when switching tabs" toggle. ON (default): the keyboard follows
-            // the landed session's remembered state (the reconcile below). OFF: the keyboard
-            // state must not change on a tab switch — and per the toggle semantics, switching
-            // from a hidden-keyboard tab to a session whose input panel was open CLOSES that
-            // panel instead of opening it without a keyboard.
-            //
-            // Exception: a tab created a moment ago inherited the live state on purpose
-            // (createNewSession seeds panel + focus + keyboard intent from what was on screen),
-            // so there is nothing for the OFF rule to correct — and the IME reading it would use
-            // is taken while the create rebuild has the served view detached, which reports
-            // "hidden" for a keyboard that is still up. Without this exemption, creating a tab
-            // with the option OFF closed the open keyboard.
+            // "Keyboard follows tab switch" toggle. ON: land on the target session's remembered
+            // keyboard state. OFF: never change keyboard state on a switch (an open-panel tab
+            // switched onto from a hidden-keyboard tab CLOSES the panel instead of opening
+            // without a keyboard). A tab freshly created inherits the live state on purpose —
+            // exempt from OFF: its IME reading is taken while the served view is detached and
+            // would report "hidden" for a keyboard that is still up (create used to close it).
             final boolean followKbOnSwitch = mPreferences.isKeyboardStateFollowTabSwitch();
             final boolean inheritedFromCreate = mKbStateCreateInProgress
                     || (session != null && session.mHandle.equals(mKbStateInheritedSessionHandle));
@@ -4771,13 +4614,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 if (session != null) mTextInputState.setVisible(session.mHandle, false);
                 setTextInputSlotVisible(false);
             }
-            // A tab that inherited an OPEN keyboard must still have one once the rebuild settles:
-            // adding the session detaches the served IME target, so the system drops the IME by
-            // itself a moment AFTER this reconcile ran (see scheduleSwitchKeyboardReassert). With
-            // the toggle ON the branch below re-shows it; with the toggle OFF that branch is
-            // deliberately skipped, which is why creating a tab used to leave the keyboard closed.
-            // "The keyboard state must not change on a tab switch" is honoured by restoring exactly
-            // the state this create inherited — nothing is opened that was not open before.
+            // Inherited-from-create + toggle OFF: re-assert the open keyboard once the rebuild
+            // settles (adding the session detaches the IME target a moment after this reconcile;
+            // without this, creating a tab with the option OFF left the keyboard closed).
             if (inheritedFromCreate && !followKbOnSwitch && showKeyboardIfFocused) {
                 scheduleSwitchKeyboardReassert(mTerminalView != null
                         ? mTerminalView : getTerminalToolbarTextInput());
@@ -4814,54 +4653,29 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     }, 6);
                 }
         } else {
-            // Panel hidden, or focus was on the terminal: focus the terminal — UNLESS the
-            // text input EditText still holds focus. Stealing focus here is what makes a later
-            // long-press on the input panel bubble its context menu up to the terminal menu
-            // instead of selecting a word (long-press regression on the input panel). The
-            // EditText is a sibling of the pager (not inside a page), so it must keep focus
-            // across page switches when the user was typing into it.
+            // Panel hidden / terminal focused: focus the terminal — UNLESS the panel EditText
+            // still holds focus (it is a pager sibling; stealing focus makes a later long-press
+            // on the panel bubble the terminal menu instead of selecting a word).
             final EditText currentInput = getTerminalToolbarTextInput();
             if (currentInput == null || !currentInput.hasFocus()) {
-                // Nothing schedules a show on focus any more (see
-                // registerTerminalViewFocusListener), so focusing the terminal here cannot pop the
-                // IME on its own — and no queued show can land after this reconcile either.
+                // Focus listener never schedules an IME show — focusing cannot pop the keyboard.
                 if (mTerminalView != null) {
                     mTerminalView.requestFocus();
                 }
             }
-            // Per-session keyboard reconcile — gated by the toggle. Truth table against the
-            // TARGET session's memory:
-            //   IME up   + target hidden -> actively hide (don't drag the keyboard across tabs)
-            //   IME down + target open   -> actively re-show (the pager rebind detaches the served
-            //                               view when a new tab is created, which makes the IME
-            //                               close by itself; switching from a hidden-keyboard
-            //                               tab to an open-keyboard tab must open it)
-            //   otherwise                -> leave the IME alone (no churn)
-            // With the toggle OFF the keyboard state does not change on a tab switch: skip
-            // the whole reconcile (and the close-rebind re-assert below).
+            // Per-session keyboard reconcile (toggle ON). Against the TARGET session's memory:
+            //   IME up + target hidden -> hide; IME down + target open -> re-show
+            //   (pager rebind detaches the served view and drops the IME by itself);
+            //   otherwise leave the IME alone. Toggle OFF skips the whole reconcile.
             boolean imeVisibleNow = computeImeVisibility();
             if (!followKbOnSwitch) {
-                // "The keyboard state must not change on a tab switch", implemented as: restore
-                // exactly the state that was live when the switch was requested. Doing nothing is
-                // NOT the same thing — the pager detaches the page being left (offscreenPageLimit
-                // == 1), which makes the system drop the IME by itself a moment after this
-                // reconcile ran, so a keyboard that was up before the switch ends up down. The
-                // landed session's memory is deliberately not consulted here: that is the toggle-ON
-                // behaviour, and it would change the very state this branch must preserve.
-                //
-                // Armed whenever the keyboard was up when the switch was requested, NOT only when
-                // it already reads as down here: at this point the page being left is still
-                // attached, so the drop has not happened yet and a "!imeVisibleNow" test would
-                // never arm anything. The re-assert is what makes the drop invisible, and it is a
-                // no-op when the keyboard survived (it re-reads the state when it fires). The
-                // negative direction stays intact: a keyboard that was DOWN at switch start is
-                // never opened.
-                //
-                // Skip a freshly-CREATED tab: it inherited the live keyboard state and is already
-                // re-asserted by scheduleSwitchKeyboardReassert() (gated on mKbStateCreateInProgress
-                // / mKbStateInheritedSessionHandle, above). Running the generic switch re-assert here
-                // force-shows the keyboard on a create and regresses the pre-fix behaviour; the
-                // create path alone preserves the state exactly as the last commit did.
+                // Toggle OFF: restore the keyboard state live when the switch was requested.
+                // Doing nothing is not enough — the pager detaches the left page and the system
+                // drops the IME after this reconcile. Arm the re-assert if the keyboard was UP at
+                // switch start (it is still attached now, so a "!imeVisibleNow" test would never
+                // arm); a keyboard that was DOWN stays down. Skip a freshly CREATED tab: it
+                // inherited the live state and is already re-asserted above — the generic path
+                // would force-show the keyboard on create.
                 if (!inheritedFromCreate && consumeKeyboardVisibleAtSwitchStart()) {
                     scheduleKeyboardReassertOnActiveView(true);
                 }
@@ -4893,11 +4707,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Post-switch keyboard re-assert. When the landed session's keyboard intent says the IME
-     * should be up and it was still up at reconcile time, closing the current tab makes the
-     * adapter rebuild detach the closed page's view (the served IME target) a moment later and
-     * the system drops the IME AFTER the reconcile ran — too late to act. Schedule a bounded
-     * verify: if the IME ended up down, re-assert it per the session's memory.
+     * Bounded post-switch re-assert: if the IME is still up at reconcile time but a close-tab
+     * rebuild later detaches the served view and drops it, restore it per the session's memory.
      */
     private void scheduleSwitchKeyboardReassert(@Nullable View target) {
         if (target == null) return;
@@ -4923,18 +4734,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Bounded post-switch re-assert that resolves its target when it fires, instead of being handed
-     * one now.
+     * Bounded re-assert that resolves its target when it fires (needed for jumps of 2+ pages:
+     * at reconcile time the destination page does not exist yet).
      *
-     * <p>Necessary for a switch of two or more pages: at reconcile time the destination page does
-     * not exist yet, so there is no view to arm — the active view only becomes available when the
-     * page is attached (see {@link #onActivePageViewAvailable}). By the time this fires, that has
-     * happened and {@link #getActiveTerminalView()} resolves it.
-     *
-     * @param ignoreSessionIntent true when the caller is preserving an OBSERVED keyboard state
-     *                            (toggle OFF) rather than applying the landed session's own memory
-     *                            (toggle ON): the session's remembered intent must then not be able
-     *                            to veto the restore.
+     * @param ignoreSessionIntent true when preserving an OBSERVED keyboard state (toggle OFF)
+     *                            rather than applying the landed session's own memory.
      */
     private void scheduleKeyboardReassertOnActiveView(final boolean ignoreSessionIntent) {
         final TerminalSession armed = getCurrentSession();
@@ -4968,39 +4772,23 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * The active session's page view has just become available — bound, or attached back onto the
-     * screen. Hand it the focus, and with it the IME target, if the terminal is the intended focus
-     * owner for this session.
+     * Hand focus (and the IME target) to the active page's view once it is bound/attached.
      *
-     * <p>Why this cannot live in the switch's landing ({@link SessionPagerManager#onTerminalPageSelected}):
-     * a switch that lands two or more pages away has NO active view at landing time — the
-     * destination page does not exist yet ({@code offscreenPageLimit == 1}) and the page being left
-     * is detached immediately after, which clears the window's focus and makes
-     * {@code InputMethodManager} end the input session. The landing therefore cannot request focus
-     * on anything, and the window is left focus-less for the whole visit: tapping the terminal
-     * cannot open the keyboard (the show request is issued for a null view) and closing the input
-     * panel cannot move focus off its now hidden EditText. Only a positive signal — the page is
-     * here — can do the hand-off, which is what this method is for.
-     *
-     * <p>It only ever moves focus; it never shows or hides the IME (the focus listener is read-only
-     * w.r.t. the IME — see {@code registerTerminalViewFocusListener}), so it cannot resurrect a
-     * keyboard the user closed.
+     * <p>Cannot live in the switch landing: a jump of 2+ pages has no active view yet
+     * ({@code offscreenPageLimit == 1}) and the left page detaches, clearing window focus —
+     * tapping the terminal cannot open the keyboard until a positive "page is here" signal.
+     * Only moves focus; never shows/hides the IME (see {@code registerTerminalViewFocusListener}).
      */
     public void onActivePageViewAvailable(@NonNull TerminalView view) {
         if (mIsPaused) return;
         if (view.hasFocus()) return;
-        // The input panel owns the focus whenever it is on screen: never steal it. A long press on
-        // the panel must select a word, not open the terminal's context menu.
-        //
-        // Both tests are LIVE facts on purpose. The per-session "focus was on the input panel"
-        // record is not usable here: it is left set by a panel that has since been hidden (measured
-        // `t3focus=1` with `live_tifocus=0`), so gating on it would refuse the hand-off in exactly
-        // the state that needs it — the hidden panel still holding the IME target.
+        // Live focus tests only: a hidden panel can still leave its per-session "focus was on
+        // input" record set, which would wrongly refuse the hand-off while the panel still holds
+        // the IME target. On-screen panel keeps focus so long-press selects a word, not the menu.
         final EditText currentInput = getTerminalToolbarTextInput();
         if (currentInput != null && currentInput.hasFocus()) return;
         if (isTextInputVisible()) return;
-        // Focus only once the view can actually serve input: a zero-width view is not servable and
-        // the IME would refuse it.
+        // Zero-width views cannot serve input — wait for layout.
         whenViewLaidOut(view, () -> {
             if (view.hasFocus() || !view.isAttachedToWindow()) return;
             if (isTextInputVisible()) return;
@@ -5009,9 +4797,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             view.requestFocus();
         }, 6);
     }
-
-
-
 
     public static void updateTermuxActivityStyling(Context context, boolean recreateActivity) {
         TermuxActivityUtils.updateTermuxActivityStyling(context, recreateActivity);
@@ -5029,8 +4814,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mBroadcastManager.unregister();
         }
     }
-
-
 
     @Override
     public void reloadActivityStyling() {
@@ -5096,7 +4879,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 }
             }
 
-// Update NightMode.APP_NIGHT_MODE
             TermuxThemeUtils.setAppNightMode(mProperties.getNightMode());
 
             wallpaperThemeNeedsRecreate = isWallpaperVisibleBehindTerminal() != mWallpaperThemeApplied;
@@ -5122,7 +4904,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onReloadActivityStyling();
 
-
         // To change the activity and drawer theme, activity needs to be recreated.
         // It will destroy the activity, including all stored variables and views, and onCreate()
         // will be called again. Extra keys input text, terminal sessions and transcripts will be preserved.
@@ -5131,8 +4912,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             TermuxActivity.this.recreate();
         }
     }
-
-
 
     public static void startTermuxActivity(@NonNull final Context context) {
         TermuxActivityUtils.startTermuxActivity(context);

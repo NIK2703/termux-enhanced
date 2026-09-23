@@ -10,7 +10,6 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.termux.shared.logger.Logger;
 
-
 /**
  * The root view of the {@link TermuxActivity}.
  * <p>
@@ -39,11 +38,9 @@ import com.termux.shared.logger.Logger;
  */
 public class TermuxActivityRootView extends LinearLayout {
 
-    /** Log root view events. */
     private boolean ROOT_VIEW_LOGGING_ENABLED = false;
 
     private static final String LOG_TAG = "TermuxActivityRootView";
-
 
     public TermuxActivityRootView(Context context) {
         super(context);
@@ -60,7 +57,7 @@ public class TermuxActivityRootView extends LinearLayout {
     /**
      * Sets whether root view logging is enabled or not.
      *
-     * @param value The boolean value that defines the state.
+     * @param value whether logging is enabled.
      */
     public void setIsRootViewLoggingEnabled(boolean value) {
         ROOT_VIEW_LOGGING_ENABLED = value;
@@ -75,11 +72,7 @@ public class TermuxActivityRootView extends LinearLayout {
         return result;
     }
 
-    /**
-     * Raise the bottom padding to the keyboard height when the platform has not already reserved
-     * that space. Only ever grows the padding, and only when the keyboard reports a height, so it
-     * is a no-op in the ordinary {@code ADJUST_RESIZE} case and can never oscillate.
-     */
+    /** Top up {@code paddingBottom} to the IME inset; never shrinks — see class doc. */
     private void applyImeBottomPadding(WindowInsets insets) {
         if (insets == null) return;
 

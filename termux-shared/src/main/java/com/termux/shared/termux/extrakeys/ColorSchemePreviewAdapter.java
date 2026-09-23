@@ -16,17 +16,12 @@ import androidx.core.widget.TextViewCompat;
 import com.termux.shared.R;
 
 /**
- * Rows of the color-scheme picker: one entry per available scheme, each painted in <b>its own</b>
- * terminal colors — the row background is that scheme's terminal background, the label is its
- * terminal foreground — with its 16 ANSI colors shown as a two-row by eight-column swatch.
+ * Rows of the color-scheme picker, painted in <b>their own</b> terminal colors (background /
+ * foreground / 16-ANSI swatch) so the list is a strip of live previews.
  *
- * <p>The point is that the list becomes a strip of live previews: you pick a scheme by looking at
- * it rather than by reading its name.
- *
- * <p>A custom adapter replaces the framework's single-choice rows (a framework row cannot carry a
- * per-row background), so the adapter also owns the single-choice state: it checks the radio of the
- * applied entry. The radio itself is the framework's own indicator, drawn by the row layout from
- * {@code ?android:attr/listChoiceIndicatorSingle} and tinted to the row's own foreground.
+ * <p>Custom adapter because a framework single-choice row cannot carry a per-row background; it
+ * also owns the single-choice radio, drawn by the row layout from
+ * {@code ?android:attr/listChoiceIndicatorSingle} and tinted to the row's foreground.
  */
 public final class ColorSchemePreviewAdapter extends BaseAdapter {
 
@@ -106,12 +101,9 @@ public final class ColorSchemePreviewAdapter extends BaseAdapter {
         final ColorSchemePreview preview =
                 ColorSchemePreview.resolve(mContext, mIsNight, mSchemeNames[position]);
 
-        // The row's background is repainted in place rather than replaced: it stays the same
-        // drawable for as long as the row lives, so the bounds the framework gave it when the row
-        // was framed are never lost. A freshly created drawable starts with empty bounds and the
-        // framework only re-bounds it when the *view* is re-framed, which a recycled row that keeps
-        // its frame is not — that is what left rows painted only up to the previous drawable's
-        // extent on the first scroll.
+        // Repaint in place, never replace: a fresh drawable starts with empty bounds and the
+        // framework only re-bounds on view re-frame, which a recycled row skips — that left rows
+        // painted only up to the previous drawable's extent on first scroll.
         holder.pressed.setColor(
                 ColorSchemePreview.blend(preview.background, preview.foreground, PRESSED_BLEND));
         holder.normal.setColor(preview.background);
@@ -152,11 +144,8 @@ public final class ColorSchemePreviewAdapter extends BaseAdapter {
             background.addState(new int[]{}, normal);
             row.setBackground(background);
 
-            // Pin the background to the row's full size on every layout. The framework only
-            // re-bounds a background when the view's frame changes, and a recycled row whose frame
-            // is reused can keep the bounds of an earlier, narrower measure — which on first launch
-            // left rows painted only up to the previous drawable's extent. Re-binding here on every
-            // layout keeps the fill exact regardless of when the dialog settles on its width.
+            // Re-pin bounds every layout: the framework only re-bounds on frame change, and a
+            // recycled row can keep an earlier, narrower measure — which left partial fills.
             row.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) ->
                     background.setBounds(0, 0, r - l, b - t));
         }

@@ -13,7 +13,6 @@ import org.json.JSONException;
 
 import java.util.ArrayList;
 
-
 /**
  * Pure-data controller for the directory history (visited CWDs).
  * <p>

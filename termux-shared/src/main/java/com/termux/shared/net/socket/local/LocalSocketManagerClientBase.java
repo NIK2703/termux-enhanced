@@ -40,8 +40,6 @@ public abstract class LocalSocketManagerClientBase implements ILocalSocketManage
         clientSocket.closeClientSocket(true);
     }
 
-
-
     protected abstract String getLogTag();
 
 }

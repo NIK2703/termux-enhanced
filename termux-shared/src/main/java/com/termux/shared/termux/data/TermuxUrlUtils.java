@@ -46,7 +46,6 @@ public class TermuxUrlUtils {
         regex_sb.append(")://");                    // End scheme group.
         regex_sb.append(")");                       // End first matching group.
 
-
         // Begin second matching group.
         regex_sb.append("(");
 

@@ -15,21 +15,19 @@ import com.termux.terminal.TerminalColors;
 import com.termux.terminal.TextStyle;
 
 /**
- * Wraps an activity {@link Context} so its whole UI is inflated with the active Termux:Style colour
- * scheme <b>from the first frame</b> — by layering {@link R.style.ThemeOverlay_BaseActivity_Scheme}
- * (whose colour attributes reference {@code @color/scheme_dialog_*}) over the base context, and
- * overriding {@link #getResources()} so those placeholder colours resolve to the real scheme
- * colours at runtime.
+ * Applies the active Termux:Style colour scheme to an activity's whole UI from the first frame:
+ * layers {@link R.style.ThemeOverlay_BaseActivity_Scheme} (placeholder {@code @color/scheme_dialog_*})
+ * over the base context and resolves those placeholders to the live scheme at runtime — see
+ * {@link #wrapActivityTheme(Context)}.
  */
 public final class SchemeDialogTheme {
 
     private SchemeDialogTheme() {}
 
     /**
-     * Wrap an activity context so its WHOLE UI (toolbar, preferences, switches, the long-press
-     * context-menu popup) is inflated in the active Termux:Style scheme from the first frame. The
-     * activity's own theme is kept and the scheme overlay is applied on top of it, so layouts stay
-     * intact while every colour attribute resolves to the live scheme.
+     * Wrap an activity context so its whole UI (toolbar, preferences, switches, context-menu
+     * popups) is inflated in the active Termux:Style scheme from the first frame. The activity's
+     * own theme is kept; the scheme overlay is applied on top.
      */
     @NonNull
     public static Context wrapActivityTheme(@NonNull Context context) {
@@ -38,11 +36,8 @@ public final class SchemeDialogTheme {
         return new SchemeActivityContext(context, R.style.ThemeOverlay_BaseActivity_Scheme, fg, bg);
     }
 
-    /**
-     * Activity-scheme wrapper: keeps the activity's existing theme (inherited from the base context)
-     * and applies the scheme overlay on top of it, resolving {@code @color/scheme_dialog_*} to the
-     * live scheme so the entire activity — including framework-inflated popups — is born themed.
-     */
+    /** Keeps the base theme, applies the scheme overlay once, and resolves
+     *  {@code @color/scheme_dialog_*} to the live scheme via {@link #getResources()}. */
     private static final class SchemeActivityContext extends ContextThemeWrapper {
 
         private final int mStyleRes;
@@ -142,9 +137,9 @@ public final class SchemeDialogTheme {
         }
 
         /**
-         * Theme attribute resolution (e.g. {@code ?attr/colorSurface} -> {@code @color/scheme_dialog_surface})
-         * goes through {@link #getValue(int, TypedValue, boolean)}. By returning the live scheme ARGB
-         * here the dialog is inflated with the correct colour on the first frame — no repaint.
+         * Theme-attribute resolution ({@code ?attr/colorSurface} → {@code @color/scheme_dialog_surface})
+         * goes through here, not {@link #getColor(int)}; returning the live scheme ARGB is what lets
+         * the dialog be correct on the first frame with no repaint.
          */
         @Override
         public void getValue(int id, @NonNull TypedValue outValue, boolean resolveRefs) throws NotFoundException {
@@ -200,9 +195,9 @@ public final class SchemeDialogTheme {
         }
 
     /**
-     * Apply the scheme background + title + navigation-icon colour to the activity's support
-     * toolbar, overriding the theme's red {@code colorPrimary}. The status bar is made transparent
-     * so the toolbar background shows through, and its icon tint follows the scheme foreground.
+     * Apply the scheme background + title + navigation-icon colour to the activity's toolbar,
+     * overriding the theme's red {@code colorPrimary}; make the status bar transparent with icon
+     * tint following the scheme foreground.
      */
     public static void applyToToolbar(@NonNull android.app.Activity activity) {
         int fg = ColorSchemeUtils.getSchemeForeground();

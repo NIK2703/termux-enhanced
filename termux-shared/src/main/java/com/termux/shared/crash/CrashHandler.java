@@ -36,7 +36,8 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
         Logger.logInfo(LOG_TAG, "uncaughtException() for " + thread +  ": " + throwable.getMessage());
         logCrash(thread, throwable);
 
-        // Don't stop the app if not on the main thread
+        // Only the default handler chain kills the app; handlers installed on a worker
+        // thread just log, so the thread can die without taking the process with it.
         if (mIsDefaultHandler)
             mDefaultUEH.uncaughtException(thread, throwable);
     }
@@ -66,11 +67,6 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
 
     /**
      * Log a crash in the crash log file at path returned by {@link CrashHandlerClient#getCrashLogFilePath(Context)}.
-     *
-     * @param context The {@link Context} for operations.
-     * @param crashHandlerClient The {@link CrashHandlerClient} implementation.
-     * @param thread The {@link Thread} in which the crash happened.
-     * @param throwable The {@link Throwable} thrown for the crash.
      */
     public static void logCrash(@NonNull Context context,
                                 @NonNull CrashHandlerClient crashHandlerClient,
@@ -103,10 +99,8 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
 
         reportString.append("\n\n").append(AndroidUtils.getDeviceInfoMarkdownString(context));
 
-        // Log report string to logcat
         Logger.logError(reportString.toString());
 
-        // Write report string to crash log file
         Error error = FileUtils.writeTextToFile("crash log", crashHandlerClient.getCrashLogFilePath(context),
                         Charset.defaultCharset(), reportString.toString(), false);
         if (error != null) {
@@ -119,37 +113,23 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
         /**
          * Called before {@link #logCrashToFile(Context, CrashHandlerClient, Thread, Throwable)} is called.
          *
-         * @param context The {@link Context} passed to {@link CrashHandler#CrashHandler(Context, CrashHandlerClient, boolean)}.
-         * @param thread The {@link Thread} in which the crash happened.
-         * @param throwable The {@link Throwable} thrown for the crash.
-         * @return Should return {@code true} if crash has been handled and should not be logged,
-         * otherwise {@code false}.
+         * @return {@code true} if crash has been handled and should not be logged, otherwise {@code false}.
          */
         boolean onPreLogCrash(Context context, Thread thread, Throwable throwable);
 
         /**
          * Called after {@link #logCrashToFile(Context, CrashHandlerClient, Thread, Throwable)} is called.
-         *
-         * @param context The {@link Context} passed to {@link CrashHandler#CrashHandler(Context, CrashHandlerClient, boolean)}.
-         * @param thread The {@link Thread} in which the crash happened.
-         * @param throwable The {@link Throwable} thrown for the crash.
          */
         void onPostLogCrash(Context context, Thread thread, Throwable throwable);
 
         /**
          * Get crash log file path.
-         *
-         * @param context The {@link Context} passed to {@link CrashHandler#CrashHandler(Context, CrashHandlerClient, boolean)}.
-         * @return Should return the crash log file path.
          */
         @NonNull
         String getCrashLogFilePath(Context context);
 
         /**
          * Get app info markdown string to add to crash log.
-         *
-         * @param context The {@link Context} passed to {@link CrashHandler#CrashHandler(Context, CrashHandlerClient, boolean)}.
-         * @return Should return app info markdown string.
          */
         String getAppInfoMarkdownString(Context context);
 

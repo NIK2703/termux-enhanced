@@ -44,7 +44,6 @@ public class ShellEnvironmentUtils {
 
     /**
      * Convert environment {@link HashMap} to {@link String} where each item equals "key=value".
-     *
      */
     @NonNull
     public static String convertEnvironmentToDotEnvFile(@NonNull HashMap<String, String> environmentMap) {
@@ -137,9 +136,7 @@ public class ShellEnvironmentUtils {
         return value != null && !value.contains("\0");
     }
 
-
-
-    /** Put value in environment if variable exists in {@link System) environment. */
+    /** Put value in environment if variable exists in {@link System} environment. */
     public static void putToEnvIfInSystemEnv(@NonNull HashMap<String, String> environment,
                                              @NonNull String name) {
         String value = System.getenv(name);
@@ -163,8 +160,6 @@ public class ShellEnvironmentUtils {
             environment.put(name, String.valueOf(value));
         }
     }
-
-
 
     /** Create HOME directory in environment {@link Map} if set. */
     public static void createHomeDir(@NonNull HashMap<String, String> environment) {

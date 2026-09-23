@@ -41,7 +41,7 @@ public class SettingsProviderUtils {
      * @param type The {@link SettingType} for the key.
      * @param key The {@link String} name for key.
      * @param def The {@link Object} default value for key.
-     * @return Returns the key value. This will be {@code null} if an exception is raised.
+     * @return the value, or {@code def} when missing or on error.
      */
     @Nullable
     public static Object getSettingsValue(@NonNull Context context, @NonNull SettingNamespace namespace,

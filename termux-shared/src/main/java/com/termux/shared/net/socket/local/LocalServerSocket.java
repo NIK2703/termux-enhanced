@@ -17,16 +17,9 @@ public class LocalServerSocket implements Closeable {
 
     public static final String LOG_TAG = "LocalServerSocket";
 
-    /** The {@link LocalSocketManager} instance for the local socket. */
     @NonNull protected final LocalSocketManager mLocalSocketManager;
-
-    /** The {@link LocalSocketRunConfig} containing run config for the {@link LocalServerSocket}. */
     @NonNull protected final LocalSocketRunConfig mLocalSocketRunConfig;
-
-    /** The {@link ILocalSocketManager} client for the {@link LocalSocketManager}. */
     @NonNull protected final ILocalSocketManager mLocalSocketManagerClient;
-
-    /** The {@link ClientSocketListener} {@link Thread} for the {@link LocalServerSocket}. */
     @NonNull protected final Thread mClientSocketListener;
 
     /**
@@ -34,13 +27,8 @@ public class LocalServerSocket implements Closeable {
      * Creation of a new socket will fail if the server starter app process does not have
      * write and search (execute) permission on the directory in which the socket is created.
      */
-    public static final String SERVER_SOCKET_PARENT_DIRECTORY_PERMISSIONS = "rwx"; // Default: "rwx"
+    public static final String SERVER_SOCKET_PARENT_DIRECTORY_PERMISSIONS = "rwx";
 
-    /**
-     * Create an new instance of {@link LocalServerSocket}.
-     *
-     * @param localSocketManager The {@link #mLocalSocketManager} value.
-     */
     protected LocalServerSocket(@NonNull LocalSocketManager localSocketManager) {
         mLocalSocketManager = localSocketManager;
         mLocalSocketRunConfig = localSocketManager.getLocalSocketRunConfig();
@@ -74,7 +62,6 @@ public class LocalServerSocket implements Closeable {
 
         Error error;
 
-        // If server socket is not in abstract namespace
         if (!mLocalSocketRunConfig.isAbstractNamespaceSocket()) {
             if (!path.startsWith("/"))
                 return LocalSocketErrno.ERRNO_SERVER_SOCKET_PATH_NOT_ABSOLUTE.getError(mLocalSocketRunConfig.getTitle(), path);
@@ -89,14 +76,12 @@ public class LocalServerSocket implements Closeable {
             if (error != null)
                 return error;
 
-
             // Delete the server socket file to stop any existing servers and for bind() to succeed
             error = deleteServerSocketFile();
             if (error != null)
                 return error;
         }
 
-        // Create the server socket
         JniResult result = LocalSocketManager.createServerSocket(mLocalSocketRunConfig.getLogTitle() + " (server)",
             path.getBytes(StandardCharsets.UTF_8), backlog);
         if (result == null || result.retval != 0) {
@@ -114,7 +99,6 @@ public class LocalServerSocket implements Closeable {
         mClientSocketListener.setUncaughtExceptionHandler(mLocalSocketManager.getLocalSocketManagerClientThreadUEH());
 
         try {
-            // Start listening to server clients
             mClientSocketListener.start();
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "mClientSocketListener start failed", e);
@@ -123,12 +107,10 @@ public class LocalServerSocket implements Closeable {
         return null;
     }
 
-    /** Stop server. */
     public synchronized Error stop() {
         Logger.logDebug(LOG_TAG, "stop");
 
         try {
-            // Stop the LocalClientSocket listener.
             mClientSocketListener.interrupt();
         } catch (Exception ignored) {}
 
@@ -139,7 +121,6 @@ public class LocalServerSocket implements Closeable {
         return deleteServerSocketFile();
     }
 
-    /** Close server socket. */
     public synchronized Error closeServerSocket(boolean logErrorMessage) {
         Logger.logDebug(LOG_TAG, "closeServerSocket");
 
@@ -155,7 +136,6 @@ public class LocalServerSocket implements Closeable {
         return null;
     }
 
-    /** Implementation for {@link Closeable#close()} to close server socket. */
     @Override
     public synchronized void close() throws IOException {
         Logger.logDebug(LOG_TAG, "close");
@@ -242,9 +222,6 @@ public class LocalServerSocket implements Closeable {
         }
     }
 
-
-
-
     /** The {@link LocalClientSocket} listener {@link java.lang.Runnable} for {@link LocalServerSocket}. */
     protected class ClientSocketListener implements Runnable {
 
@@ -256,7 +233,6 @@ public class LocalServerSocket implements Closeable {
                 while (!Thread.currentThread().isInterrupted()) {
                     LocalClientSocket clientSocket = null;
                     try {
-                        // Listen for new client socket connections
                         clientSocket = null;
                         clientSocket = accept();
                         // If server socket is closed, then stop listener thread.

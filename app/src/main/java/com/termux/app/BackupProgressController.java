@@ -18,15 +18,13 @@ import java.lang.ref.WeakReference;
 
 /**
  * Drives the backup/restore progress dialog and its polling loop, independent of which screen the
- * app is currently showing. Both {@link DisplayPreferencesFragment} (initial launch from the
- * settings list) and {@link BackupDialogActivity} (tap on the notification, re-attaching to an
- * already-running operation) use the same controller so the behaviour is byte-for-byte identical.
- *
- * <p>The controller owns the dialog + poll loop and the run/finish/cancel/background transitions.
- * It does NOT start the service — that is done by the caller via
- * {@link TermuxBackupService#startBackup} / {@link TermuxBackupService#startRestore} (or, when
- * re-attaching, the service is already running and {@link #reopen(FragmentActivity)} just shows the
- * dialog over it).
+ * app is currently showing. Both {@link DisplayPreferencesFragment} (settings list) and
+ * {@link BackupDialogActivity} (notification tap, re-attaching to a running operation) use this
+ * same controller so the behaviour is identical. It owns the dialog + poll loop and the
+ * run/finish/cancel/background transitions, but does NOT start the service — that is done by the
+ * caller via {@link TermuxBackupService#startBackup} / {@link TermuxBackupService#startRestore}
+ * (or, when re-attaching, the service is already running and {@link #reopen(FragmentActivity)}
+ * just shows the dialog over it).
  */
 public final class BackupProgressController {
 
@@ -59,7 +57,6 @@ public final class BackupProgressController {
         start(titleRes, totalBytes, launchTermuxOnSuccess, isRestore, uri, false);
     }
 
-    /** Start a fresh operation behind the dialog and launch the service. */
     public void start(int titleRes, long totalBytes,
                       boolean launchTermuxOnSuccess, boolean isRestore, android.net.Uri uri,
                       boolean excludeTmp) {
@@ -78,11 +75,9 @@ public final class BackupProgressController {
     }
 
     /**
-     * Re-attach to an ALREADY-RUNNING operation and show its progress dialog over whatever screen
-     * is currently visible (terminal, settings, or from the background). The service drops its
-     * notification so the dialog becomes the single source of truth again — exactly as when the
-     * operation was first started. If the service is gone or already finished, we report/clean up
-     * without spawning a dead dialog.
+     * Re-attach to an ALREADY-RUNNING operation and show its dialog over the current screen.
+     * The service drops its notification so the dialog is the single source of truth again.
+     * If the service is gone or already finished, clean up without spawning a dead dialog.
      */
     public void reopen(@NonNull FragmentActivity activity) {
         // The hosting activity may have been recreated (e.g. after a config change / background
@@ -100,9 +95,8 @@ public final class BackupProgressController {
         mBackupEstimated = 0;
 
         if (svc.isFinished()) {
-            // The operation already completed. If it finished in background mode the result was
-            // already surfaced as a heads-up notification (and auto-dismissed after 8s); do NOT
-            // reproduce a duplicate bottom Toast here. Just stop the now-idle service and close.
+            // Finished (possibly in background, where a heads-up notification already reported
+            // the result): stop the idle service and close — do not duplicate the toast here.
             svc.stopSelf();
             dismiss();
             notifyClosed();
@@ -120,21 +114,14 @@ public final class BackupProgressController {
 
         final ProgressDialog progress = new ProgressDialog(activity);
         progress.setTitle(activity.getString(titleRes));
-        // Both backup and restore use a horizontal bar.
-        // Backup: indeterminate throughout (tar stream, size unknown).
-        // Restore: starts indeterminate, switches to determinate once progress is calculated.
+        // Horizontal bar; indeterminate until the service publishes a non-zero total.
         progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         progress.setIndeterminate(true);
-        // While the total is unknown (backup: parallel du estimate; restore: SAF size
-        // unavailable) show a "calculating size" hint so the empty spinner does not look
-        // like the operation is stuck.
+        // Unknown total: show a "calculating size" hint so the empty spinner does not look stuck.
         if (mBackupEstimated <= 0) {
             progress.setMessage(activity.getString(R.string.backup_progress_calculating_size));
         }
-        // Start indeterminate (du estimate may still be computing). Once the service
-        // publishes a non-zero total, the poll loop below flips to a determinate bar
-        // for both backup and restore. Hide the percentage labels only while the
-        // estimate is unknown so we don't show a meaningless "0% / 0 of 100".
+        // Hide the number/percent labels while the estimate is unknown — no meaningless "0 of 100".
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
             progress.setProgressNumberFormat(null);
             progress.setProgressPercentFormat(null);
@@ -161,9 +148,8 @@ public final class BackupProgressController {
                 finish();
                 return;
             }
-            // Both backup and restore can show a determinate bar once a non-zero
-            // total is known (backup: du estimate; restore: archive size). Until then
-            // the dialog stays indeterminate.
+            // Determinate once a non-zero total is known (backup: du estimate; restore: archive
+            // size); until then the dialog stays indeterminate.
             if (mBackupDialog != null && mBackupDialog.isShowing()) {
                 long copied = svc.getProgressCopied();
                 long total = svc.getProgressTotal();
@@ -171,12 +157,9 @@ public final class BackupProgressController {
                 if (effective > 0) {
                     if (mLastIndeterminate) {
                         mBackupDialog.setIndeterminate(false);
-                        // Drop the "calculating size" hint once progress is meaningful.
                         mBackupDialog.setMessage(null);
-                        // Show a plain percentage (e.g. "10%") once progress is meaningful.
-                        // On LOLLIPOP_MR1+ we clear the "current / max" number format so only
-                        // the built-in percent label remains; on older versions the dialog shows
-                        // the percent label by default.
+                        // LOLLIPOP_MR1+: clear the "current / max" number format so only the
+                        // built-in percent label remains (older versions show it by default).
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                             mBackupDialog.setProgressNumberFormat(null);
                             mBackupDialog.setProgressPercentFormat(
@@ -211,25 +194,24 @@ public final class BackupProgressController {
         TermuxBackupService svc = TermuxBackupService.getInstance();
         if (svc != null) svc.enterBackground();
         dismiss();
-        // If our host is a transparent activity (BackupDialogActivity), finish it so the previous
-        // screen is revealed and only the notification remains. The fragment host stays on screen.
+        // Transparent BackupDialogActivity host: finish it so only the notification remains
+        // (the fragment host stays on screen).
         notifyClosed();
     }
 
     /** Cancel the running operation and close the dialog. */
     private void cancel() {
         TermuxBackupService svc = TermuxBackupService.getInstance();
+        // Cancel raced the worker ending: report the real result via finish() (reads
+        // getLastResult()) so it is not lost and the service does not linger.
         if (svc == null || svc.isFinished()) {
-            // Race: the operation already ended before the user hit Cancel. Report the real result
-            // via the normal finish path (which reads getLastResult()) so we don't silently lose
-            // it or leave the service running.
             finish();
             return;
         }
         svc.cancelOperation();
-        // Close the dialog immediately but leave the poll dead — the worker is still killing tar
-        // and rolling back; once it finishes, the service itself will call stopSelf() (see the
-        // mCancelled guard in the worker finally block).
+        // Close the dialog but keep the poll dead — the worker is still killing tar and
+        // rolling back; once it finishes the service calls stopSelf() itself (mCancelled
+        // guard in the worker's finally block).
         if (mBackupPoll != null) {
             mBackupPoll.removeCallbacks(mBackupPollRunnable);
             mBackupPoll = null;
@@ -247,10 +229,9 @@ public final class BackupProgressController {
         notifyClosed();
     }
 
-    /** Tear down the dialog + poll loop but leave the service running; moves the operation to the
-     *  foreground notification so it keeps running and stays visible (instead of being killed by
-     *  the system or finishing silently). Called when the host activity/fragment is paused or
-     *  destroyed. */
+    /** Tear down the dialog + poll loop but move the operation to the foreground notification so
+     *  the service keeps running instead of being killed silently. Called when the host
+     *  activity/fragment is paused or destroyed. */
     public void detach() {
         TermuxBackupService svc = TermuxBackupService.getInstance();
         if (svc != null) svc.enterBackground();

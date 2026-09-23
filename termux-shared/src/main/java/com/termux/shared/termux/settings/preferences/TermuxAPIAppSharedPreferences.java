@@ -26,11 +26,8 @@ public class TermuxAPIAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Get {@link TermuxAPIAppSharedPreferences}.
-     *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_API_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxAPIAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * Get {@link TermuxAPIAppSharedPreferences} for the Termux:API package context, or {@code null}
+     * if that package's context is unavailable.
      */
     @Nullable
     public static TermuxAPIAppSharedPreferences build(@NonNull final Context context) {
@@ -42,13 +39,9 @@ public class TermuxAPIAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Get {@link TermuxAPIAppSharedPreferences}.
-     *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_API_PACKAGE_NAME}.
-     * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
-     *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxAPIAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * Like {@link #build(Context)}, but if the Termux:API package context cannot be obtained, a
+     * dialog is shown that exits the app when dismissed ({@code exitAppOnError}). Still returns
+     * {@code null} if the context ends up unavailable.
      */
     public static TermuxAPIAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxAPIPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_API_PACKAGE_NAME, exitAppOnError);
@@ -57,8 +50,6 @@ public class TermuxAPIAppSharedPreferences extends AppSharedPreferences {
         else
             return new TermuxAPIAppSharedPreferences(termuxAPIPackageContext);
     }
-
-
 
     public int getLogLevel(boolean readFromFile) {
         if (readFromFile)
@@ -71,7 +62,6 @@ public class TermuxAPIAppSharedPreferences extends AppSharedPreferences {
         logLevel = Logger.setLogLevel(context, logLevel);
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_API_APP.KEY_LOG_LEVEL, logLevel, commitToFile);
     }
-
 
     public int getLastPendingIntentRequestCode() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_API_APP.KEY_LAST_PENDING_INTENT_REQUEST_CODE, TERMUX_API_APP.DEFAULT_VALUE_KEY_LAST_PENDING_INTENT_REQUEST_CODE);

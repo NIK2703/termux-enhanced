@@ -32,7 +32,7 @@ public class ShellCommandShellEnvironment {
     /** Environment variable for the {@link ExecutionCommand.Runner#APP_SHELL} number since boot. */
     public static final String ENV_SHELL_CMD__APP_SHELL_NUMBER_SINCE_BOOT = SHELL_CMD_ENV_PREFIX + "APP_SHELL_NUMBER_SINCE_BOOT";
 
-    /** Environment variable for the {{@link ExecutionCommand.Runner#TERMINAL_SESSION} number since boot. */
+    /** Environment variable for the {@link ExecutionCommand.Runner#TERMINAL_SESSION} number since boot. */
     public static final String ENV_SHELL_CMD__TERMINAL_SESSION_NUMBER_SINCE_BOOT = SHELL_CMD_ENV_PREFIX + "TERMINAL_SESSION_NUMBER_SINCE_BOOT";
 
     /** Environment variable for the {@link ExecutionCommand.Runner#APP_SHELL} number since app start. */
@@ -40,7 +40,6 @@ public class ShellCommandShellEnvironment {
 
     /** Environment variable for the {@link ExecutionCommand.Runner#TERMINAL_SESSION} number since app start. */
     public static final String ENV_SHELL_CMD__TERMINAL_SESSION_NUMBER_SINCE_APP_START = SHELL_CMD_ENV_PREFIX + "TERMINAL_SESSION_NUMBER_SINCE_APP_START";
-
 
     /** Get shell environment containing info for {@link ExecutionCommand}. */
     @NonNull

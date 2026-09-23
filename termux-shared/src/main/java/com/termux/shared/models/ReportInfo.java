@@ -13,23 +13,16 @@ import java.io.Serializable;
 public class ReportInfo implements Serializable {
 
     /**
-     * Explicitly define `serialVersionUID` to prevent exceptions on deserialization.
+     * Explicit `serialVersionUID` so deserialization does not throw (e.g.
+     * `Bundle.getSerializable()`: `InvalidClassException` / `BadParcelableException`).
+     * `@Keep` stops proguard removing the field when the app is compiled, even though it is
+     * kept during library compilation.
      *
-     * Like when calling `Bundle.getSerializable()` on Android.
-     * `android.os.BadParcelableException: Parcelable encountered IOException reading a Serializable object` (name = <class_name>)
-     * `java.io.InvalidClassException: <class_name>; local class incompatible`
-     *
-     * The `@Keep` annotation is necessary to prevent the field from being removed by proguard when
-     * app is compiled, even if its kept during library compilation.
-     *
-     * **See Also:**
-     * - https://docs.oracle.com/javase/8/docs/platform/serialization/spec/version.html#a6678
-     * - https://docs.oracle.com/javase/8/docs/platform/serialization/spec/class.html#a4100
+     * @see <a href="https://docs.oracle.com/javase/8/docs/platform/serialization/spec/version.html#a6678">Versioning</a>
+     * @see <a href="https://docs.oracle.com/javase/8/docs/platform/serialization/spec/class.html#a4100">Serializable class descriptor</a>
      */
     @Keep
     private static final long serialVersionUID = 1L;
-
-
 
     /** The user action that was being processed for which the report was generated. */
     public final String userAction;
@@ -96,7 +89,7 @@ public class ReportInfo implements Serializable {
      * Get a markdown {@link String} for {@link ReportInfo}.
      *
      * @param reportInfo The {@link ReportInfo} to convert.
-     * @return Returns the markdown {@link String}.
+     * @return the markdown string.
      */
     public static String getReportInfoMarkdownString(final ReportInfo reportInfo) {
         if (reportInfo == null) return "null";

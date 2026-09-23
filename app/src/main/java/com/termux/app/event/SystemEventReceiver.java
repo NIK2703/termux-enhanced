@@ -72,8 +72,6 @@ public class SystemEventReceiver extends BroadcastReceiver {
         }
     }
 
-
-
     /**
      * Register {@link SystemEventReceiver} to listen to {@link Intent#ACTION_PACKAGE_ADDED},
      * {@link Intent#ACTION_PACKAGE_REMOVED} and {@link Intent#ACTION_PACKAGE_REPLACED} broadcasts.

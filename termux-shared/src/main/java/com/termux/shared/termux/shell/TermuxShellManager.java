@@ -50,18 +50,10 @@ public class TermuxShellManager {
      */
     public static int TERMINAL_SESSION_NUMBER_SINCE_APP_START;
 
-
-
     public TermuxShellManager(@NonNull Context context) {
         mContext = context.getApplicationContext();
     }
 
-    /**
-     * Initialize the {@link #shellManager}.
-     *
-     * @param context The {@link Context} for operations.
-     * @return Returns the {@link TermuxShellManager}.
-     */
     public static TermuxShellManager init(@NonNull Context context) {
         if (shellManager == null)
             shellManager = new TermuxShellManager(context);
@@ -69,15 +61,9 @@ public class TermuxShellManager {
         return shellManager;
     }
 
-    /**
-     * Get the {@link #shellManager}.
-     *
-     * @return Returns the {@link TermuxShellManager}.
-     */
     public static TermuxShellManager getShellManager() {
         return shellManager;
     }
-
 
     public synchronized static void onActionBootCompleted(@NonNull Context context, @NonNull Intent intent) {
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context);
@@ -96,8 +82,7 @@ public class TermuxShellManager {
         TERMINAL_SESSION_NUMBER_SINCE_APP_START = 0;
     }
 
-    public static synchronized int getNextShellId() {
-        return SHELL_ID++;
+    public static synchronized int getNextShellId() {        return SHELL_ID++;
     }
 
     public static synchronized int getAndIncrementAppShellNumberSinceAppStart() {

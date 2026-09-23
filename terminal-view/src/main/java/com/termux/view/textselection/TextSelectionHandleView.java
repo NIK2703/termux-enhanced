@@ -137,8 +137,8 @@ public class TextSelectionHandleView extends View {
         // java.lang.IllegalStateException: The specified child already has a parent. You must call removeView() on the child's parent first.
         removeFromParent();
 
-        initHandle(); // init the handle
-        invalidate(); // invalidate to make sure onDraw is called
+        initHandle();
+        invalidate();
 
         final int[] coords = mTempCoords;
         terminalView.getLocationInWindow(coords);
@@ -157,7 +157,7 @@ public class TextSelectionHandleView extends View {
 
             // We remove handle from its parent, otherwise it may still be shown in some cases even after the dismiss call
             removeFromParent();
-            mHandle = null;  // garbage collect the handle
+            mHandle = null;
         }
         invalidate();
     }

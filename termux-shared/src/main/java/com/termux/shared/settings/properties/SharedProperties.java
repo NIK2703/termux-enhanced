@@ -84,8 +84,6 @@ public class SharedProperties {
     private static final String LOG_TAG = "SharedProperties";
 
     /**
-     * Constructor for the SharedProperties class.
-     *
      * @param context The Context for operations.
      * @param propertiesFile The {@link File} object to load properties from.
      * @param propertiesList The {@link Set<String>} object that defined which properties to load.
@@ -132,12 +130,10 @@ public class SharedProperties {
                 value = properties.getProperty(key); // value will be null if key does not exist in propertiesFile
                 // Logger.logVerbose(LOG_TAG, key + " : " + value);
 
-                // Call the {@link SharedPropertiesParser#getInternalPropertyValueFromValue(Context,String,String)}
-                // interface method to get the internal value to store in the {@link #mMap}.
                 internalValue = mSharedPropertiesParser.getInternalPropertyValueFromValue(mContext, key, value);
 
-                // If the internal value was successfully added to map, then also add value to newProperties
-                // We only store values in-memory defined by propertiesList
+                // If the internal value was successfully added to map, then also add value to newProperties.
+                // We only store values in-memory defined by propertiesList.
                 if (putToMap(map, key, internalValue)) { // null internalValue will be put into map
                     putToProperties(newProperties, key, value); // null value will **not** be into properties
                 }
@@ -203,7 +199,7 @@ public class SharedProperties {
      *
      * @param key The key to read from the {@link #mMap} object.
      * @return Returns the {@link Object} object. This will be {@code null} if key is not found or
-     * if object was {@code null}. Use {@link HashMap#containsKey(Object)} to detect the later.
+     * if object was {@code null}. Use {@link HashMap#containsKey(Object)} to detect the later
      * situation.
      */
     public Object getInternalProperty(String key) {
@@ -216,12 +212,8 @@ public class SharedProperties {
         }
     }
 
-
-
-
-
     /**
-     * A static function to get the {@link Properties} object for the propertiesFile. A lock is not
+     * Get the {@link Properties} object for the propertiesFile. A lock is not
      * taken when this function is called.
      *
      * @param context The {@link Context} to use to show a flash if an exception is raised while
@@ -288,14 +280,12 @@ public class SharedProperties {
         return null;
     }
 
-
-
     public static String getProperty(Context context, File propertiesFile, String key, String def) {
         return getProperty(context, propertiesFile, key, def, null);
     }
 
     /**
-     * A static function to get the {@link String} value for the {@link Properties} key read from
+     * Get the {@link String} value for the {@link Properties} key read from
      * the propertiesFile file.
      *
      * @param context The {@link Context} for the {@link #getPropertiesFromFile(Context,File,SharedPropertiesParser)} call.
@@ -310,7 +300,7 @@ public class SharedProperties {
     }
 
     /**
-     * A static function to get the internal {@link Object} value for the {@link String} value for
+     * Get the internal {@link Object} value for the {@link String} value for
      * the {@link Properties} key read from the propertiesFile file.
      *
      * @param context The {@link Context} for the {@link #getPropertiesFromFile(Context,File,SharedPropertiesParser)} call.
@@ -323,18 +313,15 @@ public class SharedProperties {
     public static Object getInternalProperty(Context context, File propertiesFile, String key, @NonNull SharedPropertiesParser sharedPropertiesParser) {
         String value = (String) getDefaultIfNull(getPropertiesFromFile(context, propertiesFile, sharedPropertiesParser), new Properties()).get(key);
 
-        // Call the {@link SharedPropertiesParser#getInternalPropertyValueFromValue(Context,String,String)}
-        // interface method to get the internal value to return.
         return sharedPropertiesParser.getInternalPropertyValueFromValue(context, key, value);
     }
-
 
     public static boolean isPropertyValueTrue(Context context, File propertiesFile, String key, boolean logErrorOnInvalidValue) {
         return isPropertyValueTrue(context, propertiesFile, key, logErrorOnInvalidValue, null);
     }
 
     /**
-     * A static function to check if the value is {@code true} for {@link Properties} key read from
+     * Check if the value is {@code true} for {@link Properties} key read from
      * the propertiesFile file.
      *
      * @param context The {@link Context} for the {@link #getPropertiesFromFile(Context,File,SharedPropertiesParser)} call.
@@ -351,13 +338,12 @@ public class SharedProperties {
         return (boolean) getBooleanValueForStringValue(key, (String) getProperty(context, propertiesFile, key, null, sharedPropertiesParser), false, logErrorOnInvalidValue, LOG_TAG);
     }
 
-
     public static boolean isPropertyValueFalse(Context context, File propertiesFile, String key, boolean logErrorOnInvalidValue) {
         return isPropertyValueFalse(context, propertiesFile, key, logErrorOnInvalidValue, null);
     }
 
     /**
-     * A static function to check if the value is {@code false} for {@link Properties} key read from
+     * Check if the value is {@code false} for {@link Properties} key read from
      * the propertiesFile file.
      *
      * @param context The {@link Context} for the {@link #getPropertiesFromFile(Context,File,SharedPropertiesParser)} call.
@@ -373,10 +359,6 @@ public class SharedProperties {
     public static boolean isPropertyValueFalse(Context context, File propertiesFile, String key, boolean logErrorOnInvalidValue, @Nullable SharedPropertiesParser sharedPropertiesParser) {
         return (boolean) getInvertedBooleanValueForStringValue(key, (String) getProperty(context, propertiesFile, key, null, sharedPropertiesParser), true, logErrorOnInvalidValue, LOG_TAG);
     }
-
-
-
-
 
     /**
      * Put a value in a {@link #mMap}.
@@ -465,16 +447,10 @@ public class SharedProperties {
 
         return outputProperties;
     }
-
     public static Map<String, Object> getMapCopy(Map<String, Object> map) {
         if (map == null) return null;
         return new HashMap<>(map);
     }
-
-
-
-
-
 
     /**
      * Get the boolean value for the {@link String} value.

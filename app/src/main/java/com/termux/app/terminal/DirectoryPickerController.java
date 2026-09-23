@@ -45,12 +45,7 @@ public final class DirectoryPickerController {
     private static final int PAD_DP = 8;
     private static final int GAP_DP = 12;
     private static final int HINT_PAD_DP = 8;
-    /**
-     * Height of one entry, fixed. Rows are never stretched to fill the space and never compressed to
-     * make more of them fit — when the space is tight the list simply offers fewer entries, down to
-     * none at all. 48 dp is the comfortable touch-target height for the 15 sp label, matching the
-     * history popup's rows.
-     */
+    /** Fixed row height (48 dp = touch target for 15 sp label); tight space yields fewer rows. */
     private static final int ROW_HEIGHT_DP = 48;
     private static final int ROW_PADDING_H_DP = 14;
     private static final int CORNER_RADIUS_DP = 6;
@@ -77,11 +72,9 @@ public final class DirectoryPickerController {
 
     /**
      * The surface the commit fade-out keeps driving after {@link #mView} has moved on.
-     *
-     * <p>The trailing placeholder is re-armed roughly one frame after the commit, and that rebind
-     * points {@link #mView} at the new page's surface — while the overlay of the page just committed
-     * is still on screen, still fading. Without this second handle its rows would stop growing with
-     * the page and drift sideways for the rest of the settle instead of completing the reveal.
+     * The trailing placeholder is re-armed ~one frame after commit and rebinds {@link #mView}
+     * to the new page while the committed page's overlay is still fading; without this second
+     * handle its rows would drift sideways for the rest of the settle instead of completing.
      */
     @Nullable
     private DirectoryPickerView mFadingView;
@@ -129,20 +122,15 @@ public final class DirectoryPickerController {
             // by the page being recycled, in which case hide() never got to reach the view. The next
             // show() repopulates it.
             view.setItems(java.util.Collections.emptyList(), null);
-            // INVISIBLE, never GONE. View.setVisibility(GONE) makes setFlags() call requestLayout()
-            // — the GONE bit is what triggers it, not the visibility as such — so hiding the picker
-            // that way costs a layout traversal of the whole window. It is toggled on the first frame
-            // that reveals the placeholder and again when the gesture ends, i.e. exactly on the
-            // gesture's critical frame. INVISIBLE keeps the view out of the draw pass with no layout
-            // at all, and nothing reads this view's visibility: "nothing to draw" is expressed by the
-            // empty item set above, which is the first thing DirectoryPickerView.onDraw checks.
+            // INVISIBLE, never GONE: View.setVisibility(GONE) makes setFlags() call requestLayout()
+            // (the GONE bit is what triggers it), costing a whole-window layout on the gesture's
+            // critical frame. "Nothing to draw" is the empty item set above — the first thing
+            // DirectoryPickerView.onDraw checks.
             view.setVisibility(View.INVISIBLE);
-            // Measure the candidate labels now, while the page is at rest. show() runs on the first
-            // frame that reveals the placeholder — the gesture's critical frame, where the picker also
-            // goes from GONE to VISIBLE and has its display list recorded from scratch — and shaping
-            // up to ten paths there would land entirely on that frame. setItems() then reuses these
-            // widths because show() installs the first `rows` entries of this very list, and falls
-            // back to measuring only when the history changed in between.
+            // Measure candidate labels while the page is at rest: show() runs on the gesture's
+            // critical frame, where shaping up to ten paths would land entirely on that frame.
+            // setItems() reuses these widths (show installs the first `rows` entries of this list)
+            // and only re-measures if history changed in between.
             buildItems();
             view.premeasure(mItems);
             applyReveal(view);
@@ -150,20 +138,12 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * Re-read the directory history and pre-measure the labels, without touching the views.
+     * Re-read history and pre-measure labels without touching views.
      *
-     * <p>Called when the history is known to have been refreshed outside the picker — currently from
-     * the gesture's {@code ACTION_DOWN}, right after the current directory was recorded (see
-     * {@code SessionPagerManager#recordCurrentDirectoryForPicker}). {@link #show} builds its rows a
-     * couple of frames later, on the gesture's critical frame, and a history that gained an entry
-     * since the last {@link #bind} is not a prefix of the measured labels — so without this the
-     * re-shaping of up to {@link #MAX_ITEMS} paths would land on the very frame that reveals the
-     * menu. Doing it at the finger-down moves that work to a moment where nothing is animating, and
-     * it costs nothing at all when the history did not change, which is the common case
-     * ({@code premeasure} early-outs on a matching prefix).
-     *
-     * <p>The views are deliberately left alone: nothing is on screen yet, and {@link #show} installs
-     * the rows itself.
+     * <p>Called from the gesture's ACTION_DOWN so a history change does not force
+     * re-shaping of up to {@link #MAX_ITEMS} paths on the critical frame that reveals
+     * the menu; no-op cost when history did not change (premeasure early-outs on a
+     * matching prefix). {@link #show} installs the rows itself.
      */
     public void refreshItems() {
         buildItems();
@@ -191,13 +171,11 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * Release the fade's surface (the fade has finished, or was cut short).
-     *
-     * <p>Also where a row fade that outlived its commit is dropped. The adapter's end action only
-     * tears the picker down while the container it faded is still the current placeholder binding —
-     * which is <em>not</em> the case after a commit, because the page is re-armed one frame later
-     * and the picker is rebound to the new page. Nothing else runs for that gesture afterwards, so
-     * without this the fade would stay armed and the next menu would open with its rows dimmed.
+     * Release the fade's surface (the fade finished or was cut short). Also where a row fade that
+     * outlived its commit is dropped: the adapter's end action only tears the picker down while
+     * the container it faded is still the current placeholder binding — not the case after a
+     * commit (the page is re-armed one frame later and the picker rebound). Without this the fade
+     * would stay armed and the next menu would open with its rows dimmed.
      */
     public void endFadeOut() {
         if (mRowFadeActive) resetRowFade();
@@ -286,19 +264,10 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * The selected directory is being committed: fade out every row that was not selected, in
-     * {@link #ROW_FADE_OUT_MS}.
-     *
-     * <p>Called from the commit path, <em>not</em> from the finger lift. A swipe that ends up
-     * creating nothing must leave the list exactly as it was — otherwise the rows would already be
-     * gone when the page springs back, and the next pull-out would open on an empty menu.
-     *
-     * <p>Runs on its own clock rather than off the pager's scroll progress — the requirement is that
-     * the fade is <em>shorter</em> than the settle, which a progress-driven ramp could not express.
-     *
-     * <p>The selection is whatever the finger tracking last highlighted, and it is only
-     * <em>read</em> here: the commit must not move the highlight or otherwise touch the selected
-     * row. With nothing highlighted no row is selected, so every row fades.
+     * Fade out unselected rows in {@link #ROW_FADE_OUT_MS}. Called from the commit path,
+     * not the finger lift (a swipe that creates nothing must leave the list intact).
+     * Runs on its own clock (fade must be shorter than the pager settle). Reads the
+     * current highlight only — never moves it; no highlight means every row fades.
      */
     public void beginRowFadeOut() {
         mRowFadeKeepRow = mHighlight;
@@ -337,13 +306,9 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * Drop the row fade if one is still in effect. Called whenever the placeholder page is fully off
-     * screen, which is the one moment that is guaranteed to precede any gesture that can open the
-     * menu again — so a fade can never survive into the next pull-out, whatever the previous gesture
-     * did with the pager.
-     *
-     * <p>Returns immediately when there is nothing to undo, so the per-frame scroll callback pays
-     * one comparison.
+     * Drop the row fade if one is still in effect. Called whenever the placeholder page is fully
+     * off screen — the one moment guaranteed to precede any gesture that can reopen the menu, so a
+     * fade can never survive into the next pull-out. Returns immediately when idle (one comparison).
      */
     public void clearRowFade() {
         if (!mRowFadeActive) return;
@@ -357,9 +322,8 @@ public final class DirectoryPickerController {
         mLayout = null;
         if (mView != null) {
             mView.setItems(java.util.Collections.emptyList(), null);
-            // INVISIBLE for the same reason as in bind() — see the comment there. This is the write
-            // that used to land on the settle's IDLE, i.e. a layout traversal at the end of every
-            // placeholder gesture.
+            // INVISIBLE for the same reason as in bind() — see the comment there. This write used
+            // to land on the settle's IDLE: a layout traversal at the end of every placeholder gesture.
             mView.setVisibility(View.INVISIBLE);
         }
         if (mHintContent != null) mHintContent.setTranslationY(0f);
@@ -428,13 +392,11 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * Re-apply the scheme colours to the rows, on every surface this controller currently owns.
-     *
-     * <p>The rows take their colours in {@link #bind}, and the placeholder page's ViewHolder is
-     * exactly the one a colour-scheme change does not rebind (while the user sits on a real tab it
-     * stays in RecyclerView's view cache), so without this the menu kept the previous scheme's
-     * colours until the slot was rebound — i.e. until the next tab was added. Called from the
-     * scheme-application path, so it costs nothing per frame.
+     * Re-apply scheme colours to the rows on every surface this controller owns. The rows take
+     * their colours in {@link #bind}, and the placeholder ViewHolder is exactly the one a
+     * colour-scheme change does not rebind (while the user sits on a real tab it stays in
+     * RecyclerView's cache), so without this the menu kept the old scheme until the next tab add.
+     * Also restyles {@link #mFadingView} so a running commit fade finishes in the new palette.
      */
     public void applyColors() {
         if (mView != null) applyColors(mView);
@@ -451,15 +413,12 @@ public final class DirectoryPickerController {
     }
 
     /**
-     * Push the current reveal onto the view: how much of it is on screen.
-     *
-     * <p>Applied as a translation of the whole row block rather than as a row length — see
+     * Push the current reveal onto the view: how much of it is on screen. Applied as a translation
+     * of the whole row block rather than a row length — see
      * {@link DirectoryPickerView#setRevealedWidth(float)} — so a scroll frame re-applies one
-     * render-node property instead of re-recording the rows.
-     *
-     * <p>Only the reveal — the fade is applied by {@code TerminalPagerAdapter#setPlaceholderScrollOffset}
-     * to the whole placeholder overlay, so every layer of the page arrives on the same ramp and a
-     * second alpha here would multiply into it.
+     * render-node property instead of re-recording the rows. Only the reveal: the fade is applied
+     * by {@code TerminalPagerAdapter#setPlaceholderScrollOffset} to the whole placeholder overlay,
+     * so every layer arrives on the same ramp and a second alpha here would multiply into it.
      */
     private void applyReveal(@NonNull DirectoryPickerView view) {
         final int width = (view.getWidth() > 0)

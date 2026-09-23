@@ -58,7 +58,6 @@ ITEM_RE = re.compile(r'<item\s+name="([^"]+)">(.*?)</item>', re.S)
 TAG_RE = re.compile(r'<(/?)([A-Za-z][A-Za-z0-9_.]*)((?:"[^"]*"|[^>"])*)>')
 TITLE_RE = re.compile(r'<TextView\b[^>]*android:id="@android:id/title"[^>]*/>', re.S)
 
-
 def parse_styles_text(text):
     """name -> (parent, {item: value}); a style without an explicit parent inherits from its
     dotted prefix, exactly like the resource compiler does."""
@@ -69,11 +68,9 @@ def parse_styles_text(text):
         styles[name] = (parent, dict(ITEM_RE.findall(body or "")))
     return styles
 
-
 def parse_styles(path):
     with open(path, encoding="utf-8") as fh:
         return parse_styles_text(fh.read())
-
 
 def library_files():
     """(styles, layouts) of androidx.preference, read straight out of the AAR in the Gradle cache."""
@@ -89,7 +86,6 @@ def library_files():
                     layouts[os.path.basename(member)[:-4]] = z.read(member).decode("utf-8")
     return styles, layouts
 
-
 def folded(tables):
     """Merge style tables lowest-priority-first so the app's own (and the night variant's)
     declarations win over the library's, item by item."""
@@ -101,7 +97,6 @@ def folded(tables):
                             dict(old[1], **items) if old else dict(items))
     return merged
 
-
 def resolve(styles, style_name, item):
     """Nearest declaration of `item` along a style's parent chain."""
     seen = set()
@@ -112,7 +107,6 @@ def resolve(styles, style_name, item):
             return items[item], style_name
         style_name = parent
     return None, None
-
 
 def title_state(xml):
     """(True, 'wraps') / (False, reasons) / (None, reason) for the row layout's title TextView."""
@@ -129,7 +123,6 @@ def title_state(xml):
     if re.search(r'android:maxLines="1"', tag):
         problems.append("maxLines=1")
     return (not problems), ", ".join(problems) or "wraps"
-
 
 def rows_in_use():
     """{(element, explicit layout or None, unit or None)} found in the app's preference XMLs."""
@@ -154,7 +147,6 @@ def rows_in_use():
             found.setdefault(key, set()).add(os.path.basename(path))
     return found
 
-
 def unit_support_failures():
     """app:valueUnit / app:valueDivisor on anything but UnitSeekBarPreference would be a no-op."""
     bad = []
@@ -171,7 +163,6 @@ def unit_support_failures():
                 if found:
                     bad.append((element, attr, found.group(1), os.path.basename(path)))
     return bad
-
 
 def main():
     lib_styles, lib_layouts = library_files()
@@ -241,7 +232,6 @@ def main():
     print("OK: every preference row type used in the settings screens has a wrapping title, and "
           "every app:valueUnit is on a UnitSeekBarPreference.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

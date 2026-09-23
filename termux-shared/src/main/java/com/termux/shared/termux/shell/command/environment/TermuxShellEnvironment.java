@@ -46,7 +46,6 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         shellCommandShellEnvironment = new TermuxShellCommandShellEnvironment();
     }
 
-
     /** Init {@link TermuxShellEnvironment} constants and caches. */
     public synchronized static void init(@NonNull Context currentPackageContext) {
         String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
@@ -156,7 +155,6 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         thread.start();
     }
 
-    /** Init {@link TermuxShellEnvironment} constants and caches. */
     public synchronized static void writeEnvironmentToFile(@NonNull Context currentPackageContext) {
         HashMap<String, String> environmentMap = new TermuxShellEnvironment().getEnvironment(currentPackageContext, false);
         String environmentString = ShellEnvironmentUtils.convertEnvironmentToDotEnvFile(environmentMap);
@@ -268,7 +266,6 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
 
         return environment;
     }
-
 
     /** Expose for debug logging. */
     public static String getResolvedHomeDirPath() {

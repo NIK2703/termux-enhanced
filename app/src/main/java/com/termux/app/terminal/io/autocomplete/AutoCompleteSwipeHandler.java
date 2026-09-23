@@ -33,7 +33,6 @@ final class AutoCompleteSwipeHandler {
     @Nullable private String[] mSwipeWords;
     /** Text kept before any swipe-added words (the user's already-typed prefix / base). */
     @Nullable private String mSwipeBaseText;
-    /** Whether a leading space is needed before the first appended word. */
     private boolean mSwipeNeedsLeadingSpace;
     /** Selection anchor (start) — stays fixed while the selection end grows/shrinks. */
     private int mSwipeAnchorStart;
@@ -50,7 +49,6 @@ final class AutoCompleteSwipeHandler {
     /** Finger-down start coordinates, used to measure horizontal travel. */
     private float mSwipeStartX;
     private float mSwipeStartY;
-    /** True once the gesture has crossed the touch slop and is in swipe mode. */
     private boolean mSwipeEngaged;
     /** Whether a finger is currently pressed on a suggestion row (DOWN without UP/CANCEL). */
     private boolean mSwipePointerDown = false;
@@ -77,12 +75,10 @@ final class AutoCompleteSwipeHandler {
         mClearSuppress = clearSuppress;
     }
 
-    /** True while the gesture has crossed the touch slop and is in swipe mode. */
     boolean isEngaged() {
         return mSwipeEngaged;
     }
 
-    /** True while a finger is pressed on a suggestion row (no UP/CANCEL yet). */
     boolean isPointerDown() {
         return mSwipePointerDown;
     }
@@ -249,10 +245,9 @@ final class AutoCompleteSwipeHandler {
     }
 
     /**
-     * Returns the portion of {@code suggestion} that still needs to be inserted
-     * given the already-typed {@code base}. If the suggestion starts with the
-     * base (case-insensitively, matching the popup's own prefix logic), only the
-     * tail is returned; otherwise the whole suggestion is returned.
+     * The portion of {@code suggestion} still to insert past the already-typed {@code base}:
+     * only the tail when {@code base} is a case-insensitive prefix of the suggestion (matching
+     * the popup's own prefix logic), otherwise the whole suggestion.
      */
     @NonNull
     static String computeRemainder(@NonNull String suggestion, @NonNull String base) {
@@ -321,12 +316,7 @@ final class AutoCompleteSwipeHandler {
         if (inputField == null || mSwipeWords == null || mSwipeBaseText == null) return;
         StringBuilder sb = new StringBuilder(mSwipeBaseText);
         for (int i = 0; i < n; i++) {
-            // A leading space is inserted before the first word only when it
-            // begins a new token and the base doesn't already end in a separator.
             if (i == 0 && mSwipeNeedsLeadingSpace) sb.append(' ');
-            // Each token already carries its own trailing separator (space or '/')
-            // captured from the suggestion, so path/argument structure is restored
-            // exactly and the text stays ready for the next token.
             sb.append(mSwipeWords[i]);
         }
         String newText = sb.toString();

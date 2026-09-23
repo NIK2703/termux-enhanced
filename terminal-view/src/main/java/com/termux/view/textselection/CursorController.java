@@ -22,19 +22,12 @@ public interface CursorController extends ViewTreeObserver.OnTouchModeChangeList
      */
     boolean hide();
 
-    /**
-     * Render the cursors.
-     */
     void render();
 
-    /**
-     * Update the cursor positions.
-     */
     void updatePosition(TextSelectionHandleView handle, int x, int y);
 
     /**
-     * This method is called by {@link #onTouchEvent(MotionEvent)} and gives the cursors
-     * a chance to become active and/or visible.
+     * Gives the cursors a chance to become active and/or visible.
      *
      * @param event The touch event
      */

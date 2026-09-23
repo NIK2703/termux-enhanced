@@ -37,25 +37,20 @@ public class TextIOInfo implements Serializable {
     @Keep
     private static final long serialVersionUID = 1L;
 
-
-
     public static final int GENERAL_DATA_SIZE_LIMIT_IN_BYTES = 1000;
     public static final int LABEL_SIZE_LIMIT_IN_BYTES = 4000;
     public static final int TEXT_SIZE_LIMIT_IN_BYTES = 100000 - GENERAL_DATA_SIZE_LIMIT_IN_BYTES - LABEL_SIZE_LIMIT_IN_BYTES; // < 100KB
 
     /** The action for which {@link TextIOActivity} will be started. */
     private final String mAction;
-    /** The internal app component that is will start the {@link TextIOActivity}. */
+    /** The internal app component that will start the {@link TextIOActivity}. */
     private final String mSender;
 
-    /** The activity title. */
     private String mTitle;
 
     /** If back button should be shown in {@link android.app.ActionBar}. */
     private boolean mShowBackButtonInActionBar = false;
 
-
-    /** If label is enabled. */
     private boolean mLabelEnabled = false;
     /**
      * The label of text input set in {@link android.widget.TextView} that can be updated by user.
@@ -71,7 +66,6 @@ public class TextIOInfo implements Serializable {
     /** The {@link Typeface} style  of label. Defaults to {@link Typeface#BOLD}. */
     private int mLabelTypeFaceStyle = Typeface.BOLD;
 
-
     /**
      * The text of text input set in {@link android.widget.EditText} that can be updated by user.
      * Max allowed length is {@link #TEXT_SIZE_LIMIT_IN_BYTES}.
@@ -79,7 +73,7 @@ public class TextIOInfo implements Serializable {
     private String mText;
     /** The text size for text. Defaults to 12sp. */
     private int mTextSize = 12;
-    /** The text size for text. Defaults to {@link #TEXT_SIZE_LIMIT_IN_BYTES}. */
+    /** Length limit for the text. Defaults to {@link #TEXT_SIZE_LIMIT_IN_BYTES}. */
     private int mTextLengthLimit = TEXT_SIZE_LIMIT_IN_BYTES;
     /** The text color of text. Defaults to the active scheme foreground. */
     private int mTextColor = ColorSchemeUtils.getSchemeForeground();
@@ -94,12 +88,10 @@ public class TextIOInfo implements Serializable {
     /** If editing text should be disabled so that text acts like its in a {@link android.widget.TextView}. */
     private boolean mEditingTextDisabled = false;
 
-
     public TextIOInfo(@NonNull String action, @NonNull String sender) {
         mAction = action;
         mSender = sender;
     }
-
 
     public String getAction() {
         return mAction;
@@ -108,7 +100,6 @@ public class TextIOInfo implements Serializable {
     public String getSender() {
         return mSender;
     }
-
 
     public String getTitle() {
         return mTitle;
@@ -125,7 +116,6 @@ public class TextIOInfo implements Serializable {
     public void setShowBackButtonInActionBar(boolean showBackButtonInActionBar) {
         mShowBackButtonInActionBar = showBackButtonInActionBar;
     }
-
 
     public boolean isLabelEnabled() {
         return mLabelEnabled;
@@ -175,7 +165,6 @@ public class TextIOInfo implements Serializable {
     public void setLabelTypeFaceStyle(int labelTypeFaceStyle) {
         mLabelTypeFaceStyle = labelTypeFaceStyle;
     }
-
 
     public String getText() {
         return mText;

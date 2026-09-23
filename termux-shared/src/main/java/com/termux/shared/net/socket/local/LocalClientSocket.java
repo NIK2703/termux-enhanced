@@ -21,10 +21,8 @@ public class LocalClientSocket implements Closeable {
 
     public static final String LOG_TAG = "LocalClientSocket";
 
-    /** The {@link LocalSocketManager} instance for the local socket. */
     @NonNull protected final LocalSocketManager mLocalSocketManager;
 
-    /** The {@link LocalSocketRunConfig} containing run config for the {@link LocalClientSocket}. */
     @NonNull protected final LocalSocketRunConfig mLocalSocketRunConfig;
 
     /**
@@ -33,25 +31,16 @@ public class LocalClientSocket implements Closeable {
      */
     protected int mFD;
 
-    /** The creation time of {@link LocalClientSocket}. This is also used for deadline. */
+    /** Creation time; also anchors the run-config deadline. */
     protected final long mCreationTime;
 
-    /** The {@link PeerCred} of the {@link LocalClientSocket} containing info of client/peer. */
     @NonNull protected final PeerCred mPeerCred;
 
-    /** The {@link OutputStream} implementation for the {@link LocalClientSocket}. */
     @NonNull protected final SocketOutputStream mOutputStream;
 
-    /** The {@link InputStream} implementation for the {@link LocalClientSocket}. */
     @NonNull protected final SocketInputStream mInputStream;
 
-    /**
-     * Create an new instance of {@link LocalClientSocket}.
-     *
-     * @param localSocketManager The {@link #mLocalSocketManager} value.
-     * @param fd The {@link #mFD} value.
-     * @param peerCred The {@link #mPeerCred} value.
-     */
+    /** Create a new instance; the socket's creation time (used for the deadline) is set now. */
     LocalClientSocket(@NonNull LocalSocketManager localSocketManager, int fd, @NonNull PeerCred peerCred) {
         mLocalSocketManager = localSocketManager;
         mLocalSocketRunConfig = localSocketManager.getLocalSocketRunConfig();
@@ -64,8 +53,6 @@ public class LocalClientSocket implements Closeable {
         mPeerCred.fillPeerCred(localSocketManager.getContext());
     }
 
-
-    /** Close client socket. */
     public synchronized Error closeClientSocket(boolean logErrorMessage) {
         try {
             close();
@@ -79,12 +66,11 @@ public class LocalClientSocket implements Closeable {
         return null;
     }
 
-    /** Close client socket that exists at fd. */
+    /** Close the client socket that exists at {@code fd}. */
     public static void closeClientSocket(@NonNull LocalSocketManager localSocketManager, int fd) {
         new LocalClientSocket(localSocketManager, fd, new PeerCred()).closeClientSocket(true);
     }
 
-    /** Implementation for {@link Closeable#close()} to close client socket. */
     @Override
     public void close() throws IOException {
         if (mFD >= 0) {
@@ -98,27 +84,15 @@ public class LocalClientSocket implements Closeable {
         }
     }
 
-
     /**
-     * Attempts to read up to data buffer length bytes from file descriptor into the data buffer.
-     * On success, the number of bytes read is returned (zero indicates end of file) in bytesRead.
-     * It is not an error if bytesRead is smaller than the number of bytes requested; this may happen
-     * for example because fewer bytes are actually available right now (maybe because we were close
-     * to end-of-file, or because we are reading from a pipe), or because read() was interrupted by
-     * a signal.
+     * Read up to {@code data.length} bytes into {@code data}; the count is returned in
+     * {@code bytesRead} (0 = EOF). A short read is not an error — fewer bytes may be available,
+     * or {@code read()} was interrupted by a signal.
      *
-     * If while reading the {@link #mCreationTime} + the milliseconds returned by
-     * {@link LocalSocketRunConfig#getDeadline()} elapses but all the data has not been read, an
-     * error would be returned.
+     * <p>Fails if {@link #mCreationTime} + {@link LocalSocketRunConfig#getDeadline()} elapses
+     * before the data is read.
      *
-     * This is a wrapper for {@link LocalSocketManager#read(String, int, byte[], long)}, which can
-     * be called instead if you want to get access to errno int value instead of {@link JniResult}
-     * error {@link String}.
-     *
-     * @param data The data buffer to read bytes into.
-     * @param bytesRead The actual bytes read.
-     * @return Returns the {@code error} if reading was not successful containing {@link JniResult}
-     * error {@link String}, otherwise {@code null}.
+     * @return an error on failure, otherwise {@code null}.
      */
     public Error read(@NonNull byte[] data, MutableInt bytesRead) {
         bytesRead.value = 0;
@@ -141,19 +115,10 @@ public class LocalClientSocket implements Closeable {
     }
 
     /**
-     * Attempts to send data buffer to the file descriptor.
+     * Send the data buffer to the file descriptor. Fails if {@link #mCreationTime} +
+     * {@link LocalSocketRunConfig#getDeadline()} elapses before all data is sent.
      *
-     * If while sending the {@link #mCreationTime} + the milliseconds returned by
-     * {@link LocalSocketRunConfig#getDeadline()} elapses but all the data has not been sent, an
-     * error would be returned.
-     *
-     * This is a wrapper for {@link LocalSocketManager#send(String, int, byte[], long)}, which can
-     * be called instead if you want to get access to errno int value instead of {@link JniResult}
-     * error {@link String}.
-     *
-     * @param data The data buffer containing bytes to send.
-     * @return Returns the {@code error} if sending was not successful containing {@link JniResult}
-     * error {@link String}, otherwise {@code null}.
+     * @return an error on failure, otherwise {@code null}.
      */
     public Error send(@NonNull byte[] data) {
         if (mFD < 0) {
@@ -173,16 +138,11 @@ public class LocalClientSocket implements Closeable {
     }
 
     /**
-     * Attempts to read all the bytes available on {@link SocketInputStream} and appends them to
-     * {@code data} {@link StringBuilder}.
+     * Read all available bytes from {@link SocketInputStream} into {@code data}.
      *
-     * This is a wrapper for {@link #read(byte[], MutableInt)} called via {@link SocketInputStream#read()}.
-     *
-     * @param data The data {@link StringBuilder} to append the bytes read into.
-     * @param closeStreamOnFinish If set to {@code true}, then underlying input stream will closed
-     *                            and further attempts to read from socket will fail.
-     * @return Returns the {@code error} if reading was not successful containing {@link JniResult}
-     * error {@link String}, otherwise {@code null}.
+     * @param closeStreamOnFinish if {@code true}, the underlying input stream is closed and
+     *                            further reads from the socket will fail.
+     * @return an error on failure, otherwise {@code null}.
      */
     public Error readDataOnInputStream(@NonNull StringBuilder data, boolean closeStreamOnFinish) {
         int c;
@@ -213,15 +173,11 @@ public class LocalClientSocket implements Closeable {
     }
 
     /**
-     * Attempts to send all the bytes passed to {@link SocketOutputStream} .
+     * Write all of {@code data} to {@link SocketOutputStream}.
      *
-     * This is a wrapper for {@link #send(byte[])} called via {@link SocketOutputStream#write(int)}.
-     *
-     * @param data The {@link String} bytes to send.
-     * @param closeStreamOnFinish If set to {@code true}, then underlying output stream will closed
-     *                            and further attempts to send to socket will fail.
-     * @return Returns the {@code error} if sending was not successful containing {@link JniResult}
-     * error {@link String}, otherwise {@code null}.
+     * @param closeStreamOnFinish if {@code true}, the underlying output stream is closed and
+     *                            further sends to the socket will fail.
+     * @return an error on failure, otherwise {@code null}.
      */
     public Error sendDataToOutputStream(@NonNull String data, boolean closeStreamOnFinish) {
 
@@ -259,8 +215,8 @@ public class LocalClientSocket implements Closeable {
     }
 
     /**
-     * Get available bytes on {@link #mInputStream} and optionally check if value returned by
-     * {@link LocalSocketRunConfig#getDeadline()} has passed.
+     * Get available bytes on {@link #mInputStream}; optionally returns {@code null} (not an error)
+     * when the run-config deadline has already passed.
      */
     public Error available(MutableInt available, boolean checkDeadline) {
         available.value = 0;
@@ -284,9 +240,7 @@ public class LocalClientSocket implements Closeable {
         return null;
     }
 
-
-
-    /** Set {@link LocalClientSocket} receiving (SO_RCVTIMEO) timeout to value returned by {@link LocalSocketRunConfig#getReceiveTimeout()}. */
+    /** Set SO_RCVTIMEO to {@link LocalSocketRunConfig#getReceiveTimeout()}. */
     public Error setReadTimeout() {
         if (mFD >= 0) {
             JniResult result = LocalSocketManager.setSocketReadTimeout(mLocalSocketRunConfig.getLogTitle() + " (client)",
@@ -299,7 +253,7 @@ public class LocalClientSocket implements Closeable {
         return null;
     }
 
-    /** Set {@link LocalClientSocket} sending (SO_SNDTIMEO) timeout to value returned by {@link LocalSocketRunConfig#getSendTimeout()}. */
+    /** Set SO_SNDTIMEO to {@link LocalSocketRunConfig#getSendTimeout()}. */
     public Error setWriteTimeout() {
         if (mFD >= 0) {
             JniResult result = LocalSocketManager.setSocketSendTimeout(mLocalSocketRunConfig.getLogTitle() + " (client)",
@@ -312,14 +266,12 @@ public class LocalClientSocket implements Closeable {
         return null;
     }
 
-
-
     /** Get {@link #mFD} for the client socket. */
     public int getFD() {
         return mFD;
     }
 
-    /** Set {@link #mFD}. Value must be greater than 0 or -1. */
+    /** Store {@code fd}; values below 0 are normalized to -1 (closed). */
     private void setFD(int fd) {
         if (fd >= 0)
             mFD = fd;
@@ -359,8 +311,6 @@ public class LocalClientSocket implements Closeable {
         return new InputStreamReader(getInputStream());
     }
 
-
-
     /** Get a log {@link String} for the {@link LocalClientSocket}. */
     @NonNull
     public String getLogString() {
@@ -391,10 +341,6 @@ public class LocalClientSocket implements Closeable {
         return markdownString.toString();
     }
 
-
-
-
-
     /** Wrapper class to allow pass by reference of int values. */
     public static final class MutableInt {
         public int value;
@@ -403,8 +349,6 @@ public class LocalClientSocket implements Closeable {
             this.value = value;
         }
     }
-
-
 
     /** The {@link InputStream} implementation for the {@link LocalClientSocket}. */
     protected class SocketInputStream extends InputStream {
@@ -454,8 +398,6 @@ public class LocalClientSocket implements Closeable {
             return available.value;
         }
     }
-
-
 
     /** The {@link OutputStream} implementation for the {@link LocalClientSocket}. */
     protected class SocketOutputStream extends OutputStream {

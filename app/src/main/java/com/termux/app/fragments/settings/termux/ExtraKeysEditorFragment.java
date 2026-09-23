@@ -112,7 +112,6 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
     private TermuxColorSchemeManager mColorSchemeManager;
     private int mCachedSchemeBg, mCachedButtonBg, mCachedButtonActiveBg, mCachedButtonText, mCachedEdgeGray;
 
-
     private ExtraKeysView.EditorMode mCurrentMode = ExtraKeysView.EditorMode.ASSIGN;
     @Nullable
     private TextView mHintTextView;
@@ -272,19 +271,15 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
         SwitchPreferenceCompat compactPref =
             findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE);
         if (compactPref != null) {
-            // The default is device-dependent (phones on, tablets off) and a static
-            // app:defaultValue cannot express it, so seed the switch from the same getter the panel
-            // asks — otherwise a phone would show the switch off while its panel folds. Writing it
-            // here only happens the first time (the stored value wins from then on) and keeps the
-            // screen and the live panel in step; see DisplayPreferencesFragment's orientation.
+            // Default is device-dependent (phones on, tablets off) and app:defaultValue cannot
+            // express it — seed from the same getter the panel uses, or a phone shows the switch
+            // off while its panel folds. Stored value wins after the first write.
             compactPref.setChecked(mPrefs.isExtraKeysCompactLandscapeEnabled(requireContext()));
 
             compactPref.setOnPreferenceChangeListener((preference, newValue) -> {
                 mPrefs.setExtraKeysCompactLandscapeEnabled((Boolean) newValue);
-                // Nothing in this screen shows the fold: the editable grid is the stored layout and
-                // looks the same either way, and the fold only exists in landscape. So this is purely
-                // "save it and tell the live panel" — a styling reload is the path that carries the
-                // preference into it, without leaving the settings.
+                // Nothing on this screen shows the fold — just save and push the preference to the
+                // live panel via a styling reload.
                 TermuxActivity.updateTermuxActivityStyling(requireContext(), false);
                 return true;
             });
@@ -377,7 +372,6 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
 
         if (mPrefixEdit != null) {
             mPrefixEdit.setOnFocusChangeListener((v, hasFocus) -> {
-                // Commit prefixes when the field loses focus
                 if (!hasFocus && mCurrentProfile != null) save();
             });
         }
@@ -793,7 +787,6 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             KeyCell src = mGrid[vr + fromRow][vc + fromCol];
             KeyCell dst = mGrid[vr + toRow][vc + toCol];
 
-            // Swap all 5 fields between source and destination
             List<String> tmpTap = src.tap;
             List<String> tmpSwipeUp = src.swipeUp;
             List<String> tmpSwipeDown = src.swipeDown;
@@ -849,8 +842,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
             ? ExtraKeysView.SpecialButtonMode.HOLD
             : ExtraKeysView.SpecialButtonMode.STICKY);
 
-        // C5: derive the terminal color scheme once and cache it (see mColorSchemeReady). Recomputing
-        // on every preview rebuild — including the getResources().getStringArray() reads — is wasted work.
+        // C5: derive once and cache — see mColorSchemeReady.
         if (!mColorSchemeReady) {
             boolean isNight = ThemeUtils.isNightModeEnabled(requireContext());
             // The light scheme's values live in termux-shared, next to the picker that previews
@@ -1224,11 +1216,9 @@ try {
     /**
      * Persist the current editor grid.
      *
-     * @param prebuiltJson a JSON string already produced by {@link #buildJsonMatrix()} (e.g. the
-     *                     value returned by {@link #rebuildPreview()}), or {@code null} to build it
-     *                     here. C6: callers that have just rebuilt the preview reuse that JSON instead
-     *                     of parsing the grid a second time. The redundant re-parse validation is
-     *                     dropped — {@link #buildJsonMatrix()} always emits a valid JSONArray.
+     * @param prebuiltJson JSON already produced by {@link #buildJsonMatrix()} (e.g. from
+     *                     {@link #rebuildPreview()}), or {@code null} to build here — avoids a
+     *                     second parse (C6).
      */
     private void save(@Nullable String prebuiltJson) {
         String json = prebuiltJson;

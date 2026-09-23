@@ -24,23 +24,18 @@ import java.util.regex.Pattern;
  * optionally rescaled with {@code app:valueDivisor} (the extra-keys button margin slider counts
  * tenths of a dp, so {@code app:valueDivisor="10"} renders 15 as {@code 1.5 dp}).
  *
- * <p>Units matter here because the sliders on the Display screen are not all the same kind of
- * number: the terminal font size and the blur radius are raw pixels, the transparency sliders are
- * percentages and the terminal margins are dp. A bare {@code 12} next to a slider says nothing.
+ * <p>Units matter: the Display-screen sliders are not all the same kind of number — font size
+ * and blur radius are pixels, transparency is percent, terminal margins are dp. A bare
+ * {@code 12} next to a slider says nothing.
  *
  * <p><b>Why a {@link TextWatcher}.</b> {@code SeekBarPreference} owns the label and rewrites it
- * itself from {@code updateLabelValue(int)} — a package-private method, so a subclass cannot
- * override it, and the progress callback is a private inner listener that cannot be intercepted
- * either. The label view ({@code androidx.preference.R.id.seekbar_value}) is therefore the only
- * hook that sees <em>every</em> update: a drag ({@code onProgressChanged}), a programmatic
- * {@code setValue} from a fragment, {@code setMin}/{@code setMax}, and every rebind of the recycled
- * row. The watcher normalises whatever text lands there back into "number + unit"; it never touches
- * the preference's own value, which is what {@code getValue()} and the change listeners use.
- *
- * <p>Rows are recycled by {@code RecyclerView}, so the same label view is bound to different
- * preferences over time; the watcher installed by the previous bind is detached first (its identity
- * is parked in the {@code seekbar_value_watcher_tag} view tag) so two preferences can never fight
- * over one label.
+ * itself from package-private {@code updateLabelValue(int)} (a subclass cannot override it; the
+ * progress callback is a private inner listener too). The label view
+ * ({@code androidx.preference.R.id.seekbar_value}) is the only hook that sees <em>every</em>
+ * update: drag, programmatic {@code setValue}, {@code setMin}/{@code setMax}, and every rebind of
+ * the recycled row. The watcher normalises whatever text lands there into "number + unit"; it
+ * never touches the preference's own value. Rows are recycled, so the previous bind's watcher is
+ * detached first (parked in the {@code seekbar_value_watcher_tag} view tag).
  *
  * <p>Without {@code app:valueUnit} and {@code app:valueDivisor} the class behaves exactly like
  * {@link SeekBarPreference}.

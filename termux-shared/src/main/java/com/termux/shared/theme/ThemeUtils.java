@@ -28,15 +28,12 @@ public class ThemeUtils {
     /**
      * Will return true if the device's *system* (not app-overridden) night mode is enabled.
      *
-     * <p>Reads the {@link Resources#getSystem()} configuration instead of any Activity or
-     * Application context. This is the authoritative source for {@link NightMode#SYSTEM}, since
-     * the app simply follows the device's day/night setting. It is immune to the staleness that
-     * {@code context.getResources().getConfiguration().uiMode} can exhibit for Application/Activity
-     * contexts: AppCompatDelegate applies night mode to the *activity* via
-     * {@code applyOverrideConfiguration}, which is never propagated to the Application's base
-     * {@link Resources}, so an Application-context read taken right after a {@code recreate()} can
-     * still report the previous night state. Using the system resources guarantees the terminal
-     * color scheme matches the activity/toolbar theme (which is driven by the activity config).</p>
+     * <p>Reads {@link Resources#getSystem()} rather than any Activity/Application context: that is
+     * the authoritative source for {@link NightMode#SYSTEM}. AppCompatDelegate applies night mode
+     * to the activity via {@code applyOverrideConfiguration}, which never reaches the Application's
+     * base {@link Resources}, so an Application-context uiMode read taken right after a
+     * {@code recreate()} can still report the previous night state — and the terminal colour
+     * scheme would then disagree with the activity/toolbar theme.</p>
      */
     public static boolean isSystemNightModeEnabled() {
         final Configuration systemConfig = Resources.getSystem().getConfiguration();
@@ -56,7 +53,6 @@ public class ThemeUtils {
             return false;
         }
     }
-
 
     /** Get {@link #ATTR_TEXT_COLOR_PRIMARY} value being used by current theme. */
     public static int getTextColorPrimary(Context context) {
@@ -78,22 +74,19 @@ public class ThemeUtils {
         return getSystemAttrColor(context, ATTR_TEXT_COLOR_LINK);
     }
 
-
-
     /** Wrapper for {@link #getSystemAttrColor(Context, int, int)} with {@code def} value {@code 0}. */
     public static int getSystemAttrColor(Context context, int attr) {
         return getSystemAttrColor(context, attr, 0);
     }
 
     /**
-     * Get a values defined by the current heme listed in attrs.
+     * Get a value defined by the current theme for the given attr.
      *
-     * @param context The context for operations. It must be an instance of {@link Activity} or
-     *               {@link AppCompatActivity} or one with which a theme attribute can be got.
-     *                Do no use application context.
+     * @param context an {@link Activity}/{@link AppCompatActivity} context — do not use the
+     *                application context, whose theme lacks the activity attributes.
      * @param attr The attr id.
      * @param def The def value to return.
-     * @return Returns the {@code attr} value if found, otherwise {@code def}.
+     * @return the {@code attr} value if found, otherwise {@code def}.
      */
     public static int getSystemAttrColor(Context context, int attr, int def) {
         TypedArray typedArray = context.getTheme().obtainStyledAttributes(new int[] { attr });

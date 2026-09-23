@@ -15,8 +15,6 @@ public class ExtraKeysConstants {
         "BKSP", "DEL",
         "PGUP", "PGDN");
 
-
-
     /** Defines the {@link KeyEvent} for common keys. */
     public static Map<String, Integer> PRIMARY_KEY_CODES_FOR_STRINGS = new HashMap<String, Integer>() {{
         put("SPACE", KeyEvent.KEYCODE_SPACE);
@@ -48,8 +46,6 @@ public class ExtraKeysConstants {
         put("F12", KeyEvent.KEYCODE_F12);
     }};
 
-
-
     /**
      * HashMap that implements Python dict.get(key, default) function.
      * Default java.util .get(key) is then the same as .get(key, null);
@@ -64,8 +60,6 @@ public class ExtraKeysConstants {
     }
 
     public static class ExtraKeyDisplayMap extends CleverMap<String, String> {}
-
-
 
     /*
      * Multiple maps are available to quickly change
@@ -96,7 +90,7 @@ public class ExtraKeysConstants {
             put("SCROLL", "⇳"); // U+21F3
             // Autofill labels speak the panel's own language: every other action key here is a
             // single symbol from the ISO 9995 / Unicode keyboard set (↲ ↹ ⌫ ⌦ ☰ ⌨ ⎘ ⇳ ⎈ ⎇ ⎋). A
-            // plain "@" or "***" instead reads as a character key, which these buttons are not -
+            // plain "@" or "***" instead reads as a character key, which these buttons are not —
             // pressing one summons the autofill popup, it does not type anything. Both labels are
             // therefore one codepoint each, which also keeps them on the base-font-size path in
             // ExtraKeysView (isSingleChar); a multi-character label takes the shrink/ellipsize
@@ -105,29 +99,26 @@ public class ExtraKeysConstants {
             // The obvious glyphs, U+1F464 👤 and U+1F511 🔑, are emoji-only: present in
             // NotoColorEmoji.ttf and in NO text font on the device (verified against the system
             // fonts' cmap tables), and U+FE0E (VS15) cannot rescue them because no text
-            // presentation exists for the platform to select. So:
+            // presentation exists. So:
             //
-            //   U+26BF ⚿ SQUARED KEY - the only monochrome key glyph on the device, covered by
+            //   U+26BF ⚿ SQUARED KEY — the only monochrome key glyph on the device, covered by
             //            NotoSansSymbols-Regular-Subsetted.ttf and absent from NotoColorEmoji, so
             //            it cannot regress into colour.
-            //   U+263A ☺ WHITE SMILING FACE, followed by U+FE0E (VS15) - the unfilled counterpart
-            //            of U+263B ☻, standing in for "who you are" because no user/person
-            //            silhouette exists in any text font.
+            //   U+263A ☺ WHITE SMILING FACE + U+FE0E (VS15) — unfilled counterpart of U+263B ☻,
+            //            standing in for "who you are" because no user/person silhouette exists
+            //            in any text font.
             //
-            // Why the variation selector is not optional here. Font fallback on Android 13 walks
-            // the families in /system/etc/fonts.xml IN ORDER and takes the first that covers the
-            // codepoint, and that file lists the emoji families BEFORE the second symbols subset:
-            //
-            //     <family>          NotoSansSymbols-Regular-Subsetted.ttf    (before emoji)
-            //     <family und-Zsye> NotoColorEmoji.ttf                      (emoji)
-            //     <family und-Zsym> NotoSansSymbols-Regular-Subsetted2.ttf  (AFTER emoji)
-            //
-            // U+263A is covered only by that second subset plus NotoColorEmoji, so without a
+            // Why the variation selector is not optional. Font fallback on Android 13 walks
+            // /system/etc/fonts.xml IN ORDER and takes the first family that covers the codepoint;
+            // that file lists the emoji families BEFORE the second symbols subset:
+            //     NotoSansSymbols-Regular-Subsetted.ttf    (before emoji)
+            //     NotoColorEmoji.ttf                       (emoji)
+            //     NotoSansSymbols-Regular-Subsetted2.ttf   (AFTER emoji)
+            // U+263A is covered only by the second subset plus NotoColorEmoji, so without a
             // selector it resolves to the emoji font and paints a YELLOW smiley (confirmed on
-            // device). U+FE0E asks for the text presentation, which routes it back to the symbols
-            // subset. U+263B ☻ needs no selector because it lives in the FIRST subset, ahead of
-            // the emoji families. If a future ROM stops honouring VS15, drop the selector and go
-            // back to the filled U+263B ☻, which is monochrome without any help.
+            // device). U+FE0E routes it back to the symbols subset. U+263B ☻ needs no selector
+            // because it lives in the FIRST subset, ahead of the emoji families. If a future ROM
+            // stops honouring VS15, drop the selector and go back to filled U+263B ☻.
             put("AUTOFILL_USERNAME", "☺\uFE0E"); // U+263A ☺ + U+FE0E, unfilled, forced text
             put("AUTOFILL_PASSWORD", "⚿"); // U+26BF ⚿ SQUARED KEY
         }};
@@ -151,7 +142,6 @@ public class ExtraKeysConstants {
 
         public static final ExtraKeyDisplayMap NOT_KNOWN_ISO_CHARACTERS = new ExtraKeyDisplayMap() {{
             // Control chars that are more clear as text // https://en.wikipedia.org/wiki/{Function_key, Alt_key, Control_key, Esc_key}
-            // put("FN", "FN"); // no ISO character exists
             put("CTRL", "⎈"); // ISO character "U+2388 ⎈ HELM SYMBOL" is unknown to people and never printed on computers, however "U+25C7 ◇ WHITE DIAMOND" is a nice presentation, and "^" for terminal app and mac is often used
             put("ALT", "⎇"); // ISO character "U+2387 ⎇ ALTERNATIVE KEY SYMBOL'" is unknown to people and only printed as the Option key "⌥" on Mac computer
             put("ESC", "⎋"); // ISO character "U+238B ⎋ BROKEN CIRCLE WITH NORTHWEST ARROW" is unknown to people and not often printed on computers
@@ -168,9 +158,9 @@ public class ExtraKeysConstants {
         public static final ExtraKeyDisplayMap FULL_ISO_CHAR_DISPLAY = new ExtraKeyDisplayMap() {{
             putAll(CLASSIC_ARROWS_DISPLAY);
             putAll(WELL_KNOWN_CHARACTERS_DISPLAY);
-            putAll(LESS_KNOWN_CHARACTERS_DISPLAY); // NEW
+            putAll(LESS_KNOWN_CHARACTERS_DISPLAY);
             putAll(NICER_LOOKING_DISPLAY);
-            putAll(NOT_KNOWN_ISO_CHARACTERS); // NEW
+            putAll(NOT_KNOWN_ISO_CHARACTERS);
         }};
 
         /**
@@ -178,8 +168,6 @@ public class ExtraKeysConstants {
          */
         public static final ExtraKeyDisplayMap ARROWS_ONLY_CHAR_DISPLAY = new ExtraKeyDisplayMap() {{
             putAll(CLASSIC_ARROWS_DISPLAY);
-            // putAll(wellKnownCharactersDisplay); // REMOVED
-            // putAll(lessKnownCharactersDisplay); // REMOVED
             putAll(NICER_LOOKING_DISPLAY);
         }};
 
@@ -189,7 +177,7 @@ public class ExtraKeysConstants {
         public static final ExtraKeyDisplayMap LOTS_OF_ARROWS_CHAR_DISPLAY = new ExtraKeyDisplayMap() {{
             putAll(CLASSIC_ARROWS_DISPLAY);
             putAll(WELL_KNOWN_CHARACTERS_DISPLAY);
-            putAll(LESS_KNOWN_CHARACTERS_DISPLAY); // NEW
+            putAll(LESS_KNOWN_CHARACTERS_DISPLAY);
             putAll(NICER_LOOKING_DISPLAY);
         }};
 
@@ -204,8 +192,6 @@ public class ExtraKeysConstants {
         }};
 
     }
-
-
 
     /**
      * Aliases for the keys
@@ -222,7 +208,6 @@ public class ExtraKeysConstants {
         put("LT", "LEFT");
         put("RT", "RIGHT");
         put("DN", "DOWN");
-        // put("UP", "UP"); well, "UP" is already two letters
 
         put("PAGEUP", "PGUP");
         put("PAGE_UP", "PGUP");

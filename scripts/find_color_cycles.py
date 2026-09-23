@@ -16,7 +16,6 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(ROOT, "app", "src", "main", "res")
 
-
 def collect_color_files():
     out = []
     for dirpath, _, files in os.walk(RES):
@@ -27,7 +26,6 @@ def collect_color_files():
                     out.append(os.path.join(dirpath, fn))
     return out
 
-
 def refs_in(text):
     refs = []
     t = (text or "").strip()
@@ -36,7 +34,6 @@ def refs_in(text):
     elif t.startswith("?attr/"):
         refs.append("attr:" + t[len("?attr/"):])
     return refs
-
 
 def main():
     graph = {}
@@ -81,7 +78,6 @@ def main():
         sys.exit(2)
     print("OK: no color cycles")
     sys.exit(0)
-
 
 if __name__ == "__main__":
     main()

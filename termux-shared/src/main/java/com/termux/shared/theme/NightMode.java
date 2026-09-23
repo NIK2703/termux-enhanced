@@ -6,13 +6,13 @@ import androidx.appcompat.app.AppCompatDelegate;
 
 import com.termux.shared.logger.Logger;
 
-/** The modes used by to decide night mode for themes. */
+/** The modes used to decide night mode for themes. */
 public enum NightMode {
 
     /** Night theme should be enabled. */
     TRUE("true", AppCompatDelegate.MODE_NIGHT_YES),
 
-    /** Dark theme should be enabled. */
+    /** Night theme should be disabled. */
     FALSE("false", AppCompatDelegate.MODE_NIGHT_NO),
 
     /**
@@ -42,7 +42,6 @@ public enum NightMode {
         return mode;
     }
 
-
     /** Get {@link NightMode} for {@code name} if found, otherwise {@code null}. */
     @Nullable
     public static NightMode modeOf(String name) {
@@ -61,7 +60,6 @@ public enum NightMode {
         NightMode nightMode = modeOf(name);
         return nightMode != null ? nightMode : def;
     }
-
 
     /** Set {@link #APP_NIGHT_MODE}. */
     public static void setAppNightMode(@Nullable String name) {

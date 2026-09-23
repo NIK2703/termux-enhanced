@@ -62,21 +62,18 @@ public class TermuxAmSocketServer {
 
     public static final String TITLE = "TermuxAm";
 
-    /** The static instance for the {@link TermuxAmSocketServer} {@link LocalSocketManager}. */
+    /** Static instance of the {@link LocalSocketManager}, or {@code null} when not running. */
     private static LocalSocketManager termuxAmSocketServer;
 
-    /** Whether {@link TermuxAmSocketServer} is enabled and running or not. */
+    /** Whether the server is enabled and running. */
     @Keep
     protected static Boolean TERMUX_APP_AM_SOCKET_SERVER_ENABLED;
 
     /**
-     * Setup the {@link AmSocketServer} {@link LocalServerSocket} and start listening for
-     * new {@link LocalClientSocket} if enabled.
-     *
-     * @param context The {@link Context} for {@link LocalSocketManager}.
+     * Set up the {@link AmSocketServer} and start listening if enabled by
+     * {@link TermuxPropertyConstants#KEY_RUN_TERMUX_AM_SOCKET_SERVER}.
      */
     public static void setupTermuxAmSocketServer(@NonNull Context context) {
-        // Start termux-am-socket server if enabled by user
         boolean enabled = false;
         if (TermuxAppSharedProperties.getProperties().shouldRunTermuxAmSocketServer()) {
             Logger.logDebug(LOG_TAG, "Starting " + TITLE + " socket server since its enabled");
@@ -140,22 +137,14 @@ public class TermuxAmSocketServer {
         }
     }
     
-    /**
-     * Get {@link #termuxAmSocketServer}.
-     */
     public static synchronized LocalSocketManager getTermuxAmSocketServer() {
         return termuxAmSocketServer;
     }
 
     /**
-     * Show an error notification on the {@link TermuxConstants#TERMUX_PLUGIN_COMMAND_ERRORS_NOTIFICATION_CHANNEL_ID}
-     * {@link TermuxConstants#TERMUX_PLUGIN_COMMAND_ERRORS_NOTIFICATION_CHANNEL_NAME} with a call
-     * to {@link TermuxPluginUtils#sendPluginCommandErrorNotification(Context, String, CharSequence, String, String)}.
+     * Show a plugin error notification for a socket server error.
      *
-     * @param context The {@link Context} to send the notification with.
-     * @param error The {@link Error} generated.
-     * @param localSocketRunConfig The {@link LocalSocketRunConfig} for {@link LocalSocketManager}.
-     * @param clientSocket The optional {@link LocalClientSocket} for which the error was generated.
+     * @param clientSocket optional client socket the error came from.
      */
     public static synchronized void showErrorNotification(@NonNull Context context, @NonNull Error error,
                                                           @NonNull LocalSocketRunConfig localSocketRunConfig,
@@ -165,24 +154,18 @@ public class TermuxAmSocketServer {
             LocalSocketManager.getErrorMarkdownString(error, localSocketRunConfig, clientSocket));
     }
 
-
-
     public static Boolean getTermuxAppAMSocketServerEnabled(@NonNull Context currentPackageContext) {
         boolean isTermuxApp = TermuxConstants.TERMUX_PACKAGE_NAME.equals(currentPackageContext.getPackageName());
         if (isTermuxApp) {
             return TERMUX_APP_AM_SOCKET_SERVER_ENABLED;
         } else {
-            // Currently, unsupported since plugin app processes don't know that value is set in termux
-            // app process TermuxAmSocketServer class. A binder API or a way to check if server is actually
-            // running needs to be used. Long checks would also not be possible on main application thread
+            // Unsupported for plugin processes: they cannot see this process's static field.
+            // A binder API or an actual "is it running" probe would be needed; long checks
+            // are also not viable on the main thread.
             return null;
         }
 
     }
-
-
-
-
 
     /** Enhanced implementation for {@link AmSocketServer.AmSocketServerClient} for {@link TermuxAmSocketServer}. */
     public static class TermuxAmSocketServerClient extends AmSocketServer.AmSocketServerClient {
@@ -219,8 +202,6 @@ public class TermuxAmSocketServer {
                 localSocketManager.getLocalSocketRunConfig(), clientSocket);
             super.onDisallowedClientConnected(localSocketManager, clientSocket, error);
         }
-
-
 
         @Override
         protected String getLogTag() {

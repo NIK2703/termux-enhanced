@@ -1,46 +1,21 @@
 package com.termux.app.terminal;
 
 /**
- * Pure geometry for the directory-picker overlay that turns the trailing placeholder page into a
- * vertical "open a new session in this directory" menu.
+ * Pure geometry for the directory-picker overlay: turns the trailing placeholder page into a
+ * vertical "open a new session in this directory" menu. No Android types, no state — a single
+ * static function over numbers, so it is unit-testable on the JVM.
  *
- * <p>No Android types, no state — a single static function over numbers, so the whole placement
- * model is unit-testable on the JVM.
+ * <p>The dragging finger latches a vertical anchor {@code yA}: nothing is drawn at {@code yA}
+ * itself, the directory list opens <em>upwards</em> ending one gap above the finger, and the
+ * "+ new session" hint sits above the list. There is deliberately no downward placement — the
+ * menu lives in the space the finger is not covering, and the newest entry always sits nearest
+ * the finger (see {@link Result#itemIndexAt(int)}), which makes the gesture predictable.
  *
- * <h2>The model</h2>
- *
- * <p>The finger that drags the placeholder page in fixes a vertical anchor {@code yA} the moment the
- * page appears, and the menu is laid out around it:
- * <ul>
- *   <li><b>nothing</b> is drawn at {@code yA} itself — it is the neutral zone;</li>
- *   <li>the <b>directory list</b> always opens <em>upwards</em>, ending one gap above the finger;</li>
- *   <li>the <b>"+ new session" hint</b> is always above the list, centred in the band between the
- *       list and the top edge.</li>
- * </ul>
- *
- * <p>There is deliberately no downward placement. The finger is the thing doing the pointing, so the
- * menu lives in the space the finger is <em>not</em> covering; and with the list always on the same
- * side, the newest entry is always the one nearest the finger (see
- * {@link Result#itemIndexAt(int)}), which makes the gesture predictable.
- *
- * <h2>Fixed row height, adaptive entry count</h2>
- *
- * <p>{@code rowHeight} is a <em>constant</em> — rows never stretch to fill the space and never
- * compress to make more fit. The only thing that adapts is how many entries are offered:
- *
- * <pre>    rows = min(n, floor(availUp / rowHeight))</pre>
- *
- * <p>A row is therefore always exactly the same size and the list never leaves the page; a tight
- * placement simply shows fewer (newer) directories. Because the entries are ordered newest first,
- * cutting the tail drops the <em>oldest</em> ones.
- *
- * <h2>Zero entries is a valid outcome</h2>
- *
- * <p>When the finger sits so high that not even one row fits above it, the list is dropped entirely
- * — {@link Mode#NONE}, {@code rows == 0} — and the hint falls back to the centre of the page, which
- * is exactly where the plain placeholder has always drawn it. So the page degrades into the familiar
- * "+ new session" screen rather than into a cramped or overflowing list. Nothing is ever clamped
- * into a position it does not fit.
+ * <p>{@code rowHeight} is constant; only the entry count adapts:
+ * {@code rows = min(n, floor(availUp / rowHeight))}. Entries are newest-first, so a tight
+ * placement drops the oldest. When not even one row fits, the list is dropped entirely
+ * ({@link Mode#NONE}) and the hint falls back to the historic centred position — nothing is
+ * clamped into a position it does not fit.
  */
 public final class DirectoryPickerLayout {
 
@@ -85,15 +60,9 @@ public final class DirectoryPickerLayout {
         }
 
         /**
-         * The row containing {@code pageY}.
-         *
-         * <p>Lives here, next to the placement, so the drawing and the hit-testing can never drift
-         * apart: both read the same {@link #listTop} and {@link #rowHeight}. Entries dropped by the
-         * truncation are outside {@link #rows} and therefore never selectable.
-         *
-         * @return the row index, or -1 when the position is not on the list — the neutral zone at
-         *         the anchor, the gap below it, the hint band, and the empty space above all land
-         *         here.
+         * The row containing {@code pageY}, or -1 when not on the list (anchor zone, gap,
+         * hint band, empty space). Lives here so drawing and hit-testing share the same
+         * {@link #listTop}/{@link #rowHeight}; truncated entries lie outside {@link #rows}.
          */
         public int indexAt(float pageY) {
             if (!hasList() || rowHeight <= 0f) return -1;
@@ -104,17 +73,11 @@ public final class DirectoryPickerLayout {
         }
 
         /**
-         * Which entry of the offered list is drawn on the row at {@code row}.
+         * Which offered entry is drawn on {@code row}: the list is newest-first but drawn
+         * upward, so the row nearest the finger (last) holds the newest entry — order is
+         * reversed relative to the data. Painter and hit-test both go through here.
          *
-         * <p>The list arrives ordered newest-first, but it is drawn above the finger, so the row
-         * <em>nearest</em> the finger is the last one. The newest entry is put there: it is the one
-         * the finger is already pointing at when the menu appears and the one a short drag reaches,
-         * so the order is reversed relative to the data.
-         *
-         * <p>Both the painter and the hit-test go through here, so what is highlighted and what is
-         * selected can never disagree about which entry a row holds.
-         *
-         * @return the index into the item list, or -1 when {@code row} is not a row of this list.
+         * @return index into the item list, or -1 when {@code row} is not a row of this list.
          */
         public int itemIndexAt(int row) {
             if (row < 0 || row >= rows) return -1;
@@ -151,9 +114,7 @@ public final class DirectoryPickerLayout {
         final float availUp = (anchorY - gap) - pad - gap - hintBlock;
         final int rows = Math.min(itemCount, (int) (availUp / rowHeight));
         if (rows < 1) {
-            // Not even one entry fits above the finger. Rather than shrink a row, push the list off
-            // the page or flip it below the finger, the list is simply not shown and the page falls
-            // back to the plain centred placeholder.
+            // No room above the finger: fall back to the plain centred placeholder (see class doc).
             return new Result(Mode.NONE, 0f, 0, 0f, 0f, centred, hintHeight);
         }
 

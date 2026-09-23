@@ -14,9 +14,7 @@ import java.util.Locale;
  * {@code DELAY_} or {@code SLEEP_} (case-insensitive) followed by a positive integer. Legacy
  * {@code SLEEP_} tokens are normalized to {@code DELAY_}.
  * <p>
- * A token may itself contain whitespace when it is a literal piece of text (a custom binding such
- * as {@code ls -la}). Such tokens are written wrapped in double quotes, e.g. {@code "ls -la" ENTER},
- * so that the whitespace belonging to the token is not mistaken for a token separator.
+ * Tokens containing whitespace are quoted in double quotes (see {@link #tokenizeMacro(String)}).
  */
 public class BindingTokenizer {
 
@@ -68,18 +66,12 @@ public class BindingTokenizer {
     }
 
     /**
-     * Split a macro binding into tokens, keeping double-quoted spans together.
+     * Split a macro binding into tokens, keeping double-quoted spans together so a literal like
+     * {@code "ls -la"} stays one token (quotes stripped).
      * <p>
-     * Termux macros are whitespace-separated token sequences, so a literal token that itself
-     * contains spaces (a custom binding such as {@code ls -la}) would otherwise be split into
-     * several tokens and lose its structure. Such tokens are written wrapped in double quotes,
-     * e.g. {@code "ls -la" ENTER}, and are returned here as one token with the quotes stripped.
-     * <p>
-     * Quoting is only honoured when the quoted span actually contains whitespace. A quoted span
-     * without whitespace (as found in hand-written configs, e.g. {@code echo "hi"}) is kept
-     * verbatim, so existing layouts keep their current meaning.
-     * <p>
-     * Unquoted bindings tokenize exactly as before, so this method is backward compatible.
+     * Quotes are honoured only when the span contains whitespace — {@code echo "hi"} keeps its
+     * quotes verbatim, so existing layouts are unchanged; unterminated quotes are literal too.
+     * Unquoted bindings tokenize exactly as before.
      *
      * @param macro the raw macro string (may be {@code null}).
      * @return a non-null list of normalized tokens.
@@ -239,12 +231,10 @@ public class BindingTokenizer {
     }
 
     /**
-     * Parse the delay value (in milliseconds) from a delay token. The value is clamped to
-     * [{@link #MIN_DELAY_MS}, {@link #MAX_DELAY_MS}]. Returns {@code 0} if the token is not a
-     * valid delay.
+     * Parse the delay value (in ms) from a delay token, clamped to
+     * [{@link #MIN_DELAY_MS}, {@link #MAX_DELAY_MS}]; {@code 0} if the token is not a valid delay.
      *
      * @param token the delay token.
-     * @return the clamped delay value, or {@code 0} if invalid.
      */
     public static int parseDelayMs(String token) {
         if (token == null) return 0;

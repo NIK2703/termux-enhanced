@@ -127,10 +127,10 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
             value -> { if (prefs != null) prefs.setBubbleOnBackgroundEnabled(value); });
         configureBubbleOnBackgroundSupport();
 
-        // --- Tabs ---
         // --- Terminal appearance (moved from Terminal screen) ---
         configureTerminalAppearancePreferences(prefs);
 
+        // --- Tabs ---
         configureTabPanelPositionPreference();
         configureTabHeightModePreference();
         configureSwipeRightmostNewTabPreference();
@@ -138,9 +138,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureDirectoryHistoryMaxPreference();
     }
 
-    // -----------------------------------------------------------------------
-    //  Terminal appearance (moved from TerminalPreferencesFragment)
-    // -----------------------------------------------------------------------
+    // Terminal appearance
 
     private void configureTerminalAppearancePreferences(TermuxAppSharedPreferences prefs) {
         configureIntEditDialog("terminal-transcript-rows",
@@ -210,28 +208,13 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     /**
-     * Terminal font-size slider.
-     *
-     * <p>It writes the same {@code fontsize} preference the pinch-to-zoom gesture writes, and its
-     * bounds come from the very constants that gesture clamps to
-     * ({@link TermuxAppSharedPreferences#getMinFontSize()} /
-     * {@link TermuxAppSharedPreferences#getMaxFontSize()}), so the slider cannot reach a size the
-     * gesture cannot. The lower bound is density-derived (4dp) and therefore cannot be a literal in
-     * the XML — it has to be applied here.
-     *
-     * <p>{@link TermuxAppSharedPreferences#FONT_SIZE_STEP} is fed to {@code setSeekBarIncrement()},
-     * which {@code SeekBarPreference} applies to keyboard/DPAD stepping only; a finger drag is left
-     * at full resolution on purpose. Snapping the dragged value would desynchronise the thumb from
-     * the number shown next to it, and every integer in the range is a size the preference accepts.
-     *
-     * <p>Deliberately <em>not</em> {@link #configureSeekBarInt(String, int, PreferenceValueSetter)}:
-     * that helper asks for an activity recreate on every value. A dedicated broadcast is sent
-     * instead, and the running terminal re-applies the size to every page it keeps bound — no
-     * recreate, and the terminal is already correct by the time the user gets back to it.
-     * {@code SeekBarPreference} commits a drag on finger release (its default
-     * {@code updatesContinuously = false}), so this is one broadcast per drag rather than one per
-     * frame; per-frame application would buy nothing anyway, because this settings screen is
-     * covering the terminal the whole time the slider is moving.
+     * Font-size slider: same {@code fontsize} bounds as the pinch gesture, so the slider cannot
+     * reach a size the gesture cannot; the density-derived (4dp) lower bound must be applied here,
+     * not in the XML. {@link TermuxAppSharedPreferences#FONT_SIZE_STEP} only affects keyboard/DPAD
+     * stepping — a finger drag stays at full resolution so thumb and number cannot desync.
+     * Deliberately <em>not</em> {@link #configureSeekBarInt}: that helper recreates the activity on
+     * every value; here one broadcast is sent on finger release (default
+     * {@code updatesContinuously = false}), not per frame.
      */
     private void configureFontSizeSeekBar(TermuxAppSharedPreferences prefs) {
         final SeekBarPreference pref = findPreference("terminal-font-size");
@@ -272,10 +255,9 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     /**
-     * Enable/disable the blur-radius slider. The slider is only usable on Android 12+ with a
-     * non-zero background transparency (there is nothing behind the terminal to blur at 0%).
-     * The radius value itself decides whether blur is on ({@code radius > 0}) or off
-     * ({@code radius == 0}), so no separate switch is needed.
+     * Enable/disable the blur-radius slider: usable only on Android 12+ with non-zero background
+     * transparency (nothing behind the terminal to blur at 0%). The radius itself ({@code > 0})
+     * decides whether blur is on, so no separate switch is needed.
      */
     private void updateBackgroundBlurPrefState(TermuxAppSharedPreferences prefs) {
         final boolean blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
@@ -315,16 +297,14 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         });
     }
 
-
     /**
      * Background-transparency slider (real device wallpaper behind the terminal).
      *
-     * Deliberately <em>not</em> {@link #configureSeekBarInt(String, int, PreferenceValueSetter)}:
-     * that helper asks for an activity recreate on every value, and recreating on every frame of
-     * a drag is unusable. Instead the value is written straight away and a styling reload
-     * <em>without</em> recreate is broadcast, so the transparency changes live.
-     * {@code TermuxActivity} still recreates itself on its own when the value crosses the 0%
-     * boundary, because {@code android:windowIsTranslucent} is a static theme attribute.
+     * Deliberately <em>not</em> {@link #configureSeekBarInt}: recreating on every frame of a drag
+     * is unusable. The value is written straight away and a styling reload <em>without</em>
+     * recreate is broadcast, so the change is live. {@code TermuxActivity} still recreates itself
+     * when the value crosses the 0% boundary, because {@code android:windowIsTranslucent} is a
+     * static theme attribute.
      */
     private void configureBackgroundTransparencySeekBar(TermuxAppSharedPreferences prefs) {
         final SeekBarPreference pref =
@@ -414,17 +394,12 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     /**
-     * Deactivate the "bubble on background" switch where the device cannot show a bubble at all.
-     *
-     * <p>The gate is {@link TermuxBubbleManager#isSupported} — the Android version, the framework's own
-     * bubble API, and the Android Go / low-RAM case — and deliberately <em>not</em> the user's per-app
-     * bubble preference: this switch is what turns the automatic bubble on, so it has to stay usable
-     * while the user is on their way to the system settings to allow bubbles for the app.
-     *
-     * <p>Deactivated, not hidden. The preference may already be on from a device where it worked, and
-     * hiding the row would leave the user with a bubble that never appears and nothing on screen to
-     * explain it. The stored value is left alone on purpose — rewriting what the user chose is not this
-     * screen's business, and the value is harmless while the feature is gated off at every entry point.
+     * Deactivate (not hide) the "bubble on background" switch where
+     * {@link TermuxBubbleManager#isSupported} is false — Android version, the framework bubble
+     * API, the Android Go / low-RAM case; deliberately <em>not</em> the user's per-app bubble
+     * preference, since this switch is what turns the automatic bubble on and must stay usable on
+     * the way to system settings. The stored value is left alone — the feature is gated off at
+     * every entry point anyway.
      */
     private void configureBubbleOnBackgroundSupport() {
         final SwitchPreferenceCompat pref = findPreference("bubble-on-background");
@@ -474,9 +449,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         });
     }
 
-    // -----------------------------------------------------------------------
-    //  Colour-scheme selection (light/dark)
-    // -----------------------------------------------------------------------
+    // Colour-scheme selection (light/dark)
 
     private void configureColorSchemePreference(String key, boolean isNight) {
         final Preference pref = findPreference(key);
@@ -501,9 +474,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
             ColorSchemeUtils.getSelectedSchemeName(isNight)));
     }
 
-    // -----------------------------------------------------------------------
-    //  Transparency-slider listeners
-    // -----------------------------------------------------------------------
+    // Transparency-slider listeners
 
     private void wireSliderListener(String key, Context context) {
         SeekBarPreference slider = findPreference(key);
@@ -514,9 +485,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         });
     }
 
-    // -----------------------------------------------------------------------
-    //  Tabs
-    // -----------------------------------------------------------------------
+    // Tabs
 
     private void configureSwipeRightmostNewTabPreference() {
         final SwitchPreferenceCompat pref = findPreference("swipe_rightmost_new_tab");

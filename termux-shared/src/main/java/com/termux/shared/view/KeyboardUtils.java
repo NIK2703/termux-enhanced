@@ -185,22 +185,12 @@ public class KeyboardUtils {
             return true;
         } else {
             /*
-             * Currently, for this case, soft keyboard will be disabled on Termux app startup and
-             * when switching back from another app. Soft keyboard can be temporarily enabled in
-             * show/hide soft keyboard toggle behaviour with keyboard toggle buttons and will continue
-             * to work when tapping on terminal view for opening and back button for closing, until
-             * Termux app is switched to another app. After returning back, keyboard will be disabled
-             * until toggle is pressed again.
-             * This may also be helpful for the Lineage OS bug where if "Show soft keyboard" toggle
-             * in "Language and Input" is disabled and Termux is started without a hardware keyboard
-             * in landscape mode, and then the keyboard is connected and phone is rotated to portrait
-             * mode and then keyboard is toggled with Termux keyboard toggle buttons, then a blank
-             * space is shown in-place of the soft keyboard. Its likely related to
-             * WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE which pushes up the view when
-             * keyboard is opened instead of the keyboard opening on top of the view (hiding stuff).
-             * If the "Show soft keyboard" toggle was disabled, then this resizing shouldn't happen.
-             * But it seems resizing does happen, but keyboard is never opened since its not supposed to.
-             * https://github.com/termux/termux-app/issues/1995#issuecomment-837080079
+             * When only-enabled-if-no-hardware is set, soft keyboard is disabled on app startup
+             * and on return from another app; toggle buttons re-enable it until the next switch.
+             * Also works around a Lineage OS bug: with "Show soft keyboard" disabled and
+             * SOFT_INPUT_ADJUST_RESIZE, rotating landscape→portrait can leave a blank space
+             * where the keyboard should be (never opens because it is disabled, but the window
+             * still resizes). https://github.com/termux/termux-app/issues/1995#issuecomment-837080079
              */
             // If soft keyboard is disabled by user only if hardware keyboard is connected
             if(isSoftKeyboardEnabledOnlyIfNoHardware) {

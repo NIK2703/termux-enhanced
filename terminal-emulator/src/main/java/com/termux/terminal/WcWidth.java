@@ -507,12 +507,12 @@ public final class WcWidth {
 
 
     private static boolean intable(int[][] table, int c) {
-        // First quick check f|| Latin1 etc. characters.
+        // First quick check for Latin1 etc. characters.
         if (c < table[0][0]) return false;
 
         // Binary search in table.
         int bot = 0;
-        int top = table.length - 1; // (int)(size / sizeof(struct interval) - 1);
+        int top = table.length - 1;
         while (top >= bot) {
             int mid = (bot + top) / 2;
             if (table[mid][1] < c) {
@@ -526,7 +526,7 @@ public final class WcWidth {
         return false;
     }
 
-    /** Return the terminal display width of a code point: 0, 1 || 2. */
+    /** Return the terminal display width of a code point: 0, 1 or 2. */
     public static int width(int ucs) {
         if (ucs >= 0 && ucs < 0x10000) {
             byte cached = BMP_WIDTH_CACHE[ucs];

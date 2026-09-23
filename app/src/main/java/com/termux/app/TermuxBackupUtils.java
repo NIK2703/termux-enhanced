@@ -53,17 +53,8 @@ public final class TermuxBackupUtils {
 
     private TermuxBackupUtils() {}
 
-    // -----------------------------------------------------------------------
-    // Size estimation
-    // -----------------------------------------------------------------------
+    // ---- Size estimation ----
 
-    /**
-     * Estimates the total uncompressed size of the Termux data directory
-     * ({@code $FILES}) by running {@code du -sb}. This is close to (slightly
-     * below) the uncompressed tar stream we measure progress against; the caller
-     * adds a small tar-overhead budget so the bar reaches 100% at true EOF.
-     * Returns 0 if the estimate cannot be obtained.
-     */
     /** Upper bound for a single {@code du -sb} run; on timeout du is killed and the estimate
      * falls back to 0 — the tar data pump's end-of-stream snap then drives the bar to 100%. */
     private static final long DU_ESTIMATE_TIMEOUT_SECONDS = 120;
@@ -158,9 +149,7 @@ public final class TermuxBackupUtils {
         return 0;
     }
 
-    // -----------------------------------------------------------------------
-    // Tar binary resolution
-    // -----------------------------------------------------------------------
+    // ---- Tar binary resolution ----
 
     /**
      * Resolve the tar binary to use for backup/restore:
@@ -246,9 +235,7 @@ public final class TermuxBackupUtils {
         return TermuxPrefixRemap.wrapExecutableIfNeeded(libDir, argv);
     }
 
-    // -----------------------------------------------------------------------
-    // Health check
-    // -----------------------------------------------------------------------
+    // ---- Health check ----
 
     @Nullable
     /** Cached result of the {@code tar --version} probe: it forks a process and blocks, and was
@@ -287,9 +274,7 @@ public final class TermuxBackupUtils {
         return null;
     }
 
-    // -----------------------------------------------------------------------
-    // Backup
-    // -----------------------------------------------------------------------
+    // ---- Backup ----
 
     public static void backup(@NonNull Context context, @NonNull OutputStream out,
                               @NonNull ResultListener listener,
@@ -330,9 +315,7 @@ public final class TermuxBackupUtils {
             new File(parentDir), 0L, cancelled);
     }
 
-    // -----------------------------------------------------------------------
-    // Restore
-    // -----------------------------------------------------------------------
+    // ---- Restore ----
 
     /** Log the on-disk state of a path: existence, type, perms and (for dirs) entry count + size. */
     private static void logDirState(String stage, String path) {
@@ -539,9 +522,7 @@ public final class TermuxBackupUtils {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
+    // ---- Helpers ----
 
     private static void rollbackRestore(final String filesDir) {
         logDirState("ROLLBACK before", filesDir);
@@ -555,9 +536,7 @@ public final class TermuxBackupUtils {
         logDirState("ROLLBACK after", filesDir);
     }
 
-    // -----------------------------------------------------------------------
-    // Shared runner (used by backup)
-    // -----------------------------------------------------------------------
+    // ---- Shared runner (used by backup) ----
 
     private static void runTar(@NonNull Context context, String[] command,
                                @Nullable InputStream in, @Nullable OutputStream out,

@@ -56,8 +56,8 @@ public class PhantomProcessUtils {
     /**
      * Get {@link #FEATURE_FLAG_SETTINGS_ENABLE_MONITOR_PHANTOM_PROCS} feature flag value.
      *
-     * @param context The {@link Context} for operations.
-     * @return Returns {@link FeatureFlagUtils.FeatureFlagValue}.
+     * @param context context
+     * @return the feature flag value
      */
     @NonNull
     public static FeatureFlagUtils.FeatureFlagValue getFeatureFlagMonitorPhantomProcsValueString(@NonNull Context context) {
@@ -68,8 +68,8 @@ public class PhantomProcessUtils {
      * Get currently enforced ActivityManagerConstants MAX_PHANTOM_PROCESSES value, defaults to 32.
      * Can be changed by modifying device config activity_manager namespace "max_phantom_processes" value.
      *
-     * @param context The {@link Context} for operations.
-     * @return Returns {@link Integer}.
+     * @param context context
+     * @return the enforced value, or {@code null}
      */
     @Nullable
     public static Integer getActivityManagerMaxPhantomProcesses(@NonNull Context context) {
@@ -103,8 +103,8 @@ public class PhantomProcessUtils {
     /**
      * Get {@link #SETTINGS_GLOBAL_DEVICE_CONFIG_SYNC_DISABLED} settings value.
      *
-     * @param context The {@link Context} for operations.
-     * @return Returns {@link Integer}.
+     * @param context context
+     * @return the value, or {@code null}
      */
     @Nullable
     public static Integer getSettingsGlobalDeviceConfigSyncDisabled(@NonNull Context context) {

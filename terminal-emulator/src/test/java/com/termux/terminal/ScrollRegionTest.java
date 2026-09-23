@@ -64,8 +64,7 @@ public class ScrollRegionTest extends TerminalTestCase {
 	}
 
 	public void testScrollOutsideVerticalRegion() {
-		withTerminalSized(3, 4).enterString("\033[0;2rhi\033[4;0Hyou").assertLinesAre("hi ", "   ", "   ", "you");
-		//enterString("see").assertLinesAre("hi ", "   ", "   ", "see");
+		withTerminalSized(3, 4).		enterString("\033[0;2rhi\033[4;0Hyou").assertLinesAre("hi ", "   ", "   ", "you");
 	}
 
 	public void testNELRespectsLeftMargin() {

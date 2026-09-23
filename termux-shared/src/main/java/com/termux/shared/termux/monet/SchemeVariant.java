@@ -44,7 +44,7 @@ public enum SchemeVariant {
     RAINBOW(7, "rainbow", Variant.RAINBOW),
     FRUIT_SALAD(8, "fruit-salad", Variant.FRUIT_SALAD);
 
-    /** Alias of {@link #TONAL_SPOT} - kde's own default. */
+    /** Alias of {@link #SYSTEM} — the default used by this app. */
     public static final SchemeVariant DEFAULT = SYSTEM;
 
     /** The same number kde uses for {@code --scheme-variant}; {@code -1} for {@link #SYSTEM}. */

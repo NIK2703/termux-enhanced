@@ -98,24 +98,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     private String mLoadedColorSchemeKey = null;
 
     /**
-     * The scheme key last built by {@link #resolveSchemeKey}, and when it was built.
-     *
-     * <p>{@link #checkForFontAndColorsForView} runs on <em>every</em> pager page bind — including
-     * the placeholder re-arm that lands one frame after a commit, i.e. inside the settle of the
-     * swipe that opened the tab — and it needs the key as its argument. Building it is not free:
-     * {@link #buildSchemeKey} resolves the per-theme scheme file, then stats the scheme file and the
-     * font file (mtime + size each), reads the selected scheme out of the preferences, and runs
-     * {@link MonetOptions#load()} — which allocates a {@link java.util.Properties} and a
-     * {@code MonetOptions} object and reads seven more preferences. All of that just to discover
-     * that the key has not changed.
-     *
-     * <p>So the built key is memoized. It is rebuilt when night mode differs from the cached value,
-     * when {@link #invalidateAppliedScheme()} has dropped it (the explicit "re-read the style" path
-     * used by the settings UI and after a recreate), or when it is older than
-     * {@link #SCHEME_KEY_MAX_AGE_MS} — the last one is what still catches a scheme or font file
-     * edited by another app while Termux sits in the foreground. The throttle bounds how long such
-     * an external edit can go unnoticed; an in-app change is never delayed, because every in-app
-     * path goes through {@link #invalidateAppliedScheme()} first.
+     * Memoized result of {@link #resolveSchemeKey} (key + night flag + build time).
+     * {@link #checkForFontAndColorsForView} needs the key on <em>every</em> pager page bind, and
+     * building it stats scheme/font files, reads preferences and loads {@link MonetOptions}. The
+     * cache is dropped by {@link #invalidateAppliedScheme()} (recreate / settings reload) and
+     * expires after {@link #SCHEME_KEY_MAX_AGE_MS} so an external file edit is still caught;
+     * in-app changes never wait for the throttle.
      */
     private String mCachedSchemeKey = null;
     private boolean mCachedSchemeKeyIsNight;
@@ -141,24 +129,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     private boolean mPendingPostStartRecovery = false;
 
     /**
-     * Set only for the duration of the synchronous {@link #setCurrentSession} call made from
-     * {@link #onStart()} when returning from the background. In that situation the stored session
-     * is virtually always the page the pager is already on, so {@code setCurrentSession()} takes its
-     * "same index" shortcut and runs {@link #onSessionPageSelected} INLINE — which would perform a
-     * complete focus + IME reconcile (focus request, {@code computeImeVisibility()}, possible
-     * show/hide) that {@code TermuxActivity.onResume()} then repeats authoritatively a few
-     * milliseconds later via {@code runKeyboardRestore()}.
-     * <p/>
-     * Skipping the focus half here removes one full IME reconcile per foreground return (2
-     * window-attribute dispatches + an InputMethodManager IPC + a 6-attempt layout wait) and, more
-     * importantly, stops the early reconcile from acting on pre-resume insets — its
-     * {@code computeImeVisibility()} runs before the window has settled, so it can show or hide the
-     * keyboard on a stale reading and then fight the resume restore.
-     * <p/>
-     * The flag is deliberately scoped to that one call (not "first page selection after start"):
-     * a cold start connects the service asynchronously, so the startup page selection happens
-     * LATER, long after the flag is cleared, and must keep applying focus — that is the only
-     * restore a cold start gets.
+     * Set only for the duration of the synchronous {@link #setCurrentSession} in
+     * {@link #onStart()}. On foreground return the stored session is usually the current page, so
+     * the call takes the same-index shortcut and runs {@link #onSessionPageSelected} inline; its
+     * focus/IME reconcile would run on pre-resume insets and then fight the authoritative
+     * {@code runKeyboardRestore()} a few milliseconds later. Scoped to that one call only: a cold
+     * start selects its page later (after the async service connect), long after the flag is
+     * cleared, and must keep applying focus — the only restore a cold start gets.
      */
     private boolean mDeferFocusApplyToResume = false;
 
@@ -177,7 +154,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     public TermuxTerminalSessionActivityClient(TermuxActivity activity) {
         this.mActivity = activity;
-        // Fallback runnable that scrolls to the end even if the shell never sets a title.
         this.mEndScrollFallback = () -> {
             if (mPendingEndScrollSession != null) {
                 TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
@@ -191,7 +167,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * Should be called when mActivity.onCreate() is called
      */
     public void onCreate() {
-        // Set terminal fonts and colors
         checkForFontAndColors();
     }
 
@@ -241,16 +216,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * Should be called when mActivity.onResume() is called
      */
     public void onResume() {
-        // Just initialize the mBellSoundPool and load the sound, otherwise bell might not run
-        // the first time bell key is pressed and play() is called, since sound may not be loaded
-        // quickly enough before the call to play(). https://stackoverflow.com/questions/35435625
-        //
-        // Deferred by one message on purpose. SoundPool MUST be constructed on a Looper thread,
-        // so it cannot move off the main thread, but it does not belong inside onResume(): it is
-        // a warm-up whose only purpose is that the sound is ready before the user presses bell,
-        // and it is rebuilt on every single foreground return. Posting it keeps the cost out of
-        // the resume transaction while still finishing within a frame. The bell path itself still
-        // loads lazily (see onBell), so nothing depends on this having run.
+        // Warm up the SoundPool so the first bell press is not silent
+        // (https://stackoverflow.com/questions/35435625). Posted one message out of onResume():
+        // SoundPool needs a Looper thread, and posting keeps the cost out of the resume
+        // transaction while still finishing within a frame. onBell() also loads lazily, so
+        // nothing depends on this having run.
         mMainHandler.removeCallbacks(mLoadBellRunnable);
         mMainHandler.post(mLoadBellRunnable);
     }
@@ -289,11 +259,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // the scheme's own pass instead of by a second one. Free when the size did not change —
         // TerminalView.setTextSize() early-returns on an unchanged size.
         applyTerminalFontSizeToAllViews();
-        // Set terminal fonts and colors
         checkForFontAndColors();
     }
-
-
 
     private void runIfVisible(java.lang.Runnable action) {
         if (!mActivity.isVisible()) return;
@@ -339,10 +306,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             return;
         }
 
-        // Hot path (animated titles): never rebuild the tabs per event. Coalesce into a single
-        // throttled COSMETIC refresh. The refresh reads the LATEST titles straight from the
-        // sessions, so intermediate frames may be dropped but the final state never is, and
-        // several sessions changing inside one window are all covered.
+        // Animated titles fire OSC 0/2 at 10-30 Hz — coalesce, never rebuild per event
+        // (see mTitleRefreshPending).
         scheduleTitleRefresh();
         });
     }
@@ -460,7 +425,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                     mBellSoundPool.play(mBellSoundId, 1.f, 1.f, 1, 0, 1.f);
                 break;
             case TermuxPropertyConstants.IVALUE_BELL_BEHAVIOUR_IGNORE:
-                // Ignore the bell character.
                 break;
         }
         });
@@ -487,8 +451,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             return;
         }
 
-        // If cursor is to enabled now, then start cursor blinking if blinking is enabled
-        // otherwise stop cursor blinking
         TerminalView terminalView = mActivity.getTerminalView();
         if (terminalView != null) terminalView.setTerminalCursorBlinkerState(enabled, false);
     }
@@ -503,7 +465,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             termuxSession.getExecutionCommand().mPid = pid;
     }
 
-
     /**
      * Should be called when mActivity.onResetTerminalSession() is called
      */
@@ -514,16 +475,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (terminalView != null) terminalView.setTerminalCursorBlinkerState(true, true);
     }
 
-
-
     @Override
     public Integer getTerminalCursorStyle() {
         return mActivity.getProperties().getTerminalCursorStyle();
     }
 
-
-
-    /** Load mBellSoundPool */
     private synchronized void loadBellSoundPool() {
         if (mBellSoundPool == null) {
             mBellSoundPool = new SoundPool.Builder().setMaxStreams(1).setAudioAttributes(
@@ -539,7 +495,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         }
     }
 
-    /** Release mBellSoundPool resources */
     private synchronized void releaseBellSoundPool() {
         if (mBellSoundPool != null) {
             mBellSoundPool.release();
@@ -547,9 +502,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         }
     }
 
-
-
-    /** Try switching to session. */
     public void setCurrentSession(TerminalSession session) {
         setCurrentSession(session, true);
     }
@@ -621,22 +573,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // (scenario #InputPanel6: tab click -> setCurrentItem). onTerminalPageSelected()
             // clears this flag and becomes the single authority that re-asserts the keyboard.
             mActivity.setTerminalPageSwitchInProgress(true);
-            // Move the pager to the target page. When animate is true (keyboard shortcut / sessions
-            // list) the pager smoothly scrolls through the intermediate pages; when animate is false
-            // (tab click) it jumps instantly, so NO intermediate onPageScrolled events are emitted
-            // and no in-between tab gets highlighted along the way. In both cases onPageSelected()
-            // fires and runs onSessionPageSelected(), which performs the text-input restore, tab
-            // highlight, background colour and directory-history update for the newly-visible session.
+            // animate semantics: see @param animate above. onPageSelected() always fires and
+            // runs onSessionPageSelected() (text-input restore, highlight, colours, cwd).
             pager.setCurrentItem(index, animate);
-            // Tab click (animate == false): the pager emits no intermediate onPageScrolled events,
-            // so the tab strip would otherwise stay put. Scroll the strip to CENTRE the selected tab
-            // starting from its CURRENT scroll position (scrollToTabIndex -> requestScroll(CENTRE) ->
-            // runCentreScroll animates from getScrollX() to the centred target). The scroll only
-            // moves scrollX — it never touches the selection state, so the in-between tabs are
-            // neither scrolled-through-highlighted nor activated; the single highlight is applied
-            // once by onTerminalPageSelected() -> TermuxSessionTabsController.setCurrentSession().
-            // The request is dropped while an end-scroll (freshly added tab) owns the strip, and is
-            // a no-op when the target is already centred.
+            // Tab click (animate == false): no intermediate onPageScrolled events, so centre the
+            // selected tab ourselves from the strip's current scroll position. Scroll-only —
+            // highlight stays solely with onTerminalPageSelected(). Dropped while an end-scroll
+            // owns the strip; no-op when already centred.
             if (!animate) {
                 TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
                 if (tabs != null) tabs.scrollToTabIndex(index);
@@ -775,12 +718,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         }
     }
 
-    /**
-     * Notify the extra-keys controller of the active session's name so a session-name based
-     * layout profile (property "extra-keys-session") can be applied. Priority vs the
-     * process-based context is handled inside the controller. Re-reads the property map from
-     * disk (navigation events: tab switch, rename).
-     */
+    /** Convenience overload of {@link #applySessionExtraKeys(TerminalSession, boolean)} with {@code reloadMap = true}. */
     private void applySessionExtraKeys(@NonNull TerminalSession session) {
         applySessionExtraKeys(session, true);
     }
@@ -856,15 +794,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             activity.runOnUiThread(() -> {
                 if (activity.isFinishing()) return;
                 activity.setColdStartSessionPending(false);
-                // Run the full pager sync now.  syncWithServiceList will notify
-                // RecyclerView that items are available, triggering a layout pass
-                // that creates the ViewHolder and binds it to the session via
-                // attachSession() → updateSize().  Since the emulator is already
-                // initialized, that updateSize() will find mEmulator != null and
-                // only resize — no fork on the UI thread.
-                // onTerminalPageSelected will run through its deferred path
-                // (pageView == null initially) and complete once the layout
-                // pass creates the page — all without blocking the UI.
+                // Full pager sync now: the layout pass binds the new page via attachSession()
+                // → updateSize(), which only resizes because the emulator is already initialized
+                // (no fork on the UI thread). onTerminalPageSelected() completes once the page
+                // exists — all without blocking the UI.
                 activity.syncTerminalPagerToService();
             });
         }).start();
@@ -918,21 +851,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             + "' getDefaultWD='" + mActivity.getProperties().getDefaultWorkingDirectory() + "'");
 
         // ── Capture the state the new tab must inherit, BEFORE anything is rebuilt ─────────────
-        //
-        // Order matters and is the whole point of this block. TermuxService.createTermuxSession()
-        // notifies the session list SYNCHRONOUSLY (TermuxService:627), so the pager switches to the
-        // new page — and runs the per-session keyboard reconcile for it — *inside* the call below,
-        // before this method could seed anything. That first reconcile therefore has no per-session
-        // record to read and falls back to the GLOBAL keyboard intent.
-        //
-        // If that fallback disagrees with the real IME state, the reconcile acts on it (hides a
-        // keyboard that is up), and the second reconcile — triggered by the setCurrentSession()
-        // below, now reading the seeded record — undoes it (shows it again). The user sees the
-        // keyboard close and re-open on every new tab.
-        //
-        // Writing the REAL state into the global intent here makes the fallback correct, and the
-        // seeded per-session record then agrees with it, so both reconciles are no-ops and the
-        // keyboard simply stays exactly as it was.
+        // createTermuxSession() notifies the session list synchronously, so the pager runs the
+        // new page's keyboard reconcile INSIDE the call below — before anything is seeded. That
+        // reconcile falls back to the GLOBAL keyboard intent; if it disagrees with the real IME
+        // state it hides/shows the keyboard, and the second reconcile (from setCurrentSession(),
+        // reading the seeded record) undoes it — visible keyboard flicker on every new tab.
+        // Seeding the real state here makes both reconciles no-ops.
         final boolean inheritedKeyboard = mActivity.computeImeVisibility();
         final boolean inheritedPanel = mActivity.isTextInputVisible();
         final TerminalSession outgoingSession = mActivity.getCurrentSession();
@@ -1076,17 +1000,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /**
      * Persist the current session handle so a later {@link #onStart()} can restore it.
      * <p/>
-     * Only writes when a session is actually bound to the activity. An activity recreate that
-     * happens while the app is in the background (theme change from Settings, system day/night
-     * switch) runs the new instance's {@code onStop()} <em>before</em> {@code onServiceConnected()}
-     * has re-attached the sessions, so {@code getCurrentSession()} is null at that point. Writing
-     * null there deleted the stored handle, and the next {@link #getCurrentStoredSessionOrLast()}
-     * then fell back to {@link TermuxService#getLastTermuxSession()} — the rightmost tab — so every
-     * theme change silently jumped to the last tab.
-     * <p/>
-     * Keeping the previous handle instead is safe: {@link #getCurrentStoredSession()} validates it
-     * against the live session list and ignores it when that session no longer exists (falling back
-     * to the last session, which is the correct answer in that case anyway).
+     * Only writes when a session is bound: a background recreate (theme change, day/night switch)
+     * runs {@code onStop()} before {@code onServiceConnected()}, so {@code getCurrentSession()}
+     * is null — writing null then deleted the stored handle and every theme change silently
+     * jumped to the rightmost tab. Keeping the old handle is safe: the restore path validates it
+     * against the live list and falls back when the session no longer exists.
      */
     public void setCurrentStoredSession() {
         TerminalSession currentSession = mActivity.getCurrentSession();
@@ -1150,20 +1068,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // HIDE caused by detaching the closed page's view.
         mActivity.beginSessionUiChurn(SESSION_UI_CHURN_MS);
 
-        // WHO must be active AFTER the removal is decided BEFORE it, while the list still contains
-        // both the closing session and its neighbours: the index removeTermuxSession() returns is an
-        // index in the OLD list and is meaningless once the list has shifted.
-        //
-        // The target is a SESSION, never an index — the pager resolves its position in the NEW list,
-        // so nothing downstream has to interpret a number that referred to the old list.
-        //
-        // Two cases, and the difference is load-bearing:
-        //   - the closing tab IS the one on screen -> land on its right neighbour (pickHeir());
-        //   - the closing tab is a BACKGROUND one (its X was clicked, or its shell exited on its
-        //     own) -> the target is the session the user is already on. It survives the removal, so
-        //     the pager must not move to another session at all. Passing the heir here instead
-        //     dragged the user to the closed tab's neighbour — the "close a tab you are not looking
-        //     at and the screen jumps elsewhere" bug.
+        // Decide the heir BEFORE the removal, while both neighbours are still in the list (the
+        // returned index would be meaningless after the shift). Closing the active tab lands on
+        // its right neighbour (pickHeir); a background close keeps the session the user is on —
+        // passing the heir there dragged the user to a neighbour of a tab they were not viewing.
         final TerminalSession active = mActivity.getCurrentSession();
         final boolean closingIsActive = (active == finishedSession);
         final TerminalSession target = closingIsActive ? pickHeir(service, finishedSession) : active;
@@ -1212,37 +1120,19 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Which session becomes active when {@code closingSession} goes away: the <b>RIGHT</b>
-     * neighbour (the tab that slides left into the freed slot), or the LEFT one when the closed tab
-     * was the last and has no right neighbour.
+     * Which session takes over when {@code closingSession} is the <b>active</b> tab: the
+     * <b>RIGHT</b> neighbour (slides into the freed slot; closing 3 of 1-2-3-4 lands on 4 — the
+     * old left-neighbour behaviour was never a deliberate policy, just the pager clamping a
+     * stale old-list index), or the LEFT one when the closed tab was the last. The single place
+     * the "which tab after close" policy lives.
      *
-     * <p>Must be called <b>before</b> the session is removed from the service list, while both
-     * neighbours are still where the user sees them. Returning a session (never an index) is the
-     * point: the pager resolves its position after the removal, so nothing downstream has to
-     * interpret a number that referred to the old list.
+     * <p>Call <b>before</b> removal (neighbours must still be in place); returns a session, never
+     * an index — the pager resolves its position in the new list. Only answers the ACTIVE-tab
+     * case: a background close keeps the current session (see {@link #removeFinishedSession}).
      *
-     * <p><b>Only answers the close of the ACTIVE tab.</b> When the closing tab is a background one,
-     * the session that must be active afterwards is the one the user is already on — it survives the
-     * removal — so {@link #removeFinishedSession} does not use this method's result at all. This
-     * method has no opinion about that case: it only answers "who takes over the freed slot".
-     *
-     * <p><b>Why the right neighbour.</b> With tabs 1,2,3,4, closing 3 lands on 4; the tab that was
-     * to the right slides into the freed slot and keeps its content position relative to the user's
-     * eye. Only closing the LAST tab falls back to the left, because there is no right neighbour.
-     * The app used to show the left neighbour instead; that was not a deliberate policy but the
-     * pager's own layout winning (the pre-session-target code clamped a stale "index in the old
-     * list", see {@link #removeFinishedSession}), so the intent never reached the screen.
-     *
-     * <p><b>Cost note.</b> The right neighbour sits at {@code removedIndex + 1} before the removal
-     * and at {@code removedIndex} after it, so the pre-removal park (see
-     * {@link SessionPagerManager#parkOnSessionBeforeRemoval}) lands one page PAST the final target
-     * and the sync's own {@code setCurrentItem(restoreIndex, false)} really steps back one page
-     * instead of being a no-op. That is the same shape as the previously measured "close the first
-     * tab" case, which lands correctly — the park still gets the pager off the doomed page, which
-     * is the only thing that matters (see {@link SessionPagerManager#parkOnSessionBeforeRemoval}).
-     * Closing the last tab (left fallback) keeps the cheaper no-op path.
-     *
-     * <p>This is the single place where the "which tab do I land on after closing one" policy lives.
+     * <p>Cost note: post-removal the heir sits one index earlier, so the pre-removal park lands
+     * one page past the final target and the sync steps back — the park's only job is getting
+     * off the doomed page (see {@link SessionPagerManager#parkOnSessionBeforeRemoval}).
      */
     @androidx.annotation.Nullable
     private static TerminalSession pickHeir(@androidx.annotation.NonNull TermuxService service,
@@ -1273,7 +1163,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         });
     }
 
-
     String toToastTitle(TerminalSession session) {
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return null;
@@ -1293,32 +1182,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         return toastTitle.toString();
     }
 
-
-    /**
-     * Apply terminal fonts and colors for the current theme.
-     * Determines the effective night mode from Termux's own {@link NightMode#getAppNightMode()}
-     * (the source of truth). For {@link NightMode#SYSTEM} the actual system night mode is resolved
-     * from the device's system resources via {@link ThemeUtils#isSystemNightModeEnabled()}, NOT the
-     * application context and NOT the activity context.
-     *
-     * <p>Why the <i>system</i> resources and not the application/activity context:
-     * <ul>
-     *   <li>The Application context's {@code uiMode} is updated independently of the activity
-     *       lifecycle and can hold a stale configuration right after a {@code recreate()} — especially
-     *       on OEM ROMs (e.g. MIUI/HyperOS) — so it can still report the OLD night state while the
-     *       recreated activity already switched. That is the original bug: the toolbar/status bar
-     *       (re-themed from the activity config) update, but the terminal (read from the app context)
-     *       keeps the previous scheme.</li>
-     *   <li>The activity context is better than the application context, but AppCompat applies night
-     *       mode to the activity via {@code applyOverrideConfiguration}. When the app uses
-     *       {@code MODE_NIGHT_FOLLOW_SYSTEM} it should mirror the <i>actual device</i> day/night
-     *       setting, which is exactly what {@link Resources#getSystem()} exposes — the one true
-     *       source of the device {@code uiMode}, unaffected by any per-activity override.</li>
-     * </ul>
-     * Reading the system resources guarantees the terminal color scheme tracks the same device
-     * night state that drives the activity/toolbar theme, keeping them in sync after any
-     * recreate or direct system {@code uiMode} change.
-     */
     /**
      * Identity of everything {@link #applyTerminalColorScheme} consumes. Cheap to build
      * (a few stat() calls) compared to the application itself (file read + parse, TTF parse,
@@ -1470,29 +1333,16 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Apply the current terminal font and color scheme to a specific {@link TerminalView} (a pager
-     * page) without touching the shared bottom panel (which is updated once via the active view).
-     * Used to theme pages as they are (re)bound to their session in the horizontal pager.
+     * Apply the current terminal font and colour scheme to a specific {@link TerminalView} (a
+     * pager page) without touching the shared bottom panel. Used to theme pages as they are
+     * (re)bound in the horizontal pager.
      *
-     * <p>Everything below the key is <em>conditional</em> on the scheme having actually changed.
-     * This method runs on every page bind — the pager re-arms its trailing placeholder one frame
-     * after a commit, i.e. inside the settle of the swipe that opened the tab — and the two writes
-     * it used to do unconditionally were both harmful:
-     * <ul>
-     *   <li>{@code emulator.mColors.reset()} copies the scheme's <em>defaults</em> over the live
-     *       palette, so it threw away any indexed colour a program had set with OSC 4/11/12. That
-     *       directly contradicted {@code TerminalPagerAdapter.applyPlaceholderColors()}, which reads
-     *       those same live colours in order to make the placeholder match the running terminal.</li>
-     *   <li>{@code invalidate() + onScreenUpdated()} is a full repaint of the page — and
-     *       {@code onScreenUpdated()} additionally snaps a scrolled view back to the bottom
-     *       ({@code mTopRow = 0}), which is the same "lost my scroll position" failure mode that
-     *       {@code invalidateAllTerminalViews(typeface, false)} already guards against elsewhere in
-     *       this class.</li>
-     * </ul>
-     * When the key is unchanged neither is needed: the palette is already the one the global scheme
-     * describes, a freshly bound page paints itself from scratch anyway, and a re-bound one was
-     * already repainted by {@link #applyTerminalColorScheme} (which walks every bound page) when the
-     * scheme did change.
+     * <p>Everything below the key is <em>conditional</em> on {@code ensureColorSchemeLoaded}
+     * having reloaded the palette — this runs on every page bind, and both writes it used to do
+     * unconditionally were harmful: {@code mColors.reset()} overwrote live OSC 4/11/12 colours
+     * (breaking the placeholder match), and {@code onScreenUpdated()} snapped a scrolled view
+     * to the bottom. With an unchanged key neither is needed: a fresh page paints itself, and a
+     * re-bound one was already repainted by {@link #applyTerminalColorScheme}.
      */
     public void checkForFontAndColorsForView(@NonNull TerminalView terminalView) {
         final boolean isNight = TermuxActivity.isNightModeActive();
@@ -1621,14 +1471,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         final TerminalView active = mActivity.getTerminalView();
         forEachBoundTerminalView(terminalView -> {
             terminalView.invalidate();
-            // The resync is deliberately limited to the page the user is looking at. It is a
-            // screen-content resync, not a restyle: onScreenUpdated() re-clamps mTopRow and — for a
-            // view that is scrolled up and not in one of its protected states — snaps it back to the
-            // bottom. Running it on every page would throw away the scroll position of each scrolled
-            // background tab on a theme change, which is the failure mode the flag above already
-            // guards against for OSC palette changes. The repaint does not need it: the renderer
-            // clears the whole canvas to the current background and repaints every visible row on
-            // each onDraw(), so invalidate() alone is a complete repaint with the new scheme.
+            // Resync only the page in view — see @param resyncScreen: running it on background
+            // pages would snap their scroll to the bottom; invalidate() alone is a full repaint.
             if (resyncScreen && terminalView == active) terminalView.onScreenUpdated();
             if (typeface != null) terminalView.setTypeface(typeface);
         });
@@ -1657,17 +1501,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /**
      * Run {@code action} for the active terminal view and for every other page the adapter owns a
      * view for — the one walk both {@link #invalidateAllTerminalViews} and
-     * {@link #applyTerminalFontSizeToAllViews} need.
-     *
-     * <p>The pages come from the adapter, which enumerates the session pages it holds a view for plus
-     * the trailing placeholder page — see {@link TerminalPagerAdapter#forEachPageTerminalView} for
-     * why that set (and not a walk over the pager's children) is the complete one. This used to walk
-     * the pager's children and test {@code instanceof TerminalView}, which matched nothing at all:
-     * RecyclerView's children are the page <em>containers</em> (the root {@code FrameLayout} of
-     * {@code item_terminal_page.xml}), not the TerminalViews inside them. The loop was dead code, so
-     * a styling change reached only {@code mActivity.getTerminalView()} while every other page kept
-     * the previous palette (and font size) until its slot happened to be rebound — most visibly the
-     * placeholder page, whose slot is only rebound when the next tab is opened through it.
+     * {@link #applyTerminalFontSizeToAllViews} need. The set comes from the adapter (pages plus
+     * trailing placeholder) via {@link TerminalPagerAdapter#forEachPageTerminalView}, not a walk
+     * over the pager's children: RecyclerView children are page <em>containers</em>, so the old
+     * {@code instanceof TerminalView} loop was dead code and styling changes reached only the
+     * active page until its slot happened to be rebound.
      */
     private void forEachBoundTerminalView(@NonNull TerminalViewAction action) {
         final TerminalView active = mActivity.getTerminalView();

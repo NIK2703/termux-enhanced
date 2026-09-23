@@ -49,7 +49,7 @@ public class UrlUtils {
     /**
      * Get {@link URL} from url string.
      *
-     * @param urlString The urlString string.
+     * @param urlString The URL string.
      * @return Returns the {@link URL} if a valid urlString, otherwise {@code null}.
      */
     @Nullable
@@ -65,7 +65,7 @@ public class UrlUtils {
     /**
      * Get a {@link URL} part from url string.
      *
-     * @param urlString The urlString string.
+     * @param urlString The URL string.
      * @param urlPart The part to get.
      * @return Returns the {@link URL} part if a valid urlString and part, otherwise {@code null}.
      */

@@ -96,7 +96,6 @@ public class AmSocketServer {
         Logger.logVerbose(LOG_TAG, "am command received from peer " + clientSocket.getPeerCred().getMinimalString() +
             "\nam command: `" + amCommandString + "`");
 
-        // Parse am command string and convert it to a list of arguments
         List<String> amCommandList = new ArrayList<>();
         error = parseAmCommand(amCommandString, amCommandList);
         if (error != null) {
@@ -111,7 +110,6 @@ public class AmSocketServer {
 
         AmSocketServerRunConfig amSocketServerRunConfig = (AmSocketServerRunConfig) localSocketManager.getLocalSocketRunConfig();
 
-        // Run am command and send its result to the client
         StringBuilder stdout = new StringBuilder();
         StringBuilder stderr = new StringBuilder();
         error = runAmCommand(localSocketManager.getContext(), amCommandArray, stdout, stderr,
@@ -168,11 +166,9 @@ public class AmSocketServer {
         return exitCode;
     }
 
-
     /**
      * Parse amCommandString into a list of arguments like normally done on shells like bourne shell.
      * Arguments are split on whitespaces unless quoted with single or double quotes.
-     * Double quotes and backslashes can be escaped with backslashes in arguments surrounded.
      * Double quotes and backslashes can be escaped with backslashes in arguments surrounded with
      * double quotes.
      *
@@ -225,11 +221,9 @@ public class AmSocketServer {
 
             new Am(stdoutPrintStream, stderrPrintStream, (Application) context.getApplicationContext()).run(amCommandArray);
 
-            // Set stdout to value set by am command in stdoutPrintStream
             stdoutPrintStream.flush();
             stdout.append(stdoutByteStream.toString(StandardCharsets.UTF_8.name()));
 
-            // Set stderr to value set by am command in stderrPrintStream
             stderrPrintStream.flush();
             stderr.append(stderrByteStream.toString(StandardCharsets.UTF_8.name()));
         } catch (Exception e) {
@@ -238,10 +232,6 @@ public class AmSocketServer {
 
         return null;
     }
-
-
-
-
 
     /** Implementation for {@link ILocalSocketManager} for {@link AmSocketServer}. */
     public abstract static class AmSocketServerClient extends LocalSocketManagerClientBase {

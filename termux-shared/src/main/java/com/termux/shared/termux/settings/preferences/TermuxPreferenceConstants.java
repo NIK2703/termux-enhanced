@@ -167,14 +167,12 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE = "soft_keyboard_enabled_only_if_no_hardware";
         public static final boolean DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE = false;
 
-
         /**
          * Defines the key for whether extra keys should be hidden when the soft keyboard is hidden
          * and shown when the soft keyboard is opened.
          */
         public static final String KEY_HIDE_EXTRA_KEYS_WITH_KEYBOARD = "hide_extra_keys_with_keyboard";
         public static final boolean DEFAULT_VALUE_HIDE_EXTRA_KEYS_WITH_KEYBOARD = true;
-
 
         /**
          * Defines the key for the maximum number of auto-complete suggestions to show
@@ -185,31 +183,26 @@ public final class TermuxPreferenceConstants {
         public static final int SUGGESTIONS_MAX_COUNT_MIN = 0;
         public static final int SUGGESTIONS_MAX_COUNT_MAX = 10;
 
-
         /**
          * Defines the key for whether to always keep screen on.
          */
         public static final String KEY_KEEP_SCREEN_ON = "screen_always_on";
         public static final boolean DEFAULT_VALUE_KEEP_SCREEN_ON = false;
 
-
         /**
          * Defines the key for font size of termux terminal view.
          */
         public static final String KEY_FONTSIZE = "fontsize";
-
 
         /**
          * Defines the key for current termux terminal session.
          */
         public static final String KEY_CURRENT_SESSION = "current_session";
 
-
         /**
          * Defines the key for current log level.
          */
         public static final String KEY_LOG_LEVEL = "log_level";
-
 
         /**
          * Defines the key for last used notification id.
@@ -229,7 +222,6 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_TERMINAL_SESSION_NUMBER_SINCE_BOOT = "terminal_session_number_since_boot";
         public static final int DEFAULT_VALUE_TERMINAL_SESSION_NUMBER_SINCE_BOOT = 0;
 
-
         /**
          * Defines the key for whether flashes and notifications for plugin errors are enabled or not.
          */
@@ -241,7 +233,6 @@ public final class TermuxPreferenceConstants {
          */
         public static final String KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED = "crash_report_notifications_enabled";
         public static final boolean DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED = true;
-
 
         /**
          * Defines the key for the background transparency (alpha) of inactive panel elements
@@ -258,10 +249,6 @@ public final class TermuxPreferenceConstants {
          */
         public static final String KEY_BUTTON_BG_ACTIVE_ALPHA = "button_bg_active_alpha";
         public static final int DEFAULT_BUTTON_BG_ACTIVE_ALPHA = 12;
-
-        /**
-
-
 
         /* ###################################################################
          * Keys migrated from the ~/.termux/termux.properties file.
@@ -370,10 +357,8 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_TERMINAL_CURSOR_BLINK_ENABLED = "terminal-cursor-blink-enabled";
         public static final boolean DEFAULT_VALUE_TERMINAL_CURSOR_BLINK_ENABLED = TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_CURSOR_BLINK_ENABLED;
 
-
         public static final String KEY_SCROLL_ON_NEW_OUTPUT = "scroll-on-new-output";
         public static final boolean DEFAULT_VALUE_SCROLL_ON_NEW_OUTPUT = false;
-
 
         public static final String KEY_TERMINAL_CURSOR_STYLE = "terminal-cursor-style";
         public static final int DEFAULT_VALUE_TERMINAL_CURSOR_STYLE = TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_CURSOR_STYLE;
@@ -432,14 +417,12 @@ public final class TermuxPreferenceConstants {
         public static final int MIN_TERMINAL_BACKGROUND_BLUR_RADIUS = 0;
         public static final int MAX_TERMINAL_BACKGROUND_BLUR_RADIUS = 150;
 
-
         /* float */
 
         public static final String KEY_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR = "terminal-toolbar-height";
         public static final float DEFAULT_VALUE_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR = TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR;
         public static final float MIN_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR = TermuxPropertyConstants.IVALUE_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR_MIN;
         public static final float MAX_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR = TermuxPropertyConstants.IVALUE_TERMINAL_TOOLBAR_HEIGHT_SCALE_FACTOR_MAX;
-
 
         /* int (extra keys corner radius) */
 
@@ -448,14 +431,12 @@ public final class TermuxPreferenceConstants {
         public static final int MIN_EXTRA_KEYS_CORNER_RADIUS = TermuxPropertyConstants.IVALUE_EXTRA_KEYS_CORNER_RADIUS_MIN;
         public static final int MAX_EXTRA_KEYS_CORNER_RADIUS = TermuxPropertyConstants.IVALUE_EXTRA_KEYS_CORNER_RADIUS_MAX;
 
-
         /* float (extra keys button margin in dp) */
 
         public static final String KEY_EXTRA_KEYS_BUTTON_MARGIN = "extra-keys-button-margin";
         public static final float DEFAULT_VALUE_EXTRA_KEYS_BUTTON_MARGIN = 2.0f;
         public static final float MIN_EXTRA_KEYS_BUTTON_MARGIN = 0.1f;
         public static final float MAX_EXTRA_KEYS_BUTTON_MARGIN = 4.0f;
-
 
         /* int (extra keys base font size in sp) */
 
@@ -464,14 +445,12 @@ public final class TermuxPreferenceConstants {
         public static final int MIN_EXTRA_KEYS_FONT_SIZE = 12;
         public static final int MAX_EXTRA_KEYS_FONT_SIZE = 16;
 
-
         /* Integer (session shortcuts, may be null/0) */
 
         public static final String KEY_SHORTCUT_CREATE_SESSION = "shortcut.create-session";
         public static final String KEY_SHORTCUT_NEXT_SESSION = "shortcut.next-session";
         public static final String KEY_SHORTCUT_PREVIOUS_SESSION = "shortcut.previous-session";
         public static final String KEY_SHORTCUT_RENAME_SESSION = "shortcut.rename-session";
-
 
         /* String */
 
@@ -503,10 +482,7 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_VOLUME_KEYS_BEHAVIOUR = "volume-keys";
         public static final String DEFAULT_VALUE_VOLUME_KEYS_BEHAVIOUR = TermuxPropertyConstants.DEFAULT_IVALUE_VOLUME_KEYS_BEHAVIOUR;
 
-
     }
-
-
 
     /**
      * Termux:API app constants.
@@ -518,7 +494,6 @@ public final class TermuxPreferenceConstants {
          */
         public static final String KEY_LOG_LEVEL = "log_level";
 
-
         /**
          * Defines the key for last used PendingIntent request code.
          */
@@ -526,8 +501,6 @@ public final class TermuxPreferenceConstants {
         public static final int DEFAULT_VALUE_KEY_LAST_PENDING_INTENT_REQUEST_CODE = 0;
 
     }
-
-
 
     /**
      * Termux:Boot app constants.
@@ -541,31 +514,21 @@ public final class TermuxPreferenceConstants {
 
     }
 
-
-
     /**
      * Termux:Float app constants.
      */
     public static final class TERMUX_FLOAT_APP {
 
-        /**
-         * The float window x coordinate.
-         */
+        /** The float window x coordinate. */
         public static final String KEY_WINDOW_X = "window_x";
 
-        /**
-         * The float window y coordinate.
-         */
+        /** The float window y coordinate. */
         public static final String KEY_WINDOW_Y = "window_y";
 
-        /**
-         * The float window width.
-         */
+        /** The float window width. */
         public static final String KEY_WINDOW_WIDTH = "window_width";
 
-        /**
-         * The float window height.
-         */
+        /** The float window height. */
         public static final String KEY_WINDOW_HEIGHT = "window_height";
 
         /**
@@ -586,8 +549,6 @@ public final class TermuxPreferenceConstants {
 
     }
 
-
-
     /**
      * Termux:Styling app constants.
      */
@@ -600,8 +561,6 @@ public final class TermuxPreferenceConstants {
 
     }
 
-
-
     /**
      * Termux:Tasker app constants.
      */
@@ -612,7 +571,6 @@ public final class TermuxPreferenceConstants {
          */
         public static final String KEY_LOG_LEVEL = "log_level";
 
-
         /**
          * Defines the key for last used PendingIntent request code.
          */
@@ -620,8 +578,6 @@ public final class TermuxPreferenceConstants {
         public static final int DEFAULT_VALUE_KEY_LAST_PENDING_INTENT_REQUEST_CODE = 0;
 
     }
-
-
 
     /**
      * Termux:Widget app constants.

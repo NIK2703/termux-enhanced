@@ -63,22 +63,15 @@ public final class SessionPagerManager {
     }
 
     /**
-     * The index of the page the user is on — <b>the single authority for "which session is
-     * active"</b> for everything that is not a finger gesture.
+     * The index of the page the user is on — the single authority for "which session is active"
+     * for everything that is not a finger gesture. A gesture writes it from {@code onPageSelected};
+     * the activity's {@code mTerminalView} is only a cache of the view for it (may be null); the
+     * tab strip highlights the session it resolves to.
      *
-     * <p>Everything else is a view of this number:
-     * <ul>
-     *   <li>a gesture writes it from {@code onPageSelected};</li>
-     *   <li>the activity's {@code mTerminalView} is a <em>cache of the view</em> for it, and is
-     *       allowed to be null (the page may not be bound yet);</li>
-     *   <li>the tab strip highlights the session it resolves to.</li>
-     * </ul>
-     *
-     * <p>It is deliberately <b>not</b> derived from {@code mTerminalView.getCurrentSession()}: that
-     * cache has no liveness check, so after a tab close it happily keeps returning the session that
-     * was just killed (the "still showing the closed terminal with the signal 9 line" bug). Reading
-     * the index and resolving it against the live service list makes a dead active session
-     * impossible by construction.
+     * <p>Deliberately <b>not</b> derived from {@code mTerminalView.getCurrentSession()}: that cache
+     * has no liveness check, so after a tab close it keeps returning the killed session (the "still
+     * showing the closed terminal with the signal 9 line" bug). Reading the index and resolving it
+     * against the live service list makes a dead active session impossible by construction.
      *
      * <p>-1 means "not resolved yet"; {@link #getActiveIndex()} self-heals in that case.
      */
@@ -98,9 +91,8 @@ public final class SessionPagerManager {
             return -1;
         }
         if (mActiveIndex < 0 || mActiveIndex >= size) {
-            // Self-heal. Prefer the pager's own parked index (it is what the user is looking at),
-            // then the session of the view the activity currently points at. Never fall back to a
-            // raw index without checking it, and never leave the old out-of-range value in place.
+            // Self-heal. Prefer the pager's own parked index, then the session of the view the
+            // activity points at. Never leave an out-of-range value in place.
             int idx = (mTerminalPager != null) ? mTerminalPager.getCurrentItem() : -1;
             if (idx < 0 || idx >= size) {
                 TerminalView view = mActivity.getTerminalView();
@@ -119,10 +111,8 @@ public final class SessionPagerManager {
 
     /**
      * @return true while {@code session} is still in the service's live session list.
-     *
-     * <p>Used to tell a still-valid cached view apart from one that is showing a session that has
-     * just been killed. That distinction is the whole difference between "the tab strip highlights
-     * the wrong tab" and "the tab strip highlights nothing".
+     * Used to tell a still-valid cached view apart from one showing a just-killed session —
+     * the difference between "the tab strip highlights the wrong tab" and "highlights nothing".
      */
     public boolean isSessionLive(@Nullable TerminalSession session) {
         if (session == null) return false;
@@ -132,8 +122,7 @@ public final class SessionPagerManager {
 
     /**
      * @return the session the user is on, or null when there is none.
-     *
-     * <p>Always a <b>live</b> session: it is resolved from {@link #getActiveIndex()} against the
+     * Always a <b>live</b> session: resolved from {@link #getActiveIndex()} against the
      * service's current list, never read off the cached {@code mTerminalView}.
      */
     @Nullable
@@ -160,46 +149,25 @@ public final class SessionPagerManager {
      * Move the pager onto {@code session} <b>before</b> the page it is currently showing is removed
      * from the adapter, and without any animation.
      *
-     * <h2>Why this exists</h2>
-     * Removing the page the pager is currently anchored on is the one case {@code ViewPager2} +
-     * {@code RecyclerView} handle badly. Measured on the device (trace {@code PAGERDBG}, 3 tabs,
-     * closing the active one):
-     * <pre>
-     *   SLNU old=3 new=2 heir=… restore=1 curBefore=1
-     *   SLNU afterSync cur=1 (setCurrentItem target was 1)   &lt;- setCurrentItem() was a NO-OP
-     *   OTPS done pos=1 tv=&lt;heir&gt;                            &lt;- our state landed correctly…
-     *   PAGEDUMP … |child0 pos=0 x=-1080 |child1 pos=-1 x=0 |child2 pos=1 x=1080
-     * </pre>
-     * {@code pos=-1} is the removed page's ViewHolder, still attached and still occupying the
-     * middle of the screen, with the pager's own page pushed off to the right: the layout kept the
-     * dead child as its anchor and never corrected itself. The activity's state was right, the
-     * screen was wrong — exactly the reported bug (the closed terminal stays visible, the tab strip
-     * highlights the closed tab, and the first scroll snaps everything into place at once).
+     * <p>Removing the page the pager is anchored on is the one case {@code ViewPager2} +
+     * {@code RecyclerView} handle badly (measured on device, trace {@code PAGERDBG}): the layout
+     * keeps the removed ViewHolder (pos=-1) attached as its anchor, the activity's state is right
+     * but the screen is wrong — the closed terminal stays visible and the first scroll snaps
+     * everything into place. {@code setCurrentItem()} cannot repair that afterwards: it returns
+     * early when the target equals {@code mCurrentItem} and the pager is idle
+     * ({@code setCurrentItemInternal} in ViewPager2 1.1.0), which is exactly the case after a
+     * close — the parked index is still the dead page's index.
      *
-     * <p>{@code setCurrentItem()} cannot repair that afterwards: it returns early when the target
-     * equals {@code mCurrentItem} and the pager is idle (verified in the ViewPager2 1.1.0 bytecode,
-     * {@code setCurrentItemInternal}), which is precisely the case after a close — the parked index
-     * is still the dead page's index.
+     * <p>Moving off the doomed page first turns the removal into the well-behaved case ("content
+     * shifted under a stable anchor"). The {@code setCurrentItem()} here is not the no-op above
+     * because its target differs from the parked page.
      *
-     * <p>Moving off the doomed page first turns the removal into the well-behaved case: the page
-     * under the viewport is one that survives, so the adapter change is a plain "content shifted
-     * under a stable anchor" and no {@code ViewHolder} is left behind. The {@code setCurrentItem()}
-     * here is <em>not</em> the no-op described above, because its target is a different page than the
-     * one the pager is parked on — the pager really moves. (The sync's own
-     * {@code setCurrentItem(restoreIndex, false)} afterwards may be a no-op or a single-page step
-     * back, depending on which neighbour was chosen: with the right-neighbour policy the heir's
-     * index drops by one when the page to its left is removed, so the sync steps back once. Either
-     * way the landing itself is done explicitly by {@link #onTerminalPageSelected}.)
-     *
-     * <p><b>This DOES run a landing.</b> {@code setCurrentItem(target, false)} with a target
-     * different from the current page dispatches {@code onPageSelected(target)} <em>synchronously</em>
-     * ({@code ScrollEventAdapter.notifyProgrammaticScroll}, offsets 42-48 of the 1.1.0 bytecode:
-     * {@code if (hasNewTarget) dispatchSelected(item)}), so the full
-     * {@link #onTerminalPageSelected} bookkeeping runs here — with the doomed session still in the
-     * list — and runs again after the removal. That is safe only because the landing is total and
-     * idempotent, and it is what re-points the active view off the page that is about to die. Do not
-     * "optimise" it away by suppressing the callback without measuring: leaving the activity on the
-     * doomed page's view is the bug this whole mechanism exists to fix.
+     * <p><b>This DOES run a landing.</b> {@code setCurrentItem(target, false)} dispatches
+     * {@code onPageSelected(target)} <em>synchronously</em> (ScrollEventAdapter.notifyProgrammaticScroll),
+     * so the full {@link #onTerminalPageSelected} bookkeeping runs here — with the doomed session
+     * still in the list — and again after the removal. Safe only because the landing is total and
+     * idempotent. Do not suppress the callback without measuring: leaving the activity on the
+     * doomed page's view is the bug this exists to fix.
      */
     public void parkOnSessionBeforeRemoval(@Nullable TerminalSession session) {
         if (session == null || mTerminalPager == null) return;
@@ -271,21 +239,19 @@ public final class SessionPagerManager {
 
     /**
      * True while the pager is being dragged by the user (a real swipe gesture), as opposed to a
-     * programmatic {@code setCurrentItem()} triggered by the "+" button, an (instant) tab click or a
-     * keyboard shortcut. Neither a programmatic smooth scroll nor an instant tab-click jump ever
-     * passes through DRAGGING; for the instant jump the IME-suppression guard
-     * {@code mTerminalPageSwitchInProgress} is still raised in {@code setCurrentSession()} before
-     * the switch and lowered in {@code onTerminalPageSelected()}. The trailing placeholder page is
-     * only meant to be committed into a real session when the user SWIPES onto it — never when a
-     * programmatic scroll happens to land on its index (which is exactly what {@code addNewSession}
-     * does after appending a session at the end, whose index coincides with the placeholder index).
-     * Guarded by this flag so a programmatic scroll onto the placeholder slot does not spawn a
-     * phantom duplicate session.
+     * programmatic {@code setCurrentItem()} (the "+" button, an instant tab click, a shortcut).
+     * Neither a programmatic smooth scroll nor an instant jump passes through DRAGGING; for the
+     * instant jump the IME-suppression guard is still raised in {@code setCurrentSession()} and
+     * lowered in {@code onTerminalPageSelected()}. The trailing placeholder page is only meant to
+     * be committed into a real session when the user SWIPES onto it — never by a programmatic
+     * scroll that happens to land on its index (exactly what {@code addNewSession} does after
+     * appending a session, whose index coincides with the placeholder index). Guarded so a
+     * programmatic scroll onto the placeholder slot does not spawn a phantom duplicate session.
      */
     private boolean mUserScrollInProgress = false;
 
     /**
-     * Last scroll position/offset forwarded to the tab strip during a drag (P2-3). Cached in
+     * Last scroll position/offset forwarded to the tab strip during a drag. Cached in
      * instance fields so the onPageScrolled forwarder can be a single non-capturing lambda instead
      * of allocating a fresh Consumer + boxing the float on every swipe frame (60–120/s).
      */
@@ -298,10 +264,9 @@ public final class SessionPagerManager {
 
     // ── right-swipe directory picker ────────────────────────────────────────────────────────
     //
-    // The picker needs two things the pager does not otherwise expose: the finger's VERTICAL
-    // position over the whole gesture, and the exact moment the placeholder page starts to appear.
-    // Both are gathered here, because this is the only place that owns the pager's touch stream
-    // (see mPickerTouchListener) and its scroll callback at the same time.
+    // Needs two things the pager does not otherwise expose: the finger's VERTICAL position
+    // over the whole gesture, and the moment the placeholder page starts to appear. Gathered
+    // here because this owns both the pager's touch stream and its scroll callback.
 
     /** Last raw Y seen on the pager, px. Kept up to date on every ACTION_MOVE. */
     private float mFingerRawY;
@@ -309,9 +274,9 @@ public final class SessionPagerManager {
     private boolean mFingerDown;
     /**
      * True once the anchor has been latched for the current gesture. The anchor is the finger's
-     * vertical position at the moment the placeholder appears, and it is captured ONCE: the whole
-     * point of the gesture is that the list stays put while the finger moves over it, so that the
-     * release position — not the touch-down position — is what selects a directory.
+     * vertical position at the moment the placeholder appears, captured ONCE: the list must stay
+     * put while the finger moves over it, so the release position — not the touch-down
+     * position — selects a directory.
      */
     private boolean mAnchorLatched;
     /** Directory resolved on ACTION_UP, or null when the release was outside the list rows. */
@@ -472,18 +437,14 @@ public final class SessionPagerManager {
                     new java.util.ArrayList<>());
         }
         mTerminalPager.setAdapter(mTerminalPagerAdapter);
-        // Event-driven re-point of the activity's active TerminalView: whenever a page gets bound,
-        // the manager re-asserts the active page if that is the page being bound. This replaces the
-        // old "wait for attach with a post and a 300 ms safety net" recovery, which could never fire
-        // for an already-attached view and therefore stranded the activity on a dead session.
+        // Event-driven re-point of the activity's active TerminalView whenever a page is bound;
+        // replaces the old "wait for attach with a 300 ms safety net" which could never fire for
+        // an already-attached view and stranded the activity on a dead session.
         mTerminalPagerAdapter.setOnPageBoundListener(this::onPageBound);
-        // The bind is NOT the only way a page becomes available, and on a jump of two or more
-        // pages it is not even the usual one: RecyclerView re-attaches a ViewHolder that comes back
-        // from its view cache WITHOUT re-binding it, so onPageBound never fires for that page. A
-        // far jump detaches the page it leaves (offscreenPageLimit == 1), so coming back to it
-        // later is exactly that case — measured on device: `PAGEDUMP … tv=null tvAttached=0` and
-        // `focus term` throwing a NullPointerException for the whole visit. Attach is delivered
-        // whatever brought the holder back, so it is the signal the active-view pointer must key on.
+        // Bind is NOT the only way a page becomes available: RecyclerView re-attaches a ViewHolder
+        // from its view cache WITHOUT re-binding it, so onPageBound never fires on a far jump
+        // (measured: PAGEDUMP tv=null, focus term NPE). Attach is delivered whatever brought the
+        // holder back, so it is the signal the active-view pointer must key on.
         final RecyclerView attachRv = getPagerRecyclerView();
         if (attachRv != null) {
             attachRv.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
@@ -494,8 +455,7 @@ public final class SessionPagerManager {
                     TerminalView attachedView = ((TerminalPagerAdapter.TerminalPageViewHolder) vh).mTerminalView;
                     if (attachedView == null) return;
                     TerminalSession attachedSession = attachedView.getCurrentSession();
-                    // Idempotent: onPageBound only writes when this page IS the active one, and it
-                    // also runs the focus/IME hand-off for it.
+                    // Idempotent: onPageBound only writes when this page IS the active one.
                     if (attachedSession != null) onPageBound(attachedSession, attachedView);
                 }
 
@@ -506,15 +466,13 @@ public final class SessionPagerManager {
         // With fewer than two sessions there is nothing to swipe between, so disable user input
         // to suppress the stretch/bounce edge-effect animation on a horizontal drag.
         updatePagerUserInputEnabled();
-        // Keep the neighbouring page bound so a horizontal swipe reveals the adjacent
-        // session LIVE (the original goal: "see the intermediate paging between
-        // two adjacent screens"). With the default limit 0 the neighbour is
-        // only created mid-drag and shows up empty, which reads as an abrupt snap.
+        // Keep the neighbouring page bound so a horizontal swipe reveals the adjacent session
+        // LIVE. With the default limit 0 the neighbour is only created mid-drag and shows up
+        // empty, which reads as an abrupt snap.
         mTerminalPager.setOffscreenPageLimit(1);
 
-        // Disable the RecyclerView item animator so the trailing placeholder page (inserted/removed
-        // as the user lands on / leaves the last tab) appears and disappears instantly rather than
-        // sliding in with a default animation — it must read as a normal tab page, not a popup.
+        // Disable the RecyclerView item animator so the trailing placeholder page appears and
+        // disappears instantly rather than sliding in — it must read as a normal tab page, not a popup.
         final RecyclerView pagerRv = getPagerRecyclerView();
         if (pagerRv != null) {
             pagerRv.setItemAnimator(null);
@@ -522,83 +480,60 @@ public final class SessionPagerManager {
             pagerRv.addOnItemTouchListener(mPickerTouchListener);
             // Elastic over-drag on the first/last page. NOTE: this REPLACES the old
             // setOverScrollMode(OVER_SCROLL_NEVER) — that switch also disabled the plumbing the
-            // rubber band is measured with (RecyclerView#scrollByInternal skips pullGlows() and
-            // ViewFlinger skips absorbGlows() when the mode is NEVER).
-            //
-            // The stock edge animation it used to suppress cannot come back: the controller
-            // installs an EdgeEffect spy that never calls super.onPull(), so the edge-effect
-            // distance stays 0 — and every stock visual (the pre-12 glow, the 12+ stretch and the
-            // extra composite pass the stretch added over the translucent terminal surface, which
-            // visibly halved the transparency) keys off a non-zero distance or off draw().
+            // rubber band is measured with (scrollByInternal skips pullGlows() and ViewFlinger
+            // skips absorbGlows() when the mode is NEVER). The stock edge animation cannot come
+            // back: the controller installs an EdgeEffect spy that never calls super.onPull().
             mOverscroll = PagerOverscrollController.install(mTerminalPager);
         }
 
-        // Apply the user-configured terminal margins to the pages. TermuxActivity.setMargins()
-        // cannot do this on first launch — it runs in onCreate() before this manager exists — so
-        // the margins are (re)applied here from the live properties. Later changes arrive via
-        // TermuxActivity.setMargins() -> SessionPagerManager.setTerminalMargins().
+        // Apply margins/transparency from the live properties: TermuxActivity.setMargins() runs
+        // in onCreate() before this manager exists on first launch. Later changes arrive via
+        // TermuxActivity.setMargins() / applyTerminalTransparency().
         setTerminalMargins(mActivity.getProperties().getTerminalMarginLeft(),
                 mActivity.getProperties().getTerminalMarginTop(),
                 mActivity.getProperties().getTerminalMarginRight(),
                 mActivity.getProperties().getTerminalMarginBottom());
-
-        // Same reason as the margins above: on a cold start TermuxActivity.setMargins() ran
-        // before this manager existed, so the transparency is (re)applied here from the live
-        // properties. Later changes arrive via TermuxActivity.applyTerminalTransparency().
         setTerminalBackgroundTransparency(mActivity.getProperties().getTerminalBackgroundTransparency());
 
         mTerminalPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageScrollStateChanged(int state) {
-                // Track whether the user is physically dragging the pager (a real swipe gesture).
-                // A programmatic setCurrentItem() never passes through DRAGGING, so this flag lets
-                // onPageSelected() tell a user swipe onto the placeholder apart from a programmatic
-                // scroll that merely lands on the placeholder's index.
+                // Track whether the user is physically dragging. A programmatic setCurrentItem()
+                // never passes through DRAGGING, so onPageSelected() can tell a user swipe onto
+                // the placeholder apart from a programmatic scroll that lands on its index.
                 if (state == ViewPager2.SCROLL_STATE_DRAGGING) {
                     mUserScrollInProgress = true;
-                    // A user-initiated swipe starts a genuine tab navigation: release the reserved
-                    // end-scroll so onPageScrolled()'s finger-follow instant scroll is re-enabled and
-                    // the strip can move with the swipe. The end-scroll (if any) already fired once
-                    // the label was set; a manual swipe means the user is taking over.
+                    // A user swipe is taking over: release the reserved end-scroll so
+                    // onPageScrolled()'s finger-follow instant scroll is re-enabled.
                     withTabsController(tabs -> tabs.setEndScrollReserved(false));
                 } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
                     mUserScrollInProgress = false;
-                    // The gesture is over, whichever way it ended: drop the picker overlay. Safe to
-                    // clear the pending pick here — commitPlaceholderToSession() already consumed it,
-                    // because onPageSelected() is dispatched on the settle's FIRST frame and IDLE
-                    // only arrives at its end.
+                    // Gesture over — drop the picker overlay. Safe to clear the pending pick:
+                    // commitPlaceholderToSession() already consumed it (onPageSelected is
+                    // dispatched on the settle's FIRST frame; IDLE only arrives at its end).
                     endPickerGesture();
                 }
 
-                // Suppress IME hide/show churn for the ENTIRE swipe gesture, not just around
-                // onPageSelected(). Note that onPageSelected() does NOT run at the end of the
-                // settle — ScrollEventAdapter dispatches it on the first scroll frame AFTER the
-                // DRAGGING->SETTLING transition, i.e. at the very START of the settle animation
-                // (mDispatchSelected is armed on the state change and consumed on the next
-                // onScrolled). So the guard must be tied to the scroll states themselves, not to
-                // onPageSelected(): raise it on DRAGGING and SETTLING (the whole transition) and
-                // lower it on IDLE (posted so it does not clear while a late focus event is still
-                // in flight). Otherwise the old page's focus listener hides the keyboard mid-swipe
-                // — that is the keyboard flicker when switching tabs/sessions.
+                // Suppress IME hide/show churn for the ENTIRE swipe, not just around
+                // onPageSelected(). Note onPageSelected() runs at the START of the settle
+                // (first scroll frame after DRAGGING->SETTLING), so the guard must be tied to
+                // the scroll states themselves: raise on DRAGGING/SETTLING, lower on IDLE
+                // (posted so a late focus event is not cleared mid-flight). Otherwise the old
+                // page's focus listener hides the keyboard mid-swipe — the keyboard flicker.
                 if (state == ViewPager2.SCROLL_STATE_DRAGGING
                         || state == ViewPager2.SCROLL_STATE_SETTLING) {
                     mActivity.setTerminalPageSwitchInProgress(true);
                 } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
-                    // Not the end of the gesture when a forced commit is armed: stopping the pager's
-                    // own scroll to re-issue it towards the placeholder emits an IDLE on the way, and
-                    // dropping the IME guard there would let the old page hide the keyboard mid-settle
-                    // — exactly the flicker the guard exists for. The real IDLE (after the commit has
-                    // consumed the pick) still lowers it.
+                    // Not the real end when a forced commit is armed: stopping the pager's own
+                    // scroll emits a spurious IDLE, and dropping the guard there would let the
+                    // old page hide the keyboard mid-settle. The real IDLE still lowers it.
                     if (mForcedPickPending) {
                         mActivity.setTerminalPageSwitchInProgress(true);
                     } else {
                         mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
                     }
-                    // Hand the floating button's margin back to the settled state. onPageScrolled()
-                    // is the sole owner of it while the pager scrolls (updateFloatingButtonMargin()
-                    // early-returns during a scroll), so without this the button would stay parked
-                    // at whatever interpolated value the last scroll frame produced — and a
-                    // cancelled swipe would leave it at the wrong offset entirely.
+                    // onPageScrolled() owns the floating button's margin while the pager
+                    // scrolls; without this a cancelled swipe would leave it at a stale offset.
                     mTerminalPager.post(() -> mActivity.updateFloatingButtonMargin());
                     // If the swipe was cancelled (released back to the same page),
                     // onPageSelected never fires and the tab strip may be left in an
@@ -609,11 +544,9 @@ public final class SessionPagerManager {
 
             @Override
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-                // Forward the intermediate scroll progress to the tab strip so the
-                // selection highlight and scroll position follow the user's finger
-                // smoothly rather than snapping at the end of the settle. The values are
-                // cached in instance fields and the forwarder is a single non-capturing
-                // lambda (P2-3) — no Consumer/Float allocation per swipe frame.
+                // Forward intermediate scroll progress to the tab strip so the selection
+                // highlight follows the finger. Cached fields + single non-capturing lambda —
+                // no Consumer/Float allocation per swipe frame.
                 mLastScrollPos = position;
                 mLastScrollOffset = positionOffset;
                 withTabsController(mScrollForwarder);
@@ -621,37 +554,25 @@ public final class SessionPagerManager {
                 updateFloatingButtonMarginForScroll(position, positionOffset);
 
                 // How much of the placeholder page is on screen, 0…1, or -1 when there is no
-                // overlay page to drive. Derived ONCE and shared by the two consumers below: it is
-                // a pure function of the scroll callback, and both of them used to recompute it
-                // (including the getPlaceholderOverlayPage() read inside revealFor()).
+                // overlay. Derived ONCE — it is a pure function of the scroll callback, and both
+                // consumers below used to recompute it.
                 final float reveal = revealFor(position, positionOffset);
 
-                // Keep the placeholder content tracking the page it lives on: the hint stays centered
-                // in the slice that is currently visible, and the directory rows are revealed
-                // together with the page.
-                //
-                // Applied SYNCHRONOUSLY, on every callback, and unconditionally while an overlay page
-                // exists. All three properties matter, because the settle that follows the finger lift
-                // is driven by these very callbacks: deferring the write by a frame leaves the overlay
-                // a frame behind the page, and skipping it when the reveal happens to read 0 leaves the
-                // overlay sitting at its previous value. Either way the menu no longer tracks the page
-                // it is drawn on — it snaps at the end of the gesture, or stays half-revealed over a
-                // cancelled swipe. Both were observed with the deferred/guarded variant.
+                // Keep the placeholder content tracking the page it lives on. Applied
+                // SYNCHRONOUSLY on every callback while an overlay exists: the settle after
+                // finger lift is driven by these very callbacks, so deferring by a frame (or
+                // skipping when reveal reads 0) leaves the overlay a frame behind / stuck —
+                // observed as snap-at-end or half-revealed menu on cancelled swipe.
                 applyOverlayReveal(reveal);
 
-                // First frame that reveals the placeholder — the moment the user first sees
-                // the menu. The finger's Y right now becomes the anchor, and it is latched
-                // once per gesture: the list must stay put while the finger travels over it,
-                // otherwise the release position could never select anything but the row the
-                // finger started on.
-                //
-                // Runs AFTER the reveal above so the picker is laid out against the width it
-                // currently has. Gated by shouldLatchAnchor(): mUserScrollInProgress keeps a
-                // programmatic scroll that merely passes over the last tab's index from popping the
-                // menu; mFingerDown keeps a FLING from popping it (the finger is already up when the
-                // placeholder flies in, so there is no finger to anchor on, and the menu would be a
-                // flash of unreachable UI during the settle). Both cases fall through to the default
-                // working directory, which is exactly what a release outside the rows means.
+                // First frame that reveals the placeholder — the finger's Y right now becomes
+                // the anchor, latched once per gesture so the list stays put while the finger
+                // travels (otherwise the release position could never select a different row).
+                // Runs AFTER the reveal so the picker lays out against the current width.
+                // Gated by shouldLatchAnchor(): mUserScrollInProgress keeps a programmatic
+                // scroll off popping the menu; mFingerDown keeps a FLING off popping it (the
+                // finger is already up — no anchor to latch, and the menu would be a flash of
+                // unreachable UI). Both fall through to the default working directory.
                 if (shouldLatchAnchor(positionOffset, reveal)) {
                     latchAnchor();
                 }
@@ -659,35 +580,33 @@ public final class SessionPagerManager {
 
             @Override
             public void onPageSelected(int position) {
-                // If the gesture settled onto the trailing placeholder page, replace it with a real
-                // new session (and keep the pager parked there — no jump). This must only happen for
-                // a genuine USER SWIPE (mUserScrollInProgress). A programmatic setCurrentItem() — e.g.
-                // addNewSession() appending a session whose index coincides with the placeholder
-                // index — also lands here, but must NOT commit a (duplicate) session.
+                // If the gesture settled onto the trailing placeholder page, replace it with a
+                // real new session. Only for a genuine USER SWIPE (mUserScrollInProgress) or a
+                // forced pick — a programmatic setCurrentItem() (e.g. addNewSession() appending
+                // a session whose index coincides with the placeholder index) must NOT commit
+                // a (duplicate) session.
                 if (mTerminalPagerAdapter != null && mTerminalPagerAdapter.isPlaceholderActive()
                         && position == mTerminalPagerAdapter.getPlaceholderIndex()) {
-                    // mForcedPickPending: the release was over a history row, so the tab opens even
-                    // though the drag itself did not reach the placeholder. The settle that brings
-                    // the page in is the pager's own (see forceCommitOntoPlaceholder), and it reports
-                    // IDLE before it starts — hence mUserScrollInProgress is already false here.
+                    // mForcedPickPending: release was over a history row, so the tab opens even
+                    // though the drag did not reach the placeholder. The settle is the pager's
+                    // own (forceCommitOntoPlaceholder) and reports IDLE before it starts — hence
+                    // mUserScrollInProgress is already false here.
                     if (mUserScrollInProgress || mForcedPickPending) {
                         commitPlaceholderToSession();
                     } else {
-                        // Programmatic scroll onto the placeholder slot — e.g. addNewSession()
-                        // appended a session whose index coincides with the placeholder index.
-                        // Do NOT create a (duplicate) session, but DO resync the adapter with the
-                        // live session list first: while the placeholder was active, getItemCount()
-                        // already accounted for it, so the normal sync-on-size-change was a no-op and
-                        // the adapter's backing list never learned about the new real session. Without
-                        // this resync the new session would never get a ViewHolder bound to it (it
-                        // would stay an uninitialised "Terminal" page and the UI would hang).
+                        // Programmatic scroll onto the placeholder slot. Do NOT create a
+                        // (duplicate) session, but DO resync the adapter with the live session
+                        // list: while the placeholder was active, getItemCount() already
+                        // accounted for it, so the normal sync-on-size-change was a no-op and
+                        // the backing list never learned about the new real session. Without
+                        // this the new session would never get a ViewHolder bound (UI hang).
                         cancelPlaceholder();
                         TermuxService service = mActivity.getTermuxService();
                         if (service != null) {
                             mTerminalPagerAdapter.syncWithServiceList(service.getTermuxSessions());
                         }
-                        // Re-arm the placeholder if we landed on the last real tab and the feature
-                        // is enabled, so a subsequent right-swipe can still add a session.
+                        // Re-arm the placeholder if we landed on the last real tab and the
+                        // feature is enabled, so a subsequent right-swipe can still add a session.
                         managePlaceholderForPosition(position);
                         onTerminalPageSelected(position);
                     }
@@ -700,9 +619,8 @@ public final class SessionPagerManager {
             }
         });
 
-        // Cache the "swipe rightmost tab for new session" preference (P1): read it once here and
-        // keep it fresh via a listener so onPageSelected() never reads SharedPreferences on every
-        // settle. Default matches the preference's default (true).
+        // Cache the "swipe rightmost tab for new session" preference: read once here, kept
+        // fresh via a listener so onPageSelected() never reads SharedPreferences per settle.
         mPrefs = mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
         mSwipeRightmostNewTabEnabled = mPrefs.getBoolean("swipe_rightmost_new_tab", true);
         mPrefs.registerOnSharedPreferenceChangeListener(mPrefsListener);
@@ -814,19 +732,16 @@ public final class SessionPagerManager {
      * placeholder slot.
      *
      * <p>The commit <b>owns</b> the adapter update for the session it creates — it calls
-     * {@link TerminalPagerAdapter#commitPlaceholder} itself, in place, precisely so the page the
-     * user is watching becomes the new terminal without the pager moving. But creating the session
-     * makes the service fire {@link #termuxSessionListNotifyUpdated()} from inside the commit, and
-     * that path is the opposite of what the commit needs: it drops the placeholder page, stops the
-     * scroll and jumps with {@code setCurrentItem(..., false)}. Doing it mid-commit removes the
-     * page the settle is travelling to and replaces the animated arrival with an instant jump —
-     * the "new tab opens with no animation" regression.
+     * {@link TerminalPagerAdapter#commitPlaceholder} itself so the page the user is watching
+     * becomes the new terminal without the pager moving. But creating the session makes the
+     * service fire {@link #termuxSessionListNotifyUpdated()} from inside the commit, and that
+     * path drops the placeholder, stops the scroll and jumps with {@code setCurrentItem(..., false)}
+     * — mid-commit that removes the page the settle is travelling to and replaces the animated
+     * arrival with an instant jump (the "new tab opens with no animation" regression).
      *
-     * <p>So the sync is muted for the duration of the create call. It is not a "skip because the
-     * size happens to match" heuristic (the old guard relied on the placeholder inflating
-     * {@code getItemCount()}, which also silently swallowed the sync for a tab added by the "+"
-     * button); it is an explicit statement that the commit is the only writer of the adapter in
-     * that window.
+     * <p>So the sync is muted for the duration of the create call: an explicit statement that
+     * the commit is the only writer of the adapter in that window, not a "size happens to match"
+     * heuristic (which also silently swallowed the sync for a tab added by the "+" button).
      */
     private boolean mPlaceholderCommitInFlight = false;
 
@@ -848,23 +763,20 @@ public final class SessionPagerManager {
         }
 
         // Append a new session at placeholderIndex. createTermuxSession() fires
-        // termuxSessionListNotifyUpdated(), but because the adapter still reports
-        // getItemCount() == service size (the placeholder is counted), that sync is a no-op — we
-        // update the adapter ourselves below so the placeholder slot is rebound in place.
+        // termuxSessionListNotifyUpdated(), but the adapter still reports the placeholder count so
+        // that sync is a no-op — update the adapter below so the placeholder slot is rebound in place.
         //
         // The directory comes from the release position: the row the finger was over, or — for every
-        // position outside the rows, including the neutral zone at the anchor and the hint band —
-        // the working directory configured in Settings. The gesture therefore always creates a
-        // session, never nothing.
+        // position outside the rows — the working directory configured in Settings, so the gesture
+        // always creates a session, never nothing.
         final String directory = resolvePickDirectory();
-        // Consume the pick now: endPickerGesture() at the end of the settle must be free to release
-        // the overlay, and the posted forceCommitOntoPlaceholder() must see the job as done.
+        // Consume the pick now: endPickerGesture() must be free to release the overlay, and the
+        // posted forceCommitOntoPlaceholder() must see the job as done.
         clearForcedPick();
-        // Mute the session-list sync for the create call only: it notifies synchronously, and the
-        // commit owns the adapter update (see mPlaceholderCommitInFlight). The window is closed in a
-        // finally: nothing re-enters it, but createSessionForPlaceholder() can throw (it forks a
-        // process), and a flag stranded at true would mute EVERY later sync — the tab strip and the
-        // pager would silently stop tracking the session list, with nothing pointing at the cause.
+        // Mute the session-list sync for the create call only (the commit owns the adapter update).
+        // Closed in a finally: createSessionForPlaceholder() can throw (it forks a process), and a
+        // flag stranded at true would mute EVERY later sync — tab strip and pager silently stop
+        // tracking the session list.
         final TermuxSession newSession;
         mPlaceholderCommitInFlight = true;
         try {
@@ -874,66 +786,51 @@ public final class SessionPagerManager {
         }
         if (newSession == null) { cancelPlaceholder(); return; }
 
-        // The rows the gesture did not pick start leaving here, on the settle's first frame: 50 ms,
-        // so the list is gone long before the page lands and long before the overlay's own 150 ms
-        // fade finishes. The row the finger was on is kept — and when the release was outside the
-        // rows (which resolves to the default working directory) nothing is highlighted, so the whole
-        // list goes, which is exactly the "no directory was chosen" reading.
+        // Unpicked rows start leaving on the settle's first frame (50 ms — gone long before the
+        // overlay's own 150 ms fade finishes). The picked row is kept; a release outside the rows
+        // highlights nothing, so the whole list goes ("no directory was chosen").
         //
-        // Started here rather than on the finger lift so that EVERY tab a swipe opens fades the list
-        // the same way — a natural full drag as well as a forced pick — while a release that creates
-        // nothing never touches it. Both paths reach this line on the same frame: the forced one
-        // through the posted setCurrentItem(), which dispatches onPageSelected synchronously.
-        //
-        // Before the overlay's teardown below, so the highlight is still the one the finger left;
-        // and the teardown itself resets the fade if there was no visible overlay to fade.
+        // Started here rather than on the finger lift so every tab a swipe opens fades the same
+        // way; both paths reach this line on the same frame. Before the overlay teardown below, so
+        // the highlight is still the one the finger left.
         final DirectoryPickerController picker = getDirectoryPicker();
         if (picker != null) picker.beginRowFadeOut();
-
-        // Start the overlay leaving BEFORE the rebind is scheduled: the fade flag has to be up by the
-        // time onBindViewHolder() runs for the committed slot, otherwise the bind path would set the
-        // container GONE and the placeholder would disappear in a single frame instead of fading.
+        // Start the overlay leaving BEFORE the rebind is scheduled: the fade flag has to be up by
+        // the time onBindViewHolder() runs, or the bind would set the container GONE and the
+        // placeholder would disappear in a single frame instead of fading.
         mTerminalPagerAdapter.fadeOutPlaceholderOverlay();
 
         mTerminalPagerAdapter.commitPlaceholder(service.getTermuxSessions(), placeholderIndex);
         withTabsController(tabs -> {
             tabs.setPlaceholderActive(false);
-            // Reserve the end-scroll NOW (before the deferred post() bookkeeping runs) so that every
-            // onPageScrolled() instant scrollTo() during the pager settle is suppressed by the
-            // mEndScrollActive guard — only the single END smooth scroll (fired after the label is set)
-            // will drive the strip. Also arm the label-triggered scroll: the right-end scroll fires only
-            // once the new session's title is actually set (onTitleChanged), with a 250ms fallback.
+            // Reserve the end-scroll NOW (before the deferred post() bookkeeping) so every
+            // onPageScrolled() instant scrollTo() during the settle is suppressed by the
+            // mEndScrollActive guard — only the single END smooth scroll drives the strip.
+            // Also arm the label-triggered scroll: the right-end scroll fires only once the
+            // new session's title is actually set (onTitleChanged), with a 250ms fallback.
             tabs.setEndScrollReserved(true);
         });
         if (newSession.getTerminalSession() != null) {
             client.markPendingEndScrollSession(newSession.getTerminalSession());
         }
 
-        // NOTE: do NOT re-arm the placeholder synchronously here. Re-inserting the page during the
-        // commit (notifyItemInserted) makes ViewPager2's DataSetChangeObserver snapToPage() and
-        // rewind the pager (the old 6->0 cascade). The placeholder is instead re-appended on the
-        // next frame by managePlaceholderForPosition(idx) inside the post() block below — inserting
-        // the page to the RIGHT of the settled current page, which is safe.
+        // NOTE: do NOT re-arm the placeholder synchronously here. Re-inserting during the commit
+        // (notifyItemInserted) makes ViewPager2's snapToPage() rewind the pager (the old 6->0
+        // cascade). It is re-appended on the next frame inside the post() below — to the RIGHT of
+        // the settled current page, which is safe.
 
-        // commitPlaceholder() triggers an in-place rebind of the (reused) ViewHolder carrying the
-        // new session — via a payloaded notifyItemChanged so RecyclerView does NOT skip the bind.
-        // Re-arm the placeholder immediately (next frame, safe — inserts to the right of the
-        // settled page) so a subsequent right-swipe can still create a session, then run the
-        // standard per-page bookkeeping on the next frame, once the ViewHolder is rebound: this
-        // re-points the activity's active TerminalView at the new page and highlights its tab.
+        // commitPlaceholder() rebinds the ViewHolder carrying the new session via a payloaded
+        // notifyItemChanged. Re-arm the placeholder on the next frame, then re-point the active
+        // TerminalView and tab highlight once the rebind has landed.
         final int idx = placeholderIndex;
         mTerminalPager.post(() -> {
-            // Re-arm the trailing placeholder page. Inserts at idx+1 (right of current) — does NOT
-            // move the current page, so it cannot trigger the ViewPager2 snapToPage rewind. The
-            // normal swipe path (onPageSelected -> managePlaceholderForPosition) does exactly this
-            // on every settle; the commit path must too, otherwise the placeholder stays dropped
-            // forever and the next right-swipe just edge-bounces.
+            // Inserts at idx+1 (right of current) — does NOT move the current page, so no
+            // snapToPage rewind. Without it the placeholder stays dropped forever and the next
+            // right-swipe just edge-bounces.
             managePlaceholderForPosition(idx);
             updatePagerUserInputEnabled();
-            // Re-point the active view + tab highlight at the newly-committed page. By now the
-            // payloaded rebind has attached the new session to the page view, so getPagerPageView()
-            // resolves the correct TerminalView (not the previous tab). The tab strip scrolls to
-            // the right edge when updateTabs() adds the new tab (see TermuxSessionTabsController).
+            // By now the payloaded rebind has attached the new session to the page view, so
+            // getPagerPageView() resolves the correct TerminalView.
             onTerminalPageSelected(idx);
         });
     }
@@ -1006,28 +903,18 @@ public final class SessionPagerManager {
 
     /**
      * Release over a directory-history row: the new tab opens no matter how far the page was
-     * dragged — and it opens with the same animation a full drag produces.
+     * dragged — with the same animation a full drag produces.
      *
-     * <h2>Why it has to be done this way</h2>
-     * The "new tab opening" animation is not a separate animation of ours: it is the pager settling
-     * forward onto the placeholder page, with {@link #commitPlaceholderToSession()} running on the
-     * settle's first frame (the overlay fades out over 150 ms while the page finishes travelling).
-     * So the only way to reproduce it for a short drag is to make the pager actually travel to the
-     * placeholder page.
+     * <p>The "new tab opening" animation is the pager settling onto the placeholder page with
+     * {@link #commitPlaceholderToSession()} on the settle's first frame, so the only way to
+     * reproduce it for a short drag is to make the pager actually travel there.
      *
-     * <h2>Why here, and not on the release itself</h2>
-     * On {@code ACTION_UP} the pager has not yet decided where to go — that happens inside the
-     * RecyclerView's own up-handling (a fling into {@code PagerSnapHelper}, or a snap-back once the
-     * state falls to IDLE). Issuing {@code setCurrentItem} from the release handler itself races
-     * with that decision and either gets overridden by it or gets killed by the IDLE's
-     * {@code stopScrollersInternal()}.
-     *
-     * <p>Posting instead lands the call after the whole up-handling and <em>before the settle's
-     * first animation frame</em>: the settle can only move on the next vsync, while a {@code post()}
-     * runs in the current message-loop pass. Nothing has moved yet, so replacing the pager's own
-     * scroll with ours is invisible — it is the same {@code smoothScrollToPosition} over the same
-     * distance from the same position, and {@code onPageSelected} fires at the same point of the
-     * settle, so the commit and the fade-out run exactly as they do for a full drag.
+     * <p>Not on the release itself: on {@code ACTION_UP} the pager has not yet decided where to
+     * go (a fling into PagerSnapHelper, or a snap-back once the state falls to IDLE). Issuing
+     * {@code setCurrentItem} from the release handler races with that decision. Posting instead
+     * lands after the whole up-handling and before the settle's first animation frame — nothing
+     * has moved yet, so replacing the pager's own scroll is invisible, and {@code onPageSelected}
+     * fires at the same point of the settle, so the commit and fade-out run as for a full drag.
      */
     private void armForcedPick(@NonNull String directory) {
         if (mTerminalPagerAdapter == null || !mTerminalPagerAdapter.isPlaceholderActive()) return;
@@ -1079,14 +966,11 @@ public final class SessionPagerManager {
 
     /**
      * How much of the placeholder page is on screen, 0…1 — or {@code -1} when there is no overlay
-     * page to drive at all (the commit fade has finished, or the placeholder was dropped).
+     * page to drive (commit fade finished, or placeholder dropped).
      *
-     * <p>The page is taken from the adapter rather than derived from the live session count. At the
-     * instant the swipe commits, a session is added and the page stops being "the placeholder" as far
-     * as the list is concerned — but the overlay is still sitting on it and must go on tracking the
-     * settle. Otherwise the reveal freezes at the slice the finger happened to be at, and the content
-     * reads as shifted sideways once the page lands, instead of looking as if the finger had been
-     * dragged all the way to the edge.
+     * <p>Page taken from the adapter, not the live session count: at commit a session is added and
+     * the page stops being "the placeholder" to the list, but the overlay still sits on it and must
+     * go on tracking the settle — otherwise the reveal freezes mid-gesture.
      */
     private float revealFor(int position, float positionOffset) {
         if (mTerminalPagerAdapter == null) return -1f;
@@ -1100,28 +984,24 @@ public final class SessionPagerManager {
     }
 
     /**
-     * Drive the placeholder overlay to the current reveal: the hint's horizontal centring, the
-     * overlay's fade ramp, and the directory rows' width.
+     * Drive the placeholder overlay to the current reveal: hint centring, fade ramp, row widths.
      *
-     * <p>Driven unconditionally on every scroll callback, exactly as before the optimisations: the
-     * overlay has to track the page through the whole settle — including the return leg of a
-     * cancelled swipe, where the reveal ramps back down to 0 — otherwise the menu stands still while
+     * <p>Unconditionally on every scroll callback: the overlay must track the page through the
+     * whole settle — including the return leg of a cancelled swipe — or the menu stands still while
      * the page slides out from under it.
      *
-     * @param reveal the value {@link #revealFor(int, float)} already produced for this callback, or
-     *               a negative value when there is no overlay page to drive.
+     * @param reveal {@link #revealFor(int, float)}'s value for this callback, or negative when there
+     *               is no overlay page to drive.
      */
     private void applyOverlayReveal(float reveal) {
         if (reveal < 0f) return;
 
-        // Runs before the anchor latch, so the very first frame the menu appears already has the
-        // width this callback produced.
+        // Before the anchor latch: the first frame the menu appears already has this width.
         final DirectoryPickerController picker = getDirectoryPicker();
         if (picker != null) {
-            // The page being fully off screen is the one moment that always precedes a gesture that
-            // can open the menu, so it is where a leftover row fade from the previous gesture is
-            // dropped — the menu must never open on rows that are already dimmed. Free unless there
-            // is something to undo.
+            // Page fully off screen always precedes a gesture that can open the menu, so it is
+            // where a leftover row fade from the previous gesture is dropped — never open on
+            // already-dimmed rows. Free unless there is something to undo.
             if (reveal <= 0f) picker.clearRowFade();
             picker.setRevealedFraction(reveal);
         }
@@ -1129,27 +1009,16 @@ public final class SessionPagerManager {
     }
 
     /**
-     * Whether this scroll callback is the one that has to open the menu.
+     * Whether this scroll callback is the one that has to open the menu: the first frame that
+     * reveals the placeholder, latched once per gesture (the list must stay put while the finger
+     * travels over it).
      *
-     * <p>First frame that reveals the placeholder — the moment the user first sees the menu. The
-     * finger's Y right then becomes the anchor, and it is latched once per gesture: the list must stay
-     * put while the finger travels over it, otherwise the release position could never select
-     * anything but the row the finger started on.
+     * <p>{@code reveal > 0} ties the latch to the placeholder being on screen; {@code mUserScrollInProgress}
+     * keeps a programmatic scroll from popping the menu; {@code mFingerDown} keeps a FLING from
+     * popping it (no finger to anchor on). All fall through to the default working directory.
      *
-     * <p>The {@code reveal > 0} part is what ties the latch to the placeholder actually being on
-     * screen, so a drag from an earlier tab (where the placeholder is armed but pages away) can no
-     * longer latch an anchor for a menu nobody can see. {@code mUserScrollInProgress} keeps a
-     * programmatic scroll that merely passes over the last tab's index from popping the menu.
-     * {@code mFingerDown} keeps a FLING from popping it: the finger is already up when the placeholder
-     * flies in, so there is no finger to anchor on, and the menu would be a flash of unreachable UI
-     * during the settle. Both cases fall through to the default working directory, which is exactly
-     * what a release outside the rows means. {@code isPlaceholderActive()} also keeps the latch off
-     * the committed page, whose overlay is only finishing its fade.
-     *
-     * @param positionOffset the raw callback offset — {@code 0} is the "nothing is transitioning"
-     *                       frame, which must never open the menu.
-     * @param reveal         the value {@link #revealFor(int, float)} already produced for this
-     *                       callback, so it is not recomputed here.
+     * @param positionOffset raw callback offset — {@code 0} is the idle frame and must never open.
+     * @param reveal         {@link #revealFor(int, float)}'s value, not recomputed here.
      */
     private boolean shouldLatchAnchor(float positionOffset, float reveal) {
         if (mAnchorLatched || positionOffset <= 0f) return false;
@@ -1170,30 +1039,17 @@ public final class SessionPagerManager {
     /**
      * Make the directory history complete before the picker builds its list from it.
      *
-     * <p>The history is otherwise appended to only when a session <em>becomes</em> current (a tab
-     * switch, see {@code TermuxTerminalSessionActivityClient#onSessionPageSelected}) or when the "+"
-     * button's popup is opened. That records where each tab was when the user <em>arrived</em> in it,
-     * so a {@code cd} performed afterwards was invisible to the picker: the swipe offered the
-     * directories of that earlier switch, and the new one only turned up once a tab had been created
-     * through the picker — which is itself a session change. That held for every tab before the last
-     * one, however the user got there: the cwd of a tab the user is not standing on is never read by
-     * the arrival-only capture.
+     * <p>History is otherwise appended only when a session <em>becomes</em> current (a tab switch)
+     * or when the "+" button's popup is opened. That records where each tab was when the user
+     * <em>arrived</em> in it, so a {@code cd} performed afterwards was invisible to the picker —
+     * the cwd of a tab the user is not standing on is never read by the arrival-only capture.
      *
-     * <p>So the capture here reads <em>every</em> live session ({@link
-     * TermuxActivity#recordAllSessionDirectories}) rather than just the current one, which makes the
-     * list complete at the single moment it is used — the last real page, where the placeholder page
-     * (and therefore the picker) can actually be reached. Deliberately <em>synchronous</em>, unlike
-     * the tab-switch capture ({@link TermuxActivity#getCurrentSessionCwdAsync}, which exists to keep
-     * a /proc readlink off the settle's frames): the picker builds its rows on the first frame that
-     * reveals the placeholder, a couple of frames after this one, so an asynchronous round-trip out
-     * to a background thread and back could land after the list had already been built — the very
-     * staleness this removes. A finger-down with the pager at rest has no animation to protect, and
-     * each read is a procfs lookup. The "+" button's popup makes the same synchronous call on the
-     * same thread for the same reason (see {@code DirectoryHistoryPopupController#show}).
-     *
-     * <p>Gated on the gesture actually being able to open the picker: the trailing placeholder must be
-     * armed and the pager must be sitting on the last real page — the placeholder is the page after
-     * it, so a touch anywhere else has nothing to refresh for, and the per-session reads are skipped.
+     * <p>So this reads <em>every</em> live session ({@link TermuxActivity#recordAllSessionDirectories}),
+     * which makes the list complete at the single moment it is used. Deliberately <em>synchronous</em>,
+     * unlike the tab-switch capture ({@link TermuxActivity#getCurrentSessionCwdAsync}): the picker
+     * builds its rows a couple of frames after this one, so an async round-trip could land after
+     * the list was already built. Gated on the gesture actually being able to open the picker
+     * (placeholder armed and pager on the last real page).
      */
     private void recordCurrentDirectoryForPicker() {
         if (mTerminalPagerAdapter == null || mTerminalPager == null) return;
@@ -1223,29 +1079,17 @@ public final class SessionPagerManager {
      * activity's active {@link TerminalView}, move the tab highlight and run the per-session setup.
      *
      * <p><b>Total and idempotent.</b> It must produce a consistent state for any input — including
-     * an index that is out of range because a session was closed under us — and it must be safe to
-     * run twice for the same page. Both properties are load-bearing:
-     * <ul>
-     *   <li>after a tab close {@code ViewPager2.setCurrentItem()} is a <b>silent no-op</b> when the
-     *       target equals the current item (verified in the 1.1.0 bytecode:
-     *       {@code if (item == mCurrentItem && isIdle()) return;}), so no {@code onPageSelected}
-     *       arrives and this manual call is the <em>only</em> thing that moves the active state.
-     *       The old {@code if (selected == null) return;} turned exactly that call into a no-op
-     *       and left the activity pointing at the killed session. (The close path now also parks
-     *       the pager on the heir before removing the page — see
-     *       {@link #parkOnSessionBeforeRemoval} — but that is about which page is <em>laid out</em>,
-     *       not about the active state.)</li>
-     *   <li>{@code ViewPager2} may resolve the settled page one layout pass later
-     *       ({@code mCurrentItemDirty} + {@code updateCurrentItem()} in {@code onLayout}) and then
-     *       deliver {@code onPageSelected} late — so a repeat run has to be harmless.</li>
-     * </ul>
+     * an index out of range because a session was closed under us — and be safe to run twice for
+     * the same page. Both are load-bearing: after a tab close {@code ViewPager2.setCurrentItem()}
+     * is a silent no-op when the target equals the current item, so no {@code onPageSelected}
+     * arrives and this manual call is the only thing that moves the active state; and ViewPager2
+     * may deliver {@code onPageSelected} late (one layout pass after the settle), so a repeat run
+     * must be harmless.
      *
-     * <p>There is deliberately <b>no recovery path with a delay</b>. If the page's view is not bound
-     * yet, the active view is set to null (input routing falls back to
-     * {@link TermuxActivity#getActiveTerminalView()}) and {@link #onPageBound} re-points it the
-     * moment the page is bound. The old code instead waited on a child-attach listener with a
-     * {@code post} fallback and a 300 ms safety net — and both of those waited for something that
-     * provably could not happen for a view that was already attached.
+     * <p>Deliberately <b>no recovery path with a delay</b>. If the page's view is not bound yet,
+     * the active view is set to null and {@link #onPageBound} re-points it the moment the page is
+     * bound. The old code waited on a child-attach listener with a {@code post} fallback and a
+     * 300 ms safety net — both waiting for something that could not happen for an already-attached view.
      */
     private void onTerminalPageSelected(int position) {
         TermuxService service = mActivity.getTermuxService();
@@ -1293,30 +1137,24 @@ public final class SessionPagerManager {
         // change" can only be honoured by re-asserting THIS reading afterwards.
         //
         // Skipped for a tab CREATE: a freshly-added session inherited the live keyboard state and is
-        // re-asserted by the create path itself (scheduleSwitchKeyboardReassert, gated on
-        // mKbStateCreateInProgress / mKbStateInheritedSessionHandle). Capturing here would feed the
-        // generic switch re-assert below, which force-shows the keyboard on a create and regresses
-        // the pre-fix (last-commit) behaviour — the create already preserves the state on its own.
+        // re-asserted by the create path itself. Capturing here would feed the generic switch
+        // re-assert below, which force-shows the keyboard on a create and regresses the pre-fix
+        // behaviour — the create already preserves the state on its own.
         if (!mActivity.isKbStateCreateInProgress()) {
             mActivity.captureKeyboardStateForSwitch();
         }
 
-        // Mark a page switch in progress so the per-page focus listener
-        // (registerTerminalViewFocusListener) suppresses IME hide/show churn while the old page
-        // loses focus and the new one gains it during a swipe / tab / hotkey switch. Cleared at the
-        // end of this method. This fixes the keyboard flicker (hide+show) reported when switching
-        // tabs/sessions — without it, the focus listener of the page being left would pop the IME
-        // and the freshly-landed page would re-show it a frame later.
+        // Mark a page switch in progress so the per-page focus listener suppresses IME
+        // hide/show churn while the old page loses focus and the new one gains it. Without it,
+        // the focus listener of the page being left would pop the IME and the freshly-landed
+        // page would re-show it a frame later — the keyboard flicker when switching tabs.
         mActivity.setTerminalPageSwitchInProgress(true);
 
-        // Preserve the panel text of the session we are LEAVING (still pointed to by the activity's
-        // terminal view / getCurrentSession at this moment) BEFORE we re-point it at the incoming
-        // page and onSessionPageSelected() overwrites the single shared EditText with the new
-        // session's saved text. The programmatic setCurrentSession() path already saves here, but a
-        // plain swipe goes straight through onTerminalPageSelected() and would otherwise drop the
-        // leaving session's in-progress input (#InputPanel8).
-        // NOTE: still called while the active index points at the LEAVING session, so the shared
-        // field's content is persisted to that session (guarded internally by mTiBoundSession).
+        // Preserve the panel text of the session we are LEAVING BEFORE we re-point it at the
+        // incoming page and onSessionPageSelected() overwrites the single shared EditText. The
+        // programmatic setCurrentSession() path already saves here, but a plain swipe goes
+        // straight through onTerminalPageSelected() and would otherwise drop the leaving
+        // session's in-progress input (#InputPanel8).
         mActivity.saveTextInputForCurrentSession();
 
         // The active page moves here — before anything reads it back. Everything below reads state,
@@ -1336,12 +1174,11 @@ public final class SessionPagerManager {
         // Point the shared "active terminal view" at this page's view so that getTerminalView()
         // (used by IME, extra keys, context menu, selection, etc.) routes to the visible session.
         //
-        // null is a legitimate, deliberate outcome: the page may not be bound yet (a jump of two or
-        // more pages with offscreenPageLimit == 1). Leaving the activity pointing at the PREVIOUS
-        // session's view is what routed input, IME and extra keys into a dead terminal, so we clear
-        // it instead — callers that need a view go through
-        // TermuxActivity.getActiveTerminalView(), and onPageBound() re-points it as soon as the
-        // page is bound. Recovery is an event, not a timer.
+        // null is a legitimate, deliberate outcome: the page may not be bound yet (a jump of two
+        // or more pages with offscreenPageLimit == 1). Leaving the activity pointing at the
+        // PREVIOUS session's view is what routed input into a dead terminal, so we clear it —
+        // callers go through TermuxActivity.getActiveTerminalView(), and onPageBound() re-points
+        // it as soon as the page is bound. Recovery is an event, not a timer.
         mActivity.setTerminalView(getPagerPageView(position));
 
         // NOTE: no defensive clear of the shared text-input EditText here anymore. The
@@ -1350,33 +1187,25 @@ public final class SessionPagerManager {
         // session's record, so a stale field can neither leak text into the incoming
         // session nor wipe it — there is no text-bearing save path left to race with.
 
-        // Refresh the tab highlight for the page we landed on. We call setCurrentSession(position)
-        // (NOT updateTabs()) because updateTabs() does removeAllViews() + recreate every tab,
-        // which would thrash on every swipe; setCurrentSession() only flips the selection
-        // state / close-button visibility on the EXISTING tab views.
-        //
-        // The final copy exists only because this method clamps {@code position} (an out-of-range
-        // index means the list shrank under us); the call itself is exactly the one above.
+        // Refresh the tab highlight. setCurrentSession(position) (NOT updateTabs()) because
+        // updateTabs() does removeAllViews() + recreate every tab, thrashing on every swipe;
+        // setCurrentSession() only flips selection state / close-button visibility in place.
         final int landedIndex = position;
         withTabsController(tabs -> tabs.setCurrentSession(landedIndex));
 
         // Mirror the existing setCurrentSession() side effects for the newly-visible session so
-        // per-session text input, tab highlight and background colour stay consistent. We avoid
+        // per-session text input, tab highlight and background colour stay consistent. Avoid
         // calling setCurrentSession() itself (that would re-trigger a pager scroll / toast loop).
-        // applyTextInputVisibilityForSession() (called inside onSessionPageSelected) is the SINGLE
-        // authority for focus + IME here, so we must NOT also requestFocus()/showSoftInput() below —
-        // doing both caused the keyboard to flicker (hide+show) when switching tabs/sessions.
+        // applyTextInputVisibilityForSession() is the SINGLE authority for focus + IME here, so
+        // do NOT also requestFocus()/showSoftInput() below — doing both caused keyboard flicker.
         mActivity.getTermuxTerminalSessionClient().onSessionPageSelected(selected);
 
-        // Page switch bookkeeping done. The IME-suppression guard (mTerminalPageSwitchInProgress)
-        // must stay raised until the focus change requested inside onSessionPageSelected()/applyTextInputVisibilityForSession
-        // (via TerminalView/EditText.requestFocus()) is actually DELIVERED — requestFocus() posts
-        // the focus transition to the main looper, so it runs AFTER this method returns. If we cleared
-        // the guard synchronously here, the old page's onFocusChange(false) would fire with the guard
-        // already false and hide the keyboard mid-switch (the keyboard flicker). So defer the clear to
-        // a posted runnable: it lands in the looper AFTER the requestFocus() focus event, so the guard
-        // is still true while the focus listener processes the switch, then drops. onPageScrollStateChanged(IDLE)
-        // also posts a clear (harmless, idempotent) for the swipe path; the explicit/startup path relies on this one.
+        // Clear the IME guard only AFTER the focus change requested inside
+        // onSessionPageSelected() is delivered — requestFocus() posts the focus transition to
+        // the main looper, so it runs AFTER this method returns. Clearing synchronously would let
+        // the old page's onFocusChange(false) hide the keyboard mid-switch. Posted, it lands
+        // after the requestFocus event. onPageScrollStateChanged(IDLE) also posts a clear
+        // (harmless, idempotent) for the swipe path; the explicit/startup path relies on this one.
         mTerminalPager.post(() -> mActivity.setTerminalPageSwitchInProgress(false));
 
         // A keyboard restore may have been deferred until an active page exists
@@ -1385,19 +1214,14 @@ public final class SessionPagerManager {
     }
 
     /**
-     * Interpolate the floating button's right margin during a ViewPager2 scroll
-     * between two adjacent pages. When scrolling from a page with scrollbar to
-     * one without (or vice versa), the button margin smoothly transitions between
-     * the two states so the visual position tracks the user's finger instead of
-     * snapping only after the page settles.
+     * Interpolate the floating button's right margin during a ViewPager2 scroll between two
+     * adjacent pages, so the button tracks the finger instead of snapping after the settle.
      *
-     * <p>Every write here goes through
-     * {@link TermuxActivity#setFloatingButtonMarginEndForScroll(int)}, which applies the value as a
-     * translation against the margin the layout already holds. The previous version wrote a real
-     * {@code marginEnd} per frame, i.e. a full measure+layout pass over the activity on every frame
-     * of the swipe; the geometry the user sees is identical (the translation produces exactly the
-     * same effective margin), only the way it is applied changed. The settled margin is restored —
-     * and the translation cleared — by {@code updateFloatingButtonMargin()} on the scroll's IDLE.
+     * <p>Every write goes through {@link TermuxActivity#setFloatingButtonMarginEndForScroll(int)},
+     * which applies the value as a translation against the margin the layout already holds — the
+     * previous version wrote a real {@code marginEnd} per frame (a full measure+layout pass per
+     * frame). Geometry is identical; only the way it is applied changed. The settled margin is
+     * restored by {@code updateFloatingButtonMargin()} on the scroll's IDLE.
      */
     private void updateFloatingButtonMarginForScroll(int position, float positionOffset) {
         if (mActivity == null) return;
@@ -1434,14 +1258,12 @@ public final class SessionPagerManager {
     /**
      * Compute the button's right marginEnd in pixels for a page at rest, based on that page's
      * scrollbar visibility: the terminal's own right inset is only added when THIS page shows a
-     * scrollbar — that is when the button must clear the terminal edge/scrollbar. Without a
-     * scrollbar the button keeps its standard margin. Because the margin is computed per page and
-     * interpolated during a swipe, the button animates smoothly between the two pages' positions.
+     * scrollbar. Because the margin is computed per page and interpolated during a swipe, the
+     * button animates smoothly between the two pages' positions.
      *
      * Delegates to {@link TermuxActivity#computeSettledFloatingButtonMarginEnd(TerminalView)} —
-     * the single implementation. This used to carry its own copy of the formula; two copies drift,
-     * and every difference is a visible jump at the seam where the scroll hands the margin back to
-     * the settled state.
+     * the single implementation. Two copies would drift, and every difference is a visible jump
+     * at the seam where the scroll hands the margin back to the settled state.
      */
     private int computeMarginEnd(@Nullable TerminalView view) {
         if (mActivity == null) return 0;
@@ -1454,8 +1276,8 @@ public final class SessionPagerManager {
      * <p>Resolved through the session at that position ({@link TerminalPagerAdapter#getViewForSession}),
      * not through a position-keyed cache. That matters after a structural change: when a middle tab
      * is closed the following pages shift down <em>without</em> being rebound, so the view showing
-     * the session that is now at {@code position} is found by asking for that session — no manual
-     * key shifting, and no possibility of resolving to a page that is no longer on screen.
+     * the session now at {@code position} is found by asking for that session — no manual key
+     * shifting, and no resolving to a page no longer on screen.
      */
     @Nullable
     public TerminalView getPagerPageView(int position) {
@@ -1699,7 +1521,6 @@ public final class SessionPagerManager {
     private static String id(@Nullable TerminalSession session) {
         return session == null ? "null" : Integer.toHexString(System.identityHashCode(session));
     }
-
 
     /** Resolve the {@link TerminalView} of the currently active pager page, resolving it live. */
     @Nullable

@@ -40,7 +40,6 @@ import java.util.ArrayList;
  */
 public final class DirectoryHistoryPopupController {
 
-
     /** Tag value marking the synthetic top "CLEAR HISTORY…" row. */
     public static final int CLEAR_ALL_TAG = -2;
 
@@ -119,10 +118,9 @@ public final class DirectoryHistoryPopupController {
     /** @return true if there is at least one entry to show (capturing CWD on demand). */
     public boolean shouldShow() {
         if (!mDirCtrl.getHistoryList().isEmpty()) return true;
-        // Try to capture the current directory on demand (e.g. first time). It may legitimately be
-        // rejected — the default working directory is filtered out of the history — in which case
-        // there is nothing to offer and the popup must not open at all (show() would bail after
-        // dismissing, leaving the swipe consumed for no visible effect).
+        // Capture CWD on demand (e.g. first time). May legitimately be rejected — the default
+        // working directory is filtered out — so show() would dismiss after an empty capture
+        // and the swipe would be consumed for no visible effect.
         mCallback.recordCurrentDirectory();
         return !mDirCtrl.getHistoryList().isEmpty();
     }
@@ -244,10 +242,9 @@ public final class DirectoryHistoryPopupController {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
         mScroll = scroll;
-        // Clip children to the popup's rounded corners so highlights and
-        // separators near the edges don't spill outside the rounded shape.
-        // Guard against 0 dims during WRAP_CONTENT resize: if w or h is 0
-        // the outline is left empty (no clipping) instead of clipping to nothing.
+        // Clip children to the popup's rounded corners so highlights/separators near the
+        // edges don't spill outside. Guard against 0 dims during WRAP_CONTENT resize: leave
+        // the outline empty (no clipping) instead of clipping to nothing.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             scroll.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
@@ -264,38 +261,23 @@ public final class DirectoryHistoryPopupController {
 
         mPopup = new PopupWindow(scroll, popupWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT, false);
-        // ── Open/dismiss animation ──
-        // The two tab-panel positions put this popup on OPPOSITE sides of its anchor,
-        // and the animation must follow:
-        //   • tab panel at the BOTTOM (!mInverted): the new-tab button sits near the
-        //     screen bottom, so the popup opens ABOVE it and has to grow out of its
-        //     BOTTOM edge (pivotY=100%) — exactly the animation the message-history
-        //     popup plays. PopupWindow resolves its window animation BEFORE it computes
-        //     mAboveAnchor (still false on this fresh instance), so without an explicit
-        //     style it would fall back to the "grow from the TOP" variant and the window
-        //     would visibly unfold downward, away from the button.
-        //   • tab panel at the TOP (mInverted): the popup hangs BELOW the button, where
-        //     that framework default ("grow from the top", Animation.DropDownDown) is
-        //     already the correct one — no style is set, so nothing changes there.
+        // Bottom panel (!mInverted): popup opens ABOVE the button and must grow from its BOTTOM
+        // edge — PopupWindow resolves the animation BEFORE mAboveAnchor is set, so without an
+        // explicit style it would grow from the TOP. Top panel: framework default already correct.
         if (!mInverted) {
             mPopup.setAnimationStyle(R.style.HistoryPopupGrowFromBottomAnimation);
         }
-        // Smooth elevation shadow — background drawable must be fully opaque for the
-        // WindowManager to derive a valid Outline (GradientDrawable.getOutline bails
-        // when alpha < 255).  The 10% visual transparency is applied to the ScrollView
-        // itself via setAlpha(), which does not affect the popup's background outline.
-        // Larger elevation (16dp) for a bigger shadow, but outline alpha is
-        // reduced so the shadow renders more transparent/softer.
+        // Elevation shadow needs a fully opaque background drawable for WindowManager to
+        // derive a valid Outline (GradientDrawable.getOutline bails when alpha < 255); the
+        // 10% visual transparency is applied to the ScrollView via setAlpha() instead.
         mPopup.setElevation(TermuxActivityUtils.dpToPx(mContext, 16));
-        // Background: rounded rect, fully opaque scheme composite colour.
-        // getOutline() is overridden to call outline.setAlpha() — this controls
-        // the shadow opacity independently from the elevation size.
+        // Rounded rect, fully opaque scheme colour; getOutline() overrides outline.setAlpha()
+        // so shadow opacity can differ from elevation size.
         GradientDrawable popupBgDrawable = new GradientDrawable() {
             @Override
             public void getOutline(@NonNull Outline outline) {
                 super.getOutline(outline);
                 if (!outline.isEmpty()) {
-                    // Keep elevation large, but make the shadow softer/transparent.
                     // setAlpha requires API 31+.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         outline.setAlpha(0.65f);
@@ -307,17 +289,14 @@ public final class DirectoryHistoryPopupController {
         popupBgDrawable.setCornerRadius(TermuxActivityUtils.dpToPx(mContext, 12));
         popupBgDrawable.setColor(mColorScheme.getHistoryPopupBg()); // must be opaque for getOutline
         mPopup.setBackgroundDrawable(popupBgDrawable);
-        // 10% visual transparency on the content (not the background drawable, so the
-        // elevation shadow outline stays valid).
+        // 10% visual transparency on content only (not the background, so the outline stays valid).
         scroll.setAlpha(0.9f);
         mPopup.setClippingEnabled(true);
         mPopup.setTouchable(false);
         mPopup.setFocusable(false);
 
-        // P1: measure the content FIRST (as the message popup does) so we can place
-        // the popup in a single window transaction instead of showAsDropDown(below)
-        // + update(above), which flashed a frame in the wrong spot and paid a second
-        // IPC/re-layout.
+        // Measure first so the popup is placed in one window transaction: showAsDropDown(below)
+        // + update(above) flashed a frame in the wrong spot and paid a second IPC/re-layout.
         content.measure(
                 View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
@@ -393,9 +372,8 @@ public final class DirectoryHistoryPopupController {
         mFingerY = rawY;
         autoScrollNearEdge();
 
-        // P1 hit-test: one getLocationOnScreen for the scroll container, then derive
-        // each row's screen rect from getTop()/getLeft() + scroll offset — instead of
-        // walking the view hierarchy per row (up to ~12 000 traversals/sec).
+        // P1 hit-test: one getLocationOnScreen, then derive each row's screen rect from
+        // getTop()/getLeft() + scroll offset — not a hierarchy walk per row (~12k/sec).
         int newIndex = -1;
         TextView newView = null;
         mScroll.getLocationOnScreen(mTmpLoc);
@@ -421,9 +399,7 @@ public final class DirectoryHistoryPopupController {
         }
         if (newIndex == mHighlightIndex) return;
 
-        // P1 repaint: touch only the previously-active and now-active rows, not the
-        // whole list. The text colour is identical in both states and is already set
-        // when each row is built, so it is NOT re-applied here.
+        // P1 repaint: only the two affected rows, not the whole list. Text colour is set at build.
         if (mActiveHighlightView != null) {
             mActiveHighlightView.setBackgroundColor(Color.TRANSPARENT);
             mActiveHighlightView = null;
@@ -435,12 +411,7 @@ public final class DirectoryHistoryPopupController {
         mHighlightIndex = newIndex;
     }
 
-    /**
-     * Continuously scroll the popup's ScrollView while the finger rests/drags
-     * within an edge band at the top or bottom. Driven by a self-rescheduling
-     * postDelayed loop that keeps running as long as the finger stays in the band
-     * and the popup is open.
-     */
+    /** Scroll continuously while the finger rests/drags in a 36dp edge band (postOnAnimation loop). */
     private void autoScrollNearEdge() {
         if (mScroll == null || !isShowing()) {
             mAutoScrolling = false;
@@ -452,8 +423,7 @@ public final class DirectoryHistoryPopupController {
         int band = TermuxActivityUtils.dpToPx(mContext, 36);      // edge-sensitive zone
         int maxStep = TermuxActivityUtils.dpToPx(mContext, 24);   // max px scrolled per 16ms reference interval
 
-        // Time-based step: scale by actual frame time so scroll speed is
-        // consistent across 60/90/120 Hz displays.
+        // Time-based step so speed is consistent across 60/90/120 Hz displays.
         long now = SystemClock.uptimeMillis();
         float frameRatio;
         if (mLastScrollTimeMs == 0) {

@@ -78,8 +78,6 @@ public class TermuxTerminalViewClientBase implements TerminalViewClient {
         return false;
     }
 
-
-
     @Override
     public boolean onCodePoint(int codePoint, boolean ctrlDown, TerminalSession session) {
         return false;

@@ -28,9 +28,8 @@ public class TermuxBootAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxBootAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_BOOT_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxBootAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to reach the {@link TermuxConstants#TERMUX_BOOT_PACKAGE_NAME} package.
+     * @return the preferences, or {@code null} if the package context could not be obtained.
      */
     @Nullable
     public static TermuxBootAppSharedPreferences build(@NonNull final Context context) {
@@ -44,11 +43,9 @@ public class TermuxBootAppSharedPreferences extends AppSharedPreferences {
     /**
      * Get {@link TermuxBootAppSharedPreferences}.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_BOOT_PACKAGE_NAME}.
-     * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
-     *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxBootAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param context context used to reach the {@link TermuxConstants#TERMUX_BOOT_PACKAGE_NAME} package.
+     * @param exitAppOnError if {@code true}, a failed package lookup shows a dialog that exits the app when dismissed.
+     * @return the preferences, or {@code null} if the package context could not be obtained.
      */
     public static TermuxBootAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxBootPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_BOOT_PACKAGE_NAME, exitAppOnError);
@@ -57,8 +54,6 @@ public class TermuxBootAppSharedPreferences extends AppSharedPreferences {
         else
             return new TermuxBootAppSharedPreferences(termuxBootPackageContext);
     }
-
-
 
     public int getLogLevel(boolean readFromFile) {
         if (readFromFile)

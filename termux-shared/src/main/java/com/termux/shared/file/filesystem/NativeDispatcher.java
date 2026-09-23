@@ -43,9 +43,6 @@ public class NativeDispatcher {
         if (filePath == null || filePath.isEmpty()) throw new IOException("The path is null or empty");
 
         File file = new File(filePath);
-
-        //if (!file.exists())
-        //    throw new IOException("No such file or directory: \"" + filePath + "\"");
     }
 
     public static void validateFileDescriptor(FileDescriptor fileDescriptor) throws IOException {

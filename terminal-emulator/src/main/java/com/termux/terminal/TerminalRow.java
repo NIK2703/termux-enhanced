@@ -12,32 +12,14 @@ public final class TerminalRow {
     private static final float SPARE_CAPACITY_FACTOR = 1.5f;
 
     /**
-     * Max combining characters that can exist in a column, that are separate from the base character
-     * itself. Any additional combining characters will be ignored and not added to the column.
-     *
-     * There does not seem to be limit in unicode standard for max number of combination characters
-     * that can be combined but such characters are primarily under 10.
-     *
-     * "Section 3.6 Combination" of unicode standard contains combining characters info.
-     * - https://www.unicode.org/versions/Unicode15.0.0/ch03.pdf
-     * - https://en.wikipedia.org/wiki/Combining_character#Unicode_ranges
-     * - https://stackoverflow.com/questions/71237212/what-is-the-maximum-number-of-unicode-combined-characters-that-may-be-needed-to
-     *
-     * UAX15-D3 Stream-Safe Text Format limits to max 30 combining characters.
-     * > The value of 30 is chosen to be significantly beyond what is required for any linguistic or technical usage.
-     * > While it would have been feasible to chose a smaller number, this value provides a very wide margin,
-     * > yet is well within the buffer size limits of practical implementations.
-     * - https://unicode.org/reports/tr15/#Stream_Safe_Text_Format
-     * - https://stackoverflow.com/a/11983435/14686958
-     *
-     * We choose the value 15 because it should be enough for terminal based applications and keep
-     * the memory usage low for a terminal row, won't affect performance or cause terminal to
-     * lag or hang, and will keep malicious applications from causing harm. The value can be
-     * increased if ever needed for legitimate applications.
+     * Max combining characters per column, separate from the base character; extras are ignored.
+     * Unicode sets no hard limit (combining sequences are primarily under 10) — see "Section 3.6
+     * Combination" (https://unicode.org/versions/Unicode15.0.0/ch03.pdf). UAX15-D3 Stream-Safe
+     * Text Format caps at 30; we pick 15 — ample for terminal apps, low memory per row, and a
+     * bound against malicious apps.
      */
     private static final int MAX_COMBINING_CHARACTERS_PER_COLUMN = 15;
 
-    /** The number of columns in this terminal row. */
     private final int mColumns;
     /** The text filling this terminal row. */
     public char[] mText;
@@ -73,23 +55,17 @@ public final class TerminalRow {
      */
     boolean mBlankAndUniform = true;
     /**
-     * G3: first column of the row's "uniform style suffix" — a column {@code c} such that every
-     * cell in {@code [c, mColumns)} is known to carry the same style. The renderer uses it to emit
-     * the whole blank tail of a row as one run instead of walking the remaining columns one by
-     * one (see the G3 block in {@code TerminalRenderer.render}).
+     * G3: first column of the "uniform style suffix" — every cell in {@code [c, mColumns)} carries
+     * the same style. The renderer emits the blank tail as one run instead of walking columns.
      *
-     * <p>The value is a conservative <em>upper</em> bound on the true suffix start: it is only ever
-     * raised, and raising it is exactly what keeps the invariant true. Writing the style of column
-     * {@code k} can only create a boundary at {@code k-1} and at {@code k}, so a uniform suffix
-     * then starts at {@code k+1} at the latest — hence {@code k >= c ⇒ c = k+1}, while
-     * {@code k < c} needs no update at all because both new boundaries stay left of {@code c}.
-     * A larger-than-truth value is always safe (the renderer just merges less); a smaller one
-     * would merge cells whose styles actually differ, which is a visible corruption.</p>
+     * <p>Conservative upper bound: only ever raised, which keeps the invariant true. Writing
+     * column {@code k} creates boundaries at {@code k-1}/{@code k}, so the suffix starts at
+     * {@code k+1} at latest — hence {@code k >= c ⇒ c = k+1}; {@code k < c} needs no update. Too
+     * large is safe (renderer merges less); too small would merge differing styles (visible
+     * corruption).</p>
      *
-     * <p>Why not just scan {@code mStyle} backwards in the renderer: that was measured. It costs
-     * about as much per cell as the per-cell work it saves (scan 16.6 → 19.4 µs/frame on the
-     * render stand, i.e. strictly worse), so the O(1) maintained flag is the only version of this
-     * optimisation that pays off.</p>
+     * <p>Backwards-scan in the renderer was measured and is strictly worse (~16.6 → 19.4 µs/frame),
+     * so this O(1) flag is the only version that pays off.</p>
      */
     private int mStyleUniformFrom;
 
@@ -102,7 +78,7 @@ public final class TerminalRow {
     }
 
     /**
-     * G3: record that the styles of the columns {@code [start, endExclusive)} may have changed.
+     * G3: record that the styles of columns up to {@code endExclusive} may have changed.
      * Bulk writers ({@link #copyPlainInterval}, DECCARA) use this instead of one
      * {@link #noteStyleWritten} call per column.
      */
@@ -203,7 +179,7 @@ public final class TerminalRow {
         return mSpaceUsed;
     }
 
-    /** Note that the column may end of second half of wide character. */
+    /** Note that the column may end up past the second half of a wide character. */
     public int findStartOfColumn(int column) {
         if (column == mColumns) return getSpaceUsed();
 
@@ -219,12 +195,12 @@ public final class TerminalRow {
             currentCharIndex = 0;
         }
 
-        while (true) { // 0<2 1 < 2
+        while (true) {
             int newCharIndex = currentCharIndex;
-            char c = mText[newCharIndex++]; // cci=1, cci=2
+            char c = mText[newCharIndex++];
             boolean isHigh = Character.isHighSurrogate(c);
             int codePoint = isHigh ? Character.toCodePoint(c, mText[newCharIndex++]) : c;
-            int wcwidth = WcWidth.width(codePoint); // 1, 2
+            int wcwidth = WcWidth.width(codePoint);
             if (wcwidth > 0) {
                 currentColumn += wcwidth;
                 if (currentColumn == column) {
@@ -263,19 +239,16 @@ public final class TerminalRow {
     /**
      * B1: does a wide (display width 2) character start at {@code column}?
      *
-     * <p>{@link #setChar} calls this up to twice per written code point once a row holds any wide
-     * or surrogate character, and every call used to walk {@code mText} from index 0 — filling a
-     * row was O(columns²) on CJK/emoji output. The scan now resumes from the A1 memo
-     * ({@code mCachedColumn}/{@code mCachedCharIndex}) whenever the requested column is at or after
-     * it, which is the common case for left-to-right output, so a row is filled in one linear pass
-     * instead of one pass per character. Measured on a 200x50 screen: a full-screen CJK write went
-     * 1344 µs → 1071 µs, and 10k mixed ASCII/wide/surrogate writes 26.5 ms → 21.9 ms.</p>
+     * <p>Called up to twice per written code point once a row holds any wide or surrogate
+     * character; the scan resumes from the A1 memo ({@code mCachedColumn}/{@code mCachedCharIndex})
+     * whenever the requested column is at or after it (the common left-to-right case), so a row is
+     * filled in one linear pass instead of one pass per character (200x50 CJK write: 1344 → 1071 µs;
+     * 10k mixed writes 26.5 → 21.9 ms).</p>
      *
      * <p>Do not route this through {@link #findStartOfColumn} instead (two lookups; "same index for
-     * column and column+1" ⇒ wide). That measured 1615 µs, i.e. 20% *slower* than the original:
-     * querying the column that follows a wide character takes the "inside a wide char" branch,
-     * which correctly drops the memo, so the very next lookup rescans from zero and pays the
-     * bookkeeping on top. The plain loop leaves the memo intact.</p>
+     * column and column+1" ⇒ wide): querying the column that follows a wide character takes the
+     * "inside a wide char" branch, which drops the memo, so the very next lookup rescans from zero
+     * — measured 20% <em>slower</em> than the original. The plain loop leaves the memo intact.</p>
      */
     private boolean wideDisplayCharacterStartingAt(int column) {
         if (column < 0 || column >= mColumns) return false;
@@ -341,7 +314,6 @@ public final class TerminalRow {
 
         final int newCodePointDisplayWidth = WcWidth.width(codePoint);
 
-        // Fast path when we don't have any chars with width != 1
         if (!mHasNonOneWidthOrSurrogateChars) {
             if (codePoint >= Character.MIN_SUPPLEMENTARY_CODE_POINT || newCodePointDisplayWidth != 1) {
                 mHasNonOneWidthOrSurrogateChars = true;
@@ -370,7 +342,6 @@ public final class TerminalRow {
         final int oldStartOfColumnIndex = findStartOfColumn(columnToSet);
         final int oldCodePointDisplayWidth = WcWidth.width(text, oldStartOfColumnIndex);
 
-        // Get the number of elements in the mText array this column uses now
         int oldCharactersUsedForColumn;
         if (columnToSet + oldCodePointDisplayWidth < mColumns) {
             int oldEndOfColumnIndex = findStartOfColumn(columnToSet + oldCodePointDisplayWidth);
@@ -387,7 +358,6 @@ public final class TerminalRow {
                 return;
         }
 
-        // Find how many chars this column will need
         int newCharactersUsedForColumn = Character.charCount(codePoint);
         if (newIsCombining) {
             // Combining characters are added to the contents of the column instead of overwriting them, so that they
@@ -404,7 +374,6 @@ public final class TerminalRow {
             // Shift the rest of the line right.
             int oldCharactersAfterColumn = mSpaceUsed - oldNextColumnIndex;
             if (mSpaceUsed + javaCharDifference > text.length) {
-                // We need to grow the array
                 char[] newText = new char[text.length + mColumns];
                 System.arraycopy(text, 0, newText, 0, oldNextColumnIndex);
                 System.arraycopy(text, oldNextColumnIndex, newText, newNextColumnIndex, oldCharactersAfterColumn);

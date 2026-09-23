@@ -22,9 +22,7 @@
 
 set -u
 
-# ---------------------------------------------------------------------------
-# Ported tokenizer / classifier (mirrors ShellCompletionProvider.java)
-# ---------------------------------------------------------------------------
+# --- Ported tokenizer / classifier (mirrors ShellCompletionProvider.java) ---
 
 # splitCommandLine: fills the global array SP_WORDS.
 # Splits on unquoted whitespace; single/double quoted segments keep their quotes
@@ -245,9 +243,7 @@ sp_classify() {
     sp_classify_words "$cword"
 }
 
-# ---------------------------------------------------------------------------
-# Test harness
-# ---------------------------------------------------------------------------
+# --- Test harness ---
 PASS=0
 FAIL=0
 

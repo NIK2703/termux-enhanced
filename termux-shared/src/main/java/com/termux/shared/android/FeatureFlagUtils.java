@@ -28,9 +28,6 @@ import java.util.Map;
  * since selinux will not allow it by default. Some props like `settings_dynamic_system` can be
  * set since they are exempted for `shell` in sepolicy.
  *
- * init: Unable to set property 'persist.sys.fflag.override.settings_enable_monitor_phantom_procs' from uid:2000 gid:2000 pid:9576: SELinux permission check failed
- * [ 1034.877067] type=1107 audit(1644436809.637:34): uid=0 auid=4294967295 ses=4294967295 subj=u:r:init:s0 msg='avc: denied { set } for property=persist.sys.fflag.override.settings_enable_monitor_phantom_procs pid=9576 uid=2000 gid=2000 scontext=u:r:shell:s0 tcontext=u:object_r:system_prop:s0 tclass=property_service permissive=0'
- *
  * https://cs.android.com/android/platform/superproject/+/android-12.0.0_r4:system/sepolicy/private/property_contexts;l=71
  * https://cs.android.com/android/platform/superproject/+/android-12.0.0_r4:system/sepolicy/private/shell.te;l=149
  *
@@ -54,7 +51,7 @@ public class FeatureFlagUtils {
 
     public enum FeatureFlagValue {
 
-        /** Unknown like due to exception raised while getting value. */
+        /** Unknown, e.g. when an exception is raised while reading the value. */
         UNKNOWN("<unknown>"),
 
         /** Flag is unsupported on current android build. */
@@ -103,8 +100,7 @@ public class FeatureFlagUtils {
     /**
      * Check if a feature flag exists.
      *
-     * @return Returns {@code true} if flag exists, otherwise {@code false}. This will be
-     * {@code null} if an exception is raised.
+     * @return {@code true}/{@code false}, or {@code null} if an exception is raised.
      */
     @Nullable
     public static Boolean featureFlagExists(@NonNull String feature) {
@@ -116,9 +112,7 @@ public class FeatureFlagUtils {
     /**
      * Get {@link FeatureFlagValue} for a feature.
      *
-     * @param context The {@link Context} for operations.
-     * @param feature The {@link String} name for feature.
-     * @return Returns {@link FeatureFlagValue}.
+     * @return {@link FeatureFlagValue#UNKNOWN} on failure, {@link FeatureFlagValue#UNSUPPORTED} if the flag does not exist.
      */
     @NonNull
     public static FeatureFlagValue getFeatureFlagValueString(@NonNull Context context, @NonNull String feature) {
@@ -140,12 +134,9 @@ public class FeatureFlagUtils {
     }
 
     /**
-     * Check if a feature flag exists.
+     * Check if a feature flag is enabled.
      *
-     * @param context The {@link Context} for operations.
-     * @param feature The {@link String} name for feature.
-     * @return Returns {@code true} if flag exists, otherwise {@code false}. This will be
-     * {@code null} if an exception is raised.
+     * @return {@code true}/{@code false}, or {@code null} if an exception is raised.
      */
     @Nullable
     public static Boolean isFeatureEnabled(@NonNull Context context, @NonNull String feature) {

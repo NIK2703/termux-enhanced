@@ -180,12 +180,8 @@ public final class MonetOptions {
     }
 
     /**
-     * Read the {@code monet-*} options from the app {@link android.content.SharedPreferences}.
-     *
-     * <p>They used to live in {@code ~/.termux/termux.properties}, but that file was renamed away
-     * by the preferences migration on every launch, so every tunable was lost on restart. The
-     * preferences are the single source of truth now - the same place the rest of the settings
-     * live.
+     * Read the {@code monet-*} options from the app {@link android.content.SharedPreferences}
+     * (see the class doc for why they no longer live in {@code termux.properties}).
      *
      * <p>Never throws: unreachable or unset values yield the defaults.
      */
@@ -259,7 +255,6 @@ public final class MonetOptions {
         prefs.setGenericString(key, value);
     }
 
-    /** Persist the chosen scheme variant. */
     public static void persistVariant(@NonNull SchemeVariant variant) {
         persist(KEY_VARIANT, variant.toPropertyValue());
     }

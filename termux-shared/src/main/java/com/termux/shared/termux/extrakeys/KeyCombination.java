@@ -26,9 +26,7 @@ public final class KeyCombination {
     public static final String SHIFT = "SHIFT";
     public static final String FN = "FN";
 
-    private KeyCombination() {
-        // utility class
-    }
+    private KeyCombination() {}
 
     /** True if the token is one of the four modifier keys, in any letter case. */
     public static boolean isModifier(@Nullable String token) {

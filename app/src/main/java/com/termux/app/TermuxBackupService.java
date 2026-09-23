@@ -104,9 +104,7 @@ public final class TermuxBackupService extends Service {
     private Handler mMainHandler;
     private volatile Runnable mAutoDismissRunnable;
 
-    // ------------------------------------------------------------------
-    // Public entry points used by the preferences fragment
-    // ------------------------------------------------------------------
+    // ---- Public entry points used by the preferences fragment ----
 
     public static void startBackup(Context context, Uri uri, long estimatedSize, boolean excludeTmp) {
         Intent intent = new Intent(context, TermuxBackupService.class)
@@ -205,14 +203,11 @@ public final class TermuxBackupService extends Service {
         // like any other background completion. We just skip the live progress notification.
         mInForeground = true;
         setupNotificationChannels();
-        // Snapshot the progress ONCE and derive BOTH the posted notification and the
-        // throttling key from that single snapshot. Reading the volatile fields twice
-        // (once for the builder, once for calculateProgressKey below) lets a concurrent
-        // publishProgress() tick — the 1 MB data pump fires every ~10-100 ms — write the
-        // du estimate in between: the key then says "determinate pct" while the shade
-        // actually shows the indeterminate spinner, and the throttle suppresses every
-        // following determinate re-post until the whole percent advances (minutes on a
-        // multi-GB container). The snapshot keeps key and posted state consistent.
+        // Snapshot the progress ONCE: a concurrent publishProgress() tick (the 1 MB pump
+        // fires every ~10-100 ms) between two volatile reads would make the key say
+        // "determinate pct" while the shade shows the indeterminate spinner, and the
+        // throttle would then suppress re-posts until the next whole percent — minutes
+        // on a multi-GB container.
         final long snapshotCopied = mProgressCopied;
         final long snapshotTotal = mProgressTotal;
         Notification notification = mFinished
@@ -232,11 +227,9 @@ public final class TermuxBackupService extends Service {
             // worker-thread showResult() cannot race a stopForeground() before we are foreground.
             mStartedForeground = true;
 
-            // We just posted the notification via startForeground(). Record the current
-            // progress key so the next publishProgress() tick does not re-post the same
-            // visible state (which would trigger another icon re-render on MIUI/HyperOS).
-            // The key MUST describe the snapshot actually posted above — see the snapshot
-            // comment at the top of this method.
+            // startForeground() just posted this snapshot; record its key so the next
+            // publishProgress() tick does not re-post the same visible state (which would
+            // re-render the notification row / app icon on MIUI/HyperOS).
             if (!mFinished) {
                 mLastPostedProgressKey = calculateProgressKey(snapshotCopied, snapshotTotal);
             }
@@ -253,9 +246,7 @@ public final class TermuxBackupService extends Service {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Service lifecycle
-    // ------------------------------------------------------------------
+    // ---- Service lifecycle ----
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
@@ -276,7 +267,6 @@ public final class TermuxBackupService extends Service {
                 mStartedForeground = false;
             }
             mInForeground = false;
-            // Let the user know the operation was cancelled via a bottom Toast.
             Toast bottomToast = Toast.makeText(this, R.string.backup_restore_cancelled, Toast.LENGTH_SHORT);
             bottomToast.setGravity(Gravity.BOTTOM, 0, 0);
             bottomToast.show();
@@ -326,12 +316,9 @@ public final class TermuxBackupService extends Service {
                 sLastResult = result.get();
                 mFinished = true;
                 releaseWakeLock();
-                // In background mode, surface the result as a heads-up notification (which
-                // auto-dismisses and stops the service after 8s). In dialog mode we do NOT
-                // post stopSelf here — the fragment shows the bottom Toast (as in the upstream
-                // commit) and then stops the service; that also avoids racing enterBackground()'s
-                // auto-dismiss timer. The service simply stays alive until the fragment (or
-                // enterBackground on minimize / Back) stops it.
+                // Background mode: heads-up result notification (auto-dismiss + stopSelf
+                // after 8s). Dialog mode: no stopSelf here — the fragment stops the
+                // service, which also avoids racing enterBackground()'s auto-dismiss timer.
                 if (mInForeground) {
                     showResult(isRestore, result.get());
                 } else if (mCancelled.get()) {
@@ -384,9 +371,7 @@ public final class TermuxBackupService extends Service {
         return null;
     }
 
-    // ------------------------------------------------------------------
-    // Core operations
-    // ------------------------------------------------------------------
+    // ---- Core operations ----
 
     private void runBackup(Uri uri, long estimatedSize, boolean excludeTmp, AtomicReference<Error> out) {
         OutputStream os = null;
@@ -466,9 +451,7 @@ public final class TermuxBackupService extends Service {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Notification handling
-    // ------------------------------------------------------------------
+    // ---- Notification handling ----
 
     private void setupNotificationChannels() {
         // Two channels: progress is SILENT/LOW (no heads-up spam during updates),
@@ -659,13 +642,9 @@ public final class TermuxBackupService extends Service {
             mMainHandler.postDelayed(mAutoDismissRunnable, 8000);
         }
 
-        // Always surface the result as a bottom Toast too (in addition to the heads-up
-        // notification), so the user gets a popup at the bottom of the screen regardless
-        // of whether the app UI is currently visible. This runs on the service's main
-        // looper — independent of any activity — so it fires even when the app is
-        // backgrounded or the screen is merely unlocked with another app on top.
-        // (On API 26+ a background process Toast may be throttled, which is why the
-        // heads-up notification above remains the guaranteed fallback.)
+        // Also surface the result as a bottom Toast on the service's main looper, so it
+        // shows even when no activity is visible. On API 26+ a background Toast may be
+        // throttled — the heads-up notification above is the guaranteed fallback.
         final CharSequence toastText = buildResultToastText(isRestore, error);
         if (toastText != null && mMainHandler != null) {
             mMainHandler.post(() -> {
@@ -693,9 +672,7 @@ public final class TermuxBackupService extends Service {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Wake lock
-    // ------------------------------------------------------------------
+    // ---- Wake lock ----
 
     private void acquireWakeLock() {
         try {

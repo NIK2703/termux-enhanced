@@ -445,10 +445,10 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         sb.append(" live_panel=").append(activity.isTextInputVisible() ? 1 : 0);
         sb.append(" live_termfocus=").append(
                 activity.getActiveTerminalView() != null && activity.getActiveTerminalView().hasFocus() ? 1 : 0);
-        // Who actually owns the window focus, and whether the activity's cached active view is set.
-        // Without this, "no view has focus" and "the focus sits on a tab" look identical, and the
-        // cached active view being null is invisible in every other field (live_termfocus resolves
-        // through the pager fallback on purpose, so it stays 1 even when the cache is null).
+                // Who actually owns the window focus, and whether the activity's cached active view
+                // is set. Without this, "no view has focus" and "focus sits on a tab" look identical,
+                // and a null cached active view is invisible in every other field (live_termfocus
+                // resolves through the pager fallback on purpose, so it stays 1 when the cache is null).
         View focusOwner = activity.getCurrentFocus();
         sb.append(" live_focus=").append(focusOwner == null ? "none"
                 : focusOwner.getClass().getSimpleName());
@@ -462,28 +462,19 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
     }
 
     /**
-     * Deterministic storm test for the per-session text-input store.
-     *
-     * Setup: ensures at least 2 sessions, opens panel on each, types a unique marker
-     * per session ("STORM_<i>_<tag>"), then runs <rounds> rounds of scripted chaos:
-     *   - switch to another tab (panel-open -> panel-open)
-     *   - panel close / panel open on the landed tab
-     *   - kb force-show / kb force-hide (keyboard churn without tab switch)
-     *   - extra keys slot churn via toggle button visibility update
-     *   - another tab switch back
-     * After every step the full store + live field is verified: every session whose
-     * marker was typed and not yet "sent" must still have it in the store, and the
-     * LIVE field must show the marker of whichever session is current when its panel
-     * is open (after the defensive clear + restore cycle).
-     *
-     * Any mismatch logs "STORM FAIL <step> ..." with the expected/found text; success
-     * logs "STORM PASS rounds=N".
+     * Deterministic storm test for the per-session text-input store. Ensures ≥2 sessions, opens
+     * the panel on each, types a unique marker per session ("STORM_<i>_<tag>"), then runs
+     * &lt;rounds&gt; rounds of scripted chaos: tab switch, panel close/open, keyboard churn, toggle
+     * visibility update, switch back. After every step the full store + live field is verified —
+     * every non-"sent" marker must still be in the store, and the LIVE field must show the current
+     * session's marker when its panel is open. Any mismatch logs "STORM FAIL …"; success logs
+     * "STORM PASS rounds=N".
      */
     private static void runStormTest(TermuxActivity activity, int rounds) {
-        // Run on a BACKGROUND thread: every step posts to the UI thread and waits for it
-        // to complete (runOnUiThreadSync). Sleeping on the main looper — the previous
-        // implementation — starved the posted focus/insets/pager events the test is
-        // supposed to exercise, so half the machinery never ran.
+        // BACKGROUND thread: every step posts to the UI thread and waits (runOnUiThreadSync).
+        // Sleeping on the main looper — the previous implementation — starved the posted
+        // focus/insets/pager events the test is supposed to exercise, so half the machinery
+        // never ran.
         new Thread(() -> {
             try {
                 stormBody(activity, rounds);
@@ -779,11 +770,11 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         View root = activity.findViewById(R.id.activity_termux_root_view);
         if (root != null && root.getLayoutParams() != null) {
             sb.append(" rootH=").append(root.getHeight());
-            // The input panel's height limit is a quarter of the root view's CONTENT BOX (height
-            // minus padding), so print the three numbers the rule is made of: the box, the cap it
-            // implies, and the field's current layout height (tiLPH above). This is the on-device
-            // oracle for TextInputPanelController.applyPanelHeightLimitForContentView — with the
-            // keyboard up it shows whether the padding top-up or a real resize reduced the box.
+            // The input panel's height limit is a quarter of the root view's CONTENT BOX
+            // (height minus padding), so print the three numbers the rule is made of: the box,
+            // the implied cap, and the field's current layout height (tiLPH above). On-device
+            // oracle for TextInputPanelController.applyPanelHeightLimitForContentView — with
+            // the keyboard up it shows whether the padding top-up or a real resize reduced the box.
             final int rootContentH = root.getHeight() - root.getPaddingTop() - root.getPaddingBottom();
             sb.append(" rootPad=").append(root.getPaddingTop()).append("/").append(root.getPaddingBottom());
             sb.append(" panelBoxH=").append(rootContentH);
@@ -818,16 +809,16 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
 
     // ── tab-strip watcher ──────────────────────────────────────────────────────────────────
     //
-    // Why this lives here and not inside ElasticHorizontalScrollView: anything in src/main is part
-    // of the RELEASE, and R8 does not save us. app/proguard-rules.pro has -dontobfuscate and the
-    // build uses proguard-android.txt (which is -dontoptimize), so the shrinker removes an
-    // uncalled METHOD — dumpOverscrollState() was indeed stripped — but keeps a field that is only
-    // ever incremented, because `x++` READS it and the shrinker's reachability analysis counts
-    // that as a use. Deleting the increment is an optimization, and optimizations are off.
+    // Why this lives here and not inside ElasticHorizontalScrollView: anything in src/main is
+    // part of the RELEASE, and R8 does not save us. proguard-rules.pro has -dontobfuscate and
+    // the build uses proguard-android.txt (-dontoptimize), so the shrinker removes an uncalled
+    // METHOD — dumpOverscrollState() was indeed stripped — but keeps a field that is only ever
+    // incremented, because `x++` READS it and the shrinker's reachability analysis counts that
+    // as a use. Deleting the increment is an optimization, and optimizations are off.
     //
-    // So the strip is observed entirely through public View API instead. That is not a compromise:
-    // getChildAt(0).getTranslationX() IS the elastic displacement — the view writes exactly that
-    // value — so what is measured here is what the user sees, frame by frame.
+    // So the strip is observed entirely through public View API. Not a compromise:
+    // getChildAt(0).getTranslationX() IS the elastic displacement — the view writes exactly
+    // that value — so what is measured here is what the user sees, frame by frame.
     private static View sWatchStrip;
     private static View sWatchContent;
     private static int sWatchRange;

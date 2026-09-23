@@ -23,15 +23,11 @@ import com.termux.terminal.TerminalSession;
 import com.termux.view.TerminalView;
 
 /**
- * Extracted View-setup helper for {@link TermuxActivity}.
- *
- * <p>Previously these methods lived directly on the {@link TermuxActivity} god class. They only
- * touch public API on the activity (getters / {@code findViewById} / shared static utilities) plus
- * an injected {@link DirectoryHistoryPopupController}, so this helper can be hosted in the
- * {@code com.termux.app.terminal} package without modifying {@link TermuxActivity}.
- *
- * <p>The activity wires this helper in a later step by constructing it with the activity + inflater
- * and calling the {@code setup*()} methods from {@code onCreate()}.
+ * Extracted View-setup helper for {@link TermuxActivity} — these methods previously lived on the
+ * activity god class. They only touch public API on the activity (getters / {@code findViewById} /
+ * shared static utilities) plus an injected {@link DirectoryHistoryPopupController}, so they can
+ * live in {@code com.termux.app.terminal} without modifying {@link TermuxActivity}. The activity
+ * constructs this helper and calls the {@code setup*()} methods from {@code onCreate()}.
  */
 public class TermuxActivityViewHelper {
 
@@ -69,56 +65,39 @@ public class TermuxActivityViewHelper {
         this.mDirectoryHistoryPopupCtrl = controller;
     }
 
-    // ============================================================================
-    // View setup methods
-    // ============================================================================
+    // ── View setup ──
 
-    /**
-     * Wire the new-session button. The new-session button now lives in the tabs bar and is handled
-     * in {@link #setupSessionsListView(View)}, so this is intentionally a no-op (kept for symmetry
-     * with the original {@code TermuxActivity#setNewSessionButtonView()}).
-     */
+    /** No-op: the new-session button now lives in the tabs bar (see
+     *  {@link #setupSessionsListView(View)}); kept for symmetry with the original activity method. */
     public void setupNewSessionButton(@NonNull View rootView) {
-        // New session button is now in the tabs bar, handled in setupSessionsListView().
     }
 
-    /**
-     * Wire the toggle-keyboard button. The toggle-keyboard button was removed (its functionality
-     * moved to the extra keys), so this is intentionally a no-op (mirrors
-     * {@code TermuxActivity#setToggleKeyboardView()}).
-     */
+    /** No-op: the toggle-keyboard button was removed (functionality moved to the extra keys). */
     public void setupToggleKeyboardButton(@NonNull View rootView) {
-        // Toggle keyboard button removed - functionality moved to extra keys.
     }
 
-    /** Wire the horizontal session-pager tabs, including the new-session tab button. */
+    /** Intentionally a no-op: the live wiring for the new-session (+) button lives in
+     *  {@code TermuxActivity#setTermuxSessionsListView()} (the path invoked at runtime), so no
+     *  duplicate gesture handler is kept here. */
     public void setupSessionsListView(@NonNull View rootView) {
-        // NOTE: The live wiring for the new-session (+) button (click, long-press and the
-        // swipe-to-directory-history gesture with its active-background feedback) lives in
-        // TermuxActivity.setTermuxSessionsListView(), which is the path actually invoked at
-        // runtime (setupSessionsListView is currently dead code). Kept as a no-op to avoid
-        // drifting duplicate gesture handlers.
     }
 
     /**
      * Apply the user-selected theme / night mode. Mirrors {@code TermuxActivity#applyTermuxTheme()}.
-     * Note: the terminal color scheme repaint is intentionally NOT done here (see the original
-     * method's documentation) — it runs later once the terminal view and client exist.
+     * Note: the terminal color scheme repaint is intentionally NOT done here — it runs later once
+     * the terminal view and client exist.
      */
     public void applyTheme() {
-        // Update NightMode.APP_NIGHT_MODE.
         TermuxThemeUtils.setAppNightMode(mActivity.getProperties().getNightMode());
 
-        // Set activity night mode. If NightMode.SYSTEM is set, android will automatically trigger
-        // recreation of the activity when uiMode/dark mode configuration changes so the day/night
-        // theme takes effect.
+        // If NightMode.SYSTEM is set, Android automatically recreates the activity on
+        // uiMode/dark-mode configuration changes so the day/night theme takes effect.
         AppCompatActivityUtils.setNightMode(mActivity, NightMode.getAppNightMode().getName(), true);
     }
 
     /**
      * Minimal toolbar setup: show/hide the terminal toolbar container per the user preference.
-     * (The full toolbar wiring — extra keys, text input, height — remains in
-     * {@code TermuxActivity#setTerminalToolbarView(Bundle)} and is out of scope for this helper.)
+     * (The full toolbar wiring remains in {@code TermuxActivity#setTerminalToolbarView(Bundle)}.)
      */
     public void setupToolbar() {
         LinearLayout terminalToolbarContainer = mActivity.getTerminalToolbarContainer();
@@ -126,9 +105,7 @@ public class TermuxActivityViewHelper {
             terminalToolbarContainer.setVisibility(View.VISIBLE);
     }
 
-    // ============================================================================
-    // Context menu (delegated from TermuxActivity)
-    // ============================================================================
+    // ── Context menu (delegated from TermuxActivity) ──
 
     public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
         TerminalSession currentSession = mActivity.getCurrentSession();
@@ -144,10 +121,9 @@ public class TermuxActivityViewHelper {
 
     /**
      * Build the shared terminal context-menu items. The item set and ids are identical between
-     * {@link TermuxActivityViewHelper} and {@link TermuxActivityPopupController}; only the way the
-     * session / keep-screen-on state is obtained differs between the two hosts, so those are passed
-     * in as parameters. The host-specific {@code onContextItemSelected} implementations still own
-     * how each item is serviced and must use the same ids.
+     * {@link TermuxActivityViewHelper} and {@link TermuxActivityPopupController}; only how the
+     * session / keep-screen-on state is obtained differs, so those are passed in. Host-specific
+     * {@code onContextItemSelected} implementations must use the same ids.
      */
     static void buildContextMenu(@NonNull ContextMenu menu, @NonNull Context context,
                                  @NonNull android.content.res.Resources resources,
@@ -185,8 +161,7 @@ public class TermuxActivityViewHelper {
     }
 
     public void onContextMenuClosed(Menu menu) {
-        // onContextMenuClosed() is triggered twice if back button is pressed to dismiss instead of
-        // tap for some reason.
+        // Triggered twice if the back button (not a tap) dismisses the menu.
         TerminalView terminalView = mActivity.getTerminalView();
         if (terminalView != null) terminalView.onContextMenuClosed(menu);
     }

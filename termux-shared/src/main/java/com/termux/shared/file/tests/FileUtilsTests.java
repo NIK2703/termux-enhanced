@@ -93,7 +93,6 @@ public class FileUtilsTests {
         String dir1__sub_sym3_label = "dir1/sub_sym3";
         String dir1__sub_sym3_path = dir1_path + "/sub_sym3";
 
-
         String dir2_label = "dir2";
         String dir2_path = testRootDirectoryPath + "/dir2";
 
@@ -103,16 +102,11 @@ public class FileUtilsTests {
         String dir2__sub_reg2_label = "dir2/sub_reg2";
         String dir2__sub_reg2_path = dir2_path + "/sub_reg2";
 
-
         String dir3_label = "dir3";
         String dir3_path = testRootDirectoryPath + "/dir3";
 
         String dir4_label = "dir4";
         String dir4_path = testRootDirectoryPath + "/dir4";
-
-
-
-
 
         // Create or clear test root directory file
         label = "testRootDirectoryPath";
@@ -122,7 +116,6 @@ public class FileUtilsTests {
         if (!FileUtils.directoryFileExists(testRootDirectoryPath, false))
             throwException("The " + label + " directory file does not exist as expected after creation");
 
-
         // Create dir1 directory file
         error = FileUtils.createDirectoryFile(dir1_label, dir1_path);
         assertEqual("Failed to create " + dir1_label + " directory file", null, error);
@@ -130,10 +123,6 @@ public class FileUtilsTests {
         // Create dir2 directory file
         error = FileUtils.createDirectoryFile(dir2_label, dir2_path);
         assertEqual("Failed to create " + dir2_label + " directory file", null, error);
-
-
-
-
 
         // Create dir1/sub_dir1 directory file
         label = dir1__sub_dir1_label; path = dir1__sub_dir1_path;
@@ -165,10 +154,6 @@ public class FileUtilsTests {
         if (!new File(path).getCanonicalPath().equals(dir2_path))
             throwException("The " + label + " symlink file does not point to " + dir2_label);
 
-
-
-
-
         // Write "line1" to dir2/sub_reg1 regular file
         label = dir2__sub_reg1_label; path = dir2__sub_reg1_path;
         error = FileUtils.writeTextToFile(label, path, Charset.defaultCharset(), "line1", false);
@@ -193,10 +178,6 @@ public class FileUtilsTests {
         if (!FileUtils.regularFileExists(path, false))
             throwException("The " + label + " regular file does not exist as expected after copying it from " + dir2__sub_reg1_label);
 
-
-
-
-
         // Copy dir1 directory file to dir3
         label = dir3_label; path = dir3_path;
         error = FileUtils.copyDirectoryFile(label, dir2_path, path, false);
@@ -218,10 +199,6 @@ public class FileUtilsTests {
         if (!FileUtils.directoryFileExists(path, false))
             throwException("The " + label + " directory file does not exist as expected after copying it from " + dir3_label);
 
-
-
-
-
         // Create dir1/sub_sym3 -> dir4 relative symlink file
         label = dir1__sub_sym3_label; path = dir1__sub_sym3_path;
         error = FileUtils.createSymlinkFile(label, "../dir4", path);
@@ -237,10 +214,6 @@ public class FileUtilsTests {
         if (!FileUtils.symlinkFileExists(path))
             throwException("The " + label + " dangling symlink file does not exist as expected after creation");
 
-
-
-
-
         // Delete dir1/sub_sym2 symlink file
         label = dir1__sub_sym2_label; path = dir1__sub_sym2_path;
         error = FileUtils.deleteSymlinkFile(label, path, false);
@@ -254,17 +227,12 @@ public class FileUtilsTests {
         if (!FileUtils.directoryFileExists(path, false))
             throwException("The " + label + " directory file has unexpectedly been deleted after deletion of " + dir1__sub_sym2_label);
 
-
-
-
-
         // Delete dir1 directory file
         label = dir1_label; path = dir1_path;
         error = FileUtils.deleteDirectoryFile(label, path, false);
         assertEqual("Failed to delete " + label + " directory file", null, error);
         if (FileUtils.fileExists(path, false))
             throwException("The " + label + " directory file still exist after deletion");
-
 
         // Check if dir2 directory file and dir2/sub_reg1 regular file still exist after deletion of
         // dir1 since there was a dir1/sub_sym1 symlink to dir2 in it
@@ -276,17 +244,12 @@ public class FileUtilsTests {
         if (!FileUtils.fileExists(path, false))
             throwException("The " + label + " regular file has unexpectedly been deleted after deletion of " + dir1_label);
 
-
-
-
-
         // Delete dir2/sub_reg1 regular file
         label = dir2__sub_reg1_label; path = dir2__sub_reg1_path;
         error = FileUtils.deleteRegularFile(label, path, false);
         assertEqual("Failed to delete " + label + " regular file", null, error);
         if (FileUtils.fileExists(path, false))
             throwException("The " + label + " regular file still exist after deletion");
-
 
         List<String> ignoredSubFilePaths = Arrays.asList(dir1__sub_dir2_path, dir1__sub_dir3__sub_reg1_path);
 
@@ -297,7 +260,6 @@ public class FileUtilsTests {
         // Test empty dir
         error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles(dir1_label, dir1_path, ignoredSubFilePaths, false);
         assertEqual("Failed to validate if " + dir1_label + " directory file is empty", null, error);
-
 
         // Create dir1/sub_dir3 directory file
         label = dir1__sub_dir3_label; path = dir1__sub_dir3_path;
@@ -310,7 +272,6 @@ public class FileUtilsTests {
         error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles(dir1_label, dir1_path, ignoredSubFilePaths, false);
         assertErrnoEqual("Failed to validate if " + dir1_label + " directory file is empty with parent dir existing of non existing ignored regular file", FileUtilsErrno.ERRNO_NON_EMPTY_DIRECTORY_FILE, error);
 
-
         // Write "line1" to dir1/sub_dir3/sub_reg1 regular file
         label = dir1__sub_dir3__sub_reg1_label; path = dir1__sub_dir3__sub_reg1_path;
         error = FileUtils.writeTextToFile(label, path, Charset.defaultCharset(), "line1", false);
@@ -321,7 +282,6 @@ public class FileUtilsTests {
         // Test ignored regular file existing
         error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles(dir1_label, dir1_path, ignoredSubFilePaths, false);
         assertEqual("Failed to validate if " + dir1_label + " directory file is empty with ignored regular file existing", null, error);
-
 
         // Create dir1/sub_dir2 directory file
         label = dir1__sub_dir2_label; path = dir1__sub_dir2_path;
@@ -334,7 +294,6 @@ public class FileUtilsTests {
         error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles(dir1_label, dir1_path, ignoredSubFilePaths, false);
         assertEqual("Failed to validate if " + dir1_label + " directory file is empty with ignored dir file existing", null, error);
 
-
         // Create dir1/sub_dir1 directory file
         label = dir1__sub_dir1_label; path = dir1__sub_dir1_path;
         error = FileUtils.createDirectoryFile(label, path);
@@ -346,18 +305,14 @@ public class FileUtilsTests {
         error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles(dir1_label, dir1_path, ignoredSubFilePaths, false);
         assertErrnoEqual("Failed to validate if " + dir1_label + " directory file is empty with non ignored dir file existing", FileUtilsErrno.ERRNO_NON_EMPTY_DIRECTORY_FILE, error);
 
-
         // Delete dir1 directory file
         label = dir1_label; path = dir1_path;
         error = FileUtils.deleteDirectoryFile(label, path, false);
         assertEqual("Failed to delete " + label + " directory file", null, error);
 
-
         FileUtils.getFileType("/dev/ptmx", false);
         FileUtils.getFileType("/dev/null", false);
     }
-
-
 
     public static void assertEqual(@NonNull final String message, final String expected, final Error actual) throws Exception {
         String actualString = actual != null ? actual.getMessage() : null;
@@ -382,8 +337,6 @@ public class FileUtilsTests {
         if ((expected == null && actual != null) || (expected != null && !expected.equalsErrorTypeAndCode(actual)))
             throwException(message + "\nexpected: \"" + expected + "\"\nactual: \"" + actual + "\"\nFull Error:\n" + (actual != null ? actual.toString() : ""));
     }
-
-
 
     private static boolean isEquals(String expected, String actual) {
         return expected.equals(actual);

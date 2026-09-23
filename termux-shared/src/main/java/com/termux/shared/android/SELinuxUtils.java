@@ -19,8 +19,7 @@ public class SELinuxUtils {
     /**
      * Gets the security context of the current process.
      *
-     * @return Returns a {@link String} representing the security context of the current process.
-     * This will be {@code null} if an exception is raised.
+     * @return the security context, or {@code null} if an exception is raised.
      */
     @Nullable
     public static String getContext() {
@@ -45,8 +44,7 @@ public class SELinuxUtils {
      * Get the security context of a given process id.
      *
      * @param pid The pid of process.
-     * @return Returns a {@link String} representing the security context of the given pid.
-     * This will be {@code null} if an exception is raised.
+     * @return the security context, or {@code null} if an exception is raised.
      */
     @Nullable
     public static String getPidContext(int pid) {
@@ -71,8 +69,7 @@ public class SELinuxUtils {
      * Get the security context of a file object.
      *
      * @param path The pathname of the file object.
-     * @return Returns a {@link String} representing the security context of the file.
-     * This will be {@code null} if an exception is raised.
+     * @return the security context, or {@code null} if an exception is raised.
      */
     @Nullable
     public static String getFileContext(@NonNull String path) {

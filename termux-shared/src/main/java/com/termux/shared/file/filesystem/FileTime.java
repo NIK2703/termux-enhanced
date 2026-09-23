@@ -61,16 +61,12 @@ public final class FileTime {
      * The value since the epoch; can be negative.
      */
     private final long value;
-    
 
     /**
-     * The value return by toString (created lazily)
+     * The value returned by toString (created lazily).
      */
     private String valueAsString;
 
-    /**
-     * Initializes a new instance of this class.
-     */
     private FileTime(long value, TimeUnit unit) {
         this.value = value;
         this.unit = unit;
@@ -117,7 +113,7 @@ public final class FileTime {
      *          the unit of granularity for the return value
      *
      * @return  value in the given unit of granularity, since the epoch
-     *          since the epoch (1970-01-01T00:00:00Z); can be negative
+     *          (1970-01-01T00:00:00Z); can be negative
      */
     public long to(TimeUnit unit) {
         Objects.requireNonNull(unit, "unit");

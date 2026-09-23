@@ -105,9 +105,7 @@ public class TermuxSessionTabsController {
         }
     }
 
-    /**
-     * @return the render state for {@code tabView}, creating (and view-resolving) it on first use.
-     */
+    /** Render state for {@code tabView}, created (and view-resolved) on first use. */
     @androidx.annotation.NonNull
     private TabRenderState getRenderState(@androidx.annotation.NonNull View tabView) {
         TabRenderState state = (TabRenderState) tabView.getTag(R.id.session_tab_render_state_tag);
@@ -271,13 +269,11 @@ public class TermuxSessionTabsController {
         // smoothScrollTo()s in one frame).
         mCurrentSessionIndex = currentSessionIndex;
         if (!mBuilt) {
-            // FIRST build (cold start after the app was finished via BACK, or a fresh launch).
-            // Smoothly scroll the strip so the restored active tab is centred/visible. We go through
-            // requestScroll(SCROLL_CENTRE) so the geometry is measured only AFTER the container is
-            // laid out (deferred OnGlobalLayoutListener) — this fixes the old cold-start bug where a
-            // plain post()'d centre read tabView.getLeft() before layout (geometry 0) and no-op'd to
-            // scrollX=0, leaving the active tab off-screen. A user-initiated add (next branch) still
-            // scrolls to the right end via scrollStripToEnd().
+            // FIRST build (cold start after BACK, or fresh launch): centre the restored active tab
+            // via requestScroll(SCROLL_CENTRE), which measures geometry only after layout
+            // (postDelayed) — fixing the old bug where a plain post()'d centre read geometry 0 and
+            // no-op'd to scrollX=0, leaving the tab off-screen. A user-initiated add (next branch)
+            // still scrolls to the right end via scrollStripToEnd().
             requestScroll(SCROLL_CENTRE, currentSessionIndex);
             mBuilt = true;
         } else if (newCount > sessionCount) {
@@ -288,15 +284,13 @@ public class TermuxSessionTabsController {
             // (see runEndScroll), so it always reaches the true right edge — no under-scroll.
             scrollStripToEnd();
         } else if (currentSessionIndex >= 0) {
-            // Equal-count (structural) update — e.g. a rename or the onStart resync. No
-            // auto-centre: with high-frequency title traffic this branch used to post a
-            // 220 ms centre animator on EVERY frame (and overlapping animators fought over
-            // scrollX). Explicit navigation still centres via scrollToTabIndex()/the cold
-            // start path above; a jump-free clamp is enough to keep the active tab visible
-            // when its width changed. If we are still in the sticky end-scroll from a
-            // just-added tab, do NOT move at all — that would yank the strip back from the
-            // right end. A real tab switch goes through setCurrentSession(), which clears
-            // mEndScrollActive first.
+            // Equal-count (structural) update — rename or onStart resync. No auto-centre: a
+            // high-frequency title stream used to post a 220 ms centre animator per frame, and
+            // overlapping animators fought over scrollX. Navigation still centres via
+            // scrollToTabIndex()/the cold-start path; a jump-free clamp keeps the active tab
+            // visible. While the sticky end-scroll from a just-added tab is active, do NOT move
+            // — that would yank the strip off the right end (a real tab switch goes through
+            // setCurrentSession(), which clears mEndScrollActive first).
             if (!mEndScrollActive) clampActiveTabVisible();
         }
 
@@ -306,16 +300,12 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Cosmetic-only refresh for high-frequency title updates (OSC spinners/progress).
-     * Refreshes labels/colours of the EXISTING tab views via the populateTabView diff.
-     *
-     * <p>Never performs structural work: if the session count and the view count disagree
-     * (a concurrent add/remove, e.g. the 100 ms close animation window), it simply returns
-     * and lets the structural event's own {@link #updateTabs} call reconcile the strip.
-     * Doing structure here would re-add a view for a session whose tab is mid-collapse.
-     *
-     * <p>Does NOT scroll the strip — only a jump-free {@link #clampActiveTabVisible()} keeps
-     * the active tab revealed — and does not touch the pager or the session snapshot.
+     * Cosmetic-only refresh for high-frequency title updates (OSC spinners/progress): re-applies
+     * labels/colours of the EXISTING tabs via the populateTabView diff. Never structural: if the
+     * session and view counts disagree (concurrent add/remove during the close animation), it
+     * returns and lets {@link #updateTabs} reconcile — structurally touching a mid-collapse tab
+     * would re-add it. Does NOT scroll: only {@link #clampActiveTabVisible()} keeps the active
+     * tab revealed, and the pager/session snapshot are untouched.
      */
     public void refreshTabAppearance(List<TermuxSession> sessions) {
         if (mTabsContainer == null) return;
@@ -379,19 +369,15 @@ public class TermuxSessionTabsController {
         if (mTabsContainer == null) return;
         View addBtn = mTabsContainer.findViewById(R.id.new_session_tab_button);
         if (addBtn == null) return;
-        // Use GONE once the session limit is reached so the button's footprint (width + marginEnd)
-        // is released and no dead trailing gap is left in the strip. This is safe now that the
-        // end-scroll is a self-driven ValueAnimator calling scrollTo() to a fixed target (no live
-        // HSV re-clamp), and the target is measured in endScrollLayout AFTER the button has already
-        // been hidden — so the strip scrolls exactly to the last real tab with no extra offset.
+        // GONE (not INVISIBLE) releases the footprint (width + marginEnd) so no dead trailing gap
+        // remains. Safe now that the end-scroll is a self-driven ValueAnimator to a fixed target
+        // (no live HSV re-clamp), measured AFTER the button is hidden — the strip scrolls exactly
+        // to the last real tab.
         addBtn.setVisibility(sessionCount >= TermuxTerminalSessionActivityClient.MAX_SESSIONS
                 ? View.GONE : View.VISIBLE);
     }
 
-    /**
-     * Inflate a brand-new tab view.  The caller is responsible for populating it
-     * (populateTabView is called at the end).
-     */
+    /** Inflate a brand-new tab view and populate it (this method calls populateTabView itself). */
     private View createTabView(TermuxSession termuxSession, int position, boolean isSelected) {
         LayoutInflater inflater = LayoutInflater.from(mActivity);
         View tabView = inflater.inflate(R.layout.item_session_tab, mTabsContainer, false);
@@ -402,27 +388,21 @@ public class TermuxSessionTabsController {
         lp.height = mTabHeightPx;
         tabView.setLayoutParams(lp);
 
-        // Populate text, colors, selection state and (re)bind click listeners.
-        // populateTabView() always attaches click listeners to the view with the
-        // correct session reference, so we do NOT set them here — doing so would
-        // be immediately overwritten anyway.
+        // populateTabView() binds the click listeners itself; setting them here would be
+        // immediately overwritten anyway.
         populateTabView(tabView, termuxSession, position, isSelected);
         return tabView;
     }
 
     /**
-     * Populate or refresh an existing tab view's content (title, colours, selection state,
-     * close button visibility) and rebind click listeners to the current session.
+     * Populate/refresh an existing tab (title, colours, selection, close visibility) and rebind
+     * click listeners to the current session. Every attribute goes through the per-tab
+     * {@link TabRenderState} cache, so a repeat call with unchanged values is a pure no-op —
+     * this is what keeps 10-30 Hz OSC title animations off the measure/layout path.
      *
-     * <p>Every attribute is applied through the per-tab {@link TabRenderState} cache, so a
-     * repeat call with unchanged values is a pure no-op (no setText, no padding, no
-     * StaticLayout, no listener churn). This is what keeps high-frequency OSC title
-     * animations (10-30 Hz) off the measure/layout path of the strip.
-     *
-     * <p>Click listeners are re-attached only when the session mapped to this view changed:
-     * updateTabs() reuses tab views by position, and when a middle session is closed the
-     * views shift down — without rebinding, the old listener's closure would still reference
-     * the (dead) session that was at this position when the view was <em>created</em>.</p>
+     * <p>Listeners re-attach only when the session mapped to this view changed: updateTabs()
+     * reuses views by position, so after a middle close the views shift down — without
+     * rebinding, the old closure would still reference the dead session.
      */
     private void populateTabView(View tabView, TermuxSession termuxSession, int position, boolean isSelected) {
         ensureDimens();
@@ -501,12 +481,10 @@ public class TermuxSessionTabsController {
                 titleView.setText(displayTitle);
             }
 
-            // When the title is truncated, reclaim the gap in front of the close (x) button and
-            // hand it to the title (raise its max width by the same amount). The tab's total
-            // width is unchanged, but more of the clipped label becomes visible. When the title
-            // fits, restore the default gap and cap. The expensive StaticLayout measurement runs
-            // only when the text (or the line mode) changed; maxWidth/margin are applied only
-            // when the truncation DECISION flips.
+            // When the title is truncated, reclaim the close-button gap for the title (raise its
+            // max width by the same amount); when it fits, restore the default gap and cap. The
+            // expensive StaticLayout measurement runs only when text/line mode changed, and
+            // maxWidth/margin apply only when the truncation DECISION flips.
             if (closeButton != null) {
                 final int gapPx = mCloseGapPx;
                 final int baseMaxWidthPx = mTitleMaxWidthPx;
@@ -653,21 +631,13 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Animate the closing tab as the exact inverse of the open animation.
+     * Animate the closing tab as the exact inverse of the open animation: collapse its width
+     * to 0 (re-measuring the LinearLayout each frame so neighbours glide inward) with a short
+     * alpha fade so the tab dissolves rather than clipping.
      *
-     * <p>When a tab opens, its view is added to the container and its width grows
-     * from 0 to full while the neighbours are pushed aside (the container's
-     * LayoutTransition APPEARING + CHANGING animators). Closing mirrors this: we
-     * collapse the closing view's width from its current value down to 0, which
-     * makes the LinearLayout re-measure every frame so the surrounding tabs glide
-     * inward to fill the freed space. A short alpha fade rides along so the shrinking
-     * tab dissolves rather than clipping its contents.</p>
-     *
-     * <p>The view is removed from the container manually at the end of the animation
-     * (before {@link TerminalSession#finishIfRunning()}), so the collapsed view never
-     * flashes back to its original size: by the time updateTabs() runs the child is
-     * already gone and the session/view counts already agree, so no trailing view is
-     * removed and no stale view is re-shown.</p>
+     * <p>The view is removed manually at the end (before {@link TerminalSession#finishIfRunning()}),
+     * so the collapsed view never flashes back to full size: by the time updateTabs() runs the
+     * child is already gone and the counts agree, so no trailing view is removed or re-shown.
      */
     private void animateTabClose(final View tabView, final TerminalSession session) {
         // Disable the per-tab click while it animates out.
@@ -675,8 +645,8 @@ public class TermuxSessionTabsController {
         ImageButton closeBtn = tabView.findViewById(R.id.session_tab_close);
         if (closeBtn != null) closeBtn.setClickable(false);
 
-        // Freeze the current pixel width and drive it down to 0. Using a fixed width
-        // (instead of WRAP_CONTENT) lets the LinearLayout re-measure smoothly.
+        // Freeze the current pixel width and drive it to 0 (a fixed width instead of
+        // WRAP_CONTENT lets the LinearLayout re-measure smoothly).
         final int startWidth = tabView.getWidth();
         if (startWidth <= 0) {
             // Not laid out yet — nothing to animate; remove immediately.
@@ -738,12 +708,6 @@ public class TermuxSessionTabsController {
     /** Index scheduled for the next scroll runnable. */
     private int mPendingTabScrollIndex = -1;
 
-    /**
-     * Centre the tab at {@code index} in the strip. All scrolls funnel through the single-owner
-     * {@link #requestScroll(int, int)} (last-call-wins), so an end-scroll requested by
-     * {@link #scrollStripToEnd()} (on tab addition) wins over a centre request instead of fighting
-     * it — that was the source of the previous janky scrolling.
-     */
     // Single owner for all strip scrolls. CENTRE centres a tab; END scrolls to the absolute right
     // end (incl. the (+) button). last-call-wins across both modes — only ONE smoothScrollTo ever
     // runs per frame, so a centre request and an end request can never fight (which previously
@@ -791,19 +755,16 @@ public class TermuxSessionTabsController {
 
     /**
      * Scroll the strip to its absolute right end (newly-added tab + trailing (+) button fully
-     * revealed). The measurement is deferred so it runs only AFTER the new tab has finished growing
-     * to its full width (a fixed delay covers the add animation) — by then the strip geometry is
-     * final and the right end is measurable.
+     * revealed). Measurement is deferred a fixed delay so it runs only AFTER the new tab has
+     * finished growing — by then the strip geometry is final.
      *
-     * <p>CRITICAL: we do NOT use mTabsScroll.smoothScrollTo(). HorizontalScrollView re-clamps the
-     * in-flight smooth scroll to its content width on EVERY frame, so if the content width SHRINKS
-     * while the animation runs (LayoutTransition CHANGING reflow, a late OSC title re-measure, or the
-     * (+) button toggling GONE/VISIBLE) the strip freezes short of the true end — exactly the
-     * "new tab + (+) button stay partly off-screen" symptom. Instead we drive scrollX ourselves via
-     * a ValueAnimator that calls mTabsScroll.scrollTo(fixedTarget) to a target computed ONCE from the
-     * settled final width, so the live re-clamp cannot shorten the trip. The LayoutTransition is
-     * detached for the duration of the animation so the content width stays stable (the CHANGING
-     * glide is sacrificed only for the add END-scroll; the close animation is unaffected).
+     * <p>CRITICAL: do NOT use mTabsScroll.smoothScrollTo(). HorizontalScrollView re-clamps the
+     * in-flight smooth scroll to its content width on EVERY frame, so if the content width
+     * SHRINKS mid-animation (LayoutTransition CHANGING reflow, a late OSC title re-measure, the
+     * (+) button toggling GONE/VISIBLE) the strip freezes short of the true end — the "new tab +
+     * (+) button stay partly off-screen" symptom. Instead we drive scrollX ourselves via a
+     * ValueAnimator calling scrollTo() to a target computed ONCE from the settled width, so the
+     * live re-clamp cannot shorten the trip.
      */
     private android.animation.ValueAnimator mEndScrollAnim = null;
 
@@ -896,14 +857,14 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Centre a tab in the strip, measuring its geometry ONLY after the container has actually been
-     * laid out. This mirrors the END path's OnGlobalLayoutListener deferred-measurement (runEndScroll)
-     * and fixes the cold-start bug where a plain post()'d CENTRE read tabView.getLeft() before the
-     * first layout pass (geometry 0) and no-op'd to scrollX=0, leaving the restored active tab
-     * off-screen to the left. The measured scroll respects the live HSV clamp so it never overshoots.
+     * Centre a tab in the strip, measuring geometry ONLY after the container has been laid out
+     * (postDelayed, mirroring runEndScroll). This fixes the cold-start bug where a plain post()'d
+     * CENTRE read tabView.getLeft() before the first layout pass (geometry 0) and no-op'd to
+     * scrollX=0, leaving the restored active tab off-screen. The measured scroll respects the
+     * live HSV clamp so it never overshoots.
      *
      * @param seq the sequence stamp captured by requestScroll BEFORE mScrollSeqPending was cleared,
-     *            so the listener can drop itself if a newer (higher-priority) request supersedes it.
+     *            so the runnable can drop itself if a newer (higher-priority) request supersedes it.
      */
     private void runCentreScroll(long seq) {
         if (mTabsContainer == null || mTabsScroll == null) return;
@@ -930,10 +891,10 @@ public class TermuxSessionTabsController {
                 int scrollX = tabView.getLeft() - scrollW / 2 + tabView.getWidth() / 2;
                 if (scrollX < 0) scrollX = 0;
                 if (scrollX > maxScroll) scrollX = maxScroll;
-                // Self-driven ValueAnimator writing a FIXED target is re-clamp-proof.
-                // This is the CENTRE equivalent of runEndScroll(): HorizontalScrollView.smoothScrollTo()
-                // re-clamps the in-flight animation to its (possibly changing) content width on
-                // every frame, so the strip could yank left mid-animation on cold start — "janky".
+                // Self-driven ValueAnimator to a FIXED target is re-clamp-proof (the CENTRE
+                // equivalent of runEndScroll): HorizontalScrollView.smoothScrollTo() re-clamps
+                // an in-flight animation to its (possibly changing) content width every frame,
+                // which could yank the strip left mid-animation on cold start.
                 final int fromX = mTabsScroll.getScrollX();
                 if (fromX == scrollX) return;
                 final android.animation.ValueAnimator anim =
@@ -955,18 +916,13 @@ public class TermuxSessionTabsController {
 
     /**
      * Smoothly scroll the strip to its absolute right end (newly-added tab + trailing (+) button
-     * fully revealed). Called ONLY after the new session's label has actually been set (the shell
-     * emits an OSC title) — see TermuxTerminalSessionActivityClient.onTitleChanged. The new tab is
-     * inserted at full width, so the container geometry is already final; the scroll is posted to
-     * the next layout pass and reads the true right end there. Marks the strip end-scrolled so a
-     * subsequent title-only refresh does not recentre it.
+     * revealed). Called ONLY after the new session's label has actually been set (the shell emits
+     * an OSC title) — see TermuxTerminalSessionActivityClient.onTitleChanged. Marks the strip
+     * end-scrolled so a subsequent title-only refresh does not recentre it.
      */
     public void scrollStripToEnd() {
         if (mTabsContainer == null || mTabsScroll == null) return;
-        // Mark the strip as end-scrolled so a subsequent title-only refresh does not recentre it.
         mEndScrollActive = true;
-        // Post to the next layout pass — the new tab is inserted at full width, so by the time the
-        // runnable runs the container has laid out at its final width and the end is measurable.
         requestScroll(SCROLL_END, -1);
     }
 
@@ -1213,17 +1169,12 @@ public class TermuxSessionTabsController {
         mCurrentSessionIndex = currentIndex;
     }
 
-    /**
-     * Linearly interpolate between two ARGB colours.
-     *
-     * @param from  colour at ratio = 0.0
-     * @param to    colour at ratio = 1.0
-     * @param ratio blend factor in [0, 1]
-     */
-    /**
-     * Set a rounded-rectangle background on a tab/view using the given scheme color,
-     * preserving the rounded shape (the previous {@code setBackgroundTintList} flattened it).
-     */
+    /** Cached (+) button drawable: rebuilt only when the scheme colours actually change. */
+    private StateListDrawable mAddButtonDrawable = null;
+    private int mAddButtonBg = 0;
+    private int mAddButtonBgActive = 0;
+    private boolean mAddButtonBgValid = false;
+
     /**
      * Set the background of the trailing (+) add button as an oval {@link StateListDrawable}
      * that shows an active (pressed / swipe-selected) fill. Unlike {@link #setTabBackground},
@@ -1231,12 +1182,6 @@ public class TermuxSessionTabsController {
      * replacing it with a flat state-less rectangle. No stroke — the idle and active states
      * differ by fill only.
      */
-    /** Cached (+) button drawable: rebuilt only when the scheme colours actually change. */
-    private StateListDrawable mAddButtonDrawable = null;
-    private int mAddButtonBg = 0;
-    private int mAddButtonBgActive = 0;
-    private boolean mAddButtonBgValid = false;
-
     private void setAddButtonBackground(View view) {
         if (!mAddButtonBgValid || mAddButtonDrawable == null
                 || mAddButtonBg != mSchemeBg || mAddButtonBgActive != mSchemeBgActive) {
@@ -1264,6 +1209,10 @@ public class TermuxSessionTabsController {
         return states;
     }
 
+    /**
+     * Set a rounded-rectangle background on a tab/view using the given scheme color,
+     * preserving the rounded shape (the previous {@code setBackgroundTintList} flattened it).
+     */
     private void setTabBackground(View view, int color) {
         TabRenderState state = (TabRenderState) view.getTag(R.id.session_tab_render_state_tag);
         GradientDrawable d = (state != null) ? state.bgDrawable : null;
@@ -1297,6 +1246,13 @@ public class TermuxSessionTabsController {
         }
     }
 
+    /**
+     * Linearly interpolate between two ARGB colours.
+     *
+     * @param from  colour at ratio = 0.0
+     * @param to    colour at ratio = 1.0
+     * @param ratio blend factor in [0, 1]
+     */
     private static int blendColors(int from, int to, float ratio) {
         int a = (int) (Color.alpha(from) * (1f - ratio) + Color.alpha(to) * ratio);
         int r = (int) (Color.red(from) * (1f - ratio) + Color.red(to) * ratio);

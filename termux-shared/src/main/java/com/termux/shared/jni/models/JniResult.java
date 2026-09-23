@@ -42,48 +42,23 @@ public class JniResult {
      */
     public int intData;
 
-    /**
-     * Create an new instance of {@link JniResult}.
-     *
-     * @param retval The {@link #retval} value.
-     * @param errno The {@link #errno} value.
-     * @param errmsg The {@link #errmsg} value.
-     */
     public JniResult(int retval, int errno, String errmsg) {
         this.retval = retval;
         this.errno = errno;
         this.errmsg = errmsg;
     }
 
-    /**
-     * Create an new instance of {@link JniResult}.
-     *
-     * @param retval The {@link #retval} value.
-     * @param errno The {@link #errno} value.
-     * @param errmsg The {@link #errmsg} value.
-     * @param intData The {@link #intData} value.
-     */
     public JniResult(int retval, int errno, String errmsg, int intData) {
         this(retval, errno, errmsg);
         this.intData = intData;
     }
 
-    /**
-     * Create an new instance of {@link JniResult} from a {@link Throwable} with {@link #retval} -1.
-     *
-     * @param message The error message.
-     * @param throwable The {@link Throwable} value.
-     */
+    /** Instance with {@link #retval} -1; message is the formatted stack trace. */
     public JniResult(String message, Throwable throwable) {
         this(-1, 0, Logger.getMessageAndStackTraceString(message, throwable));
     }
 
-    /**
-     * Get error {@link String} for {@link JniResult}.
-     *
-     * @param result The {@link JniResult} to get error from.
-     * @return Returns the error {@link String}.
-     */
+    /** Null-safe {@link #getErrorString()}; {@code "null"} when {@code result} is null. */
     @NonNull
     public static String getErrorString(final JniResult result) {
         if (result == null) return "null";

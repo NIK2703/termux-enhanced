@@ -14,15 +14,10 @@ import java.util.List;
 
 public class Error implements Serializable {
 
-    /** The optional error label. */
     private String label;
-    /** The error type. */
     private String type;
-    /** The error code. */
     private int code;
-    /** The error message. */
     private String message;
-    /** The error exceptions. */
     private List<Throwable> throwablesList = new ArrayList<>();
 
     private static final String LOG_TAG = "Error";

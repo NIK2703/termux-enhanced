@@ -22,14 +22,13 @@
 #       at most one  "__COMPOPTS:opt,opt,...\0"  side-channel record
 #       a literal line  "__END__\n"  marking end-of-response
 #
-# SPEED CONTRACT: the main loop does NOT source bash-completion and does NOT
+# SPEED CONTRACT: the main loop does NOT re-source bash-completion per request and does NOT
 # scan .bashrc. All string shaping (VAR sigils, SIGNAL SIG-prefix, COMPSPEC
 # wrapper-skip, NAME= assignment strip) is done in Java; bash runs exactly ONE
-# compgen/glob per request. COMPSPEC is best-effort: it only consults a compspec
-# already registered in THIS session (see __do_compspec); it never triggers the
-# lazy loader, so a real programmable completion that was never registered
-# returns empty (Java then falls back locally). This is the deliberate
-# speed-over-faithfulness trade-off.
+# compgen/glob per request. COMPSPEC is best-effort: it runs a compspec already
+# registered in THIS session, lazy-loading bash-completion at most once per process
+# for an unknown command (see __ensure_bc); if that yields nothing, Java falls back
+# locally. This is the deliberate speed-over-faithfulness trade-off.
 
 export LC_ALL=${LC_ALL:-C.UTF-8}
 export LANG=${LANG:-C.UTF-8}
@@ -45,10 +44,9 @@ shopt -s nullglob dotglob 2>/dev/null
 __MAX_CANDIDATES="${__MAX_CANDIDATES:-300}"
 
 # Default word-break set. A -F programmable completer (e.g. git) reads
-# COMP_WORDS/COMP_CWORD and expects them to be tokenized with readline semantics
-# (spaces AND the word-break metacharacters produce their own word slots). Match
-# the interactive COMP_WORDBREAKS so the compspec computes the same context it
-# would in a real shell — this is what makes `git commit --am` yield nothing
+# COMP_WORDS/COMP_CWORD and expects readline tokenization (spaces AND the
+# word-break metacharacters produce their own word slots). Matching the
+# interactive COMP_WORDBREAKS is what makes `git commit --am` yield nothing
 # (as bash does) instead of a spurious `--amend`.
 if [[ -z ${COMP_WORDBREAKS:-} ]]; then
   COMP_WORDBREAKS=$' \t\n'"'"'()<>;|&=:@~'
@@ -228,14 +226,10 @@ __ensure_bc() {
   done
 }
 
-# ---- COMPSPEC: best-effort. WORD = real command's current word, CMD passed in
-# COMP_LINE first token = the (already wrapper-resolved) command name. Only runs
-# a compspec already registered in this session; never triggers the lazy loader
-# (that would re-introduce the bash-completion load cost). Falls back to empty
-# so Java can path/command-fallback locally.
-# Cache of commands whose compspec lookup has already been attempted (and which
-# had no registered compspec / the loader produced nothing). Avoids re-running
-# the expensive _completion_loader for the same unknown command on every request.
+# ---- COMPSPEC: WORD = real command's current word; the COMP_LINE first token is
+# the (already wrapper-resolved) command name. Behaviour: see SPEED CONTRACT.
+# __tried: commands whose compspec lookup already failed, so the expensive
+# _completion_loader is not re-run for the same unknown command every request.
 declare -A __tried=()
 
 __do_compspec() {
@@ -262,16 +256,10 @@ __do_compspec() {
   COMPREPLY=()
   local __spec
   __spec=$(complete -p -- "$__cmd" 2>/dev/null)
-  # When no compspec is registered for this command yet, lazy-load it via the
-  # bash-completion helper (matches the original compspec template, which called
-  # _completion_loader). This is what makes a real programmable completion such
-  # as `git --` yield its option set. The helper stack is sourced at most once
-  # per process (see __ensure_bc); if bash-completion is not installed this is a
-  # no-op and the command-name fallback below still applies.
-  #
-  # Cache: once we have attempted the loader for a command and it still yielded
-  # no compspec, remember it in __tried so we skip the (expensive) loader call
-  # on every subsequent request for the same command.
+  # No compspec yet: lazy-load via _completion_loader (as the original compspec
+  # template did) so a real -F completer such as `git --` can yield its options.
+  # Sourced at most once per process (see __ensure_bc); no-op if bash-completion
+  # is not installed, in which case the command-name fallback below still applies.
   if [[ -z $__spec && -n $__cmd && -z ${__tried[$__cmd]+x} ]]; then
     __ensure_bc
     if type -t _completion_loader >/dev/null 2>&1; then
@@ -301,22 +289,16 @@ __do_compspec() {
       __prev=$__f
     done
     if [[ -n $__func ]] && type -t "$__func" >/dev/null 2>&1; then
-      # Populate the vars a -F completer reads with readline-faithful
-      # tokenization so the compspec computes the same context bash would.
-      # NOTE: COMP_WORDS / COMP_LINE / COMP_POINT are passed to the function
-      # purely via environment variables (set above), NOT via stdin. Redirect
-      # the function's stdin from /dev/null so a stray `read` inside it cannot
-      # swallow the dispatcher's request channel and hang until timeout.
-      # CRITICAL: the `exec 0</dev/null` MUST run inside a subshell. A bare
-      # `exec 0</dev/null` in this (parent) process permanently closes the
-      # dispatcher's stdin — the main `while read -r __req` loop below would then
-      # get EOF and the whole persistent process would exit after the first -F
-      # compspec (e.g. git). A subshell scopes the redirect to the function call.
-      # The subshell isolates the `exec 0</dev/null` redirect but also isolates
-      # the COMPREPLY array the -F function populates — array assignments made in
-      # a subshell are NOT visible to this parent. Emit COMPREPLY from inside the
-      # subshell (one entry per NUL-terminated field) and read it back into the
-      # parent's COMPREPLY so the emit loop below still sees the candidates.
+      # Populate the vars a -F completer reads with readline-faithful tokenization.
+      # NOTE: COMP_WORDS / COMP_LINE / COMP_POINT are passed purely via environment,
+      # NOT via stdin. Redirect the function's stdin from /dev/null so a stray `read`
+      # inside it cannot swallow the dispatcher's request channel and hang until
+      # timeout. CRITICAL: the `exec 0</dev/null` MUST run inside a subshell — a bare
+      # one in this (parent) process would permanently close the dispatcher's stdin
+      # and the whole persistent process would exit after the first -F compspec
+      # (e.g. git). The subshell also isolates the COMPREPLY array the -F function
+      # populates, so emit it from inside the subshell (one entry per NUL-terminated
+      # field) and read it back into the parent's COMPREPLY.
       COMP_LINE="$__line"; COMP_POINT=${#__line}
       __termux_tokenize "$__line" "$COMP_POINT"
       local __reply
@@ -348,13 +330,11 @@ __do_compspec() {
 
   # Command-name fallback (S9): when the compspec produced nothing AND the FIRST
   # token of the line is a wrapper (sudo/env/xargs/time/…), the wrapper's argument
-  # is itself a command name → compgen -c. This mirrors the original compspec
-  # template, which tested the ORIGINAL first token ("${1%% *}") in a final
-  # empty-COMPREPLY fallback. It must NOT be an `elif` on "$__spec": the lazy
-  # loader may register a minimal placeholder compspec (-F _comp_complete_minimal)
-  # for an unknown argument like `gi`, which yields nothing yet made $__spec
-  # non-empty; the wrapper fallback still has to run in that case. Never emit for
-  # path-like or assignment-like words.
+  # is itself a command name → compgen -c. It must NOT be an `elif` on "$__spec":
+  # the lazy loader may register a minimal placeholder compspec (-F
+  # _comp_complete_minimal) for an unknown argument like `gi`, which yields nothing
+  # yet made $__spec non-empty; the wrapper fallback still has to run. Never emit
+  # for path-like or assignment-like words.
   if [[ ${#COMPREPLY[@]} -eq 0 ]]; then
     local __first=${__line%% *}
     if [[ " $__wrappers " == *" $__cmd "* || " $__wrappers " == *" $__first "* ]]; then

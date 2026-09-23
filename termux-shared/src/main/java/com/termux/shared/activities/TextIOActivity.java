@@ -143,7 +143,6 @@ public class TextIOActivity extends AppCompatActivity {
             mTextIOLabel.setTypeface(Typeface.create(mTextIOInfo.getLabelTypeFaceFamily(), mTextIOInfo.getLabelTypeFaceStyle()));
         }
 
-
         if (mTextIOInfo.isHorizontallyScrollable()) {
             mTextIOHorizontalScrollView.setEnabled(true);
             mTextIOText.setHorizontallyScrolling(true);
@@ -273,8 +272,8 @@ public class TextIOActivity extends AppCompatActivity {
     /**
      * Get the {@link Intent} that can be used to start the {@link TextIOActivity}.
      *
-     * @param context The {@link Context} for operations.
-     * @param textIOInfo The {@link TextIOInfo} containing info for the edit text.
+     * @param context context used to build the intent.
+     * @param textIOInfo config for the edit text.
      */
     public static Intent newInstance(@NonNull final Context context, @NonNull final TextIOInfo textIOInfo) {
         Intent intent = new Intent(context, TextIOActivity.class);

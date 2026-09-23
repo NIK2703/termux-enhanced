@@ -32,9 +32,8 @@ public class ShareUtils {
     /**
      * Open the system app chooser that allows the user to select which app to send the intent.
      *
-     * @param context The context for operations.
-     * @param intent The intent that describes the choices that should be shown.
-     * @param title The title for choose menu.
+     * @param intent the intent whose choices are shown.
+     * @param title the chooser title.
      */
     public static void openSystemAppChooser(final Context context, final Intent intent, final String title) {
         if (context == null) return;
@@ -53,9 +52,8 @@ public class ShareUtils {
     /**
      * Share text.
      *
-     * @param context The context for operations.
-     * @param subject The subject for sharing.
-     * @param text The text to share.
+     * @param subject the share subject.
+     * @param text the text to share.
      */
     public static void shareText(final Context context, final String subject, final String text) {
         shareText(context, subject, text, null);
@@ -64,10 +62,9 @@ public class ShareUtils {
     /**
      * Share text.
      *
-     * @param context The context for operations.
-     * @param subject The subject for sharing.
-     * @param text The text to share.
-     * @param title The title for share menu.
+     * @param subject the share subject.
+     * @param text the text to share.
+     * @param title the share-menu title.
      */
     public static void shareText(final Context context, final String subject, final String text, @Nullable final String title) {
         if (context == null || text == null) return;
@@ -79,8 +76,6 @@ public class ShareUtils {
 
         openSystemAppChooser(context, shareTextIntent, DataUtils.isNullOrEmpty(title) ? context.getString(R.string.title_share_with) : title);
     }
-
-
 
     /** Wrapper for {@link #copyTextToClipboard(Context, String, String, String)} with `null` `clipDataLabel` and `toastString`. */
     public static void copyTextToClipboard(Context context, final String text) {
@@ -95,11 +90,9 @@ public class ShareUtils {
     /**
      * Copy the text to primary clip of the clipboard.
      *
-     * @param context The context for operations.
-     * @param clipDataLabel The label to show to the user describing the copied text.
-     * @param text The text to copy.
-     * @param toastString If this is not {@code null} or empty, then a toast is shown if copying to
-     *                    clipboard is successful.
+     * @param clipDataLabel label shown to the user describing the copied text.
+     * @param text the text to copy.
+     * @param toastString shown on success when non-null and non-empty.
      */
     public static void copyTextToClipboard(Context context, @Nullable final String clipDataLabel,
                                            final String text, final String toastString) {
@@ -116,8 +109,6 @@ public class ShareUtils {
             Logger.showToast(context, toastString, true);
     }
 
-
-
     /**
      * Wrapper for {@link #getTextFromClipboard(Context, boolean)} that returns primary text {@link String}
      * if its set and not empty.
@@ -133,10 +124,9 @@ public class ShareUtils {
     /**
      * Get the text from primary clip of the clipboard.
      *
-     * @param context The context for operations.
      * @param coerceToText Whether to call {@link ClipData.Item#coerceToText(Context)} to coerce
      *                     non-text data to text.
-     * @return Returns the {@link CharSequence} of primary text. This will be `null` if failed to get it.
+     * @return The {@link CharSequence} of primary text, or {@code null} if failed.
      */
     @Nullable
     public static CharSequence getTextFromClipboard(Context context, boolean coerceToText) {
@@ -154,13 +144,10 @@ public class ShareUtils {
         return coerceToText ? clipItem.coerceToText(context) : clipItem.getText();
     }
 
-
-
     /**
      * Open a url.
      *
-     * @param context The context for operations.
-     * @param url The url to open.
+     * @param url the url to open.
      */
     public static void openUrl(final Context context, final String url) {
         if (context == null || url == null || url.isEmpty()) return;
@@ -169,7 +156,6 @@ public class ShareUtils {
         try {
             context.startActivity(intent);
         } catch (ActivityNotFoundException e) {
-            // If no activity found to handle intent, show system chooser
             openSystemAppChooser(context, intent, context.getString(R.string.title_open_url_with));
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to open url \"" + url + "\"", e);
@@ -185,7 +171,6 @@ public class ShareUtils {
      * is `>=0` and the function will automatically return. The caller should call this function again
      * if user granted the permission.
      *
-     * @param context The context for operations.
      * @param label The label for file.
      * @param filePath The path to save the file.
      * @param text The text to write to file.

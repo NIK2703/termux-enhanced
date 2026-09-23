@@ -112,7 +112,6 @@ public final class TermuxActivityPopupController {
     private static final int MESSAGE_HISTORY_CLEAR_TAG = -2;
     private static final int MESSAGE_HISTORY_CLEAR_ALL_TAG = -3;
 
-
     public TermuxActivityPopupController(@NonNull Context context, @NonNull Host host,
                                           @NonNull TermuxColorSchemeManager colorSchemeManager) {
         mContext = context;
@@ -124,7 +123,6 @@ public final class TermuxActivityPopupController {
     public void setMessageHistoryController(@Nullable MessageHistoryController controller) {
         mMessageHistoryCtrl = controller;
     }
-
 
     public void showMessageHistoryPopup(@NonNull View anchor) {
         dismissMessageHistoryPopup();
@@ -173,10 +171,9 @@ public final class TermuxActivityPopupController {
                     ViewGroup.LayoutParams.WRAP_CONTENT));
         }
 
-        // Synthetic "CLEAR HISTORY…" row pinned at the TOP of the popup.
-        // Selecting it opens a confirmation dialog; confirming wipes all history.
-        // Shown only when there is history to clear. Coexists with the bottom
-        // "Clear" row (clears the input), it is not a replacement for it.
+        // Synthetic "CLEAR HISTORY…" row pinned at the TOP. Selecting it opens a confirmation
+        // dialog; confirming wipes all history. Shown only when there is history to clear.
+        // Coexists with the bottom "Clear" row (clears the input), not a replacement for it.
         if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
             TextView tv = new TextView(mContext);
             tv.setText(mContext.getString(R.string.input_history_clear_all));
@@ -199,19 +196,17 @@ public final class TermuxActivityPopupController {
             content.addView(sep, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
         }
-        // Displayed order (spec): newest at the BOTTOM (nearest the pencil button,
-        // first reached by a swipe-up), oldest at the top. A re-sent message moves
-        // to index 0 (front) of mMessageHistoryCtrl.getHistoryList(), so iterate in REVERSE (end -> 0)
-        // to fill the vertical layout top-to-bottom with the newest last (bottom).
+        // Displayed order (spec): newest at the BOTTOM (nearest the pencil, first reached by a
+        // swipe-up), oldest at the top. A re-sent message moves to index 0 (front) of
+        // mMessageHistoryCtrl.getHistoryList(), so iterate REVERSE (end → 0) to fill the layout
+        // top-to-bottom with the newest last (bottom).
         if (mMessageHistoryCtrl != null) {
             for (int i = mMessageHistoryCtrl.getHistoryList().size() - 1; i >= 0; i--) {
                 final String message = mMessageHistoryCtrl.getHistoryList().get(i);
                 TextView tv = new TextView(mContext);
-                // Preview: collapse newlines to spaces, wrap to at most 2 lines and add
-                // an ellipsis when the message is longer than that. P2: only allocate the
-                // replacement strings when the message actually contains a newline or
-                // leading/trailing whitespace (the common case — a single-line command —
-                // needs no allocation).
+                // Preview: collapse newlines to spaces, wrap to at most 2 lines with an ellipsis.
+        // P2: only allocate replacement strings when the message actually has a newline or
+        // leading/trailing whitespace (the common case — a single-line command — needs no allocation).
                 String display = message;
                 if (message.indexOf('\n') >= 0) display = message.replace("\n", " ");
                 if (display.length() == 0
@@ -235,9 +230,8 @@ public final class TermuxActivityPopupController {
             }
         }
 
-        // Synthetic "Clear" row pinned at the BOTTOM of the popup (nearest the
-        // pencil button): remembers the current input text in history, then empties
-        // the input field. Shown only when the input panel actually has text.
+        // Synthetic "Clear" row pinned at the BOTTOM (nearest the pencil): remembers the current
+        // input text in history, then empties the input field. Shown only when the panel has text.
         if (!TextUtils.isEmpty(inputText)) {
             TextView tv = new TextView(mContext);
             tv.setText(mContext.getString(R.string.input_history_clear));
@@ -254,9 +248,8 @@ public final class TermuxActivityPopupController {
                     ViewGroup.LayoutParams.WRAP_CONTENT));
             mHistoryItemViews.add(tv);
 
-            // Thin separator above the bottom "Clear" row acts as a visual
-            // divider between the history list and the action.  Only meaningful
-            // when there IS a history list to separate it from.
+            // Thin separator above the bottom "Clear" row: divider between the history list and
+            // the action. Only meaningful when there IS a history list to separate it from.
             if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
                 View sepBottom = new View(mContext);
                 sepBottom.setBackgroundColor(mColorSchemeManager.getHistoryPopupSepColor());
@@ -270,9 +263,9 @@ public final class TermuxActivityPopupController {
                 mContext.getResources().getDisplayMetrics().widthPixels - TermuxActivityUtils.dpToPx(mContext, 24),
                 TermuxActivityUtils.dpToPx(mContext, 320));
 
-        // Wrap in a ScrollView: the popup is a bounded box (never edge-to-edge),
-        // and a taller history scrolls inside it. Kept for edge auto-scroll while
-        // the finger drags near the top/bottom of the box.
+        // Wrap in a ScrollView: the popup is a bounded box (never edge-to-edge) and a taller
+        // history scrolls inside it. Kept for edge auto-scroll while the finger drags near
+        // the top/bottom of the box.
         android.widget.ScrollView scroll = new android.widget.ScrollView(mContext);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content, new ViewGroup.LayoutParams(
@@ -299,31 +292,22 @@ public final class TermuxActivityPopupController {
 
         mHistoryPopup = new PopupWindow(scroll, popupWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT, false);
-        // Force the "grow from the BOTTOM" dropdown animation (pivotY=100%), i.e. what
-        // the popup ABOVE its anchor gets — the same window the directory-history popup
-        // plays. Without an explicit style PopupWindow resolves its window animation
-        // BEFORE it computes mAboveAnchor, so this anchor (placed above the pencil button
-        // with a negative y-offset) falls back to the "grow from the TOP" variant and the
-        // window visibly unfolds downward instead of growing out of the pencil button.
-        // The style is a byte-for-byte replica of the framework's
+        // Force the "grow from the BOTTOM" dropdown animation (pivotY=100%), what the popup ABOVE
+        // its anchor gets — same as the directory-history popup. Without an explicit style
+        // PopupWindow resolves its window animation BEFORE computing mAboveAnchor, so this anchor
+        // (above the pencil button, negative y-offset) falls back to "grow from the TOP" and the
+        // window visibly unfolds downward. Byte-for-byte replica of the framework's
         // anim/grow_fade_in_from_bottom + shrink_fade_out_from_bottom.
         mHistoryPopup.setAnimationStyle(R.style.HistoryPopupGrowFromBottomAnimation);
-        // Smooth elevation shadow — background drawable must be fully opaque for the
-        // WindowManager to derive a valid Outline (GradientDrawable.getOutline bails
-        // when alpha < 255).  The 10% visual transparency is applied to the ScrollView
-        // itself via setAlpha(), which does not affect the popup's background outline.
-        // Larger elevation (16dp) for a bigger shadow, but outline alpha is
-        // reduced so the shadow renders more transparent/softer.
         mHistoryPopup.setElevation(TermuxActivityUtils.dpToPx(mContext, 16));
-        // Background: rounded rect, fully opaque scheme composite colour.
-        // getOutline() is overridden to call outline.setAlpha() — this controls
-        // the shadow opacity independently from the elevation size.
+        // Rounded scheme-colour background; opaque so WindowManager derives a valid outline
+        // (GradientDrawable.getOutline bails when alpha < 255). Soften the shadow on S+ via
+        // outline.setAlpha; 10% visual transparency is applied to the ScrollView instead.
         GradientDrawable popupBgDrawable = new GradientDrawable() {
             @Override
             public void getOutline(@NonNull Outline outline) {
                 super.getOutline(outline);
                 if (!outline.isEmpty()) {
-                    // Keep elevation large, but make the shadow softer/transparent.
                     // setAlpha requires API 31+.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         outline.setAlpha(0.65f);
@@ -335,8 +319,7 @@ public final class TermuxActivityPopupController {
         popupBgDrawable.setCornerRadius(TermuxActivityUtils.dpToPx(mContext, 12));
         popupBgDrawable.setColor(mColorSchemeManager.getHistoryPopupBg()); // must be opaque for getOutline
         mHistoryPopup.setBackgroundDrawable(popupBgDrawable);
-        // 10% visual transparency on the content (not the background drawable, so the
-        // elevation shadow outline stays valid).
+        // Content transparency only — keeps the elevation outline valid.
         scroll.setAlpha(0.9f);
         mHistoryPopup.setClippingEnabled(true);
         // Do NOT let the popup intercept touches: the pencil button keeps the
@@ -349,10 +332,9 @@ public final class TermuxActivityPopupController {
         int popupGap = mContext.getResources().getDimensionPixelSize(R.dimen.message_history_popup_gap);
         int[] anchorLoc = new int[2];
         anchor.getLocationOnScreen(anchorLoc);
-        // P1: measure the content FIRST so we know its height before showing.
-        // That lets us position the popup ABOVE the anchor in a single window
-        // transaction instead of showAsDropDown(below) + update(above), which
-        // flashed one frame in the wrong place and cost a second IPC/re-layout.
+        // P1: measure content FIRST so we know its height before showing — positions the popup
+        // ABOVE the anchor in a single window transaction instead of showAsDropDown(below) +
+        // update(above), which flashed one frame wrong and cost a second IPC/re-layout.
         content.measure(
                 View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
@@ -361,7 +343,6 @@ public final class TermuxActivityPopupController {
         int maxHeight = Math.min(mContext.getResources().getDimensionPixelSize(R.dimen.message_history_popup_max_height), roomAbove);
         int popupHeight = Math.min(contentHeight, maxHeight);
         mHistoryPopup.setHeight(popupHeight);
-        // Anchor above the button (right-aligned), in one transaction.
         mHistoryPopup.showAsDropDown(anchor, 0, -(anchor.getHeight() + popupHeight + popupGap), Gravity.START);
 
         // Open at the END of the list: newest is at the bottom, so start scrolled
@@ -405,10 +386,9 @@ public final class TermuxActivityPopupController {
         // itself. Calling this on every ACTION_MOVE must NOT spawn extra loops.
         startHistoryAutoScroll();
 
-        // P1 hit-test: one getLocationOnScreen for the whole scroll container, then
-        // derive each row's screen rect from its cached getTop()/getLeft() and the
-        // scroll offset — instead of walking the view hierarchy per row (up to
-        // ~12 000 hierarchy traversals/sec at 100 rows × 120 Hz).
+        // P1 hit-test: one getLocationOnScreen for the whole scroll container, then derive each
+        // row's screen rect from its cached getTop()/getLeft() and the scroll offset — instead of
+        // walking the view hierarchy per row (up to ~12 000 hierarchy traversals/sec at 100 rows × 120 Hz).
         int newIndex = -1;
         View newView = null;
         int[] loc = mTmpLoc;
@@ -449,12 +429,10 @@ public final class TermuxActivityPopupController {
     }
 
     /**
-     * Start the edge auto-scroll loop, but only if it is not already running.
-     * This must be idempotent: {@link #updateHistoryHighlight(float, float)} is
-     * invoked on every ACTION_MOVE, and if each call spawned its own loop the
-     * loops would accumulate and the scroll speed would multiply with every
-     * finger movement. The running loop reschedules itself via
-     * {@link #autoScrollHistoryNearEdge()}.
+     * Start the edge auto-scroll loop only if not already running — must be idempotent:
+     * {@link #updateHistoryHighlight(float, float)} runs on every ACTION_MOVE, and spawning a loop
+     * per call would accumulate them and multiply scroll speed. The running loop reschedules itself
+     * via {@link #autoScrollHistoryNearEdge()}.
      */
     private void startHistoryAutoScroll() {
         if (mHistoryScroll == null || !isHistoryPopupShowing() || mHistoryAutoScrolling) {

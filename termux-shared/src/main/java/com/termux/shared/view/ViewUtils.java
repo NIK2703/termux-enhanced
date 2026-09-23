@@ -25,11 +25,7 @@ public class ViewUtils {
 
     private static final String LOG_TAG = "ViewUtils";
 
-    /**
-     * Sets whether view utils logging is enabled or not.
-     *
-     * @param value The boolean value that defines the state.
-     */
+    /** @param value whether logging is enabled. */
     public static void setIsViewUtilsLoggingEnabled(boolean value) {
         VIEW_UTILS_LOGGING_ENABLED = value;
     }
@@ -105,12 +101,12 @@ public class ViewUtils {
 
         boolean view_utils_logging_enabled = VIEW_UTILS_LOGGING_ENABLED;
 
-        // windowRect - will hold available area where content remain visible to users
-        // Takes into account screen decorations (e.g. statusbar)
+        // windowRect - available area where content remains visible to the user, taking into
+        // account screen decorations (e.g. statusbar)
         // (reused: windowAvailableRect IS the visible frame until actionBarHeight is added below)
         view.getWindowVisibleDisplayFrame(windowAvailableRect);
 
-        // If there is actionbar, get his height
+        // If there is an action bar, get its height
         int actionBarHeight = 0;
         boolean isInMultiWindowMode = false;
         Context context = view.getContext();
@@ -217,8 +213,8 @@ public class ViewUtils {
      * @param context The {@link Context} to check with. It must be {@link Activity} context, otherwise
      *                android will throw:
      *                `java.lang.IllegalArgumentException: Used non-visual Context to obtain an instance of WindowManager. Please use an Activity or a ContextWrapper around one instead.`
-     * @param activitySize The set to {@link true}, then size returned will be that of the activity
-     *                     and can be smaller than physical display size in multi-window mode.
+     * @param activitySize if true, the activity size (may be smaller than the physical display
+     *                     in multi-window mode) is returned.
      * @return Returns the display size as {@link Point}.
      */
     public static Point getDisplaySize( @NonNull Context context, boolean activitySize) {
@@ -256,7 +252,6 @@ public class ViewUtils {
         return null;
     }
 
-
     /** Convert value in device independent pixels (dp) to pixels (px) units. */
     public static float dpToPx(Context context, float dp) {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.getResources().getDisplayMetrics());
@@ -266,7 +261,6 @@ public class ViewUtils {
     public static float pxToDp(Context context, float px) {
         return px / context.getResources().getDisplayMetrics().density;
     }
-
 
     public static void setLayoutMarginsInDp(@NonNull View view, int left, int top, int right, int bottom) {
         Context context = view.getContext();

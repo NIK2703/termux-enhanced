@@ -89,7 +89,6 @@ FIX = [
 # characters the s2t round-trip flags but that are correct Taiwan forms
 GATE_WHITELIST = {"群": "羣"}   # 群 is the normal Taiwan form; 羣 is a variant
 
-
 def convert(text):
     out = S2TWP.convert(text)
     for a, b in FIX:
@@ -98,7 +97,6 @@ def convert(text):
         if alt != a:          # only if the rule key is itself Simplified
             out = out.replace(alt, b)
     return out
-
 
 def main():
     module = sys.argv[1]
@@ -139,7 +137,6 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
         print(out)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

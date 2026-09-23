@@ -33,11 +33,9 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Get {@link TermuxFloatAppSharedPreferences}.
+     * Build from the Termux:Float package context.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_FLOAT_PACKAGE_NAME}.
-     * @return Returns the {@link TermuxFloatAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @return the prefs, or {@code null} if the package context could not be obtained.
      */
     @Nullable
     public static TermuxFloatAppSharedPreferences build(@NonNull final Context context) {
@@ -49,13 +47,10 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Get {@link TermuxFloatAppSharedPreferences}.
+     * Build from the Termux:Float package context.
      *
-     * @param context The {@link Context} to use to get the {@link Context} of the
-     *                {@link TermuxConstants#TERMUX_FLOAT_PACKAGE_NAME}.
-     * @param exitAppOnError If {@code true} and failed to get package context, then a dialog will
-     *                       be shown which when dismissed will exit the app.
-     * @return Returns the {@link TermuxFloatAppSharedPreferences}. This will {@code null} if an exception is raised.
+     * @param exitAppOnError show an error dialog and exit the app if the context cannot be obtained.
+     * @return the prefs, or {@code null} if the package context could not be obtained.
      */
     public static TermuxFloatAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
         Context termuxFloatPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_FLOAT_PACKAGE_NAME, exitAppOnError);
@@ -64,8 +59,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
         else
             return new TermuxFloatAppSharedPreferences(termuxFloatPackageContext);
     }
-
-
 
     public int getWindowX() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_X, 200);
@@ -85,8 +78,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_Y, value, false);
     }
 
-
-
     public int getWindowWidth() {
         return SharedPreferenceUtils.getInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_WIDTH, 500);
 
@@ -104,8 +95,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
     public void setWindowHeight(int value) {
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_WINDOW_HEIGHT, value, false);
     }
-
-
 
     public void setFontVariables(Context context) {
         int[] sizes = TermuxAppSharedPreferences.getDefaultFontSizes(context);
@@ -133,7 +122,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
         setFontSize(fontSize);
     }
 
-
     public int getLogLevel(boolean readFromFile) {
         if (readFromFile)
             return SharedPreferenceUtils.getInt(mMultiProcessSharedPreferences, TERMUX_FLOAT_APP.KEY_LOG_LEVEL, Logger.DEFAULT_LOG_LEVEL);
@@ -145,7 +133,6 @@ public class TermuxFloatAppSharedPreferences extends AppSharedPreferences {
         logLevel = Logger.setLogLevel(context, logLevel);
         SharedPreferenceUtils.setInt(mSharedPreferences, TERMUX_FLOAT_APP.KEY_LOG_LEVEL, logLevel, commitToFile);
     }
-
 
     public boolean isTerminalViewKeyLoggingEnabled(boolean readFromFile) {
         if (readFromFile)

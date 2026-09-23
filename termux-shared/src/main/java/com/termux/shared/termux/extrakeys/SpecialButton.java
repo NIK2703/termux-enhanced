@@ -4,7 +4,7 @@ import androidx.annotation.NonNull;
 
 import java.util.HashMap;
 
-/** The {@link Class} that implements special buttons for {@link ExtraKeysView}. */
+/** Special buttons (CTRL, ALT, SHIFT, FN) for {@link ExtraKeysView}. */
 public class SpecialButton {
 
     private static final HashMap<String, SpecialButton> map = new HashMap<>();
@@ -14,15 +14,11 @@ public class SpecialButton {
     public static final SpecialButton SHIFT = new SpecialButton("SHIFT");
     public static final SpecialButton FN = new SpecialButton("FN");
 
-    /** The special button key. */
     private final String key;
 
     /**
-     * Initialize a {@link SpecialButton}.
-     *
-     * @param key The unique key name for the special button. The key is registered in {@link #map}
-     *            with which the {@link SpecialButton} can be retrieved via a call to
-     *            {@link #valueOf(String)}.
+     * Registers {@code key} in {@link #map} so the button can be retrieved via
+     * {@link #valueOf(String)}.
      */
     public SpecialButton(@NonNull final String key) {
         this.key = key;
@@ -34,11 +30,7 @@ public class SpecialButton {
         return key;
     }
 
-    /**
-     * Get the {@link SpecialButton} for {@code key}.
-     *
-     * @param key The unique key name for the special button.
-     */
+    /** Get the {@link SpecialButton} registered for {@code key}, or {@code null} if none. */
     public static SpecialButton valueOf(String key) {
         return map.get(key);
     }

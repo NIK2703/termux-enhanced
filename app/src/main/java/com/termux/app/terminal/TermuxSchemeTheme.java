@@ -7,7 +7,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
-
 /**
  * Single apply-path for the Termux:Style colour scheme across every non-panel surface
  * (dialogs, context menu, fallback view trees). All colours are read from the

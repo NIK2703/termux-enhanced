@@ -31,7 +31,6 @@ public class ResultConfig {
     /** The key with which to send original length of {@link ResultData#stderr} in {@link #resultPendingIntent}. */
     public String resultStderrOriginalLengthKey;
 
-
     /** Defines the directory path in which to write the result of the command. */
     public String resultDirectoryPath;
     /** Defines the directory path under which {@link #resultDirectoryPath} can exist. */
@@ -50,15 +49,12 @@ public class ResultConfig {
      * if {@link #resultSingleFile} is {@code true}. */
     public String resultFilesSuffix;
 
-
     public ResultConfig() {
     }
-
 
     public boolean isCommandWithPendingResult() {
         return resultPendingIntent != null || resultDirectoryPath != null;
     }
-
 
     @NonNull
     @Override

@@ -41,10 +41,8 @@ PASS=0
 FAIL=0
 SKIP=0
 
-# ---------------------------------------------------------------------------
 # classify(line) -- bash port of ShellCompletionProvider.classifyScenario()
 # Returns (echoes) one of the Java Scenario enum names. MUST mirror Java.
-# ---------------------------------------------------------------------------
 classify() {
   local line="$1"
   # Tokenize the same way Java splitCommandLine does (whitespace split, keep
@@ -168,9 +166,7 @@ classify() {
   echo "COMPSPEC"
 }
 
-# ---------------------------------------------------------------------------
 # assemble(scenario_file, out_file)
-# ---------------------------------------------------------------------------
 assemble() {
   local scenario="$1" out="$2"
   if [[ ! -f "$COMMON" ]]; then echo "FATAL: missing $COMMON" >&2; exit 2; fi
@@ -178,9 +174,7 @@ assemble() {
   cat "$COMMON" "$scenario" > "$out" || { echo "FATAL: write $out" >&2; exit 2; }
 }
 
-# ---------------------------------------------------------------------------
 # run(script, compLine, compPoint, currentWord) -> candidates (NUL->newline, no sentinel)
-# ---------------------------------------------------------------------------
 run() {
   local script="$1" compLine="$2" compPoint="$3" currentWord="$4"
   "$BASH_BIN" --norc --noprofile "$script" "$compLine" "$compPoint" "$currentWord" 2>/dev/null \
@@ -189,9 +183,7 @@ run() {
     | grep -v '^$'
 }
 
-# ---------------------------------------------------------------------------
 # assertion helpers
-# ---------------------------------------------------------------------------
 expect_present() {  # desc, pattern, haystack
   local desc="$1" pat="$2" hay="$3"
   if printf '%s\n' "$hay" | grep -q -- "$pat"; then
@@ -227,9 +219,7 @@ skip_case() {  # desc, reason
   SKIP=$((SKIP+1))
 }
 
-# ---------------------------------------------------------------------------
 # main
-# ---------------------------------------------------------------------------
 assemble "${RAW}/shell_complete_fast.sh"     "$TMP_FAST"
 assemble "${RAW}/shell_complete_path.sh"     "$TMP_PATH"
 assemble "${RAW}/shell_complete_redir.sh"    "$TMP_REDIR"

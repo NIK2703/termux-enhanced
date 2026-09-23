@@ -128,10 +128,7 @@ public class ResizeTest extends TerminalTestCase {
 		final int cols = 5;
 
 		withTerminalSized(cols, rows);
-		// Background color to 129:
-		// enterString("\033[48;5;129m").assertLinesAre(" ", " ", " ", " ", " ");
 		enterString("1111\r\n2222\r\n3333\r\n4444\r\n5555").assertCursorAt(4, 4);
-		// assertEquals(129, TextStyle.decodeBackColor(getStyleAt(2, 2)));
 		assertLinesAre("1111 ", "2222 ", "3333 ", "4444 ", "5555 ").assertLineWraps(false, false, false, false, false);
 		resize(cols + 2, rows).assertLinesAre("1111   ", "2222   ", "3333   ", "4444   ", "5555   ").assertCursorAt(4, 4);
 		assertLineWraps(false, false, false, false, false);

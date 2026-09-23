@@ -479,39 +479,25 @@ public final class TerminalView extends View {
     int mCombiningAccent;
 
     /**
-     * The current AutoFill type returned for {@link View#getAutofillType()} by {@link #getAutofillType()}.
-     *
-     * The default is {@link #AUTOFILL_TYPE_NONE} so that AutoFill UI, like toolbar above keyboard
-     * is not shown automatically, like on Activity starts/View create. This value should be updated
-     * to required value, like {@link #AUTOFILL_TYPE_TEXT} before calling
-     * {@link AutofillManager#requestAutofill(View)} so that AutoFill UI shows. The updated value
-     * set will automatically be restored to {@link #AUTOFILL_TYPE_NONE} in
-     * {@link #autofill(AutofillValue)} so that AutoFill UI isn't shown anymore by calling
-     * {@link #resetAutoFill()}.
+     * {@link View#getAutofillType()}: {@link #AUTOFILL_TYPE_NONE} by default so AutoFill UI never
+     * pops up on its own; flip to {@link #AUTOFILL_TYPE_TEXT} before
+     * {@link AutofillManager#requestAutofill(View)}, then {@link #autofill(AutofillValue)} restores
+     * it via {@link #resetAutoFill()}.
      */
     @RequiresApi(api = Build.VERSION_CODES.O)
     private int mAutoFillType = AUTOFILL_TYPE_NONE;
 
     /**
-     * The current AutoFill type returned for {@link View#getImportantForAutofill()} by
-     * {@link #getImportantForAutofill()}.
-     *
-     * The default is {@link #IMPORTANT_FOR_AUTOFILL_NO} so that view is not considered important
-     * for AutoFill. This value should be updated to required value, like
-     * {@link #IMPORTANT_FOR_AUTOFILL_YES} before calling {@link AutofillManager#requestAutofill(View)}
-     * so that Android and apps consider the view as important for AutoFill to process the request.
-     * The updated value set will automatically be restored to {@link #IMPORTANT_FOR_AUTOFILL_NO} in
-     * {@link #autofill(AutofillValue)} by calling {@link #resetAutoFill()}.
+     * {@link View#getImportantForAutofill()}: {@link #IMPORTANT_FOR_AUTOFILL_NO} by default; flip
+     * to {@link #IMPORTANT_FOR_AUTOFILL_YES} before {@link AutofillManager#requestAutofill(View)},
+     * then {@link #autofill(AutofillValue)} restores it via {@link #resetAutoFill()}.
      */
     @RequiresApi(api = Build.VERSION_CODES.O)
     private int mAutoFillImportance = IMPORTANT_FOR_AUTOFILL_NO;
 
     /**
-     * The current AutoFill hints returned for {@link View#getAutofillHints()} ()} by {@link #getAutofillHints()} ()}.
-     *
-     * The default is an empty `string[]`. This value should be updated to required value. The
-     * updated value set will automatically be restored an empty `string[]` in
-     * {@link #autofill(AutofillValue)} by calling {@link #resetAutoFill()}.
+     * {@link View#getAutofillHints()}: empty by default; restored to empty in
+     * {@link #autofill(AutofillValue)} via {@link #resetAutoFill()}.
      */
     private String[] mAutoFillHints = new String[0];
 
@@ -727,22 +713,15 @@ public final class TerminalView extends View {
         mScrollbarThumbStrokePaint.setColor(0xBBFFFFFF);
     }
 
-
-
-    /**
-     * @param client The {@link TerminalViewClient} interface implementation to allow
-     *                           for communication between {@link TerminalView} and its client.
-     */
+    /** @param client the client for communication between {@link TerminalView} and its owner. */
     public void setTerminalViewClient(TerminalViewClient client) {
         this.mClient = client;
     }
 
-
-
     /**
      * Attach a {@link TerminalSession} to this view.
      *
-     * @param session The {@link TerminalSession} this view will be displaying.
+     * @param session the session this view will display.
      */
     public boolean attachSession(TerminalSession session) {
         if (session == mTermSession) return false;
@@ -3109,11 +3088,7 @@ public final class TerminalView extends View {
         return mGridOffsetY;
     }
 
-
-
-    /**
-     * Define functions required for AutoFill API
-     */
+    /** Committed Autofill value is written to the terminal, then the flag is reset. */
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     public void autofill(AutofillValue value) {
@@ -3228,10 +3203,6 @@ public final class TerminalView extends View {
             mClient.logStackTraceWithMessage(LOG_TAG, "Failed to cancel Autofill request", e);
         }
     }
-
-
-
-
 
     /**
      * Set terminal cursor blinker rate. It must be between {@link #TERMINAL_CURSOR_BLINK_RATE_MIN}
@@ -3393,11 +3364,7 @@ public final class TerminalView extends View {
         }
     }
 
-
-
-    /**
-     * Define functions required for text selection and its handles.
-     */
+    /** Lazily create the text-selection cursor controller and register its touch-mode listener. */
     TextSelectionCursorController getTextSelectionCursorController() {
         if (mTextSelectionCursorController == null) {
             mTextSelectionCursorController = new TextSelectionCursorController(this);
@@ -3535,11 +3502,7 @@ public final class TerminalView extends View {
         }
     }
 
-
-
-    /**
-     * Define functions required for long hold toolbar.
-     */
+    /** Hide the selection action mode after {@link ViewConfiguration#getDoubleTapTimeout()}. */
     private final Runnable mShowFloatingToolbar = new Runnable() {
         @RequiresApi(api = Build.VERSION_CODES.M)
         @Override

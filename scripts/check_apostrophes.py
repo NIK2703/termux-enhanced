@@ -15,7 +15,6 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(ROOT, "app", "src", "main", "res")
 
-
 def main():
     bad = 0
     for dirpath, _, files in os.walk(RES):
@@ -43,7 +42,6 @@ def main():
         sys.exit(1)
     print("OK: no apostrophe issues")
     sys.exit(0)
-
 
 if __name__ == "__main__":
     main()

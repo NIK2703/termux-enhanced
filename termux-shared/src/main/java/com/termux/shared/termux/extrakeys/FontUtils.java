@@ -98,17 +98,12 @@ public final class FontUtils {
     }
 
     /**
-     * Show the font picker dialog. Lists every font shipped by the installed Termux:Style app,
-     * and on selection copies the font to {@code ~/.termux/font.ttf} and invokes
-     * {@code onApplied} so the caller can trigger a live restyle.
+     * Show the font picker dialog: lists the installed Termux:Style fonts (each drawn in itself,
+     * {@link #FONT_DEFAULT} in {@link Typeface#MONOSPACE}), applies the selection to
+     * {@code ~/.termux/font.ttf} and invokes {@code onApplied} for a live restyle.
      *
-     * <p>Every entry is drawn in the font it stands for, so the picker shows the fonts instead of
-     * only naming them; {@link #FONT_DEFAULT} is drawn in {@link Typeface#MONOSPACE}, which is what
-     * the terminal falls back to.
-     *
-     * @param context   A UI context to show the dialog with.
      * @param notInstalledMessage Message shown if Termux:Style is not installed.
-     * @param onApplied Run after a font is applied (e.g. to reload styling live); may be {@code null}.
+     * @param onApplied Run after a font is applied; may be {@code null}.
      */
     public static void showFontDialog(Context context,
                                       CharSequence notInstalledMessage,
@@ -138,9 +133,8 @@ public final class FontUtils {
             .create();
         d.show();
 
-        // The list is bounded exactly as the color-scheme picker's is: a font list long enough to
-        // fill the dialog would otherwise leave its last row drawn past the bottom edge and
-        // unreachable.
+        // Bounded like the color-scheme picker's: a long list would draw its last row past the
+        // bottom edge, unreachable.
         final ListView list = d.getListView();
         if (list != null) {
             PickerDialogList.boundHeightToWindow(list);
@@ -151,9 +145,8 @@ public final class FontUtils {
      * Load a Termux:Style font as a {@link Typeface}, so it can be previewed before it is applied.
      *
      * @param fileName The font asset file name, as returned by {@link #listStylingFonts}.
-     * @return The typeface, or {@code null} when Termux:Style is not installed or the font cannot
-     *         be parsed (a truncated or corrupt file), in which case the caller should fall back
-     *         to {@link Typeface#MONOSPACE}.
+     * @return the typeface, or {@code null} when Termux:Style is missing or the file cannot be
+     *         parsed вЂ” the caller should then fall back to {@link Typeface#MONOSPACE}.
      */
     @Nullable
     public static Typeface loadStylingTypeface(@Nullable Context context, @NonNull String fileName) {

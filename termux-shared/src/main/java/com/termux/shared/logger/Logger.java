@@ -39,7 +39,7 @@ public class Logger {
      * #define LOGGER_ENTRY_MAX_PAYLOAD 4068
      * https://cs.android.com/android/_/android/platform/system/core/+/android10-release:liblog/include/log/log_read.h;l=127
      */
-    public static final int LOGGER_ENTRY_MAX_PAYLOAD = 4068; // 4068 bytes
+    public static final int LOGGER_ENTRY_MAX_PAYLOAD = 4068;
 
     /**
      * The maximum safe size of the log entry payload that can be written to the logger, based on
@@ -47,7 +47,7 @@ public class Logger {
      * prefix/suffix max 68 characters for itself. Use "log*Extended()" functions to use max possible
      * limit if tag is already known.
      */
-    public static final int LOGGER_ENTRY_MAX_SAFE_PAYLOAD = 4000; // 4000 bytes
+    public static final int LOGGER_ENTRY_MAX_SAFE_PAYLOAD = 4000;
 
     /** Current log level. Callers that build an expensive message should check
      * {@link #isLoggable(int)} first instead of relying on the check inside
@@ -122,8 +122,6 @@ public class Logger {
         }
     }
 
-
-
     public static void logError(String tag, String message) {
         logMessage(Log.ERROR, tag, message);
     }
@@ -139,8 +137,6 @@ public class Logger {
     public static void logErrorExtended(String message) {
         logExtendedMessage(Log.ERROR, DEFAULT_LOG_TAG, message);
     }
-
-
 
     public static void logErrorPrivate(String tag, String message) {
         if (CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG)
@@ -162,8 +158,6 @@ public class Logger {
             logExtendedMessage(Log.ERROR, DEFAULT_LOG_TAG, message);
     }
 
-
-
     public static void logWarn(String tag, String message) {
         logMessage(Log.WARN, tag, message);
     }
@@ -179,8 +173,6 @@ public class Logger {
     public static void logWarnExtended(String message) {
         logExtendedMessage(Log.WARN, DEFAULT_LOG_TAG, message);
     }
-
-
 
     public static void logInfo(String tag, String message) {
         logMessage(Log.INFO, tag, message);
@@ -198,8 +190,6 @@ public class Logger {
         logExtendedMessage(Log.INFO, DEFAULT_LOG_TAG, message);
     }
 
-
-
     public static void logDebug(String tag, String message) {
         logMessage(Log.DEBUG, tag, message);
     }
@@ -215,8 +205,6 @@ public class Logger {
     public static void logDebugExtended(String message) {
         logExtendedMessage(Log.DEBUG, DEFAULT_LOG_TAG, message);
     }
-
-
 
     public static void logVerbose(String tag, String message) {
         logMessage(Log.VERBOSE, tag, message);
@@ -238,8 +226,6 @@ public class Logger {
         Log.v(tag, message);
     }
 
-
-
     public static void logInfoAndShowToast(Context context, String tag, String message) {
         if (CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL) {
             logInfo(tag, message);
@@ -250,8 +236,6 @@ public class Logger {
     public static void logInfoAndShowToast(Context context, String message) {
         logInfoAndShowToast(context, DEFAULT_LOG_TAG, message);
     }
-
-
 
     public static void logErrorAndShowToast(Context context, String tag, String message) {
         if (CURRENT_LOG_LEVEL >= LOG_LEVEL_NORMAL) {
@@ -264,8 +248,6 @@ public class Logger {
         logErrorAndShowToast(context, DEFAULT_LOG_TAG, message);
     }
 
-
-
     public static void logDebugAndShowToast(Context context, String tag, String message) {
         if (CURRENT_LOG_LEVEL >= LOG_LEVEL_DEBUG) {
             logDebug(tag, message);
@@ -276,8 +258,6 @@ public class Logger {
     public static void logDebugAndShowToast(Context context, String message) {
         logDebugAndShowToast(context, DEFAULT_LOG_TAG, message);
     }
-
-
 
     public static void logStackTraceWithMessage(String tag, String message, Throwable throwable) {
         Logger.logErrorExtended(tag, getMessageAndStackTraceString(message, throwable));
@@ -295,13 +275,9 @@ public class Logger {
         logStackTraceWithMessage(DEFAULT_LOG_TAG, null, throwable);
     }
 
-
-
     public static void logStackTracesWithMessage(String tag, String message, List<Throwable> throwablesList) {
         Logger.logErrorExtended(tag, getMessageAndStackTracesString(message, throwablesList));
     }
-
-
 
     public static String getMessageAndStackTraceString(String message, Throwable throwable) {
         if (message == null && throwable == null)
@@ -325,8 +301,6 @@ public class Logger {
             return getStackTracesString(null, getStackTracesStringArray(throwablesList));
     }
 
-
-
     public static String getStackTraceString(Throwable throwable) {
         if (throwable == null) return null;
 
@@ -346,8 +320,6 @@ public class Logger {
         return stackTraceString;
     }
 
-
-
     public static String[] getStackTracesStringArray(Throwable throwable) {
         return getStackTracesStringArray(Collections.singletonList(throwable));
     }
@@ -360,8 +332,6 @@ public class Logger {
         }
         return stackTraceStringArray;
     }
-
-
 
     public static String getStackTracesString(String label, String[] stackTraceStringArray) {
         if (label == null) label = "StackTraces:";
@@ -415,8 +385,6 @@ public class Logger {
             return  label + ": "  +  def;
     }
 
-
-
     public static void showToast(final Context context, final String toastText, boolean longDuration) {
         if (context == null || DataUtils.isNullOrEmpty(toastText)) return;
 
@@ -425,8 +393,6 @@ public class Logger {
         // came out white-on-white whenever the app theme and the scheme disagreed).
         ToastUtils.showToast(context, toastText, longDuration);
     }
-
-
 
     public static CharSequence[] getLogLevelsArray() {
         return new CharSequence[]{
@@ -459,8 +425,6 @@ public class Logger {
         }
     }
 
-
-
     @NonNull
     public static String getDefaultLogTag() {
         return DEFAULT_LOG_TAG;
@@ -472,8 +436,6 @@ public class Logger {
     public static void setDefaultLogTag(@NonNull String defaultLogTag) {
         DEFAULT_LOG_TAG = defaultLogTag.length() >= 23 ? defaultLogTag.substring(0, 22) : defaultLogTag;
     }
-
-
 
     public static int setLogLevel(Context context, int logLevel) {
         if (isLogLevelValid(logLevel))

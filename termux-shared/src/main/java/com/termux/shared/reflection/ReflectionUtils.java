@@ -38,14 +38,9 @@ public class ReflectionUtils {
         }
     }
 
-    /** Check if android hidden API reflection restrictions are bypassed. */
     public static boolean areHiddenAPIReflectionRestrictionsBypassed() {
         return HIDDEN_API_REFLECTION_RESTRICTIONS_BYPASSED;
     }
-
-
-
-
 
     /**
      * Get a {@link Field} for the specified class.
@@ -65,8 +60,6 @@ public class ReflectionUtils {
             return null;
         }
     }
-
-
 
     /** Class that represents result of invoking a field. */
     public static class FieldInvokeResult {
@@ -104,10 +97,6 @@ public class ReflectionUtils {
         }
     }
 
-
-
-
-
     /**
      * Wrapper for {@link #getDeclaredMethod(Class, String, Class[])} without parameters.
      */
@@ -136,8 +125,6 @@ public class ReflectionUtils {
         }
     }
 
-
-
     /**
      * Wrapper for {@link #invokeVoidMethod(Method, Object, Object...)} without arguments.
      */
@@ -164,8 +151,6 @@ public class ReflectionUtils {
             return false;
         }
     }
-
-
 
     /** Class that represents result of invoking a method that has a non-void return type. */
     public static class MethodInvokeResult {
@@ -208,8 +193,6 @@ public class ReflectionUtils {
         }
     }
 
-
-
     /**
      * Wrapper for {@link #getConstructor(String, Class[])} without parameters.
      */
@@ -250,8 +233,6 @@ public class ReflectionUtils {
             return null;
         }
     }
-
-
 
     /**
      * Wrapper for {@link #invokeConstructor(Constructor, Object...)} without arguments.

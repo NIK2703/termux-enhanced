@@ -48,7 +48,6 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
         switch (intentAction) {
             case Intent.ACTION_SEND:
             case Intent.ACTION_VIEW:
-                // Ok.
                 break;
             default:
                 Logger.logError(LOG_TAG, "Invalid action '" + intentAction + "', using 'view'");
@@ -210,15 +209,13 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
                     throw new IllegalArgumentException(getContext().getString(com.termux.R.string.error_invalid_path, path));
                 }
 
-                // If TermuxConstants.PROP_ALLOW_EXTERNAL_APPS property to not set to "true", then throw exception
+                // External-apps policy check (PROP_ALLOW_EXTERNAL_APPS).
                 String errmsg = TermuxPluginUtils.checkIfAllowExternalAppsPolicyIsViolated(getContext(), LOG_TAG);
                 if (errmsg != null) {
                     throw new IllegalArgumentException(errmsg);
                 }
 
-                // **DO NOT** allow these files to be modified by ContentProvider exposed to external
-                // apps, since they may silently modify the values for security properties like
-                // TermuxConstants.PROP_ALLOW_EXTERNAL_APPS set by users without their explicit consent.
+                // Never let external apps modify security properties (e.g. PROP_ALLOW_EXTERNAL_APPS).
                 if (TermuxConstants.TERMUX_PROPERTIES_FILE_PATHS_LIST.contains(path) ||
                     TermuxConstants.TERMUX_FLOAT_PROPERTIES_FILE_PATHS_LIST.contains(path)) {
                     mode = "r";

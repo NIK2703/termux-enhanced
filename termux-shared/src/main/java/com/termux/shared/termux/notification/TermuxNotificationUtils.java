@@ -77,10 +77,8 @@ public class TermuxNotificationUtils {
 
         if (builder == null)  return null;
 
-        // Enable timestamp
         builder.setShowWhen(true);
 
-        // Set notification icon
         // If a notification is to be shown by a termux plugin app, then we can't use the drawable
         // resource id for the plugin app with setSmallIcon(@DrawableRes int icon) since notification
         // is shown with termuxPackageContext and termux-app package would have a different id and
@@ -97,10 +95,7 @@ public class TermuxNotificationUtils {
                 builder.setSmallIcon(iconResId);
         }
 
-        // Set background color for small notification icon
         builder.setColor(0xFF607D8B);
-
-        // Dismiss on click
         builder.setAutoCancel(true);
 
         return builder;

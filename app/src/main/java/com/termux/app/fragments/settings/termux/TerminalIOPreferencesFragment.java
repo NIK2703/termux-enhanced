@@ -53,9 +53,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
 
         setPreferencesFromResource(R.xml.termux_terminal_io_preferences, rootKey);
 
-        // "Никогда" on the extra-keys row disables the rest of its section. A ListPreference
-        // cannot drive app:dependency (that only reacts to a switch's checked state), so the
-        // section is greyed out from here instead. The master row always stays enabled.
+        // "Never" greys out the rest of the section — see configureNeverDisablesSection.
         ListPreference extraKeysVisibility = findPreference("extra_keys_visibility");
         if (extraKeysVisibility != null) {
             configureNeverDisablesSection(extraKeysVisibility, "never");
@@ -71,10 +69,8 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             });
         }
 
-        // "Restore from history" is a two-way choice picked in a dialog, but it is a hand-rolled
-        // AlertDialog rather than a ListPreference, so useSimpleSummaryProvider cannot reach it.
-        // The selected option's name is written onto the row here instead — the same thing every
-        // other multi-choice setting on this screen now shows in place of its old hint.
+        // Hand-rolled AlertDialog (not a ListPreference), so useSimpleSummaryProvider cannot
+        // reach it; the selected option's name is written onto the row here instead.
         final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
         Preference historyRestorePref = findPreference("text_input_insert_at_cursor");
         if (historyRestorePref != null && appPrefs != null) {
@@ -114,9 +110,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             (requestKey, result) -> onSessionShortcutPicked(result));
     }
 
-    // -----------------------------------------------------------------------
-    //  Session shortcuts
-    // -----------------------------------------------------------------------
+    // Session shortcuts
 
     /** The row summary: the bound combination, or the "not set" hint when nothing is bound. */
     @NonNull
@@ -224,7 +218,6 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
     }
 
 }
-
 
 class TerminalIOPreferencesDataStore extends PreferenceDataStore {
 

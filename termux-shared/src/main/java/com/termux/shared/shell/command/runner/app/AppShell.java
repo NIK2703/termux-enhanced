@@ -125,7 +125,6 @@ public final class AppShell {
         Logger.logVerboseExtended(LOG_TAG, "\"" + executionCommand.getCommandIdAndLabelLogString() + "\" AppShell Environment:\n" +
             Joiner.on("\n").join(environmentArray));
 
-        // Exec the process
         final Process process;
         try {
             process = Runtime.getRuntime().exec(commandArray, environmentArray, new File(executionCommand.workingDirectory));
@@ -174,12 +173,10 @@ public final class AppShell {
 
         mExecutionCommand.resultData.exitCode = null;
 
-        // setup stdin, and stdout and stderr gobblers
         DataOutputStream STDIN = new DataOutputStream(mProcess.getOutputStream());
         StreamGobbler STDOUT = new StreamGobbler(mExecutionCommand.mPid + "-stdout", mProcess.getInputStream(), mExecutionCommand.resultData.stdout, mExecutionCommand.backgroundCustomLogLevel);
         StreamGobbler STDERR = new StreamGobbler(mExecutionCommand.mPid + "-stderr", mProcess.getErrorStream(), mExecutionCommand.resultData.stderr, mExecutionCommand.backgroundCustomLogLevel);
 
-        // start gobbling
         STDOUT.start();
         STDERR.start();
 
@@ -188,8 +185,6 @@ public final class AppShell {
                 STDIN.write((mExecutionCommand.stdin + "\n").getBytes(StandardCharsets.UTF_8));
                 STDIN.flush();
                 STDIN.close();
-                //STDIN.write("exit\n".getBytes(StandardCharsets.UTF_8));
-                //STDIN.flush();
             } catch(IOException e) {
                 if (e.getMessage() != null && (e.getMessage().contains("EPIPE") || e.getMessage().contains("Stream closed"))) {
                     // Method most horrid to catch broken pipe, in which case we
@@ -211,11 +206,8 @@ public final class AppShell {
         // wait for our process to finish, while we gobble away in the background
         int exitCode = mProcess.waitFor();
 
-        // make sure our threads are done gobbling
-        // and the process is destroyed - while the latter shouldn't be
-        // needed in theory, and may even produce warnings, in "normal" Java
-        // they are required for guaranteed cleanup of resources, so lets be
-        // safe and do this on Android as well
+        // ensure gobblers are done and the process is destroyed: required for
+        // guaranteed resource cleanup on Android even if not needed in theory
         try {
             STDIN.close();
         } catch (IOException e) {
@@ -225,7 +217,6 @@ public final class AppShell {
         STDERR.join();
         mProcess.destroy();
 
-        // Process result
         if (exitCode == 0)
             Logger.logDebug(LOG_TAG, "The \"" + mExecutionCommand.getCommandIdAndLabelLogString() + "\" AppShell with pid " + mExecutionCommand.mPid + " exited normally");
         else
@@ -246,7 +237,7 @@ public final class AppShell {
     }
 
     /**
-     * Kill this {@link AppShell} by sending a {@link OsConstants#SIGILL} to its {@link #mProcess}
+     * Kill this {@link AppShell} by sending a {@link OsConstants#SIGKILL} to its {@link #mProcess}
      * if its still executing.
      *
      * @param context The {@link Context} for operations.
@@ -275,12 +266,11 @@ public final class AppShell {
     }
 
     /**
-     * Kill this {@link AppShell} by sending a {@link OsConstants#SIGILL} to its {@link #mProcess}.
+     * Kill this {@link AppShell} by sending a {@link OsConstants#SIGKILL} to its {@link #mProcess}.
      */
     public void kill() {
         int pid = ShellUtils.getPid(mProcess);
         try {
-            // Send SIGKILL to process
             Os.kill(pid, OsConstants.SIGKILL);
         } catch (ErrnoException e) {
             Logger.logWarn(LOG_TAG, "Failed to send SIGKILL to \"" + mExecutionCommand.getCommandIdAndLabelLogString() + "\" AppShell with pid " + pid + ": " + e.getMessage());
@@ -332,8 +322,6 @@ public final class AppShell {
     public ExecutionCommand getExecutionCommand() {
         return mExecutionCommand;
     }
-
-
 
     public interface AppShellClient {
 

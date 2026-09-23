@@ -23,17 +23,16 @@ public final class TerminalBuffer {
     // ── Dirty-row tracking for partial redraws ────────────────────────────────────────────
     // E2: one bit per *internal* (ring) row instead of an external-coordinate range.
     //
-    // Why internal: `scrollDownOneLine()` does not rewrite the rows in the screen window, it only
-    // advances `mScreenFirstRow`, i.e. it changes which internal row a given external coordinate
-    // points at. Tracking external rows therefore forces every scroll to declare the whole buffer
-    // dirty (or to shift the entire pending set), which is what made each output line cost a full
-    // frame. An internal row keeps its identity across a scroll, so "this row was written to"
-    // stays both true and precise, and `scrollDownOneLine()` only has to mark the single row it
-    // actually rewrites — the newly revealed one.
+    // scrollDownOneLine() does not rewrite the rows in the screen window — it only advances
+    // mScreenFirstRow, i.e. changes which internal row an external coordinate points at. Tracking
+    // external rows would force every scroll to declare the whole buffer dirty, which is what made
+    // each output line cost a full frame. An internal row keeps its identity across a scroll, so it
+    // stays precise and scrollDownOneLine() only marks the single row it actually rewrites (the
+    // newly revealed one).
     //
     // The dirty set alone does not decide full-vs-partial: when the visible window moves (live
-    // bottom, wheel, fling, snap) every pixel changes although no row is dirty. That is the
-    // view's "content anchor" check, see TerminalView.repaintAfterUpdate().
+    // bottom, wheel, fling, snap) every pixel changes although no row is dirty — that is the view's
+    // content-anchor check, see TerminalView.repaintAfterUpdate().
     private long[] mDirtyRows;
     private boolean mAnyRowDirty;
     /** Forces a complete repaint: set on construction, resize, partial scrolls, buffer switches. */
@@ -429,8 +428,8 @@ public final class TerminalBuffer {
                     if (cursorAtThisRow) justToCursor = true;
                 } else {
                     for (int i = 0; i < oldLine.getSpaceUsed(); i++)
-                        // NEWLY INTRODUCED BUG! Should not index oldLine.mStyle with char indices
-                        if (oldLine.mText[i] != ' '/* || oldLine.mStyle[i] != currentStyle */)
+                        // Compare text only: indexing mStyle[] with char indices is a bug.
+                        if (oldLine.mText[i] != ' ')
                             lastNonSpaceIndex = i + 1;
                 }
 
@@ -442,16 +441,13 @@ public final class TerminalBuffer {
                 long styleAtCol = 0;
                 int oldCharIndex = 0;
                 if (!cursorAtThisRow && !oldLine.mHasNonOneWidthOrSurrogateChars) {
-                    // G6: chunked, so the bulk path also covers the rows that have to wrap. B2
-                    // bailed out unless the whole row fitted the new width, which is exactly the
-                    // case that dominates when the screen gets *narrower* (landscape -> portrait,
-                    // the most common rotation) — every long line then fell back to per-char
-                    // setChar(). A plain row has char index == column in both the source and the
-                    // destination, so any sub-interval of it is still two arraycopies; only the
-                    // chunk length has to stop at the right margin.
-                    //
-                    // Rows with wide/surrogate/combining chars keep the per-char path by design:
-                    // there char index != column, so no bulk copy is possible.
+                    // G6: chunked, so the bulk path also covers rows that have to wrap. B2 bailed
+                    // out unless the whole row fitted the new width — exactly the case that
+                    // dominates when the screen gets *narrower* (landscape -> portrait, the most
+                    // common rotation), where every long line fell back to per-char setChar(). A
+                    // plain row has char index == column in both directions, so any sub-interval is
+                    // still two arraycopies; only the chunk length has to stop at the right margin.
+                    // Rows with wide/surrogate/combining chars keep the per-char path (index != column).
                     while (oldCharIndex < lastNonSpaceIndex) {
                         if (currentOutputExternalColumn == mColumns) {
                             setLineWrap(currentOutputExternalRow);
@@ -564,15 +560,12 @@ public final class TerminalBuffer {
         if (topMargin > bottomMargin - 1 || topMargin < 0 || bottomMargin > mScreenRows)
             throw new IllegalArgumentException("topMargin=" + topMargin + ", bottomMargin=" + bottomMargin + ", mScreenRows=" + mScreenRows);
 
-        // E1: what a scroll changes is the *mapping* external row -> internal row, not the rows
-        // themselves. With a full-screen scroll every row in the window keeps its TerminalRow; only
-        // mScreenFirstRow advances. Marking everything dirty here (the previous behaviour) is what
-        // forced a full frame per output line, including while the user is scrolled into history and
-        // the view compensates with `mTopRow -= rowShift` so that not a single pixel moves.
-        //
-        // A partial scroll (scroll region, as used by htop/vi) is different: blockCopyLinesDown()
-        // physically moves TerminalRow references between ring slots, so those slots really do
-        // change content and the simple "nothing moved" argument does not hold. Full repaint there.
+        // E1: a full-screen scroll changes only the *mapping* external row -> internal row — every
+        // row in the window keeps its TerminalRow (only mScreenFirstRow advances). Marking
+        // everything dirty, the previous behaviour, forced a full frame per output line, even while
+        // scrolled into history where the view compensates so not a single pixel moves. A partial
+        // scroll (scroll region, htop/vi) is different: blockCopyLinesDown() physically moves
+        // references between ring slots, so those slots really change — full repaint there.
         if (!(topMargin == 0 && bottomMargin == mScreenRows)) markAllDirty();
 
         // Copy the fixed topMargin lines one line down so that they remain on screen in same position:

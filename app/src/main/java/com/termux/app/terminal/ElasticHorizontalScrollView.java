@@ -16,106 +16,35 @@ import com.termux.view.ElasticOverdrag;
 /**
  * The session tab strip, with the same elastic ("rubber band") over-drag the terminal pager has.
  *
- * <p>The effect belongs to a strip that <em>scrolls</em>. While the tabs (plus the (+) button) fit
- * inside the window there is no end to pull away from, and the strip is deliberately inert: no
- * displacement, no spring, no fling impact. See {@link #overScrollBy} for where that is decided and
- * why it is a runtime test.
+ * <p>While the tabs fit inside the window there is no end to pull away from and the strip is
+ * deliberately inert (see {@link #overScrollBy}). Mirrors {@link PagerOverscrollController} (a
+ * {@code ViewPager2} cannot be subclassed into one) — same {@link ElasticOverdrag} model, same
+ * accumulators/bleed/spring/fly-out, so a pull feels identical on both surfaces; read that
+ * class's doc for the shared reasoning. Only the genuinely different parts are documented here.
  *
- * <p>{@link PagerOverscrollController} is a separate controller class because a
- * {@code ViewPager2} cannot be subclassed into one; the tab strip is a plain
- * {@link HorizontalScrollView}, so here the same physics is installed by subclassing. Everything
- * below the input layer is a deliberate mirror of that class — the two raw accumulators, the
- * bleed, the spring, the fly-out and the "never displaced while idle" invariant are the same
- * arithmetic against the same {@link ElasticOverdrag} model, so a pull feels identical on both
- * surfaces. Read {@code PagerOverscrollController}'s class doc for the reasoning behind each
- * piece; only the two parts that are genuinely different are documented at length here.
- *
- * <h2>1. Where the unconsumed finger travel comes from</h2>
- * The pager has to reconstruct it, because a {@code RecyclerView} can never scroll past its own
- * bounds: the class installs a spy {@link android.widget.EdgeEffect} factory and reads the
- * <em>unconsumed</em> scroll delta out of {@code pullGlows()}. A {@link HorizontalScrollView} has
- * no such plumbing to borrow — its edge effects are private and it has no factory hook — but it
- * does not need one either, because it hands the quantity over directly:
- *
- * <pre>
- *   // HorizontalScrollView#onTouchEvent, ACTION_MOVE
- *   overScrollBy(deltaX, 0, mScrollX, 0, range, 0, mOverscrollDistance, 0, true);
- * </pre>
- *
- * <p>{@code overScrollBy} is <em>not</em> declared by {@code HorizontalScrollView} — it is
- * {@code View}'s, and only ever <em>called</em> by the widget — so overriding it puts this class
- * directly in the path of every drag frame with the three numbers that matter: the delta about to
- * be applied, the position it is about to be applied at, and the scrollable range. The slice the
- * list cannot absorb is then plain arithmetic ({@code wanted - clamped}), and the slice it can is
- * the same quantity the pager bleeds its held pull back by. No touch tracking, no touch-slop
- * replication, no velocity tracker: the widget has already done all of that before it calls here.
- *
- * <p>The same hook covers the fling: {@code HorizontalScrollView#computeScroll} calls
- * {@code overScrollBy(..., false)} once per frame with the fling's step, which is the moment
- * {@code RecyclerView#absorbGlows} hands the pager its leftover velocity. What counts as "the
- * fling ran into the end" is <em>not</em> the same on the two surfaces, though, and the
- * difference is the whole of §3 below.
+ * <h2>1. Unconsumed finger travel</h2>
+ * The pager reconstructs it from a spy {@code EdgeEffect}; a {@link HorizontalScrollView} has no
+ * such hook, but {@code overScrollBy} hands over the delta, position and range directly, so the
+ * unconsumed slice is plain arithmetic — no touch or velocity tracking needed.
  *
  * <h2>2. What gets displaced</h2>
- * The pager translates the view that hosts every page. The tab strip translates the opposite
- * thing — its content child ({@code session_tabs}), not the {@link HorizontalScrollView} itself —
- * and that difference is load-bearing rather than cosmetic. A {@link android.view.ViewGroup}
- * transforms the touch events it hands a translated child by that child's inverse matrix
- * ({@code dispatchTransformedTouchEvent}), so a scrolling container that is itself being
- * translated sees every {@code MotionEvent} shifted by the displacement it is accumulating, and
- * its own {@code deltaX} picks up a {@code Δtranslation} term per frame. Translating the content
- * instead leaves the scrolling container's geometry — and therefore its gesture maths — exactly
- * where it was, and the visual result is the same: the strip slides and the strip it vacates
- * shows the background behind it.
- *
- * <p>Nothing in {@code TermuxSessionTabsController} sees the displacement, and that is
- * deliberate: {@code translationX} is a draw-time transform, so {@code getScrollX()},
- * {@code getLeft()} and the child index arithmetic all keep reading the real layout, exactly as
- * {@code PagerSnapHelper} and {@code onPageScrolled} keep reading the pager's.
+ * The strip translates its content child, not the {@link HorizontalScrollView} itself. That is
+ * load-bearing: a {@link android.ViewGroup} undoes a child's translation when dispatching touch,
+ * so translating the scrolling container would shift every {@code MotionEvent} and corrupt its
+ * gesture maths. Translating the content leaves {@code getScrollX()}, child-index arithmetic and
+ * {@code PagerSnapHelper} reading the real layout while looking identical.
  *
  * <h2>3. When a fling has "run into the end"</h2>
- * The pager is told: a {@code RecyclerView} cannot scroll past its bounds, so its edge effect
- * receives the leftover step and {@code absorbGlows} reports it. A {@link HorizontalScrollView}
- * is told nothing of the sort, because its {@code OverScroller} is built to <em>not</em> overshoot
- * in the ordinary case:
+ * A clamped {@code OverScroller} fling stops <b>precisely on</b> the end with no leftover delta,
+ * so watching for unconsumed travel sees nothing. The rule is positional: <b>a fling frame that
+ * leaves the scroll position pinned to either end of the range is an impact</b> — covering
+ * landing on, clamping onto, and starting on the end.
  *
- * <pre>
- *   // OverScroller.SplineOverScroller#fling
- *   mSplineDistance = (int) (totalDistance * Math.signum(velocity));
- *   mFinal = start + mSplineDistance;
- *   if (mFinal &gt; max) { adjustDuration(mStart, mFinal, max); mFinal = max; }
- * </pre>
- *
- * <p>{@code adjustDuration} shortens the animation to exactly the time the spline needs to cover
- * the <em>clamped</em> distance, so a flick whose natural reach is several screens long stops
- * <b>precisely on the end</b>, with {@code mCurrVelocity} left at whatever speed it had there.
- * That last frame is the impact — but it is a frame the list <em>absorbed</em> completely
- * ({@code wanted == clamped}, i.e. no leftover), so a rule that watches for an unconsumed delta
- * sees nothing at all. The leftover only appears afterwards, if the scroller takes its
- * {@code BALLISTIC} continuation past the end — and whether it does depends on the fling's
- * speed against the overfling allowance, which is not something to build a gesture on.
- *
- * <p>So the rule here is stated in terms of where the strip <em>is</em> rather than what was left
- * over: <b>a fling frame that leaves the scroll position pinned to either end of the range is an
- * impact.</b> That covers all three ways a fling can meet a wall — landing exactly on it, being
- * clamped back onto it, and starting on it — with one condition, and it cannot fire for a fling
- * that still has somewhere to go, because such a frame ends strictly between the two ends.
- *
- * <h2>4. Nothing diagnostic belongs in this class</h2>
- * This file is in {@code src/main}, so everything in it ships. Do not add counters, dump methods
- * or test toggles here, and in particular do not rely on R8 to take them out again: the release
- * build uses {@code proguard-android.txt} (which is {@code -dontoptimize}) together with
- * {@code -dontobfuscate}, so the shrinker removes an <em>uncalled method</em> — a
- * {@code dumpOverscrollState()} here was stripped exactly that way — but keeps a field that is
- * only ever incremented, because {@code x++} reads it and the shrinker's reachability analysis
- * counts that read as a use. Removing such an increment is an optimisation, and optimisations are
- * off.
- *
- * <p>The observation this class used to carry now lives in the debug source set
- * ({@code TermuxDebugCommandReceiver}, commands {@code tabs} / {@code tabs watch}), reading the
- * strip through public {@link android.view.View} API — which is the honest measurement anyway,
- * since {@code getChildAt(0).getTranslationX()} is precisely the displacement written by
- * {@link #setTranslation(float, float)}.
+ * <h2>4. No diagnostics in this class</h2>
+ * This ships from {@code src/main}: no counters, dumps or test toggles. The release build is
+ * {@code -dontoptimize -dontobfuscate}, so R8 strips an uncalled method but keeps a field that
+ * is only ever incremented. Observation now lives in {@code TermuxDebugCommandReceiver}
+ * ({@code tabs} / {@code tabs watch}) via public {@link android.view.View} API.
  */
 public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
@@ -126,10 +55,9 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     private static final int DIRECTION_RIGHT = 1;
 
     /**
-     * How long the scroller may be silent before the frames that follow are no longer assumed to
-     * belong to the fling this view launched. A fling delivers a frame every animation frame, so
-     * anything past a couple of frames means it has stopped and whatever runs next was started by
-     * somebody else — see {@link #mFlingArmed}.
+     * How long the scroller may be silent before later frames are no longer assumed to belong to
+     * this view's fling — a live fling delivers a frame every animation frame; see
+     * {@link #mFlingArmed}.
      */
     private static final long FLING_IDLE_MS = 96L;
 
@@ -148,28 +76,23 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     private ValueAnimator mImpact;
 
     // ── fling bookkeeping ──────────────────────────────────────────────────────────────────
-    //
     // One flag per hole in "a fling ran into the end of the list":
-    //   mFlingFrameSeen     — a fling frame arrived since the last settle check (still travelling),
-    //   mFlingImpactSpent   — the one bounce per fling has already been played,
-    //   mDragPullAbsorbed   — the release that launched this fling was already holding a pull, so
-    //                         the impulse must not be stacked on top of it,
-    //   mFlingArmed         — the frames arriving really are this view's fling (see its own doc).
+    //   mFlingFrameSeen   — a fling frame arrived since the last settle check (still travelling),
+    //   mFlingImpactSpent — the one bounce per fling has already been played,
+    //   mDragPullAbsorbed — the release that launched this fling already held a pull, so the
+    //                       impulse must not be stacked on top of it.
     private boolean mFlingFrameSeen;
     private boolean mFlingImpactSpent;
     private boolean mDragPullAbsorbed;
 
     /**
-     * True while the scroller frames arriving are a fling this view launched from a gesture.
-     *
-     * <p>Armed by {@link #fling(int)}, disarmed by {@link #mFlingDisarm} once the scroller has been
-     * silent for {@link #FLING_IDLE_MS}. The flag exists because {@code HorizontalScrollView} also
-     * starts the same private {@code OverScroller} from {@code smoothScrollBy} /
-     * {@code smoothScrollTo} — both {@code final}, so they cannot be intercepted — and those frames
-     * are indistinguishable from a fling's; a programmatic scroll that happens to finish on an end
-     * must not be read as an impact. (Nothing in {@code TermuxSessionTabsController} uses them: it
-     * drives {@code scrollTo} from its own animators, which never reach {@code overScrollBy} at
-     * all. The guard is here so that stays true by construction rather than by luck.)</p>
+     * True while the scroller frames arriving are a fling this view launched. Armed by
+     * {@link #fling(int)}, disarmed by {@link #mFlingDisarm} after {@link #FLING_IDLE_MS} of
+     * silence. Needed because {@code HorizontalScrollView} also starts the same private
+     * {@code OverScroller} from {@code smoothScrollBy}/{@code smoothScrollTo} (both final), whose
+     * frames are indistinguishable from a fling's — a programmatic scroll finishing on an end
+     * must not read as an impact. Nothing in {@code TermuxSessionTabsController} uses those, but
+     * the guard keeps that true by construction rather than by luck.
      */
     private boolean mFlingArmed;
 
@@ -212,45 +135,29 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     public ElasticHorizontalScrollView(Context context, AttributeSet attrs, int defStyleAttr,
                                        int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
-        // OVER_SCROLL_NEVER for the same reason the pager's controller sets it: the platform's own
-        // over-scroll visual (the edge glow, and the 12+ stretch that HorizontalScrollView gained
-        // along with consumeFlingInStretch) would otherwise stack on top of the elastic
-        // displacement rather than being replaced by it. It also pins View#overScrollBy's clamp to
-        // exactly [0, scrollRange] — it zeroes maxOverScrollX whenever the mode is NEVER — which is
-        // what makes the unconsumed-delta arithmetic in overScrollBy() exact instead of approximate.
+        // OVER_SCROLL_NEVER for the same reason the pager's controller sets it: the platform's
+        // edge glow / stretch would otherwise stack on top of the elastic displacement rather
+        // than being replaced by it. It also pins View#overScrollBy's clamp to exactly
+        // [0, scrollRange] (maxOverScrollX is zeroed in this mode), which is what makes the
+        // unconsumed-delta arithmetic in overScrollBy() exact.
         setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 
     // ── gesture input ──────────────────────────────────────────────────────────────────────
 
     /**
-     * The single hook into the strip's own scrolling — see the class doc §1 for why this is the
-     * whole input layer.
-     *
-     * <p>Called with the delta the widget is <em>about</em> to apply, before it is clamped, which
-     * is the only moment the unconsumed part is still visible: afterwards the scroll position has
-     * simply stopped and says nothing about how hard it was pushed.
-     *
-     * <p>{@code maxOverScrollX} is deliberately not used. The mode set in the constructor is
-     * {@link #OVER_SCROLL_NEVER}, so {@code View#overScrollBy} forces it to 0 and the boundary is
-     * where the list genuinely stops; honouring a non-zero margin here would let the framework
-     * scroll past the end on its own and then count that as finger travel as well.
+     * The single hook into the strip's own scrolling (class doc §1). Called with the delta the
+     * widget is <em>about</em> to apply, before it is clamped — the only moment the unconsumed
+     * part is still visible. {@code maxOverScrollX} is deliberately ignored: with
+     * {@link #OVER_SCROLL_NEVER} the framework forces it to 0, so honouring a non-zero margin
+     * here would let the framework scroll past the end and count it as finger travel as well.
      *
      * <p><b>A strip with nothing to scroll has no end to pull away from.</b> {@code scrollRangeX}
-     * is the widget's own scroll range — content width minus the viewport, floored at 0 — so it is
-     * 0 for exactly as long as the tabs fit inside the window, which is the ordinary case for one
-     * or two of them. Every drag frame then arrives with {@code wanted == clamped == 0}: the finger
-     * travel is <em>entirely</em> unconsumed, and the arithmetic below would read a full-width pull
-     * out of a gesture that has nowhere to go, stretching the strip from an edge it does not have.
-     * The gate keeps the whole elastic layer — the pull, the spring it releases into, and the fling
-     * impact, which reach this method through the same hook — switched off while that holds, so a
-     * horizontal drag across a short strip does nothing at all instead of rubber-banding.
-     *
-     * <p>It is a runtime test rather than a one-off check at attach time because the range moves
-     * under the strip as tabs come and go: the effect comes alive the moment a tab makes the
-     * content overflow, and goes inert again when the last tab that overflowed is closed. A pull
-     * already held at such a moment is not stranded — the drag frames simply stop feeding it, and
-     * the release that ends the gesture springs whatever is on screen back to 0 as usual.
+     * is 0 while the tabs fit inside the window (the ordinary case for one or two of them); every
+     * drag frame would then read as a full-width pull out of a gesture with nowhere to go, so the
+     * {@code scrollRangeX > 0} gate keeps the whole elastic layer switched off. Runtime rather
+     * than one-off at attach time because the range moves as tabs come and go; a pull already
+     * held at such a moment is simply no longer fed, and the release still springs back to 0.
      */
     @Override
     protected boolean overScrollBy(int deltaX, int deltaY, int scrollX, int scrollY,
@@ -259,15 +166,13 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         if (deltaX != 0 && scrollRangeX > 0) {
             final int wanted = scrollX + deltaX;
             final int clamped = Math.max(0, Math.min(scrollRangeX, wanted));
-            // Where the list will actually stop. The difference is finger travel it had nowhere to
-            // put — the over-pull — and the rest is travel it absorbed, i.e. real scroll.
+            // Where the list will actually stop. The difference is finger travel it had nowhere
+            // to put — the over-pull — and the rest is travel it absorbed, i.e. real scroll.
             final int unconsumedPx = Math.abs(wanted - clamped);
             final int consumedPx = Math.abs(deltaX) - unconsumedPx;
-            // The direction is taken from the delta, i.e. from the direction of travel, and not
-            // from where the frame ends up. A frame can end *exactly* on an end — which is how a
-            // clamped fling finishes (see the class doc §3) — and then `wanted` is 0 or
-            // scrollRangeX, neither of which is outside the range; a sign test on `wanted` would
-            // read a fling into the left end as a pull on the right one.
+            // Direction from the delta (direction of travel), not from where the frame ends up:
+            // a clamped fling finishes with `wanted` exactly on an end (class doc §3), and a
+            // sign test on `wanted` would read a fling into the left end as a right-end pull.
             final int direction = deltaX < 0 ? DIRECTION_LEFT : DIRECTION_RIGHT;
             if (isTouchEvent) {
                 if (unconsumedPx > 0) onDragDelta(direction, consumedPx, unconsumedPx);
@@ -294,58 +199,32 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     }
 
     /**
-     * One fling frame. Either the fling is still travelling — in which case the frame only bleeds
-     * and the frame's speed is recorded — or it has left the strip pinned to an end, which is the
-     * impulse {@link #onEdgeAbsorb} wants.
+     * One fling frame: either still travelling (bleed + record speed) or left pinned to an end —
+     * the impulse {@link #onEdgeAbsorb} wants. See class doc §3 for why "at an end" is the test
+     * rather than "had a leftover".
      *
-     * <p><b>What counts as the impact.</b> Not "the frame had a leftover" — see the class doc §3
-     * for why a clamped fling produces no leftover at all. It is "the strip is at an end": either
-     * the frame landed exactly on one, or it was clamped back onto one. One condition, three ways
-     * to arrive (land on it, be clamped onto it, start on it), and it cannot fire while the fling
-     * still has room to travel.
+     * <p><b>Residual velocity.</b> A {@code HorizontalScrollView} keeps its {@code OverScroller}
+     * private (the pager reads {@code getCurrVelocity()} / {@code absorbGlows} directly), so the
+     * speed is measured: refreshed from {@code |deltaX| / dt} only on frames the list absorbed
+     * (for a clamped fling that last in-range frame <em>is</em> the arrival speed), falling back
+     * to {@link #mFlingLaunchVelocityPx} when a flick started on an end and never had an
+     * in-range frame. Measuring the pinned frame's own {@code deltaX} would read the scroller's
+     * leftover as a frame step and saturate the band on every bounce.
      *
-     * <p><b>Where the residual velocity comes from.</b> {@code TerminalView} reads it straight off
-     * its own {@code OverScroller} ({@code mScroller.getCurrVelocity()}), and
-     * {@code RecyclerView#absorbGlows} hands the pager the same quantity. A
-     * {@code HorizontalScrollView} keeps its {@code OverScroller} private and gives the leftover
-     * velocity to the edge glow alone — and the glow is switched off here — so it has to be
-     * measured instead. Two sources, in this order:
-     * <ol>
-     *   <li><b>The frames the list absorbed.</b> For those, {@code |deltaX| / dt} is exactly the
-     *       speed the content is moving at, because {@code deltaX} really is one frame's travel
-     *       and {@code dt} really is that frame's duration. The value is refreshed only there, so
-     *       by the time a frame arrives at an end it still holds the last speed the fling genuinely
-     *       had. For a clamped fling that is the arrival speed itself, because the frame that
-     *       reaches the end <em>is</em> a frame the list absorbed: {@code adjustDuration} lands the
-     *       spline on the end exactly, so the last in-range step is the one that gets there.</li>
-     *   <li><b>The velocity the fling was launched with</b> ({@link #mFlingLaunchVelocityPx}), when
-     *       there was no in-range frame at all. That is a flick started <em>on</em> an end: the
-     *       strip has nowhere to go, so the very first frame is already pinned, and the launch
-     *       velocity <em>is</em> the arrival velocity — nothing in between could have slowed it
-     *       down. (Measuring that frame's own {@code deltaX} instead would read the scroller's
-     *       leftover as a frame step and saturate the band on every bounce.)</li>
-     * </ol>
+     * <p><b>Must not fire on a release already holding a pull.</b> The widget flings on
+     * <em>every</em> release above {@code mMinimumVelocity}, including the one ending a drag past
+     * an end, which is already answered by {@link #onEdgeRelease}'s spring — stacking the impulse
+     * would kick the strip twice for one gesture. ({@code TerminalView} swallows that fling
+     * outright; here only the impulse is dropped.) A flick that merely <em>ends</em> at an end
+     * without holding a pull still bounces — that is the gesture this class exists for.
      *
-     * <p><b>Why this must not fire on a release that was already holding a pull.</b> The widget
-     * launches a fling on <em>every</em> release above {@code mMinimumVelocity}, including the one
-     * that ends a drag past an end — and that release is already being answered by the spring
-     * {@link #onEdgeRelease} armed. Letting the impulse fire as well would kick the strip a second
-     * time for one gesture. {@code TerminalView} closes the same hole by swallowing the fling
-     * outright ({@code mOverdragEngaged}); here the fling is left to run (it has nowhere to go and
-     * produces no scroll) and only the impulse is dropped, which is the same outcome with less
-     * interference. Note what is <em>not</em> suppressed: a flick that merely <em>ends</em> at an
-     * end — dragged up to the wall and released while still moving, so that no pull is being held —
-     * is ordinary scrolling, and it bounces. That is the gesture this class exists for.
-     *
-     * @param direction        the direction of travel ({@link #DIRECTION_LEFT} / {@link
-     *                         #DIRECTION_RIGHT}), which is also the end the fling is pushing
-     *                         against.
-     * @param requestedPx      the frame's step, always positive.
-     * @param consumedPx       how much of it the list absorbed as real scroll.
-     * @param clampedPosition  where the frame left the scroll position, i.e. after the clamp.
-     * @param scrollRangeX     the scrollable range, so {@code clampedPosition} can be tested
-     *                         against the ends without reading the view (which would be the
-     *                         <em>old</em> position, not the one this frame is about to write).
+     * @param direction       direction of travel ({@link #DIRECTION_LEFT}/{@link #DIRECTION_RIGHT}).
+     * @param requestedPx     the frame's step, always positive.
+     * @param consumedPx      how much of it the list absorbed as real scroll.
+     * @param clampedPosition where the frame left the scroll position (after the clamp).
+     * @param scrollRangeX    the range to test {@code clampedPosition} against — reading the view
+     *                        here would give the <em>old</em> position, not the one this frame
+     *                        is about to write.
      */
     private void onFlingFrame(int direction, int requestedPx, int consumedPx,
                               int clampedPosition, int scrollRangeX) {
@@ -363,16 +242,15 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
                 mFlingArrivalPxPerSec = requestedPx / dtSeconds;
             }
             bleedIntoScroll(consumedPx);
-            // The pull has just been partly given back, and it is a fling that is giving it back:
-            // nothing else will notice if this one stops before the displacement reaches 0.
+            // It is a fling giving the pull back — nothing else will notice if this one stops
+            // before the displacement reaches 0.
             ensureSettled();
         }
 
         if (mFlingImpactSpent || mDragPullAbsorbed || !mFlingArmed) return;
-        // "Reached an end": the position is pinned to one of the two ends of the range. One
-        // condition, not two cases — the frame either landed exactly on an end or was clamped back
-        // onto one. A range of 0 never arrives here: overScrollBy() gates the whole elastic layer
-        // on scrollRangeX > 0, because a strip that cannot scroll has no end to bounce off.
+        // "At an end": the position is pinned to one of the two ends — landed exactly on one or
+        // was clamped back onto one (class doc §3). Range 0 never arrives here: overScrollBy()
+        // gates the elastic layer on scrollRangeX > 0.
         if (clampedPosition != 0 && clampedPosition != scrollRangeX) return;
 
         final float velocity = mFlingArrivalPxPerSec > 0f
@@ -386,19 +264,12 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      * {@inheritDoc}
      *
      * <p>Handled here rather than in {@link #onTouchEvent} because this is the only place that
-     * sees the whole gesture: when the finger goes down on a tab, the child owns the stream and
-     * {@code onTouchEvent} is not called at all until the strip has intercepted — and if the
-     * gesture turns out to be a tap it never is, so a release hooked on {@code onTouchEvent}
-     * would leave the previous pull hanging.
-     *
-     * <p>Run <em>after</em> {@code super}, so the fling the widget has just launched on ACTION_UP
-     * is already registered by the time the spring is armed, and so the pull still held at this
-     * instant can be recorded before {@link #onEdgeRelease} consumes it. The two animations
-     * coexist exactly as they do in the pager: the first fling frame that scrolls calls
-     * {@link #bleedIntoScroll}, which cancels the spring and takes the pull over — so
-     * pull-then-flick-inward is one continuous motion rather than a spring fighting a scroll. If
-     * the fling has nowhere to go (the common case at an end) it produces no scroll frames at all,
-     * and the spring is left to do its job alone.
+     * sees the whole gesture: a tap on a child never reaches {@code onTouchEvent}, so a release
+     * hooked there would leave the previous pull hanging. Runs <em>after</em> {@code super}, so
+     * the fling launched on ACTION_UP is registered before the spring is armed and the held pull
+     * is recorded before {@link #onEdgeRelease} consumes it. The first scrolling fling frame
+     * cancels the spring via {@link #bleedIntoScroll}, so pull-then-flick is one motion; a fling
+     * with nowhere to go produces no scroll frames and the spring runs alone.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
@@ -441,10 +312,9 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     }
 
     /**
-     * Keep {@link #mFlingArmed} true while a scroller is producing frames and let it lapse
-     * {@link #FLING_IDLE_MS} after the last one. Called on the launch and again on every frame, so
-     * the deadline is always one idle period past the newest frame — the timer only ever fires for
-     * a scroller that has actually stopped, which is the only moment another one could take over.
+     * Keep {@link #mFlingArmed} true while a scroller produces frames and let it lapse
+     * {@link #FLING_IDLE_MS} after the last one. Called on launch and every frame, so the timer
+     * only fires for a scroller that has actually stopped.
      */
     private void armFlingLifetime() {
         removeCallbacks(mFlingDisarm);
@@ -454,17 +324,13 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     /**
      * {@inheritDoc}
      *
-     * <p>A programmatic scroll means the strip is being repositioned for a reason that has nothing
-     * to do with the finger — {@code TermuxSessionTabsController} drives {@code scrollTo} directly
-     * from its own animations — so a held pull is released into its spring rather than left
-     * hanging relative to the new position. The widget's own scrolling does not come through here
-     * ({@code HorizontalScrollView#onOverScrolled} calls {@code View.scrollTo} explicitly), so
-     * this cannot fire mid-drag and cannot fight the gesture.
-     *
-     * <p>Gated on the position actually moving, because {@code HorizontalScrollView#onLayout} ends
-     * by calling this with the current values "to re-claim them" — a no-op that must not be read
-     * as a reposition, or every layout pass during a pull would spring the strip back under the
-     * finger.
+     * <p>A programmatic scroll repositions the strip for a reason unrelated to the finger
+     * ({@code TermuxSessionTabsController} drives {@code scrollTo} from its own animations), so a
+     * held pull is released into its spring rather than left hanging. Gated on the position
+     * actually moving, because {@code HorizontalScrollView#onLayout} ends by calling this with
+     * the current values — a no-op that must not be read as a reposition, or every layout pass
+     * during a pull would spring the strip back under the finger. The widget's own scrolling does
+     * not come through here, so this cannot fire mid-drag.
      */
     @Override
     public void scrollTo(int x, int y) {
@@ -490,22 +356,15 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     // ── gesture input, physics side ────────────────────────────────────────────────────────
 
     /**
-     * The finger travelled {@code deltaPx} further past one end.
-     *
-     * @param direction {@link #DIRECTION_LEFT} (the content moves right) or
-     *                  {@link #DIRECTION_RIGHT} (it moves left).
-     * @param deltaPx   always positive — an increasing pull.
+     * The finger travelled {@code deltaPx} further past one end. Always positive — an increasing
+     * pull; {@code direction} is {@link #DIRECTION_LEFT} (content moves right) or
+     * {@link #DIRECTION_RIGHT} (content moves left).
      */
     private void onEdgePull(int direction, float deltaPx) {
         if (!(deltaPx > 0f) || !isFinite(deltaPx)) return;
         cancelAnimators();
-        // The finger can only be on one end at a time, so a new pull first pays off whatever the
-        // opposite end still holds. On a strip that scrolls — the only kind that gets this far, see
-        // overScrollBy() — that is a belt-and-braces path rather than the load-bearing one: to reach
-        // the other end the finger has to travel back across the whole range, and the bleed below
-        // pays the held pull back as the list scrolls away from the end it was made on. It costs
-        // one min() and makes "at most one end is ever displaced" hold by construction instead of
-        // by that argument.
+        // A new pull first pays off whatever the opposite end still holds, so "at most one end
+        // is ever displaced" holds by construction (the bleed below would get there anyway).
         if (direction == DIRECTION_LEFT) {
             float returned = Math.min(mRightRawPx, deltaPx);
             mRightRawPx = clampRaw(mRightRawPx - returned);
@@ -532,15 +391,11 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
     /**
      * A fling ran into the end: convert a slice of its arrival speed into extra pull on the end
-     * that was actually hit, then spring back, so a hard flick visibly slams the strip against
-     * its limit instead of being swallowed. Same conversion as the pager's — literally the same
-     * {@link ElasticOverdrag#impact} call, so both surfaces threshold and cap a given gesture
-     * identically on any density.
-     *
-     * @param direction         which end absorbed the fling. It has to be passed in: the current
-     *                          displacement is 0 at this point, so its sign says nothing about
-     *                          the direction of the impact.
-     * @param velocityPxPerSec  always positive — the arrival speed measured in {@link #onFlingFrame}.
+     * that was actually hit, then spring back — so a hard flick slams the strip against its limit
+     * instead of being swallowed. Same {@link ElasticOverdrag#impact} call as the pager, so both
+     * surfaces threshold and cap a given gesture identically on any density. {@code direction}
+     * must be passed in (the displacement is 0 here, so its sign says nothing about the impact);
+     * {@code velocityPxPerSec} is always positive.
      */
     private void onEdgeAbsorb(int direction, float velocityPxPerSec) {
         if (!(velocityPxPerSec > 0f) || !isFinite(velocityPxPerSec)) {
@@ -555,12 +410,10 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     }
 
     /**
-     * Play the fly-out half of an impact: the band being stretched by the impulse that arrived.
-     * The samples are raw travel, but they were integrated in displacement and converted back, so
-     * the content follows the band being loaded — and it starts at the speed the impulse actually
-     * arrived with, i.e. a harder flick flies out faster as well as further. On the last sample
-     * the stretch is handed to {@link #onEdgeRelease()}, so the return starts from wherever the
-     * fly-out actually got to.
+     * Play the fly-out half of an impact: the band being stretched by the impulse. Samples are
+     * raw travel integrated in displacement, so the content follows the band being loaded and
+     * starts at the impulse's own speed (a harder flick flies out faster as well as further).
+     * The last sample hands the stretch to {@link #onEdgeRelease()}.
      */
     private void startImpact(int direction, float baseRaw,
                              @Nullable ElasticOverdrag.Impact impact) {
@@ -594,16 +447,12 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     }
 
     /**
-     * The strip scrolled for real by {@code giveBackPx}. Hand the held pull back one pixel of
-     * finger travel per pixel of scroll so a pull-then-return gesture stays continuous; without
-     * this the content would move by the scroll <em>and</em> keep the over-drag, i.e. by both at
-     * once.
-     *
-     * <p>The payback is applied to the raw accumulator, never to the damped value on screen — the
-     * pull curve is concave, so subtracting from the displacement would pay the pull back at
-     * ~2.4x the rate the finger bought it at, and a single large scroll frame could zero the
-     * whole displacement in one frame instead of animating it home. See
-     * {@code PagerOverscrollController#bleedIntoScroll}, which spells the arithmetic out.
+     * The strip scrolled for real by {@code giveBackPx}: hand the held pull back one pixel of
+     * finger travel per pixel of scroll, so a pull-then-return gesture stays continuous. Payback
+     * goes to the raw accumulator, never the damped value — the pull curve is concave, so
+     * subtracting from the displacement would pay back at ~2.4x the rate the finger bought it at
+     * and a single large scroll frame could zero the whole pull in one frame. See
+     * {@code PagerOverscrollController#bleedIntoScroll} for the arithmetic.
      */
     private void bleedIntoScroll(float giveBackPx) {
         if (mTranslationPx == 0f) return;
@@ -635,12 +484,10 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     }
 
     /**
-     * The single writer of the content's {@code translationX}. This is the last line of defence:
-     * the value is a property of the view holding every tab, so it must always be a finite,
-     * bounded number — anything else is coerced to 0 rather than allowed to poison the view's
-     * transform. (An invalid RenderNode transform does not just go invisible: the whole subtree
-     * stops being drawn, and {@code ViewGroup} hit-testing inverts a NaN matrix, so every touch
-     * coordinate handed to the strip becomes NaN.)
+     * The single writer of the content's {@code translationX}: must always be a finite, bounded
+     * number — anything else is coerced to 0 rather than allowed to poison the view's transform
+     * (an invalid RenderNode transform stops the whole subtree being drawn, and hit-testing
+     * inverts a NaN matrix, turning every touch coordinate into NaN).
      */
     private void setTranslation(float px, float widthPx) {
         if (!isFinite(px)) px = 0f;
@@ -655,13 +502,10 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     }
 
     /**
-     * The strip's extent along the drag axis — the viewport width. Every scale of the effect is a
-     * fraction of it: the cap is 20 % of it, and the finger travel that reaches the cap is derived
-     * from it. Read on demand rather than cached, so a rotation, a split-screen resize or a
-     * change of the tab-height mode reflows the physics instead of keeping a stale pixel value.
-     *
-     * <p>The strip has no quantum to snap to (unlike the transcript, which is made of glyph rows),
-     * so all of these use the plain {@link ElasticOverdrag} entry points.
+     * The strip's extent along the drag axis — the viewport width; every scale of the effect is
+     * a fraction of it. Read on demand, not cached, so rotation / split-screen / tab-height
+     * changes reflow the physics. The strip has no quantum to snap to (unlike the transcript's
+     * glyph rows), so plain {@link ElasticOverdrag} entry points are used.
      */
     private float extentPx() {
         return Math.max(1f, getWidth());
@@ -673,8 +517,7 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
     /**
      * The display density, read on demand so a move to another display is picked up. Only the
-     * impulse needs it: the band itself is scale-free, so nothing else in the effect is
-     * density-dependent.
+     * impulse needs it — the band itself is scale-free.
      */
     private float density() {
         return getResources().getDisplayMetrics().density;
@@ -706,21 +549,15 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     // ── the "never displaced while idle" invariant ─────────────────────────────────────────
 
     /**
-     * Guarantee that the strip is not left displaced once the gesture is over.
+     * Guarantee the strip is never left displaced once the gesture is over.
      *
-     * <p>Normally the spring-back's {@code onAnimationEnd} writes the final 0 — but
-     * {@link #bleedIntoScroll} strips the listeners before cancelling so the content does not
-     * snap mid-gesture, and that very same listener removal removes the only guaranteed writer of
-     * a clean 0. The bleed can run long after the finger has gone, because a fling keeps
-     * scrolling; if the bleed does not finish the job in that frame, nothing ever would again.
-     *
-     * <p>So after every fling frame that gives the pull back we post a check for leftover
-     * displacement, and it re-posts itself for as long as fling frames keep arriving
-     * ({@link #mFlingFrameSeen}). The check <em>animates</em> what it finds rather than zeroing
-     * it: the leftover is a displacement the user can see, so writing a clean 0 is a snap of up
-     * to the full cap, which is the very thing this class must not do. That also keeps the
-     * fail-safe promise — the worst case stays a <em>missing</em> animation, never a broken
-     * strip — because a spring can only ever end at 0.
+     * <p>{@link #bleedIntoScroll} strips animation listeners before cancelling (so the content
+     * does not snap mid-gesture), which also removes the only guaranteed writer of a clean 0;
+     * a fling can keep the bleed running long after the finger is gone. So after every fling
+     * frame that gives the pull back we post a check for leftover displacement, re-posting while
+     * frames keep arriving ({@link #mFlingFrameSeen}). The check <em>animates</em> what it finds
+     * rather than zeroing it — a clean 0 would be a visible snap of up to the full cap. Worst
+     * case stays a missing animation, never a broken strip.
      */
     private void ensureSettled() {
         removeCallbacks(mSettleRunnable);
