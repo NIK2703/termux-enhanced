@@ -3389,6 +3389,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public int getButtonActiveBg() { return mColorSchemeManager.getButtonActiveBg(); }
     /** @return Cached panel/button text (scheme foreground) colour. */
     public int getButtonText() { return mColorSchemeManager.getButtonText(); }
+    /** @return Cached fill of the controls drawn on the terminal (see {@link TermuxColorSchemeManager}). */
+    public int getFloatingButtonFill() { return mColorSchemeManager.getFloatingButtonFill(); }
+    /** @return Cached stroke of the controls drawn on the terminal (see {@link TermuxColorSchemeManager}). */
+    public int getFloatingButtonStroke() { return mColorSchemeManager.getFloatingButtonStroke(); }
     /** @return Cached text selection highlight colour. */
     public int getTextSelectionHighlightColor() { return mColorSchemeManager.getTextSelectionHighlightColor(); }
     /** @return Whether the current scheme is perceived as light. */

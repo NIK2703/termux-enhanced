@@ -25,7 +25,6 @@ import com.termux.shared.interact.ShareUtils;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.termux.interact.TextInputDialogUtils;
 import com.termux.app.TermuxActivity;
-import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.terminal.TermuxTerminalSessionClientBase;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.app.TermuxService;
@@ -1336,6 +1335,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // and this call is what keeps a page bound AFTER a scheme change in sync. Cached: a page
             // bind no longer stats + parses the font file either.
             terminalView.setTypeface(resolveTerminalTypeface());
+
+            // Same reasoning as the typeface above: the scrollbar belongs to THIS view, so a page
+            // bound here would otherwise keep the hardcoded fallback tint, which — unlike the
+            // input-panel toggle button — ignores the element-opacity sliders.
+            applyScrollbarColorsTo(terminalView);
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in checkForFontAndColorsForView()", e);
         }
@@ -1501,7 +1505,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      *   lightness: dark translucent for light schemes, light translucent for dark schemes.
      * - The alpha (transparency) of the button backgrounds is read from user preferences so the
      *   value is applied ONCE at change time, not recomputed on every frame.
-     * - The interactive scrollbar thumb receives the same pre-computed colours.
+     * - The input-panel toggle button and the terminal scrollbar thumb, drawn on the terminal
+     *   itself, instead carry the terminal background inside their translucent colour.
      * - The status bar icons/theme follow the scheme lightness (light icons on dark schemes,
      *   dark icons on light schemes).
      *
@@ -1527,21 +1532,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             extraKeys.setButtonColors(buttonText, deriveActiveTextColor(buttonText), buttonBg, buttonActiveBg);
         }
 
-        // Toggle text-input button (pencil) and the scrollbar thumb float over the terminal.
-        // They use the SAME translucent tints as the extra-keys buttons — black on a light scheme,
-        // white on a dark one, decided from the scheme background colour alone (isSchemeLight).
-        // Keeping the tints translucent (instead of pre-compositing them into an opaque colour and
-        // drawing that at a flat 50%) is what makes the decision hold at any background transparency:
-        // a translucent black tint always darkens and a translucent white tint always lightens,
-        // regardless of the wallpaper showing through. At 0% transparency the result is identical
-        // to the old rendering (scheme bg +/- the same alpha).
-        int buttonStrokePx = Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke));
-        TermuxAppSharedPreferences prefs = mActivity.getPreferences();
-        int toggleButtonBg = ColorSchemeUtils.getButtonBackground(isSchemeLight, prefs.getButtonBgInactiveAlpha());
-        int toggleButtonStroke = ColorSchemeUtils.getButtonActiveBackground(isSchemeLight, prefs.getButtonBgActiveAlpha());
-        // Pressed fill: a stronger fill of the same tint (same direction) so the tap is visible.
-        int toggleButtonPressed = ColorSchemeUtils.getButtonActiveBackground(isSchemeLight,
-                Math.min(100, prefs.getButtonBgActiveAlpha() * 2));
+        // The controls drawn on the terminal itself; also re-run on its own when the background
+        // changes without the scheme doing so.
+        applyFloatingControlColors();
+
         // Plain tab button (new session): no stroke — fill only, with an active
         // (pressed/swiped) background so the press/swipe gesture gives visible feedback.
         // Use the same scheme-derived colours as the extra-keys buttons so the contrast
@@ -1559,23 +1553,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                     230);
             applyCircleButtonStyle(newSessionBtn,
                     createOvalStateListDrawable(buttonBg, activeFill), buttonText);
-        }
-
-        // Toggle text-input button: on press, fill + stroke both become the stroke colour.
-        ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
-        if (toggleBtn != null) {
-            android.graphics.drawable.GradientDrawable normalState =
-                    createOvalDrawable(toggleButtonBg, buttonStrokePx, toggleButtonStroke);
-            android.graphics.drawable.GradientDrawable pressedState =
-                    createOvalDrawable(toggleButtonPressed, buttonStrokePx, toggleButtonStroke);
-
-            android.graphics.drawable.StateListDrawable states =
-                    new android.graphics.drawable.StateListDrawable();
-            states.addState(new int[]{ android.R.attr.state_pressed }, pressedState);
-            states.addState(new int[]{ android.R.attr.state_focused }, pressedState);
-            states.addState(new int[]{}, normalState);
-
-            applyCircleButtonStyle(toggleBtn, states, buttonText);
         }
 
         // Session tabs themselves: translucent background (selected = active tone) + scheme fg.
@@ -1604,9 +1581,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             d.setStroke(Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke)), buttonActiveBg);
         }
 
-        // Push pre-computed scrollbar thumb colours to TerminalView (alpha baked in ONCE here).
         withTerminalView(tv -> {
-            tv.setScrollbarColors(toggleButtonBg, toggleButtonStroke);
             // Terminal text-selection drag handles follow the scheme foreground, just like the
             // input-panel selection handles.
             tv.setTextSelectionHandleColor(buttonText);
@@ -1621,6 +1596,43 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // here too painted the identical values twice per application; the authoritative
         // (live-emulator) background is applied at the very end of applyTerminalColorScheme()
         // via updateBackgroundColor().
+    }
+
+    /**
+     * Style the two controls drawn on the terminal itself: the input-panel toggle button and the
+     * scrollbar thumb. They share one pair of cached colours, since they are the same kind of
+     * element and sit side by side — see {@link TermuxColorSchemeManager#getFloatingButtonFill()}.
+     *
+     * <p>Split out of {@link #applyPanelColors(boolean)} because their colour follows the
+     * <em>live</em> terminal background, so {@link #updateBackgroundColor()} re-runs just this.
+     */
+    private void applyFloatingControlColors() {
+        final int fill = mActivity.getFloatingButtonFill();
+        final int stroke = mActivity.getFloatingButtonStroke();
+        final int strokePx = Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke));
+
+        ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
+        if (toggleBtn != null) {
+            // Pressed and focused both take the active colour for fill and stroke.
+            final android.graphics.drawable.GradientDrawable active =
+                    createOvalDrawable(stroke, strokePx, stroke);
+            android.graphics.drawable.StateListDrawable states =
+                    new android.graphics.drawable.StateListDrawable();
+            states.addState(new int[]{ android.R.attr.state_pressed }, active);
+            states.addState(new int[]{ android.R.attr.state_focused }, active);
+            states.addState(new int[]{}, createOvalDrawable(fill, strokePx, stroke));
+            applyCircleButtonStyle(toggleBtn, states, mActivity.getButtonText());
+        }
+
+        // Every bound page, not just the active one: a neighbour bound while it was off screen
+        // would otherwise keep whatever colours it last saw.
+        forEachBoundTerminalView(this::applyScrollbarColorsTo);
+    }
+
+    /** Push the current floating-control colours onto one page's scrollbar thumb. */
+    private void applyScrollbarColorsTo(@NonNull TerminalView terminalView) {
+        terminalView.setScrollbarColors(mActivity.getFloatingButtonFill(),
+                mActivity.getFloatingButtonStroke());
     }
 
     /** A plain oval fill (no stroke). */
@@ -1671,6 +1683,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // applyTerminalColorScheme() (invoked from checkForFontAndColors(), which runs again in
             // onServiceConnected() once the session is attached after a recreate()).
             int bg = session.getEmulator().mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND];
+            // A background that changed without the scheme changing (OSC 4/11, or a tab whose
+            // session repainted its own palette) leaves the floating controls mixed with a colour
+            // the terminal no longer shows.
+            if (mActivity.getColorSchemeManager().refreshFloatingColorsForBackground(bg)) {
+                applyFloatingControlColors();
+            }
             TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight(),
                 mActivity.getEffectiveBackgroundTransparency());
         }
