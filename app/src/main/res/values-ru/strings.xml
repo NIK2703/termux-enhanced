@@ -428,6 +428,9 @@
     <string name="terminal_background_blur_radius_title">Радиус размытия фона</string>
     <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамическом фоне с высоким радиусом размытия. На статическом фоне энергопотребление несущественно</string>
 
+    <string name="contrast_floating_element_background_title">Контрастный фон надтерминальных элементов</string>
+    <string name="contrast_floating_element_background_summary">Кнопка переключения панели ввода и ручка прокрутки терминала окрашиваются с учётом фона терминала</string>
+
     <string name="terminal_toolbar_scale_title">Масштаб панели</string>
 
     <string name="bell_character_title">Поведение при сигнале</string>

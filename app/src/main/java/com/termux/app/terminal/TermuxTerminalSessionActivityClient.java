@@ -29,6 +29,7 @@ import com.termux.shared.termux.terminal.TermuxTerminalSessionClientBase;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.app.TermuxService;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.view.TerminalView;
 import com.termux.shared.termux.terminal.io.BellHandler;
 import com.termux.shared.logger.Logger;
@@ -1170,12 +1171,21 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // token is a plain volatile read, which is why it is safe to include here even though this
         // runs on every tab switch.
         long monetToken = ColorSchemeUtils.monetToken(isNight);
+        // The preferences the derived floating-control colours are computed from, excluding the
+        // element-alpha sliders (those flow through the same path but are not part of the scheme
+        // identity). The background-transparency and contrast-background switches both change those
+        // colours without touching any scheme file or the palette, so without them here the
+        // "scheme already applied" gate would swallow the change and the settings screen would need
+        // a recreate to show it.
+        TermuxAppSharedPreferences prefs = mActivity.getPreferences();
         return (isNight ? "n1" : "n0")
                 + "|" + (colorsFile == null ? "-" : colorsFile.lastModified() + ":" + colorsFile.length())
                 + "|" + (fontFile == null ? "-" : fontFile.lastModified() + ":" + fontFile.length())
                 + "|s" + selectedScheme
                 + "|o" + monetOptions
-                + "|monet" + monetToken;
+                + "|monet" + monetToken
+                + "|t" + prefs.getTerminalBackgroundTransparency()
+                + "|c" + prefs.isContrastFloatingElementBackgroundEnabled();
     }
 
     /**

@@ -250,6 +250,19 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_BUTTON_BG_ACTIVE_ALPHA = "button_bg_active_alpha";
         public static final int DEFAULT_BUTTON_BG_ACTIVE_ALPHA = 12;
 
+        /**
+         * Defines the key for whether the two controls drawn <b>on</b> the terminal — the
+         * input-panel toggle button and the scrollbar thumb — are mixed with the terminal
+         * background colour, so that they read as part of the terminal instead of as shapes pasted
+         * on it. The terminal background transparency is the weight of that mix (0% mixes nothing
+         * in); the controls keep their own configured transparency either way.
+         *
+         * <p>Off by default: with the option off both controls are the plain translucent tints the
+         * panel buttons use.
+         */
+        public static final String KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND = "contrast-floating-element-background";
+        public static final boolean DEFAULT_CONTRAST_FLOATING_ELEMENT_BACKGROUND = false;
+
         /* ###################################################################
          * Keys migrated from the ~/.termux/termux.properties file.
          * The string values intentionally match the legacy termux.properties keys

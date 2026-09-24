@@ -386,6 +386,9 @@
     <string name="terminal_background_blur_radius_title">背景模糊半徑</string>
     <string name="terminal_background_blur_radius_summary">模糊半徑較高且使用動態背景時可能增加耗電量；使用靜態背景時，對耗電量的影響可忽略不計。</string>
 
+    <string name="contrast_floating_element_background_title">終端機上層元素的對比背景</string>
+    <string name="contrast_floating_element_background_summary">輸入面板切換按鈕與終端機捲軸把手會將終端機背景納入著色考量</string>
+
     <string name="terminal_toolbar_scale_title">面板縮放</string>
 
     <string name="default_working_directory_title">預設工作目錄</string>

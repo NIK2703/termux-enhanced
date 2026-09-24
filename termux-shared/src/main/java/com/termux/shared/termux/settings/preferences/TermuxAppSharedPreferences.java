@@ -356,6 +356,23 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return getInt(TERMUX_APP.KEY_BUTTON_BG_ACTIVE_ALPHA, TERMUX_APP.DEFAULT_BUTTON_BG_ACTIVE_ALPHA);
     }
 
+    /**
+     * Whether the two controls drawn on the terminal (the input-panel toggle button and the
+     * scrollbar thumb) have the terminal background colour mixed into them, so they read as part
+     * of the terminal rather than as shapes pasted on it.
+     *
+     * @return {@code false} by default: both controls are then the plain translucent tints the
+     *         panel buttons use.
+     */
+    public boolean isContrastFloatingElementBackgroundEnabled() {
+        return getBooleanByKey(TERMUX_APP.KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND,
+            TERMUX_APP.DEFAULT_CONTRAST_FLOATING_ELEMENT_BACKGROUND);
+    }
+
+    public void setContrastFloatingElementBackgroundEnabled(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND, value);
+    }
+
     public boolean areCrashReportNotificationsEnabled(boolean readFromFile) {
         if (readFromFile)
             return SharedPreferenceUtils.getBoolean(mMultiProcessSharedPreferences, TERMUX_APP.KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED, TERMUX_APP.DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED);

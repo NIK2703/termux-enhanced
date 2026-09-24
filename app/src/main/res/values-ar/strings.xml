@@ -372,6 +372,9 @@
 
     <string name="terminal_background_blur_radius_title">نصف قطر تمويه الخلفية</string>
     <string name="terminal_background_blur_radius_summary">قد يزيد من استهلاك الطاقة مع الخلفيات المتحركة عند نصف قطر تمويه كبير. أما مع الخلفيات الثابتة فتأثير استهلاك الطاقة ضئيل.</string>
+
+    <string name="contrast_floating_element_background_title">خلفية متباينة لعناصر فوق الطرفية</string>
+    <string name="contrast_floating_element_background_summary">يُلوَّن زر تبديل لوحة الإدخال ومقبض تمرير الطرفية مع مراعاة خلفية الطرفية</string>
     <string name="terminal_toolbar_scale_title">مقياس اللوحة</string>
     <string name="default_working_directory_title">دليل العمل الافتراضي</string>
     <string name="default_working_directory_summary">الدليل الذي يُفتح للجلسات الجديدة (اتركه فارغًا للدليل الرئيسي).</string>

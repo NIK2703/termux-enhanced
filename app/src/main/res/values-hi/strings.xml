@@ -356,6 +356,9 @@
 
     <string name="terminal_background_blur_radius_title">पृष्ठभूमि ब्लर त्रिज्या</string>
     <string name="terminal_background_blur_radius_summary">डायनामिक पृष्ठभूमि पर अधिक ब्लर त्रिज्या होने से बिजली की खपत बढ़ सकती है। स्थिर पृष्ठभूमि पर बिजली पर प्रभाव नगण्य होता है।</string>
+
+    <string name="contrast_floating_element_background_title">टर्मिनल के ऊपरी तत्वों के लिए कंट्रास्ट पृष्ठभूमि</string>
+    <string name="contrast_floating_element_background_summary">इनपुट पैनल टॉगल बटन और टर्मिनल स्क्रॉल हैंडल को टर्मिनल पृष्ठभूमि का ध्यान रखते हुए रंग दिया जाता है</string>
     <string name="terminal_toolbar_scale_title">टूलबार स्केल</string>
     <string name="default_working_directory_title">डिफ़ॉल्ट कार्य निर्देशिका</string>
     <string name="default_working_directory_summary">नए सत्रों के लिए खोली गई निर्देशिका (होम के लिए खाली छोड़ें)।</string>

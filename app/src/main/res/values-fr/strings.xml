@@ -432,6 +432,9 @@
     <string name="terminal_background_blur_radius_title">Rayon de flou de l\'arrière-plan</string>
     <string name="terminal_background_blur_radius_summary">Peut augmenter la consommation d\'énergie avec des arrière-plans dynamiques et un rayon de flou élevé. Avec des arrière-plans statiques, l\'impact sur la consommation est négligeable.</string>
 
+    <string name="contrast_floating_element_background_title">Fond contrasté pour les éléments au-dessus du terminal</string>
+    <string name="contrast_floating_element_background_summary">Le bouton de bascule du panneau de saisie et la poignée de défilement du terminal sont colorés en tenant compte de l\'arrière-plan du terminal</string>
+
     
     <string name="terminal_toolbar_scale_title">Échelle du panneau</string>
 

@@ -504,6 +504,9 @@
     <string name="terminal_background_blur_radius_title">Background blur radius</string>
     <string name="terminal_background_blur_radius_summary">A high blur radius may increase power consumption with dynamic backgrounds. With static backgrounds, the power impact is negligible.</string>
 
+    <string name="contrast_floating_element_background_title">Contrasting background for over-terminal elements</string>
+    <string name="contrast_floating_element_background_summary">The input-panel toggle button and the terminal scrollbar thumb are coloured with the terminal background taken into account</string>
+
     <string name="terminal_toolbar_scale_title">Panel height scale</string>
 
     <string name="default_working_directory_title">Default working directory</string>

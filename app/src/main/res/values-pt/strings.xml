@@ -407,6 +407,9 @@
 
     <string name="terminal_background_blur_radius_title">Raio de desfoque do fundo</string>
     <string name="terminal_background_blur_radius_summary">Pode aumentar o consumo de energia com planos de fundo dinâmicos e um raio de desfoque elevado. Com planos de fundo estáticos, o impacto no consumo é insignificante.</string>
+
+    <string name="contrast_floating_element_background_title">Fundo contrastado para elementos sobre o terminal</string>
+    <string name="contrast_floating_element_background_summary">O botão de alternância do painel de entrada e a alça de rolagem do terminal são coloridos levando em conta o fundo do terminal</string>
     <string name="terminal_toolbar_scale_title">Escala do painel</string>
     <string name="default_working_directory_title">Diretório de trabalho padrão</string>
     <string name="default_working_directory_summary">Diretório aberto para novas sessões (deixe vazio para o diretório home).</string>

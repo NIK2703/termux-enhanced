@@ -380,6 +380,9 @@
     <string name="terminal_background_blur_radius_title">Arka plan bulanıklık yarıçapı</string>
     <string name="terminal_background_blur_radius_summary">Dinamik arka planlarda yüksek bulanıklık yarıçapı güç tüketimini artırabilir. Statik arka planlarda güç tüketimi önemsizdir.</string>
 
+    <string name="contrast_floating_element_background_title">Terminal üstü ögeler için kontrast arka plan</string>
+    <string name="contrast_floating_element_background_summary">Giriş paneli geçiş düğmesi ve terminal kaydırma tutamacı terminal arka planına göre renklendirilir</string>
+
     
     <string name="terminal_toolbar_scale_title">Araç çubuğu ölçeği</string>
 

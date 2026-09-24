@@ -383,6 +383,9 @@
 
     <string name="terminal_background_blur_radius_title">Radio de desenfoque del fondo</string>
     <string name="terminal_background_blur_radius_summary">Puede aumentar el consumo de energía con fondos dinámicos y un radio de desenfoque alto. Con fondos estáticos, el impacto en el consumo es insignificante.</string>
+
+    <string name="contrast_floating_element_background_title">Fondo contrastado para elementos sobre el terminal</string>
+    <string name="contrast_floating_element_background_summary">El botón de alternancia del panel de entrada y el control de desplazamiento del terminal se colorean teniendo en cuenta el fondo del terminal</string>
     <string name="terminal_onclick_url_open_title">Abrir enlaces al tocar</string>
     <string name="terminal_toolbar_scale_title">Escala del panel</string>
     <string name="terminal_transcript_rows_summary">Número de líneas que se conservan en el búfer de desplazamiento.</string>

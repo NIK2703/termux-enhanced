@@ -367,6 +367,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_background_blur_radius_title">Hintergrund-Unschärferadius</string>
     <string name="terminal_background_blur_radius_summary">Kann bei dynamischen Hintergründen mit hohem Unschärferadius den Energieverbrauch erhöhen. Bei statischen Hintergründen ist der Energieverbrauch vernachlässigbar.</string>
 
+    <string name="contrast_floating_element_background_title">Kontrastreicher Hintergrund für Elemente über dem Terminal</string>
+    <string name="contrast_floating_element_background_summary">Die Umschalttaste der Eingabeleiste und der Bildlaufgriff des Terminals werden unter Berücksichtigung des Terminalhintergrunds eingefärbt</string>
+
     <string name="terminal_toolbar_scale_title">Skalierung der Leiste</string>
 
     <string name="default_working_directory_title">Standard-Arbeitsverzeichnis</string>

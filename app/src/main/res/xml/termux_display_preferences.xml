@@ -83,6 +83,15 @@
             app:valueUnit="px"
             app:iconSpaceReserved="false" />
 
+        <!-- Whether the two controls drawn ON the terminal — the input-panel toggle button and the
+             scrollbar thumb — have the terminal background colour mixed into them. Off by default:
+             they are then the plain translucent tints the panel buttons use. -->
+        <SwitchPreferenceCompat
+            app:key="contrast-floating-element-background"
+            app:title="@string/contrast_floating_element_background_title"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory app:key="tabs" app:title="@string/tabs_category_title" app:iconSpaceReserved="false">

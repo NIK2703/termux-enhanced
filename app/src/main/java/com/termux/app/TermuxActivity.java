@@ -2103,7 +2103,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // preferences first to avoid a black/transparent flash of the extra-keys panel.
         TermuxColorSchemeManager csm = getColorSchemeManager();
         if (csm.getButtonBg() == 0) {
-            csm.recompute(getPreferences());
+            csm.recompute(getPreferences(), getEffectiveBackgroundTransparency());
         }
         extraKeysView.setButtonColors(csm.getButtonText(), deriveActiveTextColor(csm.getButtonText()), csm.getButtonBg(), csm.getButtonActiveBg());
 
@@ -3273,11 +3273,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Must be called whenever the scheme or the inactive-alpha slider changes so that every styled
      * element uses fresh colours without recomputing them on every draw / event.
      * <p>
+     * The terminal background transparency goes in as well: it is the weight the background colour
+     * is mixed into the two controls drawn on the terminal with (see
+     * {@link TermuxColorSchemeManager#getFloatingButtonFill()}). The <em>effective</em> value is
+     * passed, not the raw preference, because that is the transparency the terminal is actually
+     * painted with.
+     * <p>
      * Both light and dark scheme variants are covered: when the scheme switches, this runs again
      * and overwrites the cached fields with the new values.
      */
     public void recomputeUIColors() {
-        mColorSchemeManager.recompute(getPreferences());
+        mColorSchemeManager.recompute(getPreferences(), getEffectiveBackgroundTransparency());
     }
 
     /**
@@ -4729,8 +4735,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             reloadProperties();
 
             // Cache all UI colours from the (now-updated) COLOR_SCHEME so every consumer reads
-            // fresh values without computing them on the fly.
-            mColorSchemeManager.recompute(getPreferences());
+            // fresh values without computing them on the fly. The effective transparency goes in
+            // too: it is the weight the terminal background colour is mixed into the two controls
+            // drawn on the terminal with, so a slider drag re-derives them here.
+            mColorSchemeManager.recompute(getPreferences(), getEffectiveBackgroundTransparency());
 
             if (mExtraKeysView != null) {
                 // Re-decide the fold state before anything reloads the grid below. The preferences

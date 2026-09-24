@@ -200,6 +200,11 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureBackgroundBlurRadiusSeekBar(prefs);
         updateBackgroundBlurPrefState(prefs);
 
+        // --- Contrasting background for the elements drawn on the terminal ---
+        configureSwitch(TermuxPreferenceConstants.TERMUX_APP.KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND,
+            prefs.isContrastFloatingElementBackgroundEnabled(),
+            value -> prefs.setContrastFloatingElementBackgroundEnabled(value));
+
         configureFontSizeSeekBar(prefs);
 
         configureSwitch("scroll-on-new-output", prefs.isScrollOnNewOutputEnabled(),

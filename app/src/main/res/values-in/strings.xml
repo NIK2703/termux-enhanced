@@ -357,6 +357,9 @@
     <string name="terminal_background_blur_radius_title">Radius blur latar belakang</string>
     <string name="terminal_background_blur_radius_summary">Dapat meningkatkan konsumsi daya pada latar belakang dinamis dengan radius blur besar. Pada latar belakang statis, dampak dayanya dapat diabaikan.</string>
 
+    <string name="contrast_floating_element_background_title">Latar belakang kontras untuk elemen di atas terminal</string>
+    <string name="contrast_floating_element_background_summary">Tombol pengalih panel input dan gagang gulir terminal diwarnai dengan memperhitungkan latar belakang terminal</string>
+
     
     <string name="terminal_toolbar_scale_title">Skala panel</string>
 

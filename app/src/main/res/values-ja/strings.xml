@@ -378,6 +378,9 @@
     <string name="terminal_background_blur_radius_title">背景のぼかし半径</string>
     <string name="terminal_background_blur_radius_summary">動的な背景でぼかし半径を大きくすると消費電力が増える場合があります。静的な背景では電力への影響はほとんどありません。</string>
 
+    <string name="contrast_floating_element_background_title">ターミナル上の要素のコントラスト背景</string>
+    <string name="contrast_floating_element_background_summary">入力パネルの切り替えボタンとターミナルのスクロールハンドルを、ターミナル背景を考慮して着色します</string>
+
     
     <string name="terminal_toolbar_scale_title">パネルのスケール</string>
 
