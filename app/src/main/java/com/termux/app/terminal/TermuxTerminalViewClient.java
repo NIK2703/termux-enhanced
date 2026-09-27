@@ -86,6 +86,15 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     private boolean mStartupSoftKeyboardPending;
 
     /**
+     * Cold-start "show soft keyboard" not yet applied: the mirror of
+     * {@link #mStartupSoftKeyboardPending}. With "hide on startup" OFF the keyboard must still
+     * appear on a cold start, but by the time the page is bound the show that
+     * {@code setSoftKeyboardState()} asked for is long gone (the view was missing, and the window
+     * had no focus yet). Consumed by {@link #applyStartupSoftKeyboardShow()}.
+     */
+    private boolean mStartupSoftKeyboardShowPending;
+
+    /**
      * Set on a bubble window's cold start: this window must not pull up the IME on its own.
      * A bubble is not a user launch, so a keyboard there would land on top of whatever app
      * the user switched to. Only half the fix: a fresh focused window with STATE_UNSPECIFIED
@@ -182,6 +191,17 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             // hideSoftKeyboard() is applied once the TerminalView exists.
             KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(mActivity);
             mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
+        }
+
+        // Cold start with "hide on startup" OFF: the keyboard must still come up, but the show in
+        // setSoftKeyboardState() cannot be relied on (no page bound yet, no window focus), so redo
+        // it once the page is live. A bubble is excluded for the same reason as above — it is not
+        // a user launch, and mBubbleStartupImeSuppressed owns that window's keyboard.
+        if (!mActivity.isBubbleWindow()
+                && mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()
+                && !shouldSoftKeyboardBeDisabled()
+                && !mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
+            mStartupSoftKeyboardShowPending = true;
         }
 
         setSoftKeyboardState(true, mActivity.isActivityRecreated());
@@ -939,6 +959,32 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             terminalView.postDelayed(mStartupHideReassertRunnable,
                     STARTUP_HIDE_REASSERT_DELAY_MS);
         }
+    }
+
+    /**
+     * Cold-start keyboard show, deferred until the first pager page is bound: the counterpart of
+     * {@link #applyStartupSoftKeyboardState()}. No-op unless a show is still pending (runs once).
+     */
+    public void applyStartupSoftKeyboardShow() {
+        if (!mStartupSoftKeyboardShowPending) return;
+
+        // Keep the flag up while the view is missing: the "page is live" hook fires again once the
+        // destination page is actually attached (see SessionPagerManager.onTerminalPageSelected).
+        if (mActivity.getTerminalView() == null) return;
+        mStartupSoftKeyboardShowPending = false;
+
+        if (shouldSoftKeyboardBeDisabled())
+            return;
+
+        // Record the intent as visible so the per-session IME reconcile that runs after this
+        // cannot undo the show.
+        mActivity.getTextInputState().setSoftKeyboardVisibleIntent(true);
+        TerminalSession session = mActivity.getCurrentSession();
+        if (session != null)
+            mActivity.getTextInputState().setSoftKeyboardIntent(session, true);
+
+        Logger.logVerbose(LOG_TAG, "Showing soft keyboard on startup (deferred to page live)");
+        mActivity.runKeyboardRestoreForStartup();
     }
 
     /**

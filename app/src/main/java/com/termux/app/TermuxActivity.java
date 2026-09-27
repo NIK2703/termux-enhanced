@@ -1515,6 +1515,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Cold-start keyboard show: {@link #runKeyboardRestore()} with the intent forced visible, since
+     * with "hide on startup" OFF there is no remembered intent to read.
+     */
+    public void runKeyboardRestoreForStartup() {
+        mKeyboardRestoreIntent = true;
+        runKeyboardRestore();
+    }
+
+    /**
      * Safety net that releases the keyboard-restore latch. The primary release is the
      * {@code onSettled} callback handed to {@code SoftKeyboardRestore.showWithRetry()}; this one
      * only fires if that helper never reports back (e.g. the target view was detached mid-retry),
@@ -1528,8 +1537,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // page 0, so getTerminalView() is still null and setSoftKeyboardState() early-returns without
         // applying the hide -> the keyboard pops up on launch. Re-apply it now that the active
         // TerminalView exists. No-op unless a cold-start hide is still pending (runs exactly once).
-        if (mTermuxTerminalViewClient != null)
+        if (mTermuxTerminalViewClient != null) {
             mTermuxTerminalViewClient.applyStartupSoftKeyboardState();
+            mTermuxTerminalViewClient.applyStartupSoftKeyboardShow();
+        }
 
         if (mPendingKeyboardRestore && getActiveTerminalView() != null) {
             runKeyboardRestore();
