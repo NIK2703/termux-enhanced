@@ -85,6 +85,7 @@ import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
 import com.termux.shared.theme.NightMode;
 import com.termux.shared.theme.ThemeUtils;
+import com.termux.shared.view.DisplayCutoutUtils;
 import com.termux.shared.view.ImeVisibilityDetector;
 import com.termux.shared.view.KeyboardUtils;
 import com.termux.terminal.TerminalSession;
@@ -4769,12 +4770,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Let the window cover the display cutout, and the terminal content only when asked.
      *
-     * <p>The window part is unconditional: in the default cutout mode the window frame is kept out
-     * of the cutout in portrait, so that strip is outside the window and shows as a black gap —
-     * with or without fullscreen. Covering it hands the strip to the decor background that
-     * {@link #applySystemBarColors} paints, so it is always the terminal background. {@code ALWAYS}
-     * rather than {@code SHORT_EDGES}, which would keep the window out of the long-edge cutout in
-     * landscape and bring the gap back there.
+     * <p>The window part is unconditional; the content part is the user's choice, see
+     * {@link com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences#isExtendIntoCutout()}.
      *
      * <p>A bubble window is skipped: it is a second window the user opened over whatever app they
      * were in, and its geometry is not tied to the screen edges.
@@ -4783,12 +4780,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
         if (isBubbleWindow()) return;
 
-        final int mode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
-        final WindowManager.LayoutParams lp = getWindow().getAttributes();
-        if (lp.layoutInDisplayCutoutMode != mode) {   // setAttributes() relayouts the window
-            lp.layoutInDisplayCutoutMode = mode;
-            getWindow().setAttributes(lp);
-        }
+        DisplayCutoutUtils.allowWindowIntoCutout(getWindow());
 
         if (mTermuxActivityRootView != null)
             mTermuxActivityRootView.setExtendIntoDisplayCutout(

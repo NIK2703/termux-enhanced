@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The window is laid out edge to edge (see SettingsActivity.applyWindowStyling), so this root
+     is where the system-bar padding belongs: it is the only view that spans the whole window, and
+     the header below it would otherwise leave the rest of the screen running under the bars and
+     the cutout. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settings_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:fitsSystemWindows="true">
 
     <include
         layout="@layout/partial_primary_toolbar"

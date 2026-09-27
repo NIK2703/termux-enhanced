@@ -15,6 +15,7 @@ import androidx.preference.SwitchPreferenceCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
+import com.termux.app.activities.SettingsActivity;
 import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.app.terminal.TermuxActivityBroadcastManager;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
@@ -119,11 +120,11 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
         // --- Window: fullscreen ---
         configureSwitch("fullscreen", prefs != null && prefs.isUsingFullScreen(),
-            value -> { if (prefs != null) prefs.setFullScreen(value); });
+            value -> { if (prefs != null) prefs.setFullScreen(value); }, true);
 
         // --- Window: extend into the display cutout ---
         configureSwitch("extend-into-cutout", prefs != null && prefs.isExtendIntoCutout(),
-            value -> { if (prefs != null) prefs.setExtendIntoCutout(value); });
+            value -> { if (prefs != null) prefs.setExtendIntoCutout(value); }, true);
 
         // --- Window: bubble on background ---
         configureSwitch("bubble-on-background", prefs != null && prefs.isBubbleOnBackgroundEnabled(),
@@ -374,6 +375,16 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
     private void configureSwitch(String key, boolean current,
                                   PreferenceValueSetter<Boolean> setter) {
+        configureSwitch(key, current, setter, false);
+    }
+
+    /**
+     * @param appliesToHostWindow the setting also applies to the window this screen is drawn in,
+     *                            which the terminal-only styling reload in {@link #updateStyling()}
+     *                            does not reach.
+     */
+    private void configureSwitch(String key, boolean current, PreferenceValueSetter<Boolean> setter,
+                                 boolean appliesToHostWindow) {
         final SwitchPreferenceCompat pref = findPreference(key);
         if (pref == null) return;
         pref.setPersistent(false);
@@ -381,6 +392,8 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
             setter.set((Boolean) newValue);
             updateStyling();
+            if (appliesToHostWindow && getActivity() instanceof SettingsActivity)
+                getActivity().recreate();
             return true;
         });
     }

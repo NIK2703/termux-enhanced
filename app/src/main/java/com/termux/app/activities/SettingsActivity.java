@@ -1,11 +1,16 @@
 package com.termux.app.activities;
 
 import android.content.Context;
+import android.content.res.Configuration;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -23,10 +28,14 @@ import com.termux.shared.android.PackageUtils;
 import com.termux.shared.android.AndroidUtils;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxUtils;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.theme.NightMode;
+import com.termux.shared.view.DisplayCutoutUtils;
 
 public class SettingsActivity extends AppCompatActivity {
+
+    @Nullable private DisplayCutoutUtils.CutoutInsetsListener mCutoutInsetsListener;
 
     @Override
     protected void attachBaseContext(@NonNull Context base) {
@@ -61,12 +70,23 @@ public class SettingsActivity extends AppCompatActivity {
         AppCompatActivityUtils.setShowBackButtonInActionBar(this, true);
 
         // Give the settings header a slightly different background from the content so it does
-        // not blend in, and make the status bar transparent so the header colour shows through.
+        // not blend in, and match the status bar to it so the two read as one bar.
         int headerColor = getResources().getColor(com.termux.shared.R.color.settings_header_background, getTheme());
-        View header = findViewById(com.termux.shared.R.id.toolbar_container);
+        // The insets are applied on the root, since it is the only view spanning the window: with
+        // the header handling them, the list below was laid out right under the bars and the cutout.
+        // The root is deliberately NOT painted the header colour — the preference list is
+        // transparent, so that would tint the whole screen instead of just the inset band (the
+        // band is covered by the opaque status bar anyway).
+        // The id of the <include> below overrides the one on the included root, so
+        // R.id.toolbar_container is NOT what that view answers to.
+        View root = findViewById(R.id.settings_root);
+        if (root != null) {
+            mCutoutInsetsListener = new DisplayCutoutUtils.CutoutInsetsListener(root);
+            root.setOnApplyWindowInsetsListener(mCutoutInsetsListener);
+        }
+        View header = findViewById(R.id.partial_primary_toolbar);
         if (header != null) {
             header.setBackgroundColor(headerColor);
-            header.setFitsSystemWindows(true);
         }
         // The Toolbar child has its own opaque ?attr/colorSurface background that paints over the
         // container, so it must be tinted too or the header colour never shows.
@@ -75,21 +95,51 @@ public class SettingsActivity extends AppCompatActivity {
             toolbar.setBackgroundColor(headerColor);
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            android.view.Window window = getWindow();
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Window window = getWindow();
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             // Match the status bar colour to the settings header so it reads as one continuous bar.
             window.setStatusBarColor(headerColor);
-            // In light theme the header is light, so force dark status-bar text/icons (API 23+);
-            // in night theme keep the default light text.
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
-                    && (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                        != android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                window.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            } else {
-                window.getDecorView().setSystemUiVisibility(0);
-            }
         }
+
+        applyWindowStyling();
+    }
+
+    /**
+     * Apply the Display &gt; window settings to this window, the same way
+     * {@link TermuxActivity} applies them to the terminal window: fullscreen, the display cutout, and
+     * the status bar icon appearance.
+     *
+     * <p>The cutout part matters here on its own: the status bar here is opaque rather than
+     * transparent, so it covers the cutout while it is visible — but fullscreen hides it, and then
+     * the cutout strip would be outside the window and show as a black gap.
+     *
+     * <p>{@code LAYOUT_FULLSCREEN} is what puts the content under the status bar, and through it the
+     * cutout. The root view keeps the bar's height as padding; the bar itself is opaque in the
+     * header colour, so the band it covers needs no background of its own.
+     */
+    private void applyWindowStyling() {
+        final TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(this, true);
+        final boolean fullScreen = prefs != null && prefs.isUsingFullScreen();
+
+        DisplayCutoutUtils.allowWindowIntoCutout(getWindow());
+
+        if (fullScreen)
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        else
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+        int visibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+        // In light theme the header is light, so force dark status-bar text/icons (API 23+); in
+        // night theme keep the default light text.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                    != Configuration.UI_MODE_NIGHT_YES)
+            visibility |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        getWindow().getDecorView().setSystemUiVisibility(visibility);
+
+        if (mCutoutInsetsListener != null)
+            mCutoutInsetsListener.setExtend(prefs != null && prefs.isExtendIntoCutout());
     }
 
     @Override

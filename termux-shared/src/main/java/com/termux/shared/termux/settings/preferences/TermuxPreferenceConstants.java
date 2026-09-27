@@ -342,9 +342,12 @@ public final class TermuxPreferenceConstants {
          * The window always takes the cutout — otherwise that strip is outside it and shows as a
          * black gap — so this only decides whether the content follows in, or is held clear of it
          * and leaves the terminal background there.
+         *
+         * <p>Off by default: content under the cutout can be hidden by the camera, and the
+         * background alone already removes the black gap.
          */
         public static final String KEY_EXTEND_INTO_CUTOUT = "extend-into-cutout";
-        public static final boolean DEFAULT_VALUE_EXTEND_INTO_CUTOUT = true;
+        public static final boolean DEFAULT_VALUE_EXTEND_INTO_CUTOUT = false;
 
         /**
          * Whether the app moves itself into a bubble window when the user leaves it, and takes it

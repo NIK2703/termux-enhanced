@@ -9,6 +9,8 @@ import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.termux.shared.view.DisplayCutoutUtils;
+
 /**
  * The root view of the {@link TermuxActivity}.
  * <p>
@@ -84,7 +86,7 @@ public class TermuxActivityRootView extends LinearLayout {
      * <p>{@code fitsSystemWindows} turns the system window insets into padding, and with the window
      * overlapping the cutout that padding covers the cutout too — so the terminal starts below the
      * notch and the strip the window gained sits there empty. Only the part the cutout adds on its
-     * own is given back; see {@link #withoutCutout}.
+     * own is given back; see {@link DisplayCutoutUtils#paddingWithoutCutout}.
      *
      * <p>Safe on every dispatch: {@code View} applies the insets as an absolute padding rather than
      * accumulating them onto the user padding, so nothing carries over.
@@ -98,25 +100,10 @@ public class TermuxActivityRootView extends LinearLayout {
 
         Insets bars = compat.getInsets(WindowInsetsCompat.Type.systemBars());
         setPadding(
-                withoutCutout(cutout.left, bars.left, getPaddingLeft()),
-                withoutCutout(cutout.top, bars.top, getPaddingTop()),
-                withoutCutout(cutout.right, bars.right, getPaddingRight()),
-                withoutCutout(cutout.bottom, bars.bottom, getPaddingBottom()));
-    }
-
-    /**
-     * The padding on one edge after giving back the part of the cutout that the system bars do not
-     * already cover.
-     *
-     * <p>The padding is the union of the bars and the cutout, so the cutout only adds
-     * {@code max(0, cutout - bars)} to it. Subtracting the whole cutout instead would zero the top
-     * padding in portrait, where the notch sits inside the status bar and the two are the same
-     * height — the terminal would then start under the bar's clock and icons. With fullscreen there
-     * is no status bar inset, so the whole cutout is given back, and in landscape the cutout is on a
-     * long edge that no bar covers, so it is given back there too.
-     */
-    private static int withoutCutout(int cutout, int bars, int padding) {
-        return Math.max(0, padding - Math.max(0, cutout - bars));
+                DisplayCutoutUtils.paddingWithoutCutout(cutout.left, bars.left, getPaddingLeft()),
+                DisplayCutoutUtils.paddingWithoutCutout(cutout.top, bars.top, getPaddingTop()),
+                DisplayCutoutUtils.paddingWithoutCutout(cutout.right, bars.right, getPaddingRight()),
+                DisplayCutoutUtils.paddingWithoutCutout(cutout.bottom, bars.bottom, getPaddingBottom()));
     }
 
     /** Top up {@code paddingBottom} to the IME inset; never shrinks — see class doc. */
