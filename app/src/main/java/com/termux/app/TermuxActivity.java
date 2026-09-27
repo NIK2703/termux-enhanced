@@ -394,10 +394,13 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private TerminalSession mTiBoundSession;
 
     /**
-     * Memo of the last text handed to {@link #mTextInputState} by
-     * {@link #saveTextInputForCurrentSession(boolean)}, together with the session it belonged to.
-     * Lets the repeated snapshot (onPause and again onStop) skip re-copying an unchanged buffer.
-     * Purely a cache: a mismatch degrades to the full save, never to a wrong save.
+     * The last text this window synchronised with {@link #mTextInputState} for
+     * {@link #mLastSavedInputSession} — written both by
+     * {@link #saveTextInputForCurrentSession(boolean)} and by
+     * {@link #restoreTextInputForSession(TerminalSession)}, so it means "what this window's field
+     * currently reflects". Besides skipping a redundant re-copy, this is what makes an
+     * unsynchronised window detectable now that the store is shared: this window having changed
+     * nothing is only evidence it has nothing to say if the store still holds what it last saw.
      */
     private String mLastSavedInputText = "";
     private TerminalSession mLastSavedInputSession;
@@ -607,8 +610,11 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
             && pager.getScrollState() != androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_IDLE;
     }
 
-    /** Single store of per-session + global UI state (supersedes TextInputSessionStateManager). */
-    private final SessionUiStateStore mTextInputState = new SessionUiStateStore();
+    /** Single store of per-session + global UI state (supersedes TextInputSessionStateManager).
+     * Shared by every window: its keys are TerminalSession.mHandle and the bubble is a second
+     * instance of this activity, so a per-instance store gave the two windows two independent
+     * views of one session. */
+    private final SessionUiStateStore mTextInputState = SessionUiStateStore.shared();
 
     private float mTerminalToolbarDefaultHeight;
 
@@ -2377,7 +2383,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // and skip the allocation. Worst case it degrades to the old unconditional save.
         final CharSequence live = textInputView.getText();
         if (session == mLastSavedInputSession && TextUtils.equals(mLastSavedInputText, live)) {
-            mTextInputState.setCaret(session.mHandle, caret);
+            // The store is shared with the other window (the bubble is a second instance of this
+            // activity), so "unchanged since my last sync" does not imply "still current". If the
+            // other window has replaced the text since, our field is a stale view of a session we
+            // share: writing it back would silently revert the draft the user typed over there.
+            // The caret belongs to that same stale text, so it goes only with it.
+            // Empty is compared as "" on both sides because saveInput() normalises an empty
+            // buffer to null, and the field renders a missing entry as "".
+            final String stored = mTextInputState.getInputText(session.mHandle);
+            if (TextUtils.equals(stored == null ? "" : stored, mLastSavedInputText)) {
+                mTextInputState.setCaret(session.mHandle, caret);
+            }
             return;
         }
 
@@ -2403,6 +2419,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mTiBoundSession = session;
         String text = session == null ? "" : mTextInputState.getInputText(session.mHandle);
         String target = text != null ? text : "";
+        // Record what this window is now showing, so saveTextInputForCurrentSession() can tell
+        // "I did not change anything" from "I changed it": the store is shared with the other
+        // window, and an unsynchronised window would otherwise push its stale copy back over
+        // whatever was typed there in the meantime.
+        if (session != null) {
+            mLastSavedInputSession = session;
+            mLastSavedInputText = target;
+        }
         if (target.contentEquals(textInputView.getText())) return;   // already converged
         mAutoCompleteCtrl.setRestoringInput(true);
         try {

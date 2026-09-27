@@ -34,6 +34,26 @@ import java.util.Map;
  */
 public final class SessionUiStateStore {
 
+    // Process-scoped, not per-activity: the keys are TerminalSession.mHandle and the bubble is a
+    // second TermuxActivity instance, so a per-instance store gave the two windows two independent
+    // views of one session — text typed in the full-screen window was missing in the bubble.
+    private static volatile SessionUiStateStore sShared;
+
+    @NonNull
+    public static SessionUiStateStore shared() {
+        SessionUiStateStore store = sShared;
+        if (store == null) {
+            synchronized (SessionUiStateStore.class) {
+                store = sShared;
+                if (store == null) {
+                    store = new SessionUiStateStore();
+                    sShared = store;
+                }
+            }
+        }
+        return store;
+    }
+
     // Bundle keys — legacy keys kept identical so an in-flight recreation after an
     // upgrade still reads previously saved state.
     public static final String ARG_TEXT_INPUT_PER_SESSION = "text_input_per_session";

@@ -3,6 +3,7 @@ package com.termux.terminal;
 import android.util.Base64;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -84,6 +85,51 @@ public class OperatingSystemControlTest extends TerminalTestCase {
 		assertEquals("InitialTitle", mTerminal.getTitle());
 		enterString("\033[23t\033[23t\033[23t");
 		assertEquals("InitialTitle", mTerminal.getTitle());
+	}
+
+	public void testTitleStackWithUnsetTitle() throws Exception {
+		// A program may save and restore the title before ever having set one, e.g. vim emits
+		// "CSI 22 ; 0 t" (save) / "CSI 23 ; 0 t" (restore) at startup. mTitle is null at that point
+		// (see testSetTitle: the first title change is reported as ChangedTitle(null, ...)), so the
+		// title stack must tolerate a null entry instead of throwing NullPointerException.
+		withTerminalSized(10, 10);
+		assertNull(mTerminal.getTitle());
+
+		// Saving and restoring an unset title is a no-op and must not crash.
+		enterString("\033[22t");
+		enterString("\033[23t");
+		assertNull(mTerminal.getTitle());
+		assertEquals(Collections.<ChangedTitle>emptyList(), mOutput.titleChanges);
+
+		// Repeated save/restore of an unset title must stay balanced.
+		enterString("\033[22t");
+		enterString("\033[22;0t");
+		enterString("\033[23;0t");
+		enterString("\033[23;0t");
+		assertNull(mTerminal.getTitle());
+
+		// A real title set afterwards, then save/restore, must behave as usual.
+		enterString("\033]0;After\007");
+		assertEquals("After", mTerminal.getTitle());
+		enterString("\033[22;0t");
+		enterString("\033]0;Replaced\007");
+		assertEquals("Replaced", mTerminal.getTitle());
+		enterString("\033[23;0t");
+		assertEquals("After", mTerminal.getTitle());
+	}
+
+	public void testTitleStackLimitWithUnsetTitle() throws Exception {
+		// The 20-entry cap must also hold when the saved titles are unset (null).
+		withTerminalSized(10, 10);
+		for (int i = 0; i < 50; i++) {
+			enterString("\033[22;0t");
+		}
+		// The stack never grows past the cap, so 50 restores are needed to drain it and the 51st
+		// must be a no-op rather than a crash.
+		for (int i = 0; i < 50; i++) {
+			enterString("\033[23;0t");
+		}
+		assertNull(mTerminal.getTitle());
 	}
 
 	public void testSetColor() throws Exception {

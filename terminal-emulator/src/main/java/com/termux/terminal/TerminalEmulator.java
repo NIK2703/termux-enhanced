@@ -3,7 +3,7 @@ package com.termux.terminal;
 import android.util.Base64;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
+import java.util.LinkedList;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
@@ -161,7 +161,10 @@ public final class TerminalEmulator {
     private static final int DECSET_BIT_RECTANGULAR_CHANGEATTRIBUTE = 1 << 12;
 
     private String mTitle;
-    private final ArrayDeque<String> mTitleStack = new ArrayDeque<>();
+    // LinkedList, not ArrayDeque: mTitle is null until the first title-changing OSC, and a program
+    // may save/restore the title before ever setting one (vim does at startup). ArrayDeque rejects
+    // null elements, which crashed doCsi() with a NullPointerException.
+    private final LinkedList<String> mTitleStack = new LinkedList<>();
 
     /** The cursor position. Between (0,0) and (mRows-1, mColumns-1). */
     private int mCursorRow, mCursorCol;
