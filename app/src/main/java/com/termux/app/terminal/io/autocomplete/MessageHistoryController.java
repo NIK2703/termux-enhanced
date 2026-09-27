@@ -40,6 +40,24 @@ public final class MessageHistoryController {
     private static final String PREF_MESSAGE_HISTORY = "message_history";
     private static final String PREF_MESSAGE_HISTORY_PER_DIR = "message_history_per_directory";
 
+    // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
+    // windows must see the same history. A per-instance controller gave each window its
+    // own in-memory list, so a command sent from the bubble was invisible to the full-screen
+    // window until it reloaded from disk.
+    private static volatile MessageHistoryController sShared;
+
+    @NonNull
+    public static MessageHistoryController shared(@NonNull SharedPreferences prefs) {
+        if (sShared == null) {
+            synchronized (MessageHistoryController.class) {
+                if (sShared == null) {
+                    sShared = new MessageHistoryController(prefs);
+                }
+            }
+        }
+        return sShared;
+    }
+
     /** In-memory message history, newest first (index 0 = most recent). */
     private final ArrayList<String> mMessageHistory = new ArrayList<>();
 
@@ -89,7 +107,7 @@ public final class MessageHistoryController {
             });
     private final AtomicInteger mPersistGeneration = new AtomicInteger();
 
-    public MessageHistoryController(@NonNull SharedPreferences prefs) {
+    private MessageHistoryController(@NonNull SharedPreferences prefs) {
         mPrefs = prefs;
     }
 

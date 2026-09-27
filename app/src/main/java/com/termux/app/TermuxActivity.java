@@ -766,7 +766,9 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
         reloadProperties();
 
         // Initialise the history controllers (they own the in-memory lists + persistence).
-        mMessageHistoryCtrl = new MessageHistoryController(termuxPrefs());
+        // MessageHistoryController is shared: the bubble is a second TermuxActivity instance
+        // and both windows must see the same history.
+        mMessageHistoryCtrl = MessageHistoryController.shared(termuxPrefs());
         mDirectoryHistoryCtrl = new DirectoryHistoryController(termuxPrefs());
 
         // Directory-history popup controller — owns its own popup window + gesture state
