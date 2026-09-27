@@ -356,6 +356,16 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
      */
     private boolean mIsInvalidState;
 
+    /**
+     * Set by {@link #reloadActivityStyling} before it rebuilds this window: the resume that follows
+     * belongs to that rebuild, not to a return from the background. See
+     * {@link #maybeAutoHideBubbleOnForeground()}.
+     *
+     * <p>Static: {@code recreate()} builds a new instance, so an instance field set on the outgoing
+     * window would be gone by the time its replacement resumes.
+     */
+    private static boolean mResumeIsStylingRebuild;
+
     // Last known IME (soft keyboard) height in px, taken from WindowInsetsCompat.Type.ime().
     // This is an INDEPENDENT signal of the real keyboard height, not derived from
     // getWindowVisibleDisplayFrame(), so it is reliable even when the visible-frame reading
@@ -3894,6 +3904,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void maybeAutoHideBubbleOnForeground() {
         // The bubble resuming is not the app returning to the foreground.
         if (isBubbleWindow()) return;
+        // A styling reload rebuilds this window, so the resume that follows is that rebuild rather
+        // than a return from the background, and the bubble has to survive it. Only this window
+        // consumes the flag: the bubble's own resume returned above.
+        if (mResumeIsStylingRebuild) {
+            mResumeIsStylingRebuild = false;
+            return;
+        }
         TermuxBubbleManager.cancel(this);
     }
 
@@ -4865,6 +4882,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // will be called again. Extra keys input text, terminal sessions and transcripts will be preserved.
         if (recreateActivity || wallpaperThemeNeedsRecreate) {
             Logger.logDebug(LOG_TAG, "Recreating activity");
+            // Mark the rebuild, so its resume is not counted as a return from the background.
+            mResumeIsStylingRebuild = true;
             TermuxActivity.this.recreate();
         }
     }
