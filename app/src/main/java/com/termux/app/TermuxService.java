@@ -228,8 +228,12 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     public int onStartCommand(Intent intent, int flags, int startId) {
         Logger.logDebug(LOG_TAG, "onStartCommand");
 
-        // Run again in case service is already started and onCreate() is not called
-        runStartForeground();
+        // Run again in case service is already started and onCreate() is not called. Skipped once
+        // the service has begun stopping: a command arriving on that path (the bubble state
+        // refresh, for one) is delivered after the Exit action tore the notification down, and
+        // publishing it again would re-post a foreground notification reporting the sessions the
+        // same teardown killed.
+        if (!mWantsToStop) runStartForeground();
 
         String action = null;
         if (intent != null) {
@@ -320,7 +324,9 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         Logger.logDebug(LOG_TAG, "Requesting to stop service");
         // Take the bubble down with the service: a bubble whose sessions are gone is an empty
         // terminal floating over other apps, reachable in one step via the notification's Exit.
-        TermuxBubbleManager.cancel(this);
+        // No notification rebuild: the notification goes with the service, so there is nothing for
+        // the rebuild to restore, and it would only race the teardown below.
+        TermuxBubbleManager.cancelForShutdown(this);
         runStopForeground();
         stopSelf();
     }

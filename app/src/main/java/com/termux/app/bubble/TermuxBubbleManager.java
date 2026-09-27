@@ -417,22 +417,41 @@ public final class TermuxBubbleManager {
      */
     public static void cancel(@NonNull Context context, boolean stateChangedOutside) {
         if (!isSupported(context)) return;
-        NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-        if (notificationManager == null) return;
-
         // Only rebuild the service notification when the state actually changes: the automatic
-        // path calls this on every resume, and re-posting each time would be pure churn. Read
-        // before the cancel, obviously.
+        // path calls this on every resume, and re-posting each time would be pure churn.
+        if (detachBubble(context) || stateChangedOutside) requestServiceNotificationRefresh(context);
+    }
+
+    /**
+     * Remove the bubble as part of the service shutting down, asking for no notification rebuild.
+     *
+     * <p>The notification the rebuild would restore is being torn down on this same path, and the
+     * rebuild is delivered asynchronously — so it landed after {@code stopForeground()}, re-posting
+     * a notification whose sessions had already been killed.
+     */
+    public static void cancelForShutdown(@NonNull Context context) {
+        if (!isSupported(context)) return;
+        detachBubble(context);
+    }
+
+    /**
+     * Cancel the bubble notification and forget the posted state, reporting whether one was up.
+     * Whether the service notification is then rebuilt is the caller's decision.
+     */
+    private static boolean detachBubble(@NonNull Context context) {
+        NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
+        if (notificationManager == null) return false;
+
+        // Read before the cancel, obviously.
         final boolean wasPosted = isBubblePosted(context);
 
         notificationManager.cancel(TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_ID);
-        // Cleared before the refresh below, so the service already reads "no bubble" when it decides
+        // Cleared before any refresh, so the service already reads "no bubble" when it decides
         // whether to offer the button again.
         sBubblePosted = false;
         Logger.logDebug(LOG_TAG, "Cancelled bubble notification");
 
-        // The bubble is gone, so its button belongs back on the service notification.
-        if (wasPosted || stateChangedOutside) requestServiceNotificationRefresh(context);
+        return wasPosted;
     }
 
     /**
