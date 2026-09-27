@@ -289,6 +289,19 @@
             android:name=".shared.activities.ReportActivity$ReportActivityBroadcastReceiver"
             android:exported="false" />
 
+        <!-- Reports the activation of a terminal-requested notification (kitty OSC 99 "report"
+             action) back to the program. Only ever sent as an explicit intent from the app itself,
+             so it stays unexported and needs no intent-filter. -->
+        <receiver
+            android:name=".app.notification.TermuxTerminalNotificationReceiver"
+            android:exported="false" />
+
+        <!-- Delivers the text typed into a terminal-requested notification's inline reply field to
+             that session's pty. Same shape: explicit intent from the app, so unexported. -->
+        <receiver
+            android:name=".app.notification.TermuxTerminalNotificationReplyReceiver"
+            android:exported="false" />
+
 
         <service
             android:name=".app.TermuxService"

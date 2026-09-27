@@ -27,6 +27,13 @@ public abstract class TerminalOutput {
     /** Notify the terminal client that a bell character (ASCII 7, bell, BEL, \a, ^G)) has been received. */
     public abstract void onBell();
 
+    /**
+     * Notify the terminal client that a program requested a desktop notification, via the kitty
+     * OSC 99 protocol. Called only for notifications that are complete, so a client never has to
+     * assemble anything itself.
+     */
+    public abstract void onNotification(TerminalNotification notification);
+
     public abstract void onColorsChanged();
 
 }

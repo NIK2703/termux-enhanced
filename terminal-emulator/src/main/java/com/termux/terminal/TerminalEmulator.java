@@ -124,6 +124,11 @@ public final class TerminalEmulator {
     /** Needs to be large enough to contain reasonable OSC 52 pastes. */
     private static final int MAX_OSC_STRING_LENGTH = 8192;
 
+    /** DECSET 1004: the window gained keyboard focus. */
+    private static final String FOCUS_IN = "\033[I";
+    /** DECSET 1004: the window lost keyboard focus. */
+    private static final String FOCUS_OUT = "\033[O";
+
     /** DECSET 1 - application cursor keys. */
     private static final int DECSET_BIT_APPLICATION_CURSOR_KEYS = 1;
     private static final int DECSET_BIT_REVERSE_VIDEO = 1 << 1;
@@ -149,7 +154,7 @@ public final class TerminalEmulator {
     private static final int DECSET_BIT_MOUSE_TRACKING_PRESS_RELEASE = 1 << 6;
     /** DECSET 1002 - like 1000, but report moving mouse while pressed. */
     private static final int DECSET_BIT_MOUSE_TRACKING_BUTTON_EVENT = 1 << 7;
-    /** DECSET 1004 - NOT implemented. */
+    /** DECSET 1004 - report window focus changes to the program, see {@link #setTerminalFocused(boolean)}. */
     private static final int DECSET_BIT_SEND_FOCUS_EVENTS = 1 << 8;
     /** DECSET 1006 - SGR-like mouse protocol (the modern sane choice). */
     private static final int DECSET_BIT_MOUSE_PROTOCOL_SGR = 1 << 9;
@@ -206,6 +211,9 @@ public final class TerminalEmulator {
     /** The terminal session this emulator is bound to. */
     private final TerminalOutput mSession;
 
+    /** Assembles kitty OSC 99 desktop notifications out of the chunks a program sends. */
+    private final Osc99NotificationParser mNotificationParser;
+
     TerminalSessionClient mClient;
 
     /** Keeps track of the current argument of the current escape sequence. Ranges from 0 to MAX_ESCAPE_PARAMETERS-1. */
@@ -237,6 +245,16 @@ public final class TerminalEmulator {
      * @see TerminalEmulator#mapDecSetBitToInternalBit(int)
      */
     private int mCurrentDecSetFlags, mSavedDecSetFlags;
+
+    /**
+     * Whether the window this terminal is displayed in currently has keyboard focus, as reported
+     * by the app through {@link #setTerminalFocused(boolean)}.
+     *
+     * <p>Only acted upon while {@link #DECSET_BIT_SEND_FOCUS_EVENTS} is set, i.e. once a program has
+     * enabled DECSET 1004. Before that it is kept up to date anyway, so enabling the mode reports
+     * the real state immediately instead of forcing the app to wait for the next change.
+     */
+    private boolean mTerminalFocused = false;
 
     /**
      * If insert mode (as opposed to replace mode) is active. In insert mode new characters are inserted, pushing
@@ -364,7 +382,23 @@ public final class TerminalEmulator {
         mCellWidthPixels = cellWidthPixels;
         mCellHeightPixels = cellHeightPixels;
         mTabStop = new boolean[mColumns];
+        mNotificationParser = new Osc99NotificationParser(notification -> mSession.onNotification(notification));
         reset();
+    }
+
+    /**
+     * Record the window's keyboard focus state and, if a program has enabled DECSET 1004, report the
+     * change to it with {@code ESC[I} (gained) or {@code ESC[O} (lost).
+     *
+     * <p>Called by the app, not by the terminal, because only the app knows about Android's window
+     * lifecycle. Idempotent: an unchanged value produces no output, so a stream of redundant
+     * lifecycle callbacks cannot flood the pty.
+     */
+    public void setTerminalFocused(boolean focused) {
+        if (mTerminalFocused == focused) return;
+        mTerminalFocused = focused;
+        if (!isDecsetInternalBitSet(DECSET_BIT_SEND_FOCUS_EVENTS)) return;
+        mSession.write(focused ? FOCUS_IN : FOCUS_OUT);
     }
 
     public void updateTerminalSessionClient(TerminalSessionClient client) {
@@ -1283,11 +1317,19 @@ public final class TerminalEmulator {
                     mRightMargin = mColumns;
                 }
                 break;
+            case 1004:
+                // Report the window's current focus state right away: a program that just enabled
+                // 1004 has no way to know the state otherwise, and would otherwise have to sit
+                // through a blind period before the next lifecycle change. mTerminalFocused is
+                // already true whenever the window is focused, so the write below is exactly the
+                // "focus gained" report, and the duplicate that setTerminalFocused would otherwise
+                // send is suppressed by its own equality check.
+                if (setting) mSession.write(mTerminalFocused ? FOCUS_IN : FOCUS_OUT);
+                break;
             case 1000:
             case 1001:
             case 1002:
             case 1003:
-            case 1004:
             case 1005: // UTF-8 mouse mode, ignore.
             case 1006: // SGR Mouse Mode
             case 1015:
@@ -2207,6 +2249,14 @@ public final class TerminalEmulator {
                 mSession.onColorsChanged();
                 break;
             case 119: // Reset highlight color.
+                break;
+            case 99: // Desktop notification (kitty notification protocol).
+                // OSC 99 ; metadata ; payload. textParameter is everything after "99;", so the
+                // parser receives the raw "metadata;payload" text and re-splits it. A support
+                // query ("p=?" with an empty payload) yields a reply that has to go back to the
+                // program, hence the write here rather than inside the parser.
+                String reply = mNotificationParser.handle(textParameter);
+                if (reply != null) mSession.write(reply);
                 break;
             default:
                 unknownParameter(value);

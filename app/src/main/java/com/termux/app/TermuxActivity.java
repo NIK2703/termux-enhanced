@@ -41,6 +41,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.termux.R;
 import com.termux.app.api.file.FileReceiverActivity;
 import com.termux.app.bubble.TermuxBubbleManager;
+import com.termux.app.notification.TermuxTerminalNotificationDispatcher;
 import com.termux.app.terminal.TermuxActivityRootView;
 import com.termux.app.terminal.TermuxServiceConnectionManager;
 import com.termux.app.terminal.TermuxSessionSnapshotManager;
@@ -327,6 +328,13 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
      * {@link TermuxApplication#getStartedActivityCount()} answers that question.
      */
     private boolean mUserLeaveHintSeen = false;
+
+    /**
+     * Session this window was asked to show, from a notification that named it, or {@code null}.
+     * Consumed by {@link #applyRequestedSession()} once honoured.
+     */
+    @Nullable
+    private String mRequestedSessionHandle;
 
     /**
      * If onResume() was called after onCreate().
@@ -750,6 +758,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     public void onCreate(Bundle savedInstanceState) {
         Logger.logDebug(LOG_TAG, "onCreate");
 
+        readRequestedSessionFromIntent();
+
         // Claim the debug-hook handle. With two windows alive this must not be a plain assignment:
         // the bubble is a second instance of this class, so the last one to be created would win and
         // — worse — the bubble's onDestroy() would clear the handle of the full-screen window that is
@@ -1026,6 +1036,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mIsVisible = true;
 
+        // Create the channel for notifications that a program in the terminal asks for while the
+        // user is here. On Android 13+ the system raises the POST_NOTIFICATIONS consent prompt
+        // itself the first time a channel is created, so doing it on start puts that one-off
+        // prompt somewhere the user can see what they are allowing.
+        TermuxTerminalNotificationDispatcher.ensureChannel(this);
+
+        // Land on the session that asked for attention, if the window was opened from one of its
+        // notifications. A no-op otherwise, and deliberately not fatal when the session is gone.
+        applyRequestedSession();
+
+        // Re-publish, because coming back from the background changes visibility and this is the
+        // only point where both flags are known together.
+        publishTerminalWindowState(hasWindowFocus());
+
         // A leave hint only means something for the stop that immediately follows it. Dropping it on
         // every (re)start keeps a stale one from a previous transition — one that was evaluated and
         // correctly ignored because another of our screens took over — from opening a bubble much
@@ -1065,6 +1089,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+
+        // Window focus is what a terminal means by focus: it decides both which notifications a
+        // program asked to be shown only-when-blurred get, and what DECSET 1004 reports. Published
+        // before the rest of this method so a program that reacts to the focus change sees state
+        // that is already consistent.
+        publishTerminalWindowState(hasFocus);
 
         // A keyboard restore deferred in onResume (window not yet focused, e.g.
         // returning from Settings) is executed here — showSoftInput only works
@@ -1207,6 +1237,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mIsOnResumeAfterOnCreate = false;
         mIsPaused = false;
 
+        // Resuming makes the window visible again, but not necessarily focused yet (onResume runs
+        // before the window has focus), so report the real focus flag rather than assuming true.
+        publishTerminalWindowState(hasWindowFocus());
+
         // Wallpaper / options may have changed while we were backgrounded.
         refreshMonetOnResume();
     }
@@ -1236,6 +1270,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // close the text input panel when the system dismisses the soft keyboard
         // on pause. The panel must stay open and reappear on resume.
         mIsPaused = true;
+
+        // A backgrounded window is by definition not focused. Publishing it also gives programs
+        // that enabled DECSET 1004 their focus-lost report, which is what makes an
+        // "only notify me when I am looking elsewhere" policy possible at all.
+        publishTerminalWindowState(false);
 
         // Snapshot the current session's full UI state (focus target, input text,
         // caret, terminal scroll position, keyboard intent) into the store while
@@ -4080,8 +4119,83 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return mIsVisible;
     }
 
+    /**
+     * Publish this window's focus and visibility to the terminal layer, and forward the focus
+     * change to every session.
+     *
+     * <p>Two consumers, deliberately fed from one call so they cannot disagree:
+     * <ul>
+     * <li>{@link TermuxTerminalNotificationDispatcher} evaluates a program's {@code o} occasions
+     * against this state. It is static because notifications are posted by the service client,
+     * which has no window of its own.</li>
+     * <li>DECSET 1004 focus reporting, which is what a full-screen terminal UI keys its
+     * "only notify when blurred" behaviour off. Every session gets it, not just the visible one:
+     * a session on a background tab can be the one whose program is asking.</li>
+     * </ul>
+     */
+    private void publishTerminalWindowState(boolean focused) {
+        TermuxTerminalNotificationDispatcher.setWindowState(focused, mIsVisible && !mIsPaused);
+        // Every session, not just the visible one: a session on a background tab can be the one
+        // whose program is asking, and the same window focus applies to all of them.
+        for (TerminalSession session : orderedTerminalSessions()) {
+            session.setTerminalFocused(focused);
+        }
+    }
+
     public boolean isOnResumeAfterOnCreate() {
         return mIsOnResumeAfterOnCreate;
+    }
+
+    /**
+     * Switch to the session named by {@link TermuxConstants#EXTRA_TERMINAL_SESSION_HANDLE}, if the
+     * window was opened from one of its notifications.
+     *
+     * <p>Lives here rather than in the notification's own activity so that both entry points behave
+     * the same: tapping the notification, and expanding it into a bubble. The handle is consumed once
+     * honoured, so a later {@code onStart} — the user merely returning to a still-open window — does
+     * not yank the view away from whatever they switched to in the meantime.
+     *
+     * <p>Nothing happens when there is no handle, when the pager or the service is not up yet, or
+     * when the session is gone. The last case is common enough to matter: the notification outlives
+     * the shell that raised it, and pulling the user to a different tab because of a dead session
+     * would be worse than staying put.
+     */
+    protected void applyRequestedSession() {
+        if (mRequestedSessionHandle == null) return;
+        SessionPagerManager pager = getSessionPagerManager();
+        if (pager == null) return;
+        TermuxService service = getTermuxService();
+        if (service == null) return; // still binding; onStart will come back
+
+        TerminalSession session = service.getTerminalSessionForHandle(mRequestedSessionHandle);
+        if (session == null) {
+            Logger.logDebug(LOG_TAG, "Target session " + mRequestedSessionHandle + " is gone; staying put");
+            mRequestedSessionHandle = null;
+            return;
+        }
+        if (pager.selectSession(session)) mRequestedSessionHandle = null;
+    }
+
+    /**
+     * This window is {@code singleTask}, so a notification tapped while Termux is already running is
+     * delivered here rather than through {@code onCreate}. Without this the tap would only bring the
+     * existing window forward and the session it named would be ignored — which is most of the taps,
+     * since the whole point of the notification is that the app is in the background.
+     */
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        readRequestedSessionFromIntent();
+        // The window is already up, so there is no following onStart to consume the handle.
+        applyRequestedSession();
+    }
+
+    /** Take the session to show from {@link TermuxConstants#EXTRA_TERMINAL_SESSION_HANDLE}, if any. */
+    private void readRequestedSessionFromIntent() {
+        if (getIntent() == null) return;
+        String handle = getIntent().getStringExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE);
+        if (handle != null && !handle.trim().isEmpty()) mRequestedSessionHandle = handle;
     }
 
     public boolean isActivityRecreated() {

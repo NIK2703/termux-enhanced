@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.terminal.TermuxTerminalSessionClientBase;
+import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
@@ -106,6 +107,18 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
         for (TerminalSessionClient client : mSecondaries) {
             guard(() -> client.onBell(session), "onBell");
         }
+    }
+
+    /**
+     * Notifications are NOT fanned out: every delegate that implements this would post its own
+     * system notification, and with the activity and the bubble both registered the user would see
+     * every event twice. Exactly one delegate must own the side effect, so it goes to the primary —
+     * the service client, which exists whether or not an activity is bound.
+     */
+    @Override
+    public void onNotification(@NonNull TerminalSession session, @NonNull TerminalNotification notification) {
+        TermuxTerminalSessionClientBase primary = mPrimary;
+        if (primary != null) guard(() -> primary.onNotification(session, notification), "onNotification");
     }
 
     @Override

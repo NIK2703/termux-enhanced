@@ -308,6 +308,23 @@ public final class TerminalSession extends TerminalOutput {
     }
 
     @Override
+    public void onNotification(TerminalNotification notification) {
+        mClient.onNotification(this, notification);
+    }
+
+    /**
+     * Tell the session whether its window currently has keyboard focus, so that DECSET 1004 focus
+     * reporting ({@code ESC[I} / {@code ESC[O}) can be driven from the app.
+     *
+     * <p>Safe to call before {@link #updateSize} and repeatedly: the emulator only emits anything
+     * once a program has actually enabled mode 1004, and repeated identical values are ignored.
+     */
+    public void setTerminalFocused(boolean focused) {
+        if (mEmulator == null) return;
+        mEmulator.setTerminalFocused(focused);
+    }
+
+    @Override
     public void onColorsChanged() {
         mClient.onColorsChanged(this);
     }

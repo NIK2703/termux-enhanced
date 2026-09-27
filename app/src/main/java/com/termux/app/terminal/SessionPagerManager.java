@@ -178,6 +178,35 @@ public final class SessionPagerManager {
         mTerminalPager.setCurrentItem(index, false);
     }
 
+    /**
+     * Make {@code session} the visible page.
+     *
+     * <p>For a window that is opening <em>onto</em> one specific session — a bubble launched for the
+     * session whose program just asked for attention. Different from
+     * {@link #parkOnSessionBeforeRemoval(TerminalSession)} in intent only; the mechanism is the same
+     * proven instant jump, which runs the full {@link #onTerminalPageSelected} landing.
+     *
+     * <p>When the service is not connected yet the request is parked instead, and the first
+     * {@link #syncTerminalPagerToService()} consumes it. That ordering matters: a window created for
+     * a bubble reaches {@code onCreate} before its service bind completes, so resolving the session
+     * eagerly would find nothing and silently land on the wrong tab.
+     *
+     * @return {@code true} if {@code session} is the page now shown.
+     */
+    public boolean selectSession(@Nullable TerminalSession session) {
+        if (session == null || mTerminalPager == null) return false;
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null) {
+            mPendingInitialSession = session;
+            return false;
+        }
+        int index = service.getIndexOfSession(session);
+        if (index < 0) return false;   // the session died; leave the window where it is
+        if (index == mTerminalPager.getCurrentItem()) return true;
+        mTerminalPager.setCurrentItem(index, false);
+        return true;
+    }
+
     @Nullable
     private RecyclerView getPagerRecyclerView() {
         if (mTerminalPager == null) return null;

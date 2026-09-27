@@ -89,6 +89,10 @@
 
     <!-- Termux Notifications -->
     <string name="notification_action_exit">Exit</string>
+    <!-- Inline reply on a notification a program in the terminal asked for (kitty OSC 99). -->
+    <string name="notification_action_reply">Reply</string>
+    <!-- Hint shown in the inline reply field. -->
+    <string name="notification_terminal_reply_hint">Type a command and send</string>
     <string name="notification_action_wake_lock">Acquire wake lock</string>
     <string name="notification_action_wake_unlock">Release wake lock</string>
 

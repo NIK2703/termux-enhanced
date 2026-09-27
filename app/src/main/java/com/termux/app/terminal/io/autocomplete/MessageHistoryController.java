@@ -62,6 +62,17 @@ public final class MessageHistoryController {
     private final ArrayList<String> mMessageHistory = new ArrayList<>();
 
     /**
+     * Whether {@link #load} has populated the in-memory state from disk.
+     *
+     * <p>Guards the mutators, not the constructor. The constructor deliberately does no I/O, so a
+     * caller that reaches a mutator without loading first operates on an empty store — and then
+     * persists it, which does not merely lose the new entry: it rewrites the whole per-directory JSON
+     * from that empty state and every other directory's history goes with it. That is not hypothetical;
+     * a notification reply did exactly this, and the fix belongs here so the next caller cannot.
+     */
+    private boolean mLoaded;
+
+    /**
      * Per-directory history store, keyed by absolute path (CWD).
      * Only populated when {@code mPerDirectoryMessageHistory} is true.
      */
@@ -389,6 +400,7 @@ public final class MessageHistoryController {
     public void addToMessageHistory(@NonNull String message, @Nullable String cwd) {
         if (TextUtils.isEmpty(message)) return;
 
+        ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
         mMessageHistory.remove(message);      // dedup
@@ -408,6 +420,7 @@ public final class MessageHistoryController {
     public void addNewOnTop(@NonNull String message, @Nullable String cwd) {
         if (TextUtils.isEmpty(message)) return;
 
+        ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
         if (mMessageHistory.indexOf(message) >= 0) return; // already present: keep position
@@ -418,9 +431,23 @@ public final class MessageHistoryController {
         mHistoryVersion++;
     }
 
+    /**
+     * Make sure the in-memory state mirrors disk before it is mutated.
+     *
+     * <p>Idempotent and a no-op once {@link #load} has run, so a caller outside the activity — a
+     * notification reply writing into a background session's history — merges into the stored history
+     * instead of replacing it. {@code cwd} is only a fallback for the global-store case and for the
+     * directory the caller is about to add to; it is deliberately the caller's own directory rather
+     * than whatever happens to be in front of the user.
+     */
+    private void ensureLoaded(@Nullable String cwd) {
+        if (mLoaded) return;
+        String fallback = (cwd == null || cwd.isEmpty()) ? "/" : cwd;
+        load(fallback);
+    }
+
     /** Persist the in-memory list under the old CWD and switch to {@code cwd} when it changed. */
-    private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {
-        if (mPerDirectoryMessageHistory && mHistoryCurrentDirectory != null
+    private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {        if (mPerDirectoryMessageHistory && mHistoryCurrentDirectory != null
                 && cwd != null && !cwd.equals(mHistoryCurrentDirectory)) {
             mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
             mMessageHistory.clear();
@@ -448,6 +475,7 @@ public final class MessageHistoryController {
         } else {
             loadGlobal();
         }
+        mLoaded = true;
     }
 
     private void loadGlobal() {
