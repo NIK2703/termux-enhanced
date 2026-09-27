@@ -234,6 +234,14 @@
             app:title="@string/fullscreen_title"
             app:iconSpaceReserved="false" />
 
+        <!-- The window always takes the cutout, otherwise that strip shows as a black gap. This
+             decides only whether the terminal content is laid out there too, or is held clear of it
+             so the strip keeps showing just the background. -->
+        <SwitchPreferenceCompat
+            app:key="extend-into-cutout"
+            app:title="@string/extend_into_cutout_title"
+            app:iconSpaceReserved="false" />
+
         <!-- The bubble is the app's own window (TermuxBubbleActivity) floated over whatever else is
              on screen. Switched on, it opens itself when the user leaves the app and goes away when
              they come back; switched off, a bubble only ever appears when it is asked for — from the

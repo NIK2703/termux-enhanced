@@ -6,6 +6,7 @@ import android.view.WindowInsets;
 import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
+import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
 
 /**
@@ -36,6 +37,11 @@ import androidx.core.view.WindowInsetsCompat;
  */
 public class TermuxActivityRootView extends LinearLayout {
 
+    /** Set while the terminal content, not just the window, may be laid out in the display cutout. */
+    private boolean mExtendIntoDisplayCutout;
+
+    @Nullable private WindowInsets mLastInsets;
+
     public TermuxActivityRootView(Context context) {
         super(context);
     }
@@ -48,13 +54,69 @@ public class TermuxActivityRootView extends LinearLayout {
         super(context, attrs, defStyleAttr);
     }
 
+    /**
+     * Whether the terminal content may be laid out in the display cutout, as opposed to being held
+     * clear of it by the platform padding.
+     *
+     * <p>Re-dispatches the last insets, since switching back off has to put that padding back and
+     * the platform only recomputes it on a dispatch.
+     */
+    public void setExtendIntoDisplayCutout(boolean extend) {
+        if (mExtendIntoDisplayCutout == extend) return;
+        mExtendIntoDisplayCutout = extend;
+        if (mLastInsets != null) dispatchApplyWindowInsets(mLastInsets);
+    }
+
     @Override
     public WindowInsets onApplyWindowInsets(WindowInsets insets) {
+        mLastInsets = insets;
         // Let the platform apply its own system-bar padding (fitsSystemWindows) first, then top the
         // bottom up so the keyboard cannot cover the extra keys / terminal either.
         WindowInsets result = super.onApplyWindowInsets(insets);
         applyImeBottomPadding(insets);
+        applyDisplayCutoutPadding(insets);
         return result;
+    }
+
+    /**
+     * Take the display cutout back out of the padding while the content may use it.
+     *
+     * <p>{@code fitsSystemWindows} turns the system window insets into padding, and with the window
+     * overlapping the cutout that padding covers the cutout too — so the terminal starts below the
+     * notch and the strip the window gained sits there empty. Only the part the cutout adds on its
+     * own is given back; see {@link #withoutCutout}.
+     *
+     * <p>Safe on every dispatch: {@code View} applies the insets as an absolute padding rather than
+     * accumulating them onto the user padding, so nothing carries over.
+     */
+    private void applyDisplayCutoutPadding(WindowInsets insets) {
+        if (!mExtendIntoDisplayCutout || insets == null) return;
+
+        WindowInsetsCompat compat = WindowInsetsCompat.toWindowInsetsCompat(insets);
+        Insets cutout = compat.getInsets(WindowInsetsCompat.Type.displayCutout());
+        if (cutout.left == 0 && cutout.top == 0 && cutout.right == 0 && cutout.bottom == 0) return;
+
+        Insets bars = compat.getInsets(WindowInsetsCompat.Type.systemBars());
+        setPadding(
+                withoutCutout(cutout.left, bars.left, getPaddingLeft()),
+                withoutCutout(cutout.top, bars.top, getPaddingTop()),
+                withoutCutout(cutout.right, bars.right, getPaddingRight()),
+                withoutCutout(cutout.bottom, bars.bottom, getPaddingBottom()));
+    }
+
+    /**
+     * The padding on one edge after giving back the part of the cutout that the system bars do not
+     * already cover.
+     *
+     * <p>The padding is the union of the bars and the cutout, so the cutout only adds
+     * {@code max(0, cutout - bars)} to it. Subtracting the whole cutout instead would zero the top
+     * padding in portrait, where the notch sits inside the status bar and the two are the same
+     * height — the terminal would then start under the bar's clock and icons. With fullscreen there
+     * is no status bar inset, so the whole cutout is given back, and in landscape the cutout is on a
+     * long edge that no bar covers, so it is given back there too.
+     */
+    private static int withoutCutout(int cutout, int bars, int padding) {
+        return Math.max(0, padding - Math.max(0, cutout - bars));
     }
 
     /** Top up {@code paddingBottom} to the IME inset; never shrinks — see class doc. */

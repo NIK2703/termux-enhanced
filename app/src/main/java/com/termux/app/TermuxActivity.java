@@ -4753,6 +4753,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Apply or clear the fullscreen window flag according to the current
      * {@link TermuxAppSharedProperties#isUsingFullScreen()} setting. Called on activity creation and
      * on every styling reload so that toggling the setting takes effect immediately.
+     *
+     * <p>Also applies {@link #setDisplayCutoutMode()}, which is independent of fullscreen but
+     * belongs to the same styling pass.
      */
     private void setFullScreenFlags() {
         if (mProperties == null) return;
@@ -4760,6 +4763,36 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         else
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        setDisplayCutoutMode();
+    }
+
+    /**
+     * Let the window cover the display cutout, and the terminal content only when asked.
+     *
+     * <p>The window part is unconditional: in the default cutout mode the window frame is kept out
+     * of the cutout in portrait, so that strip is outside the window and shows as a black gap —
+     * with or without fullscreen. Covering it hands the strip to the decor background that
+     * {@link #applySystemBarColors} paints, so it is always the terminal background. {@code ALWAYS}
+     * rather than {@code SHORT_EDGES}, which would keep the window out of the long-edge cutout in
+     * landscape and bring the gap back there.
+     *
+     * <p>A bubble window is skipped: it is a second window the user opened over whatever app they
+     * were in, and its geometry is not tied to the screen edges.
+     */
+    private void setDisplayCutoutMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
+        if (isBubbleWindow()) return;
+
+        final int mode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        final WindowManager.LayoutParams lp = getWindow().getAttributes();
+        if (lp.layoutInDisplayCutoutMode != mode) {   // setAttributes() relayouts the window
+            lp.layoutInDisplayCutoutMode = mode;
+            getWindow().setAttributes(lp);
+        }
+
+        if (mTermuxActivityRootView != null)
+            mTermuxActivityRootView.setExtendIntoDisplayCutout(
+                    mPreferences != null && mPreferences.isExtendIntoCutout());
     }
 
     public void reloadActivityStyling(boolean recreateActivity) {

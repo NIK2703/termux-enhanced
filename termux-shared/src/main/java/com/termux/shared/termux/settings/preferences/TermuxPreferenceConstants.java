@@ -338,6 +338,15 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_USE_FULLSCREEN = false;
 
         /**
+         * Whether the terminal content, not just the window, may be laid out in the display cutout.
+         * The window always takes the cutout — otherwise that strip is outside it and shows as a
+         * black gap — so this only decides whether the content follows in, or is held clear of it
+         * and leaves the terminal background there.
+         */
+        public static final String KEY_EXTEND_INTO_CUTOUT = "extend-into-cutout";
+        public static final boolean DEFAULT_VALUE_EXTEND_INTO_CUTOUT = true;
+
+        /**
          * Whether the app moves itself into a bubble window when the user leaves it, and takes it
          * back down when they return.
          *

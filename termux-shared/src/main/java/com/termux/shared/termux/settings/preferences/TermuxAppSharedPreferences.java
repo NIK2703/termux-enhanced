@@ -534,6 +534,14 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_USE_FULLSCREEN, value);
     }
 
+    public boolean isExtendIntoCutout() {
+        return getBooleanByKey(TERMUX_APP.KEY_EXTEND_INTO_CUTOUT, TERMUX_APP.DEFAULT_VALUE_EXTEND_INTO_CUTOUT);
+    }
+
+    public void setExtendIntoCutout(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_EXTEND_INTO_CUTOUT, value);
+    }
+
     public boolean isBubbleOnBackgroundEnabled() {
         return getBooleanByKey(TERMUX_APP.KEY_BUBBLE_ON_BACKGROUND, TERMUX_APP.DEFAULT_VALUE_BUBBLE_ON_BACKGROUND);
     }

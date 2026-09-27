@@ -121,6 +121,10 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("fullscreen", prefs != null && prefs.isUsingFullScreen(),
             value -> { if (prefs != null) prefs.setFullScreen(value); });
 
+        // --- Window: extend into the display cutout ---
+        configureSwitch("extend-into-cutout", prefs != null && prefs.isExtendIntoCutout(),
+            value -> { if (prefs != null) prefs.setExtendIntoCutout(value); });
+
         // --- Window: bubble on background ---
         configureSwitch("bubble-on-background", prefs != null && prefs.isBubbleOnBackgroundEnabled(),
             value -> { if (prefs != null) prefs.setBubbleOnBackgroundEnabled(value); });
