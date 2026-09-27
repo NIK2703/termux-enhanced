@@ -388,6 +388,7 @@
     <string name="scroll_on_new_output_title">التمرير التلقائي عند المخرجات الجديدة</string>
     <string name="terminal_onclick_url_open_title">فتح الروابط عند النقر</string>
     <string name="fullscreen_title">ملء الشاشة</string>
+    <string name="extend_into_cutout_title">الامتداد إلى فتحة الكاميرا</string>
     <string name="bubble_on_background_title">فقاعة عند الانتقال إلى الخلفية</string>
     <string name="bubble_on_background_summary">إظهار فقاعة عند انتقال التطبيق إلى الخلفية للوصول السريع إلى الطرفية فوق التطبيقات الأخرى</string>
     <string name="session_shortcut_needs_modifier">عيّن اختصارًا يحتوي على مفاتيح التعديل Ctrl أو Alt أو Shift أو Fn</string>

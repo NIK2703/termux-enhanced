@@ -423,6 +423,7 @@
     <string name="scroll_on_new_output_title">Rolar ao receber nova saída</string>
     <string name="terminal_onclick_url_open_title">Abrir links ao tocar</string>
     <string name="fullscreen_title">Tela cheia</string>
+    <string name="extend_into_cutout_title">Estender até o notch</string>
     <string name="bubble_on_background_title">Bolha em segundo plano</string>
     <string name="bubble_on_background_summary">Mostrar a bolha quando o aplicativo for para o segundo plano, permitindo acessar rapidamente o terminal por cima de outros aplicativos</string>
     <string name="shortcut_create_session_title">Nova sessão</string>

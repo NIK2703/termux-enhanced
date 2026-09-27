@@ -392,6 +392,7 @@
 
     
     <string name="fullscreen_title">Layar penuh</string>
+    <string name="extend_into_cutout_title">Perpanjang ke area cutout</string>
     <string name="bubble_on_background_title">Gelembung di latar belakang</string>
     <string name="bubble_on_background_summary">Tampilkan gelembung saat aplikasi masuk ke latar belakang untuk akses cepat ke terminal di atas aplikasi lain</string>
 

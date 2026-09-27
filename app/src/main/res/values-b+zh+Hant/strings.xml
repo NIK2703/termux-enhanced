@@ -415,6 +415,7 @@
     <string name="terminal_onclick_url_open_title">輕觸開啟連結</string>
 
     <string name="fullscreen_title">全螢幕</string>
+    <string name="extend_into_cutout_title">延伸至瀏海區域</string>
     <string name="bubble_on_background_title">背景氣泡</string>
     <string name="bubble_on_background_summary">進入背景時顯示氣泡，以便在其他應用程式上方快速存取終端機</string>
 

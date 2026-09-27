@@ -378,6 +378,7 @@
 
     
     <string name="fullscreen_title">Plein écran</string>
+    <string name="extend_into_cutout_title">Étendre dans l\'encoche</string>
     <string name="bubble_on_background_title">Bulle en arrière-plan</string>
     <string name="bubble_on_background_summary">Afficher une bulle lorsque l’application passe en arrière-plan pour accéder rapidement au terminal par-dessus les autres applications</string>
 

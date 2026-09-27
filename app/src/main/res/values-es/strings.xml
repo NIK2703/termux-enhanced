@@ -345,6 +345,7 @@
     <string name="extra_keys_editor_remove_signal">Eliminar %s</string>
     <string name="extra_keys_dynamic_font_size_title">Tamaño de fuente dinámico</string>
     <string name="fullscreen_title">Pantalla completa</string>
+    <string name="extend_into_cutout_title">Ampliar hasta la muesca</string>
     <string name="bubble_on_background_title">Burbuja en segundo plano</string>
     <string name="bubble_on_background_summary">Mostrar la burbuja cuando la aplicación pase a segundo plano para acceder rápidamente a la terminal encima de otras aplicaciones</string>
     <string name="hide_soft_keyboard_on_startup_title">Ocultar teclado virtual al inicio</string>

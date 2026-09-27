@@ -372,6 +372,7 @@
     <string name="scroll_on_new_output_title">नए आउटपुट पर स्क्रॉल करें</string>
     <string name="terminal_onclick_url_open_title">टैप पर URL खोलें</string>
     <string name="fullscreen_title">पूर्ण स्क्रीन</string>
+    <string name="extend_into_cutout_title">कटआउट में विस्तार करें</string>
     <string name="bubble_on_background_title">पृष्ठभूमि में बबल</string>
     <string name="bubble_on_background_summary">ऐप के पृष्ठभूमि में जाने पर अन्य ऐप्स के ऊपर टर्मिनल तक त्वरित पहुँच के लिए बबल दिखाएँ</string>
     <string name="shortcut_create_session_title">नया सत्र</string>
