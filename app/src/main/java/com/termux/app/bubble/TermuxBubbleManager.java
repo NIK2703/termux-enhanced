@@ -87,6 +87,42 @@ public final class TermuxBubbleManager {
     private static boolean sBubblePosted;
 
     /**
+     * Handle of the session whose program most recently raised a notification, or {@code null}.
+     *
+     * <p>The bubble is a single shared window over every session, so "which session is it showing"
+     * has no answer of its own. This is that answer: the last one that asked for attention. Recorded
+     * here rather than in the notification code because this class already owns the bubble's
+     * process-wide state, and the bubble window reads it without needing to know who wrote it.
+     *
+     * <p>Deliberately not part of the bubble's lifecycle: cancelling or dismissing the bubble leaves
+     * it alone, because the point is where to go next, and that session is still the one asking. A
+     * session that dies is simply not found when the handle is used, and the window stays put rather
+     * than jumping somewhere else.
+     */
+    @Nullable
+    private static volatile String sLastNotifiedSessionHandle;
+
+    /**
+     * Record that a session's program has asked for the user's attention.
+     *
+     * @param sessionHandle {@code TerminalSession#mHandle} of the session that raised it.
+     */
+    public static void noteSessionAskedForAttention(@NonNull String sessionHandle) {
+        sLastNotifiedSessionHandle = sessionHandle;
+    }
+
+    /**
+     * The session whose program most recently raised a notification, or {@code null} if none has.
+     *
+     * <p>A fallback, never an override: a window told exactly which session to show must not be
+     * second-guessed.
+     */
+    @Nullable
+    public static String lastNotifiedSession() {
+        return sLastNotifiedSessionHandle;
+    }
+
+    /**
      * Wall-clock time at which this process started, used to tell this process's own bubble
      * notification apart from one left behind by an earlier one. See {@link #isBubblePosted}.
      */

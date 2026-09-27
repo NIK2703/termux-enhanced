@@ -4191,10 +4191,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         applyRequestedSession();
     }
 
-    /** Take the session to show from {@link TermuxConstants#EXTRA_TERMINAL_SESSION_HANDLE}, if any. */
+    /**
+     * Take the session to show from {@link TermuxConstants#EXTRA_TERMINAL_SESSION_HANDLE}, if any.
+     *
+     * <p>The floating bubble window falls back to the session whose program most recently raised a
+     * notification. It has to: the bubble is one shared window over every session, so without that there
+     * is nothing in particular for it to show, and tapping through from a notification would otherwise
+     * land on whichever tab happened to be current. The full-screen window does not fall back — being
+     * told nothing means show what the user was last using, not a session left over from a notification
+     * that has already been dealt with.
+     */
     private void readRequestedSessionFromIntent() {
         if (getIntent() == null) return;
         String handle = getIntent().getStringExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE);
+        if (handle == null && isBubbleWindow()) handle = TermuxBubbleManager.lastNotifiedSession();
         if (handle != null && !handle.trim().isEmpty()) mRequestedSessionHandle = handle;
     }
 

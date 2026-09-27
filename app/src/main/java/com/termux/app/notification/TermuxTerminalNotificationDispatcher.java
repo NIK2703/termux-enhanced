@@ -21,6 +21,7 @@ import androidx.core.graphics.drawable.IconCompat;
 import com.termux.R;
 import com.termux.app.TermuxActivityUtils;
 import com.termux.app.bubble.TermuxBubbleActivity;
+import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.notification.NotificationUtils;
 import com.termux.shared.termux.notification.TermuxNotificationUtils;
@@ -164,8 +165,6 @@ public final class TermuxTerminalNotificationDispatcher {
         // once; a notification that is nothing but a body is already the summary and is likewise not
         // repeated underneath itself.
         CharSequence bigText = title == null || body == null ? null : body;
-        // Which session this is — for the shortcut and the group, never for the text.
-        CharSequence sessionLabel = sessionLabel(session);
 
         PendingIntent contentIntent = PendingIntent.getActivity(context, requestCode(id, 0),
             TermuxActivityUtils.newInstance(context)
@@ -199,11 +198,17 @@ public final class TermuxTerminalNotificationDispatcher {
         // together in the shade instead of interleaving several terminals' into one unread pile.
         builder.setGroup(NOTIFICATION_GROUP + "." + session.mHandle);
 
-        // One shortcut per session, published before it is referenced. It is what the system groups
-        // a session's notifications by and what identifies the session in the shade's conversation
-        // list, which is how a wall of notifications from several terminals stays readable.
-        String shortcutId = publishSessionShortcut(context, session.mHandle, sessionLabel);
+        // Every session's notifications join ONE conversation: the one the bubble is anchored to, by
+        // reusing its shortcut id. A conversation is identified by the shortcut, not by the channel —
+        // the platform derives a per-conversation channel named after both — so keeping our own loud
+        // channel does not exclude us from the bubble's conversation, while a per-session shortcut
+        // would have split these notifications into one conversation per open terminal.
+        String shortcutId = publishConversationShortcut(context);
         if (shortcutId != null) builder.setShortcutId(shortcutId);
+
+        // Where the bubble should go when the user asks for it, however they ask: by tapping the
+        // bubble, or by the bubble coming up on its own when the app is minimised.
+        TermuxBubbleManager.noteSessionAskedForAttention(session.mHandle);
 
         // Deliberately no MessagingStyle. Its Person must be named — the platform rejects an anonymous
         // one — and the style then draws that name as a header above every message, including the
@@ -267,51 +272,44 @@ public final class TermuxTerminalNotificationDispatcher {
      * itself. The app's own name is only the last resort, when nothing else is known.
      */
     /**
-     * Publish the per-session shortcut that ties one session's notifications together as a single
-     * conversation, and names that session in the shade.
+     * Publish the shortcut that puts these notifications into the bubble's conversation.
      *
-     * <p>One per session, all of them long-lived dynamic shortcuts. Long-lived here costs nothing in
-     * launcher rows — it is a dynamic shortcut, so nothing is pinned and nothing appears in the
-     * launcher; the flag only stops it being discarded when the process dies. That matters because the
-     * system has to resolve the shortcut to group a session's notifications into a conversation, and a
-     * transient one came back unresolvable on the notification record.
+     * <p>It is the bubble's own shortcut id, not a per-session one, so that every session's
+     * notifications land in the single conversation the user already knows — and so the bubble has an
+     * anchor to resolve. Published here as well because {@code TermuxBubbleManager} only publishes it
+     * when it posts its own bubble notification, which need not have happened: a program can ask for
+     * attention before the app has ever been minimised.
+     *
+     * <p>Long-lived, and still dynamic: nothing is pinned and nothing appears in the launcher, the flag
+     * only keeps it from being discarded when the process dies. That matters because the system has to
+     * resolve the shortcut to build the conversation, and a transient one came back unresolvable on the
+     * notification record.
      *
      * @return the shortcut id, or {@code null} if it could not be published.
      */
     @Nullable
-    private static String publishSessionShortcut(@NonNull Context context, @NonNull String sessionHandle,
-                                                 @NonNull CharSequence label) {
-        String shortcutId = TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_SHORTCUT_ID_PREFIX + sessionHandle;
+    private static String publishConversationShortcut(@NonNull Context context) {
+        String shortcutId = TermuxConstants.TERMUX_BUBBLE_SHORTCUT_ID;
         try {
-            Intent target = new Intent(context, TermuxBubbleActivity.class)
-                .setAction(Intent.ACTION_VIEW)
-                .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, sessionHandle);
+            CharSequence label = context.getString(R.string.bubble_conversation_label);
             ShortcutManagerCompat.pushDynamicShortcut(context, new ShortcutInfoCompat.Builder(context, shortcutId)
                 .setShortLabel(label)
                 .setLongLabel(label)
                 .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
-                .setIntent(target)
+                .setIntent(new Intent(context, TermuxBubbleActivity.class)
+                    .setAction(Intent.ACTION_VIEW)
+                    .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE,
+                        TermuxBubbleManager.lastNotifiedSession()))
                 .setLongLived(true)
                 .build());
             return shortcutId;
         } catch (Exception e) {
-            // A missing shortcut costs the per-session conversation grouping, but must not abort the
-            // post: the user still gets the notification, the reply and the right session on tap.
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to publish session shortcut", e);
+            // Without the shortcut there is no conversation for these to join, but the notification
+            // itself is still worth posting: the user still gets it, the reply still works, and a tap
+            // still opens the right session.
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to publish conversation shortcut", e);
             return null;
         }
-    }
-
-    private static CharSequence sessionLabel(@NonNull TerminalSession session) {
-        String title = session.getTitle();
-        if (title != null && !title.trim().isEmpty()) return title;
-        String cwd = session.getCwd();
-        if (cwd != null && !cwd.trim().isEmpty()) {
-            String path = cwd.endsWith("/") ? cwd.substring(0, cwd.length() - 1) : cwd;
-            int lastSlash = path.lastIndexOf('/');
-            if (lastSlash >= 0 && lastSlash + 1 < path.length()) return path.substring(lastSlash + 1);
-        }
-        return TermuxConstants.TERMUX_APP_NAME;
     }
 
     /**
