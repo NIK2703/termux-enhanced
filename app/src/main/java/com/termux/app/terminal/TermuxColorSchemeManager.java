@@ -24,6 +24,25 @@ import com.termux.terminal.TextStyle;
  */
 public final class TermuxColorSchemeManager {
 
+    // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
+    // windows must use the same cached colours. A per-instance manager gave each window its
+    // own cache, so a scheme change in one window left the other with stale colours.
+    private static volatile TermuxColorSchemeManager sShared;
+
+    @NonNull
+    public static TermuxColorSchemeManager shared() {
+        if (sShared == null) {
+            synchronized (TermuxColorSchemeManager.class) {
+                if (sShared == null) {
+                    sShared = new TermuxColorSchemeManager();
+                }
+            }
+        }
+        return sShared;
+    }
+
+    private TermuxColorSchemeManager() {}
+
     /**
      * Opacity the two controls drawn on the terminal are painted at in <b>contrast-background</b>
      * mode, where their tint has already been composited onto the terminal background. The tint

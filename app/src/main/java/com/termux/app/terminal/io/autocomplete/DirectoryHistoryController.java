@@ -23,6 +23,24 @@ public final class DirectoryHistoryController {
 
     private static final String PREF_DIRECTORY_HISTORY = "directory_history";
 
+    // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
+    // windows must see the same directory history. A per-instance controller gave each
+    // window its own in-memory list, so a directory visited in the bubble was invisible
+    // to the full-screen window until it reloaded from disk.
+    private static volatile DirectoryHistoryController sShared;
+
+    @NonNull
+    public static DirectoryHistoryController shared(@NonNull SharedPreferences prefs) {
+        if (sShared == null) {
+            synchronized (DirectoryHistoryController.class) {
+                if (sShared == null) {
+                    sShared = new DirectoryHistoryController(prefs);
+                }
+            }
+        }
+        return sShared;
+    }
+
     /** In-memory directory history, newest first (index 0 = most recent). */
     private final ArrayList<String> mDirectoryHistory = new ArrayList<>();
 
@@ -42,7 +60,7 @@ public final class DirectoryHistoryController {
 
     private final SharedPreferences mPrefs;
 
-    public DirectoryHistoryController(@NonNull SharedPreferences prefs) {
+    private DirectoryHistoryController(@NonNull SharedPreferences prefs) {
         mPrefs = prefs;
     }
 

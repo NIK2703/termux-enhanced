@@ -624,7 +624,7 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private MessageHistoryController mMessageHistoryCtrl = null;
 
     /** Cached color scheme manager — computes and vends all scheme-derived colours. */
-    private final TermuxColorSchemeManager mColorSchemeManager = new TermuxColorSchemeManager();
+    private final TermuxColorSchemeManager mColorSchemeManager = TermuxColorSchemeManager.shared();
 
     /** Default max number of remembered messages (overridable in Settings). */
     private static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
@@ -766,10 +766,10 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
         reloadProperties();
 
         // Initialise the history controllers (they own the in-memory lists + persistence).
-        // MessageHistoryController is shared: the bubble is a second TermuxActivity instance
-        // and both windows must see the same history.
+        // Both are shared: the bubble is a second TermuxActivity instance and both windows
+        // must see the same history.
         mMessageHistoryCtrl = MessageHistoryController.shared(termuxPrefs());
-        mDirectoryHistoryCtrl = new DirectoryHistoryController(termuxPrefs());
+        mDirectoryHistoryCtrl = DirectoryHistoryController.shared(termuxPrefs());
 
         // Directory-history popup controller — owns its own popup window + gesture state
         // (fully decoupled from the message-history popup, which keeps its own).

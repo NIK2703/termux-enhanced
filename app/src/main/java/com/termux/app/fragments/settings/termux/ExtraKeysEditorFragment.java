@@ -849,7 +849,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
                     : ColorSchemeUtils.getBuiltinLightSchemeProperties(requireContext());
             ColorSchemeUtils.ensureColorSchemeForTheme(requireContext(), isNight, lightScheme);
 
-            TermuxColorSchemeManager cm = new TermuxColorSchemeManager();
+            TermuxColorSchemeManager cm = TermuxColorSchemeManager.shared();
             cm.recompute(mPrefs);
             mCachedEdgeGray = cm.isSchemeLight() ? 0xFF555555 : 0xFFAAAAAA;
             mCachedSchemeBg = cm.getSchemeBackground();
