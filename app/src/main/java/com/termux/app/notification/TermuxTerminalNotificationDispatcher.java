@@ -2,6 +2,7 @@ package com.termux.app.notification;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
+import android.app.Person;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.RemoteInput;
@@ -29,6 +30,7 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -87,6 +89,7 @@ public final class TermuxTerminalNotificationDispatcher {
      */
     private static final Map<String, Integer> sLiveIds = new LinkedHashMap<>();
 
+
     private TermuxTerminalNotificationDispatcher() {
     }
 
@@ -102,32 +105,21 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * Create the notification channel these notifications go on.
+     * Make sure the channel these notifications go on exists.
      *
-     * <p>Called from the activity on start as well as before every post, because on Android 13+ the
-     * system raises the POST_NOTIFICATIONS consent prompt itself the first time a channel is created.
-     * Doing it on start puts that one-off prompt in context instead of having it ambush the user over
-     * some other app.
+     * <p>It is Termux's own bubble channel, created by its bubble manager. Same channel, same shortcut,
+     * same conversation: the platform derives a per-conversation channel from that pair, so posting
+     * anywhere else puts these in a neighbouring thread rather than the bubble's own.
      *
-     * <p>A channel of its own, and loud. The foreground-service channel is IMPORTANCE_LOW and ongoing,
-     * which is the opposite of what an interactive notification wants, and a channel's importance does
-     * not reliably stick once the user has seen it.
-     *
-     * <p>No bubbles. They are not reachable for a notification that arrives while the app is in the
-     * background: the platform discards the app's {@code setAllowBubbles(true)}, and only the user's
-     * per-channel preference raises a channel, which this ROM does not expose for a build targeting
-     * API 28. A program asking for attention from a background session therefore cannot be floated —
-     * tapping the notification opens this app on that session instead, which is what the content
-     * intent is for.
+     * <p>Cost of sharing it: the channel is IMPORTANCE_LOW, so these notifications are quiet — no
+     * heads-up, no sound. That is the price of being in the bubble's conversation rather than next to
+     * it; the notification is still shown and still takes a reply.
      */
     public static void ensureChannel(@NonNull Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationManager manager = NotificationUtils.getNotificationManager(context);
-        if (manager == null) return;
-        manager.createNotificationChannel(new NotificationChannel(
-            TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID,
-            TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_DEFAULT));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            TermuxBubbleManager.createNotificationChannel(context);
+        }
     }
 
     /**
@@ -154,6 +146,7 @@ public final class TermuxTerminalNotificationDispatcher {
 
         int id = acquireId(context, manager, session.mHandle, notification.getId());
         if (id < 0) return -1;
+
 
         CharSequence title = notification.getTitle();
         CharSequence body = notification.getBody();
@@ -182,7 +175,7 @@ public final class TermuxTerminalNotificationDispatcher {
         }
 
         Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
-            TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_DEFAULT,
+            TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_DEFAULT,
             summary, bigText == null ? summary : bigText, bigText, contentIntent, reportIntent,
             notification.isSilent() ? NotificationUtils.NOTIFICATION_MODE_SILENT
                 : NotificationUtils.NOTIFICATION_MODE_ALL);
@@ -210,16 +203,47 @@ public final class TermuxTerminalNotificationDispatcher {
         // bubble, or by the bubble coming up on its own when the app is minimised.
         TermuxBubbleManager.noteSessionAskedForAttention(session.mHandle);
 
-        // Deliberately no MessagingStyle. Its Person must be named — the platform rejects an anonymous
-        // one — and the style then draws that name as a header above every message, including the
-        // reply the platform appends when the user answers. So the style cannot produce a notification
-        // that is just a title and its content: there is always a third line, and whatever it says, it
-        // is not the notification's text. With bubbles off that is no longer a trade worth making.
+        // MessagingStyle, and it is not decoration: it is what makes the platform treat this as a
+        // conversation at all. Measured on device — with the bubble's own shortcut set and resolved,
+        // and MessagingStyle left out, the record came back with mConversationId=null and no derived
+        // channel, so the notifications stayed loose instead of joining the bubble's thread. Termux's
+        // own bubble notification sets both, and so must this.
+        //
+        // The Person is named with the session that raised the notification, not with the app: in a
+        // conversation shared by every session, that line is the only thing saying which terminal is
+        // calling, and an application name would say the same thing on all of them.
+        Person sender = new Person.Builder()
+            .setName(sessionLabel(session).toString())
+            .setImportant(true)
+            .build();
+        builder.setStyle(new Notification.MessagingStyle(sender)
+            .addMessage(new Notification.MessagingStyle.Message(
+                body != null ? body : title, System.currentTimeMillis(), sender)));
+        builder.addPerson(sender);
+
+
         builder.addAction(buildReplyAction(context, session, id));
 
         manager.notify(id, builder.build());
         Logger.logDebug(LOG_TAG, "Posted notification " + id + " (" + notification.getId()
             + ") for session " + session.mHandle);
+
+        // Raise Termux's own bubble rather than carrying one of our own, for two reasons that were both
+        // measured. A bubble is made by the system out of a notification, so every notification carrying
+        // its own bubble metadata added another bubble instead of joining one — two per notification
+        // with duplicates. And Termux's bubble notification is posted under a fixed id, so refreshing
+        // it replaces the bubble already up rather than stacking a second one. Its window falls back to
+        // the last session that asked, recorded above, so the bubble lands where the user is being
+        // called. A failure here costs the bubble and nothing else: the notification and its reply are
+        // already posted.
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && TermuxBubbleManager.areBubblesAvailable(context)) {
+                TermuxBubbleManager.showBubble(context, title != null ? title : body);
+            }
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to raise the bubble", e);
+        }
         return id;
     }
 
@@ -271,6 +295,8 @@ public final class TermuxTerminalNotificationDispatcher {
      * another, which is the thing a notification from a background session most needs to say about
      * itself. The app's own name is only the last resort, when nothing else is known.
      */
+
+
     /**
      * Publish the shortcut that puts these notifications into the bubble's conversation.
      *
@@ -310,6 +336,29 @@ public final class TermuxTerminalNotificationDispatcher {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to publish conversation shortcut", e);
             return null;
         }
+    }
+
+
+
+    /**
+     * Name this session for the conversation's sender line.
+     *
+     * <p>The session's own title when it has one, then the working directory's name, and only the
+     * application name as a last resort. In a conversation every session shares, this line is what
+     * tells the reader which terminal is calling; the app's name would be identical on all of them and
+     * therefore useless.
+     */
+    @NonNull
+    private static CharSequence sessionLabel(@NonNull TerminalSession session) {
+        String title = session.getTitle();
+        if (title != null && !title.trim().isEmpty()) return title;
+        String cwd = session.getCwd();
+        if (cwd != null && !cwd.trim().isEmpty()) {
+            String path = cwd.endsWith("/") ? cwd.substring(0, cwd.length() - 1) : cwd;
+            int lastSlash = path.lastIndexOf('/');
+            if (lastSlash >= 0 && lastSlash + 1 < path.length()) return path.substring(lastSlash + 1);
+        }
+        return TermuxConstants.TERMUX_APP_NAME;
     }
 
     /**

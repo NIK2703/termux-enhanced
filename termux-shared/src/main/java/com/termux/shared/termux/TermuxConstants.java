@@ -751,7 +751,7 @@ public final class TermuxConstants {
      * preference raises it, and this ROM does not offer that for a build targeting API 28. Tapping the
      * notification opens Termux on the session instead.
      */
-    public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID = "termux_terminal_notification_channel_v2";
+    public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID = "termux_terminal_notification_channel_v3";
     /** Termux app notification channel name for terminal-requested notifications. */
     public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME = TermuxConstants.TERMUX_APP_NAME + " Terminal";
     /**
