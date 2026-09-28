@@ -402,6 +402,17 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_NOTIFICATION_INLINE_REPLY_ENABLED, value);
     }
 
+    public boolean isNotificationDeduplicationEnabled(boolean readFromFile) {
+        if (readFromFile)
+            return SharedPreferenceUtils.getBoolean(mMultiProcessSharedPreferences, TERMUX_APP.KEY_NOTIFICATION_DEDUPLICATION_ENABLED, TERMUX_APP.DEFAULT_VALUE_NOTIFICATION_DEDUPLICATION_ENABLED);
+        else
+            return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_NOTIFICATION_DEDUPLICATION_ENABLED, TERMUX_APP.DEFAULT_VALUE_NOTIFICATION_DEDUPLICATION_ENABLED);
+    }
+
+    public void setNotificationDeduplicationEnabled(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_NOTIFICATION_DEDUPLICATION_ENABLED, value);
+    }
+
     /* Settings migrated from ~/.termux/termux.properties — keys intentionally match the old
      * termux.properties keys so that values can be migrated on first launch. */
 

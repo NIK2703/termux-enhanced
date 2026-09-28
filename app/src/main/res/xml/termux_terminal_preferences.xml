@@ -47,6 +47,16 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
+        <!-- Off by default: it throws notifications away, and whether that is ever wanted depends on
+             what the program does. A burst inside the window is one event to a person, but two to a
+             program that legitimately sends two. -->
+        <SwitchPreferenceCompat
+            app:key="notification_deduplication_enabled"
+            app:title="@string/termux_notification_deduplication_title"
+            app:summary="@string/termux_notification_deduplication_summary"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

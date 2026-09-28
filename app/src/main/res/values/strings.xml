@@ -808,4 +808,6 @@
     <string name="extra_keys_compact_mode_title">Fold order</string>
     <string name="extra_keys_compact_mode_rows">By rows</string>
     <string name="extra_keys_compact_mode_columns">By columns</string>
+    <string name="termux_notification_deduplication_title">Notification deduplication</string>
+    <string name="termux_notification_deduplication_summary">Discard notifications arriving within 100 milliseconds of the last one sent</string>
 </resources>

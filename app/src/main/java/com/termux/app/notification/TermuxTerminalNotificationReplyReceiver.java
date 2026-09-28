@@ -114,14 +114,10 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
         session.write(text + "\r");
         Logger.logDebug(LOG_TAG, "Delivered reply to session " + sessionHandle);
 
-        // The text is on its way, so the reply is finished as far as the user is concerned, and the card
-        // has to say so. Rewriting it with the answer as a message of its own is what removes the
-        // progress indicator, and it is also the only way the answer stays visible afterwards. This used
-        // to leave the notification untouched on the assumption that the platform would end the indicator
-        // by itself — it does not: measured on device the record kept its
-        // LIFETIME_EXTENDED_BY_DIRECT_REPLY flag indefinitely and the field spun forever, long after
-        // the text had reached the terminal.
-        TermuxTerminalNotificationDispatcher.recordReply(context, session, postedId, text);
+        // The text is on its way and nothing more is owed to the card. The platform appends what was
+        // typed to the notification itself and ends the progress indicator on its own, so there is
+        // deliberately no call to rewrite it here: the notifications are separate cards, not one
+        // thread, and rewriting one would mean rebuilding a notification that is already correct.
     }
 
     /** Cancel the notification if its number is known; a missing number leaves nothing to cancel. */

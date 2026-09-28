@@ -247,6 +247,17 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_NOTIFICATION_INLINE_REPLY_ENABLED = false;
 
         /**
+         * Defines the key for whether a notification arriving within
+         * {@code TermuxTerminalNotificationDispatcher.DUPLICATE_WINDOW_MS} of the last one posted is
+         * discarded.
+         *
+         * <p>Off by default: it throws notifications away, and whether that is ever wanted is a
+         * property of what the program does, not of the terminal.
+         */
+        public static final String KEY_NOTIFICATION_DEDUPLICATION_ENABLED = "notification_deduplication_enabled";
+        public static final boolean DEFAULT_VALUE_NOTIFICATION_DEDUPLICATION_ENABLED = false;
+
+        /**
          * Defines the key for the background transparency (alpha) of inactive panel elements
          * (bottom buttons, scrollbar thumb). Stored as an integer percentage 0–10, where 5 means
          * ~5% alpha (0x0D = ~13/255). Applied ONCE when the setting changes.

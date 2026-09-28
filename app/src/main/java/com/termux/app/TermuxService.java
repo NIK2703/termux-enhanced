@@ -682,10 +682,9 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
             mShellManager.mTermuxSessions.remove(termuxSession);
 
-            // Its conversation goes with it: the notification shortcut is per session, and one left
-            // behind outlives the process and eats one of the few slots a package may hold. The session
-            // can no longer post, so nothing is lost.
-            TermuxTerminalNotificationDispatcher.unpublishSessionConversation(this,
+            // Its cards go with it: the reply field on one would type into a terminal that is no longer
+            // there, and the session can no longer post, so nothing is lost by taking them down.
+            TermuxTerminalNotificationDispatcher.forgetSession(this,
                 termuxSession.getTerminalSession().mHandle);
 
             // Deliberately no activity notify here: removeFinishedSession() does a single,

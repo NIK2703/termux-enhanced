@@ -81,6 +81,9 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("notification_inline_reply_enabled", prefs.areNotificationInlineRepliesEnabled(false),
             value -> prefs.setNotificationInlineRepliesEnabled(value), false);
 
+        configureSwitch("notification_deduplication_enabled", prefs.isNotificationDeduplicationEnabled(false),
+            value -> prefs.setNotificationDeduplicationEnabled(value), false);
+
         ListPreference logLevelPref = findPreference("log_level");
         if (logLevelPref != null) {
             setLogLevelListPreferenceData(logLevelPref, context, prefs.getLogLevel());
