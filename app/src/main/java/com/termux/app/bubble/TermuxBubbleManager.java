@@ -1,6 +1,5 @@
 package com.termux.app.bubble;
 
-import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -11,8 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Icon;
 import android.os.Build;
-import android.os.SystemClock;
-import android.service.notification.StatusBarNotification;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -80,11 +77,18 @@ public final class TermuxBubbleManager {
     /**
      * Set while this app has posted a bubble and has not taken it down.
      *
-     * <p>The app-side half of {@link #isBubblePosted(Context)}: the system's notification record is
-     * the other half, and can be blind to a suppressed bubble notification. Written and read on the
-     * main thread only (every caller is an activity, receiver or service callback).
+     * <p>The single source of truth: every transition is reported to us, so nothing has to be asked
+     * of the system. We post it here, the user's dismissal arrives at {@code ACTION_BUBBLE_DISMISSED},
+     * and {@link #cancel} clears it. A record left by an earlier process is deliberately not counted
+     * — see {@link #isBubblePosted}.
      */
-    private static boolean sBubblePosted;
+    private static volatile boolean sBubblePosted;
+
+    /**
+     * Set once the bubble channel has been created. Channels are idempotent and never change, and
+     * this is on the path of every notification posted, where the call is a binder round trip.
+     */
+    private static volatile boolean sBubbleChannelCreated;
 
     /**
      * Session whose program most recently raised a notification, or {@code null}. The bubble is one
@@ -106,13 +110,6 @@ public final class TermuxBubbleManager {
     public static String lastNotifiedSession() {
         return sLastNotifiedSessionHandle;
     }
-
-    /**
-     * Wall-clock time at which this process started, used to tell this process's own bubble
-     * notification apart from one left behind by an earlier one. See {@link #isBubblePosted}.
-     */
-    private static final long PROCESS_START_TIME_WALL_CLOCK =
-        System.currentTimeMillis() - SystemClock.elapsedRealtime();
 
     private TermuxBubbleManager() {}
 
@@ -218,6 +215,7 @@ public final class TermuxBubbleManager {
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     public static void createNotificationChannel(@NonNull Context context) {
+        if (sBubbleChannelCreated) return;
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager == null) return;
 
@@ -231,6 +229,7 @@ public final class TermuxBubbleManager {
         channel.setShowBadge(false);
 
         notificationManager.createNotificationChannel(channel);
+        sBubbleChannelCreated = true;
     }
 
     /**
@@ -490,42 +489,21 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether a bubble is currently up, as far as this app can tell. Two OR-ed sources, neither
-     * complete alone: the notification record (system's answer — catches a bubble SystemUI took
-     * down without telling us) and {@link #sBubblePosted} (a suppressed bubble notification can be
-     * filtered out of {@code getActiveNotifications()}, which would read {@code false} exactly
-     * while a bubble is on screen).
+     * Whether a bubble is currently up.
      *
-     * <p><b>Only records posted by this process count.</b> A notification outlives its process —
-     * measured on device: the bubble record (id 1342) still listed after {@code am force-stop} —
-     * and nothing in a new process would cancel it, so a pre-process record would keep this
-     * {@code true} forever and hide the "bubble" button for good. That is the failure this guard
-     * prevents; a genuinely up bubble was posted by this process, where the flag already says so.
+     * <p>Answers from {@link #sBubblePosted} alone, which used to be only half the answer. The other
+     * half was {@code getActiveNotifications()}, to catch a bubble SystemUI took down without telling
+     * us — but it does tell us, through the delete intent, which is why {@link #cancel} is reachable
+     * from {@code ACTION_BUBBLE_DISMISSED}. And the query could only ever confirm a record this
+     * process had posted, since records from an earlier one are ignored on purpose, which is exactly
+     * what the flag already knows. It was a binder round trip allocating every active notification in
+     * the app, on the terminal's input thread, on every notification posted.
      *
-     * <p>The flag is cleared by every path that takes a bubble down ({@link #cancel}, and through
-     * it the dismiss broadcast and service stop) and dies with the process, which takes the bubble
-     * with it. Used to avoid re-posting an already-up bubble and to decide whether the service
-     * notification should still offer its "bubble" button.
+     * <p>The flag dies with the process, which takes the bubble with it. Used to avoid re-posting an
+     * already-up bubble and to decide whether the service notification still offers its bubble button.
      */
     public static boolean isBubblePosted(@NonNull Context context) {
-        if (!isSupported(context)) return false;
-        if (sBubblePosted) return true;
-        NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-        if (notificationManager == null) return false;
-        try {
-            for (StatusBarNotification posted : notificationManager.getActiveNotifications()) {
-                if (posted.getId() != TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_ID) continue;
-                if (posted.getPostTime() < PROCESS_START_TIME_WALL_CLOCK) {
-                    Logger.logDebug(LOG_TAG, "Ignoring bubble notification record left by a previous process");
-                    continue;
-                }
-                return true;
-            }
-        } catch (Exception e) {
-            // Advisory only: on failure assume nothing is posted and let notify() refresh.
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to list active notifications", e);
-        }
-        return false;
+        return sBubblePosted;
     }
 
     /**
