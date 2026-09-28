@@ -681,4 +681,11 @@
     <string name="extra_keys_compact_mode_title">Katlama sırası</string>
     <string name="extra_keys_compact_mode_rows">Satırlara göre</string>
     <string name="extra_keys_compact_mode_columns">Sütunlara göre</string>
+    <string name="notification_action_reply">Yanıtla</string>
+    <string name="notification_terminal_reply_hint">Komut yazıp gönder</string>
+    <string name="termux_notification_inline_reply_title">Bildirimden yanıtla</string>
+    <string name="termux_notification_inline_reply_summary">Bir oturumdan gelen bildirimde yanıt düğmesi göstererek girilen metni Enter ile o oturuma gönder</string>
+    <string name="terminal_notification_channel_description">Terminal oturumunda çalışan programlardan gelen mesajlar</string>
+    <string name="termux_notification_deduplication_title">Bildirim tekilleştirme</string>
+    <string name="termux_notification_deduplication_summary">Gönderilen son bildirimden sonraki 100 milisaniye içinde gelen bildirimleri yoksay</string>
 </resources>

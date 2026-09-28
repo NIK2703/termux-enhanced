@@ -588,4 +588,11 @@
     <string name="extra_keys_compact_mode_title">Ordem de dobra</string>
     <string name="extra_keys_compact_mode_rows">Por linhas</string>
     <string name="extra_keys_compact_mode_columns">Por colunas</string>
+    <string name="notification_action_reply">Responder</string>
+    <string name="notification_terminal_reply_hint">Digite um comando e envie</string>
+    <string name="termux_notification_inline_reply_title">Responder pela notificação</string>
+    <string name="termux_notification_inline_reply_summary">Mostrar um botão de resposta nas notificações de uma sessão para enviar texto seguido de Enter a essa sessão</string>
+    <string name="terminal_notification_channel_description">Mensagens de programas em execução em uma sessão do terminal</string>
+    <string name="termux_notification_deduplication_title">Deduplicação de notificações</string>
+    <string name="termux_notification_deduplication_summary">Descartar notificações recebidas até 100 milissegundos após a última enviada</string>
 </resources>

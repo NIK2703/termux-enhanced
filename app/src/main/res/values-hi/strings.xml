@@ -612,4 +612,11 @@
     <string name="extra_keys_compact_mode_title">मोड़ने का क्रम</string>
     <string name="extra_keys_compact_mode_rows">पंक्तियों के अनुसार</string>
     <string name="extra_keys_compact_mode_columns">स्तंभों के अनुसार</string>
+    <string name="notification_action_reply">उत्तर दें</string>
+    <string name="notification_terminal_reply_hint">कमांड लिखकर भेजें</string>
+    <string name="termux_notification_inline_reply_title">सूचना से उत्तर दें</string>
+    <string name="termux_notification_inline_reply_summary">सत्र से आने वाली सूचना पर उत्तर बटन दिखाएँ, ताकि उस सत्र में Enter के साथ टेक्स्ट भेजा जा सके।</string>
+    <string name="terminal_notification_channel_description">टर्मिनल सत्र में चल रहे प्रोग्रामों के संदेश</string>
+    <string name="termux_notification_deduplication_title">सूचना डीडुप्लिकेशन</string>
+    <string name="termux_notification_deduplication_summary">पिछली भेजी गई सूचना के 100 मिलीसेकंड के भीतर आने वाली सूचनाएँ अस्वीकार करें।</string>
 </resources>

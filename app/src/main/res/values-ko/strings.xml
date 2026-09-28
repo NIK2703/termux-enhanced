@@ -679,4 +679,11 @@
     <string name="extra_keys_compact_mode_title">접는 순서</string>
     <string name="extra_keys_compact_mode_rows">행 기준</string>
     <string name="extra_keys_compact_mode_columns">열 기준</string>
+    <string name="notification_action_reply">답장</string>
+    <string name="notification_terminal_reply_hint">명령을 입력하고 전송</string>
+    <string name="termux_notification_inline_reply_title">알림에서 답장</string>
+    <string name="termux_notification_inline_reply_summary">세션 알림에 답장 버튼을 표시하여, 텍스트를 입력한 뒤 Enter 키로 해당 세션에 전송합니다.</string>
+    <string name="terminal_notification_channel_description">터미널 세션에서 실행 중인 프로그램의 메시지</string>
+    <string name="termux_notification_deduplication_title">알림 중복 제거</string>
+    <string name="termux_notification_deduplication_summary">마지막 알림을 보낸 지 100밀리초 이내에 도착한 알림은 무시합니다.</string>
 </resources>

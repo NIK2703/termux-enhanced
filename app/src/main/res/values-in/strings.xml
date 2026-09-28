@@ -680,4 +680,11 @@
     <string name="extra_keys_compact_mode_title">Urutan lipatan</string>
     <string name="extra_keys_compact_mode_rows">Menurut baris</string>
     <string name="extra_keys_compact_mode_columns">Menurut kolom</string>
+    <string name="notification_action_reply">Balas</string>
+    <string name="notification_terminal_reply_hint">Ketik perintah lalu kirim</string>
+    <string name="termux_notification_inline_reply_title">Balas dari notifikasi</string>
+    <string name="termux_notification_inline_reply_summary">Tampilkan tombol balas pada notifikasi dari sesi untuk mengirim teks diikuti Enter ke sesi tersebut</string>
+    <string name="terminal_notification_channel_description">Pesan dari program yang berjalan di sesi terminal</string>
+    <string name="termux_notification_deduplication_title">Deduplikasi notifikasi</string>
+    <string name="termux_notification_deduplication_summary">Abaikan notifikasi yang tiba dalam 100 milidetik setelah yang terakhir dikirim</string>
 </resources>

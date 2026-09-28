@@ -662,4 +662,11 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_compact_mode_title">Faltreihenfolge</string>
     <string name="extra_keys_compact_mode_rows">Nach Zeilen</string>
     <string name="extra_keys_compact_mode_columns">Nach Spalten</string>
+    <string name="notification_action_reply">Antworten</string>
+    <string name="notification_terminal_reply_hint">Befehl eingeben und senden</string>
+    <string name="termux_notification_inline_reply_title">Aus der Benachrichtigung antworten</string>
+    <string name="termux_notification_inline_reply_summary">Auf Benachrichtigungen einer Sitzung eine Antworttaste anzeigen, um Text gefolgt von Enter an diese Sitzung zu senden</string>
+    <string name="terminal_notification_channel_description">Nachrichten von Programmen, die in einer Terminalsitzung laufen</string>
+    <string name="termux_notification_deduplication_title">Doppelte Benachrichtigungen verwerfen</string>
+    <string name="termux_notification_deduplication_summary">Benachrichtigungen verwerfen, die innerhalb von 100 Millisekunden nach der zuletzt gesendeten Benachrichtigung eintreffen</string>
 </resources>

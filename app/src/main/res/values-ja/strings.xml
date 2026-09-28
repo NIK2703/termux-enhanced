@@ -660,4 +660,11 @@
     <string name="extra_keys_compact_mode_title">折りたたみ順</string>
     <string name="extra_keys_compact_mode_rows">行順</string>
     <string name="extra_keys_compact_mode_columns">列順</string>
+    <string name="notification_action_reply">返信</string>
+    <string name="notification_terminal_reply_hint">コマンドを入力して送信</string>
+    <string name="termux_notification_inline_reply_title">通知から返信</string>
+    <string name="termux_notification_inline_reply_summary">セッションからの通知に返信ボタンを表示し、テキストとEnterをそのセッションに送信します。</string>
+    <string name="terminal_notification_channel_description">ターミナルセッションで実行中のプログラムからのメッセージ</string>
+    <string name="termux_notification_deduplication_title">通知の重複排除</string>
+    <string name="termux_notification_deduplication_summary">最後に送信した通知から100ミリ秒以内に届いた通知を削除します。</string>
 </resources>

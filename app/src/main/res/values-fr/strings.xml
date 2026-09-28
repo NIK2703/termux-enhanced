@@ -692,4 +692,11 @@
     <string name="extra_keys_compact_mode_title">Ordre de repli</string>
     <string name="extra_keys_compact_mode_rows">Par rangées</string>
     <string name="extra_keys_compact_mode_columns">Par colonnes</string>
+    <string name="notification_action_reply">Répondre</string>
+    <string name="notification_terminal_reply_hint">Saisissez une commande et envoyez</string>
+    <string name="termux_notification_inline_reply_title">Répondre depuis une notification</string>
+    <string name="termux_notification_inline_reply_summary">Afficher un bouton de réponse sur une notification d\'une session pour envoyer dans cette session du texte suivi de la touche Entrée</string>
+    <string name="terminal_notification_channel_description">Messages des programmes exécutés dans une session de terminal</string>
+    <string name="termux_notification_deduplication_title">Déduplication des notifications</string>
+    <string name="termux_notification_deduplication_summary">Ignorer les notifications reçues dans les 100 millisecondes suivant l\'envoi de la précédente</string>
 </resources>

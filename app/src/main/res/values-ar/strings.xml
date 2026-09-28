@@ -625,4 +625,11 @@
     <string name="extra_keys_compact_mode_title">ترتيب الطي</string>
     <string name="extra_keys_compact_mode_rows">حسب الصفوف</string>
     <string name="extra_keys_compact_mode_columns">حسب الأعمدة</string>
+    <string name="notification_action_reply">ردّ</string>
+    <string name="notification_terminal_reply_hint">اكتب أمرًا وأرسله</string>
+    <string name="termux_notification_inline_reply_title">الرد من الإشعار</string>
+    <string name="termux_notification_inline_reply_summary">إظهار زر ردّ في إشعار قادم من جلسة، لإرسال نص يليه Enter إلى تلك الجلسة</string>
+    <string name="terminal_notification_channel_description">رسائل من البرامج قيد التشغيل في جلسة طرفية</string>
+    <string name="termux_notification_deduplication_title">إزالة تكرار الإشعارات</string>
+    <string name="termux_notification_deduplication_summary">تجاهل الإشعارات الواردة خلال 100 مللي ثانية من آخر إشعار تم إرساله</string>
 </resources>
