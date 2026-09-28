@@ -38,6 +38,17 @@ final class Osc99NotificationParser {
      */
     private static final int MAX_CHARS_TOTAL = 65536;
 
+    /**
+     * Cap on a single notification's accumulated text.
+     *
+     * <p>{@link #MAX_CHARS_TOTAL} bounds the total by evicting the <em>oldest</em> pending
+     * notification, which a growing one is not: it is the newest, so it survives every eviction and
+     * can append without limit while its program never sends {@code d=1}. Past this the notification
+     * is dropped whole, which costs one notification from a program that was not going to finish it
+     * anyway — a truncated one would be shown as if it were complete.
+     */
+    private static final int MAX_CHARS_PER_NOTIFICATION = 16384;
+
     private final Listener mListener;
     private final Map<String, Pending> mPending = new LinkedHashMap<>();
     private int mPendingChars = 0;
@@ -128,6 +139,13 @@ final class Osc99NotificationParser {
             pending.body.append(text);
         }
         mPendingChars += text.length();
+        // Checked before the total, and against this notification alone: the total is bounded by
+        // evicting the oldest, which is never the one growing here.
+        if (pending.length() > MAX_CHARS_PER_NOTIFICATION) {
+            mPending.remove(id);
+            mPendingChars = Math.max(0, mPendingChars - pending.length());
+            return null;
+        }
         if (mPendingChars > MAX_CHARS_TOTAL) evictOldest();
 
         if (!done) return null;

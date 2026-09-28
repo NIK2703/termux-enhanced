@@ -355,4 +355,24 @@ public class Osc99NotificationTest extends TerminalTestCase {
     public void testActivationReportUsesTheMandatedForm() {
         assertEquals("\033]99;i=abc;" + ST, TerminalNotification.buildActivationReport("abc"));
     }
+
+    public void testOneNotificationCannotGrowWithoutBound() {
+        // The total cap evicts the oldest pending notification, which a growing one is not, so it
+        // needs a cap of its own. A program that never sends d=1 must not be able to hold memory.
+        withTerminalSized(10, 3);
+
+        StringBuilder chunk = new StringBuilder();
+        for (int i = 0; i < 4000; i++) chunk.append("x");
+        String text = chunk.toString();
+
+        for (int i = 0; i < 5; i++) enterOsc99("i=1:p=body:d=0;" + text);
+        assertTrue("an unfinished notification must not be delivered", notifications().isEmpty());
+
+        // Past the cap it is dropped whole rather than truncated, so a later d=1 has nothing to
+        // deliver and the next notification starts from clean.
+        enterOsc99("i=2:p=body:d=1;after");
+        assertEquals(1, notifications().size());
+        assertEquals("2", notifications().get(0).getId());
+        assertEquals("after", notifications().get(0).getBody().toString());
+    }
 }
