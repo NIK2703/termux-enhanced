@@ -213,11 +213,16 @@ public final class TermuxTerminalNotificationDispatcher {
         // The Person is named with the session that raised the notification, not with the app: in a
         // conversation shared by every session, that line is the only thing saying which terminal is
         // calling, and an application name would say the same thing on all of them.
+        // The conversation title is the notification's own title, set per notification. Left unset, the
+        // platform fills it with the application's name — which is what put a bare "Termux" above every
+        // message: three lines where two were wanted, the top one naming whoever received the message
+        // instead of saying what it is about.
         Person sender = new Person.Builder()
             .setName(sessionLabel(session).toString())
             .setImportant(true)
             .build();
         builder.setStyle(new Notification.MessagingStyle(sender)
+            .setConversationTitle(title != null ? title : body)
             .addMessage(new Notification.MessagingStyle.Message(
                 body != null ? body : title, System.currentTimeMillis(), sender)));
         builder.addPerson(sender);
