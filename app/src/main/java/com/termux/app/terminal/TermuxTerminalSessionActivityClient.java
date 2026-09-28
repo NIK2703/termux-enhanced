@@ -1508,6 +1508,17 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
+     * Re-apply the bottom panel's styling from the colours already cached for the current scheme.
+     *
+     * <p>For a change that does not touch the scheme itself: the input panel moving between its
+     * two arrangements decides what its background is, and that must not cost a scheme reload, an
+     * extra-keys rebuild and a colour-scheme re-apply.
+     */
+    public void applyPanelColorsForCurrentScheme() {
+        applyPanelColors(mActivity.isCachedSchemeLight());
+    }
+
+    /**
      * Apply the bottom-panel styling derived from the active terminal color scheme.
      * - The panel (toolbar container + extra-keys view) background is made transparent so only the
      *   buttons themselves show a background.
@@ -1583,12 +1594,22 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         }
         View textInputContainer = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
         if (textInputContainer != null && textInputContainer.getBackground() instanceof android.graphics.drawable.GradientDrawable) {
-            // Background = inactive control color; stroke = active control color (matching the
-            // bottom-panel buttons), so the input panel reads as part of the same control family.
+            // Which colours the panel is filled with follows its placement: floating over the
+            // terminal it takes the same pair the controls ON the terminal are drawn with — the
+            // input-panel toggle button and the scrollbar thumb — i.e. it obeys the "contrasting
+            // background for over-terminal elements" option and follows the terminal's background
+            // when that option is on. In the extra keys' place it is an ordinary panel, so it gets
+            // the plain translucent tints. Fill = inactive control colour, stroke = active one
+            // (matching the bottom-panel buttons), so the input panel reads as part of the same
+            // control family either way.
+            final boolean overTerminal = mActivity.isTextInputPanelOverTerminal();
+            final int fill = overTerminal ? mActivity.getFloatingButtonFill() : buttonBg;
+            final int stroke = overTerminal ? mActivity.getFloatingButtonStroke() : buttonActiveBg;
             android.graphics.drawable.GradientDrawable d =
                 (android.graphics.drawable.GradientDrawable) textInputContainer.getBackground().mutate();
-            d.setColor(buttonBg);
-            d.setStroke(Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke)), buttonActiveBg);
+            d.setColor(fill);
+            d.setStroke(Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke)),
+                stroke);
         }
 
         withTerminalView(tv -> {

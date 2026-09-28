@@ -171,6 +171,7 @@
     <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
     <string name="text_input_toggle_button_title">Giriş panelini aç/kapat düğmesi</string>
+    <string name="text_input_over_terminal_title">Giriş panelini terminalin üstünde</string>
 
     <string name="text_input_action_on_send_title">Gönderim eylemi</string>
     <string-array name="text_input_action_on_send_entries">

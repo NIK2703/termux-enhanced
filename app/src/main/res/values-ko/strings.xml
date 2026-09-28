@@ -191,6 +191,7 @@
     <string name="termux_widget_preferences_summary">Termux:Widget 앱 설정</string>
     <string name="text_input_append_enter_title">전송 시 Enter 키 추가</string>
     <string name="text_input_toggle_button_title">텍스트 입력 전환 버튼</string>
+    <string name="text_input_over_terminal_title">입력 패널을 터미널 위에</string>
 
     <string name="text_input_action_on_send_title">전송 동작</string>
     <string-array name="text_input_action_on_send_entries">

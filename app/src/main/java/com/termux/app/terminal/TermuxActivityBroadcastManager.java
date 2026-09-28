@@ -23,6 +23,11 @@ public class TermuxActivityBroadcastManager {
     private static final String ACTION_TAB_PANEL_POSITION_CHANGED = "com.termux.TAB_PANEL_POSITION_CHANGED";
     private static final String ACTION_TAB_HEIGHT_MODE_CHANGED = "com.termux.TAB_HEIGHT_MODE_CHANGED";
     /**
+     * The input panel was switched between the two arrangements: floating over the terminal, or
+     * taking the extra-keys panel's place with the terminal resized for it.
+     */
+    private static final String ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED = "com.termux.TEXT_INPUT_OVER_TERMINAL_CHANGED";
+    /**
      * The terminal font size was changed outside the activity (the Display settings slider).
      *
      * <p>A dedicated action rather than a styling reload: {@code ACTION_RELOAD_STYLE} would run a
@@ -68,6 +73,7 @@ public class TermuxActivityBroadcastManager {
         intentFilter.addAction(TERMUX_ACTIVITY.ACTION_REQUEST_PERMISSIONS);
         intentFilter.addAction(ACTION_TEXT_INPUT_VISIBILITY_CHANGED);
         intentFilter.addAction(ACTION_TEXT_INPUT_ENABLED_CHANGED);
+        intentFilter.addAction(ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED);
         intentFilter.addAction(ACTION_TAB_PANEL_POSITION_CHANGED);
         intentFilter.addAction(ACTION_TAB_HEIGHT_MODE_CHANGED);
         intentFilter.addAction(ACTION_FONT_SIZE_CHANGED);
@@ -110,6 +116,11 @@ public class TermuxActivityBroadcastManager {
 
             if (ACTION_TEXT_INPUT_ENABLED_CHANGED.equals(action)) {
                 termuxActivity.updateToggleTextInputButtonVisibility();
+                return;
+            }
+
+            if (ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED.equals(action)) {
+                termuxActivity.applyTextInputPanelPlacement();
                 return;
             }
 

@@ -290,6 +290,7 @@
 
     
     <string name="text_input_toggle_button_title">Кнопка переключения панели ввода</string>
+    <string name="text_input_over_terminal_title">Панель ввода поверх терминала</string>
 
     
     <string name="input_history_empty">История ввода пуста</string>

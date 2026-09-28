@@ -67,6 +67,19 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             });
         }
 
+        // The placement is read live by the terminal window, which has to move the panel between
+        // the two arrangements — hence a dedicated broadcast, not just a stored value.
+        SwitchPreferenceCompat overTerminalPref = findPreference("text-input-over-terminal");
+        if (overTerminalPref != null) {
+            overTerminalPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                android.content.Intent intent =
+                    new android.content.Intent("com.termux.TEXT_INPUT_OVER_TERMINAL_CHANGED");
+                intent.setPackage(context.getPackageName());
+                context.sendBroadcast(intent);
+                return true;
+            });
+        }
+
         // Hand-rolled AlertDialog (not a ListPreference), so useSimpleSummaryProvider cannot
         // reach it; the selected option's name is written onto the row here instead.
         final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
@@ -273,6 +286,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "text_input_enabled":
                 getTermuxPrefs().edit().putBoolean("text_input_enabled", value).apply();
                 break;
+            case "text-input-over-terminal":
+                if (mPreferences != null) mPreferences.setTextInputOverTerminalEnabled(value);
+                break;
             case "text_input_append_enter":
                 if (mPreferences != null) mPreferences.setTextInputAppendEnter(value);
                 break;
@@ -329,6 +345,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences.shouldSoftKeyboardBeHiddenOnStartup();
             case "text_input_enabled":
                 return getTermuxPrefs().getBoolean("text_input_enabled", true);
+            case "text-input-over-terminal":
+                return mPreferences == null || mPreferences.isTextInputOverTerminalEnabled();
             case "text_input_append_enter":
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
             case "per_directory_message_history":

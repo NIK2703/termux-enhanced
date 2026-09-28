@@ -382,6 +382,7 @@
 
     <!-- Text input show preference -->
     <string name="text_input_toggle_button_title">Input panel toggle button</string>
+    <string name="text_input_over_terminal_title">Input panel over terminal</string>
 
     <!-- Message history -->
     <string name="input_history_empty">No input history</string>

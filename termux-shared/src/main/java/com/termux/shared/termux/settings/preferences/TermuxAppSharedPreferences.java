@@ -135,6 +135,22 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_TEXT_INPUT_APPEND_ENTER, value);
     }
 
+    /**
+     * Whether the input panel floats over the terminal instead of taking the extra-keys panel's
+     * place in its strip.
+     *
+     * @return {@code false} by default — the panel takes the extra keys' place, as it always did;
+     *         see {@link TermuxPreferenceConstants.TERMUX_APP#KEY_TEXT_INPUT_OVER_TERMINAL}.
+     */
+    public boolean isTextInputOverTerminalEnabled() {
+        return getBooleanByKey(TERMUX_APP.KEY_TEXT_INPUT_OVER_TERMINAL,
+            TERMUX_APP.DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL);
+    }
+
+    public void setTextInputOverTerminalEnabled(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_TEXT_INPUT_OVER_TERMINAL, value);
+    }
+
     public boolean shouldTextInputHideOnSend() {
         String action = getTextInputActionOnSend();
         return action.equals(TERMUX_APP.TEXT_INPUT_ACTION_ON_SEND_HIDE_PANEL)

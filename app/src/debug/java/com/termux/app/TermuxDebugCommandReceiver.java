@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
@@ -765,6 +766,26 @@ public class TermuxDebugCommandReceiver extends BroadcastReceiver {
         sb.append(" slot=").append(vis(slot));
         sb.append(" panel=").append(vis(panel));
         if (panel != null) sb.append(" panelBounds=").append(bounds(panel));
+        if (panel != null) {
+            // The panel's own right margin is what keeps it off the terminal scrollbar when it
+            // floats over the terminal, and it is decided by
+            // TermuxActivity.applyTextInputPanelScrollbarMargin(). Printed next to the button's
+            // settled margin so the two can be compared on-device: they are meant to be equal
+            // whenever a scrollbar is showing.
+            ViewGroup.MarginLayoutParams panelLp = (ViewGroup.MarginLayoutParams) panel.getLayoutParams();
+            sb.append(" panelMEnd=").append(panelLp.getMarginEnd());
+            sb.append(" panelW=").append(panel.getWidth());
+            sb.append(" overTerminal=").append(activity.isTextInputPanelOverTerminal());
+            sb.append(" hasScrollbar=").append(
+                activity.getTerminalView() != null && activity.getTerminalView().mEmulator != null
+                    && activity.getTerminalView().mEmulator.getScreen().getActiveTranscriptRows() > 0);
+        }
+        View pencil = activity.findViewById(R.id.toggle_text_input_button);
+        if (pencil != null) {
+            sb.append(" btnMEnd=").append(
+                ((ViewGroup.MarginLayoutParams) pencil.getLayoutParams()).getMarginEnd());
+            sb.append(" btnTx=").append(pencil.getTranslationX());
+        }
         if (ti != null) {
             sb.append(" tiFocus=").append(ti.hasFocus());
             sb.append(" tiBounds=").append(bounds(ti));

@@ -203,6 +203,7 @@
     <string name="text_input_restore_mode_option_insert">Inserir na posição do cursor</string>
     <string name="text_input_restore_mode_option_replace">Substituir todo o campo de entrada</string>
     <string name="text_input_toggle_button_title">Botão de alternância do painel de entrada</string>
+    <string name="text_input_over_terminal_title">Painel de entrada sobre o terminal</string>
     <string name="theme_mode_title">Tema do aplicativo</string>
     <string name="title_activity_termux_settings">Configurações do Termux</string>
     <string name="title_confirm_kill_process">Deseja realmente finalizar esta sessão?</string>

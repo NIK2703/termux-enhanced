@@ -182,6 +182,7 @@
     <string name="termux_widget_preferences_summary">Termux:Widget ऐप के लिए प्राथमिकताएँ</string>
     <string name="text_input_append_enter_title">भेजते समय Enter जोड़ें</string>
     <string name="text_input_toggle_button_title">इनपुट पैनल टॉगल बटन</string>
+    <string name="text_input_over_terminal_title">टर्मिनल के ऊपर इनपुट पैनल</string>
 
     <string name="text_input_action_on_send_title">भेजने पर क्रिया</string>
     <string-array name="text_input_action_on_send_entries">

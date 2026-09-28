@@ -69,7 +69,7 @@
             android:layout_above="@id/terminal_toolbar_container"
             android:orientation="horizontal" />
 
-        <!-- Terminal toolbar: text input + extra keys. Always at the bottom. -->
+        <!-- Terminal toolbar: the extra-keys panel. Always at the bottom. -->
         <LinearLayout
             android:id="@+id/terminal_toolbar_container"
             android:visibility="gone"
@@ -79,12 +79,6 @@
             android:background="@android:color/transparent"
             android:layout_alignParentBottom="true">
 
-            <!-- Shared slot (FrameLayout) so the text input panel and the extra keys
-                 overlap and can cross-fade their alpha instead of one abruptly
-                 disappearing under the other. The extra keys is declared first (drawn
-                 underneath) and pinned to the bottom; the input panel is declared last
-                 (drawn on top, intercepting touches) so its text selection works while
-                 the extra keys fades out beneath it. -->
             <FrameLayout
                 android:id="@+id/terminal_toolbar_slot"
                 android:layout_width="match_parent"
@@ -99,47 +93,76 @@
                     android:background="@android:color/transparent"
                     android:orientation="horizontal" />
 
-                <!-- Multi-line text input panel: occupies the slot below the tabs,
-                     replacing the extra keys while active. Fixed height with vertical scroll. -->
-                <FrameLayout
-                    android:id="@+id/terminal_toolbar_text_input_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_marginBottom="4dp"
-                    android:background="@drawable/text_input_transparent">
-
-                    <com.termux.app.SendActionEditText
-                        android:id="@+id/terminal_toolbar_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="96dp"
-                        android:layout_marginHorizontal="8dp"
-                        android:includeFontPadding="false"
-                        android:paddingTop="0dp"
-                        android:paddingBottom="0dp"
-                        android:imeOptions="actionSend|flagNoFullscreen"
-                        android:inputType="textMultiLine"
-                        android:maxLines="6"
-                        android:scrollbars="vertical"
-                        android:scrollHorizontally="false"
-                        android:gravity="top|start"
-                        android:importantForAutofill="no"
-                        android:textSize="@dimen/text_input_text_size"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textCursorDrawable="@null"
-                        android:background="@android:color/transparent"
-                        tools:ignore="LabelFor" />
-
-                </FrameLayout>
-
             </FrameLayout>
 
         </LinearLayout>
 
+        <!-- The input panel: a strip of its own, sitting directly ON TOP of the extra-keys panel
+             and painted over the terminal. It used to share the extra keys' slot and take their
+             place; as a sibling of the toolbar both panels are on screen at once and this one
+             overlaps the pager instead of squeezing it. It takes the place of the button that
+             opens it — same resting height, same bottom margin — and grows upwards with the text
+             (see TextInputPanelController). The field's own 96dp is only the ceiling now, never
+             the height it is drawn at.
+
+             Declared after the toolbar so it paints on top of it, and after the pager so it
+             paints on top of the terminal. The anchor is re-pointed at the tab panel when the
+             tabs are at the bottom — see TermuxActivity.updateTextInputViewsAnchor().
+
+             0dp with both edges pinned rather than match_parent, because that is the idiom whose
+             horizontal margins RelativeLayout actually honours: the right margin is what keeps the
+             panel off the terminal scrollbar, and a match_parent child would be measured to the
+             parent's full width and ignore it.
+
+             The right margin is the toggle button's own 28dp, deliberately a property of the
+             layout and not of any code path: the button has always carried it in the XML and only
+             ever has it REDUCED when the terminal shows no scrollbar, so the panel is clear of the
+             scrollbar whether or not that reduction has run. applyTextInputPanelScrollbarMargin()
+             is the code that lowers it back to 4dp when there is nothing to clear. -->
+        <FrameLayout
+            android:id="@+id/terminal_toolbar_text_input_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
+            android:layout_above="@id/terminal_toolbar_container"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="28dp"
+            android:layout_marginBottom="6dp"
+            android:background="@drawable/text_input_transparent"
+            android:visibility="gone">
+
+            <com.termux.app.SendActionEditText
+                android:id="@+id/terminal_toolbar_text_input"
+                android:layout_width="match_parent"
+                android:layout_height="96dp"
+                android:layout_marginHorizontal="8dp"
+                android:includeFontPadding="false"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:imeOptions="actionSend|flagNoFullscreen"
+                android:inputType="textMultiLine"
+                android:maxLines="6"
+                android:scrollbars="vertical"
+                android:scrollHorizontally="false"
+                android:gravity="top|start"
+                android:importantForAutofill="no"
+                android:textSize="@dimen/text_input_text_size"
+                android:textColor="?attr/colorOnSurface"
+                android:textCursorDrawable="@null"
+                android:background="@android:color/transparent"
+                tools:ignore="LabelFor" />
+
+        </FrameLayout>
+
         <!-- Floating toggle text input visibility button (pencil).
              Floats over the terminal, bottom-right, vertically centered with the
              TerminalView scrollbar thumb when scrolled to the bottom.
-             Always above the toolbar (which is always at the bottom). -->
+             Always above the toolbar (which is always at the bottom) — and above the tab
+             panel when the tabs are at the bottom, like the input panel it opens.
+             GONE while the input panel is open: the panel is sized and placed to take this
+             button's place, so showing it again would just cover the panel. Its resting size
+             is where the panel's resting height comes from. -->
         <ImageButton
             android:id="@+id/toggle_text_input_button"
             android:layout_width="46dp"

@@ -207,6 +207,7 @@
     <string name="termux_widget_preferences_summary">تفضيلات تطبيق Termux:Widget</string>
     <string name="text_input_append_enter_title">إضافة Enter عند الإرسال</string>
     <string name="text_input_toggle_button_title">زر تبديل لوحة الإدخال</string>
+    <string name="text_input_over_terminal_title">لوحة الإدخال فوق الطرفية</string>
 
     <string name="text_input_action_on_send_title">الإجراء عند الإرسال</string>
     <string-array name="text_input_action_on_send_entries">

@@ -167,6 +167,7 @@
     <string name="termux_tab_panel_position_top">Arriba</string>
     <string name="termux_tab_panel_position_bottom">Abajo</string>
     <string name="text_input_toggle_button_title">Botón para alternar el panel de entrada</string>
+    <string name="text_input_over_terminal_title">Panel de entrada sobre el terminal</string>
 
     <string name="text_input_action_on_send_title">Acción al enviar</string>
     <string-array name="text_input_action_on_send_entries">

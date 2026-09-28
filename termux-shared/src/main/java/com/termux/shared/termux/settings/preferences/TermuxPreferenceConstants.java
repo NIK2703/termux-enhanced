@@ -114,6 +114,19 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_TEXT_INPUT_APPEND_ENTER = true;
 
         /**
+         * Defines the key for how the input panel is placed: <b>true</b> — it floats over the
+         * terminal, as a strip of its own drawn on top of the terminal's bottom rows and above the
+         * extra-keys panel, at the resting size of the button that opens it and growing upwards
+         * with the text; <b>false</b> — it takes the extra keys' place in their strip, and the
+         * terminal is resized to make room for it.
+         *
+         * <p>Off by default: the extra-keys arrangement is the one the app has always had, and
+         * the overlay is something to switch on deliberately.
+         */
+        public static final String KEY_TEXT_INPUT_OVER_TERMINAL = "text-input-over-terminal";
+        public static final boolean DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL = false;
+
+        /**
          * Defines the key for what should happen after sending a message from the text
          * input field (e.g. by pressing Enter on the keyboard). It is a single choice
          * that replaces the previously separate "hide input panel" and "hide keyboard"

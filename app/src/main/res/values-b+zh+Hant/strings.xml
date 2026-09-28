@@ -174,6 +174,7 @@
     <string name="tab_close_description">關閉分頁</string>
     <string name="session_default_title">終端機</string>
     <string name="text_input_toggle_button_title">輸入面板切換按鈕</string>
+    <string name="text_input_over_terminal_title">輸入面板置於終端機之上</string>
 
     <string name="text_input_action_on_send_title">傳送動作</string>
     <string-array name="text_input_action_on_send_entries">
