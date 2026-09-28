@@ -36,10 +36,10 @@ import com.termux.terminal.TerminalSession;
  *
  * <p>Everything here runs to completion inside {@code onReceive}, and it is all cheap: the history is
  * an in-memory list plus a deferred write, and the write to the pty is a message post. The reply is
- * therefore delivered as soon as the user sends it. What the user waits on is not this — it is the
- * platform's progress indicator, which stays up until the notification is cancelled or replaced, so
- * the last thing this receiver does is answer that: on success the notification is replaced with the
- * text that was sent, on failure it is taken down.
+ * therefore delivered as soon as the user sends it, and the notification is rewritten straight after
+ * so the platform's progress indicator ends immediately rather than spinning: the indicator lives on
+ * the notification that owns the reply field and is cleared only when that notification is replaced
+ * or cancelled, so the one thing this receiver must not do is leave a delivered reply's card alone.
  *
  * <p>Explicit intents only, so this stays unexported and needs no intent-filter — the same shape as
  * {@code TermuxBubbleReceiver}.
@@ -114,10 +114,14 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
         session.write(text + "\r");
         Logger.logDebug(LOG_TAG, "Delivered reply to session " + sessionHandle);
 
-        // Nothing to do about the notification on the success path: the platform appends the typed
-        // text to the conversation on its own, which is what ends the progress indicator and shows
-        // the user their own words. Posting an acknowledgement over it as well would replace the
-        // conversation with a second, redundant copy of it.
+        // The text is on its way, so the reply is finished as far as the user is concerned, and the card
+        // has to say so. Rewriting it with the answer as a message of its own is what removes the
+        // progress indicator, and it is also the only way the answer stays visible afterwards. This used
+        // to leave the notification untouched on the assumption that the platform would end the indicator
+        // by itself — it does not: measured on device the record kept its
+        // LIFETIME_EXTENDED_BY_DIRECT_REPLY flag indefinitely and the field spun forever, long after
+        // the text had reached the terminal.
+        TermuxTerminalNotificationDispatcher.recordReply(context, session, postedId, text);
     }
 
     /** Cancel the notification if its number is known; a missing number leaves nothing to cancel. */

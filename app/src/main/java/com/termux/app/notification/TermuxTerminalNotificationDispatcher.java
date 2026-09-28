@@ -30,9 +30,11 @@ import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -65,15 +67,14 @@ public final class TermuxTerminalNotificationDispatcher {
 
     private static final String LOG_TAG = "TermuxTerminalNotificationDispatcher";
 
-    /** Group all terminal-requested notifications share, so they collapse together in the shade. */
-    private static final String NOTIFICATION_GROUP = "termux_terminal_notifications";
-
     /**
-     * How many notifications per terminal are kept before the oldest is withdrawn. A program in a
-     * loop could otherwise accumulate notifications without bound, and the interesting ones are
-     * always the most recent few. The protocol allows a terminal to impose such a limit.
+     * How many messages a session's conversation keeps before the oldest is dropped.
+     *
+     * <p>A program in a loop could otherwise grow the thread without bound. The limit is the protocol
+     * speaking — the terminal is free to impose one — and the messages worth having are the recent
+     * ones: a conversation about what a program wants now does not need what it wanted an hour ago.
      */
-    private static final int MAX_LIVE_NOTIFICATIONS_PER_SESSION = 8;
+    private static final int MAX_MESSAGES_PER_CONVERSATION = 24;
 
     /** PendingIntent request code base, offset per notification and per purpose. */
     private static final int REQUEST_CODE_BASE = 0x5400;
@@ -84,12 +85,30 @@ public final class TermuxTerminalNotificationDispatcher {
     private static volatile boolean sWindowVisible = false;
 
     /**
-     * Notification ids handed out, keyed by session handle and protocol identifier, in creation
-     * order. Bounded by {@link #MAX_LIVE_NOTIFICATIONS_PER_SESSION} per session; the entry evicted
-     * from here has its notification withdrawn.
+     * One conversation per session, keyed by session handle.
+     *
+     * <p>One notification, not a group of them. This is the documented way to show several updates as
+     * a single thread: {@code developer.android.com}, "Create a group of notifications", says that a
+     * group is for notifications that stand on their own, and that anything else should instead be
+     * "updating an existing notification with new information, or creating a messaging-style
+     * notification that shows multiple updates in the same conversation". A group was tried first and
+     * measured on device to be the wrong shape: with a summary present the newest member still ranked
+     * above it, so the group stayed half expanded — two cards loose above, the older ones bundled
+     * below, and the summary sitting on its own with nothing in it.
      */
-    private static final Map<String, Integer> sLiveIds = new LinkedHashMap<>();
+    private static final Map<String, Conversation> sConversations = new LinkedHashMap<>();
 
+    /**
+     * How close together two identical notifications from one session have to be to count as one
+     * event rather than two.
+     *
+     * <p>Measured: a program raising one event sends the same notification twice, 14–17 ms apart, and
+     * each such pair is a second or more from the next. A window of a second is therefore some sixty
+     * times the observed gap — far too wide to merge anything the user meant as separate, and still
+     * far too tight to depend on the 15 ms that produced the duplicates. Anything slower than a
+     * second is a genuine repeat and gets a message of its own.
+     */
+    private static final long DUPLICATE_WINDOW_MS = 1000;
 
     private TermuxTerminalNotificationDispatcher() {
     }
@@ -145,102 +164,20 @@ public final class TermuxTerminalNotificationDispatcher {
         // before the activity has ever run still lands on a real channel instead of being dropped.
         ensureChannel(context);
 
-        int id = acquireId(context, manager, session.mHandle, notification.getId());
-        if (id < 0) return -1;
-
-
         CharSequence title = notification.getTitle();
         CharSequence body = notification.getBody();
-        // The line that always shows: the title when the program sent one, otherwise the body. The
-        // protocol's own substitution, and the only one applied.
-        CharSequence summary = title == null ? body : title;
-        // The body is expanded text under the title — only when there is a title for it to sit under.
-        // A notification that is nothing but a title gets no second line, so the text appears exactly
-        // once; a notification that is nothing but a body is already the summary and is likewise not
-        // repeated underneath itself.
-        CharSequence bigText = title == null || body == null ? null : body;
 
-        PendingIntent contentIntent = PendingIntent.getActivity(context, requestCode(id, 0),
-            TermuxActivityUtils.newInstance(context)
-                .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, session.mHandle),
-            PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
+        // Fold this into the session's thread, and get the card back to post it on.
+        Conversation conversation = conversationFor(context, manager, session, notification);
+        if (conversation == null) return -1;
 
-        PendingIntent reportIntent = null;
-        if (notification.isReportOnActivate()) {
-            Intent report = new Intent(context, TermuxTerminalNotificationReceiver.class)
-                .setAction(TermuxConstants.ACTION_TERMINAL_NOTIFICATION_ACTIVATED)
-                .putExtra(TermuxConstants.EXTRA_TERMINAL_NOTIFICATION_ID, notification.getId())
-                .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, session.mHandle);
-            reportIntent = PendingIntent.getBroadcast(context, requestCode(id, 1), report,
-                PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
-        }
-
-        // No content title: the style already carries the title as the conversation title, and setting
-        // both prints the same line twice. The text alone is left for the collapsed view, where the
-        // style is not drawn and something has to be there.
-        Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
-            TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_DEFAULT,
-            null, bigText == null ? summary : bigText, null, contentIntent, reportIntent,
-            notification.isSilent() ? NotificationUtils.NOTIFICATION_MODE_SILENT
-                : NotificationUtils.NOTIFICATION_MODE_ALL);
-        if (builder == null) return -1;
-
-        builder.setSmallIcon(R.drawable.ic_service_notification);
-        builder.setColor(0xFF607D8B);
-        builder.setShowWhen(true);
-        builder.setAutoCancel(true);
-        builder.setOngoing(false);
-        builder.setOnlyAlertOnce(false);
-        // Per session, not one bucket for the lot: this is what keeps a session's notifications
-        // together in the shade instead of interleaving several terminals' into one unread pile.
-        builder.setGroup(NOTIFICATION_GROUP + "." + session.mHandle);
-
-        // One conversation PER SESSION, named after it. A conversation is identified by the shortcut it
-        // references, not by the channel or the group — the platform derives a per-conversation channel
-        // named after both — so reusing one shared shortcut put every terminal's notifications into a
-        // single thread, and a single thread can only carry one name: five separate cards whose header
-        // was whichever session's post happened to arrive last. The shortcut id is therefore per
-        // session, which is what makes one session's messages collect under that session's own name
-        // while another's collect under its own.
-        String shortcutId = publishSessionShortcut(context, session.mHandle, sessionLabel(session));
-        if (shortcutId != null) builder.setShortcutId(shortcutId);
-
-        // Where the bubble should go when the user asks for it, however they ask: by tapping the
-        // bubble, or by the bubble coming up on its own when the app is minimised.
-        TermuxBubbleManager.noteSessionAskedForAttention(session.mHandle);
-
-        // MessagingStyle, and it is not decoration: it is what makes the platform treat this as a
-        // conversation at all. Measured on device — with the shortcut set and resolved, and
-        // MessagingStyle left out, the record came back with mConversationId=null and no derived
-        // channel, so the notifications stayed loose instead of joining a thread.
-        //
-        // The conversation title is the session's name, so the two printed lines answer two different
-        // questions: the header says which terminal is calling, the sender line says what it wants. The
-        // other way round the header merely repeated the message below it. The title is set explicitly
-        // because left unset the platform fills it with the application's name — a bare "Termux" above
-        // every message, naming whoever received the message instead of saying what it is about.
-        Person sender = new Person.Builder()
-            .setName((title != null ? title : body).toString())
-            .setImportant(true)
-            .build();
-        builder.setStyle(new Notification.MessagingStyle(sender)
-            .setConversationTitle(sessionLabel(session))
-            .addMessage(new Notification.MessagingStyle.Message(
-                body != null ? body : title, System.currentTimeMillis(), sender)));
-        builder.addPerson(sender);
-
-
-        // The inline reply field, which types into a shell — so it is offered only when the user has said
-        // they want it: not by default, and not because a program asked. Read through the multi-process
-        // preferences, since notifications are posted by the service and the value has to be the one on
-        // disk right now rather than whatever the UI process cached when it started.
-        if (TermuxAppSharedPreferences.build(context).areNotificationInlineRepliesEnabled(true)) {
-            builder.addAction(buildReplyAction(context, session, id));
-        }
-
-        manager.notify(id, builder.build());
+        int id = conversation.id;
+        Notification built = buildNotification(context, session, conversation, id, true);
+        if (built == null) return -1;
+        manager.notify(id, built);
         Logger.logDebug(LOG_TAG, "Posted notification " + id + " (" + notification.getId()
             + ") for session " + session.mHandle);
+
 
         // Raise Termux's own bubble rather than carrying one of our own: a bubble is made by the system
         // out of a notification, so every notification with its own bubble metadata added another one
@@ -313,9 +250,23 @@ public final class TermuxTerminalNotificationDispatcher {
      * {@link #publishSessionShortcut} starts failing and new sessions lose their conversation
      * altogether. Called when the session exits, which is the point past which it cannot post again.
      *
-     * <p>Notifications already posted for that session are left alone; only the conversation anchor goes.
+     * <p>The session's card goes with it. A session that has exited cannot post again, so its thread
+     * is about something no longer running, and the reply field on it would type into a terminal that
+     * is not there — which is the one answer the user could get wrong silently.
      */
     public static void unpublishSessionConversation(@NonNull Context context, @NonNull String sessionHandle) {
+        Conversation conversation = sConversations.remove(sessionHandle);
+        if (conversation != null) {
+            NotificationManager manager = NotificationUtils.getNotificationManager(context);
+            if (manager != null) {
+                try {
+                    manager.cancel(conversation.id);
+                } catch (Exception e) {
+                    Logger.logStackTraceWithMessage(LOG_TAG,
+                        "Failed to cancel the card of finished session " + sessionHandle, e);
+                }
+            }
+        }
         try {
             ShortcutManagerCompat.removeDynamicShortcuts(context,
                 Collections.singletonList(TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_SHORTCUT_ID_PREFIX
@@ -328,16 +279,256 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * Name this session, for the places that have to name it: the conversation's title, the per-session
-     * shortcut, and the label the shade and the launcher show for it.
+     * Fold a notification into the session's thread, creating that thread on the first one.
      *
-     * <p>Never used for the notification's text. The session's own title is the best answer when it
-     * has one, and the working directory's name is the next best — it tells one terminal from
-     * another, which is the thing a notification from a background session most needs to say about
-     * itself. The app's own name is only the last resort, when nothing else is known.
+     * <p>The card is identified by the session, not by the protocol's {@code i=} key, so a program
+     * sending ten notifications produces one card with ten messages rather than ten cards. That is
+     * what "one conversation per session" means on this platform, and it is what the documentation
+     * asks for: several updates in a single {@code MessagingStyle} notification.
      */
+    @Nullable
+    private static synchronized Conversation conversationFor(@NonNull Context context,
+                                                             @NonNull NotificationManager manager,
+                                                             @NonNull TerminalSession session,
+                                                             @NonNull TerminalNotification notification) {
+        CharSequence title = notification.getTitle();
+        CharSequence body = notification.getBody();
+        // The text a repeat is recognised by: what the user reads, so two notifications saying the
+        // same thing are the same thing however the program identified them. Length-prefixed so the
+        // two halves cannot be confused for one another — a plain separator would let a title of
+        // "a b" with a body of "c" match a title of "a" with a body of "b c".
+        String signature = (title == null ? 0 : title.length()) + ":" + title
+            + (body == null ? 0 : body.length()) + ":" + body;
+        long now = System.currentTimeMillis();
 
+        Conversation conversation = sConversations.get(session.mHandle);
+        if (conversation == null) {
+            conversation = new Conversation(TermuxNotificationUtils.getNextNotificationId(context));
+            sConversations.put(session.mHandle, conversation);
+        }
 
+        if (signature.equals(conversation.lastSignature)
+                && now - conversation.lastTimeMs <= DUPLICATE_WINDOW_MS) {
+            // The same words, moments apart: one thing told twice. The message is already in the
+            // thread, so this only refreshes what the collapsed line shows and leaves one message.
+            conversation.lastTimeMs = now;
+            return conversation;
+        }
+
+        Person author = new Person.Builder()
+            .setName((title != null ? title : body).toString())
+            .setImportant(true)
+            .build();
+        conversation.add(new Notification.MessagingStyle.Message(
+            body != null ? body : title, now, author), author);
+        conversation.lastSignature = signature;
+        conversation.lastTimeMs = now;
+        conversation.last = notification;
+        return conversation;
+    }
+
+    /**
+     * Build the card for a session's whole thread, so that the original post and a later rewrite of
+     * the same card cannot drift apart.
+     *
+     * @param withReplyAction whether to offer the inline reply field at all. False for the rewrite
+     *     that follows a reply: the field is what the platform hangs its progress indicator on, so a
+     *     card that still has one can never finish showing a reply as done.
+     */
+    @Nullable
+    private static Notification buildNotification(@NonNull Context context, @NonNull TerminalSession session,
+                                                  @NonNull Conversation conversation, int id,
+                                                  boolean withReplyAction) {
+        CharSequence title = conversation.last == null ? null : conversation.last.getTitle();
+        CharSequence body = conversation.last == null ? null : conversation.last.getBody();
+        // The line the collapsed card shows: the title when the program sent one, otherwise the body.
+        // The protocol's own substitution, and the only one applied.
+        CharSequence summary = title == null ? body : title;
+        // The body is expanded text under the title — only when there is a title for it to sit under.
+        // A notification that is nothing but a title gets no second line, so the text appears exactly
+        // once; a notification that is nothing but a body is already the summary and is likewise not
+        // repeated underneath itself.
+        CharSequence bigText = title == null || body == null ? null : body;
+
+        PendingIntent contentIntent = PendingIntent.getActivity(context, requestCode(id, 0),
+            TermuxActivityUtils.newInstance(context)
+                .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, session.mHandle),
+            PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
+
+        PendingIntent reportIntent = null;
+        if (conversation.last != null && conversation.last.isReportOnActivate()) {
+            Intent report = new Intent(context, TermuxTerminalNotificationReceiver.class)
+                .setAction(TermuxConstants.ACTION_TERMINAL_NOTIFICATION_ACTIVATED)
+                .putExtra(TermuxConstants.EXTRA_TERMINAL_NOTIFICATION_ID, conversation.last.getId())
+                .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, session.mHandle);
+            reportIntent = PendingIntent.getBroadcast(context, requestCode(id, 1), report,
+                PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
+        }
+
+        // No content title: the style already carries the session's name as the conversation title,
+        // and setting both prints the same line twice. The text alone is left for the collapsed view,
+        // where the style is not drawn and something has to be there.
+        Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
+            TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_DEFAULT,
+            null, bigText == null ? summary : bigText, null, contentIntent, reportIntent,
+            conversation.last != null && conversation.last.isSilent()
+                ? NotificationUtils.NOTIFICATION_MODE_SILENT : NotificationUtils.NOTIFICATION_MODE_ALL);
+        if (builder == null) return null;
+
+        builder.setSmallIcon(R.drawable.ic_service_notification);
+        builder.setColor(0xFF607D8B);
+        builder.setShowWhen(true);
+        builder.setAutoCancel(true);
+        builder.setOngoing(false);
+        builder.setOnlyAlertOnce(true);
+        // A card replaces itself rather than joining a group. The group key is deliberately gone: a
+        // group only collapses when its summary outranks every member, and the newest member always
+        // outranked the summary here, so the group sat permanently half expanded with its summary
+        // empty and separate. One card per session needs no summary and cannot fail to collapse.
+
+        // One conversation PER SESSION, named after it. A conversation is identified by the shortcut it
+        // references, not by the channel — the platform derives a per-conversation channel named after
+        // both — so reusing one shared shortcut put every terminal's notifications into a single
+        // thread, and a single thread can only carry one name: the header was whichever session's post
+        // happened to arrive last. The shortcut id is therefore per session.
+        String shortcutId = publishSessionShortcut(context, session.mHandle, sessionLabel(session));
+        if (shortcutId != null) builder.setShortcutId(shortcutId);
+
+        // MessagingStyle, and it is not decoration: it is what makes the platform treat this as a
+        // conversation at all. Measured on device — with the shortcut set and resolved, and
+        // MessagingStyle left out, the record came back with mConversationId=null and no derived
+        // channel, so the notifications stayed loose instead of joining a thread.
+        //
+        // The conversation title is the session's name, so the two printed lines answer two different
+        // questions: the header says which terminal is calling, the sender line says what it wants. The
+        // other way round the header merely repeated the message below it. The title is set explicitly
+        // because left unset the platform fills it with the application's name — a bare "Termux" above
+        // every message, naming whoever received the message instead of saying what it is about.
+        Person author = conversation.firstAuthor();
+        Notification.MessagingStyle style = new Notification.MessagingStyle(author)
+            .setConversationTitle(sessionLabel(session));
+        for (Notification.MessagingStyle.Message message : conversation.messages) {
+            style.addMessage(message);
+        }
+        builder.setStyle(style);
+        if (author != null) builder.addPerson(author);
+
+        // The inline reply field, which types into a shell — so it is offered only when the user has
+        // said they want it: not by default, and not because a program asked. Read through the
+        // multi-process preferences, since notifications are posted by the service and the value has
+        // to be the one on disk right now rather than whatever the UI process cached when it started.
+        if (withReplyAction && TermuxAppSharedPreferences.build(context).areNotificationInlineRepliesEnabled(true)) {
+            builder.addAction(buildReplyAction(context, session, id));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Put a delivered reply on screen and take the reply field away.
+     *
+     * <p>Replaces the card with the same thread plus the user's own message, which is what ends the
+     * reply visibly. The platform's progress indicator lives on the notification that owns the reply
+     * field and is cleared only when that notification is cancelled or replaced, so leaving the
+     * notification alone after a successful reply — which is what this used to do, on the assumption
+     * that the platform would end the indicator by itself — leaves it spinning forever. It does not:
+     * measured on device, the record kept its {@code LIFETIME_EXTENDED_BY_DIRECT_REPLY} flag
+     * indefinitely and the field kept spinning long after the text had reached the terminal.
+     *
+     * <p>The reply is added with no sender name on purpose, and not as an unnamed one: a message whose
+     * person carries no name is rendered by the platform as the literal word {@code null}, which is
+     * what showed up under the first attempt at this. The user's own words need no byline anyway, so
+     * the person's name is set to the empty string and only the text is left to be read.
+     *
+     * <p>The field is dropped rather than kept, so a card that has been answered cannot spin again:
+     * there is nothing left to answer with.
+     */
+    public static void recordReply(@NonNull Context context, @NonNull TerminalSession session,
+                                   int postedId, @NonNull CharSequence replyText) {
+        NotificationManager manager = NotificationUtils.getNotificationManager(context);
+        if (manager == null) return;
+        Conversation conversation = findConversationById(postedId);
+        if (conversation == null) {
+            // Nothing of ours left to rewrite, and whatever indicator is still up has to end somehow.
+            cancel(context, postedId);
+            return;
+        }
+        try {
+            Person self = new Person.Builder().setName("").setImportant(true).build();
+            conversation.add(new Notification.MessagingStyle.Message(
+                replyText, System.currentTimeMillis(), self), null);
+            Notification rewritten = buildNotification(context, session, conversation, postedId, false);
+            if (rewritten == null) {
+                cancel(context, postedId);
+                return;
+            }
+            manager.notify(postedId, rewritten);
+            Logger.logDebug(LOG_TAG, "Recorded reply on card " + postedId);
+        } catch (Exception e) {
+            // Better to lose the acknowledgement than to leave the indicator spinning: cancel, which
+            // is the one outcome that is guaranteed to stop it.
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to record reply on " + postedId, e);
+            cancel(context, postedId);
+        }
+    }
+
+    /** The conversation posted under this number, if it is still one of ours. */
+    @Nullable
+    private static synchronized Conversation findConversationById(int postedId) {
+        for (Conversation conversation : sConversations.values()) {
+            if (conversation.id == postedId) return conversation;
+        }
+        return null;
+    }
+
+    /**
+     * One session's thread: the card it lives on and the messages in it, oldest first.
+     *
+     * <p>A protocol notification is not kept per message. The thread is the unit: a card carries every
+     * message the session has raised, and a reply is just another message on the same card. The last
+     * protocol notification is kept only for the two things it alone can say — the line the collapsed
+     * card shows, and whether the program wants to hear about the card being opened.
+     */
+    private static final class Conversation {
+        final int id;
+        final List<Notification.MessagingStyle.Message> messages = new ArrayList<>();
+        @Nullable TerminalNotification last;
+        @Nullable String lastSignature;
+        long lastTimeMs;
+
+        /**
+         * Who the card is addressed to: the author of the oldest message still on it.
+         *
+         * <p>MessagingStyle is built around one person, and a message from anyone else is rendered as
+         * incoming with their name attached. Taking the oldest author is what keeps that person the
+         * program that is talking, so a later message from the same program carries its name and the
+         * user's reply — added with an empty name — does not.
+         */
+        @Nullable Person first;
+
+        Conversation(int id) {
+            this.id = id;
+        }
+
+        /**
+         * Append a message, trimming the oldest once the thread is full.
+         *
+         * <p>At least one message is always kept. Letting the thread empty would leave a card with
+         * nothing in it, which is exactly the empty summary that made the group approach look broken.
+         */
+        void add(@NonNull Notification.MessagingStyle.Message message, @Nullable Person author) {
+            messages.add(message);
+            while (messages.size() > MAX_MESSAGES_PER_CONVERSATION) {
+                messages.remove(0);
+            }
+            if (author != null) first = author;
+        }
+
+        @Nullable
+        Person firstAuthor() {
+            return first;
+        }
+    }
     /**
      * Publish the long-lived shortcut that makes this session's notifications a conversation.
      *
@@ -376,6 +567,13 @@ public final class TermuxTerminalNotificationDispatcher {
                 .setLongLabel(label)
                 .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
                 .setIntent(TermuxActivityUtils.newInstance(context)
+                    // The action is not optional: ShortcutInfo.Builder.setIntents() rejects an intent
+                    // without one outright ("intent's action must be set"), and that rejection happens
+                    // inside pushDynamicShortcut, so the shortcut is never published and the caller
+                    // gets no id to reference. Which is exactly what a missing conversation looks like
+                    // from the outside: the notifications post, but the platform has no anchor to group
+                    // them by, so each one arrives as its own card.
+                    .setAction(Intent.ACTION_VIEW)
                     .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, sessionHandle))
                 .setLongLived(true)
                 .build());
@@ -427,63 +625,49 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * Return the notification id for one protocol notification, reusing it while the notification is
-     * live so repeated chunks land on the same entry, and withdrawing the oldest of a session once
-     * {@link #MAX_LIVE_NOTIFICATIONS_PER_SESSION} is exceeded.
-     */
-    private static synchronized int acquireId(@NonNull Context context, @NonNull NotificationManager manager,
-                                              @NonNull String sessionHandle, @NonNull String protocolId) {
-        String key = sessionHandle + ' ' + protocolId;
-        Integer existing = sLiveIds.get(key);
-        if (existing != null) return existing;
-
-        String oldestKey = null;
-        int oldestForSession = 0;
-        int countForSession = 0;
-        for (Map.Entry<String, Integer> entry : sLiveIds.entrySet()) {
-            if (entry.getKey().startsWith(sessionHandle + ' ')) {
-                if (countForSession == 0) {
-                    oldestKey = entry.getKey();
-                    oldestForSession = entry.getValue();
-                }
-                countForSession++;
-            }
-        }
-        if (countForSession >= MAX_LIVE_NOTIFICATIONS_PER_SESSION && oldestKey != null) {
-            manager.cancel(oldestForSession);
-            sLiveIds.remove(oldestKey);
-            Logger.logDebug(LOG_TAG, "Withdrew notification " + oldestForSession
-                + " (limit " + MAX_LIVE_NOTIFICATIONS_PER_SESSION + " per session)");
-        }
-
-        int id = TermuxNotificationUtils.getNextNotificationId(context);
-        sLiveIds.put(key, id);
-        return id;
-    }
-
-    /**
-     * Take a notification off the screen and drop its bookkeeping entry.
+     * Take one message out of a session's thread, and the card away with it if that was the last one.
      *
-     * <p>Only for the paths where the platform has not already dealt with the notification. On a
-     * successful reply the platform appends the typed text to the conversation itself, which both
-     * ends the progress indicator and shows the user what was sent — so that path deliberately does
-     * nothing here, and this exists for the cases where the text never arrived: an unreadable reply
-     * bundle, or a session that is no longer there to type into. Left alone, the field would spin
-     * indefinitely with the typed text nowhere to be seen.
+     * <p>Used after the program is told its notification was opened. What is stale then is that one
+     * message, not the whole conversation, so only the message goes — the rest of the thread is still
+     * what the session has been saying.
+     *
+     * <p>Also the path that ends a reply which never got through: an unreadable reply bundle, or a
+     * session that is no longer there to type into. Left alone, the platform's progress indicator
+     * would spin with the typed text nowhere to be seen.
      */
-    static synchronized void dismiss(@NonNull Context context, @NonNull String sessionHandle,
-                                     @Nullable String protocolId) {
-        Integer id = sLiveIds.remove(sessionHandle + ' ' + (protocolId == null ? "" : protocolId));
-        if (id == null) return;
+    static void dismiss(@NonNull Context context, @NonNull String sessionHandle,
+                        @Nullable String protocolId) {
+        Conversation conversation = removeMessage(context, sessionHandle, protocolId);
+        if (conversation == null) return;
         NotificationManager manager = NotificationUtils.getNotificationManager(context);
         if (manager == null) return;
         try {
-            manager.cancel(id);
+            manager.cancel(conversation.id);
         } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to dismiss notification " + id, e);
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to dismiss card " + conversation.id, e);
         }
     }
 
+    /**
+     * Drop the message a protocol notification produced, keeping the thread if anything is left on it.
+     *
+     * @return the conversation when it has been emptied and its card must go, {@code null} when
+     *     nothing was removed.
+     */
+    @Nullable
+    private static synchronized Conversation removeMessage(@NonNull Context context,
+                                                            @NonNull String sessionHandle,
+                                                            @Nullable String protocolId) {
+        Conversation conversation = sConversations.get(sessionHandle);
+        if (conversation == null || protocolId == null) return null;
+        if (conversation.last == null || !protocolId.equals(conversation.last.getId())) return null;
+        conversation.last = null;
+        conversation.lastSignature = null;
+        conversation.messages.clear();
+        conversation.first = null;
+        sConversations.remove(sessionHandle);
+        return conversation;
+    }
     /**
      * Cancel one notification by the number it was posted under, for callers that carry that number
      * rather than a protocol identifier.
@@ -491,11 +675,22 @@ public final class TermuxTerminalNotificationDispatcher {
     static void cancel(@NonNull Context context, int notificationId) {
         NotificationManager manager = NotificationUtils.getNotificationManager(context);
         if (manager == null) return;
+        forgetConversation(notificationId);
         try {
             manager.cancel(notificationId);
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to cancel notification " + notificationId, e);
         }
+    }
+
+    /**
+     * Forget the thread behind a card that is being taken off the screen.
+     *
+     * <p>Otherwise the next notification from that session would land on a card the user has already
+     * dismissed, and the thread would grow on with nothing on screen to show it.
+     */
+    private static synchronized void forgetConversation(int notificationId) {
+        sConversations.values().removeIf(conversation -> conversation.id == notificationId);
     }
 
     /**
