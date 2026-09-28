@@ -25,7 +25,10 @@ import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,6 +62,13 @@ public final class TermuxTerminalNotificationDispatcher {
     private static final Object sDuplicateWindowLock = new Object();
     /** When a notification was last actually posted, or 0 if none has been. */
     private static long sLastPostedMs = 0;
+
+    /**
+     * Set once the channel has been created. Idempotent and never changes, and
+     * {@link #ensureChannel} is on the path of every notification, where each creation is a binder
+     * round trip to the notification service on the terminal's input thread.
+     */
+    private static volatile boolean sAlertingChannelCreated;
 
     private static boolean insideDuplicateWindow() {
         synchronized (sDuplicateWindowLock) {
@@ -112,6 +122,7 @@ public final class TermuxTerminalNotificationDispatcher {
     /** HIGH, not DEFAULT: DEFAULT shows quietly in the shade and never heads up. */
     @RequiresApi(Build.VERSION_CODES.O)
     private static void createAlertingChannel(@NonNull Context context) {
+        if (sAlertingChannelCreated) return;
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager == null) return;
         NotificationChannel channel = new NotificationChannel(
@@ -120,6 +131,7 @@ public final class TermuxTerminalNotificationDispatcher {
             NotificationManager.IMPORTANCE_HIGH);
         channel.setDescription(context.getString(R.string.terminal_notification_channel_description));
         notificationManager.createNotificationChannel(channel);
+        sAlertingChannelCreated = true;
     }
 
     /**
@@ -140,8 +152,12 @@ public final class TermuxTerminalNotificationDispatcher {
         // Covers both "the user turned notifications off" and "consent was never granted".
         if (!manager.areNotificationsEnabled()) return -1;
 
+        // One preferences object for this post: building it resolves the package context and opens
+        // both preference files, and it is the terminal's input thread paying for it.
+        TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context);
+
         // Checked before any work, so a dropped notification costs a lookup and a comparison.
-        boolean deduplicate = TermuxAppSharedPreferences.build(context).isNotificationDeduplicationEnabled(true);
+        boolean deduplicate = prefs != null && prefs.isNotificationDeduplicationEnabled(true);
         if (deduplicate && insideDuplicateWindow()) {
             Logger.logDebug(LOG_TAG, "Dropped notification " + notification.getId() + " for "
                 + session.mHandle + ": inside the " + DUPLICATE_WINDOW_MS + " ms window");
@@ -197,7 +213,7 @@ public final class TermuxTerminalNotificationDispatcher {
 
         // Offered on the user's own say-so, not because a program asked. Read from the multi-process
         // preferences, since the service posts and must see the value as it is on disk now.
-        if (TermuxAppSharedPreferences.build(context).areNotificationInlineRepliesEnabled(true)) {
+        if (prefs != null && prefs.areNotificationInlineRepliesEnabled(true)) {
             builder.addAction(buildReplyAction(context, session, id));
         }
 
@@ -351,14 +367,18 @@ public final class TermuxTerminalNotificationDispatcher {
      */
     public static synchronized void forgetSession(@NonNull Context context, @NonNull String sessionHandle) {
         String prefix = sessionHandle + ' ';
-        Integer[] ids = sLiveIds.entrySet().stream()
-            .filter(entry -> entry.getKey().startsWith(prefix))
-            .map(Map.Entry::getValue)
-            .toArray(Integer[]::new);
-        if (ids.length == 0) return;
-        for (Map.Entry<String, Integer> entry : new LinkedHashMap<>(sLiveIds).entrySet()) {
-            if (entry.getKey().startsWith(prefix)) sLiveIds.remove(entry.getKey());
+        // The ids are taken out with their keys, so the map this class keeps is walked once and stays
+        // the only copy. It used to be iterated through a duplicate, which was a second structure to
+        // keep in step for no gain.
+        List<Integer> ids = new ArrayList<>();
+        Iterator<Map.Entry<String, Integer>> entries = sLiveIds.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, Integer> entry = entries.next();
+            if (!entry.getKey().startsWith(prefix)) continue;
+            ids.add(entry.getValue());
+            entries.remove();
         }
+        if (ids.isEmpty()) return;
         NotificationManager manager = NotificationUtils.getNotificationManager(context);
         if (manager == null) return;
         for (Integer id : ids) {

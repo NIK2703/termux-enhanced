@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -28,11 +30,19 @@ import com.termux.terminal.TerminalSession;
  * the panel, which honours an "Append Enter on send" preference — an answer that is never submitted is
  * indistinguishable from no answer at all.
  *
+ * <p>Ordered so the answer is never waiting on bookkeeping: the text goes to the pty first, the
+ * notification is cancelled next, and only then is the reply filed in the history. The card goes
+ * rather than being left for the platform, which would append the typed text to it and leave the
+ * thread on screen — and the platform also ends the reply's progress indicator only when the
+ * notification does.
+ *
  * <p>Explicit intents only, so this stays unexported and needs no intent-filter.
  */
 public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
     private static final String LOG_TAG = "TermuxTerminalNotificationReplyReceiver";
+
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
     /**
      * Fallback keys for the typed text, tried after the RemoteInput's own label. Spelled out as
@@ -74,16 +84,38 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
             return;
         }
 
-        // The store the activity's history controller is bound to, so a reply filed here lands in the
-        // very list the panel's history popup reads. The session's own cwd, not the window's.
-        SharedPreferences preferences = context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
-        MessageHistoryController.shared(preferences).addToMessageHistory(text, session.getCwd());
+        // SystemUI calls a receiver on its own thread and waits for it to return before dismissing
+        // the reply, so everything in here is time the user spends watching a notification that has
+        // not gone yet. Held open for the bookkeeping below, which is not on that path any more.
+        final PendingResult pending = goAsync();
 
+        // First the answer itself: a queue write, so the program has the text before this returns.
         session.write(text + "\r");
         Logger.logDebug(LOG_TAG, "Delivered reply to session " + sessionHandle);
 
-        // The card is left alone: the platform appends what was typed and ends the progress indicator
-        // by itself.
+        // Then the card. It is cancelled rather than left to the platform, which would append the
+        // typed text to it and leave the thread on screen; and the platform ends the reply's progress
+        // indicator only when the notification goes, so cancelling is what stops the spinner.
+        cancelIfKnown(context, postedId);
+
+        // The history is bookkeeping nobody is waiting for: the session's cwd is a read of
+        // /proc, and the first call in a process loads the per-directory file. It runs after the
+        // reply is delivered and the card is gone, still on the main thread because the controller
+        // is not thread-safe and the activity shares it.
+        final SharedPreferences preferences =
+            context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        MAIN_HANDLER.post(() -> {
+            try {
+                MessageHistoryController.shared(preferences)
+                    .addToMessageHistory(text, session.getCwd());
+            } catch (Exception e) {
+                // The reply is already delivered; failing to file it in the history is worth a line
+                // but nothing more.
+                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to file reply in history", e);
+            } finally {
+                pending.finish();
+            }
+        });
     }
 
     /** Cancel the notification if its number is known; a missing number leaves nothing to cancel. */
