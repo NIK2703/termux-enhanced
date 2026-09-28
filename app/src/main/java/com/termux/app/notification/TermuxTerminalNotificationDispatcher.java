@@ -200,7 +200,7 @@ public final class TermuxTerminalNotificationDispatcher {
         // the platform derives a per-conversation channel named after both — so keeping our own loud
         // channel does not exclude us from the bubble's conversation, while a per-session shortcut
         // would have split these notifications into one conversation per open terminal.
-        String shortcutId = publishConversationShortcut(context, title != null ? title : body);
+        String shortcutId = publishConversationShortcut(context, sessionLabel(session));
         if (shortcutId != null) builder.setShortcutId(shortcutId);
 
         // Where the bubble should go when the user asks for it, however they ask: by tapping the
@@ -220,12 +220,16 @@ public final class TermuxTerminalNotificationDispatcher {
         // platform fills it with the application's name — which is what put a bare "Termux" above every
         // message: three lines where two were wanted, the top one naming whoever received the message
         // instead of saying what it is about.
+        // The message's sender is the notification's own title — what the program said it was about.
+        // The conversation's label, printed above the messages, is the session's name instead, so the
+        // two lines answer two different questions: which terminal is calling, and what it wants. The
+        // other way round the header merely repeated the message below it.
         Person sender = new Person.Builder()
-            .setName(sessionLabel(session).toString())
+            .setName((title != null ? title : body).toString())
             .setImportant(true)
             .build();
         builder.setStyle(new Notification.MessagingStyle(sender)
-            .setConversationTitle(title != null ? title : body)
+            .setConversationTitle(sessionLabel(session))
             .addMessage(new Notification.MessagingStyle.Message(
                 body != null ? body : title, System.currentTimeMillis(), sender)));
         builder.addPerson(sender);
@@ -325,6 +329,10 @@ public final class TermuxTerminalNotificationDispatcher {
      * only keeps it from being discarded when the process dies. That matters because the system has to
      * resolve the shortcut to build the conversation, and a transient one came back unresolvable on the
      * notification record.
+     *
+     * <p>The label is the session's own name, re-published on every post, so the conversation is named
+     * after the terminal rather than after whichever message arrived last — that copy is what printed
+     * one message twice, once as the conversation's name and once as the message's sender.
      *
      * @return the shortcut id, or {@code null} if it could not be published.
      */
