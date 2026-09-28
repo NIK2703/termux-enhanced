@@ -195,12 +195,18 @@ public final class TermuxTerminalNotificationDispatcher {
         // together in the shade instead of interleaving several terminals' into one unread pile.
         builder.setGroup(NOTIFICATION_GROUP + "." + session.mHandle);
 
-        // Every session's notifications join ONE conversation: the one the bubble is anchored to, by
-        // reusing its shortcut id. A conversation is identified by the shortcut, not by the channel —
-        // the platform derives a per-conversation channel named after both — so keeping our own loud
-        // channel does not exclude us from the bubble's conversation, while a per-session shortcut
-        // would have split these notifications into one conversation per open terminal.
-        String shortcutId = publishConversationShortcut(context, sessionLabel(session));
+        // One conversation per session, named after it. A conversation is keyed by the notification's
+        // shortcut id, so a per-session shortcut is what puts a session's notifications into a single
+        // thread instead of a card each: the same session's messages stack under one heading saying
+        // which session they are about, and two sessions stay apart instead of interleaving.
+        //
+        // This is deliberately NOT the bubble's own conversation. That one is raised by
+        // TermuxBubbleManager under its own shortcut and exists to carry a single floating window over
+        // every session, so it has to stay a single conversation; where it goes is decided separately,
+        // by the session recorded in noteSessionAskedForAttention(). Sharing the shortcut would have
+        // made every session's notifications claim one heading — the name of whichever terminal posted
+        // last, which is what the screenshot showed.
+        String shortcutId = publishSessionShortcut(context, session.mHandle, sessionLabel(session));
         if (shortcutId != null) builder.setShortcutId(shortcutId);
 
         // Where the bubble should go when the user asks for it, however they ask: by tapping the
@@ -247,16 +253,20 @@ public final class TermuxTerminalNotificationDispatcher {
         Logger.logDebug(LOG_TAG, "Posted notification " + id + " (" + notification.getId()
             + ") for session " + session.mHandle);
 
-        // Raise Termux's own bubble rather than carrying one of our own, for two reasons that were both
-        // measured. A bubble is made by the system out of a notification, so every notification carrying
-        // its own bubble metadata added another bubble instead of joining one — two per notification
-        // with duplicates. And Termux's bubble notification is posted under a fixed id, so refreshing
-        // it replaces the bubble already up rather than stacking a second one. Its window falls back to
-        // the last session that asked, recorded above, so the bubble lands where the user is being
-        // called. A failure here costs the bubble and nothing else: the notification and its reply are
-        // already posted.
+        // Raise Termux's own bubble rather than carrying one of our own: a bubble is made by the system
+        // out of a notification, so every notification with its own bubble metadata added another one
+        // instead of joining, and Termux's is posted under a fixed id, so at most one can exist.
+        //
+        // Only ever raised, never refreshed, which is the rule the full-screen window already follows
+        // and it is not cosmetic: re-posting the bubble notification re-asserts its auto-expand, so a
+        // refresh un-collapses a bubble the user collapsed on purpose, and the bubble is then measured
+        // again from a notification that was not posted from the state the bubble was opened in — which
+        // is how it came out half the height it was raised at. So a bubble already up is left exactly
+        // as the user has it, and its window still lands on the session that asked, because that is
+        // recorded above and read when the window opens.
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && !TermuxBubbleManager.isBubblePosted(context)
                     && TermuxBubbleManager.areBubblesAvailable(context)) {
                 TermuxBubbleManager.showBubble(context, title != null ? title : body);
             }
@@ -317,13 +327,11 @@ public final class TermuxTerminalNotificationDispatcher {
 
 
     /**
-     * Publish the shortcut that puts these notifications into the bubble's conversation.
+     * Publish the shortcut that makes this session's notifications one conversation, named after it.
      *
-     * <p>It is the bubble's own shortcut id, not a per-session one, so that every session's
-     * notifications land in the single conversation the user already knows — and so the bubble has an
-     * anchor to resolve. Published here as well because {@code TermuxBubbleManager} only publishes it
-     * when it posts its own bubble notification, which need not have happened: a program can ask for
-     * attention before the app has ever been minimised.
+     * <p>One per session, so a session's messages land in a single thread rather than a card each, and
+     * two sessions do not interleave. Published here rather than on demand because a program can ask
+     * for attention before anything else has published anything for that session.
      *
      * <p>Long-lived, and still dynamic: nothing is pinned and nothing appears in the launcher, the flag
      * only keeps it from being discarded when the process dies. That matters because the system has to
@@ -337,23 +345,22 @@ public final class TermuxTerminalNotificationDispatcher {
      * @return the shortcut id, or {@code null} if it could not be published.
      */
     @Nullable
-    private static String publishConversationShortcut(@NonNull Context context, @NonNull CharSequence label) {
-        String shortcutId = TermuxConstants.TERMUX_BUBBLE_SHORTCUT_ID;
+    private static String publishSessionShortcut(@NonNull Context context, @NonNull String sessionHandle,
+                                                 @NonNull CharSequence label) {
+        String shortcutId = TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_SHORTCUT_ID_PREFIX + sessionHandle;
         try {
-            // Labelled with the notification's own title, and re-published on every post. This label is
-            // what the shade prints above a conversation's messages, so a constant one put the
-            // application's name there on every notification: a line saying who received the message
-            // rather than what it is about, and the reason it survived every change to the
-            // notification's own title. Re-published per post, so the conversation carries the newest
-            // message's title — the same thing the conversation header shows for a messaging app.
+            // Labelled with the session's name, and re-published on every post so the conversation
+            // carries the session's current name — a session's title changes as the command in it
+            // changes, and a heading frozen at the first notification would go stale. The label is what
+            // the shade prints above the thread, so it has to say which terminal the messages are from
+            // rather than repeat the newest message's own title.
             ShortcutManagerCompat.pushDynamicShortcut(context, new ShortcutInfoCompat.Builder(context, shortcutId)
                 .setShortLabel(label)
                 .setLongLabel(label)
                 .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
                 .setIntent(new Intent(context, TermuxBubbleActivity.class)
                     .setAction(Intent.ACTION_VIEW)
-                    .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE,
-                        TermuxBubbleManager.lastNotifiedSession()))
+                    .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, sessionHandle))
                 .setLongLived(true)
                 .build());
             return shortcutId;
