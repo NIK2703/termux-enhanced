@@ -38,6 +38,15 @@
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
+        <!-- Off by default: the field types into a shell, which is the user's call and not the
+             program's. Without it a notification is still a notification, just one you read. -->
+        <SwitchPreferenceCompat
+            app:key="notification_inline_reply_enabled"
+            app:title="@string/termux_notification_inline_reply_title"
+            app:summary="@string/termux_notification_inline_reply_summary"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -109,20 +118,6 @@
 
     </PreferenceCategory>
 
-    <PreferenceCategory
-        app:title="@string/termux_notifications_category_title"
-        app:iconSpaceReserved="false">
-
-        <!-- Off by default: the field types into a shell, which is the user's call and not the
-             program's. Without it a notification is still a notification, just one you read. -->
-        <SwitchPreferenceCompat
-            app:key="notification_inline_reply_enabled"
-            app:title="@string/termux_notification_inline_reply_title"
-            app:summary="@string/termux_notification_inline_reply_summary"
-            app:defaultValue="false"
-            app:iconSpaceReserved="false" />
-
-    </PreferenceCategory>
 
     <PreferenceCategory
         app:title="@string/termux_debugging_preferences_title"
