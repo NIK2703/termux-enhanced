@@ -1128,11 +1128,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // the time the full-screen window is visible again.
         maybeAutoHideBubbleOnForeground();
 
-        // The pty size belongs to the session, not to the window that shows it, and this window is
-        // normally still laid out at its own size when it comes back — so onSizeChanged() will not
-        // fire and the pty would keep the geometry the other window (the bubble) last wrote. State
-        // ours again; this is also what makes the bubble window adopt its own geometry when it is
-        // the one coming back to the front, since it is this same activity class.
+        // The pty size belongs to the session, not to the window that shows it. This window is
+        // normally still laid out at its own size when it comes back, so onSizeChanged() will not
+        // fire and the pty would keep the geometry the other window (the bubble) last wrote. Take
+        // the front first: that is what lets the bound pages publish again, and the one below is
+        // then redundant for the selected page but still covers a session no page here has bound.
+        // Since the bubble is this same class, one call covers both directions.
+        if (mSessionPagerManager != null) mSessionPagerManager.setWindowInFront(true);
         reassertTerminalViewSize();
 
         // Same idea for the extra-keys panel: the fold state is derived from the window's shape and
@@ -1259,6 +1261,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // close the text input panel when the system dismisses the soft keyboard
         // on pause. The panel must stay open and reappear on resume.
         mIsPaused = true;
+
+        // Step out of the front. A pty write is global, so a relayout of a window the user is no
+        // longer looking at would resize the terminal they are looking at elsewhere. Done in onPause()
+        // rather than onStop() because this is the point the window actually leaves the front; the
+        // return in onResume() then republishes, which is what repairs what the other window wrote.
+        if (mSessionPagerManager != null) mSessionPagerManager.setWindowInFront(false);
 
         // A backgrounded window is by definition not focused; this is also the DECSET 1004
         // focus-lost report that an "only notify me when blurred" policy depends on.
@@ -3958,9 +3966,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * bubble-sized; do it the other way round and the bubble stays full-screen-sized. See
      * {@link TerminalView#reassertSessionSize()}.
      *
-     * <p>Only the current page needs this. A page that is not the current one is re-bound on the
-     * next swipe, and the page bind path already re-reports its size when it differs from the
-     * session emulator's.
+     * <p>Only the current page, and only while this window is the one in front: a session nobody is
+     * looking at gains nothing from a reflow, and its size is only meaningful relative to the
+     * window that will draw it. The other pages are covered by the page-switch path, which asserts
+     * each session's geometry at the moment this window starts showing it — see
+     * {@code SessionPagerManager.reassertLandedPageSize()}. Asserting them here instead would
+     * reflow every session the bubble had touched (an ioctl and a full reflow of each transcript)
+     * for tabs the user is not looking at.
      */
     private void reassertTerminalViewSize() {
         TerminalView terminalView = getTerminalView();

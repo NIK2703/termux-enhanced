@@ -64,6 +64,48 @@ public final class TerminalView extends View {
     public TerminalRenderer mRenderer;
 
     /**
+     * Whether this view may publish its own geometry to {@link #mTermSession}'s pty.
+     *
+     * <p>The pty size belongs to the SESSION, but the geometry belongs to the WINDOW: one session
+     * can be on screen in several views at once, and {@code JNI.setPtyWindowSize} has no idea who
+     * is asking — last writer wins. So without a rule, every bound view claims the session on
+     * every layout, and whichever window happened to lay out last owns the terminal. That is
+     * visible: a floating window (the bubble) is a second instance of the same activity with its
+     * own pager, and it binds the page it shows <em>plus its neighbours</em>
+     * ({@code offscreenPageLimit == 1}), so it silently resized sessions it does not even display.
+     *
+     * <p>The rule is that only the view presenting a session in a foreground window may publish.
+     * Note this cannot be decided by visibility from inside the view: ViewPager2 keeps the
+     * neighbouring pages attached and translates them off-screen, so {@code isShown()} is true
+     * for exactly the views that must be excluded. The owner is therefore declared from outside
+     * ({@link #setSizeAuthority}) by the pager, which knows which page is selected, and the
+     * activity, which knows which window is in front.
+     *
+     * <p>Defaults to {@code true} so a consumer that has no notion of selection (anything outside
+     * this app's pager) keeps the unconditional behaviour it always had.
+     */
+    private boolean mSizeAuthority = true;
+
+    /**
+     * Declare whether this view owns {@link #mTermSession}'s pty geometry.
+     *
+     * <p>Taking authority publishes the current size immediately rather than waiting for the next
+     * layout: the session being handed over may still carry another window's geometry, and this
+     * view is by definition the one now on screen. Idempotent, and free when the size already
+     * matches the session's.
+     *
+     * @see #mSizeAuthority
+     */
+    public void setSizeAuthority(boolean authority) {
+        if (mSizeAuthority == authority) return;
+        mSizeAuthority = authority;
+        // Rising edge only: regaining authority is exactly the moment a session that somebody else
+        // resized has to be brought back to this window's geometry. Releasing it must write
+        // nothing — that is the whole point of the flag.
+        if (authority) updateSize();
+    }
+
+    /**
      * Terminal background transparency in percent: 0 = opaque (the device wallpaper is not
      * shown behind the terminal), 50 = maximum transparency.
      *
@@ -2524,8 +2566,20 @@ public final class TerminalView extends View {
             final TerminalEmulator sessionEmulator = mTermSession.getEmulator();
             final int fontWidth = (int) mRenderer.getFontWidth();
             final int fontLineSpacing = mRenderer.getFontLineSpacing();
-            if (sessionEmulator == null
-                    || !sessionEmulator.hasSize(newColumns, newRows, fontWidth, fontLineSpacing)) {
+            if (sessionEmulator == null) {
+                // No emulator yet: this is TerminalSession.initializeEmulator() — the fork of the
+                // shell process. It creates the pty rather than claiming one, so it is never
+                // gated: refusing it here would leave the session with no pty at all. The size it
+                // starts at is this window's, which is as good a starting point as any, and the
+                // owning view republishes the real one as soon as the session reaches the screen.
+                mTermSession.updateSize(newColumns, newRows, fontWidth, fontLineSpacing);
+            } else if (mSizeAuthority
+                    && !sessionEmulator.hasSize(newColumns, newRows, fontWidth, fontLineSpacing)) {
+                // An existing pty being resized, i.e. a claim on a session this view does not own.
+                // Skipped while some other page or window is the one presenting this session, so a
+                // background window cannot pull the terminal out from under the foreground one.
+                // The emulator is left as it is and this view renders that size until it is handed
+                // the session, which republishes immediately — see setSizeAuthority().
                 mTermSession.updateSize(newColumns, newRows, fontWidth, fontLineSpacing);
             }
             mEmulator = mTermSession.getEmulator();
