@@ -45,15 +45,24 @@ public final class TerminalBuffer {
 
     /**
      * Style used to fill rows that are materialized lazily (see
-     * {@link #allocateFullLineIfNecessary(int)}) and the shared blank row. It follows the
-     * emulator's current style as of the last {@link #resize(int, int, int, int[], long, boolean)} —
-     * the same style that the pre-lazy-allocation code gave to every row it allocated eagerly.
-     * <p>
-     * It must never be left at 0: style 0 decodes to palette index 0 for <em>both</em> the
-     * foreground and the background, so freshly allocated rows would render as black glyphs on black
-     * background rectangles instead of the scheme's default colors.
+     * {@link #allocateFullLineIfNecessary(int)}) and the shared blank row.
+     *
+     * <p>This is deliberately the <em>default</em> style and nothing else. It describes cells the
+     * program has <strong>never written</strong>, and such a cell carries no attributes at all, so
+     * the only correct style for it is the scheme's default one. It must not follow the emulator's
+     * current SGR (it used to, see {@link #resize}): whatever attribute the program happened to
+     * have active at the moment the window was resized then leaked into every blank cell of the
+     * screen — including the whole screen, because a resize re-creates the rows through
+     * {@link #allocateFullLineIfNecessary}. A full-screen program whose last attribute is a
+     * reverse-video status line (vim, and anything else using the alternate screen buffer) turned
+     * the entire empty area into solid black: {@code TerminalRenderer} resolves a reverse-video
+     * cell by swapping fore/back, so the background became the scheme's <em>foreground</em>.</p>
+     *
+     * <p>Style 0 is just as wrong for a different reason: it decodes to palette index 0 for
+     * <em>both</em> the foreground and the background, so freshly allocated rows would render as
+     * black glyphs on black background rectangles.</p>
      */
-    private long mDefaultStyle = TextStyle.NORMAL;
+    private static final long DEFAULT_STYLE = TextStyle.NORMAL;
 
     /** Mark a single external row as needing a repaint. */
     public void markRowDirty(int externalRow) {
@@ -336,9 +345,10 @@ public final class TerminalBuffer {
      * @param cursor     An int[2] containing the (column, row) cursor location.
      */
     public void resize(int newColumns, int newRows, int newTotalRows, int[] cursor, long currentStyle, boolean altScreen) {
-        // Rows created after this point (lazily) must be filled with the same style that the
-        // eager allocation used to give them, not with 0 (see {@link #mDefaultStyle}).
-        mDefaultStyle = currentStyle;
+        // {@link #DEFAULT_STYLE} is a constant and is deliberately NOT refreshed from
+        // `currentStyle` here: it styles cells the program never wrote, which have no attributes
+        // of their own. Cells that the program *did* erase keep the SGR that was active at the
+        // erase, which is what the clear()/scrollDownOneLine() calls below are for.
 
         // E2: the dirty set is indexed by internal (ring) row, so it has to be resized together
         // with the ring — and before the re-flow below, which calls scrollDownOneLine().
@@ -659,7 +669,7 @@ public final class TerminalBuffer {
 
     public TerminalRow allocateFullLineIfNecessary(int row) {
         TerminalRow line = mLines[row];
-        if (line == null) line = mLines[row] = new TerminalRow(mColumns, mDefaultStyle);
+        if (line == null) line = mLines[row] = new TerminalRow(mColumns, DEFAULT_STYLE);
         return line;
     }
 
@@ -671,10 +681,10 @@ public final class TerminalBuffer {
      * read, never modified.
      */
     public TerminalRow getLineOrBlank(int externalRow) {
-        if (mBlankRow == null || mBlankRowColumns != mColumns || mBlankRowStyle != mDefaultStyle) {
-            mBlankRow = new TerminalRow(mColumns, mDefaultStyle);
+        if (mBlankRow == null || mBlankRowColumns != mColumns || mBlankRowStyle != DEFAULT_STYLE) {
+            mBlankRow = new TerminalRow(mColumns, DEFAULT_STYLE);
             mBlankRowColumns = mColumns;
-            mBlankRowStyle = mDefaultStyle;
+            mBlankRowStyle = DEFAULT_STYLE;
         }
         TerminalRow line = mLines[externalToInternalRow(externalRow)];
         return line != null ? line : mBlankRow;

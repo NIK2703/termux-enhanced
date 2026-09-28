@@ -141,18 +141,23 @@ public final class TerminalView extends View {
      * outside the row-anchor path). Set to {@code true} only after a frame that demonstrably
      * covered the entire view, i.e. a full-repaint draw — partial draws don't validate the
      * rows outside the clip, so the flag stays {@code false} until a real full-frame draw
-     * happens.</p>
+     * happens. While it is {@code false} and frames keep arriving clipped, the part of the view
+     * the clip left out is re-requested, see {@link #requestUncoveredRegion}.</p>
      */
     private boolean mPixelsValid = false;
 
     /**
-     * E2: whether {@link #onDraw} has already asked for the full frame that is supposed to
-     * validate {@link #mPixelsValid}, and that request has not been fulfilled yet. Bounds the
-     * recovery to a single retry so a permanently clipped parent cannot turn it into a
-     * per-frame invalidate loop. Reset by {@link #invalidate()} (a fresh request starts over) and
-     * by any frame that actually arrives with a full clip.
+     * Clip bounds of the last frame that arrived while {@link #mPixelsValid} was still
+     * {@code false}, i.e. the last one that did not cover the whole view. Empty means no recovery
+     * request is outstanding.
+     *
+     * <p>Used to detect "another frame arrived, clipped exactly like the previous one": the
+     * request for the uncovered part of the view is then dropped, because it cannot possibly help.
+     * That is what bounds the recovery — not a retry count, which used to be spent by a frame that
+     * by construction could never be full, leaving the surface half-stale forever (see
+     * {@link #requestUncoveredRegion}).</p>
      */
-    private boolean mFullFramePending = false;
+    private final Rect mUncoveredRecoveryClip = new Rect();
 
     int[] mDefaultSelectors = new int[]{-1,-1,-1,-1};
 
@@ -162,7 +167,10 @@ public final class TerminalView extends View {
         // previous-frame content is no longer trustworthy. (Partial invalidates — invalidate(l,t,r,b)
         // — leave the rest of the surface intact and do not affect this flag.)
         mPixelsValid = false;
-        mFullFramePending = false;
+        // A full invalidate supersedes any outstanding request for the uncovered part: it already
+        // covers it, so the recovery bookkeeping starts over (and the next partial frame must ask
+        // again rather than assume the request is still pending).
+        mUncoveredRecoveryClip.setEmpty();
         super.invalidate();
     }
 
@@ -2582,17 +2590,25 @@ public final class TerminalView extends View {
             // outside rows may not hold valid pixels at all (e.g. first frame on a newly paged-in
             // pager page, transparent-scheme change, post-attach before a full draw) and skipping
             // them would leave them transparent/black. In that case we ask the renderer to draw
-            // every visible row and schedule a full invalidate so the next frame is a true
-            // full-clip draw that validates the rest.
+            // every visible row, and the part of the view the clip left out is re-requested below
+            // until a full-clip frame finally arrives.
             boolean hasClip = canvas.getClipBounds(mClipBounds);
             boolean isFullClip = !hasClip || isFullRepaint(mClipBounds);
             Rect dirtyRect = (isFullClip || !mPixelsValid) ? null : mClipBounds;
-            // Ask for one full frame only. If a parent keeps clipping us below the full view
-            // bounds the follow-up would never produce a full clip, and an unconditional
-            // invalidate() here would spin at 60 fps forever. Losing the per-row skip is the
-            // correct degradation in that case: dirtyRect stays null, so every visible row is
-            // drawn — same pixels, just no optimization.
-            boolean needFullFollowup = !isFullClip && !mPixelsValid && !mFullFramePending;
+            // With the surface still "unknown" this frame painted every visible row, but only
+            // inside the clip. Whatever the clip left out still holds the pixels of an older frame,
+            // and nothing else will come for it: no program output, no cursor blink, no user
+            // interaction. So the uncovered part is requested explicitly (below) — every time the
+            // clip differs from the one we last asked about, which is both the retry bound and the
+            // progress test. A plain invalidate() cannot do that job: the next frame is clipped
+            // exactly like this one for as long as an ancestor keeps part of the view off-screen
+            // (the tab pager translates its RecyclerView while a tab settles, and its overscroll
+            // spring can hold a few pixels afterwards), and a request that is dropped for being
+            // off-screen is never retried. That is how a resize could leave the screen showing a
+            // mix of freshly drawn and stale rows indefinitely.
+            // Losing the per-row skip meanwhile is the correct degradation: dirtyRect stays null,
+            // so every visible row is drawn — same pixels, just no optimization.
+            boolean needUncoveredRecovery = !isFullClip && !mPixelsValid;
             // C1: keep mTopRow inside the live buffer before drawing — the emulator may have
             // switched to the alternate screen or cleared the transcript since the last
             // onScreenUpdated(), and render() would otherwise read rows below the history
@@ -2608,7 +2624,7 @@ public final class TerminalView extends View {
             // renderer already cleared per-row bits as each row was drawn.
             if (isFullClip) {
                 mPixelsValid = true;
-                mFullFramePending = false;
+                mUncoveredRecoveryClip.setEmpty();
                 mEmulator.getScreen().clearDirtyState();
             }
 
@@ -2627,17 +2643,38 @@ public final class TerminalView extends View {
             // the thumb; gating it to full repaints would gouge the thumb out on each partial repaint.
             drawScrollbar(canvas);
 
-            // We drew into a partial clip with the surface still "unknown" — this frame painted
-            // every visible row, but only within the clip. Rows outside the clip may still not
-            // hold valid pixels, so ask the framework for a full-frame draw next time. The
-            // invalidate() override clears mPixelsValid to false; the resulting full repaint will
-            // reset it to true on the frame after that, completing the recovery in two frames.
-            // The pending flag is set *after* invalidate() because the override clears it.
-            if (needFullFollowup) {
-                invalidate();
-                mFullFramePending = true;
-            }
+            if (needUncoveredRecovery) requestUncoveredRegion(mClipBounds);
         }
+    }
+
+    /**
+     * Ask the framework to repaint the part of this view that {@code clip} left out, so that a
+     * frame drawn into a partial clip cannot leave the rest of the surface holding an older
+     * frame's pixels.
+     *
+     * <p>The request is dropped when a frame arrives whose clip is identical to the one the
+     * previous request was made for: the view is then clipped in exactly the same way by something
+     * outside its control, asking again would produce another identical frame, and the per-row
+     * skip is simply given up ({@link #mPixelsValid} stays false, which costs a few extra row
+     * draws per frame and nothing else). A clip that <em>does</em> change — the pager settling,
+     * the view being scrolled or re-laid-out — re-arms the request, and the next frame covers
+     * strictly more of the view.</p>
+     *
+     * <p>Note this deliberately does not call {@link #invalidate()}: that would clear
+     * {@link #mPixelsValid} (correctly, for a full repaint) but also re-arm this bookkeeping, so
+     * the two requests would chase each other. Partial invalidations leave the rest of the surface
+     * alone, which is exactly what is being asked for here.</p>
+     */
+    private void requestUncoveredRegion(Rect clip) {
+        if (mUncoveredRecoveryClip.equals(clip)) return;
+        mUncoveredRecoveryClip.set(clip);
+        final int width = getWidth(), height = getHeight();
+        // The complement of the clip inside the view bounds, as up to four full-length bands. They
+        // may overlap at the corners, which is harmless: invalidation regions are unioned anyway.
+        if (clip.left > 0) invalidate(0, 0, Math.min(clip.left, width), height);
+        if (clip.top > 0) invalidate(0, 0, width, Math.min(clip.top, height));
+        if (clip.right < width) invalidate(Math.max(clip.right, 0), 0, width, height);
+        if (clip.bottom < height) invalidate(0, Math.max(clip.bottom, 0), width, height);
     }
 
     private boolean isFullRepaint(Rect clip) {
