@@ -1216,11 +1216,8 @@ public final class SessionPagerManager {
         final TerminalView landedView = getPagerPageView(position);
         mActivity.setTerminalView(landedView);
 
-        // The page this window is now showing states the pty size it has on screen — right here,
-        // on the switch, not on some later window resize. A page that was already bound and in the
-        // pager's live set is normally current already, and this is then one comparison; it earns
-        // its keep for a session that was not: too far to be bound (offscreenPageLimit == 1), or
-        // resized by the other window while this one had it bound. See reassertLandedPageSize().
+        // One comparison when the page was already bound and in the pager's live set; it earns its
+        // keep for a session that was not — too far to be bound, or resized by the other window.
         reassertLandedPageSize(landedView);
 
         // NOTE: no defensive clear of the shared text-input EditText here anymore. The
@@ -1353,10 +1350,8 @@ public final class SessionPagerManager {
         TerminalSession active = getActiveSession();
         if (active != session) return;
         mActivity.setTerminalView(view);
-        // The landing's other half: onTerminalPageSelected() could not do this when the page was
-        // not bound yet (a jump of two or more pages), and attachSession()'s own updateSize() saw
-        // a view with no measured size to report. The view is live here, so state its geometry
-        // now rather than wait for a resize that may never come.
+        // The landing's other half: onTerminalPageSelected() could not do this when the page was not
+        // bound yet, and attachSession()'s own updateSize() saw a view with no measured size.
         reassertLandedPageSize(view);
         // The active page's view exists again — hand it the focus, and with it the IME target.
         // This is the only place that runs on a POSITIVE signal (the page is attached and bound),
@@ -1372,22 +1367,15 @@ public final class SessionPagerManager {
     /**
      * Make the page this window is showing state its own geometry to its session's pty.
      *
-     * <p>Half of a pair, and the half the ownership gate cannot do. The gate
-     * ({@link TerminalPagerAdapter#setSizeAuthoritySession}) stops a window from resizing a session
-     * it is not presenting — but the session this window <em>is</em> presenting can still carry the
-     * other window's geometry: both windows are alive and the one behind wrote last. Returning to
-     * the front re-reports nothing, because this view has not been laid out again and so
-     * {@code onSizeChanged} does not fire; the terminal on screen stays drawn at the bubble's grid
+     * <p>The half of the pair that {@link TerminalPagerAdapter#setWindowInFront} cannot do: the gate
+     * stops a window resizing a session it is not presenting, but the session this window <em>is</em>
+     * presenting can still carry the other window's geometry, since both are alive and the one behind
+     * wrote last. Coming back re-reports nothing — this view was not laid out again, so
+     * {@code onSizeChanged} does not fire — and the terminal on screen stays at the bubble's grid
      * until the window is physically resized.
      *
-     * <p>So the foreground window states its size for the session it is showing, at the moment it
-     * starts showing it: here on a page switch, and from {@code onResume()} for a window coming
-     * back. Deliberately not for every bound page — a session nobody looks at gains nothing from a
-     * reflow, and its size is only meaningful relative to the window that will draw it, which is
-     * exactly what a switch decides.
-     *
-     * <p>Idempotent and free when nothing changed: {@link TerminalView#reassertSessionSize()} only
-     * reaches the pty when the size it computes differs from the session emulator's.
+     * <p>Free when nothing changed: {@link TerminalView#reassertSessionSize()} only reaches the pty
+     * when the size it computes differs from the session emulator's.
      */
     private static void reassertLandedPageSize(@Nullable TerminalView view) {
         if (view == null) return;
@@ -1399,10 +1387,9 @@ public final class SessionPagerManager {
      * sessions' pty.
      *
      * <p>Toggling rather than only being set on the way in is what makes the return work: a window
-     * that kept its claim would find nothing to do coming back — the bound pages have not changed —
-     * and the geometry the other window wrote in the meantime would survive. Going through
-     * {@code false} makes the return a fresh rising edge on every bound page, and each of them
-     * republishes its size.
+     * that kept its claim would find nothing to do coming back, and the geometry the other window
+     * wrote in the meantime would survive. Going through {@code false} makes the return a fresh
+     * rising edge on every bound page.
      */
     public void setWindowInFront(boolean inFront) {
         if (mTerminalPagerAdapter == null) return;

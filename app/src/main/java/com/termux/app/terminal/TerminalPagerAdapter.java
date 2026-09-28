@@ -75,42 +75,27 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
     /**
      * Whether this window is in the front and its pages therefore speak for their sessions' pty.
-     *
-     * <p>The pty size is a property of the session but the geometry is a property of the window,
-     * and the platform has no notion of which window asked: {@code JNI.setPtyWindowSize} is last
-     * writer wins. With nothing declaring ownership, every bound view claims its session on every
-     * layout, so a window that is not even on screen silently resized terminals the visible one is
-     * showing.
-     *
-     * <p>{@code false} is the state of every backgrounded window, and it is a real state, not
-     * "unset": a window that is not in front must own nothing, including what it showed a moment
-     * ago. See {@link TerminalView#setSizeAuthority}.
+     * {@code false} is the state of every backgrounded window. See {@link TerminalView#setSizeAuthority}.
      */
     private boolean mWindowInFront = false;
 
     /**
      * Declare whether this window is in the front, and apply it to every bound page.
      *
-     * <p><b>Every bound page, not just the selected one</b> — and that is the point. ViewPager2
-     * keeps the neighbours of the current page bound ({@code offscreenPageLimit == 1}) precisely so
-     * a drag reveals them live, which makes them pages this window is about to be showing. Leaving
-     * them out would mean their sessions kept a stale size, and the repair then lands as a reflow
-     * in the middle of the swipe the user is doing — the grid visibly jumps once the new page has
-     * been settled on. One ioctl per neighbour on a window transition is the cheaper trade.
+     * <p><b>Every bound page, not just the selected one</b>: ViewPager2 keeps the neighbours bound
+     * ({@code offscreenPageLimit == 1}) so a drag reveals them live, which makes them pages this
+     * window is about to be showing. Leaving them out means their sessions keep a stale size and the
+     * repair lands as a reflow in the middle of the user's swipe.
      *
-     * <p>What this does <em>not</em> restore is a session no page of this window has bound: a tab
-     * several pages away is not part of the pager's live set, and it is repaired on the switch to
-     * it instead (see {@code SessionPagerManager.reassertLandedPageSize}).
-     *
-     * <p>Applying to a page that just gained authority republishes its size immediately, which is
-     * what repairs the sessions another window resized while this one was in the background.
+     * <p>What this does not restore is a session no page of this window has bound — a tab several
+     * pages away, repaired on the switch to it instead
+     * ({@code SessionPagerManager.reassertLandedPageSize}).
      */
     public void setWindowInFront(boolean inFront) {
         if (mWindowInFront == inFront) return;
         mWindowInFront = inFront;
-        // Snapshot the views first. Taking authority runs updateSize(), which resizes an emulator
-        // and fires that session's callbacks — code free to sync the session list, and so to bind
-        // or recycle a page, i.e. to edit mSessionViews while this loop walks it.
+        // Snapshot first: taking authority runs updateSize(), which fires that session's callbacks —
+        // code free to bind or recycle a page, i.e. to edit mSessionViews under this loop.
         final int count = mSessionViews.size();
         final TerminalView[] views = mSessionViews.values().toArray(new TerminalView[count]);
         for (TerminalView view : views) view.setSizeAuthority(inFront);
@@ -453,11 +438,8 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
 
         TerminalView terminalView = holder.mTerminalView;
         // Settle this page's pty claim BEFORE anything below can reach updateSize() — setTextSize()
-        // and attachSession() both call it, and they are a few lines apart. Deciding afterwards would
-        // let the first updateSize() of every bind run on the flag left over from the holder's
-        // previous life, which is exactly the write the gate exists to prevent: a holder taken from
-        // the pool may have belonged to a foreground window one bind ago. Off-screen pages are
-        // included — this window is in front, and these are the pages a drag is about to reveal.
+        // and attachSession() both call it. Deciding afterwards would let the first updateSize() of
+        // every bind run on the flag left over from the holder's previous life.
         terminalView.setSizeAuthority(mWindowInFront);
         // Bind the shared client so input/IME/gestures route here.
         terminalView.setTerminalViewClient(mViewClient);
@@ -587,10 +569,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         // position; re-attaching on the next bind restores the correct emulator from the session.
         if (holder.mTerminalView != null) {
             holder.mTerminalView.attachSession(null);
-            // Hand the pty claim back before the view leaves: a holder sitting in the pool must not
-            // be able to resize anything. Harmless either way (attachSession(null) makes
-            // updateSize() a no-op), but it keeps "only a bound, selected page owns a session" true
-            // without an exception for the pool.
+            // Hand the claim back before the view leaves, so a pooled holder cannot resize anything.
             holder.mTerminalView.setSizeAuthority(false);
             // Drop the per-page context menu registration so a recycled page leaves no dangling
             // listener and only the active page serves the terminal menu.

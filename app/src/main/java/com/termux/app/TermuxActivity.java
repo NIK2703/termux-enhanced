@@ -1131,9 +1131,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // The pty size belongs to the session, not to the window that shows it. This window is
         // normally still laid out at its own size when it comes back, so onSizeChanged() will not
         // fire and the pty would keep the geometry the other window (the bubble) last wrote. Take
-        // the front first: that is what lets the bound pages publish again, and the one below is
-        // then redundant for the selected page but still covers a session no page here has bound.
-        // Since the bubble is this same class, one call covers both directions.
+        // the front first — that is what lets the bound pages publish again. Since the bubble is
+        // this same class, one call covers both directions.
         if (mSessionPagerManager != null) mSessionPagerManager.setWindowInFront(true);
         reassertTerminalViewSize();
 
@@ -1263,9 +1262,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mIsPaused = true;
 
         // Step out of the front. A pty write is global, so a relayout of a window the user is no
-        // longer looking at would resize the terminal they are looking at elsewhere. Done in onPause()
-        // rather than onStop() because this is the point the window actually leaves the front; the
-        // return in onResume() then republishes, which is what repairs what the other window wrote.
+        // longer looking at would resize the terminal they are looking at elsewhere. Released here
+        // rather than onStop(), which is the point the window actually leaves the front.
         if (mSessionPagerManager != null) mSessionPagerManager.setWindowInFront(false);
 
         // A backgrounded window is by definition not focused; this is also the DECSET 1004
@@ -3958,21 +3956,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Re-publish this window's terminal geometry to the current session's pty.
      *
      * <p>A session can be displayed by two windows at once — this activity and
-     * {@link com.termux.app.bubble.TermuxBubbleActivity}, which is a second instance of this same
-     * class — and the pty size is a property of the session, so the window that reported last wins
-     * while the other keeps its own layout. A window returning to the front is normally still laid
-     * out at its previous size, so nothing else re-reports it and the terminal is left rendering at
-     * the other window's geometry: use the bubble, open the full-screen window, and the grid stays
-     * bubble-sized; do it the other way round and the bubble stays full-screen-sized. See
-     * {@link TerminalView#reassertSessionSize()}.
+     * {@link com.termux.app.bubble.TermuxBubbleActivity}, a second instance of this same class — and
+     * a window returning to the front is normally still laid out at its previous size, so nothing
+     * else re-reports it. {@link TerminalView#reassertSessionSize()}.
      *
-     * <p>Only the current page, and only while this window is the one in front: a session nobody is
-     * looking at gains nothing from a reflow, and its size is only meaningful relative to the
-     * window that will draw it. The other pages are covered by the page-switch path, which asserts
-     * each session's geometry at the moment this window starts showing it — see
-     * {@code SessionPagerManager.reassertLandedPageSize()}. Asserting them here instead would
-     * reflow every session the bubble had touched (an ioctl and a full reflow of each transcript)
-     * for tabs the user is not looking at.
+     * <p>Covers a session no page of this window has bound. The bound ones are covered by
+     * {@code SessionPagerManager.setWindowInFront(true)} just above.
      */
     private void reassertTerminalViewSize() {
         TerminalView terminalView = getTerminalView();

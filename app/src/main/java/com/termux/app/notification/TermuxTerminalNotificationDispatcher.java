@@ -35,15 +35,11 @@ import java.util.Map;
  * Turns a {@link TerminalNotification} — a desktop notification a program in a terminal asked for over
  * the kitty OSC 99 protocol — into an Android system notification.
  *
- * <p>Posted directly rather than through Termux:API: the escape sequence is already parsed in this
- * process, so there is nothing to forward, and it cannot fail because a companion app is missing.
- *
- * <p>One notification is one card, and nothing merges two of them — no conversation, no group, no
- * shortcut. {@code MessagingStyle} was the reason: its {@code Person} must be named (the platform
- * renders an anonymous one as the literal word {@code null}) and that name is then drawn as a header
- * above every message, so the style cannot show a title and its content without adding a line that is
- * not the notification's text. The session is named on the card as its subtitle instead, which tells
- * terminals apart without collecting them.
+ * <p>One notification is one card, and nothing merges two of them. {@code MessagingStyle} was the
+ * reason: its {@code Person} must be named (the platform renders an anonymous one as the literal
+ * word {@code null}) and that name is drawn above every message, so the style cannot show a title
+ * and content without adding a line that is not the notification's text. The session goes on the card
+ * as a subtitle instead.
  */
 public final class TermuxTerminalNotificationDispatcher {
 
@@ -54,8 +50,8 @@ public final class TermuxTerminalNotificationDispatcher {
 
     /**
      * Window within which a further notification is dropped, when deduplication is on. Measured: one
-     * event arrives as a burst 6-11 ms apart, separate events seconds apart. Nothing is ever delayed —
-     * a notification is posted at once or dropped at once.
+     * event arrives as a burst 6-11 ms apart, separate events seconds apart. Nothing is delayed — a
+     * notification is posted at once or dropped at once.
      */
     private static final long DUPLICATE_WINDOW_MS = 100;
 
@@ -63,11 +59,7 @@ public final class TermuxTerminalNotificationDispatcher {
     /** When a notification was last actually posted, or 0 if none has been. */
     private static long sLastPostedMs = 0;
 
-    /**
-     * Set once the channel has been created. Idempotent and never changes, and
-     * {@link #ensureChannel} is on the path of every notification, where each creation is a binder
-     * round trip to the notification service on the terminal's input thread.
-     */
+    /** Creating a channel is a binder round trip, and this runs on every notification. */
     private static volatile boolean sAlertingChannelCreated;
 
     private static boolean insideDuplicateWindow() {
@@ -149,14 +141,12 @@ public final class TermuxTerminalNotificationDispatcher {
 
         NotificationManager manager = NotificationUtils.getNotificationManager(context);
         if (manager == null) return -1;
-        // Covers both "the user turned notifications off" and "consent was never granted".
         if (!manager.areNotificationsEnabled()) return -1;
 
-        // One preferences object for this post: building it resolves the package context and opens
-        // both preference files, and it is the terminal's input thread paying for it.
+        // One object for this post: building it opens both preference files, on the terminal's input
+        // thread.
         TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context);
 
-        // Checked before any work, so a dropped notification costs a lookup and a comparison.
         boolean deduplicate = prefs != null && prefs.isNotificationDeduplicationEnabled(true);
         if (deduplicate && insideDuplicateWindow()) {
             Logger.logDebug(LOG_TAG, "Dropped notification " + notification.getId() + " for "
@@ -164,8 +154,8 @@ public final class TermuxTerminalNotificationDispatcher {
             return -1;
         }
 
-        // Idempotent, and normally already done at onStart. Kept here so a notification raised before
-        // the activity has ever run still lands on a real channel.
+        // Normally already done at onStart; kept here so a notification raised before the activity
+        // has ever run still lands on a real channel.
         ensureChannel(context);
 
         int id = acquireId(context, manager, session.mHandle, notification.getId());
@@ -173,8 +163,8 @@ public final class TermuxTerminalNotificationDispatcher {
 
         CharSequence title = notification.getTitle();
         CharSequence body = notification.getBody();
-        // The heading: the title if the program sent one, otherwise the body. The content line below
-        // gets the body only, so a one-field notification is not printed twice.
+        // bigText is the body only when a title exists, so a one-field notification is not printed
+        // twice.
         CharSequence summary = title == null ? body : title;
         CharSequence bigText = title == null || body == null ? null : body;
         boolean silent = notification.isSilent();
@@ -211,8 +201,8 @@ public final class TermuxTerminalNotificationDispatcher {
         CharSequence subText = sessionSubText(session);
         if (subText != null) builder.setSubText(subText);
 
-        // Offered on the user's own say-so, not because a program asked. Read from the multi-process
-        // preferences, since the service posts and must see the value as it is on disk now.
+        // From the multi-process preferences, since the service posts and must see the value as it is
+        // on disk now.
         if (prefs != null && prefs.areNotificationInlineRepliesEnabled(true)) {
             builder.addAction(buildReplyAction(context, session, id));
         }
@@ -239,13 +229,11 @@ public final class TermuxTerminalNotificationDispatcher {
 
     /**
      * The inline reply: the text is typed into the session followed by a carriage return. Offered
-     * regardless of the program's {@code a} key, which governs the program's interest in the click,
-     * not the user's.
+     * regardless of the program's {@code a} key, which governs its interest in the click, not the
+     * user's.
      */
     private static Notification.Action buildReplyAction(@NonNull Context context, @NonNull TerminalSession session,
                                                          int notificationId) {
-        // The hint is the field's only text; borrowing the notification's words would look like the
-        // field already holds the user's own message.
         RemoteInput remoteInput = new RemoteInput.Builder(context.getString(R.string.notification_terminal_reply_hint))
             .build();
 
@@ -267,9 +255,8 @@ public final class TermuxTerminalNotificationDispatcher {
 
     /**
      * The id for one protocol notification, keyed on the session and the program's {@code i=} so that
-     * chunks of a notification share a card and a re-send replaces it. The text is never compared:
-     * treating two notifications as one event is a guess, and a wrong one either eats something meant
-     * to be read or fails to hide a duplicate.
+     * chunks share a card and a re-send replaces it. The text is never compared: a wrong match either
+     * eats something meant to be read or fails to hide a duplicate.
      */
     private static synchronized int acquireId(@NonNull Context context, @NonNull NotificationManager manager,
                                               @NonNull String sessionHandle, @NonNull String protocolId) {
@@ -306,10 +293,7 @@ public final class TermuxTerminalNotificationDispatcher {
         return id;
     }
 
-    /**
-     * The card's subtitle: the session's title, else the working directory's name, else nothing. The
-     * app's name would be the same on every card and so name nothing at all.
-     */
+    /** The session's title, else the working directory's name, else nothing. */
     @Nullable
     private static CharSequence sessionSubText(@NonNull TerminalSession session) {
         String title = session.getTitle();
@@ -331,10 +315,7 @@ public final class TermuxTerminalNotificationDispatcher {
         return false;
     }
 
-    /**
-     * Take one notification off the screen, once the program has been told it was opened. Also how a
-     * reply that never got through ends: left alone, the progress indicator spins forever.
-     */
+    /** Also how a reply that never got through ends: left alone, the progress indicator spins forever. */
     static synchronized void dismiss(@NonNull Context context, @NonNull String sessionHandle,
                                      @Nullable String protocolId) {
         if (protocolId == null) return;
@@ -361,15 +342,9 @@ public final class TermuxTerminalNotificationDispatcher {
         }
     }
 
-    /**
-     * Take down what a finished session left on screen: it cannot notify again, and a reply field on
-     * its card would type into a terminal that is not there.
-     */
+    /** Take down what a finished session left on screen: it cannot notify again. */
     public static synchronized void forgetSession(@NonNull Context context, @NonNull String sessionHandle) {
         String prefix = sessionHandle + ' ';
-        // The ids are taken out with their keys, so the map this class keeps is walked once and stays
-        // the only copy. It used to be iterated through a duplicate, which was a second structure to
-        // keep in step for no gain.
         List<Integer> ids = new ArrayList<>();
         Iterator<Map.Entry<String, Integer>> entries = sLiveIds.entrySet().iterator();
         while (entries.hasNext()) {

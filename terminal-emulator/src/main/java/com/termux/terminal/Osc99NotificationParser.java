@@ -30,22 +30,14 @@ final class Osc99NotificationParser {
      * grows this map forever.
      */
     private static final int MAX_PENDING = 32;
-    /**
-     * Cap on the decoded text held for all pending notifications together.
-     *
-     * <p>Reached only by incomplete notifications. A finished one is handed over whole: a length
-     * policy here would silently mangle what a program did send.
-     */
+
+    /** Reached only by incomplete ones: a finished notification is handed over whole. */
     private static final int MAX_CHARS_TOTAL = 65536;
 
     /**
-     * Cap on a single notification's accumulated text.
-     *
-     * <p>{@link #MAX_CHARS_TOTAL} bounds the total by evicting the <em>oldest</em> pending
-     * notification, which a growing one is not: it is the newest, so it survives every eviction and
-     * can append without limit while its program never sends {@code d=1}. Past this the notification
-     * is dropped whole, which costs one notification from a program that was not going to finish it
-     * anyway — a truncated one would be shown as if it were complete.
+     * {@link #MAX_CHARS_TOTAL} bounds the total by evicting the <em>oldest</em> pending notification,
+     * which a growing one is not, so it needs a cap of its own. Past it the notification is dropped
+     * whole rather than truncated, which would be shown as if it were complete.
      */
     private static final int MAX_CHARS_PER_NOTIFICATION = 16384;
 
@@ -139,8 +131,7 @@ final class Osc99NotificationParser {
             pending.body.append(text);
         }
         mPendingChars += text.length();
-        // Checked before the total, and against this notification alone: the total is bounded by
-        // evicting the oldest, which is never the one growing here.
+        // Checked before the total, which is bounded by evicting the oldest — never this one.
         if (pending.length() > MAX_CHARS_PER_NOTIFICATION) {
             mPending.remove(id);
             mPendingChars = Math.max(0, mPendingChars - pending.length());
@@ -155,9 +146,7 @@ final class Osc99NotificationParser {
         return null;
     }
 
-    /**
-     * Drop the least recently created notification, so an incomplete one cannot pin memory.
-     */
+    /** Drop the least recently created notification, so an incomplete one cannot pin memory. */
     private void evictOldest() {
         java.util.Iterator<Map.Entry<String, Pending>> it = mPending.entrySet().iterator();
         if (!it.hasNext()) return;
@@ -242,9 +231,7 @@ final class Osc99NotificationParser {
     }
 
     /**
-     * Decode standard base64 into UTF-8 text.
-     *
-     * <p>Hand-rolled rather than {@code android.util.Base64} so this stays Android-free and
+     * Hand-rolled rather than {@code android.util.Base64} so this stays Android-free and
      * unit-testable. Characters outside the alphabet are skipped, a truncated chunk yields the text
      * it did contain, and bytes are read as UTF-8 rather than Latin-1.
      */

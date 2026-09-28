@@ -77,8 +77,8 @@ public final class TermuxBubbleManager {
     /**
      * Set while this app has posted a bubble and has not taken it down.
      *
-     * <p>The single source of truth: every transition is reported to us, so nothing has to be asked
-     * of the system. We post it here, the user's dismissal arrives at {@code ACTION_BUBBLE_DISMISSED},
+     * <p>Single source of truth: every transition is reported to us, so nothing has to be asked of
+     * the system. We post it here, the user's dismissal arrives at {@code ACTION_BUBBLE_DISMISSED},
      * and {@link #cancel} clears it. A record left by an earlier process is deliberately not counted
      * — see {@link #isBubblePosted}.
      */
@@ -491,13 +491,11 @@ public final class TermuxBubbleManager {
     /**
      * Whether a bubble is currently up.
      *
-     * <p>Answers from {@link #sBubblePosted} alone, which used to be only half the answer. The other
-     * half was {@code getActiveNotifications()}, to catch a bubble SystemUI took down without telling
-     * us — but it does tell us, through the delete intent, which is why {@link #cancel} is reachable
-     * from {@code ACTION_BUBBLE_DISMISSED}. And the query could only ever confirm a record this
-     * process had posted, since records from an earlier one are ignored on purpose, which is exactly
-     * what the flag already knows. It was a binder round trip allocating every active notification in
-     * the app, on the terminal's input thread, on every notification posted.
+     * <p>The flag alone is enough, where {@code getActiveNotifications()} used to be consulted too:
+     * a bubble SystemUI took down without telling us arrives as {@code ACTION_BUBBLE_DISMISSED},
+     * which reaches {@link #cancel}, and records from an earlier process are ignored on purpose —
+     * so the query could only ever confirm what the flag already knows, at the cost of a binder round
+     * trip on the terminal's input thread for every notification posted.
      *
      * <p>The flag dies with the process, which takes the bubble with it. Used to avoid re-posting an
      * already-up bubble and to decide whether the service notification still offers its bubble button.

@@ -1312,9 +1312,8 @@ public final class TerminalEmulator {
                 }
                 break;
             case 1004:
-                // Report the current state right away: a program that just enabled 1004 has no
-                // other way to learn it. mTerminalFocused is already true when focused, so this is
-                // the "focus gained" report; the duplicate is suppressed by setTerminalFocused.
+                // A program that just enabled 1004 has no other way to learn the current state, so
+                // report it now; setTerminalFocused suppresses the duplicate.
                 if (setting) mSession.write(mTerminalFocused ? FOCUS_IN : FOCUS_OUT);
                 break;
             case 1000:
@@ -2243,8 +2242,7 @@ public final class TerminalEmulator {
                 break;
             case 99: // Desktop notification (kitty notification protocol).
                 // textParameter is everything after "99;", so the parser re-splits
-                // "metadata;payload" itself. A support query (p=?, empty payload) yields a reply
-                // that has to go back to the program, hence the write here.
+                // "metadata;payload" itself. A support query yields a reply for the program.
                 String reply = mNotificationParser.handle(textParameter);
                 if (reply != null) mSession.write(reply);
                 break;

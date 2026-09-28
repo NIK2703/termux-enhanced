@@ -23,18 +23,15 @@ import com.termux.terminal.TerminalSession;
 /**
  * Handles the inline reply of a notification a program in a terminal asked for (kitty OSC 99).
  *
- * <p>A replica of the input panel's send path rather than a bare write to the pty, so a reply typed on
- * a notification is indistinguishable from one typed in the panel: the raw text goes into the message
- * history under <em>the target session's own</em> working directory rather than the foregrounded
- * window's, and a carriage return always follows. The unconditional Enter is the one divergence from
- * the panel, which honours an "Append Enter on send" preference — an answer that is never submitted is
- * indistinguishable from no answer at all.
+ * <p>A replica of the input panel's send path, so a reply is indistinguishable from one typed in the
+ * panel: the text is filed in the history under <em>the target session's own</em> working directory
+ * rather than the foregrounded window's, and a carriage return always follows — the one divergence
+ * from the panel, which honours an "Append Enter on send" preference, because an answer that is
+ * never submitted is indistinguishable from no answer.
  *
- * <p>Ordered so the answer is never waiting on bookkeeping: the text goes to the pty first, the
- * notification is cancelled next, and only then is the reply filed in the history. The card goes
- * rather than being left for the platform, which would append the typed text to it and leave the
- * thread on screen — and the platform also ends the reply's progress indicator only when the
- * notification does.
+ * <p>Ordered so the answer never waits on bookkeeping: the pty write, then the card, then the
+ * history. The card is cancelled rather than left to the platform, which would append the typed text
+ * to it, leave the thread on screen, and keep the reply's progress indicator spinning.
  *
  * <p>Explicit intents only, so this stays unexported and needs no intent-filter.
  */
@@ -64,13 +61,12 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
             Logger.logWarn(LOG_TAG, "Ignoring reply with no session handle");
             return;
         }
-        // The platform's progress indicator lives on the notification until it is cancelled, so
-        // without this number a failed reply could not be taken off screen.
+        // The progress indicator lives on the notification until it is cancelled, so a failed reply
+        // needs this number to come off screen.
         int postedId = intent.getIntExtra(TermuxConstants.EXTRA_TERMINAL_NOTIFICATION_NUMBER, -1);
 
         CharSequence typed = readText(context, intent);
         if (typed == null || typed.toString().isEmpty()) {
-            // Nothing was read, so nothing can be delivered. readText has logged why.
             cancelIfKnown(context, postedId);
             return;
         }
@@ -78,7 +74,6 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
         TerminalSession session = findSession(sessionHandle);
         if (session == null || !session.isRunning()) {
-            // The terminal died while the reply was being typed into.
             Logger.logWarn(LOG_TAG, "No live session " + sessionHandle + " for reply");
             cancelIfKnown(context, postedId);
             return;
@@ -86,21 +81,16 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
         // SystemUI calls a receiver on its own thread and waits for it to return before dismissing
         // the reply, so everything in here is time the user spends watching a notification that has
-        // not gone yet. Held open for the bookkeeping below, which is not on that path any more.
+        // not gone yet. Held open for the history write below, which is off that path.
         final PendingResult pending = goAsync();
 
-        // First the answer itself: a queue write, so the program has the text before this returns.
         session.write(text + "\r");
         Logger.logDebug(LOG_TAG, "Delivered reply to session " + sessionHandle);
 
-        // Then the card. It is cancelled rather than left to the platform, which would append the
-        // typed text to it and leave the thread on screen; and the platform ends the reply's progress
-        // indicator only when the notification goes, so cancelling is what stops the spinner.
         cancelIfKnown(context, postedId);
 
-        // The history is bookkeeping nobody is waiting for: the session's cwd is a read of
-        // /proc, and the first call in a process loads the per-directory file. It runs after the
-        // reply is delivered and the card is gone, still on the main thread because the controller
+        // Bookkeeping nobody is waiting for: the session's cwd is a read of /proc, and the first call
+        // in a process loads the per-directory file. Still on the main thread, since the controller
         // is not thread-safe and the activity shares it.
         final SharedPreferences preferences =
             context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
@@ -109,8 +99,6 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
                 MessageHistoryController.shared(preferences)
                     .addToMessageHistory(text, session.getCwd());
             } catch (Exception e) {
-                // The reply is already delivered; failing to file it in the history is worth a line
-                // but nothing more.
                 Logger.logStackTraceWithMessage(LOG_TAG, "Failed to file reply in history", e);
             } finally {
                 pending.finish();
@@ -127,10 +115,9 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
     /**
      * Pull the typed text out of the inline reply, or {@code null} if there is none to be had.
      *
-     * <p>The key is the {@link RemoteInput}'s own label, not a constant: a free-form result is keyed
-     * by what the RemoteInput is labelled. Logs the bundle's real keys when nothing matches, because
-     * a wrong key is invisible otherwise — the platform appends the text to the notification either
-     * way, so the reply looks delivered while nothing reaches the session.
+     * <p>The key is the {@link RemoteInput}'s own label, not a constant. Logs the bundle's real keys
+     * when nothing matches: a wrong key is otherwise invisible, since the platform appends the text
+     * to the notification either way and the reply looks delivered while nothing reaches the session.
      */
     @Nullable
     private static CharSequence readText(@NonNull Context context, @NonNull Intent intent) {

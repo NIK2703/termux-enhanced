@@ -358,7 +358,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
 
     public void testOneNotificationCannotGrowWithoutBound() {
         // The total cap evicts the oldest pending notification, which a growing one is not, so it
-        // needs a cap of its own. A program that never sends d=1 must not be able to hold memory.
+        // needs a cap of its own.
         withTerminalSized(10, 3);
 
         StringBuilder chunk = new StringBuilder();

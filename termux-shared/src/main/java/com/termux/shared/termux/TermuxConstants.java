@@ -753,18 +753,17 @@ public final class TermuxConstants {
     /** {@code String} extra: the {@code i} identifier of the activated notification. */
     public static final String EXTRA_TERMINAL_NOTIFICATION_ID = "com.termux.app.terminal_notification_id";
     /**
-     * {@code int} extra: the id the notification was actually posted under.
-     *
-     * <p>The protocol {@code i} identifier is reusable, so it cannot stand in for the posted id when
-     * a notification must be found again; a guess that misses leaves the platform's progress
-     * indicator spinning on the reply field forever.
+     * {@code int} extra: the id the notification was actually posted under. The protocol {@code i}
+     * identifier is reusable, so it cannot stand in when a notification must be found again — a miss
+     * leaves the progress indicator spinning on the reply field forever.
      */
     public static final String EXTRA_TERMINAL_NOTIFICATION_NUMBER = "com.termux.app.terminal_notification_number";
     /** {@code String} extra: {@link com.termux.terminal.TerminalSession#mHandle} of the producing session. */
     public static final String EXTRA_TERMINAL_SESSION_HANDLE = "com.termux.app.terminal_session_handle";
-    /** Action of the broadcast carrying an inline reply typed into a terminal notification. The text
-     * arrives as a {@link android.app.RemoteInput} result, and {@link #EXTRA_TERMINAL_SESSION_HANDLE}
-     * names the session to type it into. */
+    /**
+     * Action of the broadcast carrying an inline reply typed into a terminal notification. The text
+     * arrives as a {@link android.app.RemoteInput} result.
+     */
     public static final String ACTION_TERMINAL_NOTIFICATION_REPLIED = "com.termux.app.terminal_notification_replied";
 
     /**
