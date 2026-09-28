@@ -21,7 +21,6 @@ import androidx.core.graphics.drawable.IconCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivityUtils;
-import com.termux.app.bubble.TermuxBubbleActivity;
 import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.notification.NotificationUtils;
@@ -31,6 +30,7 @@ import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -195,17 +195,13 @@ public final class TermuxTerminalNotificationDispatcher {
         // together in the shade instead of interleaving several terminals' into one unread pile.
         builder.setGroup(NOTIFICATION_GROUP + "." + session.mHandle);
 
-        // One conversation per session, named after it. A conversation is keyed by the notification's
-        // shortcut id, so a per-session shortcut is what puts a session's notifications into a single
-        // thread instead of a card each: the same session's messages stack under one heading saying
-        // which session they are about, and two sessions stay apart instead of interleaving.
-        //
-        // This is deliberately NOT the bubble's own conversation. That one is raised by
-        // TermuxBubbleManager under its own shortcut and exists to carry a single floating window over
-        // every session, so it has to stay a single conversation; where it goes is decided separately,
-        // by the session recorded in noteSessionAskedForAttention(). Sharing the shortcut would have
-        // made every session's notifications claim one heading — the name of whichever terminal posted
-        // last, which is what the screenshot showed.
+        // One conversation PER SESSION, named after it. A conversation is identified by the shortcut it
+        // references, not by the channel or the group — the platform derives a per-conversation channel
+        // named after both — so reusing one shared shortcut put every terminal's notifications into a
+        // single thread, and a single thread can only carry one name: five separate cards whose header
+        // was whichever session's post happened to arrive last. The shortcut id is therefore per
+        // session, which is what makes one session's messages collect under that session's own name
+        // while another's collect under its own.
         String shortcutId = publishSessionShortcut(context, session.mHandle, sessionLabel(session));
         if (shortcutId != null) builder.setShortcutId(shortcutId);
 
@@ -214,22 +210,15 @@ public final class TermuxTerminalNotificationDispatcher {
         TermuxBubbleManager.noteSessionAskedForAttention(session.mHandle);
 
         // MessagingStyle, and it is not decoration: it is what makes the platform treat this as a
-        // conversation at all. Measured on device — with the bubble's own shortcut set and resolved,
-        // and MessagingStyle left out, the record came back with mConversationId=null and no derived
-        // channel, so the notifications stayed loose instead of joining the bubble's thread. Termux's
-        // own bubble notification sets both, and so must this.
+        // conversation at all. Measured on device — with the shortcut set and resolved, and
+        // MessagingStyle left out, the record came back with mConversationId=null and no derived
+        // channel, so the notifications stayed loose instead of joining a thread.
         //
-        // The Person is named with the session that raised the notification, not with the app: in a
-        // conversation shared by every session, that line is the only thing saying which terminal is
-        // calling, and an application name would say the same thing on all of them.
-        // The conversation title is the notification's own title, set per notification. Left unset, the
-        // platform fills it with the application's name — which is what put a bare "Termux" above every
-        // message: three lines where two were wanted, the top one naming whoever received the message
-        // instead of saying what it is about.
-        // The message's sender is the notification's own title — what the program said it was about.
-        // The conversation's label, printed above the messages, is the session's name instead, so the
-        // two lines answer two different questions: which terminal is calling, and what it wants. The
-        // other way round the header merely repeated the message below it.
+        // The conversation title is the session's name, so the two printed lines answer two different
+        // questions: the header says which terminal is calling, the sender line says what it wants. The
+        // other way round the header merely repeated the message below it. The title is set explicitly
+        // because left unset the platform fills it with the application's name — a bare "Termux" above
+        // every message, naming whoever received the message instead of saying what it is about.
         Person sender = new Person.Builder()
             .setName((title != null ? title : body).toString())
             .setImportant(true)
@@ -316,8 +305,31 @@ public final class TermuxTerminalNotificationDispatcher {
 
 
     /**
-     * Name this session, for the places that have to name it: the per-session shortcut, and the
-     * label the shade and the launcher show for it.
+     * Drop the conversation shortcut published for a session that is gone.
+     *
+     * <p>One shortcut per session means one per terminal ever notified, and a dynamic shortcut outlives
+     * the process that pushed it — that is what long-lived means here. Left behind, they accumulate for
+     * the lifetime of the install, and the platform caps how many a package may have: past the cap,
+     * {@link #publishSessionShortcut} starts failing and new sessions lose their conversation
+     * altogether. Called when the session exits, which is the point past which it cannot post again.
+     *
+     * <p>Notifications already posted for that session are left alone; only the conversation anchor goes.
+     */
+    public static void unpublishSessionConversation(@NonNull Context context, @NonNull String sessionHandle) {
+        try {
+            ShortcutManagerCompat.removeDynamicShortcuts(context,
+                Collections.singletonList(TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_SHORTCUT_ID_PREFIX
+                    + sessionHandle));
+        } catch (Exception e) {
+            // Nothing depends on this succeeding: a leftover shortcut costs a slot, while failing here
+            // would have no visible effect at all.
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to unpublish session conversation shortcut", e);
+        }
+    }
+
+    /**
+     * Name this session, for the places that have to name it: the conversation's title, the per-session
+     * shortcut, and the label the shade and the launcher show for it.
      *
      * <p>Never used for the notification's text. The session's own title is the best answer when it
      * has one, and the working directory's name is the next best — it tells one terminal from
@@ -327,48 +339,52 @@ public final class TermuxTerminalNotificationDispatcher {
 
 
     /**
-     * Publish the shortcut that makes this session's notifications one conversation, named after it.
+     * Publish the long-lived shortcut that makes this session's notifications a conversation.
      *
-     * <p>One per session, so a session's messages land in a single thread rather than a card each, and
-     * two sessions do not interleave. Published here rather than on demand because a program can ask
-     * for attention before anything else has published anything for that session.
+     * <p>Per the platform's own rules for conversation notifications (developer.android.com,
+     * {@code Notification.MessagingStyle} and {@code Builder.setShortcutId}): a notification counts as
+     * a conversation notification when it uses {@code MessagingStyle} <em>and</em> references a
+     * valid conversation shortcut, which must be a <em>long-lived</em> dynamic or cached sharing
+     * shortcut. The conversation <em>is</em> that shortcut: the platform derives a per-conversation
+     * channel and a shade section from it, so one shared shortcut means one conversation no matter how
+     * many sessions post. Hence one shortcut, and one conversation, per session.
      *
-     * <p>Long-lived, and still dynamic: nothing is pinned and nothing appears in the launcher, the flag
-     * only keeps it from being discarded when the process dies. That matters because the system has to
-     * resolve the shortcut to build the conversation, and a transient one came back unresolvable on the
-     * notification record.
+     * <p>Long-lived but still dynamic: nothing is pinned and nothing appears in the launcher, the flag
+     * only keeps it from being discarded when the process dies. That is required here — the system has
+     * to resolve the shortcut to build the conversation, and a transient one came back unresolvable on
+     * the notification record ({@code mShortcutId} resolved to nothing, so no conversation was formed).
      *
-     * <p>The label is the session's own name, re-published on every post, so the conversation is named
-     * after the terminal rather than after whichever message arrived last — that copy is what printed
-     * one message twice, once as the conversation's name and once as the message's sender.
+     * <p>Re-published on every post, because the label is the session's name: a session that was renamed
+     * or moved to another directory has to be shown under its current name, and a label frozen at first
+     * post would keep printing the old one. The intent opens that very session, so the shortcut, the
+     * conversation it names and the notification inside it all lead to the same terminal.
+     *
+     * <p>One shortcut per session means one per open terminal, so they are unpublished when their
+     * session ends — otherwise the set grows for the lifetime of the process. That is deliberately not
+     * done eagerly on every notification: it is a broadcast to the launcher, and posting is the hot
+     * path here.
      *
      * @return the shortcut id, or {@code null} if it could not be published.
      */
     @Nullable
     private static String publishSessionShortcut(@NonNull Context context, @NonNull String sessionHandle,
-                                                 @NonNull CharSequence label) {
+                                                  @NonNull CharSequence label) {
         String shortcutId = TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_SHORTCUT_ID_PREFIX + sessionHandle;
         try {
-            // Labelled with the session's name, and re-published on every post so the conversation
-            // carries the session's current name — a session's title changes as the command in it
-            // changes, and a heading frozen at the first notification would go stale. The label is what
-            // the shade prints above the thread, so it has to say which terminal the messages are from
-            // rather than repeat the newest message's own title.
             ShortcutManagerCompat.pushDynamicShortcut(context, new ShortcutInfoCompat.Builder(context, shortcutId)
                 .setShortLabel(label)
                 .setLongLabel(label)
                 .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
-                .setIntent(new Intent(context, TermuxBubbleActivity.class)
-                    .setAction(Intent.ACTION_VIEW)
+                .setIntent(TermuxActivityUtils.newInstance(context)
                     .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, sessionHandle))
                 .setLongLived(true)
                 .build());
             return shortcutId;
         } catch (Exception e) {
-            // Without the shortcut there is no conversation for these to join, but the notification
-            // itself is still worth posting: the user still gets it, the reply still works, and a tap
-            // still opens the right session.
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to publish conversation shortcut", e);
+            // Without the shortcut there is no conversation for these to join and the notification
+            // shows as a loose one, which is still worth posting: the user gets it, the reply still
+            // works, and a tap still opens the right session. Only the grouping is lost.
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to publish session conversation shortcut", e);
             return null;
         }
     }
@@ -376,12 +392,12 @@ public final class TermuxTerminalNotificationDispatcher {
 
 
     /**
-     * Name this session for the conversation's sender line.
+     * The name a session's conversation is known by.
      *
      * <p>The session's own title when it has one, then the working directory's name, and only the
-     * application name as a last resort. In a conversation every session shares, this line is what
-     * tells the reader which terminal is calling; the app's name would be identical on all of them and
-     * therefore useless.
+     * application name as a last resort: the directory tells one terminal from another, which is what
+     * a conversation header has to say about itself, whereas the app's name would be the same on every
+     * one of them and so name nothing at all.
      */
     @NonNull
     private static CharSequence sessionLabel(@NonNull TerminalSession session) {

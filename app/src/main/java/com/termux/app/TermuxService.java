@@ -22,6 +22,7 @@ import com.termux.R;
 import com.termux.app.bubble.TermuxBubbleManager;
 import com.termux.app.bubble.TermuxBubbleReceiver;
 import com.termux.app.event.SystemEventReceiver;
+import com.termux.app.notification.TermuxTerminalNotificationDispatcher;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
 import com.termux.app.terminal.TermuxTerminalSessionClientMux;
 import com.termux.app.terminal.TermuxTerminalSessionServiceClient;
@@ -680,6 +681,12 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
                 TermuxPluginUtils.processPluginExecutionCommandResult(this, LOG_TAG, executionCommand);
 
             mShellManager.mTermuxSessions.remove(termuxSession);
+
+            // Its conversation goes with it: the notification shortcut is per session, and one left
+            // behind outlives the process and eats one of the few slots a package may hold. The session
+            // can no longer post, so nothing is lost.
+            TermuxTerminalNotificationDispatcher.unpublishSessionConversation(this,
+                termuxSession.getTerminalSession().mHandle);
 
             // Deliberately no activity notify here: removeFinishedSession() does a single,
             // well-timed sync AFTER adjusting the selection index. Notifying from inside this
