@@ -27,6 +27,7 @@ import com.termux.shared.logger.Logger;
 import com.termux.shared.notification.NotificationUtils;
 import com.termux.shared.termux.notification.TermuxNotificationUtils;
 import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 
@@ -222,7 +223,13 @@ public final class TermuxTerminalNotificationDispatcher {
         builder.addPerson(sender);
 
 
-        builder.addAction(buildReplyAction(context, session, id));
+        // The inline reply field, which types into a shell — so it is offered only when the user has said
+        // they want it: not by default, and not because a program asked. Read through the multi-process
+        // preferences, since notifications are posted by the service and the value has to be the one on
+        // disk right now rather than whatever the UI process cached when it started.
+        if (TermuxAppSharedPreferences.build(context).areNotificationInlineRepliesEnabled(true)) {
+            builder.addAction(buildReplyAction(context, session, id));
+        }
 
         manager.notify(id, builder.build());
         Logger.logDebug(LOG_TAG, "Posted notification " + id + " (" + notification.getId()

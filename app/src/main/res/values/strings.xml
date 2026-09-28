@@ -142,7 +142,12 @@
 
 
         <!-- Debugging Preferences -->
-        <string name="termux_debugging_preferences_title">Debugging</string>
+        <!-- Category for notifications a program in the terminal asked for. -->
+    <string name="termux_notifications_category_title">Notifications</string>
+    <string name="termux_notification_inline_reply_title">Reply from notification</string>
+    <string name="termux_notification_inline_reply_summary">Show a reply button on a notification from a session, to send text followed by Enter into that session</string>
+
+    <string name="termux_debugging_preferences_title">Debugging</string>
         <string name="termux_api_debugging_title">&TERMUX_API_APP_NAME; debugging</string>
         <string name="termux_float_debugging_title">&TERMUX_FLOAT_APP_NAME; debugging</string>
         <string name="termux_tasker_debugging_title">&TERMUX_TASKER_APP_NAME; debugging</string>

@@ -235,6 +235,18 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED = true;
 
         /**
+         * Defines the key for whether a notification a program in the terminal asked for may carry an
+         * inline reply field.
+         *
+         * <p>Off by default, deliberately. Replying means typing into a shell that may well be running
+         * something else entirely, so offering the field is the user's decision and not a default. It is
+         * also the only part of such a notification that writes into a session, and the one part the
+         * program cannot ask for on its own behalf.
+         */
+        public static final String KEY_NOTIFICATION_INLINE_REPLY_ENABLED = "notification_inline_reply_enabled";
+        public static final boolean DEFAULT_VALUE_NOTIFICATION_INLINE_REPLY_ENABLED = false;
+
+        /**
          * Defines the key for the background transparency (alpha) of inactive panel elements
          * (bottom buttons, scrollbar thumb). Stored as an integer percentage 0–10, where 5 means
          * ~5% alpha (0x0D = ~13/255). Applied ONCE when the setting changes.

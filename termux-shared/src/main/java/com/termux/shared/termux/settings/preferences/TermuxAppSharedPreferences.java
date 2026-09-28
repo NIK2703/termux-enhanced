@@ -384,6 +384,24 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED, value);
     }
 
+    /**
+     * Whether a notification a program in the terminal asked for may carry an inline reply field.
+     *
+     * @param readFromFile {@code true} to read through the multi-process preferences, which is what a
+     *                     process outside the UI needs so that a change takes effect at once;
+     *                     {@code false} to read the in-process cache.
+     */
+    public boolean areNotificationInlineRepliesEnabled(boolean readFromFile) {
+        if (readFromFile)
+            return SharedPreferenceUtils.getBoolean(mMultiProcessSharedPreferences, TERMUX_APP.KEY_NOTIFICATION_INLINE_REPLY_ENABLED, TERMUX_APP.DEFAULT_VALUE_NOTIFICATION_INLINE_REPLY_ENABLED);
+        else
+            return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_NOTIFICATION_INLINE_REPLY_ENABLED, TERMUX_APP.DEFAULT_VALUE_NOTIFICATION_INLINE_REPLY_ENABLED);
+    }
+
+    public void setNotificationInlineRepliesEnabled(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_NOTIFICATION_INLINE_REPLY_ENABLED, value);
+    }
+
     /* Settings migrated from ~/.termux/termux.properties — keys intentionally match the old
      * termux.properties keys so that values can be migrated on first launch. */
 

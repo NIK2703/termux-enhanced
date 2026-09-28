@@ -124,7 +124,11 @@
 
 
         
-        <string name="termux_debugging_preferences_title">Отладка</string>
+        <string name="termux_notifications_category_title">Уведомления</string>
+    <string name="termux_notification_inline_reply_title">Ответ из уведомления</string>
+    <string name="termux_notification_inline_reply_summary">Показывать кнопку ответа в уведомлении из сеанса для отправки текста вместе с сигналом Enter в этот сеанс</string>
+
+    <string name="termux_debugging_preferences_title">Отладка</string>
         <string name="termux_debugging_preferences_summary">Настройки отладки</string>
 
             

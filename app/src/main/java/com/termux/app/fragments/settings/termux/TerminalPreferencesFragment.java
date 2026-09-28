@@ -77,6 +77,10 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("crash_report_notifications_enabled", prefs.areCrashReportNotificationsEnabled(false),
             value -> prefs.setCrashReportNotificationsEnabled(value), false);
 
+        // --- Notifications a program in the terminal asked for ---
+        configureSwitch("notification_inline_reply_enabled", prefs.areNotificationInlineRepliesEnabled(false),
+            value -> prefs.setNotificationInlineRepliesEnabled(value), false);
+
         ListPreference logLevelPref = findPreference("log_level");
         if (logLevelPref != null) {
             setLogLevelListPreferenceData(logLevelPref, context, prefs.getLogLevel());
