@@ -11,18 +11,10 @@ import java.util.Map;
 /**
  * Parser for the kitty OSC 99 desktop notification protocol.
  *
- * <p>The wire form is {@code OSC 99 ; metadata ; payload}, where {@code metadata} is a
- * colon-separated list of single-character {@code key=value} pairs. A notification is delivered
- * in chunks: the program may send {@code p=title} and {@code p=body} any number of times, and the
- * notification is only complete once a chunk with {@code d=1} arrives. Chunks are accumulated per
- * {@code i} identifier.
- *
- * <p>A program can also ask whether the terminal supports the protocol at all, by sending
- * {@code p=?} with an empty payload. That is answered with a reply written back to the pty, which
- * {@link #handle(String)} returns.
- *
- * <p>Deliberately independent of any particular client: this is a terminal protocol, so it lives
- * in the emulator and hands finished {@link TerminalNotification}s to whoever is listening.
+ * <p>Wire form is {@code OSC 99 ; metadata ; payload}, metadata being colon-separated
+ * {@code key=value} pairs. Notifications arrive in chunks — {@code p=title} and {@code p=body} any
+ * number of times — and are complete once a chunk carries {@code d=1}; chunks are accumulated per
+ * {@code i}. A {@code p=?} query is answered with the reply this returns.
  *
  * @see <a href="https://sw.kovidgoyal.net/kitty/desktop-notifications/">kitty desktop notifications</a>
  */
@@ -34,20 +26,15 @@ final class Osc99NotificationParser {
     }
 
     /**
-     * Cap on notifications being assembled at once. The protocol explicitly leaves this to the
-     * terminal ("terminal emulators are free to impose a sensible limit to avoid Denial-of-Service
-     * attacks"), and without it a program that never sends {@code d=1} would grow this map forever.
+     * The protocol leaves this cap to the terminal; without it a program that never sends {@code d=1}
+     * grows this map forever.
      */
     private static final int MAX_PENDING = 32;
     /**
      * Cap on the decoded text held for all pending notifications together.
      *
-     * <p>Only ever reached by notifications that are still incomplete. A completed one is handed
-     * over whole, with whatever text it accumulated: inventing a length policy here would mean
-     * silently mangling or dropping a notification a program did finish sending, and the protocol
-     * asks terminals to be generous about text, not clever about it. Incomplete ones are different
-     * — a program that never sends {@code d=1} is either broken or trying to exhaust memory, and
-     * there is nothing to deliver.
+     * <p>Reached only by incomplete notifications. A finished one is handed over whole: a length
+     * policy here would silently mangle what a program did send.
      */
     private static final int MAX_CHARS_TOTAL = 65536;
 
@@ -62,10 +49,8 @@ final class Osc99NotificationParser {
     /**
      * Handle one {@code OSC 99} escape sequence.
      *
-     * @param metadataAndPayload everything after the {@code 99;} prefix, i.e. the raw
-     *                           {@code metadata;payload} text.
-     * @return the support-query reply that must be written back to the pty, or {@code null} if
-     *         this sequence needs no reply.
+     * @param metadataAndPayload the raw {@code metadata;payload} text after the {@code 99;} prefix.
+     * @return the reply to write back to the pty, or {@code null} if none is needed.
      */
     @Nullable
     String handle(@Nullable String metadataAndPayload) {
@@ -76,11 +61,9 @@ final class Osc99NotificationParser {
         String payload = separator < 0 ? "" : metadataAndPayload.substring(separator + 1);
 
         String id = TerminalNotification.DEFAULT_ID;
-        // No p key at all means a plain body: the protocol's own one-liner for a shell script is
-        // "OSC 99;;Hello world", i.e. a notification with no metadata whatsoever.
+        // No p key means a plain body, and absent d means done: "OSC 99;;Hello world", the
+        // protocol's own one-liner, carries no metadata and is shown immediately.
         String payloadType = "body";
-        // Absent d means done: the protocol's own shell one-liner (OSC 99;;Hello world) carries no
-        // metadata at all and is shown immediately. Only an explicit d=0 holds a notification back.
         boolean done = true;
         boolean base64 = false;
         boolean sawQuery = false;
@@ -102,8 +85,6 @@ final class Osc99NotificationParser {
                     if ("?".equals(value)) sawQuery = true;
                     break;
                 case 'd':
-                    // "A value of 0 means the notification is not yet done [...] A non-zero value
-                    // means the notification is done."
                     done = !"0".equals(value);
                     break;
                 case 'e':
@@ -121,20 +102,18 @@ final class Osc99NotificationParser {
                     silent = "silent".equals(soundName(value));
                     break;
                 default:
-                    // Unknown keys must be ignored, so the protocol can grow.
-                    break;
+                    break; // unknown keys are ignored so the protocol can grow
             }
         }
 
-        // A support query is a request, not a chunk: answer it and keep nothing.
         if (sawQuery && payload.isEmpty()) return buildSupportReply(id);
 
         boolean isTitle = "title".equals(payloadType);
         boolean isBody = "body".equals(payloadType);
         if (!isTitle && !isBody) return null; // unknown payload type: ignore, per the protocol
 
-        // An empty payload is not skipped: it still carries d, and bailing out here would leave the
-        // notification pending forever when the program meant "and that was all of it".
+        // An empty payload is not skipped: it still carries d, and bailing out would leave the
+        // notification pending when the program meant "that was all of it".
         String text = base64 ? decodeBase64(payload) : payload;
 
         Pending pending = mPending.get(id);
@@ -159,8 +138,7 @@ final class Osc99NotificationParser {
     }
 
     /**
-     * Drop the least recently created notification, so a program that never completes a
-     * notification cannot pin memory indefinitely.
+     * Drop the least recently created notification, so an incomplete one cannot pin memory.
      */
     private void evictOldest() {
         java.util.Iterator<Map.Entry<String, Pending>> it = mPending.entrySet().iterator();
@@ -171,14 +149,12 @@ final class Osc99NotificationParser {
     }
 
     private void emit(String id, Pending pending, int occasions, boolean silent, boolean report, boolean focus) {
-        // "A notification with not title and no body is ignored." An all-whitespace body carries no
-        // information either, so treat it the same way.
+        // "A notification with not title and no body is ignored"; so is an all-whitespace one.
         String body = pending.body.toString().trim();
         String title = pending.title.toString().trim();
         if (body.isEmpty() && title.isEmpty()) return;
-        // Only the protocol's own substitution: an absent title becomes the body. The reverse is
-        // left alone on purpose, so a consumer can still see that the program sent a title and no
-        // body rather than one piece of text standing in for both.
+        // Only the protocol's own substitution, so a consumer can still tell a missing title from an
+        // absent body.
         mListener.onNotification(new TerminalNotification(id, title.isEmpty() ? null : title,
             body.isEmpty() ? null : body, occasions, silent, report, focus));
     }
@@ -186,11 +162,9 @@ final class Osc99NotificationParser {
     /**
      * Build the reply to a support query.
      *
-     * <p>The protocol fixes the shape: echo the identifier and {@code p=?}, then list the supported
-     * {@code key=value} details. Only keys this terminal actually honours are listed — a client
-     * that trusts the list would otherwise wait for behaviour that never comes. The {@code p} value
-     * must contain at least {@code title}, and {@code o=always} is mandatory when no occasion is
-     * supported (this one supports all four, so it lists them).
+     * <p>Echo the identifier and {@code p=?}, then list the details honoured. Only keys actually
+     * honoured are listed — a client that trusts the list would otherwise wait for behaviour that
+     * never comes.
      */
     private static String buildSupportReply(String id) {
         return "\033]99;i=" + id + ":p=?;p=title,body;a=focus,report"
@@ -198,8 +172,7 @@ final class Osc99NotificationParser {
     }
 
     /**
-     * Parse the {@code o} key. Unknown occasions are ignored, and if none of the requested
-     * occasions is supported the notification is treated as unconditional rather than dropped.
+     * Unknown occasions are ignored; none recognised means unconditional rather than dropped.
      */
     private static int parseOccasions(String value) {
         int mask = 0;
@@ -218,8 +191,8 @@ final class Osc99NotificationParser {
     /**
      * Look one action up in the {@code a} key, honouring the leading '-' that turns an action off.
      *
-     * @return {@code TRUE}/{@code FALSE} when the key mentions the action, {@code null} when it
-     *         does not, so the caller can keep the protocol default.
+     * @return {@code null} when the key does not mention the action, so the caller keeps the
+     *         protocol default.
      */
     @Nullable
     private static Boolean parseAction(String value, String action) {
@@ -236,10 +209,8 @@ final class Osc99NotificationParser {
     /**
      * Read the {@code s} key.
      *
-     * <p>Per the protocol this value is <em>always</em> base64 in a notification — the {@code e=1}
-     * key only marks the payload, not the metadata. Decoded first, then the raw value, so a program
-     * that sends the name unencoded anyway still works. Returns {@code ""} when neither matches a
-     * known sound, which callers read as "no explicit request".
+     * <p>The protocol says this value is always base64 — {@code e=1} marks the payload, not the
+     * metadata. The raw value is tried too, for a program that sends it unencoded.
      */
     private static String soundName(String value) {
         String decoded = decodeBase64(value).trim().toLowerCase(Locale.ROOT);
@@ -255,13 +226,9 @@ final class Osc99NotificationParser {
     /**
      * Decode standard base64 into UTF-8 text.
      *
-     * <p>Hand-rolled rather than {@code android.util.Base64} so the protocol stays free of Android
-     * dependencies and remains unit-testable. Characters outside the alphabet (including padding
-     * and line breaks) are skipped and input is decoded up to the first complete group, so a
-     * truncated chunk yields the text it did contain instead of nothing.
-     *
-     * <p>The bytes are interpreted as UTF-8 rather than as Latin-1: a program that base64s "é"
-     * means "é", and widening each byte to a char would hand the application "Ã©".
+     * <p>Hand-rolled rather than {@code android.util.Base64} so this stays Android-free and
+     * unit-testable. Characters outside the alphabet are skipped, a truncated chunk yields the text
+     * it did contain, and bytes are read as UTF-8 rather than Latin-1.
      */
     private static String decodeBase64(String input) {
         byte[] out = new byte[input.length() * 3 / 4 + 3];

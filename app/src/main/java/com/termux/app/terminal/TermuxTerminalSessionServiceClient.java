@@ -29,12 +29,9 @@ public class TermuxTerminalSessionServiceClient extends TermuxTerminalSessionCli
     }
 
     /**
-     * Post a notification a program in the terminal asked for (kitty OSC 99).
-     *
-     * <p>Implemented here rather than on the activity client because this client is the mux's
-     * primary: it exists for the whole lifetime of the service, so a notification still arrives when
-     * the user has Termux in the background and no activity is bound. The service context is all
-     * that is needed to post.
+     * Post a notification a terminal program asked for (kitty OSC 99). Here rather than on the
+     * activity client because this is the mux's primary: it lives as long as the service, so a
+     * notification still arrives when Termux is backgrounded with no activity bound.
      */
     @Override
     public void onNotification(@NonNull TerminalSession terminalSession, @NonNull TerminalNotification notification) {

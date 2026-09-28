@@ -1,11 +1,9 @@
 package com.termux.terminal;
 
 /**
- * DECSET 1004 focus reporting.
- *
- * <p>The emulator only ever emits {@code ESC[I} / {@code ESC[O} when a program has enabled mode
- * 1004, and never repeats an unchanged state — the app can therefore call
- * {@link TerminalEmulator#setTerminalFocused} from any lifecycle callback without guarding it.
+ * DECSET 1004 focus reporting: {@code ESC[I} / {@code ESC[O} is emitted only once a program has
+ * enabled the mode, and an unchanged state is never repeated, so the app may call
+ * {@link TerminalEmulator#setTerminalFocused} from any lifecycle callback unguarded.
  */
 public class FocusReportingTest extends TerminalTestCase {
 
@@ -20,8 +18,7 @@ public class FocusReportingTest extends TerminalTestCase {
     }
 
     public void testEnablingReportsTheCurrentStateImmediately() {
-        // A program that just turned the mode on has no other way to learn the state, and would
-        // otherwise sit blind until the next window change.
+        // A program that just turned the mode on has no other way to learn the state.
         withTerminalSized(10, 3);
         enterString("\033[?1004h");
         assertEquals("a blurred window must be reported as such on enable", FOCUS_OUT, mOutput.getOutputAndClear());

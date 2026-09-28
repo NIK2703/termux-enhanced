@@ -15,12 +15,9 @@ import com.termux.terminal.TerminalNotification;
 import com.termux.terminal.TerminalSession;
 
 /**
- * Receives the activation of a notification that a program in a terminal asked for, and reports the
- * click back to that program.
- *
- * <p>This is the {@code report} action of the kitty OSC 99 protocol. Only built when a notification
- * asks for it, and the intent is explicit, so the receiver is not exported and needs no
- * intent-filter — the same shape as {@code TermuxBubbleReceiver}.
+ * Reports a click on a notification a terminal program asked for back to that program, using the
+ * {@code report} action of kitty OSC 99. Not exported and has no intent-filter: it is only ever
+ * built with an explicit intent, the same shape as {@code TermuxBubbleReceiver}.
  */
 public class TermuxTerminalNotificationReceiver extends BroadcastReceiver {
 
@@ -40,8 +37,7 @@ public class TermuxTerminalNotificationReceiver extends BroadcastReceiver {
 
         TerminalSession session = findSession(sessionHandle);
         if (session == null) {
-            // The terminal died between posting the notification and the user tapping it. There is
-            // no longer a pty to write the report to, and the notification is stale anyway.
+            // The terminal died between posting and tap: no pty left to report to.
             Logger.logDebug(LOG_TAG, "No live session " + sessionHandle + " for activation report");
             TermuxTerminalNotificationDispatcher.dismiss(context, sessionHandle, protocolId);
             return;
@@ -53,11 +49,8 @@ public class TermuxTerminalNotificationReceiver extends BroadcastReceiver {
     }
 
     /**
-     * Resolve a session handle against the live sessions.
-     *
-     * <p>{@code TermuxShellManager} is the owner of the session list and is reachable statically,
-     * which a {@code BroadcastReceiver} needs: it has no bound service. A null manager means no
-     * session ever started, so the null return is a normal answer rather than an error.
+     * Resolve a session handle against the live sessions, which {@code TermuxShellManager} owns and
+     * a {@code BroadcastReceiver} can only reach statically; a null manager means none ever started.
      */
     @Nullable
     private static TerminalSession findSession(@NonNull String sessionHandle) {

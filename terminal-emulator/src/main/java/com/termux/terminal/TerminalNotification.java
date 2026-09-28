@@ -7,9 +7,8 @@ import androidx.annotation.Nullable;
  * A desktop notification requested by a program running in the terminal, as defined by the kitty
  * OSC 99 desktop notification protocol.
  *
- * <p>Instances are produced by {@link Osc99NotificationParser} once a notification is complete
- * (its {@code d=1} chunk has arrived) and consumed by the application, which decides how to show
- * it. A notification with no title and no body is never produced: the protocol says to ignore it.
+ * <p>Produced by {@link Osc99NotificationParser} once a notification is complete. One with no title
+ * and no body is never produced: the protocol says to ignore it.
  *
  * @see <a href="https://sw.kovidgoyal.net/kitty/desktop-notifications/">kitty desktop notifications</a>
  */
@@ -47,11 +46,8 @@ public final class TerminalNotification {
     }
 
     /**
-     * The {@code i} key: an identifier that ties the chunks of one notification together.
-     *
-     * <p>Only meaningful within the terminal that produced it — a program may reuse the same
-     * identifier in two different terminals without them colliding, because each accumulates
-     * independently.
+     * The {@code i} key, tying the chunks of one notification together. Only meaningful within the
+     * terminal that produced it.
      */
     @NonNull
     public String getId() {
@@ -59,11 +55,8 @@ public final class TerminalNotification {
     }
 
     /**
-     * The escape code to write back to the program when the user activates this notification, for a
-     * notification that asked for the {@code report} action.
-     *
-     * <p>The protocol fixes the form to {@code OSC 99 ; i=identifier ; ST}, and mandates
-     * {@link #DEFAULT_ID} when the program supplied no identifier.
+     * The escape code to write back when the user activates a notification that asked for the
+     * {@code report} action. The protocol fixes the form to {@code OSC 99 ; i=id ; ST}.
      *
      * @param id the {@code i} value the program supplied.
      */
@@ -79,14 +72,9 @@ public final class TerminalNotification {
     }
 
     /**
-     * The {@code p=body} chunks, or {@code null} if the program sent none.
-     *
-     * <p>Deliberately not filled in from the title. The protocol mandates only the other direction
-     * ("if a notification has no title, the body will be used as title"), and that one is applied
-     * here. Copying the title into an absent body is a rendering convenience that destroys the
-     * information of which text the program actually sent — a consumer that wants to show a title
-     * above a body can no longer tell "title only" from "both", and ends up printing one line
-     * twice.
+     * The {@code p=body} chunks, or {@code null} if the program sent none. Deliberately not filled in
+     * from the title: the protocol mandates only the other direction, and copying it would make
+     * "title only" indistinguishable from "both", printing one line twice.
      */
     @Nullable
     public CharSequence getBody() {
@@ -103,18 +91,12 @@ public final class TerminalNotification {
         return mSilent;
     }
 
-    /**
-     * {@code true} when the {@code a} key asked for {@code report}, i.e. the terminal should send
-     * an escape code back to the program when the user activates the notification.
-     */
+    /** {@code a=report}: send an escape code back to the program when the user activates it. */
     public boolean isReportOnActivate() {
         return mReportOnActivate;
     }
 
-    /**
-     * {@code true} when the {@code a} key asked for {@code focus} (the protocol default), i.e. the
-     * terminal should bring the window the notification came from to the front on activation.
-     */
+    /** {@code a=focus} (the protocol default): bring the window to the front on activation. */
     public boolean isFocusOnActivate() {
         return mFocusOnActivate;
     }

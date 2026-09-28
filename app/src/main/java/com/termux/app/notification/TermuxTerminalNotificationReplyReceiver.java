@@ -19,41 +19,25 @@ import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.terminal.TerminalSession;
 
 /**
- * Handles the inline reply of a notification that a program in a terminal asked for (kitty OSC 99).
+ * Handles the inline reply of a notification a program in a terminal asked for (kitty OSC 99).
  *
- * <p>Deliberately a replica of the input panel's send path rather than a bare write to the pty, so a
- * reply typed on a notification is indistinguishable from one typed in the panel:
+ * <p>A replica of the input panel's send path rather than a bare write to the pty, so a reply typed on
+ * a notification is indistinguishable from one typed in the panel: the raw text goes into the message
+ * history under <em>the target session's own</em> working directory rather than the foregrounded
+ * window's, and a carriage return always follows. The unconditional Enter is the one divergence from
+ * the panel, which honours an "Append Enter on send" preference — an answer that is never submitted is
+ * indistinguishable from no answer at all.
  *
- * <ul>
- *   <li>the raw text — <b>without</b> a trailing newline — goes into the message history, exactly
- *       as the panel stores it, deduplicated and newest-first;</li>
- *   <li>the history is filed under <b>the target session's own working directory</b>, not the
- *       foregrounded window's. The history is per-directory, and a reply to a background session's
- *       agent would otherwise be filed against whatever directory happened to be in front;</li>
- *   <li>a carriage return always follows the text. This is the one deliberate divergence from the
- *       panel, which honours an "Append Enter on send" preference.</li>
- * </ul>
- *
- * <p>Everything here runs to completion inside {@code onReceive}, and it is all cheap: the history is
- * an in-memory list plus a deferred write, and the write to the pty is a message post. The reply is
- * therefore delivered as soon as the user sends it, and the notification is rewritten straight after
- * so the platform's progress indicator ends immediately rather than spinning: the indicator lives on
- * the notification that owns the reply field and is cleared only when that notification is replaced
- * or cancelled, so the one thing this receiver must not do is leave a delivered reply's card alone.
- *
- * <p>Explicit intents only, so this stays unexported and needs no intent-filter — the same shape as
- * {@code TermuxBubbleReceiver}.
+ * <p>Explicit intents only, so this stays unexported and needs no intent-filter.
  */
 public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
     private static final String LOG_TAG = "TermuxTerminalNotificationReplyReceiver";
 
     /**
-     * Fallback keys for the typed text, tried after the RemoteInput's own label.
-     *
-     * <p>Spelled out as literals because the {@code android.jar} this project compiles against does
-     * not declare either field — its stubs are incomplete there. Neither is the key this platform
-     * actually uses; they stay only so a ROM that does key the old way still works.
+     * Fallback keys for the typed text, tried after the RemoteInput's own label. Spelled out as
+     * literals because the android.jar this compiles against declares neither field, and neither is
+     * the key this platform uses — they stay only for a ROM that keys the old way.
      */
     private static final String[] FALLBACK_REPLY_TEXT_KEYS = {
         "android.text",              // InputConnection.EXTRA_TEXT
@@ -70,17 +54,13 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
             Logger.logWarn(LOG_TAG, "Ignoring reply with no session handle");
             return;
         }
-        // The number the notification was posted under. The platform keeps a progress indicator on the
-        // reply field for as long as that notification is on screen, so this is what lets the reply
-        // finish visibly: without a number there is nothing to replace or cancel, and the indicator
-        // spins indefinitely no matter how quickly the text was actually delivered.
+        // The platform's progress indicator lives on the notification until it is cancelled, so
+        // without this number a failed reply could not be taken off screen.
         int postedId = intent.getIntExtra(TermuxConstants.EXTRA_TERMINAL_NOTIFICATION_NUMBER, -1);
 
         CharSequence typed = readText(context, intent);
         if (typed == null || typed.toString().isEmpty()) {
-            // The text was never read, so nothing can be typed anywhere. The notification goes away
-            // rather than inviting a second attempt at a reply that cannot be delivered. readText has
-            // already logged why.
+            // Nothing was read, so nothing can be delivered. readText has logged why.
             cancelIfKnown(context, postedId);
             return;
         }
@@ -88,36 +68,22 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
         TerminalSession session = findSession(sessionHandle);
         if (session == null || !session.isRunning()) {
-            // The terminal died between the notification arriving and the user answering, so there is
-            // no pty left to write into. Worth saying out loud: silently dropping it leaves the field
-            // spinning with the typed text nowhere to be seen, which reads as a hung app.
+            // The terminal died while the reply was being typed into.
             Logger.logWarn(LOG_TAG, "No live session " + sessionHandle + " for reply");
             cancelIfKnown(context, postedId);
             return;
         }
 
-        // The same store the activity's history controller is bound to, so a reply filed here lands
-        // in the very list the panel's history popup reads. Read through getSharedPreferences
-        // directly rather than TermuxAppSharedPreferences: the controller wants a plain
-        // SharedPreferences, and building the wrapper is only needed for the append-enter setting
-        // this path deliberately does not consult.
+        // The store the activity's history controller is bound to, so a reply filed here lands in the
+        // very list the panel's history popup reads. The session's own cwd, not the window's.
         SharedPreferences preferences = context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
-        // The session's own cwd, read from its shell's /proc entry. This is what makes the
-        // per-directory history file the reply under the directory the command will actually run in.
         MessageHistoryController.shared(preferences).addToMessageHistory(text, session.getCwd());
 
-        // Enter is UNCONDITIONAL here, unlike the input panel. That panel's "Append Enter on send"
-        // preference exists for pasting partial commands that must not execute yet, and it is
-        // honoured above. A notification reply is neither: it is an answer to something that is
-        // waiting for an answer, and an answer that is never submitted is indistinguishable from no
-        // answer at all — the program would just sit there.
         session.write(text + "\r");
         Logger.logDebug(LOG_TAG, "Delivered reply to session " + sessionHandle);
 
-        // The text is on its way and nothing more is owed to the card. The platform appends what was
-        // typed to the notification itself and ends the progress indicator on its own, so there is
-        // deliberately no call to rewrite it here: the notifications are separate cards, not one
-        // thread, and rewriting one would mean rebuilding a notification that is already correct.
+        // The card is left alone: the platform appends what was typed and ends the progress indicator
+        // by itself.
     }
 
     /** Cancel the notification if its number is known; a missing number leaves nothing to cancel. */
@@ -129,21 +95,14 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
     /**
      * Pull the typed text out of the inline reply, or {@code null} if there is none to be had.
      *
-     * <p>The key is the {@link RemoteInput}'s own label, not a constant. Measured on device: the
-     * results bundle came back holding exactly one key, and it was the label string
-     * {@code notification_terminal_reply_hint} — not {@code InputConnection.EXTRA_TEXT} nor
-     * {@code Intent.EXTRA_TEXT}, both of which are present in {@code framework.jar} and both of which
-     * this code tried first. A free-form result is keyed by what the RemoteInput is labelled, so the
-     * label is the only key that is right by construction.
-     *
-     * <p>Logs the bundle's real keys if nothing matches, because a wrong key is invisible from the
-     * outside: the platform appends the typed text to the conversation either way, so the reply looks
-     * delivered while nothing reaches the session.
+     * <p>The key is the {@link RemoteInput}'s own label, not a constant: a free-form result is keyed
+     * by what the RemoteInput is labelled. Logs the bundle's real keys when nothing matches, because
+     * a wrong key is invisible otherwise — the platform appends the text to the notification either
+     * way, so the reply looks delivered while nothing reaches the session.
      */
     @Nullable
     private static CharSequence readText(@NonNull Context context, @NonNull Intent intent) {
-        // getResultsFromIntent returns a Bundle, not a RemoteInput: the platform hands the typed
-        // characters over as a bundle and the notification is gone by the time this runs.
+        // A Bundle, not a RemoteInput: the notification is gone by the time this runs.
         Bundle results = RemoteInput.getResultsFromIntent(intent);
         if (results == null) {
             Logger.logWarn(LOG_TAG, "Reply carried no results bundle at all");
@@ -163,11 +122,8 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
     }
 
     /**
-     * Resolve a session handle against the live sessions.
-     *
-     * <p>{@code TermuxShellManager} owns the session list and is reachable statically, which a
-     * {@code BroadcastReceiver} needs: it has no bound service. A null manager means no session ever
-     * started, so the null return is a normal answer rather than an error.
+     * Resolve a session handle against the live sessions. {@code TermuxShellManager} is reachable
+     * statically, which a BroadcastReceiver needs; a null manager means no session ever started.
      */
     @Nullable
     private static TerminalSession findSession(@NonNull String sessionHandle) {

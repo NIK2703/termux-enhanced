@@ -737,56 +737,40 @@ public final class TermuxConstants {
     public static final String TERMUX_BUBBLE_SHORTCUT_ID = "termux_bubble_terminal";
 
     /**
-     * Termux app notification channel id for notifications a program in the terminal asked for
-     * through the kitty OSC 99 desktop notification protocol.
+     * Termux app notification channel id for notifications a program asked for via kitty OSC 99.
      *
-     * <p>A channel of its own, and loud: the foreground-service channel is IMPORTANCE_LOW and
-     * ongoing, which is the opposite of what an interactive notification wants, and a channel's
-     * importance does not reliably stick once the user has seen it.
-     *
-     * <p>No bubbles, deliberately. A notification raised by a program in a background session cannot
-     * be floated here: the platform discards the app's {@code setAllowBubbles(true)}, leaving a fresh
-     * channel at {@code DEFAULT_ALLOW_BUBBLE} (-1), and a -1 channel does not bubble — measured on
-     * device, and recorded in {@code TermuxBubbleManager}'s own notes. Only the user's per-channel
-     * preference raises it, and this ROM does not offer that for a build targeting API 28. Tapping the
-     * notification opens Termux on the session instead.
+     * <p>A channel of its own: the foreground-service channel is IMPORTANCE_LOW and ongoing, the
+     * opposite of what an interactive notification wants. No bubbles, deliberately — the platform
+     * discards {@code setAllowBubbles(true)} on a fresh channel, leaving it at
+     * {@code DEFAULT_ALLOW_BUBBLE} (-1) which does not bubble (measured on device), and this ROM
+     * offers no per-channel preference at API 28. Tapping the notification opens the session.
      */
     public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID = "termux_terminal_notification_channel_v3";
     /** Termux app notification channel name for terminal-requested notifications. */
     public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME = TermuxConstants.TERMUX_APP_NAME + " Terminal";
-    /**
-     * Action of the broadcast sent when a terminal-requested notification is activated, carrying
-     * the program's {@code i} identifier so it can be told about the click.
-     */
+    /** Action of the broadcast sent when a terminal notification is activated, carrying its {@code i} identifier. */
     public static final String ACTION_TERMINAL_NOTIFICATION_ACTIVATED = "com.termux.app.terminal_notification_activated";
     /** {@code String} extra: the {@code i} identifier of the activated notification. */
     public static final String EXTRA_TERMINAL_NOTIFICATION_ID = "com.termux.app.terminal_notification_id";
     /**
      * {@code int} extra: the id the notification was actually posted under.
      *
-     * <p>Needed on the reply path, and for one specific reason. The protocol {@code i} identifier is
-     * what a program names a notification, and a program is free to reuse it, so it cannot stand in
-     * for the posted id when a notification has to be found again later. The inline reply needs to
-     * find it to acknowledge the send; without the number it can only guess, and a guess that misses
-     * leaves the platform's progress indicator spinning on the reply field forever.
+     * <p>The protocol {@code i} identifier is reusable, so it cannot stand in for the posted id when
+     * a notification must be found again; a guess that misses leaves the platform's progress
+     * indicator spinning on the reply field forever.
      */
     public static final String EXTRA_TERMINAL_NOTIFICATION_NUMBER = "com.termux.app.terminal_notification_number";
     /** {@code String} extra: {@link com.termux.terminal.TerminalSession#mHandle} of the producing session. */
     public static final String EXTRA_TERMINAL_SESSION_HANDLE = "com.termux.app.terminal_session_handle";
-    /**
-     * Action of the broadcast carrying an inline reply typed into a terminal-requested notification.
-     * The reply text arrives as a {@link android.app.RemoteInput} result, and
-     * {@link #EXTRA_TERMINAL_SESSION_HANDLE} says which session to type it into.
-     */
+    /** Action of the broadcast carrying an inline reply typed into a terminal notification. The text
+     * arrives as a {@link android.app.RemoteInput} result, and {@link #EXTRA_TERMINAL_SESSION_HANDLE}
+     * names the session to type it into. */
     public static final String ACTION_TERMINAL_NOTIFICATION_REPLIED = "com.termux.app.terminal_notification_replied";
 
     /**
-     * Prefix of the per-session shortcut id backing a terminal-requested notification.
-     *
-     * <p>One id per session, not one global id, because that is what makes each session's
-     * notifications read as their own conversation in the shade, and what lets the bubble resolve
-     * to the session that asked for attention rather than to whichever one happens to be in front.
-     * The session handle is appended verbatim.
+     * Prefix of the per-session shortcut id backing a terminal notification; the session handle is
+     * appended verbatim. Per-session rather than global so that each session's notifications read as
+     * their own conversation in the shade and the bubble resolves to the session that asked.
      */
     public static final String TERMUX_TERMINAL_NOTIFICATION_SHORTCUT_ID_PREFIX = "termux_terminal_sess_";
 

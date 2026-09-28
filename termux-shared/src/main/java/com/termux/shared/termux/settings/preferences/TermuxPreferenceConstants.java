@@ -234,26 +234,14 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED = "crash_report_notifications_enabled";
         public static final boolean DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED = true;
 
-        /**
-         * Defines the key for whether a notification a program in the terminal asked for may carry an
-         * inline reply field.
-         *
-         * <p>Off by default, deliberately. Replying means typing into a shell that may well be running
-         * something else entirely, so offering the field is the user's decision and not a default. It is
-         * also the only part of such a notification that writes into a session, and the one part the
-         * program cannot ask for on its own behalf.
-         */
+        /** Defines the key for whether a terminal notification may carry an inline reply field.
+         * Off by default: it types into a shell, and is the one part a program cannot ask for. */
         public static final String KEY_NOTIFICATION_INLINE_REPLY_ENABLED = "notification_inline_reply_enabled";
         public static final boolean DEFAULT_VALUE_NOTIFICATION_INLINE_REPLY_ENABLED = false;
 
-        /**
-         * Defines the key for whether a notification arriving within
-         * {@code TermuxTerminalNotificationDispatcher.DUPLICATE_WINDOW_MS} of the last one posted is
-         * discarded.
-         *
-         * <p>Off by default: it throws notifications away, and whether that is ever wanted is a
-         * property of what the program does, not of the terminal.
-         */
+        /** Defines the key for whether a notification arriving within
+         * {@code TermuxTerminalNotificationDispatcher.DUPLICATE_WINDOW_MS} of the last one posted
+         * is discarded. Off by default: it throws notifications away. */
         public static final String KEY_NOTIFICATION_DEDUPLICATION_ENABLED = "notification_deduplication_enabled";
         public static final boolean DEFAULT_VALUE_NOTIFICATION_DEDUPLICATION_ENABLED = false;
 

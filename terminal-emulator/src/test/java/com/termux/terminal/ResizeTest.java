@@ -171,9 +171,8 @@ public class ResizeTest extends TerminalTestCase {
 		withTerminalSized(3, 3).enterString("\033[37mA\033[35mB\033[33mC\u0302\033[32mD\033[31mE\033[34mF").assertLinesAre("ABC\u0302",
 				"DEF", "   ");
 		resize(4, 3).assertLinesAre("ABC\u0302D", "EF  ", "    ");
-		// The trailing cells of row 1 and all of row 2 were never written, so they carry the
-		// default colors rather than the last SGR in effect (SGR 34). Only what the program wrote
-		// keeps its colors; see {@code TerminalBuffer.mDefaultStyle}.
+		// Trailing cells of row 1 and all of row 2 were never written, so they carry the default
+		// colors, not the last SGR (34); see {@code TerminalBuffer.mDefaultStyle}.
 		final int def = TextStyle.COLOR_INDEX_FOREGROUND;
 		assertForegroundIndices(effectLine(7, 5, 3, 2), effectLine(1, 4, def, def), effectLine(def, def, def, def));
 	}

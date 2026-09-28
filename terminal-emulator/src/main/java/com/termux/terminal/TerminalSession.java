@@ -313,11 +313,9 @@ public final class TerminalSession extends TerminalOutput {
     }
 
     /**
-     * Tell the session whether its window currently has keyboard focus, so that DECSET 1004 focus
-     * reporting ({@code ESC[I} / {@code ESC[O}) can be driven from the app.
-     *
-     * <p>Safe to call before {@link #updateSize} and repeatedly: the emulator only emits anything
-     * once a program has actually enabled mode 1004, and repeated identical values are ignored.
+     * Drive DECSET 1004 focus reporting from the app. Safe to call before {@link #updateSize} and
+     * repeatedly: nothing is emitted until a program enables mode 1004, and identical repeats are
+     * ignored.
      */
     public void setTerminalFocused(boolean focused) {
         if (mEmulator == null) return;

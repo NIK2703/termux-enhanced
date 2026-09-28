@@ -181,17 +181,11 @@ public final class SessionPagerManager {
     /**
      * Make {@code session} the visible page.
      *
-     * <p>For a window that is opening <em>onto</em> one specific session — a bubble launched for the
-     * session whose program just asked for attention. Different from
-     * {@link #parkOnSessionBeforeRemoval(TerminalSession)} in intent only; the mechanism is the same
-     * proven instant jump, which runs the full {@link #onTerminalPageSelected} landing.
+     * <p>Before the service is bound the request is parked for the next
+     * {@link #syncTerminalPagerToService()}: a bubble window reaches {@code onCreate} before its bind
+     * completes, so resolving eagerly would land on the wrong tab.
      *
-     * <p>When the service is not connected yet the request is parked instead, and the first
-     * {@link #syncTerminalPagerToService()} consumes it. That ordering matters: a window created for
-     * a bubble reaches {@code onCreate} before its service bind completes, so resolving the session
-     * eagerly would find nothing and silently land on the wrong tab.
-     *
-     * @return {@code true} if {@code session} is the page now shown.
+     * @return {@code true} if it is the page now shown.
      */
     public boolean selectSession(@Nullable TerminalSession session) {
         if (session == null || mTerminalPager == null) return false;

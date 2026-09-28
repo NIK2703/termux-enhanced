@@ -247,12 +247,9 @@ public final class TerminalEmulator {
     private int mCurrentDecSetFlags, mSavedDecSetFlags;
 
     /**
-     * Whether the window this terminal is displayed in currently has keyboard focus, as reported
-     * by the app through {@link #setTerminalFocused(boolean)}.
-     *
-     * <p>Only acted upon while {@link #DECSET_BIT_SEND_FOCUS_EVENTS} is set, i.e. once a program has
-     * enabled DECSET 1004. Before that it is kept up to date anyway, so enabling the mode reports
-     * the real state immediately instead of forcing the app to wait for the next change.
+     * Whether the window has keyboard focus, as reported by the app. Kept up to date even while
+     * {@link #DECSET_BIT_SEND_FOCUS_EVENTS} is unset, so enabling DECSET 1004 can report the real
+     * state immediately instead of making the program wait for the next change.
      */
     private boolean mTerminalFocused = false;
 
@@ -387,12 +384,9 @@ public final class TerminalEmulator {
     }
 
     /**
-     * Record the window's keyboard focus state and, if a program has enabled DECSET 1004, report the
-     * change to it with {@code ESC[I} (gained) or {@code ESC[O} (lost).
-     *
-     * <p>Called by the app, not by the terminal, because only the app knows about Android's window
-     * lifecycle. Idempotent: an unchanged value produces no output, so a stream of redundant
-     * lifecycle callbacks cannot flood the pty.
+     * Record the window's keyboard focus state and, if DECSET 1004 is enabled, report the change
+     * with {@code ESC[I} (gained) or {@code ESC[O} (lost). Driven by the app, since only it knows
+     * Android's window lifecycle; idempotent, so redundant lifecycle callbacks cannot flood the pty.
      */
     public void setTerminalFocused(boolean focused) {
         if (mTerminalFocused == focused) return;
@@ -1318,12 +1312,9 @@ public final class TerminalEmulator {
                 }
                 break;
             case 1004:
-                // Report the window's current focus state right away: a program that just enabled
-                // 1004 has no way to know the state otherwise, and would otherwise have to sit
-                // through a blind period before the next lifecycle change. mTerminalFocused is
-                // already true whenever the window is focused, so the write below is exactly the
-                // "focus gained" report, and the duplicate that setTerminalFocused would otherwise
-                // send is suppressed by its own equality check.
+                // Report the current state right away: a program that just enabled 1004 has no
+                // other way to learn it. mTerminalFocused is already true when focused, so this is
+                // the "focus gained" report; the duplicate is suppressed by setTerminalFocused.
                 if (setting) mSession.write(mTerminalFocused ? FOCUS_IN : FOCUS_OUT);
                 break;
             case 1000:
@@ -2251,10 +2242,9 @@ public final class TerminalEmulator {
             case 119: // Reset highlight color.
                 break;
             case 99: // Desktop notification (kitty notification protocol).
-                // OSC 99 ; metadata ; payload. textParameter is everything after "99;", so the
-                // parser receives the raw "metadata;payload" text and re-splits it. A support
-                // query ("p=?" with an empty payload) yields a reply that has to go back to the
-                // program, hence the write here rather than inside the parser.
+                // textParameter is everything after "99;", so the parser re-splits
+                // "metadata;payload" itself. A support query (p=?, empty payload) yields a reply
+                // that has to go back to the program, hence the write here.
                 String reply = mNotificationParser.handle(textParameter);
                 if (reply != null) mSession.write(reply);
                 break;

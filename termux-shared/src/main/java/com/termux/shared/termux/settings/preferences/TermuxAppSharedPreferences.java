@@ -385,11 +385,9 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Whether a notification a program in the terminal asked for may carry an inline reply field.
-     *
-     * @param readFromFile {@code true} to read through the multi-process preferences, which is what a
-     *                     process outside the UI needs so that a change takes effect at once;
-     *                     {@code false} to read the in-process cache.
+     * @param readFromFile {@code true} to read through the multi-process preferences, so a change
+     *                     takes effect at once in a process outside the UI; {@code false} to read
+     *                     the in-process cache.
      */
     public boolean areNotificationInlineRepliesEnabled(boolean readFromFile) {
         if (readFromFile)

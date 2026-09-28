@@ -38,8 +38,7 @@
             android:persistent="false"
             app:iconSpaceReserved="false" />
 
-        <!-- Off by default: the field types into a shell, which is the user's call and not the
-             program's. Without it a notification is still a notification, just one you read. -->
+        <!-- Off by default: the field types into a shell, which is the user's call, not the program's. -->
         <SwitchPreferenceCompat
             app:key="notification_inline_reply_enabled"
             app:title="@string/termux_notification_inline_reply_title"
@@ -47,9 +46,7 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
-        <!-- Off by default: it throws notifications away, and whether that is ever wanted depends on
-             what the program does. A burst inside the window is one event to a person, but two to a
-             program that legitimately sends two. -->
+        <!-- Off by default: a burst is one event to a person but two to a program that sent two. -->
         <SwitchPreferenceCompat
             app:key="notification_deduplication_enabled"
             app:title="@string/termux_notification_deduplication_title"

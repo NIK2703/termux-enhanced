@@ -3,10 +3,8 @@ package com.termux.terminal;
 import java.util.Base64;
 import java.util.List;
 
-/**
- * OSC 99 desktop notification protocol, exercised through the emulator so the whole path is
- * covered: bytes in, callback out, plus the support-query reply written back to the pty.
- */
+/** OSC 99 desktop notification protocol, exercised through the emulator: bytes in, callback out,
+ * plus the support-query reply written back to the pty. */
 public class Osc99NotificationTest extends TerminalTestCase {
 
     private static final String ST = "\033\\";
@@ -23,8 +21,6 @@ public class Osc99NotificationTest extends TerminalTestCase {
         return Base64.getEncoder().encodeToString(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    // ── Chunking ───────────────────────────────────────────────────────────
-
     public void testTitleThenBodyInTwoChunksYieldsOneNotification() {
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=title:d=0;Build");
@@ -40,8 +36,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testRepeatedChunksOfTheSameFieldConcatenate() {
-        // The protocol allows a field to be sent any number of times, precisely so long text can
-        // be split around the per-chunk size limit.
+        // A field may be sent any number of times, so long text can be split around the chunk limit.
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=body:d=0;one ");
         enterOsc99("i=1:p=body:d=0;two ");
@@ -73,8 +68,6 @@ public class Osc99NotificationTest extends TerminalTestCase {
         assertEquals("plain body", notifications().get(0).getBody().toString());
         assertNull("no p=body chunk means no title", notifications().get(0).getTitle());
     }
-
-    // ── Completion rules ───────────────────────────────────────────────────
 
     public void testBodyIsPromotedToTitleWhenNoTitleWasSent() {
         withTerminalSized(10, 3);
@@ -119,20 +112,17 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testEmptyFinalChunkCompletesButDeliversNothing() {
-        // "A notification with not title and no body is ignored" — but the d it carries must still
-        // be honoured, or the notification would sit pending forever.
+        // "A notification with not title and no body is ignored" — but its d must still be honoured.
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=body:d=0;");
         enterOsc99("i=1:p=body:d=1;");
         assertTrue(notifications().isEmpty());
 
-        // Proof it was completed rather than stranded: the same id is reusable immediately.
+        // Proof it was completed rather than stranded: the id is reusable immediately.
         enterOsc99("i=1:p=body:d=1;now with text");
         assertEquals(1, notifications().size());
         assertEquals("now with text", notifications().get(0).getBody().toString());
     }
-
-    // ── base64 ─────────────────────────────────────────────────────────────
 
     public void testBase64PayloadsAreDecoded() {
         // e=1 marks the payload base64, which is how a program sends text containing ';'.
@@ -146,9 +136,8 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testAbsentDoneKeyMeansDoneEvenWithBase64() {
-        // The protocol's metadata table gives d a default of 1, and says nothing about e changing
-        // it, so a base64 chunk that omits d entirely is complete and must be shown. Getting this
-        // wrong is silent: the text is not mangled, it simply never appears.
+        // The metadata table gives d a default of 1 and says nothing about e changing it, so a
+        // base64 chunk omitting d is complete. Getting this wrong is silent: it never appears.
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=title:e=1;" + base64("No done key"));
         assertEquals("an absent d must complete the notification, not hold it back", 1, notifications().size());
@@ -156,8 +145,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testTwoChunksWithoutDoneKeyAreTwoNotifications() {
-        // Each chunk is complete on its own, so nothing accumulates: the second does not append to
-        // the first. Both are delivered, in order.
+        // Each chunk is complete on its own, so nothing accumulates: both are delivered, in order.
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=title:e=1;" + base64("First"));
         enterOsc99("i=1:p=body:e=1;" + base64("Second"));
@@ -167,9 +155,8 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testTitleOnlyNotificationReportsNoBody() {
-        // The protocol mandates one substitution only: no title becomes the body. The reverse is
-        // deliberately not applied, so a consumer can tell "title only" from "both" and lay the text
-        // out without printing one line twice.
+        // One substitution is mandated (no title becomes the body), the reverse is not, so a
+        // consumer can tell "title only" from "both".
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=title:d=1;only a title");
         assertEquals(1, notifications().size());
@@ -187,8 +174,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testWhitespaceOnlyBodyCountsAsAbsent() {
-        // An all-whitespace body carries no information, so it must not turn a title-only
-        // notification into one that looks as though it had two texts.
+        // A whitespace-only body carries no information, so a title-only notification stays one.
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=title:d=0;kept");
         enterOsc99("i=1:p=body:d=1;   ");
@@ -209,17 +195,14 @@ public class Osc99NotificationTest extends TerminalTestCase {
         assertEquals("hello", notifications().get(0).getBody().toString());
     }
 
-    // ── Support query ──────────────────────────────────────────────────────
-
     public void testSupportQueryIsAnsweredInTheConformingForm() {
         withTerminalSized(10, 3);
         enterOsc99("i=abc:p=?;");
         String reply = mOutput.getOutputAndClear();
 
-        // Shape mandated by the protocol: echo the identifier and p=?, then key=value details.
+        // Mandated shape: echo the identifier and p=?, then key=value details including p=title.
         assertTrue("must echo the identifier, got: " + reply, reply.startsWith("\033]99;i=abc:p=?;"));
         assertTrue("must end with ST, got: " + reply, reply.endsWith(ST));
-        // The p value must contain at least "title"; this is what a conforming client keys on.
         assertTrue("p must list title, got: " + reply, reply.contains("p=title"));
     }
 
@@ -242,7 +225,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testPQueryWithANonEmptyPayloadIsNotAQuery() {
-        // Only an empty payload makes it a support query; otherwise it is just an unknown p value.
+        // Only an empty payload makes it a support query; otherwise it is an unknown p value.
         withTerminalSized(10, 3);
         enterOsc99("i=1:p=?;some text");
         assertEquals("", mOutput.getOutputAndClear());
@@ -252,10 +235,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
     public void testReplySatisfiesTheRealOpenTuiProbe() {
         // The exact query a real client sends, captured from a running `opencode mini` under a pty:
         //     ESC ] 99 ; i=opentui-notifications:p=? ; ESC \
-        // Its parser accepts the reply only if the payload contains all four of these substrings,
-        // which is also precisely what the protocol mandates. Pinning both here means a change to
-        // either side of the reply shape shows up as a test failure instead of as a notification
-        // that silently never arrives.
+        // Its parser needs all four substrings below to accept the reply.
         withTerminalSized(10, 3);
         enterString("\033]99;i=opentui-notifications:p=?;" + ST);
         String reply = mOutput.getOutputAndClear();
@@ -266,8 +246,6 @@ public class Osc99NotificationTest extends TerminalTestCase {
         assertTrue("no supported-payload list: " + payload, payload.contains("p="));
         assertTrue("title support not advertised: " + payload, payload.contains("title"));
     }
-
-    // ── Metadata keys ──────────────────────────────────────────────────────
 
     public void testOccasionsAreParsedAndDefaultToAlways() {
         withTerminalSized(10, 3);
@@ -330,8 +308,6 @@ public class Osc99NotificationTest extends TerminalTestCase {
         assertTrue(notifications().get(0).isSilent());
     }
 
-    // ── Limits ─────────────────────────────────────────────────────────────
-
     public void testPendingNotificationsAreCapped() {
         // A program that never sends d=1 must not be able to grow the map without bound.
         withTerminalSized(10, 3);
@@ -344,8 +320,7 @@ public class Osc99NotificationTest extends TerminalTestCase {
     }
 
     public void testLongNotificationIsDeliveredWhole() {
-        // No length policy of our own: a notification the program did finish sending is handed over
-        // with all of its text. Only notifications still missing their d=1 are ever discarded.
+        // No length policy of our own: only notifications still missing their d=1 are discarded.
         withTerminalSized(10, 3);
         StringBuilder chunk = new StringBuilder();
         for (int i = 0; i < 200; i++) chunk.append("0123456789");
@@ -363,8 +338,6 @@ public class Osc99NotificationTest extends TerminalTestCase {
         assertEquals("nothing may be trimmed", expected.toString(), notifications().get(0).getBody().toString());
     }
 
-    // ── Neighbouring sequences keep working ────────────────────────────────
-
     public void testOsc99DoesNotDisturbTitleSequences() {
         withTerminalSized(10, 3);
         enterString("\033]0;My Title" + ST);
@@ -378,8 +351,6 @@ public class Osc99NotificationTest extends TerminalTestCase {
         assertEquals(1, notifications().size());
         assertEquals("ping", notifications().get(0).getBody().toString());
     }
-
-    // ── Activation report ──────────────────────────────────────────────────
 
     public void testActivationReportUsesTheMandatedForm() {
         assertEquals("\033]99;i=abc;" + ST, TerminalNotification.buildActivationReport("abc"));

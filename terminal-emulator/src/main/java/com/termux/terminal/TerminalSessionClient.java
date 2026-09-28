@@ -18,13 +18,8 @@ public interface TerminalSessionClient {
 
     void onBell(@NonNull TerminalSession session);
 
-    /**
-     * A program running in {@code session} requested a desktop notification (kitty OSC 99).
-     *
-     * <p>Unlike most callbacks here this has a side effect outside the terminal (a notification is
-     * posted), so an implementation must not be fanned out to several delegates — see
-     * {@code TermuxTerminalSessionClientMux}.
-     */
+    /** Unlike most callbacks here this posts a notification, so it must not be fanned out to
+     * several delegates — see {@code TermuxTerminalSessionClientMux}. */
     void onNotification(@NonNull TerminalSession session, @NonNull TerminalNotification notification);
 
     void onColorsChanged(@NonNull TerminalSession session);

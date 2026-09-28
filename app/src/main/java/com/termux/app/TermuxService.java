@@ -682,8 +682,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
             mShellManager.mTermuxSessions.remove(termuxSession);
 
-            // Its cards go with it: the reply field on one would type into a terminal that is no longer
-            // there, and the session can no longer post, so nothing is lost by taking them down.
+            // Its cards go with it: the reply field would type into a terminal that is gone.
             TermuxTerminalNotificationDispatcher.forgetSession(this,
                 termuxSession.getTerminalSession().mHandle);
 

@@ -110,10 +110,8 @@ public final class TermuxTerminalSessionClientMux extends TermuxTerminalSessionC
     }
 
     /**
-     * Notifications are NOT fanned out: every delegate that implements this would post its own
-     * system notification, and with the activity and the bubble both registered the user would see
-     * every event twice. Exactly one delegate must own the side effect, so it goes to the primary —
-     * the service client, which exists whether or not an activity is bound.
+     * NOT fanned out: with the activity and bubble both registered, every delegate would post its own
+     * copy. Only the primary — the service client — owns the side effect.
      */
     @Override
     public void onNotification(@NonNull TerminalSession session, @NonNull TerminalNotification notification) {

@@ -87,36 +87,21 @@ public final class TermuxBubbleManager {
     private static boolean sBubblePosted;
 
     /**
-     * Handle of the session whose program most recently raised a notification, or {@code null}.
-     *
-     * <p>The bubble is a single shared window over every session, so "which session is it showing"
-     * has no answer of its own. This is that answer: the last one that asked for attention. Recorded
-     * here rather than in the notification code because this class already owns the bubble's
-     * process-wide state, and the bubble window reads it without needing to know who wrote it.
-     *
-     * <p>Deliberately not part of the bubble's lifecycle: cancelling or dismissing the bubble leaves
-     * it alone, because the point is where to go next, and that session is still the one asking. A
-     * session that dies is simply not found when the handle is used, and the window stays put rather
-     * than jumping somewhere else.
+     * Session whose program most recently raised a notification, or {@code null}. The bubble is one
+     * shared window over every session, so it has no session of its own to show; not part of the
+     * bubble's lifecycle, since dismissing the bubble leaves that session still asking.
      */
     @Nullable
     private static volatile String sLastNotifiedSessionHandle;
 
     /**
-     * Record that a session's program has asked for the user's attention.
-     *
-     * @param sessionHandle {@code TerminalSession#mHandle} of the session that raised it.
+     * Record that a session's program asked for the user's attention; the handle is the session's
+     * {@code TerminalSession#mHandle}.
      */
     public static void noteSessionAskedForAttention(@NonNull String sessionHandle) {
         sLastNotifiedSessionHandle = sessionHandle;
     }
 
-    /**
-     * The session whose program most recently raised a notification, or {@code null} if none has.
-     *
-     * <p>A fallback, never an override: a window told exactly which session to show must not be
-     * second-guessed.
-     */
     @Nullable
     public static String lastNotifiedSession() {
         return sLastNotifiedSessionHandle;
@@ -401,20 +386,15 @@ public final class TermuxBubbleManager {
         // MessagingStyle + Person is one of the documented ways for a bubble to be accepted, and it
         // costs nothing here. The session title is used as the message so the fallback notification
         // still says something useful.
-        // The conversation is kept as a conversation — a named user, no title and no message. What there
-        // is to read is the window the bubble opens; the shade entry only has to exist, and anything
-        // printed in it duplicates the terminal itself. The session title still names the shortcut, so
-        // the conversation is identifiable where that matters.
+        // A named user and no title or message: MessagingStyle is what makes the platform treat this
+        // as a conversation, and hence what lets it bubble. The shade entry only has to exist — what
+        // the user reads is the floating window it opens, which already shows the session.
         Notification.MessagingStyle style = new Notification.MessagingStyle(self);
 
         Notification notification = new Notification.Builder(context,
             TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_service_notification)
             .setColor(0xFF607D8B)
-            // No title and no text. This notification exists only to carry the bubble: what the user
-            // reads is the floating window it opens, and a shade entry saying "Termux" above a copy of
-            // the session title says nothing the window does not say better. The style keeps a named
-            // user so the platform still treats it as a conversation, which is what lets it bubble.
             .setStyle(style)
             .setContentIntent(contentIntent)
             .setShortcutId(shortcutId)

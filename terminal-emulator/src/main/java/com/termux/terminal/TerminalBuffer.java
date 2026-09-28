@@ -44,23 +44,17 @@ public final class TerminalBuffer {
     private long mBlankRowStyle = -1;
 
     /**
-     * Style used to fill rows that are materialized lazily (see
-     * {@link #allocateFullLineIfNecessary(int)}) and the shared blank row — that is, cells the
-     * program has <em>never written</em>, which carry no attributes of their own, so they get the
-     * scheme's default ones.
+     * Style for lazily materialized rows (see {@link #allocateFullLineIfNecessary(int)}) and the
+     * shared blank row: cells the program has <em>never written</em>, so they carry the scheme's
+     * default attributes.
      * <p>
-     * It is deliberately not refreshed from the emulator's current style in
-     * {@link #resize(int, int, int, int[], long, boolean)}. Doing so leaks whatever attribute the
-     * program had active at the instant of the resize into every blank cell of the screen, because a
-     * resize re-creates rows through {@link #allocateFullLineIfNecessary}. A full-screen program
-     * whose last attribute is a reverse-video status line (vim, and anything else on the alternate
-     * screen buffer) then paints the whole empty area black, because the renderer resolves a
-     * reverse-video cell by swapping fore and back, so the background becomes the scheme's
-     * foreground. Cells the program <em>erased</em> are a different case and do keep the SGR that
-     * was active at the erase; that is what the clear()/scrollDownOneLine() calls in
-     * {@code resize} pass {@code currentStyle} for.
+     * Deliberately not refreshed from the current style in
+     * {@link #resize(int, int, int, int[], long, boolean)}: that leaks the attribute active at the
+     * resize into every blank cell, so a full-screen program ending on a reverse-video status line
+     * paints the empty area black. Cells the program <em>erased</em> are the exception and keep
+     * that SGR — hence {@code currentStyle} in resize's clear()/scrollDownOneLine() calls.
      * <p>
-     * It must never be left at 0 either: style 0 decodes to palette index 0 for <em>both</em> the
+     * It must never be left at 0: style 0 decodes to palette index 0 for <em>both</em> the
      * foreground and the background, so freshly allocated rows would render as black glyphs on black
      * background rectangles instead of the scheme's default colors.
      */
