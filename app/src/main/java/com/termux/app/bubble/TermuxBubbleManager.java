@@ -401,16 +401,20 @@ public final class TermuxBubbleManager {
         // MessagingStyle + Person is one of the documented ways for a bubble to be accepted, and it
         // costs nothing here. The session title is used as the message so the fallback notification
         // still says something useful.
-        Notification.MessagingStyle style = new Notification.MessagingStyle(self)
-            .setConversationTitle(TermuxConstants.TERMUX_APP_NAME)
-            .addMessage(sessionTitle, System.currentTimeMillis(), self);
+        // The conversation is kept as a conversation — a named user, no title and no message. What there
+        // is to read is the window the bubble opens; the shade entry only has to exist, and anything
+        // printed in it duplicates the terminal itself. The session title still names the shortcut, so
+        // the conversation is identifiable where that matters.
+        Notification.MessagingStyle style = new Notification.MessagingStyle(self);
 
         Notification notification = new Notification.Builder(context,
             TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_service_notification)
             .setColor(0xFF607D8B)
-            .setContentTitle(TermuxConstants.TERMUX_APP_NAME)
-            .setContentText(sessionTitle)
+            // No title and no text. This notification exists only to carry the bubble: what the user
+            // reads is the floating window it opens, and a shade entry saying "Termux" above a copy of
+            // the session title says nothing the window does not say better. The style keeps a named
+            // user so the platform still treats it as a conversation, which is what lets it bubble.
             .setStyle(style)
             .setContentIntent(contentIntent)
             .setShortcutId(shortcutId)

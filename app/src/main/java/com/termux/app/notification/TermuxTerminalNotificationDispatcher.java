@@ -175,9 +175,12 @@ public final class TermuxTerminalNotificationDispatcher {
                 PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
         }
 
+        // No content title: the style already carries the title as the conversation title, and setting
+        // both prints the same line twice. The text alone is left for the collapsed view, where the
+        // style is not drawn and something has to be there.
         Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
             TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_DEFAULT,
-            summary, bigText == null ? summary : bigText, bigText, contentIntent, reportIntent,
+            null, bigText == null ? summary : bigText, null, contentIntent, reportIntent,
             notification.isSilent() ? NotificationUtils.NOTIFICATION_MODE_SILENT
                 : NotificationUtils.NOTIFICATION_MODE_ALL);
         if (builder == null) return -1;
