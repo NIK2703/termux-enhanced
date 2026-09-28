@@ -795,6 +795,7 @@
          is now the single manual entry point: there is no context-menu item any more. -->
     <string name="action_open_in_bubble">Bubble</string>
     <string name="bubble_notification_channel_description">Floating terminal window on top of other apps</string>
+    <string name="terminal_notification_channel_description">Messages from programs running in a terminal session</string>
 
 
     <!-- ===================== Compact extra-keys panel =====================

@@ -14,6 +14,7 @@ import android.os.Build;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 
 import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
@@ -98,18 +99,6 @@ public final class TermuxTerminalNotificationDispatcher {
      */
     private static final Map<String, Conversation> sConversations = new LinkedHashMap<>();
 
-    /**
-     * How close together two identical notifications from one session have to be to count as one
-     * event rather than two.
-     *
-     * <p>Measured: a program raising one event sends the same notification twice, 14–17 ms apart, and
-     * each such pair is a second or more from the next. A window of a second is therefore some sixty
-     * times the observed gap — far too wide to merge anything the user meant as separate, and still
-     * far too tight to depend on the 15 ms that produced the duplicates. Anything slower than a
-     * second is a genuine repeat and gets a message of its own.
-     */
-    private static final long DUPLICATE_WINDOW_MS = 1000;
-
     private TermuxTerminalNotificationDispatcher() {
     }
 
@@ -125,21 +114,57 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * Make sure the channel these notifications go on exists.
+     * The channel a notification is posted on, chosen by whether the program asked for sound.
      *
-     * <p>It is Termux's own bubble channel, created by its bubble manager. Same channel, same shortcut,
-     * same conversation: the platform derives a per-conversation channel from that pair, so posting
-     * anywhere else puts these in a neighbouring thread rather than the bubble's own.
+     * <p>A program that said nothing wants to be heard, and that is the channel it gets. One that sent
+     * {@code s=silent} goes on the bubble's {@code IMPORTANCE_LOW} channel instead: there is no way to
+     * silence one notification on a channel that may sound, since the channel decides on API 26 and
+     * later, so honouring the request means posting somewhere quiet.
+     */
+    @NonNull
+    private static String channelIdFor(@Nullable TerminalNotification notification) {
+        return notification != null && notification.isSilent()
+            ? TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID
+            : TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID;
+    }
+
+    /**
+     * Make sure the channels these notifications go on exist.
      *
-     * <p>Cost of sharing it: the channel is IMPORTANCE_LOW, so these notifications are quiet — no
-     * heads-up, no sound. That is the price of being in the bubble's conversation rather than next to
-     * it; the notification is still shown and still takes a reply.
+     * <p>Two of them, and the split is what makes a repeat audible: the bubble's own channel is
+     * {@code IMPORTANCE_LOW}, and on API 26 and later the channel alone decides whether a notification
+     * sounds, vibrates or heads up — {@code setDefaults()} on the builder is ignored once a channel
+     * exists, which is why a card posted there sat in the shade's silent section no matter what the
+     * builder asked for. The bubble channel is still created, because it is both the bubble's own
+     * channel and the quiet one {@link #channelIdFor} sends silent notifications to.
      */
     public static void ensureChannel(@NonNull Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             TermuxBubbleManager.createNotificationChannel(context);
         }
+        createAlertingChannel(context);
+    }
+
+    /**
+     * The channel a program's notification can make a sound on.
+     *
+     * <p>High importance, so it heads up as well as sounding: at {@code IMPORTANCE_DEFAULT} the
+     * notification is shown quietly in the shade and is never an interruption, which is not what a
+     * program asking for attention means. The channel carries no {@code setAllowBubbles}: these cards
+     * join the bubble because they reference its shortcut, and asking to float on their own would put
+     * every session's card on screen by itself.
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private static void createAlertingChannel(@NonNull Context context) {
+        NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
+        if (notificationManager == null) return;
+        NotificationChannel channel = new NotificationChannel(
+            TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID,
+            TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription(context.getString(R.string.terminal_notification_channel_description));
+        notificationManager.createNotificationChannel(channel);
     }
 
     /**
@@ -172,7 +197,7 @@ public final class TermuxTerminalNotificationDispatcher {
         if (conversation == null) return -1;
 
         int id = conversation.id;
-        Notification built = buildNotification(context, session, conversation, id, true);
+        Notification built = buildNotification(context, session, conversation, id, true, true);
         if (built == null) return -1;
         manager.notify(id, built);
         Logger.logDebug(LOG_TAG, "Posted notification " + id + " (" + notification.getId()
@@ -279,12 +304,19 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * Fold a notification into the session's thread, creating that thread on the first one.
+     * Append a notification to the session's thread, creating that thread on the first one.
      *
      * <p>The card is identified by the session, not by the protocol's {@code i=} key, so a program
      * sending ten notifications produces one card with ten messages rather than ten cards. That is
      * what "one conversation per session" means on this platform, and it is what the documentation
      * asks for: several updates in a single {@code MessagingStyle} notification.
+     *
+     * <p>Every notification is a message of its own, including one that repeats the words of the one
+     * before it. There used to be a window here that folded an identical repeat arriving within a
+     * second into the message already on the card. It is gone, and deliberately: it was a guess at
+     * what counts as one event, and a wrong guess either swallows something the user meant to read or
+     * fails to catch a duplicate it was meant to hide — both indistinguishable from the outside, since
+     * a missing message and a merged one look the same. What the program sent is what the card says.
      */
     @Nullable
     private static synchronized Conversation conversationFor(@NonNull Context context,
@@ -293,12 +325,6 @@ public final class TermuxTerminalNotificationDispatcher {
                                                              @NonNull TerminalNotification notification) {
         CharSequence title = notification.getTitle();
         CharSequence body = notification.getBody();
-        // The text a repeat is recognised by: what the user reads, so two notifications saying the
-        // same thing are the same thing however the program identified them. Length-prefixed so the
-        // two halves cannot be confused for one another — a plain separator would let a title of
-        // "a b" with a body of "c" match a title of "a" with a body of "b c".
-        String signature = (title == null ? 0 : title.length()) + ":" + title
-            + (body == null ? 0 : body.length()) + ":" + body;
         long now = System.currentTimeMillis();
 
         Conversation conversation = sConversations.get(session.mHandle);
@@ -307,22 +333,12 @@ public final class TermuxTerminalNotificationDispatcher {
             sConversations.put(session.mHandle, conversation);
         }
 
-        if (signature.equals(conversation.lastSignature)
-                && now - conversation.lastTimeMs <= DUPLICATE_WINDOW_MS) {
-            // The same words, moments apart: one thing told twice. The message is already in the
-            // thread, so this only refreshes what the collapsed line shows and leaves one message.
-            conversation.lastTimeMs = now;
-            return conversation;
-        }
-
         Person author = new Person.Builder()
             .setName((title != null ? title : body).toString())
             .setImportant(true)
             .build();
         conversation.add(new Notification.MessagingStyle.Message(
             body != null ? body : title, now, author), author);
-        conversation.lastSignature = signature;
-        conversation.lastTimeMs = now;
         conversation.last = notification;
         return conversation;
     }
@@ -334,11 +350,13 @@ public final class TermuxTerminalNotificationDispatcher {
      * @param withReplyAction whether to offer the inline reply field at all. False for the rewrite
      *     that follows a reply: the field is what the platform hangs its progress indicator on, so a
      *     card that still has one can never finish showing a reply as done.
+     * @param alert whether re-posting this card may interrupt the user. True when the program has just
+     *     said something, false when the card is only being redrawn under the user's own hand.
      */
     @Nullable
     private static Notification buildNotification(@NonNull Context context, @NonNull TerminalSession session,
                                                   @NonNull Conversation conversation, int id,
-                                                  boolean withReplyAction) {
+                                                  boolean withReplyAction, boolean alert) {
         CharSequence title = conversation.last == null ? null : conversation.last.getTitle();
         CharSequence body = conversation.last == null ? null : conversation.last.getBody();
         // The line the collapsed card shows: the title when the program sent one, otherwise the body.
@@ -368,11 +386,16 @@ public final class TermuxTerminalNotificationDispatcher {
         // No content title: the style already carries the session's name as the conversation title,
         // and setting both prints the same line twice. The text alone is left for the collapsed view,
         // where the style is not drawn and something has to be there.
-        Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
-            TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID, Notification.PRIORITY_DEFAULT,
+        String channelId = channelIdFor(conversation.last);
+        boolean silent = conversation.last != null && conversation.last.isSilent();
+        // The priority follows the channel rather than being fixed. PRIORITY_DEFAULT is the pre-Oreo
+        // hint, ignored once a channel exists, so it said nothing either way; matching the channel is
+        // what keeps the pre-Oreo path (where the channel does not exist) consistent with the modern
+        // one, where the channel alone decides whether this is an interruption.
+        Notification.Builder builder = NotificationUtils.geNotificationBuilder(context, channelId,
+            silent ? Notification.PRIORITY_LOW : Notification.PRIORITY_HIGH,
             null, bigText == null ? summary : bigText, null, contentIntent, reportIntent,
-            conversation.last != null && conversation.last.isSilent()
-                ? NotificationUtils.NOTIFICATION_MODE_SILENT : NotificationUtils.NOTIFICATION_MODE_ALL);
+            silent ? NotificationUtils.NOTIFICATION_MODE_SILENT : NotificationUtils.NOTIFICATION_MODE_ALL);
         if (builder == null) return null;
 
         builder.setSmallIcon(R.drawable.ic_service_notification);
@@ -380,7 +403,16 @@ public final class TermuxTerminalNotificationDispatcher {
         builder.setShowWhen(true);
         builder.setAutoCancel(true);
         builder.setOngoing(false);
-        builder.setOnlyAlertOnce(true);
+        // Only the redraws are silenced, never a program's own news.
+        //
+        // One card per session means one notification id per session, so every notification after the
+        // first is an *update* to a notification the shade already holds, and setOnlyAlertOnce(true) told
+        // the platform not to alert on those. That is the whole of "the repeat is silent": the second
+        // and third messages from a session were being drawn into the card with no sound, no vibration
+        // and no heads-up, which is the one thing a program raising a notification is asking for. Left
+        // false, each update alerts. A reply redraws the card under the user's own hand, so that one
+        // asks for silence — otherwise typing an answer would ring.
+        builder.setOnlyAlertOnce(!alert);
         // A card replaces itself rather than joining a group. The group key is deliberately gone: a
         // group only collapses when its summary outranks every member, and the newest member always
         // outranked the summary here, so the group sat permanently half expanded with its summary
@@ -457,7 +489,8 @@ public final class TermuxTerminalNotificationDispatcher {
             Person self = new Person.Builder().setName("").setImportant(true).build();
             conversation.add(new Notification.MessagingStyle.Message(
                 replyText, System.currentTimeMillis(), self), null);
-            Notification rewritten = buildNotification(context, session, conversation, postedId, false);
+            Notification rewritten = buildNotification(context, session, conversation, postedId, false,
+                false);
             if (rewritten == null) {
                 cancel(context, postedId);
                 return;
@@ -493,8 +526,6 @@ public final class TermuxTerminalNotificationDispatcher {
         final int id;
         final List<Notification.MessagingStyle.Message> messages = new ArrayList<>();
         @Nullable TerminalNotification last;
-        @Nullable String lastSignature;
-        long lastTimeMs;
 
         /**
          * Who the card is addressed to: the author of the oldest message still on it.
@@ -662,7 +693,6 @@ public final class TermuxTerminalNotificationDispatcher {
         if (conversation == null || protocolId == null) return null;
         if (conversation.last == null || !protocolId.equals(conversation.last.getId())) return null;
         conversation.last = null;
-        conversation.lastSignature = null;
         conversation.messages.clear();
         conversation.first = null;
         sConversations.remove(sessionHandle);
