@@ -45,24 +45,26 @@ public final class TerminalBuffer {
 
     /**
      * Style used to fill rows that are materialized lazily (see
-     * {@link #allocateFullLineIfNecessary(int)}) and the shared blank row.
-     *
-     * <p>This is deliberately the <em>default</em> style and nothing else. It describes cells the
-     * program has <strong>never written</strong>, and such a cell carries no attributes at all, so
-     * the only correct style for it is the scheme's default one. It must not follow the emulator's
-     * current SGR (it used to, see {@link #resize}): whatever attribute the program happened to
-     * have active at the moment the window was resized then leaked into every blank cell of the
-     * screen — including the whole screen, because a resize re-creates the rows through
-     * {@link #allocateFullLineIfNecessary}. A full-screen program whose last attribute is a
-     * reverse-video status line (vim, and anything else using the alternate screen buffer) turned
-     * the entire empty area into solid black: {@code TerminalRenderer} resolves a reverse-video
-     * cell by swapping fore/back, so the background became the scheme's <em>foreground</em>.</p>
-     *
-     * <p>Style 0 is just as wrong for a different reason: it decodes to palette index 0 for
-     * <em>both</em> the foreground and the background, so freshly allocated rows would render as
-     * black glyphs on black background rectangles.</p>
+     * {@link #allocateFullLineIfNecessary(int)}) and the shared blank row — that is, cells the
+     * program has <em>never written</em>, which carry no attributes of their own, so they get the
+     * scheme's default ones.
+     * <p>
+     * It is deliberately not refreshed from the emulator's current style in
+     * {@link #resize(int, int, int, int[], long, boolean)}. Doing so leaks whatever attribute the
+     * program had active at the instant of the resize into every blank cell of the screen, because a
+     * resize re-creates rows through {@link #allocateFullLineIfNecessary}. A full-screen program
+     * whose last attribute is a reverse-video status line (vim, and anything else on the alternate
+     * screen buffer) then paints the whole empty area black, because the renderer resolves a
+     * reverse-video cell by swapping fore and back, so the background becomes the scheme's
+     * foreground. Cells the program <em>erased</em> are a different case and do keep the SGR that
+     * was active at the erase; that is what the clear()/scrollDownOneLine() calls in
+     * {@code resize} pass {@code currentStyle} for.
+     * <p>
+     * It must never be left at 0 either: style 0 decodes to palette index 0 for <em>both</em> the
+     * foreground and the background, so freshly allocated rows would render as black glyphs on black
+     * background rectangles instead of the scheme's default colors.
      */
-    private static final long DEFAULT_STYLE = TextStyle.NORMAL;
+    private long mDefaultStyle = TextStyle.NORMAL;
 
     /** Mark a single external row as needing a repaint. */
     public void markRowDirty(int externalRow) {
@@ -345,11 +347,6 @@ public final class TerminalBuffer {
      * @param cursor     An int[2] containing the (column, row) cursor location.
      */
     public void resize(int newColumns, int newRows, int newTotalRows, int[] cursor, long currentStyle, boolean altScreen) {
-        // {@link #DEFAULT_STYLE} is a constant and is deliberately NOT refreshed from
-        // `currentStyle` here: it styles cells the program never wrote, which have no attributes
-        // of their own. Cells that the program *did* erase keep the SGR that was active at the
-        // erase, which is what the clear()/scrollDownOneLine() calls below are for.
-
         // E2: the dirty set is indexed by internal (ring) row, so it has to be resized together
         // with the ring — and before the re-flow below, which calls scrollDownOneLine().
         mDirtyRows = new long[(newTotalRows + 63) >>> 6];
@@ -669,7 +666,7 @@ public final class TerminalBuffer {
 
     public TerminalRow allocateFullLineIfNecessary(int row) {
         TerminalRow line = mLines[row];
-        if (line == null) line = mLines[row] = new TerminalRow(mColumns, DEFAULT_STYLE);
+        if (line == null) line = mLines[row] = new TerminalRow(mColumns, mDefaultStyle);
         return line;
     }
 
@@ -681,10 +678,10 @@ public final class TerminalBuffer {
      * read, never modified.
      */
     public TerminalRow getLineOrBlank(int externalRow) {
-        if (mBlankRow == null || mBlankRowColumns != mColumns || mBlankRowStyle != DEFAULT_STYLE) {
-            mBlankRow = new TerminalRow(mColumns, DEFAULT_STYLE);
+        if (mBlankRow == null || mBlankRowColumns != mColumns || mBlankRowStyle != mDefaultStyle) {
+            mBlankRow = new TerminalRow(mColumns, mDefaultStyle);
             mBlankRowColumns = mColumns;
-            mBlankRowStyle = DEFAULT_STYLE;
+            mBlankRowStyle = mDefaultStyle;
         }
         TerminalRow line = mLines[externalToInternalRow(externalRow)];
         return line != null ? line : mBlankRow;
