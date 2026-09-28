@@ -200,7 +200,7 @@ public final class TermuxTerminalNotificationDispatcher {
         // the platform derives a per-conversation channel named after both — so keeping our own loud
         // channel does not exclude us from the bubble's conversation, while a per-session shortcut
         // would have split these notifications into one conversation per open terminal.
-        String shortcutId = publishConversationShortcut(context);
+        String shortcutId = publishConversationShortcut(context, title != null ? title : body);
         if (shortcutId != null) builder.setShortcutId(shortcutId);
 
         // Where the bubble should go when the user asks for it, however they ask: by tapping the
@@ -329,10 +329,15 @@ public final class TermuxTerminalNotificationDispatcher {
      * @return the shortcut id, or {@code null} if it could not be published.
      */
     @Nullable
-    private static String publishConversationShortcut(@NonNull Context context) {
+    private static String publishConversationShortcut(@NonNull Context context, @NonNull CharSequence label) {
         String shortcutId = TermuxConstants.TERMUX_BUBBLE_SHORTCUT_ID;
         try {
-            CharSequence label = context.getString(R.string.bubble_conversation_label);
+            // Labelled with the notification's own title, and re-published on every post. This label is
+            // what the shade prints above a conversation's messages, so a constant one put the
+            // application's name there on every notification: a line saying who received the message
+            // rather than what it is about, and the reason it survived every change to the
+            // notification's own title. Re-published per post, so the conversation carries the newest
+            // message's title — the same thing the conversation header shows for a messaging app.
             ShortcutManagerCompat.pushDynamicShortcut(context, new ShortcutInfoCompat.Builder(context, shortcutId)
                 .setShortLabel(label)
                 .setLongLabel(label)
