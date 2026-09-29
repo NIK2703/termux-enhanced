@@ -9,6 +9,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
+import android.os.Build;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
@@ -1635,6 +1636,14 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         final int stroke = mActivity.getFloatingButtonStroke();
         final int strokePx = Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke));
 
+        // Only contrast mode: with it off these are ordinary panel controls with a panel behind
+        // them, where a shadow reads as detachment. Zeroing the elevation rather than skipping the
+        // call is what makes turning the option off actually take the shadow away.
+        final boolean shadow = mActivity.getColorSchemeManager().isFloatingContrastBackgroundEnabled();
+        final int shadowElevationPx = mActivity.getResources()
+            .getDimensionPixelSize(R.dimen.floating_shadow_elevation);
+        final int shadowColor = shadow ? floatingShadowColor() : 0;
+
         ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
         if (toggleBtn != null) {
             // Pressed and focused both take the active colour for fill and stroke.
@@ -1646,6 +1655,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             states.addState(new int[]{ android.R.attr.state_focused }, active);
             states.addState(new int[]{}, createOvalDrawable(fill, strokePx, stroke));
             applyCircleButtonStyle(toggleBtn, states, mActivity.getButtonText());
+            applyFloatingShadow(toggleBtn, shadow ? shadowElevationPx : 0, shadowColor);
         }
 
         // The input panel, while it floats over the terminal, is drawn with that same pair: it is
@@ -1654,11 +1664,33 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // arrangement is an ordinary panel and is painted by applyPanelColors() instead.
         if (mActivity.isTextInputPanelOverTerminal()) {
             applyTextInputPanelContainerColors(fill, stroke);
+            applyFloatingShadow(mActivity.findViewById(R.id.terminal_toolbar_text_input_container),
+                shadow ? shadowElevationPx : 0, shadowColor);
         }
 
         // Every bound page, not just the active one: a neighbour bound while it was off screen
         // would otherwise keep whatever colours it last saw.
         forEachBoundTerminalView(this::applyScrollbarColorsTo);
+    }
+
+    /** Black rather than a scheme colour: tinting a shadow with the scheme reads as a border. */
+    private int floatingShadowColor() {
+        final float alpha = mActivity.getResources()
+            .getFraction(R.fraction.floating_shadow_alpha, 1, 1);
+        return android.graphics.Color.argb(Math.round(alpha * 255), 0, 0, 0);
+    }
+
+    /**
+     * Both shadow colours are set because a view gets an ambient and a spot shadow separately. The
+     * per-view colours are API 28+; below that the shadow keeps the theme's colour for its elevation.
+     */
+    private static void applyFloatingShadow(View view, int elevationPx, int shadowColor) {
+        if (view == null) return;
+        view.setElevation(elevationPx);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            view.setOutlineAmbientShadowColor(shadowColor);
+            view.setOutlineSpotShadowColor(shadowColor);
+        }
     }
 
     /**
