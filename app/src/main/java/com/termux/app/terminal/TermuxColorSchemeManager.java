@@ -52,12 +52,24 @@ public final class TermuxColorSchemeManager {
     private static final int FLOATING_CONTROL_CONTRAST_OPACITY = 128; // 50%
 
     /**
+     * The same, for the input panel while it floats over the terminal: a broad surface carrying
+     * text, which the controls' 50% would leave competing with the terminal behind it.
+     */
+    private static final int FLOATING_PANEL_CONTRAST_OPACITY = 204; // 80%
+
+    /**
      * Strength multiplier the tint is taken at in <b>contrast-background</b> mode, relative to the
      * configured alpha percentage. It compensates {@link #FLOATING_CONTROL_CONTRAST_OPACITY} —
      * which halves the strength again — so the controls end up carrying the configured {@code pct}
      * of their tint.
      */
     private static final int FLOATING_CONTROL_CONTRAST_TINT_SCALE = 2;
+
+    /**
+     * The same multiplier for the <b>inactive</b> tint. The exact compensation above only holds for
+     * the active one; at 2 the resting tint carried more colour than the user's alpha asked for.
+     */
+    private static final float FLOATING_INACTIVE_CONTRAST_TINT_SCALE = 1.25f;
 
     // --- Panel / button colours ---
     private int mButtonBg = 0;
@@ -69,6 +81,10 @@ public final class TermuxColorSchemeManager {
     // --- Controls drawn on the terminal: input-panel toggle button + scrollbar thumb ---
     private int mFloatingButtonFill = 0;
     private int mFloatingButtonStroke = 0;
+
+    // --- The input panel while it floats over the terminal ---
+    private int mFloatingPanelFill = 0;
+    private int mFloatingPanelStroke = 0;
     /** Background the two colours above were last mixed from. */
     private int mFloatingBackground = 0;
     /** Alpha percentages {@link #recompute} last ran with, reused when only the background changes. */
@@ -234,16 +250,22 @@ public final class TermuxColorSchemeManager {
                 ColorSchemeUtils.getButtonBackground(mIsSchemeLight, mFloatingInactivePct);
             mFloatingButtonStroke =
                 ColorSchemeUtils.getButtonActiveBackground(mIsSchemeLight, mFloatingActivePct);
+            mFloatingPanelFill = mFloatingButtonFill;
+            mFloatingPanelStroke = mFloatingButtonStroke;
         } else {
             final boolean backgroundIsLight = ColorSchemeUtils.isColorLight(background);
             final int overlayInactive = ColorSchemeUtils.getButtonBackground(backgroundIsLight,
-                    Math.min(100, mFloatingInactivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE));
+                    Math.min(100, Math.round(mFloatingInactivePct * FLOATING_INACTIVE_CONTRAST_TINT_SCALE)));
             final int overlayActive = ColorSchemeUtils.getButtonActiveBackground(backgroundIsLight,
-                    Math.min(100, mFloatingActivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE));
-            mFloatingButtonFill = withAlpha(compositeColors(background, overlayInactive),
-                    FLOATING_CONTROL_CONTRAST_OPACITY);
-            mFloatingButtonStroke = withAlpha(compositeColors(background, overlayActive),
-                    FLOATING_CONTROL_CONTRAST_OPACITY);
+                    Math.min(100, Math.round(mFloatingActivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE)));
+            // One composite each, then two opacities over it, so the panel and the controls agree
+            // on colour and differ only in how much of the terminal each lets through.
+            final int fill = compositeColors(background, overlayInactive);
+            final int stroke = compositeColors(background, overlayActive);
+            mFloatingButtonFill = withAlpha(fill, FLOATING_CONTROL_CONTRAST_OPACITY);
+            mFloatingButtonStroke = withAlpha(stroke, FLOATING_CONTROL_CONTRAST_OPACITY);
+            mFloatingPanelFill = withAlpha(fill, FLOATING_PANEL_CONTRAST_OPACITY);
+            mFloatingPanelStroke = withAlpha(stroke, FLOATING_PANEL_CONTRAST_OPACITY);
         }
         mFloatingBackground = background;
     }
@@ -277,8 +299,11 @@ public final class TermuxColorSchemeManager {
         }
         final int fill = mFloatingButtonFill;
         final int stroke = mFloatingButtonStroke;
+        final int panelFill = mFloatingPanelFill;
+        final int panelStroke = mFloatingPanelStroke;
         deriveFloatingColors(background);
-        return fill != mFloatingButtonFill || stroke != mFloatingButtonStroke;
+        return fill != mFloatingButtonFill || stroke != mFloatingButtonStroke
+            || panelFill != mFloatingPanelFill || panelStroke != mFloatingPanelStroke;
     }
 
     /**
@@ -312,6 +337,15 @@ public final class TermuxColorSchemeManager {
      *         {@link #deriveFloatingColors(int)}).
      */
     public int getFloatingButtonFill() { return mFloatingButtonFill; }
+
+    /**
+     * @return Fill of the input panel while it floats over the terminal — the tint of
+     *         {@link #getFloatingButtonFill()} at {@link #FLOATING_PANEL_CONTRAST_OPACITY}.
+     */
+    public int getFloatingPanelFill() { return mFloatingPanelFill; }
+
+    /** @return Stroke counterpart of {@link #getFloatingPanelFill()}. */
+    public int getFloatingPanelStroke() { return mFloatingPanelStroke; }
 
     /**
      * @return Stroke (and pressed fill) of the floating controls: the active tint at the user's

@@ -1663,7 +1663,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // has to follow the live terminal background exactly like the two controls above. Its other
         // arrangement is an ordinary panel and is painted by applyPanelColors() instead.
         if (mActivity.isTextInputPanelOverTerminal()) {
-            applyTextInputPanelContainerColors(fill, stroke);
+            // The panel's own pair, not the toggle's — see FLOATING_PANEL_CONTRAST_OPACITY.
+            applyTextInputPanelContainerColors(mActivity.getFloatingPanelFill(),
+                mActivity.getFloatingPanelStroke());
             applyFloatingShadow(mActivity.findViewById(R.id.terminal_toolbar_text_input_container),
                 shadow ? shadowElevationPx : 0, shadowColor);
         }

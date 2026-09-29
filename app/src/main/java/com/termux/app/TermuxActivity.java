@@ -3615,6 +3615,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public int getFloatingButtonFill() { return mColorSchemeManager.getFloatingButtonFill(); }
     /** @return Cached stroke of the controls drawn on the terminal (see {@link TermuxColorSchemeManager}). */
     public int getFloatingButtonStroke() { return mColorSchemeManager.getFloatingButtonStroke(); }
+    /** @return Cached fill of the input panel while it floats over the terminal. */
+    public int getFloatingPanelFill() { return mColorSchemeManager.getFloatingPanelFill(); }
+    /** @return Cached stroke of the input panel while it floats over the terminal. */
+    public int getFloatingPanelStroke() { return mColorSchemeManager.getFloatingPanelStroke(); }
     /** @return Cached text selection highlight colour. */
     public int getTextSelectionHighlightColor() { return mColorSchemeManager.getTextSelectionHighlightColor(); }
     /** @return Whether the current scheme is perceived as light. */
