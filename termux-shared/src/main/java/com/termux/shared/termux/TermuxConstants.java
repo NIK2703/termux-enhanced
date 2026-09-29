@@ -721,6 +721,11 @@ public final class TermuxConstants {
      * (not ongoing, cancellable), while the foreground-service channel keeps its original semantics.
      * Changing {@code allowBubbles} on a channel the user has already customised is not reliable,
      * so a fresh id is the safe route.
+     *
+     * <p>The bubble's own notification and nothing else is posted on it, which is what the name in
+     * the settings screen promises. A program asking not to be announced does not land here: there is
+     * a channel for the terminal's notifications instead, so the settings list cannot attribute one
+     * feature's notifications to another.
      */
     public static final String TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID = "termux_bubble_notification_channel";
     /** Termux app notification channel name used for the floating bubble window */
@@ -744,10 +749,17 @@ public final class TermuxConstants {
      * discards {@code setAllowBubbles(true)} on a fresh channel, leaving it at
      * {@code DEFAULT_ALLOW_BUBBLE} (-1) which does not bubble (measured on device), and this ROM
      * offers no per-channel preference at API 28. Tapping the notification opens the session.
+     *
+     * <p>The one channel for the whole protocol, audible requests and requests for silence alike.
+     * {@code s} cannot be honoured per notification from API 26: the channel decides what sounds,
+     * and {@code setPriority()}/{@code setDefaults()}/{@code setSilent()} cannot override that (the
+     * last is not public API at all). Choosing a quieter channel for them was the alternative, and it
+     * made the settings screen lie — the quiet channel belonged to the bubble, so the bubble's channel
+     * collected the terminal's traffic. Here the user decides the sound, in the channel's own settings.
      */
     public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID = "termux_terminal_notification_channel_v3";
     /** Termux app notification channel name for terminal-requested notifications. */
-    public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME = TermuxConstants.TERMUX_APP_NAME + " Terminal";
+    public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME = TermuxConstants.TERMUX_APP_NAME + " OSC 99";
     /** Action of the broadcast sent when a terminal notification is activated, carrying its {@code i} identifier. */
     public static final String ACTION_TERMINAL_NOTIFICATION_ACTIVATED = "com.termux.app.terminal_notification_activated";
     /** {@code String} extra: the {@code i} identifier of the activated notification. */

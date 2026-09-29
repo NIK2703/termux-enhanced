@@ -46,10 +46,18 @@ public final class TermuxColorSchemeManager {
     /**
      * Opacity the two controls drawn on the terminal are painted at in <b>contrast-background</b>
      * mode, where their tint has already been composited onto the terminal background. The tint
-     * goes in at double strength there precisely because this halves it again, so the strength the
+     * goes in at double strength there precisely because this halving undoes it, so the strength the
      * eye ends up seeing is the configured one.
      */
     private static final int FLOATING_CONTROL_CONTRAST_OPACITY = 128; // 50%
+
+    /**
+     * Strength multiplier the tint is taken at in <b>contrast-background</b> mode, relative to the
+     * configured alpha percentage. It compensates {@link #FLOATING_CONTROL_CONTRAST_OPACITY} —
+     * which halves the strength again — so the controls end up carrying the configured {@code pct}
+     * of their tint.
+     */
+    private static final int FLOATING_CONTROL_CONTRAST_TINT_SCALE = 2;
 
     // --- Panel / button colours ---
     private int mButtonBg = 0;
@@ -200,9 +208,10 @@ public final class TermuxColorSchemeManager {
      * <p><b>Option on.</b> The terminal background colour is mixed into the tint, weighted by the
      * terminal background's transparency: {@code colour = (1 - t) * tint + t * terminalBackground}.
      * Both are then composited into the background and painted at {@link
-     * #FLOATING_CONTROL_CONTRAST_OPACITY}, with the tint taken at DOUBLE the configured alpha
-     * because that halving undoes it — this reproduces the pre-{@code abed45b0} rendering, in which
-     * the controls carry the terminal background instead of merely lying on it.
+     * #FLOATING_CONTROL_CONTRAST_OPACITY}, with the tint taken at {@link
+     * #FLOATING_CONTROL_CONTRAST_TINT_SCALE}× the configured alpha because that halving undoes it,
+     * leaving the controls at the configured strength, i.e. readable against the terminal instead
+     * of merely lying on it.
      *
      * <p>Why the control's own transparency survives the compositing: the composited colour is
      * opaque, so the 50% is what makes it translucent again — the control ends up letting the
@@ -228,9 +237,9 @@ public final class TermuxColorSchemeManager {
         } else {
             final boolean backgroundIsLight = ColorSchemeUtils.isColorLight(background);
             final int overlayInactive = ColorSchemeUtils.getButtonBackground(backgroundIsLight,
-                    Math.min(100, mFloatingInactivePct * 2));
+                    Math.min(100, mFloatingInactivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE));
             final int overlayActive = ColorSchemeUtils.getButtonActiveBackground(backgroundIsLight,
-                    Math.min(100, mFloatingActivePct * 2));
+                    Math.min(100, mFloatingActivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE));
             mFloatingButtonFill = withAlpha(compositeColors(background, overlayInactive),
                     FLOATING_CONTROL_CONTRAST_OPACITY);
             mFloatingButtonStroke = withAlpha(compositeColors(background, overlayActive),

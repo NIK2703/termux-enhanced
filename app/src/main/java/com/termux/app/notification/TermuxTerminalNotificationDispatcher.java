@@ -64,7 +64,17 @@ public final class TermuxTerminalNotificationDispatcher {
     private static long sLastPostedMs = 0;
 
     /** Creating a channel is a binder round trip, and this runs on every notification. */
-    private static volatile boolean sAlertingChannelCreated;
+    private static volatile boolean sChannelCreated;
+
+    /**
+     * Ids the protocol's channel used to carry, before the reason each time was worth a new one. Kept
+     * only so {@link #createChannel} can delete them; the platform never renames or retires a channel
+     * on its own, so without this they outlive the build that made them.
+     */
+    private static final String[] STALE_CHANNEL_IDS = {
+        "termux_terminal_notification_channel",
+        "termux_terminal_notification_channel_v2"
+    };
 
     private static boolean insideDuplicateWindow() {
         synchronized (sDuplicateWindowLock) {
@@ -96,38 +106,41 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * A notification the program asked to be silent cannot be silenced on a channel that may sound —
-     * the channel decides from API 26 — so it goes on the quiet one instead.
+     * A notification a program asked not to be announced goes on the same channel as everything else
+     * the protocol produces. From API 26 the channel decides what sounds, and nothing on the builder
+     * can overrule that, so the only alternative was a second channel for the quiet ones — which put
+     * the terminal's notifications on the bubble's channel and left the settings screen claiming the
+     * bubble had 78 notifications a day. The sound is the user's to set on {@code Termux OSC 99}.
      */
-    @NonNull
-    private static String channelIdFor(@NonNull TerminalNotification notification) {
-        return notification.isSilent()
-            ? TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID
-            : TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID;
-    }
-
-    /** The bubble's channel is IMPORTANCE_LOW, so the audible one has to be created separately. */
-    public static void ensureChannel(@NonNull Context context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            TermuxBubbleManager.createNotificationChannel(context);
-        }
-        createAlertingChannel(context);
-    }
-
-    /** HIGH, not DEFAULT: DEFAULT shows quietly in the shade and never heads up. */
     @RequiresApi(Build.VERSION_CODES.O)
-    private static void createAlertingChannel(@NonNull Context context) {
-        if (sAlertingChannelCreated) return;
+    private static void createChannel(@NonNull Context context) {
+        if (sChannelCreated) return;
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager == null) return;
+
+        // The protocol's channel was reissued twice, each time for a reason the platform would not
+        // undo on a channel that already exists, so the old ids still sit in the settings list
+        // carrying this channel's name. Nothing posts to them and no app can: delete them, or
+        // "one channel" is a claim the user cannot check.
+        for (String staleId : STALE_CHANNEL_IDS) {
+            if (notificationManager.getNotificationChannel(staleId) == null) continue;
+            notificationManager.deleteNotificationChannel(staleId);
+            Logger.logDebug(LOG_TAG, "Deleted stale notification channel " + staleId);
+        }
+
         NotificationChannel channel = new NotificationChannel(
             TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID,
             TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_NAME,
             NotificationManager.IMPORTANCE_HIGH);
         channel.setDescription(context.getString(R.string.terminal_notification_channel_description));
         notificationManager.createNotificationChannel(channel);
-        sAlertingChannelCreated = true;
+        sChannelCreated = true;
+    }
+
+    /** Create the channel the protocol's notifications go on, if missing. */
+    public static void ensureChannel(@NonNull Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        createChannel(context);
     }
 
     /**
@@ -173,6 +186,8 @@ public final class TermuxTerminalNotificationDispatcher {
         CharSequence bigText = title == null || body == null ? null : body;
         boolean silent = notification.isSilent();
 
+        // The `s` key, honoured on the builder: below API 26 that is what decides, from API 26 the
+        // channel does and these two arguments are ignored (see createChannel).
         PendingIntent contentIntent = PendingIntent.getActivity(context, requestCode(id, 0),
             TermuxActivityUtils.newInstance(context)
                 .putExtra(TermuxConstants.EXTRA_TERMINAL_SESSION_HANDLE, session.mHandle),
@@ -189,7 +204,8 @@ public final class TermuxTerminalNotificationDispatcher {
         }
 
         Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
-            channelIdFor(notification), silent ? Notification.PRIORITY_LOW : Notification.PRIORITY_HIGH,
+            TermuxConstants.TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID,
+            silent ? Notification.PRIORITY_LOW : Notification.PRIORITY_HIGH,
             summary, body, bigText, contentIntent, reportIntent,
             silent ? NotificationUtils.NOTIFICATION_MODE_SILENT : NotificationUtils.NOTIFICATION_MODE_ALL);
         if (builder == null) return -1;

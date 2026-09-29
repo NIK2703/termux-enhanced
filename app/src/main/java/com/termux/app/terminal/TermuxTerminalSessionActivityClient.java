@@ -1526,8 +1526,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      *   lightness: dark translucent for light schemes, light translucent for dark schemes.
      * - The alpha (transparency) of the button backgrounds is read from user preferences so the
      *   value is applied ONCE at change time, not recomputed on every frame.
-     * - The input-panel toggle button and the terminal scrollbar thumb, drawn on the terminal
-     *   itself, instead carry the terminal background inside their translucent colour.
+     * - The input-panel toggle button, the terminal scrollbar thumb and the input panel while it
+     *   floats over the terminal, drawn on the terminal itself, instead carry the terminal
+     *   background inside their translucent colour.
      * - The status bar icons/theme follow the scheme lightness (light icons on dark schemes,
      *   dark icons on light schemes).
      *
@@ -1592,24 +1593,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // Drag handles for text selection also follow the scheme foreground colour.
             tintSelectionHandles(textInput, buttonText);
         }
-        View textInputContainer = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
-        if (textInputContainer != null && textInputContainer.getBackground() instanceof android.graphics.drawable.GradientDrawable) {
-            // Which colours the panel is filled with follows its placement: floating over the
-            // terminal it takes the same pair the controls ON the terminal are drawn with — the
-            // input-panel toggle button and the scrollbar thumb — i.e. it obeys the "contrasting
-            // background for over-terminal elements" option and follows the terminal's background
-            // when that option is on. In the extra keys' place it is an ordinary panel, so it gets
-            // the plain translucent tints. Fill = inactive control colour, stroke = active one
-            // (matching the bottom-panel buttons), so the input panel reads as part of the same
-            // control family either way.
-            final boolean overTerminal = mActivity.isTextInputPanelOverTerminal();
-            final int fill = overTerminal ? mActivity.getFloatingButtonFill() : buttonBg;
-            final int stroke = overTerminal ? mActivity.getFloatingButtonStroke() : buttonActiveBg;
-            android.graphics.drawable.GradientDrawable d =
-                (android.graphics.drawable.GradientDrawable) textInputContainer.getBackground().mutate();
-            d.setColor(fill);
-            d.setStroke(Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke)),
-                stroke);
+        // The input panel is an ordinary panel whenever it sits in the extra keys' place, so it gets
+        // the plain translucent tints here. While it floats over the terminal it is one of the
+        // elements drawn on the terminal itself, so applyFloatingControlColors() paints it with the
+        // very same pair as the toggle button and the scrollbar thumb — that is the only way it can
+        // keep following the terminal's live background, which this path knows nothing about.
+        if (!mActivity.isTextInputPanelOverTerminal()) {
+            applyTextInputPanelContainerColors(buttonBg, buttonActiveBg);
         }
 
         withTerminalView(tv -> {
@@ -1630,12 +1620,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Style the two controls drawn on the terminal itself: the input-panel toggle button and the
-     * scrollbar thumb. They share one pair of cached colours, since they are the same kind of
-     * element and sit side by side — see {@link TermuxColorSchemeManager#getFloatingButtonFill()}.
+     * Style the elements drawn on the terminal itself: the input-panel toggle button, the scrollbar
+     * thumb and — while it floats over the terminal — the input panel's container. They share one
+     * pair of cached colours, since they are the same kind of element and sit side by side — see
+     * {@link TermuxColorSchemeManager#getFloatingButtonFill()}.
      *
      * <p>Split out of {@link #applyPanelColors(boolean)} because their colour follows the
-     * <em>live</em> terminal background, so {@link #updateBackgroundColor()} re-runs just this.
+     * <em>live</em> terminal background, so {@link #updateBackgroundColor()} re-runs just this. The
+     * input panel is painted here rather than there for the same reason: leaving it out would freeze
+     * it on the colour the terminal had before an OSC 4/11 repaint.
      */
     private void applyFloatingControlColors() {
         final int fill = mActivity.getFloatingButtonFill();
@@ -1655,9 +1648,38 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             applyCircleButtonStyle(toggleBtn, states, mActivity.getButtonText());
         }
 
+        // The input panel, while it floats over the terminal, is drawn with that same pair: it is
+        // then one of the elements the "contrast floating element background" option covers, and it
+        // has to follow the live terminal background exactly like the two controls above. Its other
+        // arrangement is an ordinary panel and is painted by applyPanelColors() instead.
+        if (mActivity.isTextInputPanelOverTerminal()) {
+            applyTextInputPanelContainerColors(fill, stroke);
+        }
+
         // Every bound page, not just the active one: a neighbour bound while it was off screen
         // would otherwise keep whatever colours it last saw.
         forEachBoundTerminalView(this::applyScrollbarColorsTo);
+    }
+
+    /**
+     * Paint the input panel's container with the given fill and stroke.
+     *
+     * <p>Fill = inactive control colour, stroke = active one (matching the bottom-panel buttons), so
+     * the panel reads as part of the same control family whichever way it is filled. Both callers
+     * paint the same drawable the same way and differ only in the pair they hand over, so the two
+     * arrangements cannot drift apart in how the container is built.
+     */
+    private void applyTextInputPanelContainerColors(int fill, int stroke) {
+        View container = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
+        if (container == null
+                || !(container.getBackground() instanceof android.graphics.drawable.GradientDrawable)) {
+            return;
+        }
+        android.graphics.drawable.GradientDrawable d =
+            (android.graphics.drawable.GradientDrawable) container.getBackground().mutate();
+        d.setColor(fill);
+        d.setStroke(Math.round(
+            mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke)), stroke);
     }
 
     /** Push the current floating-control colours onto one page's scrollbar thumb. */
