@@ -28,13 +28,13 @@
     <dimen name="autocomplete_popup_edge_margin">8dp</dimen>
     <dimen name="autocomplete_popup_y_offset">4dp</dimen>
     <dimen name="autocomplete_popup_min_y">16dp</dimen>
-    <item name="autocomplete_popup_content_alpha" type="fraction">80%</item>
+    <item name="autocomplete_popup_content_alpha" type="fraction">90%</item>
     <item name="autocomplete_popup_shadow_alpha" type="fraction">65%</item>
 
     <!-- Shadow for the input-panel toggle and the input panel while it floats over the terminal,
          gated on "contrast floating element background". -->
     <dimen name="floating_shadow_elevation">4dp</dimen>
-    <item name="floating_shadow_alpha" type="fraction">80%</item>
+    <item name="floating_shadow_alpha" type="fraction">60%</item>
 
     <!-- Message history popup dimensions -->
     <dimen name="message_history_popup_max_height">520dp</dimen>
