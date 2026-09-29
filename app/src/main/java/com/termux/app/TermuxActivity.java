@@ -425,7 +425,7 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /**
      * The last text this window synchronised with {@link #mTextInputState} for
      * {@link #mLastSavedInputSession} — written both by
-     * {@link #saveTextInputForCurrentSession(boolean)} and by
+     * {@link #saveTextInputForCurrentSession()} and by
      * {@link #restoreTextInputForSession(TerminalSession)}, so it means "what this window's field
      * currently reflects". Besides skipping a redundant re-copy, this is what makes an
      * unsynchronised window detectable now that the store is shared: this window having changed
@@ -3040,7 +3040,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // offset keeps the "keeping the existing margin instead is safe" contract above intact:
             // the margin is untouched, and the button is back on it.
             resetFloatingButtonTranslation();
-            applyTextInputPanelScrollbarMargin();
             return;
         }
         setFloatingButtonMarginEnd(computeSettledFloatingButtonMarginEnd(mTerminalView));

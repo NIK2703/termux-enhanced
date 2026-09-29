@@ -102,6 +102,47 @@ public class WcWidthTest extends TestCase {
 	 * "प◌छली"); and the syllable was twice as wide as it looks, so a full-screen TUI's line overflowed
 	 * and auto-wrap broke it inside the word, dropping the tail into column 0 of the next row.
 	 */
+	/**
+	 * A few combining marks are also in the wide table, and those must keep their width of two.
+	 *
+	 * <p>U+302E and U+302F are the Hangul single dot tone marks, U+16FF0 and U+16FF1 the
+	 * Vietnamese alternate reading marks. They are {@code Mc} — spacing combining marks — but
+	 * spacing is exactly the point: each occupies a cell of its own rather than sitting on the
+	 * consonant in front of it, which is why UAX #29 gives them
+	 * {@code Grapheme_Cluster_Break = SpacingMark} instead of {@code Extend}. The general
+	 * "every {@code Mc} is zero width" rule is right for the obligatory-shaping scripts, whose vowel
+	 * signs really do combine with their base, and wrong for these four.
+	 *
+	 * <p>This is also what fixes the order inside {@code computeWidth}. Asking the wide table first
+	 * costs nothing below U+10000 — {@code BMP_WIDTH_CACHE} memoizes the whole computation — while
+	 * everything outside the BMP is recomputed on every call and the renderer calls
+	 * {@link WcWidth#width} once per cell per frame, so an emoji-heavy row would otherwise reach
+	 * {@code Character.getType()} on every cell. Consulted second, the mark rule silently zeroed
+	 * these four instead.</p>
+	 */
+	public void testSpacingCombiningMarksStayWide() {
+		assertWidthIs(2, 0x302E); // HANGUL SINGLE DOT TONE MARK
+		assertWidthIs(2, 0x302F); // HANGUL DOUBLE DOT TONE MARK
+		assertWidthIs(2, 0x16FF0); // VIETNAMESE ALTERNATE READING MARK CA
+		assertWidthIs(2, 0x16FF1); // VIETNAMESE ALTERNATE READING MARK NHAY
+	}
+
+	/**
+	 * The other end of the same boundary: an {@code Mc} that the wide table does <em>not</em> list is
+	 * still zero width, which is the Devanagari case the category rule exists for. Pinning both ends
+	 * together is what says the rule is "wide table first, then the class", not either one alone.
+	 */
+	public void testUnlistedCombiningMarksAreZeroWidth() {
+		assertWidthIs(0, 0x093E); // DEVANAGARI VOWEL SIGN AA — Mc, not in the wide table
+		assertWidthIs(0, 0x093F); // DEVANAGARI VOWEL SIGN I
+		assertWidthIs(0, 0x0940); // DEVANAGARI VOWEL SIGN II
+		// THAI CHARACTER SARA AM is the near miss: it is the one spacing mark in an
+		// obligatory-shaping script that really does take a cell, and it escapes the category rule
+		// because its category is Lo rather than Mc. So it keeps a cell either way, which is the
+		// outcome, not the mechanism, that matters here.
+		assertWidthIs(1, 0x0E33); // THAI CHARACTER SARA AM
+	}
+
 	public void testDevanagariVowelSigns() {
 		assertWidthIs(0, 0x093B); // VOWEL SIGN ORA
 		assertWidthIs(0, 0x093E); // VOWEL SIGN AA

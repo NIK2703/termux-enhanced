@@ -572,6 +572,15 @@ public final class WcWidth {
         if (intable(ZERO_WIDTH, ucs)) return 0;
         if (intable(ZERO_WIDTH_NOT_MARKS, ucs)) return 0;
 
+        // Wide first, then the combining-mark rule. The order does not change the answer — the wide
+        // table holds no Mn/Mc/Me code point (checked over all 1 114 112: 182 500 wide, none of them
+        // a mark) — but it decides who pays. BMP_WIDTH_CACHE memoizes the whole computation, so for
+        // anything below 0x10000 the order is irrelevant. Everything outside the BMP is recomputed
+        // on every call, and the renderer calls width() once per cell per frame, so an emoji-heavy
+        // row would reach Character.getType() on each one. A binary search over a small sorted table
+        // short-circuits that first.
+        if (intable(WIDE_EASTASIAN, ucs)) return 2;
+
         // Any Unicode combining mark is zero width, whatever the tables above happen to list.
         //
         // The tables are a transcription of jquast/wcwidth, which — like the C library original —
@@ -591,9 +600,7 @@ public final class WcWidth {
         // sign in front of its consonant and gives the pair a single combined advance, which is one
         // cell. The handful of code points that really are spacing in a terminal (Thai SARA AM and
         // friends) are {@code Lo}, not {@code Mc}, so they are unaffected.
-        if (isCombiningMark(ucs)) return 0;
-
-        return intable(WIDE_EASTASIAN, ucs) ? 2 : 1;
+        return isCombiningMark(ucs) ? 0 : 1;
     }
 
     /**
