@@ -1755,7 +1755,12 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                                                int textColor) {
         button.setBackground(states);
         button.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_ATOP);
-        button.setForeground(null);
+        // View has no foreground before API 23 — neither the setter nor the android:foreground
+        // attribute — so there is nothing to clear there. Unguarded this throws NoSuchMethodError on
+        // 21-22, on the start-up path (applyPanelColors) and again on every service attach.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            button.setForeground(null);
+        }
     }
 
     public void updateBackgroundColor() {
