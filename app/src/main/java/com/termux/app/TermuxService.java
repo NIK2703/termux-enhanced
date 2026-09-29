@@ -274,7 +274,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
             }
         }
 
-        // If this service really does get killed, there is no point restarting it automatically РІР‚вЂќ
+        // If this service really does get killed, there is no point restarting it automatically —
         // let the user do so on next start.
         return Service.START_NOT_STICKY;
     }
@@ -307,7 +307,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         Logger.logVerbose(LOG_TAG, "onUnbind");
 
         // Cannot rely on {@link TermuxActivity.onDestroy()} always completing, so unset here too
-        // when the LAST client unbinds РІР‚вЂќ all windows are released together.
+        // when the LAST client unbinds — all windows are released together.
         unsetAllTermuxTerminalSessionClients();
         return false;
     }
@@ -688,7 +688,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
             // Deliberately no activity notify here: removeFinishedSession() does a single,
             // well-timed sync AFTER adjusting the selection index. Notifying from inside this
-            // callback (fired by removeTermuxSession РІвЂ вЂ™ TermuxSession.finish()) produced a nested
+            // callback (fired by removeTermuxSession → TermuxSession.finish()) produced a nested
             // sync that ran too early, so getCurrentSession() returned the closed session and the
             // tab strip was left with no highlighted tab.
         }
@@ -769,7 +769,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
     /**
      * Called from {@link TermuxActivity#onServiceConnected} to register a window's
-     * {@link TermuxTerminalSessionActivityClient} as a mux secondary. Registration is additive РІР‚вЂќ
+     * {@link TermuxTerminalSessionActivityClient} as a mux secondary. Registration is additive —
      * a window binding later does not displace earlier ones, which is what lets the full-screen
      * activity and the bubble be alive at once.
      *
@@ -798,7 +798,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     }
 
     /**
-     * Release every window. Called from {@link #onUnbind(Intent)} when the last client unbinds РІР‚вЂќ
+     * Release every window. Called from {@link #onUnbind(Intent)} when the last client unbinds —
      * the "no windows left" path.
      */
     public synchronized void unsetAllTermuxTerminalSessionClients() {
@@ -903,7 +903,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
      *
      * <p>Deliberately not {@link #updateNotification()}: that one also stops the service when there is
      * nothing left to keep it alive, and a bubble appearing or disappearing is not a reason to end a
-     * session. Used when something outside the service changes what the notification should say РІР‚вЂќ see
+     * session. Used when something outside the service changes what the notification should say — see
      * {@code TermuxBubbleManager.requestServiceNotificationRefresh()}.
      */
     private void republishNotification() {

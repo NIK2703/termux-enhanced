@@ -58,13 +58,13 @@ import com.termux.view.ElasticOverdrag;
  */
 public final class PagerOverscrollController {
 
-    // The absorb cap and fling threshold live in the shared model (ElasticOverdrag, dp/s) РІР‚вЂќ a px/s
+    // The absorb cap and fling threshold live in the shared model (ElasticOverdrag, dp/s) вЂ” a px/s
     // value would retune the bounce per display density. Same numbers on both surfaces, every device.
 
     private static final int DIRECTION_LEFT = RecyclerView.EdgeEffectFactory.DIRECTION_LEFT;
     private static final int DIRECTION_RIGHT = RecyclerView.EdgeEffectFactory.DIRECTION_RIGHT;
 
-    /** The pager's inner RecyclerView РІР‚вЂќ the view that actually gets displaced. */
+    /** The pager's inner RecyclerView вЂ” the view that actually gets displaced. */
     private final RecyclerView mRecyclerView;
 
     /** Accumulated (undamped) finger travel past the left / right boundary, in px. Never negative. */
@@ -87,7 +87,7 @@ public final class PagerOverscrollController {
     private final RecyclerView.OnScrollListener mScrollListener;
     private final View.OnAttachStateChangeListener mAttachListener;
 
-    /** Deferred {@link #settleNow()} РІР‚вЂќ see {@link #ensureSettled()} for why it is posted. */
+    /** Deferred {@link #settleNow()} вЂ” see {@link #ensureSettled()} for why it is posted. */
     private final Runnable mSettleRunnable = this::settleNow;
 
     private PagerOverscrollController(@NonNull RecyclerView recyclerView) {
@@ -165,7 +165,7 @@ public final class PagerOverscrollController {
      *
      * @param direction {@link #DIRECTION_LEFT} (first page, displacement is to the right) or
      *                  {@link #DIRECTION_RIGHT} (last page, displacement is to the left).
-     * @param deltaPx   always positive РІР‚вЂќ an increasing pull.
+     * @param deltaPx   always positive вЂ” an increasing pull.
      */
     private void onEdgePull(int direction, float deltaPx) {
         if (!mEnabled) return;
@@ -201,13 +201,13 @@ public final class PagerOverscrollController {
 
     /**
      * A fling ran into the wall: convert a slice of the unused velocity into extra pull on the
-     * edge that was hit, then spring back РІР‚вЂќ a hard flick visibly slams the page into its limit
+     * edge that was hit, then spring back вЂ” a hard flick visibly slams the page into its limit
      * instead of being swallowed.
      *
      * @param direction the edge that absorbed the fling. Must be passed in: the current
      *                  displacement is 0 here, so its sign says nothing, and guessing from it
      *                  bounced the last page the wrong way.
-     * @param velocity  always positive РІР‚вЂќ RecyclerView negates it for the left edge.
+     * @param velocity  always positive вЂ” RecyclerView negates it for the left edge.
      */
     private void onEdgeAbsorb(int direction, int velocity) {
         if (!mEnabled) return;
@@ -216,8 +216,8 @@ public final class PagerOverscrollController {
             return;
         }
         cancelAnimators();
-        // Same conversion as the terminal's РІР‚вЂќ both surfaces threshold/cap a gesture identically on
-        // any density РІР‚вЂќ and it plays out in TIME: the impulse stretches the band sample by sample at
+        // Same conversion as the terminal's вЂ” both surfaces threshold/cap a gesture identically on
+        // any density вЂ” and it plays out in TIME: the impulse stretches the band sample by sample at
         // the speed it arrived with, rather than teleporting the page to the peak.
         final ElasticOverdrag.Impact impact =
                 ElasticOverdrag.impact(velocity, extentPx(), 0f, density());
@@ -239,7 +239,7 @@ public final class PagerOverscrollController {
         }
         ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(impact.durationMs);
-        // Linear: the samples ARE the timing. Shared instance РІР‚вЂќ a stateless interpolator is not
+        // Linear: the samples ARE the timing. Shared instance вЂ” a stateless interpolator is not
         // worth allocating per fling.
         animator.setInterpolator(ElasticOverdrag.LINEAR);
         animator.addUpdateListener(animation -> {
@@ -265,7 +265,7 @@ public final class PagerOverscrollController {
      * The pager scrolled for real by {@code dx}. Hand the held pull back one pixel of finger
      * travel per pixel of scroll so a pull-then-return stays continuous; without this the page
      * would move by the scroll <em>and</em> keep the over-drag. The payback is applied to the raw
-     * accumulator РІР‚вЂќ see below, the domain is the difference between a continuous return and a snap.
+     * accumulator вЂ” see below, the domain is the difference between a continuous return and a snap.
      */
     private void bleedIntoScroll(float dx) {
         if (mTranslationPx == 0f) return;
@@ -303,7 +303,7 @@ public final class PagerOverscrollController {
     }
 
     /**
-     * The single writer of {@code translationX} РІР‚вЂќ last line of defence. The value is a property of
+     * The single writer of {@code translationX} вЂ” last line of defence. The value is a property of
      * the view hosting every page, so it must always be finite and bounded; anything else is
      * coerced to 0 rather than allowed to poison the transform.
      */
@@ -317,7 +317,7 @@ public final class PagerOverscrollController {
     }
 
     /**
-     * The pager's extent along the drag axis РІР‚вЂќ the inner RecyclerView's width. Every scale of the
+     * The pager's extent along the drag axis вЂ” the inner RecyclerView's width. Every scale of the
      * effect is a fraction of it (the cap is 20 %). Read on demand, not cached, so rotation or a
      * split-screen resize reflows the physics instead of keeping a stale pixel value.
      *
@@ -334,7 +334,7 @@ public final class PagerOverscrollController {
 
     /**
      * The display density, read on demand so a move to another display is picked up. Only the
-     * impulse needs it ({@code ElasticOverdrag} Р’В§0b) РІР‚вЂќ the band itself is scale-free.
+     * impulse needs it ({@code ElasticOverdrag} В§0b) вЂ” the band itself is scale-free.
      */
     private float density() {
         return mRecyclerView.getResources().getDisplayMetrics().density;
@@ -342,7 +342,7 @@ public final class PagerOverscrollController {
 
     /**
      * {@link #damp(float, float)} against an extent the caller already has. {@link #apply()} needs the
-     * width three times per frame РІР‚вЂќ reading it once keeps {@link #extentPx()} (and the
+     * width three times per frame вЂ” reading it once keeps {@link #extentPx()} (and the
      * {@code getWidth()} behind it) off the hot path.
      *
      * @param widthPx the pager's extent, read once per frame by {@link #apply()}.
@@ -490,7 +490,7 @@ public final class PagerOverscrollController {
         spring.removeAllUpdateListeners();
         spring.removeAllListeners();
         spring.cancel();
-        // The spring drove translationX directly, so the accumulators are stale РІР‚вЂќ re-seed them so
+        // The spring drove translationX directly, so the accumulators are stale вЂ” re-seed them so
         // a pull interrupting the bounce continues from the position on screen.
         if (mLeftRawPx == 0f && mRightRawPx == 0f && mTranslationPx != 0f) {
             if (mTranslationPx > 0f) mLeftRawPx = inverseDamp(mTranslationPx);
@@ -537,14 +537,14 @@ public final class PagerOverscrollController {
         public void onPull(float deltaDistance, float displacement) {
             if (!isHorizontal()) return;
             // RecyclerView normalises the unconsumed delta by the view width; both edges get a
-            // POSITIVE deltaDistance for an increasing pull. De-normalise with that width РІР‚вЂќ and
+            // POSITIVE deltaDistance for an increasing pull. De-normalise with that width вЂ” and
             // bail on a zero-width view, where the framework's own division yields Infinity/NaN.
             int width = mRecyclerView.getWidth();
             if (width <= 0) return;
             onEdgePull(mDirection, deltaDistance * width);
         }
 
-        /** API 31+ path РІР‚вЂќ {@code EdgeEffectCompat} calls this instead of {@link #onPull(float, float)}.
+        /** API 31+ path вЂ” {@code EdgeEffectCompat} calls this instead of {@link #onPull(float, float)}.
          *  Returning 0 = none of the pull consumed: it goes to the page, not to a stretch. */
         @Override
         public float onPullDistance(float deltaDistance, float displacement) {

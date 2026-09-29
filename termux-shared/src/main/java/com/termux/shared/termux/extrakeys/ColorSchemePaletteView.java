@@ -12,7 +12,7 @@ import androidx.annotation.Nullable;
 
 /**
  * The 16 ANSI colors ({@code color0}..{@code color15}) of a terminal color scheme, drawn as a
- * two-row by eight-column table вЂ” the swatch shown opposite every entry of the color-scheme
+ * two-row by eight-column table — the swatch shown opposite every entry of the color-scheme
  * picker. Top row is the dim half (0-7), bottom the bright half (8-15).
  *
  * <p>A custom {@link View}, not sixteen child views: the swatch is rebound on every list scroll

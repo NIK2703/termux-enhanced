@@ -22,7 +22,7 @@ import com.termux.shared.termux.settings.preferences.TermuxWidgetAppSharedPrefer
 /**
  * The "Terminal" screen. Every migrated {@code termux.properties} key now lives in
  * {@link TermuxAppSharedPreferences}. No {@link androidx.preference.PreferenceDataStore}
- * is used вЂ” each preference is wired with a non-persistent backing (setPersistent(false))
+ * is used — each preference is wired with a non-persistent backing (setPersistent(false))
  * plus an explicit OnPreferenceChangeListener that writes through to
  * TermuxAppSharedPreferences and refreshes the activity styling where relevant.
  */

@@ -121,7 +121,7 @@ public final class FontUtils {
      *
      * @param fileName The font asset file name, as returned by {@link #listStylingFonts}.
      * @return the typeface, or {@code null} when Termux:Style is missing or the file cannot be
-     *         parsed вЂ” the caller should then fall back to {@link Typeface#MONOSPACE}.
+     *         parsed — the caller should then fall back to {@link Typeface#MONOSPACE}.
      */
     @Nullable
     public static Typeface loadStylingTypeface(@Nullable Context context, @NonNull String fileName) {

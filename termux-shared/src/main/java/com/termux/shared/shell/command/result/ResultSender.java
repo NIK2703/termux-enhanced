@@ -221,7 +221,7 @@ public class ResultSender {
                 }
             }
 
-            // Temp file first: see the errCode note below вЂ” a partial read of the final file is worse.
+            // Temp file first: see the errCode note below — a partial read of the final file is worse.
             String temp_filename = resultConfig.resultFileBasename + "-" + AndroidUtils.getCurrentMilliSecondLocalTimeStamp();
             error = writeTempFileAndMove(resultConfig, temp_filename, error_or_output,
                 resultConfig.resultFileBasename, "error or output temp file");
