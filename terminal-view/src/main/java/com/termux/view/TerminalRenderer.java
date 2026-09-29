@@ -210,6 +210,23 @@ public final class TerminalRenderer {
     private static final PorterDuffXfermode SRC_ATOP_XFERMODE = new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP);
 
     /**
+     * How far a font-width-mismatched run may be scaled horizontally, at either end.
+     *
+     * <p>A legitimate mismatch is a glyph the font draws at a different advance than the cell
+     * gives it: a box-drawing character from a fallback font at 18 px inside a 16 px cell, a CJK
+     * glyph, braille. Those land within a small factor of 1, and compensating by it is the whole
+     * point of the scale block in {@link #drawRunText}.</p>
+     *
+     * <p>Past a factor of 8 the measurement is no longer describing a glyph: it is what a
+     * zero-advance code point measures. A factor below 1/8 means the same thing from the other
+     * side — the run is 8&times; too wide for its cells, and squeezing it that hard leaves
+     * nothing legible. Either way the run is drawn unscaled inside the row clip, which is a
+     * wrong-looking cell rather than a wrong canvas.</p>
+     */
+    private static final float MAX_MISMATCH_SCALE = 8f;
+    private static final float MIN_MISMATCH_SCALE = 0.125f;
+
+    /**
      * B4: last {@link Paint} text-style state applied, so {@link #drawRunText} only touches the
      * native paint setters when something actually changed. With colored output (ls --color,
      * htop, syntax highlighting) a frame has hundreds-to-thousands of runs; most adjacent runs
@@ -367,10 +384,17 @@ public final class TerminalRenderer {
      * recreate, a view attach/resize, a transparent scheme change, the first frame on a newly
      * paged-in pager page, etc.). In that case the view passes {@code false} so the renderer draws
      * every visible row instead of trusting stale or absent pixels.</p>
+     *
+     * @param viewWidth width of the view in pixels, i.e. how far the row bands have to reach to
+     *                  the right of the glyph grid. It is deliberately <em>not</em>
+     *                  {@code columns * mFontWidth}: a partial repaint has to repaint the whole
+     *                  band, margins included, or anything ever painted outside the grid stays
+     *                  there forever. See the per-row base fill.
      */
     public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
                              int selectionY1, int selectionY2, int selectionX1, int selectionX2,
-                             float xOffset, float yOffset, Rect dirtyRect, boolean pixelsValid) {
+                             float xOffset, float yOffset, int viewWidth,
+                             Rect dirtyRect, boolean pixelsValid) {
         // B4: bring the Paint back to the baseline style *and* record that in the cache. The Paint is
         // a field shared by every frame, so a frame whose last drawn run was italic/bold/underline/
         // struck-through leaves the Paint in that state. Only resetting the cache to "clean" here
@@ -452,10 +476,14 @@ public final class TerminalRenderer {
 
         ensureRunCapacity(columns);
 
-        // Right edge of the glyph grid in post-translate coordinates. F4: the per-row base fill
-        // always spans the whole grid (0 .. gridRight) instead of the horizontal extent of
-        // dirtyRect — see the fill itself below.
+        // Right edge of the glyph grid in post-translate coordinates, and the two edges of the
+        // *view* in the same coordinates. The per-row base fill spans the view, not the grid
+        // — see the fill itself.
         final float gridRight = columns * mFontWidth;
+        // The canvas has been shifted by xOffset, so the view's own x = 0 and x = viewWidth sit
+        // at -xOffset and viewWidth - xOffset here.
+        final float viewLeft = -xOffset;
+        final float viewRight = viewWidth - xOffset;
         // Base-fill paints are dedicated: no other code path (pass A, cursor, mismatch, A2 fast
         // path) ever sets a colour on them, so the colour we set here is the colour every row
         // draws with.
@@ -478,6 +506,14 @@ public final class TerminalRenderer {
             }
             forceDraw = !anyDirty;
         }
+
+        // Vertical extent of the glyph grid in post-translate coordinates, with one line of slack at
+        // each end so a glyph that overhangs its cell — every box-drawing and block-element run —
+        // is still inside the clip. The slack is what keeps a frame of █ or ┏━ looking like one
+        // piece instead of a stack of separate cells; see the clip in the row loop below.
+        final float gridTop = mFontLineSpacingAndAscent - mFontLineSpacing;
+        final float gridBottom = mFontLineSpacingAndAscent + (endRow - topRow) * mFontLineSpacing
+            + mFontLineSpacing;
 
         float heightOffset = mFontLineSpacingAndAscent;
         for (int row = topRow; row < endRow; row++) {
@@ -506,15 +542,25 @@ public final class TerminalRenderer {
             // second full-screen pass per frame for nothing — and this is the hottest path there
             // is (live bottom, fling).
             //
-            // F4: on a partial repaint the fill spans the *whole* grid, not dirtyRect's horizontal
+            // F4: on a partial repaint the fill spans the whole *view*, not dirtyRect's horizontal
             // extent. dirtyRect is canvas.getClipBounds(), i.e. the bounding box of the damage:
             // when two differently-sized rects coalesce into one frame (a narrow scrollbar strip
             // plus a row band, or a clip imposed by a parent) the bbox is wider than either, and
             // deriving the fill from it erases part of a row without repainting it. The canvas
             // clips the rect to the real damage anyway, so the painted area is unchanged — the
             // same clipped quad, just no longer able to out-run the text.
+            //
+            // The fill also deliberately reaches past the glyph grid on both sides. `columns` is the
+            // *emulator's* column count while the grid's position is derived from the view's own
+            // width, so the two can disagree (a session resized by the bubble window, or by an
+            // offscreen pager page that holds size authority), and what is left over is then a band
+            // of columns the fill used to skip. Nothing ever replaces pixels out there: every
+            // invalidation the view issues is a row band, and a full repaint's drawColor() is the
+            // only other thing that touches the margins — so one frame that painted a glyph into
+            // such a column left it there for good, which is how a column of Devanagari piled up
+            // along both edges of the grid and survived every scroll.
             if (dirtyRect != null) {
-                canvas.drawRect(0f, rowTop, gridRight, heightOffset, baseFillPaint);
+                canvas.drawRect(viewLeft, rowTop, viewRight, heightOffset, baseFillPaint);
             }
             if (dirtyRect != null) screen.clearRowDirty(row);
 
@@ -605,6 +651,30 @@ public final class TerminalRenderer {
                 }
             }
             final int lastColumn = (g3Start < columns) ? g3Start : columns;
+
+            // Nothing drawn for this row may paint outside the glyph grid's columns.
+            //
+            // The metrics the renderer works from are a per-code-point sum (see measureCodePoint),
+            // but canvas.drawTextRun() runs the real shaper: Devanagari conjuncts, emoji ZWJ
+            // sequences and the dotted circle substituted for a mark with no base all make the
+            // shaped advance differ from that sum, and a run that ends at the last column is then
+            // free to paint past gridRight. Because the view's damage rects are row bands, such a
+            // pixel is never in any of them, so a partial repaint replaces it never and the glyph
+            // stays on screen until the next full repaint — or, when the rows below it are skipped
+            // as clean, not even that. One clip per row (not per run) makes the guarantee
+            // unconditional for every draw that follows, including the ones with no metrics at all.
+            //
+            // The vertical extent is deliberately the whole grid rather than the row's own band.
+            // Box-drawing and block-element glyphs (█ ▀ ▄ █ ┃ ┏) are drawn by the font tall enough
+            // to reach slightly into the rows above and below, and that overhang is what makes a
+            // frame or a filled bar look continuous instead of striped: a full block covers the
+            // baseline area of its cell and a little past it, so consecutive cells meet. Clipping to
+            // [rowTop, heightOffset] shaved that overhang off and left a 1 px line of background
+            // between every pair of rows — measured at exactly one pixel, repeating at the row
+            // pitch, across every frame in the terminal. Horizontal containment is what the damage
+            // model needs; vertical containment is not, and rows legitimately overlap.
+            canvas.save();
+            canvas.clipRect(0f, gridTop, gridRight, gridBottom);
 
             mRunCount = 0;
             long lastRunStyle = 0;
@@ -882,6 +952,8 @@ public final class TerminalRenderer {
                     mRunCharCount[i], mRunMeasuredWidth[i], mRunCursorColor[i], mRunCursorStyle[i], mRunStyle[i],
                     mRunForeColor[i], mRunBackColor[i], mRunFontWidthMismatch[i], rawBgColor, mRunBlockFill[i]);
             }
+
+            canvas.restore();  // the row-band clip installed just before mRunCount = 0
         }
 
         canvas.restore();
@@ -1062,6 +1134,28 @@ public final class TerminalRenderer {
         return foreColorKey(foreColor) != lastForeColorKey;
     }
 
+    /**
+     * May a font-width-mismatched run be rescaled to fit its cells, or is the measurement degenerate
+     * and the run has to be drawn as it is?
+     *
+     * <p>Extracted so the invariant that matters can be tested without an Android {@link Canvas}:
+     * {@code runWidthColumns / mes} and {@code mes / runWidthColumns} are the two factors
+     * {@link #drawRunText} hands to {@code canvas.scale()} and to the run origin, and for
+     * {@code mes == 0} they are {@code Infinity} and {@code 0} — a non-finite canvas matrix, which
+     * is what used to smear a Devanagari vowel sign into the margin of every row that contained one.
+     * The bounds at either end are what keeps the factor describing a glyph rather than the
+     * absence of one.</p>
+     *
+     * @param runWidthColumns width of the run's cells, in columns.
+     * @param mes             the run's measured width in <em>cells</em>, i.e. already divided by
+     *                        {@link #mFontWidth}. Zero for a run of zero-advance code points.
+     */
+    static boolean isMismatchScaleUsable(int runWidthColumns, float mes) {
+        if (runWidthColumns <= 0 || !(mes > 0f)) return false;   // also rejects NaN
+        final float scale = runWidthColumns / mes;
+        return scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE;
+    }
+
     private void drawRunText(Canvas canvas, char[] text, float y, int startColumn, int runWidthColumns,
                              int startCharIndex, int runWidthChars, float mes, int cursor, int cursorStyle,
                              long textStyle, int foreColor, int backColor, boolean fontWidthMismatch,
@@ -1080,7 +1174,20 @@ public final class TerminalRenderer {
 
         mes = mes / mFontWidth;
         boolean savedMatrix = false;
-        if (fontWidthMismatch && Math.abs(mes - runWidthColumns) > 0.01) {
+        // Compensate only when the factor is a real measurement ratio.
+        //
+        // `mes` is the sum of the per-code-point advances the measure cache holds, so it is
+        // 0 for a run made entirely of zero-advance code points and near-0 for one the font
+        // has no real glyph for. `runWidthColumns / mes` is then infinite, and
+        // `left *= mes / runWidthColumns` is 0 — so the run would be drawn at the left
+        // edge of the grid, magnified arbitrarily, under a matrix holding Infinity. That is
+        // not a cosmetic problem: canvas.scale() with a non-finite factor leaves the canvas
+        // in a state where every later draw is undefined, and on this device it is what
+        // smeared a Devanagari vowel sign into the margin on every row that held one. A run
+        // that needs a factor past the bounds below has no glyph to place either, so it is
+        // left unscaled and the row-band clip in render() keeps it inside its own row.
+        final boolean scalable = fontWidthMismatch && isMismatchScaleUsable(runWidthColumns, mes);
+        if (scalable && Math.abs(mes - runWidthColumns) > 0.01) {
             canvas.save();
             canvas.scale(runWidthColumns / mes, 1.f);
             left *= mes / runWidthColumns;

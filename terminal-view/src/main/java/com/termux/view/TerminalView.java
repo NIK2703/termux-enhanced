@@ -175,13 +175,17 @@ public final class TerminalView extends View {
     private boolean mPixelsValid = false;
 
     /**
-     * E2: whether {@link #onDraw} has already asked for the full frame that is supposed to
-     * validate {@link #mPixelsValid}, and that request has not been fulfilled yet. Bounds the
-     * recovery to a single retry so a permanently clipped parent cannot turn it into a
-     * per-frame invalidate loop. Reset by {@link #invalidate()} (a fresh request starts over) and
-     * by any frame that actually arrives with a full clip.
+     * Clip bounds of the last frame that arrived while {@link #mPixelsValid} was still
+     * {@code false}, i.e. the last one that did not cover the whole view. Empty means no recovery
+     * request is outstanding.
+     *
+     * <p>Used to detect "another frame arrived, clipped exactly like the previous one": the request
+     * for the uncovered part of the view is then dropped, because it cannot possibly help. That is
+     * what bounds the recovery — not a retry count, which would be spent by frames that by
+     * construction can never be full, leaving the surface half-stale forever (see
+     * {@link #requestUncoveredRegion}).</p>
      */
-    private boolean mFullFramePending = false;
+    private final Rect mUncoveredRecoveryClip = new Rect();
 
     int[] mDefaultSelectors = new int[]{-1,-1,-1,-1};
 
@@ -191,7 +195,10 @@ public final class TerminalView extends View {
         // previous-frame content is no longer trustworthy. (Partial invalidates — invalidate(l,t,r,b)
         // — leave the rest of the surface intact and do not affect this flag.)
         mPixelsValid = false;
-        mFullFramePending = false;
+        // A full invalidate supersedes any outstanding request for the uncovered part: it already
+        // covers it, so the recovery bookkeeping starts over (and the next partial frame must ask
+        // again rather than assume the request is still pending).
+        mUncoveredRecoveryClip.setEmpty();
         super.invalidate();
     }
 
@@ -2507,41 +2514,14 @@ public final class TerminalView extends View {
         int newColumns = Math.max(4, (int) (viewWidth / mRenderer.mFontWidth));
         int newRows = Math.max(4, (viewHeight - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
 
-        // The glyph grid is pinned to the TOP edge of the view: the first row's top sits at
-        // y=0 and all leftover vertical space (from rows that do not fit the view) stays at
-        // the bottom. The grid occupies [0, columns*fontWidth) horizontally and
-        // [mFontLineSpacingAndAscent, mFontLineSpacingAndAscent + rows*lineSpacing) vertically
-        // in translated coordinates, so the vertical shift is exactly
-        // -mFontLineSpacingAndAscent (top gap = mFontLineSpacingAndAscent + mGridOffsetY = 0),
-        // leaving a bottom gap of viewHeight - rows*lineSpacing. Horizontally the leftover
-        // space is still split symmetrically. The offsets are snapped to whole pixels below so
-        // that adjacent rows' background rects keep integer edges and do not show anti-aliased
-        // seams. Recompute unconditionally: a sub-cell resize leaves columns/rows unchanged but
-        // still changes the leftover space.
-        float gridWidth = newColumns * mRenderer.mFontWidth;
-        float newGridOffsetX = Math.max(0f, (viewWidth - gridWidth) / 2f);
-        float newGridOffsetY = -mRenderer.mFontLineSpacingAndAscent;
-        // Snap to whole pixels: with a fractional offset, adjacent rows' background rects share
-        // fractional edges; anti-aliased SRC_OVER compositing then leaves 25% of the drawColor
-        // background showing through each row seam (visible hairlines on non-default backgrounds).
-        newGridOffsetX = Math.round(newGridOffsetX);
-        newGridOffsetY = Math.round(newGridOffsetY);
-        // rowToPixelTop()/invalidateRowRange() and TerminalRenderer's row layout are consistent only
-        // while the grid stays pinned to the top of the view, i.e. mGridOffsetY is exactly
-        // -mFontLineSpacingAndAscent (both are whole pixels here, so round() is a no-op). Assert the
-        // invariant so any future re-pin (vertical centering etc.) fails loudly instead of producing
-        // 1px-seam artifacts.
-        assert newGridOffsetY == -mRenderer.mFontLineSpacingAndAscent : "grid must stay top-pinned";
-        boolean gridOffsetChanged = (newGridOffsetX != mGridOffsetX) || (newGridOffsetY != mGridOffsetY);
-        mGridOffsetX = newGridOffsetX;
-        mGridOffsetY = newGridOffsetY;
-
-        if (mEmulator == null || (newColumns != mEmulator.mColumns || newRows != mEmulator.mRows)) {
+        final boolean sizeChanged = (mEmulator == null
+            || newColumns != mEmulator.mColumns || newRows != mEmulator.mRows);
+        // Remember where we were: for a LIVE resize of the same session this keeps the viewport
+        // stable instead of jumping to the bottom; after attachSession() this is 0 and the queued
+        // restore below overrides it.
+        final int previousTopRow = mTopRow;
+        if (sizeChanged) {
             stopFlingAndClear();
-            // Remember where we were: for a LIVE resize of the same session this keeps
-            // the viewport stable instead of jumping to the bottom; after attachSession()
-            // this is 0 and the queued restore below overrides it.
-            int previousTopRow = mTopRow;
             // TerminalSession.updateSize() is not free: it issues JNI.setPtyWindowSize (an ioctl on
             // the pty) unconditionally. On a pager (re)bind mEmulator is null here — attachSession()
             // has just dropped it — while the session's OWN emulator is already the right size, so
@@ -2580,10 +2560,50 @@ public final class TerminalView extends View {
             // carry-over above. No-op when nothing was queued.
             consumePendingScrollRestore();
             scrollTo(0, 0);
-            invalidate();
-        } else if (gridOffsetChanged) {
-            invalidate();
         }
+
+        // The glyph grid is pinned to the TOP edge of the view: the first row's top sits at
+        // y=0 and all leftover vertical space (from rows that do not fit the view) stays at
+        // the bottom. The grid occupies [0, columns*fontWidth) horizontally and
+        // [mFontLineSpacingAndAscent, mFontLineSpacingAndAscent + rows*lineSpacing) vertically
+        // in translated coordinates, so the vertical shift is exactly
+        // -mFontLineSpacingAndAscent (top gap = mFontLineSpacingAndAscent + mGridOffsetY = 0),
+        // leaving a bottom gap of viewHeight - rows*lineSpacing. Horizontally the leftover
+        // space is still split symmetrically. The offsets are snapped to whole pixels below so
+        // that adjacent rows' background rects keep integer edges and do not show anti-aliased
+        // seams. Recomputed unconditionally: a sub-cell resize leaves columns/rows unchanged but
+        // still changes the leftover space.
+        //
+        // The horizontal leftover is derived from the column count the renderer will actually lay
+        // the row out with — mEmulator.mColumns — not from the one just computed for the pty.
+        // The two differ whenever this view does not hold size authority (the bubble window, or an
+        // offscreen pager page, resized the session), and placing the grid for a count the renderer
+        // does not use is what let the grid and the painted area disagree: render() fills
+        // [mGridOffsetX, mGridOffsetX + mEmulator.mColumns * fontWidth), so a leftover band at each
+        // edge fell outside every fill and outside every damage rect, and whatever had once been
+        // painted there stayed for good.
+        final int layoutColumns = (mEmulator != null) ? mEmulator.mColumns : newColumns;
+        float gridWidth = layoutColumns * mRenderer.mFontWidth;
+        float newGridOffsetX = Math.max(0f, (viewWidth - gridWidth) / 2f);
+        float newGridOffsetY = -mRenderer.mFontLineSpacingAndAscent;
+        // Snap to whole pixels: with a fractional offset, adjacent rows' background rects share
+        // fractional edges; anti-aliased SRC_OVER compositing then leaves 25% of the drawColor
+        // background showing through each row seam (visible hairlines on non-default backgrounds).
+        newGridOffsetX = Math.round(newGridOffsetX);
+        newGridOffsetY = Math.round(newGridOffsetY);
+        // rowToPixelTop()/invalidateRowRange() and TerminalRenderer's row layout are consistent only
+        // while the grid stays pinned to the top of the view, i.e. mGridOffsetY is exactly
+        // -mFontLineSpacingAndAscent (both are whole pixels here, so round() is a no-op). Assert the
+        // invariant so any future re-pin (vertical centering etc.) fails loudly instead of producing
+        // 1px-seam artifacts.
+        assert newGridOffsetY == -mRenderer.mFontLineSpacingAndAscent : "grid must stay top-pinned";
+        final boolean gridOffsetChanged = (newGridOffsetX != mGridOffsetX) || (newGridOffsetY != mGridOffsetY);
+        mGridOffsetX = newGridOffsetX;
+        mGridOffsetY = newGridOffsetY;
+
+        // One invalidate for both reasons. A geometry change and an offset change are both "the
+        // surface no longer matches the layout", and a full repaint is what repairs that.
+        if (sizeChanged || gridOffsetChanged) invalidate();
     }
 
     @Override
@@ -2623,12 +2643,22 @@ public final class TerminalView extends View {
             boolean hasClip = canvas.getClipBounds(mClipBounds);
             boolean isFullClip = !hasClip || isFullRepaint(mClipBounds);
             Rect dirtyRect = (isFullClip || !mPixelsValid) ? null : mClipBounds;
-            // Ask for one full frame only. If a parent keeps clipping us below the full view
-            // bounds the follow-up would never produce a full clip, and an unconditional
-            // invalidate() here would spin at 60 fps forever. Losing the per-row skip is the
-            // correct degradation in that case: dirtyRect stays null, so every visible row is
-            // drawn — same pixels, just no optimization.
-            boolean needFullFollowup = !isFullClip && !mPixelsValid && !mFullFramePending;
+            // With the surface still "unknown" this frame painted every visible row, but only
+            // inside the clip. Whatever the clip left out still holds the pixels of an older
+            // frame, and nothing else will come for it: no program output, no cursor blink, no
+            // user interaction. So the uncovered part is requested explicitly (below) — every
+            // time the clip differs from the one we last asked about, which is both the retry
+            // bound and the progress test. A plain invalidate() cannot do that job: the next
+            // frame is clipped exactly like this one for as long as an ancestor keeps part of
+            // the view off-screen (the tab pager translates its RecyclerView while a tab
+            // settles, and its overscroll spring can hold a few pixels afterwards), and a
+            // request that is dropped for being off-screen is never retried. That is how a
+            // resize could leave the screen showing a mix of freshly drawn and stale rows —
+            // and, now that render() no longer confines its fill to the glyph grid, a mix of
+            // freshly drawn and stale columns — indefinitely.
+            // Losing the per-row skip meanwhile is the correct degradation: dirtyRect stays
+            // null, so every visible row is drawn — same pixels, just no optimization.
+            boolean needUncoveredRecovery = !isFullClip && !mPixelsValid;
             // C1: keep mTopRow inside the live buffer before drawing — the emulator may have
             // switched to the alternate screen or cleared the transcript since the last
             // onScreenUpdated(), and render() would otherwise read rows below the history
@@ -2636,7 +2666,7 @@ public final class TerminalView extends View {
             final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
             if (mTopRow < minTopRow) mTopRow = minTopRow;
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
-                mGridOffsetX, glyphYOffset(), dirtyRect, mPixelsValid);
+                mGridOffsetX, glyphYOffset(), getWidth(), dirtyRect, mPixelsValid);
             // A full-clip frame really did paint every visible row — the surface now holds the
             // correct pixels for them, so the next partial repaint can safely skip non-dirty rows.
             // It is also the only moment it's safe to drop the dirty set wholesale: rows outside a
@@ -2644,7 +2674,7 @@ public final class TerminalView extends View {
             // renderer already cleared per-row bits as each row was drawn.
             if (isFullClip) {
                 mPixelsValid = true;
-                mFullFramePending = false;
+                mUncoveredRecoveryClip.setEmpty();
                 mEmulator.getScreen().clearDirtyState();
             }
 
@@ -2663,17 +2693,39 @@ public final class TerminalView extends View {
             // the thumb; gating it to full repaints would gouge the thumb out on each partial repaint.
             drawScrollbar(canvas);
 
-            // We drew into a partial clip with the surface still "unknown" — this frame painted
-            // every visible row, but only within the clip. Rows outside the clip may still not
-            // hold valid pixels, so ask the framework for a full-frame draw next time. The
-            // invalidate() override clears mPixelsValid to false; the resulting full repaint will
-            // reset it to true on the frame after that, completing the recovery in two frames.
-            // The pending flag is set *after* invalidate() because the override clears it.
-            if (needFullFollowup) {
-                invalidate();
-                mFullFramePending = true;
-            }
+            if (needUncoveredRecovery) requestUncoveredRegion(mClipBounds);
         }
+    }
+
+    /**
+     * Ask the framework to repaint the part of this view that {@code clip} left out, so that a
+     * frame drawn into a partial clip cannot leave the rest of the surface holding an older
+     * frame's pixels.
+     *
+     * <p>The request is dropped when a frame arrives whose clip is identical to the one the
+     * previous request was made for: the view is then clipped in exactly the same way by
+     * something outside its control, asking again would produce another identical frame, and
+     * the per-row skip is simply given up ({@link #mPixelsValid} stays false, which costs a
+     * few extra row draws per frame and nothing else). A clip that <em>does</em> change —
+     * the pager settling, the view being scrolled or re-laid-out — re-arms the
+     * request, and the next frame covers strictly more of the view.</p>
+     *
+     * <p>Note this deliberately does not call {@link #invalidate()}: that would clear
+     * {@link #mPixelsValid} (correctly, for a full repaint) but also re-arm this bookkeeping,
+     * so the two requests would chase each other. Partial invalidations leave the rest of the
+     * surface alone, which is exactly what is being asked for here.</p>
+     */
+    private void requestUncoveredRegion(Rect clip) {
+        if (mUncoveredRecoveryClip.equals(clip)) return;
+        mUncoveredRecoveryClip.set(clip);
+        final int width = getWidth(), height = getHeight();
+        // The complement of the clip inside the view bounds, as up to four full-length bands.
+        // They may overlap at the corners, which is harmless: invalidation regions are unioned
+        // anyway.
+        if (clip.left > 0) invalidate(0, 0, Math.min(clip.left, width), height);
+        if (clip.top > 0) invalidate(0, 0, width, Math.min(clip.top, height));
+        if (clip.right < width) invalidate(Math.max(clip.right, 0), 0, width, height);
+        if (clip.bottom < height) invalidate(0, Math.max(clip.bottom, 0), width, height);
     }
 
     private boolean isFullRepaint(Rect clip) {

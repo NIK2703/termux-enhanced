@@ -29,6 +29,17 @@ public final class WcWidth {
         Arrays.fill(BMP_WIDTH_CACHE, CACHE_UNINITIALIZED);
     }
 
+    /**
+     * Zero-width code points that are <em>not</em> Unicode combining marks, so they cannot be found
+     * by general category and have to be listed: the emoji skin-tone modifiers. They are {@code Sk}
+     * (modifier symbols) rather than {@code Mc}, yet every terminal renders them as a zero-advance
+     * modifier on the preceding base — {@code 👍🏽} is two cells wide, not four. They used to be in
+     * {@link #WIDE_EASTASIAN}, which made the fallback {@code 2}.
+     */
+    private static final int[][] ZERO_WIDTH_NOT_MARKS = {
+        {0x1f3fb, 0x1f3ff},  // Emoji Modifier Fitzpatrick Type-1-2 .. Type-6
+    };
+
     // From https://github.com/jquast/wcwidth/blob/master/wcwidth/table_zero.py
     // from https://github.com/jquast/wcwidth/pull/64
     // at commit 1b9b6585b0080ea5cb88dc9815796505724793fe (2022-12-16):
@@ -472,7 +483,10 @@ public final class WcWidth {
         {0x1f3cf, 0x1f3d3},  // Cricket Bat And Ball    ..Table Tennis Paddle And
         {0x1f3e0, 0x1f3f0},  // House Building          ..European Castle
         {0x1f3f4, 0x1f3f4},  // Waving Black Flag       ..Waving Black Flag
-        {0x1f3f8, 0x1f43e},  // Badminton Racquet And Sh..Paw Prints
+        // U+1F3FB..U+1F3FF (the skin-tone modifiers) are deliberately absent: they are zero-width
+        // modifiers, see ZERO_WIDTH_NOT_MARKS.
+        {0x1f3f8, 0x1f3fa},  // Badminton Racquet And Sh..Cartwheeling
+        {0x1f400, 0x1f43e},  // Rat                    ..Paw Prints
         {0x1f440, 0x1f440},  // Eyes                    ..Eyes
         {0x1f442, 0x1f4fc},  // Ear                     ..Videocassette
         {0x1f4ff, 0x1f53d},  // Prayer Beads            ..Down-pointing Small Red
@@ -556,8 +570,45 @@ public final class WcWidth {
 
         // combining characters with zero width
         if (intable(ZERO_WIDTH, ucs)) return 0;
+        if (intable(ZERO_WIDTH_NOT_MARKS, ucs)) return 0;
+
+        // Any Unicode combining mark is zero width, whatever the tables above happen to list.
+        //
+        // The tables are a transcription of jquast/wcwidth, which — like the C library original —
+        // enumerates only the code points that were {@code Mn}/{@code Me} when it was generated, and
+        // leaves the {@code Mc} ("spacing combining mark") class out entirely. For Devanagari and the
+        // other obligatory-shaping scripts that is the whole vowel-sign series, so U+093E (ा),
+        // U+093F (ि) and U+0940 (ी) came out as one cell each. Two things then go wrong at once:
+        //
+        //   · the mark is stored in a cell of its own, so the run that {@code TerminalRenderer} hands
+        //     to {@code Canvas.drawTextRun()} starts with a mark that has no base. The shaper
+        //     substitutes a dotted circle for it, which is what turned "पिछली" into "प◌छली" on screen;
+        //   · the syllable is then twice as wide as it looks, so a full-screen TUI's line overflows
+        //     and auto-wrap breaks it *inside the word*, dropping the tail into column 0 of the next
+        //     row — the leftover glyphs that pile up along the edges of the grid.
+        //
+        // The class is the authority here, not the transcription: HarfBuzz reorders a pre-base vowel
+        // sign in front of its consonant and gives the pair a single combined advance, which is one
+        // cell. The handful of code points that really are spacing in a terminal (Thai SARA AM and
+        // friends) are {@code Lo}, not {@code Mc}, so they are unaffected.
+        if (isCombiningMark(ucs)) return 0;
 
         return intable(WIDE_EASTASIAN, ucs) ? 2 : 1;
+    }
+
+    /**
+     * Is {@code ucs} a Unicode combining mark, i.e. one of the {@code Mn} (nonspacing), {@code Mc}
+     * (spacing combining) or {@code Me} (enclosing) general categories?
+     */
+    private static boolean isCombiningMark(int ucs) {
+        switch (Character.getType(ucs)) {
+            case Character.NON_SPACING_MARK:
+            case Character.COMBINING_SPACING_MARK:
+            case Character.ENCLOSING_MARK:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /** The width at an index position in a java char array. */
