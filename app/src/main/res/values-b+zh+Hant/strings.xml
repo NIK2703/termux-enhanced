@@ -651,5 +651,5 @@
     <string name="termux_notification_inline_reply_summary">在工作階段的通知上顯示回覆按鈕，將文字連同 Enter 傳送到該工作階段。</string>
     <string name="terminal_notification_channel_description">終端機工作階段中執行程式所傳送的訊息</string>
     <string name="termux_notification_deduplication_title">通知去重複</string>
-    <string name="termux_notification_deduplication_summary">捨棄在上次傳送通知後 100 毫秒內抵達的通知。</string>
+    <string name="termux_notification_deduplication_summary">捨棄在上次傳送通知後 %1$d 毫秒內抵達的通知。</string>
 </resources>

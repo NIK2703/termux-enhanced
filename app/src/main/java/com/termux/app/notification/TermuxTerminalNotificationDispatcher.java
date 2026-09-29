@@ -52,8 +52,12 @@ public final class TermuxTerminalNotificationDispatcher {
      * Window within which a further notification is dropped, when deduplication is on. Measured: one
      * event arrives as a burst 6-11 ms apart, separate events seconds apart. Nothing is delayed — a
      * notification is posted at once or dropped at once.
+     *
+     * <p>Public because it is the single source of the number: the settings screen formats it into
+     * the summary of the deduplication switch, so the text cannot promise a window the code does
+     * not apply.
      */
-    private static final long DUPLICATE_WINDOW_MS = 100;
+    public static final long DUPLICATE_WINDOW_MS = 200;
 
     private static final Object sDuplicateWindowLock = new Object();
     /** When a notification was last actually posted, or 0 if none has been. */
@@ -141,7 +145,7 @@ public final class TermuxTerminalNotificationDispatcher {
 
         NotificationManager manager = NotificationUtils.getNotificationManager(context);
         if (manager == null) return -1;
-        if (!manager.areNotificationsEnabled()) return -1;
+        if (!areNotificationsEnabled(manager)) return -1;
 
         // One object for this post: building it opens both preference files, on the terminal's input
         // thread.
@@ -246,11 +250,15 @@ public final class TermuxTerminalNotificationDispatcher {
         PendingIntent replyIntent = PendingIntent.getBroadcast(context, requestCode(notificationId, 3), reply,
             PendingIntent.FLAG_UPDATE_CURRENT | mutableFlag());
 
-        return new Notification.Action.Builder(android.R.drawable.ic_menu_send,
+        Notification.Action.Builder action = new Notification.Action.Builder(
+                android.R.drawable.ic_menu_send,
                 context.getString(R.string.notification_action_reply), replyIntent)
-            .addRemoteInput(remoteInput)
-            .setAllowGeneratedReplies(true)
-            .build();
+            .addRemoteInput(remoteInput);
+        // API 24+. Below it the platform has no such suggestion and ignores the flag, so the reply
+        // works without it — while the call itself is a NoSuchMethodError, and this runs on the
+        // terminal's thread, i.e. a crash rather than a missing nicety.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) action.setAllowGeneratedReplies(true);
+        return action.build();
     }
 
     /**
@@ -381,5 +389,22 @@ public final class TermuxTerminalNotificationDispatcher {
     /** For the reply's intent only, which the platform writes into; below API 31 all are mutable. */
     private static int mutableFlag() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0;
+    }
+
+    /**
+     * Whether the user has notifications switched on for this app.
+     *
+     * <p>{@link NotificationManager#areNotificationsEnabled()} only exists from API 24, and this
+     * runs for every notification a program asks for, on the terminal's own thread — an unguarded
+     * call is a {@link NoSuchMethodError} on API 21–23, and it is raised on an emulator
+     * HandlerThread, so it takes the whole app down rather than failing one notification.
+     *
+     * <p>Below 24 the platform exposes no query (the app-op behind it is not public API), so the
+     * answer is "post it": {@code notify()} on an app whose notifications are off is a silent no-op
+     * there, not a crash, which is the same outcome this check exists to reach.
+     */
+    private static boolean areNotificationsEnabled(@NonNull NotificationManager manager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true;
+        return manager.areNotificationsEnabled();
     }
 }

@@ -46,6 +46,7 @@ import com.termux.app.terminal.TermuxActivityRootView;
 import com.termux.app.terminal.TermuxServiceConnectionManager;
 import com.termux.app.terminal.TermuxSessionSnapshotManager;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
+import com.termux.app.terminal.BottomStripAnchors;
 import com.termux.app.terminal.SessionPagerManager;
 import com.termux.app.terminal.io.TermuxTerminalExtraKeys;
 import com.termux.shared.activities.ReportActivity;
@@ -398,11 +399,15 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** The {@code text_input_enabled} setting as last applied; null until it is first read. */
     private Boolean mTextInputPanelEnabled = null;
 
-    /** Where the press being tracked went down, in screen coordinates, and where it counted. */
+    /** Where the press being tracked went down, in screen coordinates. */
     private float mPressRawX;
     private float mPressRawY;
-    private boolean mPressStartedInTextInputPanel;
-    private boolean mPressStartedOnTabStrip;
+    /**
+     * The press being tracked must not dismiss the input panel: it landed on the panel itself or on
+     * one of its own controls, or it was cancelled and there is no release to judge. One flag for
+     * all three, so "exempt" has exactly one meaning at the point the release is decided.
+     */
+    private boolean mPressExempt;
     /** System touch slop in px, read on first use. */
     private int mTouchSlopPx;
 
@@ -650,7 +655,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private final TermuxColorSchemeManager mColorSchemeManager = TermuxColorSchemeManager.shared();
 
     /** Default max number of remembered messages (overridable in Settings). */
-    private static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
+    private static final int MESSAGE_HISTORY_MAX_DEFAULT =
+        MessageHistoryController.MESSAGE_HISTORY_MAX_DEFAULT;
 
     /** Directory history controller — owns visited-CWD list. */
     private DirectoryHistoryController mDirectoryHistoryCtrl = null;
@@ -739,10 +745,6 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     }
 
     /** Visibility change plus the pencil-icon refresh every such change needs. */
-    private void setTextInputVisibleAndRefreshIcon(boolean visible) {
-        setTextInputVisible(visible);
-    }
-
     /** End the cold-start "hide keyboard on startup" re-assert window, when the client exists. */
     private void cancelStartupSoftKeyboardReassert() {
         if (mTermuxTerminalViewClient != null)
@@ -1044,8 +1046,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mIsVisible = true;
 
-        // Android 13+ raises the POST_NOTIFICATIONS consent prompt itself, on the first channel
-        // creation; doing that here puts the one-off prompt where the user can see what it allows.
+        // The channels the terminal's notifications go on, created here rather than at the first
+        // post so a notification raised in the background already has one. NOT about the Android 13
+        // consent prompt: that only applies to apps targeting 33+, and this one targets 28, so
+        // POST_NOTIFICATIONS stays auto-granted and the platform never asks.
         TermuxTerminalNotificationDispatcher.ensureChannel(this);
 
         // Land on the session a notification named, if any.
@@ -2416,10 +2420,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * session, and never saves another session's leftover text into a hidden session.
      */
     public void saveTextInputForCurrentSession() {
-        saveTextInputForCurrentSession(false);
-    }
-
-    public void saveTextInputForCurrentSession(boolean force) {
         final TerminalSession session = getCurrentSession();
         if (session == null) return;
         final EditText textInputView = getTerminalToolbarTextInput();
@@ -2633,17 +2633,22 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (tabsContainer == null || pager == null || panel == null || strip == null) return;
         final int stripId = strip.getId();
 
-        // The terminal fills what is left between the two strips.
+        // The terminal fills what is left above the bottom strip — EXCEPT when the tab strip is at
+        // the bottom, where the tabs are the lowest full-width strip and the terminal has to stop
+        // at them. Two different edges, decided together; see BottomStripAnchors for why they are
+        // one decision and what happens when they are made to coincide.
+        final int[] bottomAnchors = BottomStripAnchors.pagerAndTabs(
+            isTabPanelAtBottom(), R.id.session_tabs_container, stripId);
+
         RelativeLayout.LayoutParams pagerLp = (RelativeLayout.LayoutParams) pager.getLayoutParams();
         pagerLp.removeRule(RelativeLayout.ABOVE);
-        pagerLp.addRule(RelativeLayout.ABOVE, stripId);
+        pagerLp.addRule(RelativeLayout.ABOVE, bottomAnchors[0]);
         pager.setLayoutParams(pagerLp);
 
-        // The tab strip sits directly on the bottom strip when it is configured to be at the bottom.
         RelativeLayout.LayoutParams tabsLp = (RelativeLayout.LayoutParams) tabsContainer.getLayoutParams();
-        if (isTabPanelAtBottom()) {
+        if (bottomAnchors[1] != BottomStripAnchors.NO_BOTTOM_EDGE) {
             tabsLp.removeRule(RelativeLayout.ABOVE);
-            tabsLp.addRule(RelativeLayout.ABOVE, stripId);
+            tabsLp.addRule(RelativeLayout.ABOVE, bottomAnchors[1]);
             tabsContainer.setLayoutParams(tabsLp);
         }
 
@@ -2858,7 +2863,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                                 && event.getActionMasked() == MotionEvent.ACTION_UP) {
                             // No popup was opened: treat as a plain tap -> toggle panel.
                             boolean currentlyVisible = panelOpenAtDown[0];
-                            setTextInputVisibleAndRefreshIcon(!currentlyVisible);
+                            setTextInputVisible(!currentlyVisible);
                         }
                         gestureActive[0] = false;
                         swipeDownPending[0] = false;
@@ -2900,7 +2905,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (editText == null) return;
 
         if (!isTextInputVisible()) {
-            setTextInputVisibleAndRefreshIcon(true);
+            setTextInputVisible(true);
         }
 
         Editable editable = editText.getText();
@@ -3070,6 +3075,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void applyTextInputPanelScrollbarMargin() {
         final View panel = findViewById(R.id.terminal_toolbar_text_input_container);
         if (panel == null) return;
+        // Same tri-state the button keeps, and for the same reason: an unknown state means no
+        // emulator is bound yet, not that there is no scrollbar. Writing the "no scrollbar" value
+        // there is what dropped the button's clearance after a theme change — hasScrollbar() folds
+        // null into false, so it must not be what decides this.
+        if (getScrollbarState(mTerminalView) == null) return;
         final ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) panel.getLayoutParams();
         final boolean mustClearScrollbar = isTextInputPanelOverTerminal() && hasScrollbar(mTerminalView);
         // The resolving accessors, so an RTL window reads and writes the right-hand margin back
@@ -3302,7 +3312,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // history (pre-promote-switch behaviour); a message already in the history
         // KEEPS its position. See MessageHistoryController.addNewOnTop().
         if (!isTextInputVisible()) {
-            setTextInputVisibleAndRefreshIcon(true);
+            setTextInputVisible(true);
         }
 
         String existing = editText.getText().toString();
@@ -3326,7 +3336,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (editText == null) return;
 
         if (!isTextInputVisible()) {
-            setTextInputVisibleAndRefreshIcon(true);
+            setTextInputVisible(true);
         }
 
         mAutoCompleteCtrl.invalidateHistoryVersion();
@@ -3636,7 +3646,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mTextInputPanelEnabled = enabled;
 
         if (!enabled) {
-            textInputContainer.setVisibility(View.GONE);
+            // Through the one path that owns the panel's state, not straight at the view's
+            // visibility: the per-session store is what isTextInputVisible() answers from, and
+            // hiding the container behind its back left the two disagreeing — Back then took the
+            // "hide the panel" branch and did nothing, and every tap ran the whole close sequence.
+            setTextInputVisible(false);
         } else if (Boolean.FALSE.equals(wasEnabled)) {
             // Just turned on: show the panel in its visible state.
             setTextInputVisible(true);
@@ -3659,12 +3673,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mPopupCtrl.isHistoryPopupShowing()) {
             mPopupCtrl.dismissMessageHistoryPopup();
             if (isTextInputVisible()) {
-                setTextInputVisibleAndRefreshIcon(false);
+                setTextInputVisible(false);
             }
         } else if (isTextInputVisible()) {
             // Panel is open: "Back" closes the panel instead of exiting the app
             // (regardless of the "hide panel after send" setting).
-            setTextInputVisibleAndRefreshIcon(false);
+            setTextInputVisible(false);
         } else {
             TermuxActivityUtils.finishActivityIfNotFinishing(this);
         }
@@ -4563,7 +4577,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     && wasVisible && !imeVisible && isTextInputVisible()
                     && !mButtonTouchInProgress && !mPopupCtrl.isHistoryPopupShowing()) {
                 dismissAutoCompleteSuggestions();
-                setTextInputVisibleAndRefreshIcon(false);
+                setTextInputVisible(false);
             }
 
             // Extra keys mirror the REAL IME visibility — deliberately outside the transition guard.
@@ -4598,20 +4612,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             case MotionEvent.ACTION_DOWN:
                 mPressRawX = event.getRawX();
                 mPressRawY = event.getRawY();
-                mPressStartedInTextInputPanel = isTouchInside(
-                    findViewById(R.id.terminal_toolbar_text_input_container), event);
-                // The tab strip is where tabs are switched, and a switch must not take the panel
-                // down with it — the panel comes back with the tab it belongs to.
-                mPressStartedOnTabStrip = isTouchInside(
-                    findViewById(R.id.session_tabs_container), event);
+                // A press is exempt when it lands on the panel itself, or on something that owns
+                // the panel's own transition: the tab panel, which switches tabs and must leave the
+                // panel alone, and the toggle button, which toggles it and would otherwise be
+                // undone by this rule firing first and its own listener firing second.
+                mPressExempt = isTouchInside(findViewById(R.id.terminal_toolbar_text_input_container), event)
+                    || isTouchInside(findViewById(R.id.session_tabs_container), event)
+                    || isTouchInside(findViewById(R.id.toggle_text_input_button), event);
                 break;
             case MotionEvent.ACTION_UP:
                 if (isTapToDismissTextInputPanel(event)) setTextInputVisible(false);
                 break;
             case MotionEvent.ACTION_CANCEL:
-                // No release to judge: leave the panel as it is.
-                mPressStartedInTextInputPanel = true;
-                mPressStartedOnTabStrip = true;
+                // No release to judge: poison the press so nothing is decided from it.
+                mPressExempt = true;
                 break;
         }
         return super.dispatchTouchEvent(event);
@@ -4626,8 +4640,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * and closing it anyway would save the draft and pull focus off the terminal on every tap.
      */
     private boolean isTapToDismissTextInputPanel(@NonNull MotionEvent event) {
+        // Only the overlay has anything to clear. In the extra keys' place the terminal is resized
+        // to stop above the panel, which has a strip of its own and covers nothing — dismissing it
+        // there would change the behaviour that arrangement exists to preserve.
+        if (!isTextInputPanelOverTerminal()) return false;
         if (!isTextInputVisible()) return false;
-        if (mPressStartedInTextInputPanel || mPressStartedOnTabStrip) return false;
+        if (mPressExempt) return false;
         final int slop = touchSlopPx();
         return Math.abs(event.getRawX() - mPressRawX) <= slop
             && Math.abs(event.getRawY() - mPressRawY) <= slop;
@@ -4742,7 +4760,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         View textInputContainer = findViewById(R.id.terminal_toolbar_text_input_container);
         if (textInputContainer != null) {
             setTextInputPanelVisible(visible);
-            applyBottomStripAnchors();
             // No global-pref write: the per-session store below is the single authority; the
             // legacy "text_input_visible" pref has no readers left and the write was pure overhead.
 
@@ -4768,7 +4785,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 }
             } else {
                 // Save for THIS session (force: the panel is its authority at hide time).
-                saveTextInputForCurrentSession(true);
+                saveTextInputForCurrentSession();
                 // Focus the live terminal view (not the cached pointer — after a 2+ tab jump the
                 // cache is null and the hidden EditText would keep the IME, swallowing input).
                 // The focus listener never schedules an IME show, so this cannot pop the keyboard.

@@ -791,7 +791,7 @@
     <string name="extra_keys_compact_mode_rows">По строкам</string>
     <string name="extra_keys_compact_mode_columns">По столбцам</string>
     <string name="termux_notification_deduplication_title">Дедубликация уведомлений</string>
-    <string name="termux_notification_deduplication_summary">Отбрасывать уведомления, приходящие в течение 100 миллисекунд от последнего отправленного</string>
+    <string name="termux_notification_deduplication_summary">Отбрасывать уведомления, приходящие в течение %1$d миллисекунд от последнего отправленного</string>
     <string name="notification_action_reply">Ответить</string>
     <string name="notification_terminal_reply_hint">Введите команду и отправьте</string>
     <string name="terminal_notification_channel_description">Сообщения от программ, запущенных в сеансе терминала</string>

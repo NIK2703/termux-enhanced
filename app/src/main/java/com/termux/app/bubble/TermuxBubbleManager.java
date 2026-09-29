@@ -1,5 +1,6 @@
 package com.termux.app.bubble;
 
+import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -172,7 +173,14 @@ public final class TermuxBubbleManager {
      * Whether the system will actually show a bubble right now. Advisory: gates the
      * notification's "bubble" button and the automatic path; the post itself still tolerates
      * a refusal because per-app flags can lag a just-changed setting.
+     *
+     * <p>A self-gating entry point, and deliberately the only version check here: every caller
+     * (the activity's background path, the service notification's action, the post itself) reaches
+     * it without one of its own, because {@link #isSupported} is what makes the API-23/24/29 calls
+     * below safe. {@code SuppressLint} because lint cannot follow a gate that lives inside the
+     * method — it is not a licence to call anything new here without a version of its own.
      */
+    @SuppressLint("NewApi")
     public static boolean areBubblesAvailable(@NonNull Context context) {
         if (!isSupported(context)) return false;
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
@@ -272,7 +280,13 @@ public final class TermuxBubbleManager {
      *
      * @param sessionTitle human readable title, used for the notification and shortcut label.
      * @return {@code true} if the notification was posted (SystemUI still decides bubble vs. plain).
+     *
+     * <p>The other self-gating entry point, for the same reason as {@link #areBubblesAvailable}:
+     * the {@link #isSupported} test below is the version check, the callers that have none of their
+     * own (the bubble button's receiver, the debug hook) depend on it, and lint cannot follow a gate
+     * that lives inside the method.
      */
+    @SuppressLint("NewApi")
     public static boolean showBubble(@NonNull Context context, @NonNull CharSequence sessionTitle) {
         if (!isSupported(context)) return false;
 
@@ -284,6 +298,16 @@ public final class TermuxBubbleManager {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to post bubble notification", e);
             return false;
         }
+    }
+
+    /**
+     * {@link PendingIntent#FLAG_IMMUTABLE} from API 23, and 0 below it, where every intent is
+     * mutable by default anyway. Used for both this class's own intents and to match the
+     * notification dispatcher's, so the two do not answer the mutability question differently on an
+     * old device.
+     */
+    private static int immutableFlag() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0;
     }
 
     /**
@@ -332,12 +356,12 @@ public final class TermuxBubbleManager {
 
         Intent contentTarget = new Intent(context, TermuxActivity.class);
         PendingIntent contentIntent = PendingIntent.getActivity(context, REQUEST_CODE_CONTENT,
-            contentTarget, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            contentTarget, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
 
         Intent deleteTarget = new Intent(context, TermuxBubbleReceiver.class)
             .setAction(ACTION_BUBBLE_DISMISSED);
         PendingIntent deleteIntent = PendingIntent.getBroadcast(context, REQUEST_CODE_DELETE,
-            deleteTarget, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            deleteTarget, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag());
 
         // Intent-based builder (not Builder(String), API 30/deprecated 31): that overload makes
         // SystemUI resolve the launch intent from the shortcut and ignore the intent handed to it.
@@ -368,14 +392,12 @@ public final class TermuxBubbleManager {
         if (areBubblesAllowed(notificationManager) && channelCanBubble(context)) {
             bubbleMetadata.setSuppressNotification(true);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // No setShortcutId(): the builder has none, and the shortcut-id constructor above is
-            // deliberately avoided. The SDK_INT >= R guard is kept from the original code (it
-            // believed setDeleteIntent was API 30; it is actually API 29 — verified in android-10),
-            // so Android 10 misses the "bubble dismissed" callback until the app returns to the
-            // foreground: left alone because it cannot be tested here.
-            bubbleMetadata.setDeleteIntent(deleteIntent);
-        }
+        // No guard: this whole method is @RequiresApi(Q) and setDeleteIntent is API 29 (verified in
+        // android-10's api-versions, where Notification$BubbleMetadata$Builder carries no `since`
+        // for it). It used to sit behind an SDK_INT >= R check, which is why Android 10 never
+        // reported a dismissal — sBubblePosted then stayed set for the life of the process, and the
+        // dispatcher raised no further bubble.
+        bubbleMetadata.setDeleteIntent(deleteIntent);
 
         Person self = new Person.Builder()
             .setName(TermuxConstants.TERMUX_APP_NAME)
@@ -456,7 +478,12 @@ public final class TermuxBubbleManager {
     /**
      * Cancel the bubble notification and forget the posted state, reporting whether one was up.
      * Whether the service notification is then rebuilt is the caller's decision.
+     *
+     * <p>Private, and reached only from callers that have already passed {@link #isSupported},
+     * which is what makes the typed {@code getSystemService} below safe. SuppressLint for the same
+     * reason as the two public entry points: the gate is a caller's, and cannot be seen from here.
      */
+    @SuppressLint("NewApi")
     private static boolean detachBubble(@NonNull Context context) {
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager == null) return false;

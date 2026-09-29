@@ -632,5 +632,5 @@
     <string name="termux_notification_inline_reply_summary">إظهار زر ردّ في إشعار قادم من جلسة، لإرسال نص يليه Enter إلى تلك الجلسة</string>
     <string name="terminal_notification_channel_description">رسائل من البرامج قيد التشغيل في جلسة طرفية</string>
     <string name="termux_notification_deduplication_title">إزالة تكرار الإشعارات</string>
-    <string name="termux_notification_deduplication_summary">تجاهل الإشعارات الواردة خلال 100 مللي ثانية من آخر إشعار تم إرساله</string>
+    <string name="termux_notification_deduplication_summary">تجاهل الإشعارات الواردة خلال %1$d مللي ثانية من آخر إشعار تم إرساله</string>
 </resources>

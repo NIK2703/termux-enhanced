@@ -96,8 +96,14 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
             context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
         MAIN_HANDLER.post(() -> {
             try {
-                MessageHistoryController.shared(preferences)
-                    .addToMessageHistory(text, session.getCwd());
+                MessageHistoryController controller = MessageHistoryController.shared(preferences);
+                // The reply can be for a session the user is not looking at, so the entry goes into
+                // that session's own directory rather than repointing the controller at it.
+                controller.addToMessageHistoryInDirectory(text, session.getCwd());
+                // A reply can be what starts the process, before any activity read the settings
+                // the singleton is configured from; a write under the built-in defaults would trim
+                // the user's store to a limit they never chose, or land in the store they disabled.
+                controller.save();
             } catch (Exception e) {
                 Logger.logStackTraceWithMessage(LOG_TAG, "Failed to file reply in history", e);
             } finally {

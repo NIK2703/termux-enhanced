@@ -688,5 +688,5 @@
     <string name="termux_notification_inline_reply_summary">Bir oturumdan gelen bildirimde yanıt düğmesi göstererek girilen metni Enter ile o oturuma gönder</string>
     <string name="terminal_notification_channel_description">Terminal oturumunda çalışan programlardan gelen mesajlar</string>
     <string name="termux_notification_deduplication_title">Bildirim tekilleştirme</string>
-    <string name="termux_notification_deduplication_summary">Gönderilen son bildirimden sonraki 100 milisaniye içinde gelen bildirimleri yoksay</string>
+    <string name="termux_notification_deduplication_summary">Gönderilen son bildirimden sonraki %1$d milisaniye içinde gelen bildirimleri yoksay</string>
 </resources>

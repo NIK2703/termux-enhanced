@@ -46,11 +46,12 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
-        <!-- Off by default: a burst is one event to a person but two to a program that sent two. -->
+        <!-- Off by default: a burst is one event to a person but two to a program that sent two.
+             No summary here: it names the window, and the window is one constant formatted in at
+             runtime (TerminalPreferencesFragment) so the text cannot drift from the code. -->
         <SwitchPreferenceCompat
             app:key="notification_deduplication_enabled"
             app:title="@string/termux_notification_deduplication_title"
-            app:summary="@string/termux_notification_deduplication_summary"
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 

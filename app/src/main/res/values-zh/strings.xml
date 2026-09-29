@@ -651,5 +651,5 @@
     <string name="termux_notification_inline_reply_summary">在会话发出的通知上显示回复按钮，可将输入的文本连同 Enter 发送到该会话。</string>
     <string name="terminal_notification_channel_description">来自终端会话中运行程序的消息</string>
     <string name="termux_notification_deduplication_title">通知去重</string>
-    <string name="termux_notification_deduplication_summary">丢弃在上一次发送通知后 100 毫秒内到达的通知。</string>
+    <string name="termux_notification_deduplication_summary">丢弃在上一次发送通知后 %1$d 毫秒内到达的通知。</string>
 </resources>

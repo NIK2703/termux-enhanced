@@ -610,5 +610,5 @@
     <string name="termux_notification_inline_reply_summary">Mostrar un botón de respuesta en una notificación de una sesión para enviar texto seguido de Enter a esa sesión</string>
     <string name="terminal_notification_channel_description">Mensajes de programas en ejecución en una sesión de terminal</string>
     <string name="termux_notification_deduplication_title">Deduplicación de notificaciones</string>
-    <string name="termux_notification_deduplication_summary">Descartar las notificaciones que llegan en los 100 milisegundos posteriores al último envío</string>
+    <string name="termux_notification_deduplication_summary">Descartar las notificaciones que llegan en los %1$d milisegundos posteriores al último envío</string>
 </resources>

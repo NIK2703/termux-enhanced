@@ -861,8 +861,10 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         int actionIcon = wakeLockHeld ? android.R.drawable.ic_lock_idle_lock : android.R.drawable.ic_lock_lock;
         builder.addAction(actionIcon, actionTitle, PendingIntent.getService(this, 0, toggleWakeLockIntent, 0));
 
-        // "Bubble" action, only when bubbles are supported (TermuxBubbleManager.isSupported())
-        // and none is posted already: re-posting would un-collapse a bubble the user collapsed.
+        // "Bubble" action, only when the system will show a bubble and none is posted already:
+        // re-posting would un-collapse a bubble the user collapsed. Note the support test lives
+        // inside areBubblesAvailable(), not here — this call site has no SDK_INT of its own and
+        // must not grow one that could disagree with it.
         // The notification then goes stale on bubble state changes, so every post/cancel asks
         // the service to rebuild it (TermuxBubbleManager.requestServiceNotificationRefresh()).
         // A broadcast, not an activity: the button is tapped from the shade with the app backgrounded.

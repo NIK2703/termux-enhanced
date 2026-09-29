@@ -40,6 +40,14 @@ public final class MessageHistoryController {
     private static final String PREF_MESSAGE_HISTORY = "message_history";
     private static final String PREF_MESSAGE_HISTORY_PER_DIR = "message_history_per_directory";
 
+    /** Settings keys, read here so a write from outside the activity is configured the same way. */
+    private static final String PREF_MAX = "message_history_max";
+    private static final String PREF_PER_DIR = "per_directory_message_history";
+    private static final String PREF_SAVE_CLEARED = "save_cleared_to_history";
+
+    /** Default when the pref is unset; the single source, read by the activity too. */
+    public static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
+
     // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
     // windows must see the same history. A per-instance controller gave each window its
     // own in-memory list, so a command sent from the bubble was invisible to the full-screen
@@ -83,8 +91,8 @@ public final class MessageHistoryController {
      */
     private int mHistoryVersion = 0;
 
-    /** Max entries kept in-memory and persisted. */
-    private int mMessageHistoryMax = 100;
+    /** Max entries kept in-memory and persisted. Replaced by {@link #applyStoredSettings} on load. */
+    private int mMessageHistoryMax = MESSAGE_HISTORY_MAX_DEFAULT;
 
     private boolean mPerDirectoryMessageHistory = false;
 
@@ -116,6 +124,23 @@ public final class MessageHistoryController {
 
     private MessageHistoryController(@NonNull SharedPreferences prefs) {
         mPrefs = prefs;
+        applyStoredSettings();
+    }
+
+    /**
+     * Read the settings that decide which store a write lands in and how much of it survives, from
+     * the same prefs the activity configures the controller from.
+     *
+     * <p>Done at construction because a notification reply can be the first thing in a process: the
+     * broadcast starts the app with no activity, so nothing has applied the user's settings yet. A
+     * write under the built-in defaults would then trim a store the user sized at 500 down to 100,
+     * or land in the global store while the user is on the per-directory one — the entry simply
+     * never appears, and the next write to that store is a rewrite of what is there.
+     */
+    private void applyStoredSettings() {
+        mMessageHistoryMax = mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT);
+        mPerDirectoryMessageHistory = mPrefs.getBoolean(PREF_PER_DIR, false);
+        mSaveClearedToHistory = mPrefs.getBoolean(PREF_SAVE_CLEARED, true);
     }
 
     /** Schedule (or re-schedule) the store-wide persist on the main looper. */
@@ -273,13 +298,21 @@ public final class MessageHistoryController {
     /**
      * Clear history for the current directory (per-directory mode) or globally.
      *
-     * @param cwd The current CWD (used as the per-directory key). May be null
-     *            (in which case the per-directory map entry is left untouched).
+     * @param cwd The directory to clear, as the per-directory key. May be null (in which case the
+     *            per-directory map entry is left untouched).
      */
     public void clearCurrent(@Nullable String cwd) {
         if (mPerDirectoryMessageHistory) {
             if (cwd != null) {
                 mMessageHistoryPerDirectory.remove(cwd);
+                // The in-memory list is the CURRENT directory's, and it is what savePerDirectory
+                // writes back under that key. Emptying it for some other directory would replace
+                // the current one's commands with an empty list.
+                if (!cwd.equals(mHistoryCurrentDirectory)) {
+                    mHistoryVersion++;
+                    savePerDirectory();
+                    return;
+                }
             } else {
                 // D-2: no resolvable CWD — drop the stale current-directory key so its
                 // (now-cleared) in-memory list cannot "resurrect" after the next
@@ -407,6 +440,40 @@ public final class MessageHistoryController {
     }
 
     /**
+     * Add a message that belongs to {@code cwd} without assuming {@code cwd} is the directory the
+     * user is looking at.
+     *
+     * <p>For a write from outside the foreground window — a notification reply into a background
+     * session. In per-directory mode {@link #mMessageHistory} is the list of whichever session is in
+     * front, so a plain {@link #addToMessageHistory} for a different directory would repoint the
+     * whole controller at that session and the window would show the wrong session's history until
+     * the next directory sync. This writes the other directory's own entry instead, leaving the
+     * foreground list and the current directory alone.
+     */
+    public void addToMessageHistoryInDirectory(@NonNull String message, @Nullable String cwd) {
+        if (TextUtils.isEmpty(message)) return;
+
+        ensureLoaded(cwd);
+        if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) {
+            addToMessageHistory(message, cwd);
+            return;
+        }
+
+        ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
+        if (dirHistory == null) {
+            dirHistory = new ArrayList<>();
+            mMessageHistoryPerDirectory.put(cwd, dirHistory);
+        }
+        dirHistory.remove(message);            // dedup
+        dirHistory.add(0, message);            // newest first
+        while (dirHistory.size() > mMessageHistoryMax) {
+            dirHistory.remove(dirHistory.size() - 1);
+        }
+        schedulePersist();
+        mHistoryVersion++;
+    }
+
+    /**
      * Record a passively saved message (cleared from the input field, or the
      * text replaced by a history pick). A brand-new message is inserted at the
      * TOP (newest — the pre-promote-switch behaviour); a message already in the
@@ -439,15 +506,36 @@ public final class MessageHistoryController {
         load(fallback);
     }
 
-    /** Persist the in-memory list under the old CWD and switch to {@code cwd} when it changed. */
+    /**
+     * Persist the in-memory list under the old CWD and switch to {@code cwd} when it changed.
+     *
+     * <p>The new directory's own list is loaded back, not left empty: the mutator that follows adds
+     * one entry to {@link #mMessageHistory}, and {@link #persistAsync} then writes the whole list
+     * over that directory's stored entry. Switching without loading therefore replaced every command
+     * of the target directory with that single command.
+     *
+     * <p>A null {@link #mHistoryCurrentDirectory} adopts {@code cwd} rather than doing nothing. It
+     * is null right after a clear, and an unadopted list has no key: {@link #persistAsync} writes the
+     * in-memory list under the current key, so with no key the entry was dropped on the floor and
+     * the first command after "clear all" never survived a restart.
+     */
     private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {
-        if (mPerDirectoryMessageHistory && mHistoryCurrentDirectory != null
-                && cwd != null && !cwd.equals(mHistoryCurrentDirectory)) {
-            mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
-            mMessageHistory.clear();
-            mHistoryVersion++;
+        if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) return;
+
+        if (mHistoryCurrentDirectory == null) {
             mHistoryCurrentDirectory = cwd;
+            ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
+            if (dirHistory != null) mMessageHistory.addAll(dirHistory);
+            mHistoryVersion++;
+            return;
         }
+
+        mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
+        mMessageHistory.clear();
+        mHistoryCurrentDirectory = cwd;
+        ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
+        if (dirHistory != null) mMessageHistory.addAll(dirHistory);
+        mHistoryVersion++;
     }
 
     private boolean trimToMaxSize() {

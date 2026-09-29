@@ -12,6 +12,7 @@ import androidx.preference.SwitchPreferenceCompat;
 import com.termux.R;
 import com.termux.app.TermuxActivity;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
+import com.termux.app.notification.TermuxTerminalNotificationDispatcher;
 import com.termux.shared.termux.settings.preferences.TermuxAPIAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxFloatAppSharedPreferences;
@@ -81,6 +82,12 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("notification_inline_reply_enabled", prefs.areNotificationInlineRepliesEnabled(false),
             value -> prefs.setNotificationInlineRepliesEnabled(value), false);
 
+        // The summary names the window, so its number is formatted in here from the dispatcher's own
+        // constant rather than repeated as a literal in every translation.
+        SwitchPreferenceCompat dedupPref = findPreference("notification_deduplication_enabled");
+        if (dedupPref != null)
+            dedupPref.setSummary(getString(R.string.termux_notification_deduplication_summary,
+                TermuxTerminalNotificationDispatcher.DUPLICATE_WINDOW_MS));
         configureSwitch("notification_deduplication_enabled", prefs.isNotificationDeduplicationEnabled(false),
             value -> prefs.setNotificationDeduplicationEnabled(value), false);
 

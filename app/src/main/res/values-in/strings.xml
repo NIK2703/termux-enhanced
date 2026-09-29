@@ -687,5 +687,5 @@
     <string name="termux_notification_inline_reply_summary">Tampilkan tombol balas pada notifikasi dari sesi untuk mengirim teks diikuti Enter ke sesi tersebut</string>
     <string name="terminal_notification_channel_description">Pesan dari program yang berjalan di sesi terminal</string>
     <string name="termux_notification_deduplication_title">Deduplikasi notifikasi</string>
-    <string name="termux_notification_deduplication_summary">Abaikan notifikasi yang tiba dalam 100 milidetik setelah yang terakhir dikirim</string>
+    <string name="termux_notification_deduplication_summary">Abaikan notifikasi yang tiba dalam %1$d milidetik setelah yang terakhir dikirim</string>
 </resources>
