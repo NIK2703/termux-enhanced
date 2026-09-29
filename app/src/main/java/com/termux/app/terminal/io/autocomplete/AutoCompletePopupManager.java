@@ -255,7 +255,6 @@ final class AutoCompletePopupManager {
             });
             scroll.setClipToOutline(true);
         }
-        scroll.setAlpha(mPopupContentAlpha);
 
         content.measure(
                 View.MeasureSpec.makeMeasureSpec(sumWidth, View.MeasureSpec.EXACTLY),
@@ -275,7 +274,12 @@ final class AutoCompletePopupManager {
         };
         popupBgDrawable.setShape(GradientDrawable.RECTANGLE);
         popupBgDrawable.setCornerRadius(mPopupCornerRadiusPx);
-        popupBgDrawable.setColor(mColorSchemeManager.getHistoryPopupBg());
+        // The alpha goes on the background, not the content ScrollView: the background is drawn on
+        // the decor view, so content alpha never makes the panel translucent. A translucent fill
+        // still yields a valid outline, so the elevation shadow is unaffected.
+        final int bg = mColorSchemeManager.getHistoryPopupBg();
+        popupBgDrawable.setColor(Color.argb(Math.round(mPopupContentAlpha * 255),
+                Color.red(bg), Color.green(bg), Color.blue(bg)));
         popup.setBackgroundDrawable(popupBgDrawable);
         popup.setClippingEnabled(true);
         popup.setTouchable(true);

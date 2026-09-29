@@ -28,7 +28,7 @@
     <dimen name="autocomplete_popup_edge_margin">8dp</dimen>
     <dimen name="autocomplete_popup_y_offset">4dp</dimen>
     <dimen name="autocomplete_popup_min_y">16dp</dimen>
-    <item name="autocomplete_popup_content_alpha" type="fraction">90%</item>
+    <item name="autocomplete_popup_content_alpha" type="fraction">80%</item>
     <item name="autocomplete_popup_shadow_alpha" type="fraction">65%</item>
 
     <!-- Message history popup dimensions -->
