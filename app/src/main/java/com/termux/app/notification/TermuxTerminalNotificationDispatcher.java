@@ -137,7 +137,6 @@ public final class TermuxTerminalNotificationDispatcher {
         sChannelCreated = true;
     }
 
-    /** Create the channel the protocol's notifications go on, if missing. */
     public static void ensureChannel(@NonNull Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         createChannel(context);

@@ -411,7 +411,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** System touch slop in px, read on first use. */
     private int mTouchSlopPx;
 
-    /** Non-null while the user's finger is on the toggle-text-input button. */    private boolean mButtonTouchInProgress = false;
+    /** Non-null while the user's finger is on the toggle-text-input button. */
+    private boolean mButtonTouchInProgress = false;
 
     private TextInputPanelController mTextInputPanel;
     private AutoCompleteController mAutoCompleteCtrl;
@@ -1696,7 +1697,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final View container = findViewById(R.id.terminal_toolbar_text_input_container);
         final ExtraKeysView ekv = getExtraKeysView();
         if (isTextInputVisible() && container != null) {
-            // A real GONE→VISIBLE cycle on the panel, the one the user is looking at.
             container.setVisibility(View.GONE);
             container.setVisibility(View.VISIBLE);
         } else if (ekv != null) {

@@ -256,12 +256,10 @@ public class MessageHistoryControllerTest {
         ctrl.addToMessageHistoryInDirectory("yes", LOG_DIR);
         ctrl.save();
 
-        // Off.
         ctrl.save();
         ctrl.setPerDirectoryEnabled(false);
         ctrl.load(HOME);
 
-        // On again.
         ctrl.save();
         ctrl.setPerDirectoryEnabled(true);
         ctrl.load(HOME);

@@ -107,7 +107,7 @@
 
              Declared after the toolbar so it paints on top of it, and after the pager so it
              paints on top of the terminal. The anchor is re-pointed at the tab panel when the
-             tabs are at the bottom — see TermuxActivity.updateTextInputViewsAnchor().
+             tabs are at the bottom — see TermuxActivity.applyBottomStripAnchors().
 
              0dp with both edges pinned rather than match_parent, because that is the idiom whose
              horizontal margins RelativeLayout actually honours: the right margin is what keeps the

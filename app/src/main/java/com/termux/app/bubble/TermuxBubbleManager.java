@@ -404,9 +404,6 @@ public final class TermuxBubbleManager {
             .setImportant(true)
             .build();
 
-        // MessagingStyle + Person is one of the documented ways for a bubble to be accepted, and it
-        // costs nothing here. The session title is used as the message so the fallback notification
-        // still says something useful.
         // A named user and no title or message: MessagingStyle is what makes the platform treat this
         // as a conversation, and hence what lets it bubble. The shade entry only has to exist — what
         // the user reads is the floating window it opens, which already shows the session.

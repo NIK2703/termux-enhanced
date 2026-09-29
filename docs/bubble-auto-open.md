@@ -319,13 +319,13 @@ activity приложения» ровно одна — эта самая.
 |---|---|---|
 | бинд страницы | флаг **до** первого `setTextSize()`/`attachSession()` — оба зовут `updateSize()` | `TerminalPagerAdapter.onBindViewHolder` |
 | переключение вкладки | окно забирает claim, если оно на переднем плане | `SessionPagerManager.onTerminalPageSelected` |
-| `onPause` | окно **отпускает** claim целиком | `TermuxActivity.onPause` → `releaseSizeAuthority` |
-| `onResume` | claim возвращается; восходящий фронт сразу перепубликовывает размер | `TermuxActivity.onResume` → `claimSizeAuthority` |
+| `onPause` | окно **отпускает** claim целиком | `TermuxActivity.onPause` → `SessionPagerManager.setWindowInFront(false)` |
+| `onResume` | claim возвращается; восходящий фронт сразу перепубликовывает размер | `TermuxActivity.onResume` → `SessionPagerManager.setWindowInFront(true)` |
 | переработка holder'а | флаг сбрасывается | `TerminalPagerAdapter.onViewRecycled` |
 
 Почему отпускание в `onPause`, а не в `onStop`: это и есть момент, когда окно уходит с переднего
 плана. Это же делает рабочим возврат — окно, которое «помнило» свой claim, при возврате не нашло бы
-повода ничего делать (сессия та же, `setSizeAuthoritySession` вышел бы по раннему возврату), и
+повода ничего делать (сессия та же, `setSizeAuthority` вышел бы по раннему возврату), и
 записанная пузырьком геометрия выжила бы. Путь через `null` делает claim свежим фронтом.
 
 **Гейт не рубит создание сессии.** `TerminalSession.updateSize()` делает две разные вещи: при
