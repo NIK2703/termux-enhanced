@@ -171,6 +171,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 // mShowExplicitlyRequested=false). Same pre-emption as the main window's startup
                 // hide; ADJUST_RESIZE is OR'd in deliberately — see the helper's javadoc.
                 KeyboardUtils.setSoftKeyboardAlwaysHiddenAndAdjustResize(mActivity);
+                mActivity.applyExtraKeysToKeyboardVisibility();   // no keyboard here, so no transition
                 Logger.logInfo(LOG_TAG, "Bubble cold start: suppressing automatic soft keyboard shows");
             } else {
                 mBubbleStartupImeSuppressed = false;

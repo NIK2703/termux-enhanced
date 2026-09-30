@@ -399,7 +399,15 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** The {@code text_input_enabled} setting as last applied; null until it is first read. */
     private Boolean mTextInputPanelEnabled = null;
 
-    private boolean mPressExempt;
+    /** True while the press being tracked must not dismiss the input panel. */
+    private boolean mPressKeepsPanel;
+    /** Whether the press being tracked went down on the terminal, where a gesture keeps the panel. */
+    private boolean mPressOnTerminal;
+    /** Where the press being tracked went down, in screen coordinates (for {@link #pressIsTap}). */
+    private float mPressRawX;
+    private float mPressRawY;
+    /** System touch slop in px, read on first use. */
+    private int mTouchSlopPx;
     private View mTextInputPanelContainer;
     private ViewGroup mSessionTabsContainer;
     private final int[] mScreenLocation = new int[2];
@@ -4547,13 +4555,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             }
 
             // Extra keys mirror the REAL IME visibility — deliberately outside the transition guard.
-            if (mExtraKeysView != null
-                    && getTerminalToolbarContainer().getVisibility() == View.VISIBLE
-                    && extraKeysFollowsKeyboard()
-                    && mPreferences.shouldHideExtraKeysWithKeyboard()) {
-                mExtraKeysView.setVisibility(imeVisible ? View.VISIBLE : View.GONE);
-                Logger.logDebug(LOG_TAG, "Auto-" + (imeVisible ? "showing" : "hiding") + " extra keys with keyboard");
-            }
+            applyExtraKeysToKeyboardVisibility();
 
         }
     }
@@ -4561,44 +4563,61 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Every touch this window receives, before any child view sees it.
      *
-     * <p>The input panel floats over the terminal, so it has to get out of the way as soon as the
-     * user touches anything else. A tap or a gesture alike counts: one "touched outside the panel"
-     * check covers all of it — the terminal, an extra-keys button and the swipe across one, a
-     * sticky modifier, a scroll of the transcript, a selection drag — and, unlike a listener on any
-     * one of those, it cannot miss one added later. Where the press STARTED is what counts, not
-     * where it ended, so a drag that began on the panel and wandered off it does not dismiss it.
+     * <p>Dismisses the input panel: a tap on the terminal, any press on the extra keys, anything
+     * else on screen that is not the panel. A gesture on the terminal — a scroll, a selection, a
+     * session swipe, a scrollbar-thumb drag — leaves it alone.
      */
     @Override
     public boolean dispatchTouchEvent(@NonNull MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                beginPressTracking(event);
+                beginPressTracking(event.getRawX(), event.getRawY());
                 break;
             case MotionEvent.ACTION_UP:
-                if (pressMayDismissInputPanel()) setTextInputVisible(false);
+                if (pressMayDismissInputPanel(event.getRawX(), event.getRawY())) setTextInputVisible(false);
                 break;
             case MotionEvent.ACTION_CANCEL:
                 // No release to judge: poison the press so nothing is decided from it.
-                mPressExempt = true;
+                mPressKeepsPanel = true;
                 break;
         }
         return super.dispatchTouchEvent(event);
     }
 
-    private void beginPressTracking(@NonNull MotionEvent event) {
-        final float x = event.getRawX();
-        final float y = event.getRawY();
-        mPressExempt = isTouchInside(getTextInputPanelContainer(), x, y)
+    /** Remember where the press went down and what it landed on; judged by that, not by the release. */
+    private void beginPressTracking(float x, float y) {
+        mPressRawX = x;
+        mPressRawY = y;
+        mPressKeepsPanel = isTouchInside(getTextInputPanelContainer(), x, y)
             || isTouchInside(getFloatingButton(), x, y)
             || isTouchInside(getSessionTabsContainer(), x, y);
+        mPressOnTerminal = isTouchInside(getTerminalPager(), x, y);
     }
 
-    private boolean pressMayDismissInputPanel() {
+    /** Whether the press being released dismisses the input panel. */
+    private boolean pressMayDismissInputPanel(float releaseX, float releaseY) {
+        // Nothing to dismiss, and closing it anyway would save the draft and pull focus off the
+        // terminal on every press.
         if (!isTextInputVisible()) return false;
-        if (mPressExempt) return false;
-        final androidx.viewpager2.widget.ViewPager2 pager = getTerminalPager();
-        return pager == null
-            || pager.getScrollState() != androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_DRAGGING;
+        if (mPressKeepsPanel) return false;
+        // The extra keys and the window around them: any press, tap or gesture alike.
+        if (!mPressOnTerminal) return true;
+        // The scrollbar thumb, read before the terminal view's own ACTION_UP clears it.
+        final TerminalView terminal = getActiveTerminalView();
+        if (terminal != null && terminal.isScrollbarDragging()) return false;
+        // Otherwise on the terminal: a tap dismisses, a gesture does not.
+        return pressIsTap(releaseX, releaseY);
+    }
+
+    /** Whether the press stayed within the touch slop, i.e. is a tap rather than a swipe or a drag. */
+    private boolean pressIsTap(float releaseX, float releaseY) {
+        final int slop = touchSlopPx();
+        return Math.abs(releaseX - mPressRawX) <= slop && Math.abs(releaseY - mPressRawY) <= slop;
+    }
+
+    private int touchSlopPx() {
+        if (mTouchSlopPx <= 0) mTouchSlopPx = ViewConfiguration.get(this).getScaledTouchSlop();
+        return mTouchSlopPx;
     }
 
     private View getTextInputPanelContainer() {
@@ -4625,6 +4644,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     private boolean extraKeysFollowsKeyboard() {
         return isTextInputPanelOverTerminal() || !isTextInputVisible();
+    }
+
+    /**
+     * Show or hide the extra keys with the keyboard, when that is the configured mode. Also called
+     * from a bubble's cold start: no keyboard follows there, so no IME transition would ever bring
+     * the keys down.
+     */
+    public void applyExtraKeysToKeyboardVisibility() {
+        if (mExtraKeysView == null) return;
+        if (getTerminalToolbarContainer().getVisibility() != View.VISIBLE) return;
+        if (!extraKeysFollowsKeyboard() || !mPreferences.shouldHideExtraKeysWithKeyboard()) return;
+        final int wanted = mSoftKeyboardVisible ? View.VISIBLE : View.GONE;
+        if (mExtraKeysView.getVisibility() == wanted) return;
+        Logger.logDebug(LOG_TAG, "Auto-" + (mSoftKeyboardVisible ? "showing" : "hiding") + " extra keys with keyboard");
+        mExtraKeysView.setVisibility(wanted);
     }
 
     /**

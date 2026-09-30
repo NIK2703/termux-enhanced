@@ -2662,6 +2662,11 @@ public final class TerminalView extends View {
         invalidate();
     }
 
+    /** Whether the finger is on the thumb; cleared by our own ACTION_UP, so read it before that. */
+    public boolean isScrollbarDragging() {
+        return mScrollbarDragging;
+    }
+
     /**
      * Draw the interactive scrollbar thumb on the right edge of the view. The thumb colour is
      * pre-computed by the app layer, falling back to a scheme-derived computation when the
