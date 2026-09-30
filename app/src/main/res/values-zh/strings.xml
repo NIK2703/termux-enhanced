@@ -30,6 +30,8 @@
     <string name="action_failsafe_mode">故障安全模式</string>
     <string name="new_tab_placeholder_hint">新建会话</string>
     <string name="swipe_rightmost_new_tab_title">滑动最右侧标签页以新建会话</string>
+    <string name="gesture_directory_history_title">在滑动手势中显示工作目录历史</string>
+    <string name="new_tab_in_active_session_directory_title">在当前会话的目录中打开新标签页</string>
     <string name="title_max_terminals_reached">终端数量已达上限</string>
     <string name="msg_max_terminals_reached">请先关闭现有终端再创建新终端。</string>
     <string name="title_rename_session">设置会话名称</string>

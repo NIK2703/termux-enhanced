@@ -164,6 +164,8 @@
 <string name="tab_close_description">Sekmeyi kapat</string>
     <string name="new_tab_placeholder_hint">Yeni oturum</string>
     <string name="swipe_rightmost_new_tab_title">Yeni oturum için en sağdaki sekmeyi sağa kaydırın</string>
+    <string name="gesture_directory_history_title">Kaydırma hareketinde dizin geçmişini göster</string>
+    <string name="new_tab_in_active_session_directory_title">Geçerli oturumun dizininde yeni sekme aç</string>
     <string name="termux_tab_height_mode_title">Sekme yüksekliği</string>
     <string name="termux_tab_height_mode_single">Tek satır</string>
     <string name="termux_tab_height_mode_double">İki satır</string>

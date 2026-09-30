@@ -226,7 +226,6 @@ public final class SessionPagerManager {
         if (picker != null) action.accept(picker);
     }
 
-    /** {@link #withDirectoryPicker} for a query; false when there is no picker. */
     private boolean withDirectoryPickerBool(Predicate<DirectoryPickerController> query) {
         DirectoryPickerController picker = getDirectoryPicker();
         return picker != null && query.test(picker);
@@ -1099,7 +1098,6 @@ public final class SessionPagerManager {
         if (mTerminalPagerAdapter == null || mTerminalPager == null) return;
         if (!mTerminalPagerAdapter.isPlaceholderActive()) return;
         if (mTerminalPager.getCurrentItem() != mTerminalPagerAdapter.getSessionCount() - 1) return;
-        // Reading every live session is only worth it if a list is actually going to be drawn.
         if (!withDirectoryPickerBool(DirectoryPickerController::isHistoryEnabled)) return;
         mActivity.recordAllSessionDirectories();
         // Re-read the (now updated) history and pre-measure the labels while nothing is animating:
@@ -1111,17 +1109,14 @@ public final class SessionPagerManager {
      * The directory the swipe selected: the row the finger was over on release, or the shared
      * new-tab default ({@code resolveNewTabDirectory()}) for every other release position.
      *
-     * <p>A picked row is returned untouched — an explicit pick is a deliberate choice, not the
-     * fallback the switch is about. The fallback is still the session the user was standing on:
-     * {@code commitPlaceholderToSession()} runs from {@code onPageSelected()} before
-     * {@link #onTerminalPageSelected(int)}.
+     * <p>A picked row wins — an explicit pick is a deliberate choice, not the fallback. The
+     * fallback is still the session the user was standing on: {@code commitPlaceholderToSession()}
+     * runs from {@code onPageSelected()} before {@link #onTerminalPageSelected(int)}.
      */
     @NonNull
     private String resolvePickDirectory() {
         if (mForcedPickPending && mForcedPickDirectory != null) return mForcedPickDirectory;
         if (mPendingPickReady && mPendingPickDirectory != null) return mPendingPickDirectory;
-        // Null only when the switch is on and no session can be read; createNewSession() would
-        // then fall back to its own default, so keep a directory either way.
         final String fallback = TermuxTerminalSessionActivityClient.resolveNewTabDirectory(mActivity);
         return (fallback != null) ? fallback : mActivity.getProperties().getDefaultWorkingDirectory();
     }

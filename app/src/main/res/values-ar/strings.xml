@@ -173,6 +173,8 @@
     <string name="session_null_title">جلسة فارغة (null)</string>
     <string name="new_tab_placeholder_hint">جلسة جديدة</string>
     <string name="swipe_rightmost_new_tab_title">اسحب علامة التبويب الأخيرة لجلسة جديدة</string>
+    <string name="gesture_directory_history_title">إظهار سجل الدليل في إيماءة السحب</string>
+    <string name="new_tab_in_active_session_directory_title">فتح علامة تبويب جديدة في دليل الجلسة الحالية</string>
     <string name="shared_user_label">مستخدم Termux</string>
     <string name="tab_close_description">إغلاق علامة التبويب</string>
     <string name="termux_tab_height_mode_title">ارتفاع علامة التبويب</string>

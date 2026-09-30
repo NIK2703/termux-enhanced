@@ -152,6 +152,8 @@
     <string name="tab_close_description">Fechar aba</string>
     <string name="new_tab_placeholder_hint">Nova sessão</string>
     <string name="swipe_rightmost_new_tab_title">Deslizar a última aba para criar nova sessão</string>
+    <string name="gesture_directory_history_title">Mostrar histórico de diretórios no gesto de deslizar</string>
+    <string name="new_tab_in_active_session_directory_title">Abrir uma nova aba no diretório da sessão atual</string>
     <string name="termux_tab_height_mode_title">Altura da aba</string>
     <string name="termux_tab_height_mode_single">Linha única</string>
     <string name="termux_tab_height_mode_double">Duas linhas</string>

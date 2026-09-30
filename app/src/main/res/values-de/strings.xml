@@ -145,6 +145,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="session_null_title">null-Sitzung</string>
     <string name="new_tab_placeholder_hint">Neue Sitzung</string>
     <string name="swipe_rightmost_new_tab_title">Letzten Tab nach rechts wischen, um eine neue Sitzung zu öffnen</string>
+    <string name="gesture_directory_history_title">Verzeichnisverlauf in der Wischgeste anzeigen</string>
+    <string name="new_tab_in_active_session_directory_title">Neuen Tab im Verzeichnis der aktuellen Sitzung öffnen</string>
     <string name="termux_tab_height_mode_title">Tabhöhe</string>
     <string name="termux_tab_height_mode_single">Eine Zeile</string>
     <string name="termux_tab_height_mode_double">Zwei Zeilen</string>

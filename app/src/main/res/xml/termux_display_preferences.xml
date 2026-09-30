@@ -119,7 +119,6 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
-        <!-- Off leaves the placeholder showing just the "+ new session" hint. -->
         <SwitchPreferenceCompat
             app:key="gesture_directory_history_enabled"
             app:title="@string/gesture_directory_history_title"
@@ -132,8 +131,7 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
-        <!-- No summary on purpose: the label already names the behaviour. Only the unpicked
-             default follows this switch — a row picked in the swipe picker still wins. -->
+        <!-- Only the unpicked default follows this switch — a row picked in the swipe picker wins. -->
         <SwitchPreferenceCompat
             app:key="new_tab_in_active_session_directory"
             app:title="@string/new_tab_in_active_session_directory_title"

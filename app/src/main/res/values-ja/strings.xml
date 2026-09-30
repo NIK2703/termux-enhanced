@@ -153,6 +153,8 @@
 <string name="session_default_title">ターミナル</string>
 <string name="new_tab_placeholder_hint">新しいセッション</string>
 <string name="swipe_rightmost_new_tab_title">最右端のタブを右にスワイプして新規セッション</string>
+<string name="gesture_directory_history_title">スワイプ操作でディレクトリ履歴を表示</string>
+<string name="new_tab_in_active_session_directory_title">現在のセッションのディレクトリで新規タブを開く</string>
 <string name="termux_tab_height_mode_title">タブの高さ</string>
 <string name="termux_tab_height_mode_single">1行</string>
 <string name="termux_tab_height_mode_double">2行</string>

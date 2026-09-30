@@ -160,6 +160,8 @@
     <string name="tab_close_description">Cerrar pestaña</string>
     <string name="new_tab_placeholder_hint">Nueva sesión</string>
     <string name="swipe_rightmost_new_tab_title">Deslizar la última pestaña para crear una nueva sesión</string>
+    <string name="gesture_directory_history_title">Mostrar el historial de directorios al deslizar</string>
+    <string name="new_tab_in_active_session_directory_title">Abrir una nueva pestaña en el directorio de la sesión actual</string>
     <string name="termux_tab_height_mode_title">Altura de la pestaña</string>
     <string name="termux_tab_height_mode_single">Una línea</string>
     <string name="termux_tab_height_mode_double">Dos líneas</string>

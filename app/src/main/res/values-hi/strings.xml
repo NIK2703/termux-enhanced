@@ -149,6 +149,8 @@
     <string name="session_null_title">नामहीन सत्र</string>
     <string name="new_tab_placeholder_hint">नया सत्र</string>
     <string name="swipe_rightmost_new_tab_title">नए सत्र के लिए अंतिम टैब पर स्वाइप करें</string>
+    <string name="gesture_directory_history_title">स्वाइप जेस्चर में निर्देशिका इतिहास दिखाएँ</string>
+    <string name="new_tab_in_active_session_directory_title">वर्तमान सत्र की निर्देशिका में नया टैब खोलें</string>
     <string name="shared_user_label">Termux उपयोगकर्ता</string>
     <string name="tab_close_description">टैब बंद करें</string>
     <string name="termux_api_preferences_summary">Termux:API ऐप के लिए प्राथमिकताएँ</string>

@@ -162,6 +162,8 @@
     <string name="tab_close_description">Fermer l\'onglet</string>
     <string name="new_tab_placeholder_hint">Nouvelle session</string>
     <string name="swipe_rightmost_new_tab_title">Balayer le dernier onglet pour une nouvelle session</string>
+    <string name="gesture_directory_history_title">Afficher l\'historique des répertoires au balayage</string>
+    <string name="new_tab_in_active_session_directory_title">Ouvrir un nouvel onglet dans le répertoire de la session actuelle</string>
     <string name="text_input_toggle_button_title">Bouton de bascule du panneau de saisie</string>
     <string name="text_input_over_terminal_title">Panneau de saisie sur le terminal</string>
 

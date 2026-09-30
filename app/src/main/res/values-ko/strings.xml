@@ -25,6 +25,8 @@
     <string name="action_new_session">새 세션</string>
     <string name="new_tab_placeholder_hint">새 세션</string>
     <string name="swipe_rightmost_new_tab_title">마지막 탭을 오른쪽으로 스와이프하여 새 세션 열기</string>
+    <string name="gesture_directory_history_title">스와이프에서 디렉터리 기록 보기</string>
+    <string name="new_tab_in_active_session_directory_title">현재 세션의 디렉터리에서 새 탭 열기</string>
     <string name="action_open_help">도움말</string>
     <string name="action_open_settings">설정</string>
     <string name="action_rename_session_confirm">설정</string>

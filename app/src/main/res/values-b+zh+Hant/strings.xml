@@ -30,6 +30,8 @@
     <string name="action_failsafe_mode">故障安全模式</string>
     <string name="new_tab_placeholder_hint">新增工作階段</string>
     <string name="swipe_rightmost_new_tab_title">滑動最右側分頁以新增工作階段</string>
+    <string name="gesture_directory_history_title">在滑動手勢中顯示工作目錄紀錄</string>
+    <string name="new_tab_in_active_session_directory_title">在目前工作階段的目錄中開啟新分頁</string>
     <string name="title_max_terminals_reached">終端機數量已達上限</string>
     <string name="msg_max_terminals_reached">請先關閉現有終端機，再建立新終端機。</string>
     <string name="title_rename_session">設定工作階段名稱</string>

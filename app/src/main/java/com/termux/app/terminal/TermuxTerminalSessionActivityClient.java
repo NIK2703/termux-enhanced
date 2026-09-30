@@ -292,7 +292,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         });
     }
 
-    /** Coalesce the cosmetic title refresh into at most one posted execution per frame. */
     private void scheduleTitleRefresh() {
         if (mTitleRefreshPending) return;
         mTitleRefreshPending = true;
@@ -476,7 +475,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         setCurrentSession(session, true);
     }
 
-    /** Switch to the given session, scrolling the pager smoothly (shortcuts, sessions list, service). */
     public void setCurrentSession(TerminalSession session, boolean showToast) {
         setCurrentSession(session, showToast, true);
     }
@@ -732,7 +730,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         return (session != null) ? session.getCwd() : null;
     }
 
-    /** Key of the "new tab in the active session's directory" switch, in {@code termux_prefs}. */
     public static final String PREF_NEW_TAB_IN_ACTIVE_SESSION_DIRECTORY =
             "new_tab_in_active_session_directory";
 
@@ -742,8 +739,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * call, never cached — the "+" button and the right-swipe commit resolve at different instants
      * and each must use the session that was selected at its own moment.
      *
-     * @return the directory to open in, or {@code null} if the switch is on but no session can be
-     *         read; {@link #createNewSession} then falls back to the default working directory.
+     * @return null if the switch is on but no session can be read; {@link #createNewSession} then
+     *         falls back to the default working directory.
      */
     @Nullable
     public static String resolveNewTabDirectory(@NonNull TermuxActivity activity) {

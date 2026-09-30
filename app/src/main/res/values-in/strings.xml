@@ -145,6 +145,8 @@
 <string name="shared_user_label">Pengguna Termux</string>
 <string name="new_tab_placeholder_hint">Sesi baru</string>
 <string name="swipe_rightmost_new_tab_title">Geser tab terakhir untuk sesi baru</string>
+<string name="gesture_directory_history_title">Tampilkan riwayat direktori saat menggeser</string>
+<string name="new_tab_in_active_session_directory_title">Buka tab baru di direktori sesi saat ini</string>
 <string name="termux_tab_height_mode_title">Tinggi tab</string>
 <string name="termux_tab_height_mode_single">Satu baris</string>
 <string name="termux_tab_height_mode_double">Dua baris</string>
