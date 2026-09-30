@@ -138,7 +138,9 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureTabListPrefWithBroadcast("tab_panel_position", "top", "com.termux.TAB_PANEL_POSITION_CHANGED");
         configureTabListPrefWithBroadcast("tab_height_mode", "single", "com.termux.TAB_HEIGHT_MODE_CHANGED");
         configureTermuxPrefsSwitch("swipe_rightmost_new_tab", true);
+        configureTermuxPrefsSwitch("gesture_directory_history_enabled", true);
         configureTermuxPrefsSwitch("restore_sessions", false);
+        configureTermuxPrefsSwitch("new_tab_in_active_session_directory", false);
         configureDirectoryHistoryMaxPreference();
     }
 

@@ -182,8 +182,7 @@ public final class TerminalView extends View {
      * <p>Used to detect "another frame arrived, clipped exactly like the previous one": the request
      * for the uncovered part of the view is then dropped, because it cannot possibly help. That is
      * what bounds the recovery — not a retry count, which would be spent by frames that by
-     * construction can never be full, leaving the surface half-stale forever (see
-     * {@link #requestUncoveredRegion}).</p>
+     * construction can never be full, leaving the surface half-stale forever.</p>
      */
     private final Rect mUncoveredRecoveryClip = new Rect();
 
@@ -191,9 +190,9 @@ public final class TerminalView extends View {
 
     @Override
     public void invalidate() {
-        // Every full invalidate is the framework's promise to repaint the whole view, so the
-        // previous-frame content is no longer trustworthy. (Partial invalidates — invalidate(l,t,r,b)
-        // — leave the rest of the surface intact and do not affect this flag.)
+        // A full invalidate is the framework's promise to repaint the whole view, so the
+        // previous-frame content is no longer trustworthy. (Partial invalidates leave the rest
+        // of the surface intact and do not affect this flag.)
         mPixelsValid = false;
         // A full invalidate supersedes any outstanding request for the uncovered part: it already
         // covers it, so the recovery bookkeeping starts over (and the next partial frame must ask
@@ -292,10 +291,6 @@ public final class TerminalView extends View {
      * fling absorb and {@link #mOverdragRawPx} all share one sign — the drag's
      * {@code distanceY} is the one that has to be negated (it is "distance scrolled", so it has
      * the opposite sign to the finger's own velocity).</p>
-     *
-     * <p>This is the single source of truth of the effect: the spring animates it too, and the
-     * applied displacement is always derived from it. Nothing ever writes the displacement
-     * directly, so the two can never disagree.</p>
      */
     private float mOverdragRawPx;
 
@@ -372,10 +367,6 @@ public final class TerminalView extends View {
     /** Master switch for the elastic over-drag. */
     private static final boolean ELASTIC_OVERDRAG_ENABLED = true;
 
-    // The absorbed-velocity cap and the fling threshold used to live here (in dp/s, scaled by
-    // density). They are now part of the shared model — ElasticOverdrag.MAX_ABSORB_VELOCITY_DP and
-    // MIN_ABSORB_VELOCITY_DP — so the pager and the transcript cannot drift apart again.
-
     /**
      * Axis lock for the current finger gesture. Once the dominant direction is decided by the
      * first significant displacement, it is locked until the next {@code ACTION_DOWN} so an
@@ -445,27 +436,15 @@ public final class TerminalView extends View {
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     int mCombiningAccent;
 
-    /**
-     * {@link View#getAutofillType()}: {@link #AUTOFILL_TYPE_NONE} by default so AutoFill UI never
-     * pops up on its own; flip to {@link #AUTOFILL_TYPE_TEXT} before
-     * {@link AutofillManager#requestAutofill(View)}, then {@link #autofill(AutofillValue)} restores
-     * it via {@link #resetAutoFill()}.
-     */
+    /** Flipped to {@link #AUTOFILL_TYPE_TEXT} for a request, back by {@link #resetAutoFill()}. */
     @RequiresApi(api = Build.VERSION_CODES.O)
     private int mAutoFillType = AUTOFILL_TYPE_NONE;
 
-    /**
-     * {@link View#getImportantForAutofill()}: {@link #IMPORTANT_FOR_AUTOFILL_NO} by default; flip
-     * to {@link #IMPORTANT_FOR_AUTOFILL_YES} before {@link AutofillManager#requestAutofill(View)},
-     * then {@link #autofill(AutofillValue)} restores it via {@link #resetAutoFill()}.
-     */
+    /** Flipped to {@link #IMPORTANT_FOR_AUTOFILL_YES} for a request, back by {@link #resetAutoFill()}. */
     @RequiresApi(api = Build.VERSION_CODES.O)
     private int mAutoFillImportance = IMPORTANT_FOR_AUTOFILL_NO;
 
-    /**
-     * {@link View#getAutofillHints()}: empty by default; restored to empty in
-     * {@link #autofill(AutofillValue)} via {@link #resetAutoFill()}.
-     */
+    /** The hints in flight for a request; cleared by {@link #resetAutoFill()}. */
     private String[] mAutoFillHints = new String[0];
 
     private final boolean mAccessibilityEnabled;
@@ -868,14 +847,11 @@ public final class TerminalView extends View {
             // During a fling the OverScroller owns mTopRow exclusively (runFlingFrame applies
             // absolute row targets), so the follow-text branch below must not move it on its own —
             // that would fight the scroller and jitter. The compensation is still applied, but to
-            // BOTH sides at once (anchorFlingToContent): mTopRow and the scroller's row target
-            // shift by the same number of rows, so `diff = newRow - mTopRow` — the only thing the
-            // fling actually applies — is untouched. Without it the fling flies over buffer
-            // addresses that the output renumbered underneath it and lands exactly `rowShift` rows
-            // short of the end it was heading for.
+            // BOTH sides at once (anchorFlingToContent), so the fling does not fly over buffer
+            // addresses that the output renumbered underneath it and land `rowShift` rows short
+            // of the end it was heading for.
             final int rowShift = mEmulator.getScrollCounter();
             if (rowShift != 0 && !mFlingDeltaMode) anchorFlingToContent(rowShift);
-            // The snap-to-bottom further down is skipped too via skipScrolling.
             skipScrolling = true;
         } else if (isSelectingText() || mEmulator.isAutoScrollDisabled()) {
 
@@ -898,7 +874,6 @@ public final class TerminalView extends View {
         }
 
         if (!skipScrolling && mTopRow != 0) {
-            // Scroll down if not already there.
             if (mTopRow < -3) {
                 // Awaken scroll bars only if scrolling a noticeable amount
                 // - we do not want visible scroll bars during normal typing
@@ -924,7 +899,6 @@ public final class TerminalView extends View {
         if (mOnScreenUpdateListener != null) mOnScreenUpdateListener.onScreenUpdated();
     }
 
-    /** Build and set the accessibility content description at most once per {@link #A11Y_DESCRIPTION_INTERVAL_MS}. */
     private void updateContentDescriptionIfNeeded() {
         long now = SystemClock.uptimeMillis();
         if (now - mLastA11yDescriptionMs < A11Y_DESCRIPTION_INTERVAL_MS) return;
@@ -937,12 +911,10 @@ public final class TerminalView extends View {
      * invalidate accordingly.
      *
      * <p>A full repaint is required when the <em>content anchor</em> moved (E1a: the internal row
-     * under the top visible line — which happens for output at the live bottom, wheel, fling, snap
-     * and buffer switch, but deliberately NOT for the follow-text compensation that keeps the view
-     * glued to the same text while the user is scrolled into history), when a selection or
-     * scrollbar drag is in progress, or when the buffer flagged everything dirty (resize, buffer
-     * switch, color reset). Otherwise only the rows the buffer marked dirty — plus the old/new
-     * cursor rows if the cursor moved — are invalidated.</p>
+     * under the top visible line), when a selection or scrollbar drag is in progress, or when the
+     * buffer flagged everything dirty (resize, buffer switch, color reset). Otherwise only the
+     * rows the buffer marked dirty — plus the old/new cursor rows if the cursor moved — are
+     * invalidated.</p>
      */
     private void repaintAfterUpdate() {
         TerminalBuffer screen = mEmulator.getScreen();
@@ -968,7 +940,7 @@ public final class TerminalView extends View {
         mLastCursorRow = cursorExtRow;
         mLastCursorCol = cursorCol;
 
-        // E1a: compare content, not addresses — see the field doc on mLastAnchorRow.
+        // E1a: compare content, not addresses.
         final int activeTranscript = screen.getActiveTranscriptRows();
         boolean anchorChanged;
         if (mTopRow < -activeTranscript) {
@@ -1000,7 +972,7 @@ public final class TerminalView extends View {
         // full-screen TUI: htop, top, progress bars) into 48 rows of work.
         //
         // F2: the range is only used to size the *damage rectangle*. The rows are passed to
-        // invalidateRowRange() with markRows=false so the sparse dirty set survives — see there.
+        // invalidateRowRange() with markRows=false so the sparse dirty set survives.
         int visTop = Math.max(mTopRow, -activeTranscript);
         int visBottom = Math.min(mTopRow + mEmulator.mRows - 1, mEmulator.mRows - 1);
         int first = Integer.MAX_VALUE;
@@ -1023,22 +995,17 @@ public final class TerminalView extends View {
             invalidateScrollbarBand();
             return;
         }
-        // F2: the thumb is an overlay, and the rows it covers are the one kind of damage that is
-        // not a content change — a row the renderer skips as "clean" keeps whatever was painted on
-        // top of it, i.e. the thumb's *previous* pixels. Now that invalidateRowRange() no longer
-        // re-marks every row of the band (which used to hide this), a moved thumb has to mark its
-        // own rows. invalidateScrollbarBand() is self-guarding: when the thumb has not moved it
+        // F2: a moved thumb has to mark its own rows (it is an overlay, and a row the renderer
+        // skips as "clean" keeps the thumb's *previous* pixels on top of it).
+        // invalidateScrollbarBand() is self-guarding: when the thumb has not moved it
         // returns without touching anything, so this costs one rect comparison per frame.
         invalidateScrollbarBand();
         invalidateRowRange(first, last, false);
     }
 
     /**
-     * E3: invalidate only the rows the scrollbar thumb actually occupies.
-     *
-     * <p>Used when the visible rows are all unchanged but the scroll position or the transcript
-     * length moved the thumb. {@link #invalidateRowRange(int, int)} uses a full-width band, which
-     * would drag the whole width of the screen into the damage region for a sliver of thumb.</p>
+     * E3: invalidate only the rows the scrollbar thumb actually occupies, when the visible rows
+     * are all unchanged but the scroll position or the transcript length moved the thumb.
      *
      * <p>The damaged rect is the union of the thumb's previous and its new position, and the rows
      * it covers are marked dirty so {@code render()} redraws them. That marking is what makes the
@@ -1058,10 +1025,10 @@ public final class TerminalView extends View {
         int bottom = (int) Math.ceil(now.bottom);
         if (mLastThumbTop != NO_THUMB) {
             // E3: if the thumb has not moved since the last frame there is nothing to restore — the
-            // band is exactly where it was and the content under it is still correct. Without this
-            // guard we would mark-and-repaint the thumb's rows on *every* output chunk while the
-            // user is scrolled into history and the transcript is already full, churning partial
-            // frames for a thumb that is sitting still.
+            // band is exactly where it was and the content under it is still correct. Without
+            // this guard we would mark-and-repaint the thumb's rows on *every* output chunk
+            // while the user is scrolled into history and the transcript is already full,
+            // churning partial frames for a thumb that is sitting still.
             if (mLastThumbTop == top && mLastThumbBottom == bottom) return;
             // The old thumb's pixels are still on the canvas and have to be replaced by content.
             top = Math.min(top, mLastThumbTop);
@@ -1148,10 +1115,8 @@ public final class TerminalView extends View {
      *                 two changed rows would be repainted although nothing in them changed, which
      *                 is exactly what E2 exists to prevent. The single caller
      *                 ({@link #repaintAfterUpdate()}) passes false: it only needs the band as a
-     *                 damage rectangle and has already established which rows are dirty. Anything
-     *                 that genuinely needs rows repainted marks them itself
-     *                 ({@link #invalidateScrollbarBand()}, {@link #invalidateCursorCell()},
-     *                 {@link #markRowsIntersectingDirty(int, int)}) or forces a full repaint; and
+     *                 damage rectangle and has already established which rows are dirty. Whatever
+     *                 genuinely needs rows repainted marks them itself or forces a full repaint;
      *                 the renderer's {@code forceDraw} fallback covers the residual case of a clip
      *                 in which no row is dirty at all.
      */
@@ -1199,11 +1164,9 @@ public final class TerminalView extends View {
         invalidate(left, top, right, bottom);
     }
 
-    /** This must be called by the hosting activity in {@link Activity#onContextMenuClosed(Menu)}
-     * when context menu for the {@link TerminalView} is started by
-     * {@link TextSelectionCursorController#ACTION_MORE} is closed. */
+    /** Drop the stored selection text once the {@link TextSelectionCursorController#ACTION_MORE}
+     *  context menu has been closed. */
     public void onContextMenuClosed(Menu menu) {
-        // Unset the stored text since it shouldn't be used anymore and should be cleared from memory
         unsetStoredSelectedText();
     }
 
@@ -1211,13 +1174,13 @@ public final class TerminalView extends View {
      * Sets the text size, which in turn sets the number of rows and columns.
      *
      * <p>Identity early-out: a {@link TerminalRenderer} is a pure function of (typeface, text size),
-     * and the pager re-applies the configured size on <em>every</em> page bind — see
-     * {@link #setTypeface}. Rebuilding the renderer for a size that is already in force therefore
-     * bought nothing and cost a lot: the constructor allocates its paints, a per-code-point measure
-     * table and the ASCII tables, and calls the native font metrics three times. Skipping it is
-     * exactly equivalent, because the pair {@code setTextSize(s)} + {@code setTypeface(t)} still
-     * rebuilds whenever either half actually changes — the first call keeps the current typeface and
-     * the second keeps the size, so neither can be skipped into a stale combination.
+     * and the pager re-applies the configured size on <em>every</em> page bind. Rebuilding the
+     * renderer for a size that is already in force therefore bought nothing and cost a lot: the
+     * constructor allocates its paints, a per-code-point measure table and the ASCII tables, and
+     * calls the native font metrics three times. Skipping it is exactly equivalent, because the
+     * pair {@code setTextSize(s)} + {@code setTypeface(t)} still rebuilds whenever either half
+     * actually changes — the first call keeps the current typeface and the second keeps the size,
+     * so neither can be skipped into a stale combination.
      *
      * @param textSize the new font size, in density-independent pixels.
      */
@@ -1242,11 +1205,10 @@ public final class TerminalView extends View {
         // A view bound to no session — the pager's trailing placeholder page — has no renderer yet:
         // the renderer is built here and in setTextSize(), and that page is never given a text size
         // (it paints one scheme-coloured rectangle, see onDraw's mEmulator == null branch). There is
-        // therefore no size to build one from, and dereferencing mRenderer.mTextSize below would be
-        // a NullPointerException. Bailing out is safe: the placeholder draws no glyphs, and when its
-        // slot is rebound to a real session, onBindViewHolder() calls setTextSize() first (which
-        // builds the renderer) and checkForFontAndColorsForView() after it, so the typeface is
-        // applied for real on that bind.
+        // therefore no size to build one from, and dereferencing mRenderer.mTextSize below would be a
+        // NullPointerException. When its slot is rebound to a real session, onBindViewHolder()
+        // calls setTextSize() first (which builds the renderer) and checkForFontAndColorsForView()
+        // after it, so the typeface is applied for real on that bind.
         if (mRenderer == null) return;
         if (mRenderer.mTypeface == newTypeface) return;
         mRenderer = new TerminalRenderer(mRenderer.mTextSize, newTypeface);
@@ -1321,7 +1283,6 @@ public final class TerminalView extends View {
 
     /** Send a single mouse event code to the terminal. */
     void sendMouseEventCode(MotionEvent e, int button, boolean pressed) {
-        // B6: reuse the scratch buffer instead of allocating an int[2] on every mouse event.
         getColumnAndRow(e, false, mScratchColumnAndRow);
         int x = mScratchColumnAndRow[0] + 1;
         int y = mScratchColumnAndRow[1] + 1;
@@ -1399,7 +1360,7 @@ public final class TerminalView extends View {
      */
     private void anchorFlingToContent(int rowShift) {
         if (rowShift <= 0) return;
-        // mFlingRawVelocity > 0 == into history (see the sign convention on startFling()).
+        // mFlingRawVelocity > 0 == into history.
         if (mFlingRawVelocity <= 0f) return;
         final int rowHeight = mRenderer != null ? mRenderer.mFontLineSpacing : 0;
         if (rowHeight <= 0) return;
@@ -1560,7 +1521,6 @@ public final class TerminalView extends View {
                         ? mTopRow <= -transcriptRows
                         : mTopRow >= 0;
                 if (atEdge) {
-                    // velocityY > 0 == into history == the top edge (see doScroll()).
                     absorbIntoOverdrag(intoHistory ? 1 : -1, v);
                     mFlingAbsorbedAtEdge = true;
                 }
@@ -1626,11 +1586,9 @@ public final class TerminalView extends View {
         }
     }
 
-    /** Overriding {@link View#onGenericMotionEvent(MotionEvent)}. */
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
         if (mEmulator != null && event.isFromSource(InputDevice.SOURCE_MOUSE) && event.getAction() == MotionEvent.ACTION_SCROLL) {
-            // Handle mouse wheel scrolling.
             float axis = event.getAxisValue(MotionEvent.AXIS_VSCROLL);
             if (axis == 0f) return true;
 
@@ -1686,14 +1644,10 @@ public final class TerminalView extends View {
         return ElasticOverdrag.damp(rawPx, getHeight(), overdragUnitPx());
     }
 
-    /** The single writer of {@link #mOverdragRawPx} / {@link #mOverdragPx}. */
     private void setOverdragRaw(float rawPx) {
         if (!isFinite(rawPx)) rawPx = 0f;
         rawPx = ElasticOverdrag.clampRaw(rawPx, getHeight(), overdragUnitPx());
         mOverdragRawPx = rawPx;
-        // Whole pixels: a fractional grid offset gives adjacent rows' background rects a
-        // fractional shared edge, which anti-aliases into hairline seams (the reason
-        // mGridOffsetY is snapped in updateSize()).
         final int px = Math.round(dampedOverdrag(rawPx));
         if (px == mOverdragPx) return;
         mOverdragPx = px;
@@ -1707,9 +1661,8 @@ public final class TerminalView extends View {
         return mEmulator != null && mRenderer != null
                 && !mScrollbarDragging && !isSelectingText()
                 // Both mean the application owns the scroll position: there is no transcript to
-                // pull against (the same gate the edge glow has).
+                // pull against.
                 && !mEmulator.isMouseTrackingActive() && !mEmulator.isAlternateBufferActive()
-                // Nothing to scroll == nothing to stretch.
                 && mEmulator.getScreen().getActiveTranscriptRows() > 0;
     }
 
@@ -1746,7 +1699,6 @@ public final class TerminalView extends View {
             // event's worth of travel before the band picked the motion up — a visible hitch.
             final float ls = (float) mRenderer.mFontLineSpacing;
             if (p > 0f) {
-                // px of drag still needed to reach the top of history (0 when already there).
                 final float toEdge = (mTopRow + mEmulator.getScreen().getActiveTranscriptRows()) * ls;
                 if (!(p > toEdge)) return dy;   // ordinary scroll: the band is not involved
                 rest = -toEdge;
@@ -1795,7 +1747,7 @@ public final class TerminalView extends View {
         if (!canOverdrag() || !isFinite(velocity)) return;
         // Thresholding, capping and the px/s -> dp/s conversion all happen inside the shared
         // model, so this surface answers a given gesture exactly as the session pager does, on
-        // any screen density. This call is only to bail out before starting an empty animation.
+        // any screen density.
         if (!(ElasticOverdrag.absorbVelocity(velocity, mDensity) > 0f)) {
             releaseOverdrag();
             return;
@@ -1803,8 +1755,7 @@ public final class TerminalView extends View {
         // The impulse -> how far it stretches the band, AND how fast it gets there. The fly-out
         // starts at the very speed the content crossed the boundary with and is stopped by the
         // band alone, so a harder flick flies out faster as well as further — it is not a
-        // one-frame jump to the peak. Identical model to the pager's: same feel on both surfaces,
-        // one definition.
+        // one-frame jump to the peak.
         final ElasticOverdrag.Impact impact =
                 ElasticOverdrag.impact(velocity, getHeight(), overdragUnitPx(), mDensity);
         startOverdragImpact(mOverdragRawPx, edgeSign, impact);
@@ -1908,7 +1859,7 @@ public final class TerminalView extends View {
         if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(disallow);
     }
 
-    /** Stop both the fly-out and the return. Raw is left exactly where it is — see below. */
+    /** Stop both the fly-out and the return. */
     private void cancelOverdragAnimators() {
         cancelOverdragSpring();
         cancelOverdragImpact();
@@ -1985,7 +1936,7 @@ public final class TerminalView extends View {
     private RectF computeThumbRect() {
         int range = getScrollbarRange();
         if (range <= 0) {
-            mThumbRect.setEmpty(); // no history → zero-size thumb
+            mThumbRect.setEmpty();
             return mThumbRect;
         }
 
@@ -1997,9 +1948,6 @@ public final class TerminalView extends View {
         // Thumb height: fixed size (not proportional)
         float thumbH = Math.min(mScrollbarThumbSizePx, viewH);
 
-        // Vertical position: offset from top of the track
-        // At mTopRow = 0 (bottom) → thumb at bottom of track
-        // At mTopRow = -range (top of history) → thumb at top of track
         float scrollFraction = (range + mTopRow) / (float) range; // 1 at bottom, 0 at top
         float maxOffset = viewH - thumbH;
         float thumbTop = scrollFraction * maxOffset;
@@ -2021,7 +1969,6 @@ public final class TerminalView extends View {
         float viewH = getHeight();
         float thumbH = Math.min(mScrollbarThumbSizePx, viewH);
         float maxOffset = Math.max(viewH - thumbH, 1f);
-        // Centre the thumb under the finger so grabbing it does not jump.
         float center = fingerY - thumbH / 2f;
         float scrollFraction = clamp01(center / maxOffset);
         return (int) (scrollFraction * range - range);
@@ -2048,7 +1995,6 @@ public final class TerminalView extends View {
         final int action = event.getAction();
 
         // ── Scrollbar drag handling ──
-        // Intercept touch in the scrollbar region before anything else.
         // While dragging we consume all events; once the drag ends, the
         // gesture recognizer gets nothing so it won't interpret the
         // scrollbar gesture as a terminal scroll or long-press.
@@ -2139,7 +2085,6 @@ public final class TerminalView extends View {
                 stopTextSelectionMode();
                 return true;
             } else if (mClient.shouldBackButtonBeMappedToEscape()) {
-                // Intercept back button to treat it as escape:
                 switch (event.getAction()) {
                     case KeyEvent.ACTION_DOWN:
                         return onKeyDown(keyCode, event);
@@ -2174,12 +2119,10 @@ public final class TerminalView extends View {
      * We handle shift key in `commitText()` to convert codepoint to uppercase case there with a
      * call to {@link Character#toUpperCase(int)}, but here we instead rely on getUnicodeChar() for
      * conversion of keyCode, for both hardware keyboard shift key (via effectiveMetaState) and
-     * `mClient.readShiftKey()`, based on value in kcm files.
-     * This may result in different behaviour depending on keyboard and android kcm files set for the
-     * InputDevice for the event passed to this function. This will likely be an issue for non-english
-     * languages since `Virtual.kcm` in english only by default or at least in AOSP. For both hardware
-     * shift key (via effectiveMetaState) and `mClient.readShiftKey()`, `getUnicodeChar()` is used
-     * for shift specific behaviour which usually is to uppercase.
+     * `mClient.readShiftKey()`, based on value in kcm files. This may result in different
+     * behaviour depending on keyboard and android kcm files set for the InputDevice for the event
+     * passed to this function. This will likely be an issue for non-english languages since
+     * `Virtual.kcm` in english only by default or at least in AOSP.
      *
      * For fn key on hardware keyboard, android checks kcm files for hardware keyboards, which is
      * `Generic.kcm` by default, unless a vendor specific one is defined. The event passed will have
@@ -2310,7 +2253,6 @@ public final class TerminalView extends View {
 
         int oldCombiningAccent = mCombiningAccent;
         if ((result & KeyCharacterMap.COMBINING_ACCENT) != 0) {
-            // If entered combining accent previously, write it out:
             if (mCombiningAccent != 0)
                 inputCodePoint(event.getDeviceId(), mCombiningAccent, controlDown, leftAltDown, shiftDown, fnDown);
             mCombiningAccent = result & KeyCharacterMap.COMBINING_ACCENT_MASK;
@@ -2459,17 +2401,12 @@ public final class TerminalView extends View {
             invalidate();
             return true;
         } else if (event.isSystem()) {
-            // Let system key events through.
             return super.onKeyUp(keyCode, event);
         }
 
         return true;
     }
 
-    /**
-     * This is called during layout when the size of this view has changed. If you were just added to the view
-     * hierarchy, you're called with the old values of 0.
-     */
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         updateSize();
@@ -2486,9 +2423,7 @@ public final class TerminalView extends View {
      * normally not been laid out again (same view, same size), so {@link #onSizeChanged} never fires
      * and nothing re-reports it, while {@link #updateSize()}'s check compares against the
      * <em>session's</em> emulator, which the other window has meanwhile resized. The visible result
-     * is a terminal left rendering at the other window's geometry: leave the app into a bubble and
-     * come back, and the full-screen window shows the bubble's smaller grid (and the other way
-     * round).
+     * is a terminal left rendering at the other window's geometry.
      *
      * <p>Idempotent and free when nothing changed: {@link #updateSize()} only reaches the pty when
      * the size it computes differs from the session emulator's, so calling this on every resume
@@ -2496,9 +2431,8 @@ public final class TerminalView extends View {
      */
     public void reassertSessionSize() {
         if (mTermSession == null) return;
-        // Same preconditions as onSizeChanged(): a view that has not been laid out yet has no
-        // meaningful column/row count to report, and a renderer without font metrics would make the
-        // divisions inside updateSize() produce an absurd one.
+        // A view that has not been laid out yet has no meaningful column/row count to report, and a
+        // renderer without font metrics would make the divisions inside updateSize() absurd.
         if (getWidth() == 0 || getHeight() == 0) return;
         if (mRenderer == null || mRenderer.mFontWidth <= 0 || mRenderer.mFontLineSpacing <= 0) return;
         updateSize();
@@ -2528,8 +2462,7 @@ public final class TerminalView extends View {
             // without this check every page bind pays for an ioctl that changes nothing. That bind
             // is not a rare event: the trailing placeholder is re-armed one frame after a commit,
             // i.e. inside the settle of the swipe that opened the tab. TerminalEmulator.resize()
-            // already early-outs on an unchanged size, so skipping the call is behaviour-preserving;
-            // only the syscall goes away.
+            // already early-outs on an unchanged size, so skipping the call is behaviour-preserving.
             final TerminalEmulator sessionEmulator = mTermSession.getEmulator();
             final int fontWidth = (int) mRenderer.getFontWidth();
             final int fontLineSpacing = mRenderer.getFontLineSpacing();
@@ -2540,8 +2473,8 @@ public final class TerminalView extends View {
             } else if (mSizeAuthority
                     && !sessionEmulator.hasSize(newColumns, newRows, fontWidth, fontLineSpacing)) {
                 // A claim on a session this view does not own. Skipped while another page or window is
-                // the one presenting it, so the view renders the session as it is until it is handed
-                // the session, which republishes — see setSizeAuthority().
+                // the one presenting it, so the view renders the session as it is until it is
+                // handed the session, which republishes.
                 mTermSession.updateSize(newColumns, newRows, fontWidth, fontLineSpacing);
             }
             mEmulator = mTermSession.getEmulator();
@@ -2550,29 +2483,24 @@ public final class TerminalView extends View {
             // the activity's selected one — see TerminalViewClient#onEmulatorSet.
             mClient.onEmulatorSet(this);
 
-            // Update mTerminalCursorBlinkerRunnable inner class mEmulator on session change
             if (mTerminalCursorBlinkerRunnable != null)
                 mTerminalCursorBlinkerRunnable.setEmulator(mEmulator);
 
             int liveRows = mEmulator.getScreen().getActiveTranscriptRows();
             mTopRow = Math.max(-liveRows, Math.min(0, previousTopRow));
             // A pager (re)bind queued a per-session scroll position — it wins over the
-            // carry-over above. No-op when nothing was queued.
+            // carry-over above.
             consumePendingScrollRestore();
             scrollTo(0, 0);
         }
 
-        // The glyph grid is pinned to the TOP edge of the view: the first row's top sits at
-        // y=0 and all leftover vertical space (from rows that do not fit the view) stays at
-        // the bottom. The grid occupies [0, columns*fontWidth) horizontally and
-        // [mFontLineSpacingAndAscent, mFontLineSpacingAndAscent + rows*lineSpacing) vertically
-        // in translated coordinates, so the vertical shift is exactly
-        // -mFontLineSpacingAndAscent (top gap = mFontLineSpacingAndAscent + mGridOffsetY = 0),
-        // leaving a bottom gap of viewHeight - rows*lineSpacing. Horizontally the leftover
-        // space is still split symmetrically. The offsets are snapped to whole pixels below so
-        // that adjacent rows' background rects keep integer edges and do not show anti-aliased
-        // seams. Recomputed unconditionally: a sub-cell resize leaves columns/rows unchanged but
-        // still changes the leftover space.
+        // The glyph grid is pinned to the TOP edge of the view, so all leftover vertical space
+        // (from rows that do not fit the view) stays at the bottom: in translated coordinates the
+        // grid spans [mFontLineSpacingAndAscent, mFontLineSpacingAndAscent + rows*lineSpacing)
+        // and the vertical shift is exactly -mFontLineSpacingAndAscent. Horizontally the leftover
+        // space is split symmetrically. Both offsets are snapped to whole pixels below so that
+        // adjacent rows' background rects keep integer edges. Recomputed unconditionally: a
+        // sub-cell resize leaves columns/rows unchanged but still changes the leftover space.
         //
         // The horizontal leftover is derived from the column count the renderer will actually lay
         // the row out with — mEmulator.mColumns — not from the one just computed for the pty.
@@ -2591,11 +2519,8 @@ public final class TerminalView extends View {
         // background showing through each row seam (visible hairlines on non-default backgrounds).
         newGridOffsetX = Math.round(newGridOffsetX);
         newGridOffsetY = Math.round(newGridOffsetY);
-        // rowToPixelTop()/invalidateRowRange() and TerminalRenderer's row layout are consistent only
-        // while the grid stays pinned to the top of the view, i.e. mGridOffsetY is exactly
-        // -mFontLineSpacingAndAscent (both are whole pixels here, so round() is a no-op). Assert the
-        // invariant so any future re-pin (vertical centering etc.) fails loudly instead of producing
-        // 1px-seam artifacts.
+        // Assert the top-pinning invariant above so any future re-pin (vertical centering etc.)
+        // fails loudly instead of producing 1px-seam artifacts.
         assert newGridOffsetY == -mRenderer.mFontLineSpacingAndAscent : "grid must stay top-pinned";
         final boolean gridOffsetChanged = (newGridOffsetX != mGridOffsetX) || (newGridOffsetY != mGridOffsetY);
         mGridOffsetX = newGridOffsetX;
@@ -2621,7 +2546,6 @@ public final class TerminalView extends View {
             canvas.drawColor(alpha >= 255 ? placeholderBg : ((placeholderBg & 0x00FFFFFF) | (alpha << 24)),
                 PorterDuff.Mode.SRC);
         } else {
-            // render the terminal view and highlight any selected text
             int[] sel = mDefaultSelectors;
             if (mTextSelectionCursorController != null) {
                 mTextSelectionCursorController.getSelectors(sel);
@@ -2646,18 +2570,13 @@ public final class TerminalView extends View {
             // With the surface still "unknown" this frame painted every visible row, but only
             // inside the clip. Whatever the clip left out still holds the pixels of an older
             // frame, and nothing else will come for it: no program output, no cursor blink, no
-            // user interaction. So the uncovered part is requested explicitly (below) — every
-            // time the clip differs from the one we last asked about, which is both the retry
-            // bound and the progress test. A plain invalidate() cannot do that job: the next
-            // frame is clipped exactly like this one for as long as an ancestor keeps part of
-            // the view off-screen (the tab pager translates its RecyclerView while a tab
-            // settles, and its overscroll spring can hold a few pixels afterwards), and a
-            // request that is dropped for being off-screen is never retried. That is how a
-            // resize could leave the screen showing a mix of freshly drawn and stale rows —
-            // and, now that render() no longer confines its fill to the glyph grid, a mix of
-            // freshly drawn and stale columns — indefinitely.
-            // Losing the per-row skip meanwhile is the correct degradation: dirtyRect stays
-            // null, so every visible row is drawn — same pixels, just no optimization.
+            // user interaction. A plain invalidate() cannot do that job — the next frame is
+            // clipped exactly like this one for as long as an ancestor keeps part of the view
+            // off-screen (the tab pager translates its RecyclerView while a tab settles, and its
+            // overscroll spring can hold a few pixels afterwards), and a request dropped for being
+            // off-screen is never retried. Losing the per-row skip meanwhile is the correct
+            // degradation: dirtyRect stays null, so every visible row is drawn — same pixels, just
+            // no optimization.
             boolean needUncoveredRecovery = !isFullClip && !mPixelsValid;
             // C1: keep mTopRow inside the live buffer before drawing — the emulator may have
             // switched to the alternate screen or cleared the transcript since the last
@@ -2682,7 +2601,6 @@ public final class TerminalView extends View {
             // repaintAfterUpdate() forces full repaints (and invalidateCursorCell() falls back to a
             // full invalidate), so renderTextSelection() would never have a partial clip anyway.
             if (dirtyRect == null) {
-                // render the text selection handles
                 renderTextSelection();
             }
 
@@ -2745,11 +2663,9 @@ public final class TerminalView extends View {
     }
 
     /**
-     * Draw the interactive scrollbar thumb on the right edge of the view.
-     * The thumb colour is pre-computed by the app layer (see {@link #setScrollbarColors(int, int)})
-     * so the alpha is applied ONCE when the preference changes instead of on every frame.
-     * Falls back to scheme-derived computation when the setter has not been called yet
-     * (e.g. before the activity fully wires up).
+     * Draw the interactive scrollbar thumb on the right edge of the view. The thumb colour is
+     * pre-computed by the app layer, falling back to a scheme-derived computation when the
+     * setter has not been called yet (e.g. before the activity fully wires up).
      */
     private void drawScrollbar(Canvas canvas) {
         int range = getScrollbarRange();
@@ -2782,7 +2698,6 @@ public final class TerminalView extends View {
 
         int color;
         if (mScrollbarColorsSet) {
-            // Use the pre-computed colour (alpha baked in once at preference-change time).
             color = mScrollbarDragging ? mScrollbarActiveColor : mScrollbarInactiveColor;
         } else {
             color = fallbackScrollbarColor(mScrollbarDragging ? 0x1F : 0x0D);
@@ -2793,7 +2708,6 @@ public final class TerminalView extends View {
         float radius = thumbRect.width() / 2f;
         canvas.drawRoundRect(thumbRect, radius, radius, paint);
 
-        // Resting state gets an outline in the active colour.
         if (!mScrollbarDragging) {
             int strokeColor;
             if (mScrollbarColorsSet) {
@@ -2972,7 +2886,6 @@ public final class TerminalView extends View {
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     private synchronized void resetAutoFill() {
-        // Restore none type so that AutoFill UI isn't shown anymore.
         mAutoFillType = AUTOFILL_TYPE_NONE;
         mAutoFillImportance = IMPORTANT_FOR_AUTOFILL_NO;
         mAutoFillHints = new String[0];
@@ -3022,12 +2935,8 @@ public final class TerminalView extends View {
         try {
             AutofillManager autofillManager = getAutoFillManagerService();
             if (autofillManager != null && autofillManager.isEnabled()) {
-                // Update type that will be returned by `getAutofillType()` so that AutoFill UI is shown.
                 mAutoFillType = AUTOFILL_TYPE_TEXT;
-                // Update importance that will be returned by `getImportantForAutofill()` so that
-                // AutoFill considers the view as important.
                 mAutoFillImportance = IMPORTANT_FOR_AUTOFILL_YES;
-                // Update hints that will be returned by `getAutofillHints()` for which to show AutoFill UI.
                 mAutoFillHints = autoFillHints;
                 autofillManager.requestAutofill(this);
             }
@@ -3064,7 +2973,6 @@ public final class TerminalView extends View {
     public synchronized boolean setTerminalCursorBlinkerRate(int blinkRate) {
         boolean result;
 
-        // If cursor blinking rate is not valid
         if (blinkRate != 0 && (blinkRate < TERMINAL_CURSOR_BLINK_RATE_MIN || blinkRate > TERMINAL_CURSOR_BLINK_RATE_MAX)) {
             mClient.logError(LOG_TAG, "The cursor blink rate must be in between " + TERMINAL_CURSOR_BLINK_RATE_MIN + "-" + TERMINAL_CURSOR_BLINK_RATE_MAX + ": " + blinkRate);
             mTerminalCursorBlinkerRate = 0;
@@ -3113,10 +3021,7 @@ public final class TerminalView extends View {
      * How cursor blinker starting works is by registering a {@link Runnable} with the looper of
      * the main thread of the app which when run, toggles the cursor blinking state and re-registers
      * itself to be called with the delay set by {@link #mTerminalCursorBlinkerRate}. When cursor
-     * blinking needs to be disabled, we just cancel any callbacks registered. We don't run our own
-     * "thread" and let the thread for the main looper do the work for us, whose usage is also
-     * required to update the UI, since it also handles other calls to update the UI as well based
-     * on a queue.
+     * blinking needs to be disabled, we just cancel any callbacks registered.
      *
      * Note that when moving cursor in text editors like nano, the cursor state is quickly
      * toggled `-> off -> on`, which would call this very quickly sequentially. So that if cursor
@@ -3132,7 +3037,6 @@ public final class TerminalView extends View {
      *                                 starting the cursor blinker.
      */
     public synchronized void setTerminalCursorBlinkerState(boolean start, boolean startOnlyIfCursorEnabled) {
-        // Stop any existing cursor blinker callbacks
         stopTerminalCursorBlinker();
 
         if (mEmulator == null) return;
@@ -3145,15 +3049,12 @@ public final class TerminalView extends View {
         invalidateCursorCell();
 
         if (start) {
-            // If cursor blinker is not enabled or is not valid
             if (mTerminalCursorBlinkerRate < TERMINAL_CURSOR_BLINK_RATE_MIN || mTerminalCursorBlinkerRate > TERMINAL_CURSOR_BLINK_RATE_MAX)
                 return;
-            // If cursor blinder is to be started only if cursor is enabled
             else if (startOnlyIfCursorEnabled && ! mEmulator.isCursorEnabled()) {
                 return;
             }
 
-            // Start cursor blinker runnable
             if (mTerminalCursorBlinkerHandler == null)
                 mTerminalCursorBlinkerHandler = new Handler(Looper.getMainLooper());
             mTerminalCursorBlinkerRunnable = new TerminalCursorBlinkerRunnable(mEmulator, mTerminalCursorBlinkerRate);
@@ -3162,9 +3063,6 @@ public final class TerminalView extends View {
         }
     }
 
-    /**
-     * Cancel the terminal cursor blinker callbacks
-     */
     private void stopTerminalCursorBlinker() {
         if (mTerminalCursorBlinkerHandler != null && mTerminalCursorBlinkerRunnable != null) {
             mTerminalCursorBlinkerHandler.removeCallbacks(mTerminalCursorBlinkerRunnable);
@@ -3191,10 +3089,8 @@ public final class TerminalView extends View {
         public void run() {
             try {
                 if (mEmulator != null) {
-                    // Toggle the blink state and then invalidate() the view so
-                    // that onDraw() is called, which then calls TerminalRenderer.render()
-                    // which checks with TerminalEmulator.shouldCursorBeVisible() to decide whether
-                    // to draw the cursor or not
+                    // Toggle the blink state, then invalidate so onDraw() -> render() asks
+                    // TerminalEmulator.shouldCursorBeVisible() whether to draw the cursor.
                     mCursorVisible = !mCursorVisible;
                     mEmulator.setCursorBlinkState(mCursorVisible);
                     invalidateCursorCell();
@@ -3344,7 +3240,7 @@ public final class TerminalView extends View {
         @Override
         public void run() {
             if (getTextSelectionActionMode() != null) {
-                getTextSelectionActionMode().hide(0);  // hide off.
+                getTextSelectionActionMode().hide(0);
             }
         }
     };

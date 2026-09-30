@@ -51,10 +51,7 @@ public class WcWidthTest extends TestCase {
 
 	public void testWordJoiner() {
 		// https://en.wikipedia.org/wiki/Word_joiner
-		// The word joiner (WJ) is a code point in Unicode used to separate words when using scripts
-		// that do not use explicit spacing. It is encoded since Unicode version 3.2
-		// (released in 2002) as U+2060 WORD JOINER (HTML &#8288;).
-		// The word joiner does not produce any space, and prohibits a line break at its position.
+		// Produces no space and only prohibits a line break at its position, so it claims no cell.
 		assertWidthIs(0, 0x2060);
 	}
 
@@ -82,7 +79,7 @@ public class WcWidthTest extends TestCase {
 	 * The emoji skin-tone modifiers are {@code Sk} (modifier symbols), not combining marks, so a
 	 * category test cannot find them — but every terminal renders them as a zero-advance modifier
 	 * on the preceding base, so they must not take a cell of their own. {@code 👍🏽} is two cells
-	 * wide, not four. They used to sit in the wide table, which made each one 2.
+	 * wide, not four.
 	 */
 	public void testEmojiSkinToneModifiers() {
 		for (int cp = 0x1F3FB; cp <= 0x1F3FF; cp++) {
@@ -90,18 +87,6 @@ public class WcWidthTest extends TestCase {
 		}
 	}
 
-	/**
-	 * A Devanagari syllable is one cell per consonant, and the vowel signs belong to the consonant
-	 * in front of them.
-	 *
-	 * <p>These are {@code Mc} ("spacing combining mark"), which neither the C library original nor
-	 * the jquast/wcwidth tables that {@link WcWidth} transcribes enumerate — so U+093E, U+093F and
-	 * U+0940 each came out as a cell of their own. Two things followed, both visible: the mark was
-	 * stored in its own cell, so the run handed to {@code Canvas.drawTextRun()} began with a mark
-	 * that had no base and the shaper substituted a dotted circle for it ("पिछली" rendered as
-	 * "प◌छली"); and the syllable was twice as wide as it looks, so a full-screen TUI's line overflowed
-	 * and auto-wrap broke it inside the word, dropping the tail into column 0 of the next row.
-	 */
 	/**
 	 * A few combining marks are also in the wide table, and those must keep their width of two.
 	 *
@@ -112,13 +97,6 @@ public class WcWidthTest extends TestCase {
 	 * {@code Grapheme_Cluster_Break = SpacingMark} instead of {@code Extend}. The general
 	 * "every {@code Mc} is zero width" rule is right for the obligatory-shaping scripts, whose vowel
 	 * signs really do combine with their base, and wrong for these four.
-	 *
-	 * <p>This is also what fixes the order inside {@code computeWidth}. Asking the wide table first
-	 * costs nothing below U+10000 — {@code BMP_WIDTH_CACHE} memoizes the whole computation — while
-	 * everything outside the BMP is recomputed on every call and the renderer calls
-	 * {@link WcWidth#width} once per cell per frame, so an emoji-heavy row would otherwise reach
-	 * {@code Character.getType()} on every cell. Consulted second, the mark rule silently zeroed
-	 * these four instead.</p>
 	 */
 	public void testSpacingCombiningMarksStayWide() {
 		assertWidthIs(2, 0x302E); // HANGUL SINGLE DOT TONE MARK
@@ -127,19 +105,13 @@ public class WcWidthTest extends TestCase {
 		assertWidthIs(2, 0x16FF1); // VIETNAMESE ALTERNATE READING MARK NHAY
 	}
 
-	/**
-	 * The other end of the same boundary: an {@code Mc} that the wide table does <em>not</em> list is
-	 * still zero width, which is the Devanagari case the category rule exists for. Pinning both ends
-	 * together is what says the rule is "wide table first, then the class", not either one alone.
-	 */
 	public void testUnlistedCombiningMarksAreZeroWidth() {
 		assertWidthIs(0, 0x093E); // DEVANAGARI VOWEL SIGN AA — Mc, not in the wide table
 		assertWidthIs(0, 0x093F); // DEVANAGARI VOWEL SIGN I
 		assertWidthIs(0, 0x0940); // DEVANAGARI VOWEL SIGN II
-		// THAI CHARACTER SARA AM is the near miss: it is the one spacing mark in an
-		// obligatory-shaping script that really does take a cell, and it escapes the category rule
-		// because its category is Lo rather than Mc. So it keeps a cell either way, which is the
-		// outcome, not the mechanism, that matters here.
+		// THAI CHARACTER SARA AM is the near miss: the one spacing mark in an
+		// obligatory-shaping script that really does take a cell, escaping the category rule because
+		// it is Lo rather than Mc.
 		assertWidthIs(1, 0x0E33); // THAI CHARACTER SARA AM
 	}
 
@@ -153,7 +125,6 @@ public class WcWidthTest extends TestCase {
 		assertWidthIs(0, 0x094E); // VOWEL SIGN VOCALIC L
 		assertWidthIs(0, 0x094F); // VOWEL SIGN VOCALIC LL
 		assertWidthIs(0, 0x0903); // SIGN VISARGA
-		// The marks that were already listed keep their width.
 		assertWidthIs(0, 0x0901); // SIGN CANDRABINDU
 		assertWidthIs(0, 0x0902); // SIGN ANUSVARA
 		assertWidthIs(0, 0x093C); // SIGN NUKTA
@@ -162,10 +133,7 @@ public class WcWidthTest extends TestCase {
 		assertWidthIs(0, 0x094D); // SIGN VIRAMA
 	}
 
-	/**
-	 * AVAGRAHA is a letter ({@code Lo}) even though it sits between the vowel signs, and the danda
-	 * is punctuation: neither is a mark, and both keep their cell.
-	 */
+	/** AVAGRAHA is {@code Lo} even though it sits among the vowel signs, and the danda is punctuation. */
 	public void testDevanagariNonMarks() {
 		assertWidthIs(1, 0x093D); // SIGN AVAGRAHA
 		assertWidthIs(1, 0x0964); // DANDA
@@ -173,10 +141,6 @@ public class WcWidthTest extends TestCase {
 		assertWidthIs(1, 0x0915); // LETTER KA
 	}
 
-	/**
-	 * The other obligatory-shaping scripts have the same {@code Mc} vowel-sign series, and the
-	 * category rule covers them for the same reason it covers Devanagari.
-	 */
 	public void testOtherIndicVowelSigns() {
 		assertWidthIs(0, 0x09BE); // BENGALI VOWEL SIGN AA
 		assertWidthIs(0, 0x09BF); // BENGALI VOWEL SIGN I
@@ -194,16 +158,14 @@ public class WcWidthTest extends TestCase {
 	}
 
 	/**
-	 * Thai SARA AM and Lao VOWEL SIGN E are prepended vowels with a glyph of their own: they are
-	 * {@code Lo} letters, not combining marks, so the category rule must not swallow them and they
-	 * keep their cell. A line that starts with one of them is genuinely that much wider.
+	 * Prepended vowels with a glyph of their own: {@code Lo} letters, so the category rule cannot
+	 * swallow them and a line starting with one is genuinely that much wider.
 	 */
 	public void testPrependedVowelsAreSpacing() {
 		assertWidthIs(1, 0x0E33); // THAI CHARACTER SARA AM
 		assertWidthIs(1, 0x0EB0); // LAO VOWEL SIGN E
 	}
 
-	/** The width of a whole string, the way a line of output is measured against the grid. */
 	public void testDevanagariSyllableWidths() {
 		assertEquals("पिछली", 3, widthOf("पिछली"));
 		assertEquals("सूचना", 3, widthOf("सूचना"));
@@ -212,7 +174,6 @@ public class WcWidthTest extends TestCase {
 		assertEquals("स्वीकार", 4, widthOf("स्वीकार"));
 	}
 
-	/** An emoji with a skin-tone modifier is one base glyph, not two. */
 	public void testEmojiWithSkinTone() {
 		assertEquals("👍🏽", 2, widthOf("👍🏽"));
 	}

@@ -1,6 +1,7 @@
 package com.termux.app.terminal;
 
 import android.animation.ValueAnimator;
+import android.content.Context;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
@@ -105,6 +106,15 @@ public final class DirectoryPickerController {
      */
     private final Consumer<DirectoryPickerView> mRevealConsumer = this::applyReveal;
     private final Consumer<DirectoryPickerView> mColorConsumer = this::applyColors;
+
+    /**
+     * Whether the gesture may offer the directory history. Off leaves {@link #buildItems()} empty,
+     * which drops the list and keeps the "+ new session" hint centred.
+     */
+    public boolean isHistoryEnabled() {
+        return mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE)
+                .getBoolean(PREF_GESTURE_DIRECTORY_HISTORY, true);
+    }
 
     public DirectoryPickerController(@NonNull TermuxActivity activity) {
         mActivity = activity;
@@ -341,9 +351,13 @@ public final class DirectoryPickerController {
         return (layout != null) ? layout.indexAt(pageY) : -1;
     }
 
-    /** The 10 newest visited directories, newest first. */
+    /** Key of the "show directory history in the swipe gesture" switch. */
+    private static final String PREF_GESTURE_DIRECTORY_HISTORY = "gesture_directory_history_enabled";
+
+    /** The 10 newest visited directories, newest first. Empty when the switch is off. */
     private void buildItems() {
         mItems.clear();
+        if (!isHistoryEnabled()) return;
         DirectoryHistoryController history = mActivity.getDirectoryHistoryController();
         if (history == null) return;
         final ArrayList<String> all = history.getHistoryList();

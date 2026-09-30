@@ -209,8 +209,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     public void onCreate() {
         Logger.logVerbose(LOG_TAG, "onCreate");
 
-        // Until an activity binds, the service client is the primary delegate. This matches the
-        // old behaviour where sessions were handed mTermuxTerminalSessionServiceClient directly.
+        // Until an activity binds, the service client is the primary delegate.
         mMuxClient.setPrimary(mTermuxTerminalSessionServiceClient);
 
         // Get Termux app SharedProperties without loading from disk since TermuxApplication handles
@@ -637,9 +636,8 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
         removePendingPluginExecutionCommand(executionCommand);
 
-        // Notify {@link TermuxSessionsListViewController} that sessions list has been updated if
-        // activity in is foreground. Every bound window gets it, otherwise the session list of the
-        // window that did not would go stale.
+        // Every bound window gets the notify, otherwise the session list of the window that did
+        // not would go stale.
         for (TermuxTerminalSessionActivityClient client : mTermuxTerminalSessionActivityClients)
             client.termuxSessionListNotifyUpdated();
 
@@ -760,8 +758,6 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
     /**
      * The mux handed to every {@link TerminalSession} (semantics on {@link #mMuxClient}).
-     *
-     * @return the mux client.
      */
     public synchronized TermuxTerminalSessionClientBase getTermuxTerminalSessionClient() {
         return mMuxClient;
@@ -863,11 +859,10 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
         // "Bubble" action, only when the system will show a bubble and none is posted already:
         // re-posting would un-collapse a bubble the user collapsed. Note the support test lives
-        // inside areBubblesAvailable(), not here — this call site has no SDK_INT of its own and
-        // must not grow one that could disagree with it.
-        // The notification then goes stale on bubble state changes, so every post/cancel asks
-        // the service to rebuild it (TermuxBubbleManager.requestServiceNotificationRefresh()).
-        // A broadcast, not an activity: the button is tapped from the shade with the app backgrounded.
+        // inside areBubblesAvailable() — this call site must not grow an SDK_INT of its own that
+        // could disagree with it. A broadcast, not an activity: the button is tapped from the shade
+        // with the app backgrounded. The notification goes stale on bubble state changes, so every
+        // post/cancel asks the service to rebuild it.
         if (TermuxBubbleManager.areBubblesAvailable(this) && !TermuxBubbleManager.isBubblePosted(this)) {
             Intent openBubbleIntent = new Intent(this, TermuxBubbleReceiver.class)
                 .setAction(TermuxBubbleManager.ACTION_OPEN_BUBBLE)

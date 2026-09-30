@@ -19,13 +19,12 @@ import org.robolectric.annotation.ConscryptMode;
 import java.lang.reflect.Field;
 
 /**
- * Per-directory history: what a write from outside the foreground window does to the directory the
- * user is actually in.
+ * Per-directory history: what a write for a directory that is not the one on screen does to the
+ * directory the user is actually in.
  *
- * <p>Two callers reach the controller with a directory that is not the one on screen — a
- * notification reply filed for a background session, and the panel's own send after a {@code cd} the
- * session-change callback has not been told about. Both must leave the foreground directory's
- * entries alone.
+ * <p>Two callers do that — a notification reply filed for a background session, and the panel's
+ * own send after a {@code cd} the session-change callback has not been told about — and both must
+ * leave the foreground directory's entries alone.
  */
 @RunWith(RobolectricTestRunner.class)
 @ConscryptMode(ConscryptMode.Mode.OFF)
@@ -47,7 +46,7 @@ public class MessageHistoryControllerTest {
         ctrl.load(HOME);
     }
 
-    /** The controller an activity gets, configured from the prefs the way the activity configures it. */
+    /** The controller an activity gets, configured the way the activity configures it. */
     private MessageHistoryController newController() throws Exception {
         MessageHistoryController controller = rawController();
         controller.setPerDirectoryEnabled(true);
@@ -85,9 +84,7 @@ public class MessageHistoryControllerTest {
         }
     }
 
-    // -------------------------------------------------------------------
-    //  A reply for a background session
-    // -------------------------------------------------------------------
+    // A reply for a background session
 
     @Test
     public void replyIntoAnotherDirectoryKeepsTheForegroundOnesHistory() {
@@ -95,11 +92,9 @@ public class MessageHistoryControllerTest {
         ctrl.addToMessageHistory("git status", HOME);
         ctrl.save();
 
-        // A notification reply filed for a BACKGROUND session in another directory.
         ctrl.addToMessageHistoryInDirectory("yes", LOG_DIR);
         ctrl.save();
 
-        // The user then sends from the session in front of them.
         ctrl.addToMessageHistory("pwd", HOME);
         ctrl.save();
 
@@ -120,7 +115,6 @@ public class MessageHistoryControllerTest {
             ctrl.getHistoryCurrentDirectory());
     }
 
-    /** A second reply to the same background session appends rather than replacing. */
     @Test
     public void repeatedRepliesToABackgroundSessionAccumulate() {
         ctrl.addToMessageHistoryInDirectory("yes", LOG_DIR);
@@ -131,7 +125,6 @@ public class MessageHistoryControllerTest {
         assertEquals("[\"yes\",\"no\"]", String.valueOf(stored(LOG_DIR)));
     }
 
-    /** The passive path (a cleared field) after a reply is the same path and must be safe too. */
     @Test
     public void clearedTextAfterAReplyKeepsTheForegroundDirectory() {
         ctrl.addToMessageHistory("ls -la", HOME);
@@ -147,10 +140,7 @@ public class MessageHistoryControllerTest {
         assertEquals("[\"half typed\",\"git status\",\"ls -la\"]", String.valueOf(stored(HOME)));
     }
 
-    /**
-     * Not notification-specific: the panel's own send does the same after a {@code cd} the
-     * session-change callback never reported. The reply is just the most visible way in.
-     */
+    /** Not notification-specific: the panel's own send does the same after an unreported {@code cd}. */
     @Test
     public void plainCdThenSendKeepsBothDirectories() {
         ctrl.addToMessageHistory("ls -la", HOME);
@@ -163,7 +153,6 @@ public class MessageHistoryControllerTest {
         ctrl.save();
         ctrl.onHistoryDirectoryChanged("/etc", HOME);
 
-        // The user cds back to /etc and sends one command.
         ctrl.addToMessageHistory("df -h", "/etc");
         ctrl.save();
 
@@ -171,9 +160,7 @@ public class MessageHistoryControllerTest {
         assertEquals("[\"git status\",\"ls -la\"]", String.valueOf(stored(HOME)));
     }
 
-    // -------------------------------------------------------------------
-    //  A reply that cold-starts the process
-    // -------------------------------------------------------------------
+    // A reply that cold-starts the process
 
     @Test
     public void coldStartReplyGoesToTheStoreTheUserIsUsing() throws Exception {
@@ -181,13 +168,12 @@ public class MessageHistoryControllerTest {
             .putBoolean("per_directory_message_history", true)
             .putInt("message_history_max", 50)
             .commit();
-        // What the user has on disk: a populated per-directory store, global store absent.
         ctrl.addToMessageHistory("ls -la", HOME);
         ctrl.addToMessageHistory("git status", HOME);
         ctrl.save();
         assertTrue("precondition: no global store", prefs.getString("message_history", null) == null);
 
-        // The broadcast started the process: no activity, nothing to configure the controller.
+        // The broadcast started the process: no activity, nothing to configure a controller.
         MessageHistoryController cold = rawController();
         cold.addToMessageHistoryInDirectory("yes", LOG_DIR);
         cold.save();
@@ -211,7 +197,8 @@ public class MessageHistoryControllerTest {
         ctrl.save();
         assertEquals(300, ctrl.getHistoryList().size());
 
-        // The broadcast started the process: a write must not fall back to the built-in default.
+        // The broadcast started the process: nothing has configured a controller, so a write must
+        // not fall back to the built-in default.
         MessageHistoryController cold = rawController();
         cold.addToMessageHistory("yes", null);
         cold.save();
@@ -236,20 +223,14 @@ public class MessageHistoryControllerTest {
         cold.addToMessageHistoryInDirectory("yes", LOG_DIR);
         cold.save();
 
-        // One list, as the user configured: the reply belongs in the same store.
         assertEquals("[\"yes\",\"ls -la\"]", String.valueOf(globalStore()));
         assertEquals("per-directory store must stay absent", "null",
             prefs.getString("message_history_per_directory", "null"));
     }
 
-    // -------------------------------------------------------------------
-    //  Switching the per-directory mode
-    // -------------------------------------------------------------------
+    // Switching the per-directory mode
 
-    /**
-     * Turning per-directory mode off and on again must not lose anything. The activity does exactly
-     * this: {@code save()}, flip the flag, {@code load()}.
-     */
+    /** The activity's own sequence: {@code save()}, flip the flag, {@code load()}. */
     @Test
     public void turningPerDirectoryModeOffAndOnKeepsEveryDirectory() throws Exception {
         ctrl.addToMessageHistory("ls -la", HOME);
@@ -268,10 +249,7 @@ public class MessageHistoryControllerTest {
         assertEquals("[\"yes\"]", String.valueOf(stored(LOG_DIR)));
     }
 
-    /**
-     * Turning the mode off and on again is lossless, which is the invariant that matters: the
-     * per-directory store is left on disk, so the entries come back with the mode.
-     */
+    /** The per-directory store is left on disk, so the entries come back with the mode. */
     @Test
     public void turningPerDirectoryModeOffLeavesThePerDirectoryStoreIntact() throws Exception {
         ctrl.addToMessageHistory("ls -la", HOME);
@@ -287,11 +265,8 @@ public class MessageHistoryControllerTest {
         assertEquals("[\"yes\"]", String.valueOf(stored(LOG_DIR)));
     }
 
-    // -------------------------------------------------------------------
-    //  Guards on the fix itself
-    // -------------------------------------------------------------------
+    // Guards on the fix itself
 
-    /** A reply for the session the user IS looking at takes the ordinary path. */
     @Test
     public void replyForTheForegroundSessionGoesThroughTheOrdinaryPath() {
         ctrl.addToMessageHistory("ls -la", HOME);
@@ -315,13 +290,11 @@ public class MessageHistoryControllerTest {
             String.valueOf(stored(LOG_DIR)).contains("yes"));
     }
 
-    // -------------------------------------------------------------------
-    //  Clearing against a queued persist
-    // -------------------------------------------------------------------
+    // Clearing against a queued persist
 
     /**
-     * A mutation arms a debounced persist that carries a snapshot of the list as it was at that
-     * moment. A clear that follows inside the debounce window must not be undone when it lands.
+     * A mutation arms a debounced persist carrying a snapshot from that moment, so a clear inside
+     * the debounce window must not be undone when it lands.
      */
     @Test
     public void clearIsNotUndoneByAPersistQueuedBeforeIt() {
@@ -351,7 +324,6 @@ public class MessageHistoryControllerTest {
         assertFalse("nor the other one", String.valueOf(stored(LOG_DIR)).contains("yes"));
     }
 
-    /** The same, for the global store: the queued write must not resurrect a global clear. */
     @Test
     public void globalClearIsNotUndoneByAPersistQueuedBeforeIt() {
         ctrl.setPerDirectoryEnabled(false);
@@ -365,9 +337,7 @@ public class MessageHistoryControllerTest {
         assertEquals("[]", String.valueOf(globalStore()));
     }
 
-    // -------------------------------------------------------------------
-    //  After a clear-all the store has to be usable again
-    // -------------------------------------------------------------------
+    // After a clear-all the store has to be usable again
 
     @Test
     public void historyCanBeRecordedAgainAfterClearAll() throws Exception {
@@ -375,7 +345,6 @@ public class MessageHistoryControllerTest {
         ctrl.save();
         ctrl.clearAllPerDirectory();
 
-        // The user keeps working: the next command must land somewhere and survive a reload.
         ctrl.addToMessageHistory("pwd", HOME);
         ctrl.save();
 
@@ -403,7 +372,7 @@ public class MessageHistoryControllerTest {
         org.robolectric.shadows.ShadowLooper.idleMainLooper(300, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
-    /** Wait for the persist executor's write to reach the prefs. */
+    /** {@code save()} writes and drains the persist executor, so the bytes are on disk on return. */
     private void drain() {
         ctrl.save();
     }

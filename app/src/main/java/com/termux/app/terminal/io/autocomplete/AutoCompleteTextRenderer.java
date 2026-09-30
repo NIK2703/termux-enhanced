@@ -13,8 +13,7 @@ import androidx.annotation.NonNull;
 
 /**
  * Pure text-rendering helpers for auto-complete suggestion rows: drawing only
- * (truncation, bold prefix, line-fitting). Popup/window logic lives in
- * {@code AutoCompletePopupManager}, orchestration in {@code AutoCompleteController}.
+ * (truncation, bold prefix, line-fitting).
  */
 final class AutoCompleteTextRenderer {
 
@@ -39,9 +38,9 @@ final class AutoCompleteTextRenderer {
     }
 
     /**
-     * Memoization of the (expensive) truncation step in {@link #buildSuggestionSpannable}.
-     * The truncated display text depends only on (suggestion, wordStart, availWidth, maxLines),
-     * and within a popup session availWidth/maxLines are constant — so a hit skips the whole
+     * Memoization of the (expensive) truncation step in {@link #buildSuggestionSpannable}. The
+     * truncated display text depends only on (suggestion, wordStart, availWidth, maxLines), and
+     * within a popup session availWidth/maxLines are constant — so a hit skips the whole
      * StaticLayout / binary-search pipeline for every keystroke on every shown row.
      */
     private static final class DisplayKey {
@@ -75,9 +74,8 @@ final class AutoCompleteTextRenderer {
             new LruCache<DisplayKey, String>(DISPLAY_CACHE_MAX);
 
     /**
-     * Index of the start of the last whitespace/slash-delimited word in {@code s},
-     * treating a trailing separator as "still finishing word 0". Used to decide
-     * where the bold-matched prefix begins.
+     * Index of the start of the last whitespace/slash-delimited word in {@code s}, treating a
+     * trailing separator as "still finishing word 0".
      */
     static int wordStartOffset(@NonNull String s) {
         int i = s.length();
@@ -103,8 +101,7 @@ final class AutoCompleteTextRenderer {
      *
      * <p>Manual truncation instead of {@code TextView.setEllipsize(END)}: on Android (API 21-28
      * in particular) {@code ellipsize=end} is only reliably honored for single-line text — with
-     * {@code setMaxLines(n > 1)} the trailing ellipsis frequently never appears, so we measure and
-     * cut the text ourselves to guarantee the {@code '…'} on every OS version.
+     * {@code setMaxLines(n > 1)} the trailing ellipsis frequently never appears.
      *
      * @param availWidth available text width in px (popup width minus padding);
      *                   pass {@code 0} to skip truncation (e.g. not yet laid out).
@@ -121,8 +118,6 @@ final class AutoCompleteTextRenderer {
 
         String displayText;
         if (availWidth > 0) {
-            // Pure function of (suggestion, wordStart, availWidth, maxLines) — look it up
-            // instead of rebuilding a StaticLayout + binary search on every keystroke.
             DisplayKey key = new DisplayKey(suggestion, wordStart, availWidth, 2);
             String cached = sDisplayCache.get(key);
             if (cached != null) {
@@ -156,8 +151,7 @@ final class AutoCompleteTextRenderer {
             @NonNull TextPaint paint, int maxLines) {
         if (text.length() == 0) return text;
         // Cheap necessary-check: summed glyph widths already exceed maxLines*availWidth, so the
-        // text cannot fit — skip the wasted full-width layout and go straight to the binary
-        // search. ("Definitely fits" cannot be proven this cheaply, so fitsLines still runs.)
+        // text cannot fit. ("Definitely fits" cannot be proven this cheaply, so fitsLines runs.)
         if (paint.measureText(text) > (long) maxLines * availWidth) {
             return binarySearchTruncate(text, availWidth, paint, maxLines);
         }
@@ -208,10 +202,8 @@ final class AutoCompleteTextRenderer {
             @NonNull TextPaint paint, int maxLines) {
         StaticLayout layout;
         if (Build.VERSION.SDK_INT >= 23) {
-            // D-1: build with maxLines+1 so a text that needs strictly more than
-            // maxLines lines is detected (getLineCount() would otherwise be capped
-            // at maxLines and report "fits"). fitsLines then keeps the "<= maxLines"
-            // comparison, yielding a guaranteed '…' on every API level.
+            // Build with maxLines+1 so a text that needs strictly more than maxLines lines is
+            // detected (getLineCount() would otherwise be capped at maxLines and report "fits").
             layout = StaticLayout.Builder.obtain(
                     text, 0, text.length(), paint, availWidth)
                     .setMaxLines(maxLines + 1)

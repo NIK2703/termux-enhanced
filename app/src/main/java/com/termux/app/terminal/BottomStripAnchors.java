@@ -9,9 +9,6 @@ package com.termux.app.terminal;
  * the same bottom strip is therefore not a redundancy but a defect — the terminal covers the tab
  * panel outright — and it is invisible in the default "tabs at top" arrangement, so only the "tabs
  * at bottom" setting exposes it.
- *
- * <p>Kept out of the activity so it can be exercised by a plain JVM test: the whole point is that
- * this decision has one owner and can be pinned without inflating anything.
  */
 public final class BottomStripAnchors {
 
@@ -23,9 +20,8 @@ public final class BottomStripAnchors {
     /**
      * The bottom edges of the terminal and of the tab panel, as {@code [pager, tabs]}.
      *
-     * <p>With the tab panel at the bottom the stack from the top down is tab panel, terminal, bottom
-     * strip, so the terminal stops at the tabs and the tabs at the strip. With the tab panel at the
-     * top it owns the top edge instead, and the terminal stops at the bottom strip directly.
+     * <p>With the tab panel at the top it owns the top edge, so the terminal stops at the bottom
+     * strip directly.
      *
      * @param tabsAtBottom whether the tab panel is configured to sit at the bottom.
      * @param tabStripId id of the tab panel view.

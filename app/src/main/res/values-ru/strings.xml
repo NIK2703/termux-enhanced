@@ -281,6 +281,8 @@
     <string name="session_default_title">Терминал</string>
     <string name="new_tab_placeholder_hint">Новый сеанс</string>
     <string name="swipe_rightmost_new_tab_title">Смахните последнюю вкладку для нового сеанса</string>
+    <string name="gesture_directory_history_title">Доступ к истории при выполнении жеста</string>
+    <string name="new_tab_in_active_session_directory_title">Открывать новую вкладку в директории активного сеанса</string>
     <string name="termux_tab_height_mode_title">Высота вкладки</string>
     <string name="termux_tab_height_mode_single">Одна строка</string>
     <string name="termux_tab_height_mode_double">Две строки</string>

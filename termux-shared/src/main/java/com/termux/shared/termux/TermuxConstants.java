@@ -723,9 +723,8 @@ public final class TermuxConstants {
      * so a fresh id is the safe route.
      *
      * <p>The bubble's own notification and nothing else is posted on it, which is what the name in
-     * the settings screen promises. A program asking not to be announced does not land here: there is
-     * a channel for the terminal's notifications instead, so the settings list cannot attribute one
-     * feature's notifications to another.
+     * the settings screen promises. A program asking not to be announced does not land here: there
+     * is a channel for the terminal's notifications instead.
      */
     public static final String TERMUX_BUBBLE_NOTIFICATION_CHANNEL_ID = "termux_bubble_notification_channel";
     /** Termux app notification channel name used for the floating bubble window */
@@ -733,11 +732,9 @@ public final class TermuxConstants {
     /** Termux app unique notification id used for the floating bubble window */
     public static final int TERMUX_BUBBLE_NOTIFICATION_ID = 1342;
     /**
-     * Id of the long-lived sharing shortcut the bubble notification is associated with.
-     *
-     * <p>Only strictly required for apps targeting API 30+, and this app targets 28, but the id is
-     * also what identifies a bubble inside SystemUI, so publishing it removes a whole class of
-     * device-specific surprises.
+     * Id of the long-lived sharing shortcut the bubble notification is associated with. Only
+     * strictly required for apps targeting API 30+, and this app targets 28, but the id is also
+     * what identifies a bubble inside SystemUI.
      */
     public static final String TERMUX_BUBBLE_SHORTCUT_ID = "termux_bubble_terminal";
 
@@ -753,9 +750,9 @@ public final class TermuxConstants {
      * <p>The one channel for the whole protocol, audible requests and requests for silence alike.
      * {@code s} cannot be honoured per notification from API 26: the channel decides what sounds,
      * and {@code setPriority()}/{@code setDefaults()}/{@code setSilent()} cannot override that (the
-     * last is not public API at all). Choosing a quieter channel for them was the alternative, and it
-     * made the settings screen lie — the quiet channel belonged to the bubble, so the bubble's channel
-     * collected the terminal's traffic. Here the user decides the sound, in the channel's own settings.
+     * last is not public API at all). A quieter channel for the silent ones was the alternative, and
+     * it made the settings screen lie — the quiet channel belonged to the bubble, so the bubble's
+     * channel collected the terminal's traffic.
      */
     public static final String TERMUX_TERMINAL_NOTIFICATION_CHANNEL_ID = "termux_terminal_notification_channel_v3";
     /** Termux app notification channel name for terminal-requested notifications. */
@@ -766,8 +763,7 @@ public final class TermuxConstants {
     public static final String EXTRA_TERMINAL_NOTIFICATION_ID = "com.termux.app.terminal_notification_id";
     /**
      * {@code int} extra: the id the notification was actually posted under. The protocol {@code i}
-     * identifier is reusable, so it cannot stand in when a notification must be found again — a miss
-     * leaves the progress indicator spinning on the reply field forever.
+     * identifier is reusable, so it cannot stand in when a notification must be found again.
      */
     public static final String EXTRA_TERMINAL_NOTIFICATION_NUMBER = "com.termux.app.terminal_notification_number";
     /** {@code String} extra: {@link com.termux.terminal.TerminalSession#mHandle} of the producing session. */

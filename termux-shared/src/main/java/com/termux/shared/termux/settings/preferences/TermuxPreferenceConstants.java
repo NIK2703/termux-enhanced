@@ -118,10 +118,8 @@ public final class TermuxPreferenceConstants {
          * terminal, as a strip of its own drawn on top of the terminal's bottom rows and above the
          * extra-keys panel, at the resting size of the button that opens it and growing upwards
          * with the text; <b>false</b> — it takes the extra keys' place in their strip, and the
-         * terminal is resized to make room for it.
-         *
-         * <p>Off by default: the extra-keys arrangement is the one the app has always had, and
-         * the overlay is something to switch on deliberately.
+         * terminal is resized to make room for it. Off by default: the extra-keys arrangement is
+         * the one the app has always had, and the overlay is something to switch on deliberately.
          */
         public static final String KEY_TEXT_INPUT_OVER_TERMINAL = "text-input-over-terminal";
         public static final boolean DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL = false;
@@ -248,13 +246,13 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED = true;
 
         /** Defines the key for whether a terminal notification may carry an inline reply field.
-         * Off by default: it types into a shell, and is the one part a program cannot ask for. */
+         * It types into a shell, and is the one part a program cannot ask for. */
         public static final String KEY_NOTIFICATION_INLINE_REPLY_ENABLED = "notification_inline_reply_enabled";
         public static final boolean DEFAULT_VALUE_NOTIFICATION_INLINE_REPLY_ENABLED = false;
 
         /** Defines the key for whether a notification arriving within
          * {@code TermuxTerminalNotificationDispatcher.DUPLICATE_WINDOW_MS} of the last one posted
-         * is discarded. Off by default: it throws notifications away. */
+         * is discarded. It throws notifications away. */
         public static final String KEY_NOTIFICATION_DEDUPLICATION_ENABLED = "notification_deduplication_enabled";
         public static final boolean DEFAULT_VALUE_NOTIFICATION_DEDUPLICATION_ENABLED = false;
 
@@ -279,10 +277,8 @@ public final class TermuxPreferenceConstants {
          * input-panel toggle button and the scrollbar thumb — are mixed with the terminal
          * background colour, so that they read as part of the terminal instead of as shapes pasted
          * on it. The terminal background transparency is the weight of that mix (0% mixes nothing
-         * in); the controls keep their own configured transparency either way.
-         *
-         * <p>Off by default: with the option off both controls are the plain translucent tints the
-         * panel buttons use.
+         * in); the controls keep their own configured transparency either way. Off by default:
+         * both controls are then the plain translucent tints the panel buttons use.
          */
         public static final String KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND = "contrast-floating-element-background";
         public static final boolean DEFAULT_CONTRAST_FLOATING_ELEMENT_BACKGROUND = false;
@@ -332,16 +328,15 @@ public final class TermuxPreferenceConstants {
          * <p>The default is <em>device-dependent</em> — on for phones, off for tablets, the same
          * split {@link #KEY_EXTRA_KEYS_DYNAMIC_FONT_SIZE} uses — so it is computed by
          * {@code TermuxAppSharedPreferences.isExtraKeysCompactLandscapeEnabled(Context)}, which needs
-         * a {@code Context} to measure the device. The constant below is only the fallback for a
-         * caller that has none.
+         * a {@code Context} to measure the device.
          */
         public static final String KEY_EXTRA_KEYS_COMPACT_LANDSCAPE = "extra-keys-compact-landscape";
 
         /**
          * Order of keys inside a folded row: {@code "rows"} (element by element of the first row,
          * then of the second, …) or {@code "columns"} (top to bottom inside a column, then the next
-         * column). Folding column by column keeps the keys of one stored column next to each other,
-         * which is the order that reads most like the keyboard the stored layout was written for.
+         * column). The latter keeps the keys of one stored column next to each other, which reads
+         * most like the keyboard the stored layout was written for.
          */
         public static final String KEY_EXTRA_KEYS_COMPACT_MODE = "extra-keys-compact-mode";
         public static final String DEFAULT_VALUE_EXTRA_KEYS_COMPACT_MODE = "columns";
@@ -365,20 +360,16 @@ public final class TermuxPreferenceConstants {
          * Whether the terminal content, not just the window, may be laid out in the display cutout.
          * The window always takes the cutout — otherwise that strip is outside it and shows as a
          * black gap — so this only decides whether the content follows in, or is held clear of it
-         * and leaves the terminal background there.
-         *
-         * <p>Off by default: content under the cutout can be hidden by the camera, and the
-         * background alone already removes the black gap.
+         * and leaves the terminal background there. Off by default: content under the cutout can be
+         * hidden by the camera, and the background alone already removes the black gap.
          */
         public static final String KEY_EXTEND_INTO_CUTOUT = "extend-into-cutout";
         public static final boolean DEFAULT_VALUE_EXTEND_INTO_CUTOUT = false;
 
         /**
          * Whether the app moves itself into a bubble window when the user leaves it, and takes it
-         * back down when they return.
-         *
-         * <p>Off by default: it changes what happens every time the user presses Home, so it has to
-         * be asked for rather than discovered.
+         * back down when they return. It changes what happens every time the user presses Home, so
+         * it has to be asked for rather than discovered.
          */
         public static final String KEY_BUBBLE_ON_BACKGROUND = "bubble-on-background";
         public static final boolean DEFAULT_VALUE_BUBBLE_ON_BACKGROUND = false;

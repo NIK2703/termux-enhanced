@@ -399,17 +399,10 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** The {@code text_input_enabled} setting as last applied; null until it is first read. */
     private Boolean mTextInputPanelEnabled = null;
 
-    /** Where the press being tracked went down, in screen coordinates. */
-    private float mPressRawX;
-    private float mPressRawY;
-    /**
-     * The press being tracked must not dismiss the input panel: it landed on the panel itself or on
-     * one of its own controls, or it was cancelled and there is no release to judge. One flag for
-     * all three, so "exempt" has exactly one meaning at the point the release is decided.
-     */
     private boolean mPressExempt;
-    /** System touch slop in px, read on first use. */
-    private int mTouchSlopPx;
+    private View mTextInputPanelContainer;
+    private ViewGroup mSessionTabsContainer;
+    private final int[] mScreenLocation = new int[2];
 
     /** Non-null while the user's finger is on the toggle-text-input button. */
     private boolean mButtonTouchInProgress = false;
@@ -1691,7 +1684,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** The manual fix: a real visibility change sets PFLAG_FORCE_LAYOUT and makes the
      *  system re-measure the panel from scratch. Cycles whichever panel is currently the one on
-     *  screen, leaving the other exactly as it is — neither panel hides the other any more. */
+     *  screen, leaving the other exactly as it is. */
     private void forceSlotRelayoutByToggle() {
         mPanelRelayoutKickDone = true;
         final View container = findViewById(R.id.terminal_toolbar_text_input_container);
@@ -2403,8 +2396,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Logger.showToast(this, (showNow ? getString(R.string.msg_terminal_panel_enabling) : getString(R.string.msg_terminal_panel_disabling)), true);
         terminalToolbarContainer.setVisibility(showNow ? View.VISIBLE : View.GONE);
 
-        // The input panel is a strip of its own now, so hiding the extra keys leaves it open
-        // rather than having to close it for the two to be consistent.
+        // The input panel is a sibling of the toolbar container now, so hiding the container
+        // leaves the panel open rather than closing it for the two to stay consistent.
         applyBottomStripAnchors();
     }
 
@@ -2544,8 +2537,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         RelativeLayout.LayoutParams pagerLp = (RelativeLayout.LayoutParams) pager.getLayoutParams();
 
         // Reset rules that change with position. The pager's BOTTOM edge is not touched here —
-        // it belongs to whichever panel currently forms the bottom strip, so it is re-decided by
-        // applyBottomStripAnchors() below, which this method must not race with.
+        // it belongs to whichever panel currently forms the bottom strip, and is re-decided by
+        // applyBottomStripAnchors() below.
         tabsLp.removeRule(RelativeLayout.ALIGN_PARENT_TOP);
         tabsLp.removeRule(RelativeLayout.ABOVE);
         pagerLp.removeRule(RelativeLayout.BELOW);
@@ -2578,7 +2571,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
 
         // The pager's bottom edge, the tabs' bottom edge and both the input panel and the button
-        // that opens it all hang off this, so it is re-decided after the position change.
+        // that opens it all hang off this.
         applyBottomStripAnchors();
 
         // When the tab panel sits at the bottom it rests directly above the toolbar,
@@ -2603,9 +2596,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * The view the bottom strip of the window is currently made of: the extra-keys panel, or the
      * input panel while it has taken the extra keys' place and therefore <em>is</em> the strip.
      *
-     * <p>This is the one thing both arrangements agree on: the terminal, and the tab strip when it
-     * is at the bottom, have to stop at whatever is lowest — so the switch is read here, once,
-     * rather than in each place that needs an anchor.
+     * <p>Whichever it is, the terminal — and the tab strip when it is at the bottom — has to stop
+     * at it.
      */
     @Nullable
     private View bottomStripView() {
@@ -2620,10 +2612,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * tab strip's when the tabs are at the bottom, and the input panel together with the button
      * that opens it.
      *
-     * <p>The single owner of those rules. {@link #applyTabPanelPosition()} decides the TOP edges
-     * and comes here for the bottom ones, and every change to the panel's visibility or placement
-     * comes here too — so the two arrangements can never leave a rule behind that contradicts the
-     * panel actually on screen.
+     * <p>Every change to the panel's visibility or placement comes here, so a rule can never be
+     * left behind that contradicts the panel actually on screen.
      */
     private void applyBottomStripAnchors() {
         final ViewGroup tabsContainer = findViewById(R.id.session_tabs_container);
@@ -2635,8 +2625,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // The terminal fills what is left above the bottom strip — EXCEPT when the tab strip is at
         // the bottom, where the tabs are the lowest full-width strip and the terminal has to stop
-        // at them. Two different edges, decided together; see BottomStripAnchors for why they are
-        // one decision and what happens when they are made to coincide.
+        // at them. Two different edges, decided together.
         final int[] bottomAnchors = BottomStripAnchors.pagerAndTabs(
             isTabPanelAtBottom(), R.id.session_tabs_container, stripId);
 
@@ -2652,28 +2641,22 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             tabsContainer.setLayoutParams(tabsLp);
         }
 
-        // The input panel's own place, and the button that opens it.
-        //
         // Over the terminal the panel floats above the bottom strip — and above the tab strip as
         // well when the tabs are at the bottom, since that strip is then the lowest thing under it.
         // In the extra keys' place it simply IS the bottom strip itself, so it belongs to the strip
-        // of extra keys whatever the tab panel is doing, which is where it used to live.
+        // of extra keys whatever the tab panel is doing.
         final int panelAnchorId = (!isTextInputPanelOverTerminal() || !isTabPanelAtBottom())
                 ? R.id.terminal_toolbar_container : R.id.session_tabs_container;
         final ViewGroup root = (ViewGroup) tabsContainer.getParent();
         anchorAboveStrip(root, R.id.terminal_toolbar_text_input_container, panelAnchorId);
 
-        // The button that opens the panel, which has to clear whatever the panel is sitting in:
-        //   - the panel itself, when the panel has taken the extra keys' place;
-        //   - the tab strip when the tabs are at the bottom, as it always was;
-        //   - the extra-keys strip otherwise.
-        //
-        // The first case is the one the old layout took care of by itself: the panel used to be a
-        // CHILD of the toolbar container, so "above the container" put the button above the panel.
-        // The panel is now a sibling of that container, so the same anchor lands the button
-        // underneath it — which looks exactly like the button being painted over the panel. With
-        // an overlaid panel the button is hidden outright, so there its anchor only has to keep
-        // it out of the way until it is shown again.
+        // The button has to clear whatever the panel is sitting in. The first case is the one the
+        // old layout took care of by itself: the panel used to be a CHILD of the toolbar
+        // container, so "above the container" put the button above the panel. The panel is now a
+        // sibling of that container, so the same anchor lands the button underneath it — which
+        // looks exactly like the button being painted over the panel. With an overlaid panel the
+        // button is hidden outright, so there its anchor only has to keep it out of the way until
+        // it is shown again.
         final int buttonAnchorId;
         if (panel.getVisibility() == View.VISIBLE && !isTextInputPanelOverTerminal()) {
             buttonAnchorId = panel.getId();
@@ -2689,10 +2672,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Make the view sit directly above {@code anchorId} in {@code root}, or on the window's bottom
      * edge when that anchor is not on screen — nothing is left below it then, and an unresolved
      * anchor would leave it floating wherever RelativeLayout happens to put it.
-     *
-     * <p>Which anchor to pass is the caller's decision; the tab strip is always visible, so the
-     * question there is its <em>position</em>, never its visibility — hence the two cases in
-     * {@link #applyBottomStripAnchors()}.
      */
     private static void anchorAboveStrip(@Nullable ViewGroup root, int viewId, int anchorId) {
         if (root == null) return;
@@ -2933,10 +2912,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /**
      * Put the toggle button in the state the panel's visibility calls for: gone while the panel
-     * is open — the panel takes the button's place on screen, right above the extra keys — and
-     * back, showing the open glyph, once it is closed. Also the only thing that can hide the
-     * button on account of the panel, so the {@code text_input_enabled} setting stays where it
-     * is (see {@link #updateToggleTextInputButtonVisibility()}).
+     * is open, back and showing the open glyph once it is closed.
      */
     public void updateToggleTextInputButtonIcon() {
         ImageButton toggleTextInputButton = findViewById(R.id.toggle_text_input_button);
@@ -2954,12 +2930,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         toggleTextInputButton.setContentDescription(getString(R.string.action_toggle_text_input));
     }
 
-    /**
-     * Update the floating toggle button's right margin based on the scrollbar visibility.
-     * When the TerminalView has scrollable content (active transcript rows > 0), the
-     * button gets marginEnd=28dp (gap from scrollbar). When content fits entirely in the
-     * viewport (no scrollbar), marginEnd=6dp (same as marginBottom).
-     */
     public static boolean isNightModeActive() {
         final NightMode appNightMode = NightMode.getAppNightMode();
         if (appNightMode == NightMode.SYSTEM) {
@@ -3049,9 +3019,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * The marginEnd the input panel keeps while there is no terminal scrollbar to clear — the
      * plain 4dp its start margin uses. The scrollbar case is NOT decided here: the panel carries
-     * the button's 28dp in the layout, so it is already clear of the scrollbar, and this method is
-     * only what hands that clearance back when there is nothing to clear — the same arrangement
-     * the button has, and for the same reason.
+     * the button's 28dp in the layout, so it is already clear of the scrollbar, and this is only
+     * what hands that clearance back when there is nothing to clear.
      */
     private static final int TEXT_INPUT_PANEL_MARGIN_END_PLAIN_DP = 4;
 
@@ -3061,12 +3030,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *
      * <p>Only the overlay can have a scrollbar anywhere near the panel: floating over the terminal it
      * is full width and its right end lies across the scrollbar. In the extra keys' place the
-     * terminal is resized to stop above the panel and the scrollbar never reaches it, so the panel
-     * keeps the plain margin in both the legacy arrangement and a scrollbar-less terminal.
+     * terminal is resized to stop above the panel and the scrollbar never reaches it.
      *
-     * <p>The value it is given instead is the one
-     * {@link #computeSettledFloatingButtonMarginEnd} hands the button, so the two cannot drift
-     * apart. Driven from the SETTLED state like the button's: this is a layout param, so writing it
+     * <p>Driven from the SETTLED state like the button's: this is a layout param, so writing it
      * costs a measure+layout pass, and the per-frame scroll path must not cause one per frame. The
      * panel therefore holds its margin across a page swipe and picks the new one up when the pager
      * settles.
@@ -3074,10 +3040,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void applyTextInputPanelScrollbarMargin() {
         final View panel = findViewById(R.id.terminal_toolbar_text_input_container);
         if (panel == null) return;
-        // Same tri-state the button keeps, and for the same reason: an unknown state means no
-        // emulator is bound yet, not that there is no scrollbar. Writing the "no scrollbar" value
-        // there is what dropped the button's clearance after a theme change — hasScrollbar() folds
-        // null into false, so it must not be what decides this.
+        // The tri-state, not hasScrollbar(): an unknown state means no emulator is bound yet, not
+        // that there is no scrollbar. Writing the "no scrollbar" value there is what dropped the
+        // panel's clearance after a theme change.
         if (getScrollbarState(mTerminalView) == null) return;
         final ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) panel.getLayoutParams();
         final boolean mustClearScrollbar = isTextInputPanelOverTerminal() && hasScrollbar(mTerminalView);
@@ -3655,13 +3620,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // "hide the panel" branch and did nothing, and every tap ran the whole close sequence.
             setTextInputVisible(false);
         } else if (Boolean.FALSE.equals(wasEnabled)) {
-            // Just turned on: show the panel in its visible state.
             setTextInputVisible(true);
         } else {
             setTextInputVisible(isTextInputVisible());
         }
 
-        // The button follows the panel and the setting, both of which are settled by now.
         updateToggleTextInputButtonIcon();
     }
 
@@ -4598,33 +4561,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Every touch this window receives, before any child view sees it.
      *
-     * <p>The input panel floats over the terminal, so it has to get out of the way when the user
-     * taps something else. One "tapped outside the panel" check covers all of it — the terminal,
-     * an extra-keys button, a sticky modifier — and, unlike a listener on any one of those, it
-     * cannot miss one added later.
-     *
-     * <p>Decided on ACTION_UP, from the press as a whole: a release that follows the press within
-     * the touch slop is a tap, and a release that does not is a swipe — which the user did not ask
-     * for and which must leave the panel alone. Where the press STARTED is what counts, not where
-     * it ended, so dragging out of the panel while selecting text does not dismiss it. Nothing is
-     * posted, so the panel is closed on the release itself, with no delay after it.
+     * <p>The input panel floats over the terminal, so it has to get out of the way as soon as the
+     * user touches anything else. A tap or a gesture alike counts: one "touched outside the panel"
+     * check covers all of it — the terminal, an extra-keys button and the swipe across one, a
+     * sticky modifier, a scroll of the transcript, a selection drag — and, unlike a listener on any
+     * one of those, it cannot miss one added later. Where the press STARTED is what counts, not
+     * where it ended, so a drag that began on the panel and wandered off it does not dismiss it.
      */
     @Override
     public boolean dispatchTouchEvent(@NonNull MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                mPressRawX = event.getRawX();
-                mPressRawY = event.getRawY();
-                // A press is exempt when it lands on the panel itself, or on something that owns
-                // the panel's own transition: the tab panel, which switches tabs and must leave the
-                // panel alone, and the toggle button, which toggles it and would otherwise be
-                // undone by this rule firing first and its own listener firing second.
-                mPressExempt = isTouchInside(findViewById(R.id.terminal_toolbar_text_input_container), event)
-                    || isTouchInside(findViewById(R.id.session_tabs_container), event)
-                    || isTouchInside(findViewById(R.id.toggle_text_input_button), event);
+                beginPressTracking(event);
                 break;
             case MotionEvent.ACTION_UP:
-                if (isTapToDismissTextInputPanel(event)) setTextInputVisible(false);
+                if (pressMayDismissInputPanel()) setTextInputVisible(false);
                 break;
             case MotionEvent.ACTION_CANCEL:
                 // No release to judge: poison the press so nothing is decided from it.
@@ -4634,45 +4585,37 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return super.dispatchTouchEvent(event);
     }
 
-    /**
-     * Whether the press being released is a tap that should dismiss the input panel: it went down
-     * outside the panel and outside the tab strip, and it stayed there — a release more than the
-     * touch slop from where the press landed is a swipe or a drag, not a tap.
-     *
-     * <p>Guarded on the panel being open at all: with none on screen there is nothing to dismiss,
-     * and closing it anyway would save the draft and pull focus off the terminal on every tap.
-     */
-    private boolean isTapToDismissTextInputPanel(@NonNull MotionEvent event) {
-        // Only the overlay has anything to clear. In the extra keys' place the terminal is resized
-        // to stop above the panel, which has a strip of its own and covers nothing — dismissing it
-        // there would change the behaviour that arrangement exists to preserve.
-        if (!isTextInputPanelOverTerminal()) return false;
-        if (!isTextInputVisible()) return false;
-        if (mPressExempt) return false;
-        final int slop = touchSlopPx();
-        return Math.abs(event.getRawX() - mPressRawX) <= slop
-            && Math.abs(event.getRawY() - mPressRawY) <= slop;
-    }
-
-    /**
-     * Whether {@code event} landed within {@code view}'s bounds, in screen coordinates on both
-     * sides — the event's raw position, not its window-relative one, since it is compared against
-     * a location taken from the screen. A view that is not there counts as "not hit".
-     */
-    private static boolean isTouchInside(@Nullable View view, @NonNull MotionEvent event) {
-        if (view == null) return false;
-        final int[] location = new int[2];
-        view.getLocationOnScreen(location);
+    private void beginPressTracking(@NonNull MotionEvent event) {
         final float x = event.getRawX();
         final float y = event.getRawY();
-        return x >= location[0] && x < location[0] + view.getWidth()
-            && y >= location[1] && y < location[1] + view.getHeight();
+        mPressExempt = isTouchInside(getTextInputPanelContainer(), x, y)
+            || isTouchInside(getFloatingButton(), x, y)
+            || isTouchInside(getSessionTabsContainer(), x, y);
     }
 
-    /** The system touch slop, read once: it is a display constant, not a per-gesture one. */
-    private int touchSlopPx() {
-        if (mTouchSlopPx <= 0) mTouchSlopPx = ViewConfiguration.get(this).getScaledTouchSlop();
-        return mTouchSlopPx;
+    private boolean pressMayDismissInputPanel() {
+        if (!isTextInputVisible()) return false;
+        if (mPressExempt) return false;
+        final androidx.viewpager2.widget.ViewPager2 pager = getTerminalPager();
+        return pager == null
+            || pager.getScrollState() != androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_DRAGGING;
+    }
+
+    private View getTextInputPanelContainer() {
+        if (mTextInputPanelContainer == null) mTextInputPanelContainer = findViewById(R.id.terminal_toolbar_text_input_container);
+        return mTextInputPanelContainer;
+    }
+
+    private ViewGroup getSessionTabsContainer() {
+        if (mSessionTabsContainer == null) mSessionTabsContainer = findViewById(R.id.session_tabs_container);
+        return mSessionTabsContainer;
+    }
+
+    private boolean isTouchInside(@Nullable View view, float x, float y) {
+        if (view == null || view.getVisibility() != View.VISIBLE) return false;
+        view.getLocationOnScreen(mScreenLocation);
+        return x >= mScreenLocation[0] && x < mScreenLocation[0] + view.getWidth()
+            && y >= mScreenLocation[1] && y < mScreenLocation[1] + view.getHeight();
     }
 
     /**
@@ -4691,8 +4634,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * their height, and the panel is only drawn on top of them. In the extra keys' place, it
      * replaces them — they are taken out with {@code GONE} so the strip collapses and the terminal
      * grows into it, and they come back per the keyboard-visibility setting.
-     *
-     * @param visible true to show the text input panel, false to hide it
      */
     private void setTextInputPanelVisible(boolean visible) {
         final View container = findViewById(R.id.terminal_toolbar_text_input_container);
@@ -4700,7 +4641,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         container.setVisibility(visible ? View.VISIBLE : View.GONE);
 
         if (isTextInputPanelOverTerminal()) {
-            // The extra keys are none of this panel's business here: two separate strips.
             if (visible && mTextInputPanel != null) mTextInputPanel.updatePanelHeight();
             applyTextInputPanelBottomMargin(dpToPx(6));
         } else {
@@ -4712,8 +4652,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             applyTextInputPanelBottomMargin(dpToPx(4));
         }
 
-        // Which panel forms the bottom strip has just changed, so everything anchored to it —
-        // the terminal, the tabs and the two views of this panel — is re-anchored.
         applyBottomStripAnchors();
         // The panel has just appeared or vanished, so its clearance from the scrollbar has to be
         // decided now rather than at the pager's next settle.

@@ -20,41 +20,37 @@ import com.termux.view.ElasticOverdrag;
  *
  * <p>On the first/last page the drag dies at the boundary; this controller turns that dead
  * zone into resistance: the edge page follows the finger with a damped response and springs
- * back on release, so it can be pulled a little way off the edge and snaps back when let go.
+ * back on release.
  *
- * <h2>How the pull is measured</h2>
- * A RecyclerView never scrolls past its bounds, but it funnels every <em>unconsumed</em>
- * scroll delta into {@code pullGlows()} / {@code onPullDistance(glow, unconsumedPx/width, ...)},
- * i.e. the framework already computes the "pixels dragged past the boundary". So a
- * {@link RecyclerView.EdgeEffectFactory} of pure-spy {@link EdgeEffect}s is installed: they
- * draw nothing, never call {@code super.onPull} (internal distance stays 0 forever, which also
- * suppresses every stock visual) and only forward the delta via {@code onPull/onPullDistance}
- * (drag), {@code onAbsorb} (fling into the wall) and {@code onRelease} (spring back).
+ * <p><b>How the pull is measured.</b> A RecyclerView never scrolls past its bounds, but it funnels
+ * every <em>unconsumed</em> scroll delta into {@code pullGlows()} / {@code onPullDistance()}, i.e.
+ * the framework already computes the "pixels dragged past the boundary". So a
+ * {@link RecyclerView.EdgeEffectFactory} of pure-spy {@link EdgeEffect}s is installed: they draw
+ * nothing, never call {@code super.onPull} (internal distance stays 0 forever, which also
+ * suppresses every stock visual) and only forward the delta.
  *
- * <h2>Where the displacement is applied</h2>
- * On the pager's inner RecyclerView itself ({@code translationX}), not on a page: the pager
- * clips its children, so translating the RecyclerView slides the edge page and reveals the
- * background. The scroll offset stays untouched, so PagerSnapHelper / {@code onPageScrolled} /
- * {@code getCurrentItem()} never see the over-drag and cannot fight it.
+ * <p><b>Where the displacement is applied.</b> On the pager's inner RecyclerView itself
+ * ({@code translationX}), not on a page: the pager clips its children, so translating the
+ * RecyclerView slides the edge page and reveals the background. The scroll offset stays untouched,
+ * so PagerSnapHelper / {@code onPageScrolled} / {@code getCurrentItem()} never see the over-drag
+ * and cannot fight it.
  *
- * <h2>Giving the pull back (the bleed)</h2>
- * When the finger travels back inward the RecyclerView scrolls for real; {@code onScrolled}
- * therefore bleeds the held pull back one pixel of <em>finger travel</em> per pixel of
- * consumed scroll ({@link #bleedIntoScroll}). Paying in the finger-travel domain (rather than
- * the damped on-screen value) keeps the motion continuous: in the damped domain the concave
- * curve cancels ~2.4x the pull and a single large scroll frame can zero the displacement at
- * once. With a single page the return arrives as an unconsumed delta on the <em>opposite</em>
- * edge ({@link #onEdgePull} spends a new pull cancelling the opposite accumulator first).
+ * <p><b>Giving the pull back.</b> When the finger travels back inward the RecyclerView scrolls for
+ * real; {@code onScrolled} therefore bleeds the held pull back one pixel of <em>finger travel</em>
+ * per pixel of consumed scroll ({@link #bleedIntoScroll}). Paying in the finger-travel domain keeps
+ * the motion continuous: in the damped domain the concave curve cancels ~2.4x the pull and a single
+ * large scroll frame can zero the displacement at once. With a single page the return arrives as an
+ * unconsumed delta on the <em>opposite</em> edge ({@link #onEdgePull} spends a new pull cancelling
+ * the opposite accumulator first).
  *
- * <h2>Why the maths is clamped everywhere</h2>
- * The value is written to the view hosting <em>every</em> page, so a bad value takes out all
- * sessions at once and is unrecoverable without recreating the activity: a NaN translation
- * makes the whole subtree stop being drawn <em>and</em> inverts hit-testing (the reported
- * "output gone for all sessions, restart only"). Three invariants are enforced at every entry
- * point: (1) finite only, no non-finite value ever reaches {@code setTranslationX}; (2) the
- * raw accumulator is capped at the saturation travel, so {@link #damp(float, float)} cannot overflow;
- * (3) never displaced while idle, any leftover is <em>animating</em> to 0
- * ({@link #ensureSettled()}) so enforcing it is never itself the jerk.
+ * <p><b>Why the maths is clamped everywhere.</b> The value is written to the view hosting
+ * <em>every</em> page, so a bad value takes out all sessions at once and is unrecoverable without
+ * recreating the activity: a NaN translation makes the whole subtree stop being drawn <em>and</em>
+ * inverts hit-testing (the reported "output gone for all sessions, restart only"). Three
+ * invariants are enforced at every entry point: finite only, no non-finite value ever reaches
+ * {@code setTranslationX}; the raw accumulator is capped at the saturation travel, so
+ * {@link #damp(float, float)} cannot overflow; never displaced while idle, any leftover is
+ * <em>animating</em> to 0 ({@link #ensureSettled()}) so enforcing it is never itself the jerk.
  */
 public final class PagerOverscrollController {
 
@@ -284,20 +280,20 @@ public final class PagerOverscrollController {
         } else {
             mRightRawPx = clampRaw(mRightRawPx - giveBack);
         }
-        // The damped value follows from the raw, so it is re-derived, not decremented: the
-        // accumulator stays the single source of truth, and the displacement cannot pass the cap.
+        // The damped value follows from the raw, so it is re-derived, not decremented: that way
+        // the displacement cannot pass the cap.
         apply();
     }
 
     // ---- displacement ----
 
     private void apply() {
-        // One width read per frame: damp() would read extentPx() twice, setTranslation() a third.
+        // One width read per frame: damp() would read extentPx() twice, setTranslation() a third,
+        // which is why the damp() overload takes it.
         final float w = extentPx();
         setTranslation(damp(mLeftRawPx, w) - damp(mRightRawPx, w), w);
     }
 
-    /** {@link #setTranslation(float, float)} with the width read fresh. */
     private void setTranslation(float px) {
         setTranslation(px, extentPx());
     }
@@ -320,9 +316,6 @@ public final class PagerOverscrollController {
      * The pager's extent along the drag axis вЂ” the inner RecyclerView's width. Every scale of the
      * effect is a fraction of it (the cap is 20 %). Read on demand, not cached, so rotation or a
      * split-screen resize reflows the physics instead of keeping a stale pixel value.
-     *
-     * <p>The pager has no quantum to snap to (unlike the transcript, made of glyph rows), so all
-     * of these use the plain {@link ElasticOverdrag} entry points.</p>
      */
     private float extentPx() {
         return Math.max(1f, mRecyclerView.getWidth());
@@ -340,13 +333,7 @@ public final class PagerOverscrollController {
         return mRecyclerView.getResources().getDisplayMetrics().density;
     }
 
-    /**
-     * {@link #damp(float, float)} against an extent the caller already has. {@link #apply()} needs the
-     * width three times per frame вЂ” reading it once keeps {@link #extentPx()} (and the
-     * {@code getWidth()} behind it) off the hot path.
-     *
-     * @param widthPx the pager's extent, read once per frame by {@link #apply()}.
-     */
+    /** {@link #dampStatic(float, float)} against an extent the caller already has. */
     private float damp(float rawPx, float widthPx) {
         return dampStatic(rawPx, widthPx);
     }

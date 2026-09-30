@@ -80,8 +80,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     /**
      * Cold-start "hide soft keyboard on startup" not yet applied: onResume() early-returns while
      * the pager has not bound page 0 ({@code getTerminalView()} null), which used to drop the
-     * preference entirely (see #2112). Consumed by {@link #applyStartupSoftKeyboardState()} via
-     * {@link TermuxActivity#consumePendingKeyboardRestoreIfReady()}, the single "page is live" hook.
+     * preference entirely (see #2112).
      */
     private boolean mStartupSoftKeyboardPending;
 
@@ -90,7 +89,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * {@link #mStartupSoftKeyboardPending}. With "hide on startup" OFF the keyboard must still
      * appear on a cold start, but by the time the page is bound the show that
      * {@code setSoftKeyboardState()} asked for is long gone (the view was missing, and the window
-     * had no focus yet). Consumed by {@link #applyStartupSoftKeyboardShow()}.
+     * had no focus yet).
      */
     private boolean mStartupSoftKeyboardShowPending;
 
@@ -102,11 +101,11 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * {@code SOFT_INPUT_STATE_ALWAYS_HIDDEN | SOFT_INPUT_ADJUST_RESIZE} (measured: each
      * step alone left the keyboard up).
      *
-     * <p>Raised in {@link #onResume()} on the cold start, dropped on the next resume or by
-     * the first user interaction ({@link #endBubbleStartupImeSuppression()}). Deliberately
-     * NOT dropped by {@link #applyStartupSoftKeyboardState()}: the page-live hook fires
-     * while the pager settles and startup re-selects page 0 more than once while sessions
-     * restore, and measured, dropping at the first hook let a later reconcile show the IME.
+     * <p>Dropped on the next resume or by the first user interaction
+     * ({@link #endBubbleStartupImeSuppression()}), but deliberately NOT by
+     * {@link #applyStartupSoftKeyboardState()}: the page-live hook fires while the pager settles
+     * and startup re-selects page 0 more than once while sessions restore, and measured, dropping
+     * at the first hook let a later reconcile show the IME.
      */
     private boolean mBubbleStartupImeSuppressed;
 
@@ -161,9 +160,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * Should be called when mActivity.onResume() is called
      */
     public void onResume() {
-        // A bubble cold start must not pull up the IME — see mBubbleStartupImeSuppressed. Raised
-        // here because onResume() is the first point the window exists; cleared on a later resume
-        // (returning to an existing bubble is a normal window).
+        // A bubble cold start must not pull up the IME. Raised here because onResume() is the first
+        // point the window exists; cleared on a later resume (returning to an existing bubble is a
+        // normal window).
         if (mActivity.isBubbleWindow()) {
             if (mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()) {
                 mBubbleStartupImeSuppressed = true;
@@ -179,9 +178,8 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         }
 
         // Cold start + "hide soft keyboard on startup": defer the hide until the pager binds
-        // page 0 (mStartupSoftKeyboardPending + consumePendingKeyboardRestoreIfReady), and
-        // record the visible intent as hidden so the per-session IME reconcile that runs
-        // AFTER the hide cannot re-show. A real user action (tap, toggle) overwrites it again.
+        // page 0, and record the visible intent as hidden so the per-session IME reconcile that
+        // runs AFTER the hide cannot re-show. A real user action (tap, toggle) overwrites it again.
         if (mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()
                 && !shouldSoftKeyboardBeDisabled()
                 && mActivity.getProperties().shouldSoftKeyboardBeHiddenOnStartup()) {
@@ -195,8 +193,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
         // Cold start with "hide on startup" OFF: the keyboard must still come up, but the show in
         // setSoftKeyboardState() cannot be relied on (no page bound yet, no window focus), so redo
-        // it once the page is live. A bubble is excluded for the same reason as above — it is not
-        // a user launch, and mBubbleStartupImeSuppressed owns that window's keyboard.
+        // it once the page is live. A bubble is excluded: it is not a user launch.
         if (!mActivity.isBubbleWindow()
                 && mActivity.isOnResumeAfterOnCreate() && !mActivity.isActivityRecreated()
                 && !shouldSoftKeyboardBeDisabled()
@@ -275,8 +272,8 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // the OnScreenUpdateListener, fires only on output) and the button overlapped the scrollbar
         // thumb. Posted to stay out of the layout pass (updateSize() runs inside it); the settled
         // margin is a one-shot value so a frame's delay is fine, and the method early-returns while
-        // the pager animates a page scroll. Still addressed to the ACTIVE view (unlike the write
-        // above): the margin belongs to the page on screen; the field runnable allocates nothing.
+        // the pager animates a page scroll. Addressed to the ACTIVE view (unlike the write above):
+        // the margin belongs to the page on screen.
         final TerminalView active = mActivity.getTerminalView();
         if (active != null) {
             active.post(mUpdateFloatingButtonMargin);
@@ -317,14 +314,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             terminalView = (TerminalView) mActivity.getCurrentFocus();
         }
 
-        // Hide text input panel instantly when tapping on the terminal area,
-        // instead of waiting for a keyboard focus change event.
-        if (mActivity.isTextInputVisible()) {
-            mActivity.setTextInputVisible(false);
-            mActivity.updateToggleTextInputButtonIcon();
-            return;
-        }
-
         if (mActivity.getProperties().shouldOpenTerminalTranscriptURLOnClick()) {
             if (terminalView == null) return;
             int[] columnAndRow = terminalView.getColumnAndRow(e, true);
@@ -342,9 +331,8 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity)) {
                 // A tap is an explicit show request: clear a leftover SOFT_INPUT_STATE_ALWAYS_HIDDEN
                 // (left by the cold-start hide / bubble suppression) first, or the window state works
-                // against the show — same precaution as the KEYBOARD toggle and per-session reconcile.
-                // setSoftInputModeAdjustResize also keeps the window resizing (ALWAYS_HIDDEN alone
-                // replaces ADJUST_RESIZE).
+                // against the show. setSoftInputModeAdjustResize also keeps the window resizing
+                // (ALWAYS_HIDDEN alone replaces ADJUST_RESIZE).
                 KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
                 KeyboardUtils.showSoftKeyboard(mActivity, terminalView);
             } else
@@ -506,9 +494,8 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * {@link TerminalView#inputCodePoint}.
      *
      * <p>Virtual volume-key Ctrl counts as held (released by its key-up); volume-key Fn does
-     * not: it is the terminal's translation mode (letter to arrow/F-key), not the Fn button,
-     * and {@link #readFnKey()} does not report it either, so a {@code FN} binding means the
-     * extra-keys Fn button or a hardware Fn key.
+     * not: it is the terminal's translation mode (letter to arrow/F-key), not the Fn button, so a
+     * {@code FN} binding means the extra-keys Fn button or a hardware Fn key.
      */
     private boolean peekControlKey() {
         return readExtraKeysSpecialButton(SpecialButton.CTRL, false) || mVirtualControlKeyDown;
@@ -527,13 +514,11 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     }
 
     /**
-     * Spend the one-shot extra-keys modifiers a fired combination used.
-     *
-     * <p>The matcher only peeks at them, so a key that is not a binding still reaches the terminal
-     * with its modifier intact. When the combination does fire, the key never gets that far and
-     * nothing else will clear the button — a tapped Ctrl or Alt would stay lit and silently apply
-     * to the next key as well. Hardware modifiers and locked buttons have nothing to clear, so
-     * these reads are no-ops for them.
+     * Spend the one-shot extra-keys modifiers a fired combination used. A key that is not a binding
+     * still reaches the terminal with its modifier intact; when the combination does fire, the key
+     * never gets that far and nothing else will clear the button — a tapped Ctrl or Alt would stay
+     * lit and silently apply to the next key as well. Hardware modifiers and locked buttons have
+     * nothing to clear, so these reads are no-ops for them.
      */
     private void consumeShortcutModifiers(boolean ctrl, boolean alt, boolean shift, boolean fn) {
         if (ctrl) readControlKey();
@@ -554,11 +539,10 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // settings is what actually happens — including over the Ctrl+Alt virtual-key mapping and
         // over Ctrl+J's "remove the finished session" shortcut, which is only a fallback now.
         //
-        // The modifiers are the ones TerminalView resolved for this code point and must not be read
-        // again here: the extra-keys buttons are one-shot and TerminalView has already spent them
-        // by the time we are called, so a fresh read would always come back false. That is what
-        // used to make every Alt combination dead on this path — the Alt was consumed by
-        // inputCodePoint() before the matcher ever saw it.
+        // The modifiers must not be read again here: the extra-keys buttons are one-shot and
+        // TerminalView has already spent them by the time we are called, so a fresh read would
+        // always come back false. That is what used to make every Alt combination dead on this
+        // path.
         if (handleSessionShortcut(characterToken(codePoint), ctrlDown, altDown, shiftDown, fnDown))
             return true;
 
@@ -675,14 +659,12 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     }
 
     /**
-     * Runs the session action bound to a pressed combination, if any.
+     * Runs the session action bound to a pressed combination, if any. Bindings are matched in
+     * reverse registration order, so when two of them share a combination the one added last wins
+     * — the same tie-break the settings screen shows last.
      *
-     * <p>Bindings are matched in reverse registration order, so when two of them share a
-     * combination the one added last wins — the same tie-break the settings screen shows last.
-     *
-     * <p>The caller passes the modifier set it resolved for the key; this method never reads the
-     * extra-keys buttons itself, see {@link #peekControlKey()}. A fired combination spends the
-     * one-shot modifiers it used, see {@link #consumeShortcutModifiers}.
+     * <p>A fired combination spends the one-shot extra-keys modifiers it used; a non-binding key
+     * leaves them for the terminal.
      */
     private boolean handleSessionShortcut(@Nullable String key,
                                           boolean ctrl, boolean alt, boolean shift, boolean fn) {
@@ -768,13 +750,10 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     }
 
     /**
-     * Step the terminal font size up or down by one pinch step, then apply it everywhere. Reached
-     * from the pinch gesture ({@link #onScale}) and the Ctrl+Alt+{@code +}/{@code -} shortcut
-     * ({@link #onKeyDown}). Applied via the session client so every bound page gets the new size,
-     * not just the active one: neighbours stay bound ({@code setOffscreenPageLimit(1)}) and are not
-     * rebound when they return, so they would keep the old size until recycled. The Display settings
-     * slider takes the same path — see
-     * {@code TermuxTerminalSessionActivityClient.applyTerminalFontSizeToAllViews()}.
+     * Step the terminal font size up or down by one pinch step, then apply it everywhere. Applied via
+     * the session client so every bound page gets the new size, not just the active one: neighbours
+     * stay bound ({@code setOffscreenPageLimit(1)}) and are not rebound when they return, so they
+     * would keep the old size until recycled.
      */
     public void changeFontSize(boolean increase) {
         mActivity.getPreferences().changeFontSize(increase);
@@ -793,15 +772,13 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
         // If soft keyboard toggle behaviour is enable/disabled
         if (mActivity.getProperties().shouldEnableDisableSoftKeyboardOnToggle()) {
-            // If soft keyboard is visible
             if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity)) {
                 Logger.logVerbose(LOG_TAG, "Disabling soft keyboard on toggle");
                 mActivity.getPreferences().setSoftKeyboardEnabled(false);
                 KeyboardUtils.disableSoftKeyboard(mActivity, terminalView);
             } else {
-                // Show with a delay, otherwise the toggle won't show the keyboard after switching
-                // back if it was previously disabled; also request focus, which setSoftKeyboardState
-                // skipped at startup while disabled. #2112
+                // Also request focus, which setSoftKeyboardState skipped at startup while disabled,
+                // or the toggle won't show the keyboard after switching back. #2112
                 Logger.logVerbose(LOG_TAG, "Enabling soft keyboard on toggle");
                 mActivity.getPreferences().setSoftKeyboardEnabled(true);
                 KeyboardUtils.clearDisableSoftKeyboardFlags(mActivity);
@@ -822,7 +799,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         }
         // If soft keyboard toggle behaviour is show/hide
         else {
-            // If soft keyboard is disabled by user for Termux
             if (!mActivity.getPreferences().isSoftKeyboardEnabled()) {
                 Logger.logVerbose(LOG_TAG, "Maintaining disabled soft keyboard on toggle");
                 KeyboardUtils.disableSoftKeyboard(mActivity, terminalView);
@@ -857,7 +833,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // Focus is needed whether or not the keyboard will be shown: with a hardware keyboard,
         // typing without tapping the terminal first would add a colour tint as the focus highlight
         // (test with a light theme; defaultFocusHighlightEnabled is also false in TerminalView).
-        // If soft keyboard is disabled by user for Termux (check function docs for Termux behaviour info)
         if (shouldSoftKeyboardBeDisabled()) {
             Logger.logVerbose(LOG_TAG, "Maintaining disabled soft keyboard");
             KeyboardUtils.disableSoftKeyboard(mActivity, terminalView);
@@ -868,7 +843,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
             if (isStartup && mActivity.isOnResumeAfterOnCreate())
                 mShowSoftKeyboardOnTogglePending = true;
         } else {
-            // Set flag to automatically push up TerminalView when keyboard is opened instead of showing over it
+            // Push the TerminalView up when the keyboard opens instead of showing over it.
             KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
 
             // Clear any previous flags to disable soft keyboard in case setting updated.
@@ -891,9 +866,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
                 terminalView.requestFocus();
                 noShowKeyboard = true;
-                // Nothing schedules IME shows now (see registerTerminalViewFocusListener) and the
-                // ALWAYS_HIDDEN flag above stops the platform auto-showing one. Record the intent as
-                // hidden so later startup reconciles agree with the hide (see onResume()).
+                // Record the intent as hidden so later startup reconciles agree with the hide.
                 mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
             }
         }
@@ -929,9 +902,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     /**
      * Applies the "hide soft keyboard on startup" preference for a true cold start, deferred until
      * the first pager page is bound (when {@link TermuxActivity#getTerminalView()} is non-null).
-     *
-     * <p>Called from {@link TermuxActivity#consumePendingKeyboardRestoreIfReady()}, the single
-     * "page is live" hook, once per cold start (guarded by {@link #mStartupSoftKeyboardPending}).
      * The window flag is already pre-set in {@link #onResume()}, so this only does the actual
      * hide + focus + intent write once the view is real.
      */
@@ -944,7 +914,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         if (terminalView == null) return;
         mStartupSoftKeyboardPending = false;
 
-        // Keyboard fully disabled for Termux: nothing to hide (the disable path owns it).
         if (shouldSoftKeyboardBeDisabled())
             return;
 
@@ -963,7 +932,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
     /**
      * Cold-start keyboard show, deferred until the first pager page is bound: the counterpart of
-     * {@link #applyStartupSoftKeyboardState()}. No-op unless a show is still pending (runs once).
+     * {@link #applyStartupSoftKeyboardState()}. No-op unless a show is still pending.
      */
     public void applyStartupSoftKeyboardShow() {
         if (!mStartupSoftKeyboardShowPending) return;
@@ -989,8 +958,8 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
     /**
      * One cold-start hide: window flag + {@code hideSoftKeyboard()} + focus, and the keyboard
-     * intent recorded as hidden (see {@link #onResume()} for why the intent write is the part
-     * that makes the preference stick across the repeated startup reconciles).
+     * intent recorded as hidden — the intent write is what makes the preference stick across the
+     * repeated startup reconciles.
      */
     private void performStartupSoftKeyboardHide() {
         TerminalView terminalView = mActivity.getTerminalView();
@@ -1000,8 +969,6 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         KeyboardUtils.setSoftKeyboardAlwaysHiddenFlags(mActivity);
         KeyboardUtils.hideSoftKeyboard(mActivity, terminalView);
         terminalView.requestFocus();
-        // Nothing schedules IME shows any more (see registerTerminalViewFocusListener) and the
-        // ALWAYS_HIDDEN window flag above stops the platform auto-showing one here.
         mActivity.getTextInputState().setSoftKeyboardVisibleIntent(false);
         TerminalSession session = mActivity.getCurrentSession();
         if (session != null)
@@ -1040,14 +1007,11 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
      * <p>Read by {@link TermuxActivity#applyTextInputVisibilityForSession} to stop the startup
      * per-session IME reconcile from popping the keyboard: a fresh session has no recorded intent,
      * so {@code isSoftKeyboardIntent()} falls back to the default {@code true} and the reconcile
-     * (which runs AFTER the hide) would {@code SoftKeyboardRestore.showWithRetry}. Raised in
-     * {@link #onResume()}, cleared by {@link #applyStartupSoftKeyboardState()} once the startup page
-     * selection is done — only the startup reconcile is affected; later user-driven shows work.
+     * (which runs AFTER the hide) would {@code SoftKeyboardRestore.showWithRetry}.
      *
-     * <p>A bubble cold start reports {@code true} too ({@link #mBubbleStartupImeSuppressed}): the
-     * bubble has no recorded intent either, and it stays true for the whole cold start rather than
-     * only until the first "page is live", because the pager re-runs the reconcile while sessions
-     * restore.
+     * <p>A bubble cold start reports {@code true} too, and it stays true for the whole cold start
+     * rather than only until the first "page is live", because the pager re-runs the reconcile while
+     * sessions restore.
      */
     public boolean isStartupSoftKeyboardHidePending() {
         return mStartupSoftKeyboardPending || mBubbleStartupImeSuppressed;
@@ -1090,10 +1054,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 // This listener deliberately does NOT schedule a keyboard show. It used to answer a
                 // focus change with a blind 500 ms delayed show (removed) that any "keep hidden"
                 // path could forget to cancel — leaving the IME popping up after the user had
-                // closed the panel. Every show is now requested explicitly by the path that owns the
-                // intent (panel open, terminal tap, tab-switch reconcile, resume restore, KEYBOARD
-                // toggle); a focus change only keeps focus/panel bookkeeping in sync and hides the
-                // IME when neither the terminal nor the panel wants it.
+                // closed the panel. Every show is now requested explicitly by the path that owns
+                // the intent (panel open, terminal tap, tab-switch reconcile, resume restore,
+                // KEYBOARD toggle).
                 boolean textInputViewHasFocus = false;
                 final EditText textInputView =  mActivity.findViewById(R.id.terminal_toolbar_text_input);
                 if (textInputView != null) textInputViewHasFocus = textInputView.hasFocus();
@@ -1102,16 +1065,12 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                     // Terminal got focus (not the panel): remember input goes to terminal.
                     if (hasFocus && !textInputViewHasFocus) {
                         mActivity.setFocusOnInputForCurrentSession(false);
-                        // Panel open + focus moves to the terminal (tap / long-press to select):
-                        // switch to the extra keys panel. Driven by the user interacting with the
-                        // terminal, independent of the "Action on send" preference (which only
-                        // governs what happens when text is sent).
                         View container = mActivity.findViewById(
                                 com.termux.R.id.terminal_toolbar_text_input_container);
-                        if (container != null
+                        if (!mActivity.isTextInputPanelOverTerminal()
+                                && container != null
                                 && container.getVisibility() == View.VISIBLE) {
                             mActivity.setTextInputVisible(false);
-                            mActivity.updateToggleTextInputButtonIcon();
                         }
                     }
                     Logger.logVerbose(LOG_TAG, "Focus moved to the terminal or the input panel");
@@ -1140,10 +1099,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     }
 
     /**
-     * Dismiss the soft keyboard after text was sent from the input field.
-     *
-     * <p>Independent of whether the input panel itself stays open: hiding is unconditional, and
-     * nothing re-shows the IME behind our back (the focus listener does not schedule shows).
+     * Dismiss the soft keyboard after text was sent from the input field, whether or not the input
+     * panel itself stays open. Nothing re-shows the IME behind our back: the focus listener does not
+     * schedule shows.
      */
     public void hideSoftKeyboardAfterSend() {
         TerminalView terminalView = mActivity.getTerminalView();

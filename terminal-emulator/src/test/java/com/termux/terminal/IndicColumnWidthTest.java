@@ -5,15 +5,8 @@ import junit.framework.TestCase;
 import java.nio.charset.StandardCharsets;
 
 /**
- * The column accounting for Devanagari and for emoji modifiers — the two things that made a
- * full-screen TUI's line overflow and auto-wrap break <em>inside a word</em>.
- *
- * <p>That overflow is what left a column of stray glyphs along the edges of the grid: a TUI pads
- * every line to the full width and repaints it with an absolute cursor move, so the tail that
- * auto-wrap pushed into column 0 of the next row was never erased, and the same fragment was
- * re-deposited on every frame for every row of the same diff. The content was visibly broken too —
- * a vowel sign in a cell of its own is a mark with no base, which the shaper renders as a dotted
- * circle, so "पिछली" came out as "प◌छली".
+ * Cell accounting for Devanagari and for emoji modifiers, the two cases that made a full-screen
+ * TUI's line overflow and auto-wrap break <em>inside a word</em>.
  *
  * <p>These are emulator-level assertions, so they hold independently of any font: what they pin is
  * how many <em>cells</em> a code point claims, which is what decides where the wrap lands.</p>
@@ -24,7 +17,7 @@ public class IndicColumnWidthTest extends TestCase {
 	private static final String PICHHLI = "पिछली";
 	/** "सूचना" — the word every one of the translated *_deduplication_summary strings ends up in. */
 	private static final String SUCCHNA = "सूचना";
-	/** A thumbs-up with a skin-tone modifier: one base glyph plus one modifier. */
+	/** A thumbs-up with a skin-tone modifier, which claims no cell of its own. */
 	private static final String THUMBS_UP_TONE = "👍🏽";
 
 	private static int displayWidth(String text) {
@@ -42,17 +35,12 @@ public class IndicColumnWidthTest extends TestCase {
 		em.append(bytes, bytes.length);
 	}
 
-	/**
-	 * A Hindi word claims one cell per consonant, so a line long enough to hold one leaves room for
-	 * the whole word and the wrap cannot land inside it.
-	 */
 	public void testDevanagariWordFitsOnOneRow() {
 		assertEquals(3, displayWidth(PICHHLI));
 		assertEquals(3, displayWidth(SUCCHNA));
 
-		// 8 columns, of which 3 are free at the end of the line: the word fits and the row after it
-		// stays empty. With the vowel signs counted as cells the word needed 5 and the tail was
-		// wrapped into the next row's column 0.
+		// With the vowel signs counted as cells the word needed 5, so the tail was wrapped into the
+		// next row's column 0.
 		final TerminalEmulator em = new TerminalEmulator(new TerminalTestCase.MockTerminalOutput(), 8, 4, 13, 15, 8, null);
 		feed(em, "abcde" + SUCCHNA);
 		assertEquals("abcde" + SUCCHNA, rowText(em, 0, 8));
@@ -60,10 +48,9 @@ public class IndicColumnWidthTest extends TestCase {
 	}
 
 	/**
-	 * A line that ends exactly full wraps at the *next* character, and the next word starts whole
-	 * at column 0 of the following row. With the vowel signs counted as cells the word needed five
-	 * columns instead of three, so the same line tore the word across the wrap and its tail landed
-	 * in that column 0 — which is where the leftovers along the edge of the grid came from.
+	 * A line that ends exactly full wraps at the *next* character, so the next word starts whole at
+	 * column 0. Counted as cells, the word needed five columns instead of three and tore across the
+	 * wrap.
 	 */
 	public void testDevanagariWordWrapsAsAWhole() {
 		final TerminalEmulator em = new TerminalEmulator(new TerminalTestCase.MockTerminalOutput(), 7, 4, 13, 15, 8, null);
@@ -74,9 +61,8 @@ public class IndicColumnWidthTest extends TestCase {
 	}
 
 	/**
-	 * A combining mark is stored in the cell of the consonant it belongs to, so the renderer is
-	 * handed a run that starts with a base and the shaper has no reason to substitute a dotted
-	 * circle. This is the cell-level statement of the same defect as the visible "प◌छली".
+	 * A mark is stored in the cell of the consonant it belongs to, so the run handed to the shaper
+	 * starts with a base and no dotted circle is substituted for it.
 	 */
 	public void testVowelSignSharesItsConsonantCell() {
 		final TerminalEmulator em = new TerminalEmulator(new TerminalTestCase.MockTerminalOutput(), 8, 4, 13, 15, 8, null);
@@ -87,8 +73,7 @@ public class IndicColumnWidthTest extends TestCase {
 		assertEquals(3, displayWidth(PICHHLI));
 		assertTrue("the row must hold the whole word's characters",
 			line.getSpaceUsed() >= PICHHLI.length());
-		// Column 0 starts with a consonant, so the run handed to the shaper has a base and no dotted
-		// circle is substituted. Its cell is exactly प + ि — two chars, one column.
+		// Column 0 holds exactly प + ि — two chars, one cell.
 		assertEquals(PICHHLI.charAt(0), line.mText[0]);
 		assertEquals(PICHHLI.charAt(1), line.mText[1]);
 		assertEquals("प and ि share one cell", 2, line.findStartOfColumn(1) - line.findStartOfColumn(0));
@@ -96,10 +81,7 @@ public class IndicColumnWidthTest extends TestCase {
 		assertEquals(5, line.findStartOfColumn(3) - line.findStartOfColumn(0));
 	}
 
-	/**
-	 * A skin-tone modifier claims no cell, so the emoji keeps its own two: after "ab" the
-	 * cursor is at column 4, not 6.
-	 */
+	/** After "ab" the cursor is at column 4, not 6: the modifier claims no cell of its own. */
 	public void testEmojiWithSkinToneKeepsTwoCells() {
 		assertEquals(2, displayWidth(THUMBS_UP_TONE));
 
@@ -135,7 +117,6 @@ public class IndicColumnWidthTest extends TestCase {
 			final int charCount = Character.charCount(codePoint);
 			final int width = WcWidth.width(codePoint);
 			if (width == 0) {
-				// A mark belongs to the cell in front of it and is not a column of its own.
 				cell.appendCodePoint(codePoint);
 			} else {
 				out.append(cell);

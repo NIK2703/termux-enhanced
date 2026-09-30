@@ -176,16 +176,14 @@ public final class TermuxColorSchemeManager {
         mSchemeForeground = ColorSchemeUtils.getSchemeForeground();
 
         // Raw (translucent) panel button tints: dark for a light scheme, light for a dark one,
-        // decided by the scheme background colour alone.
+        // decided by the scheme background colour alone. The tints are kept as-is — the wallpaper
+        // is not hidden by opaque panels, it is shown through the WHOLE window, because the decor
+        // view is painted with the scheme background at the terminal's alpha (see
+        // TermuxActivity.applySystemBarColors()). Panels stay transparent and therefore inherit
+        // exactly the same "scheme bg at alpha A over the wallpaper" as the terminal itself, so the
+        // entire window is uniformly translucent instead of patchy.
         int inactiveTint = ColorSchemeUtils.getButtonBackground(mIsSchemeLight, inactivePct);
         int activeTint = ColorSchemeUtils.getButtonActiveBackground(mIsSchemeLight, activePct);
-
-        // Panel button colours: the translucent tints are kept as-is. The wallpaper is not hidden
-        // by opaque panels — it is shown through the WHOLE window, because the decor view is
-        // painted with the scheme background at the terminal's alpha (see
-        // TermuxActivity.applySystemBarColors()). Panels stay transparent and therefore inherit
-        // exactly the same "scheme bg at alpha A over the wallpaper" as the terminal itself,
-        // so the entire window is uniformly translucent instead of patchy.
         mButtonBg = inactiveTint;
         mButtonActiveBg = activeTint;
         mButtonText = mSchemeForeground;
@@ -227,17 +225,15 @@ public final class TermuxColorSchemeManager {
      * #FLOATING_CONTROL_CONTRAST_OPACITY}, with the tint taken at {@link
      * #FLOATING_CONTROL_CONTRAST_TINT_SCALE}× the configured alpha because that halving undoes it,
      * leaving the controls at the configured strength, i.e. readable against the terminal instead
-     * of merely lying on it.
+     * of merely lying on it. The composited colour is opaque, so the 50% is what makes the control
+     * translucent again.
      *
-     * <p>Why the control's own transparency survives the compositing: the composited colour is
-     * opaque, so the 50% is what makes it translucent again — the control ends up letting the
-     * terminal through at the configured strength, whichever tint direction it carries. Why the
-     * mix keeps the direction true: at 0% the terminal background already sits under the control,
-     * so the control is the plain tint; the more of that background the wallpaper replaces, the
-     * more of the background's colour the control carries itself, and since the transparency is
-     * capped at 50% the tint still outweighs the background — a dark tint on a light scheme can
-     * never stop darkening and a light tint on a dark scheme can never stop lightening, whatever
-     * the wallpaper shows through.
+     * <p>Why the mix keeps the tint direction true: at 0% the terminal background already sits under
+     * the control, so the control is the plain tint; the more of that background the wallpaper
+     * replaces, the more of the background's colour the control carries itself, and since the
+     * transparency is capped at 50% the tint still outweighs the background — a dark tint on a
+     * light scheme can never stop darkening and a light tint on a dark scheme can never stop
+     * lightening, whatever the wallpaper shows through.
      *
      * <p>Contrast mode decides the tint direction from {@code background} rather than from the
      * cached scheme lightness, because there the colour only makes sense against the surface it is
@@ -274,20 +270,16 @@ public final class TermuxColorSchemeManager {
      * Re-derive the floating controls' colours from the background the terminal is actually
      * painting, leaving the rest of the cache alone.
      *
-     * <p>Only meaningful in contrast-background mode, where the terminal background's colour is
-     * mixed into both controls and a background that changed without the scheme changing would
-     * leave them carrying a colour the terminal no longer shows. A running shell can repaint the
-     * terminal through OSC 4/11 without {@link TerminalColors#COLOR_SCHEME} noticing — writing the
-     * live colour back would discard the user's scheme — so this is the only place that can pick
-     * the live colour up.
+     * <p>Only meaningful in contrast-background mode, where a background that changed without the
+     * scheme changing would leave the controls carrying a colour the terminal no longer shows. A
+     * running shell can repaint the terminal through OSC 4/11 without {@link
+     * TerminalColors#COLOR_SCHEME} noticing — writing the live colour back would discard the user's
+     * scheme — so this is the only place that can pick the live colour up.
      *
-     * <p>In the default mode the background is only remembered, not used: both controls are plain
-     * scheme tints, so a background change must not repaint them (the cached colours are returned
-     * unchanged, and the caller leaves them alone).
-     *
-     * <p>The transparency weight and the contrast option are NOT re-read here: they are
-     * preferences, and the caller re-runs {@link #recompute(int, int, int, boolean)} when they
-     * change.
+     * <p>In the default mode the background is only remembered, not used, so a background change
+     * must not repaint the controls. The transparency weight and the contrast option are NOT
+     * re-read here either: they are preferences, and the caller re-runs {@link
+     * #recompute(int, int, int, boolean)} when they change.
      *
      * @return {@code true} when the cached colours changed, i.e. the caller has to re-apply them.
      */
@@ -319,71 +311,52 @@ public final class TermuxColorSchemeManager {
 
     // --- Getters ---
 
-    /** @return Cached panel/button background colour. */
     public int getButtonBg() { return mButtonBg; }
 
-    /** @return Cached panel/button active background colour. */
     public int getButtonActiveBg() { return mButtonActiveBg; }
 
-    /** @return Cached panel/button text (scheme foreground) colour. */
     public int getButtonText() { return mButtonText; }
 
-    /** @return Cached text selection highlight colour. */
     public int getTextSelectionHighlightColor() { return mTextSelectionHighlightColor; }
 
-    /**
-     * @return Fill of the floating controls: the inactive tint at the user's alpha — either plain
-     *         (default) or carried by the terminal background (see
-     *         {@link #deriveFloatingColors(int)}).
-     */
+    /** Fill of the floating controls: the inactive tint at the user's alpha, either plain or
+     * carried by the terminal background. */
     public int getFloatingButtonFill() { return mFloatingButtonFill; }
 
-    /**
-     * @return Fill of the input panel while it floats over the terminal — the tint of
-     *         {@link #getFloatingButtonFill()} at {@link #FLOATING_PANEL_CONTRAST_OPACITY}.
-     */
+    /** Fill of the input panel while it floats over the terminal — {@link #getFloatingButtonFill()}
+     * at {@link #FLOATING_PANEL_CONTRAST_OPACITY}. */
     public int getFloatingPanelFill() { return mFloatingPanelFill; }
 
-    /** @return Stroke counterpart of {@link #getFloatingPanelFill()}. */
+    /** Stroke counterpart of {@link #getFloatingPanelFill()}. */
     public int getFloatingPanelStroke() { return mFloatingPanelStroke; }
 
-    /**
-     * @return Stroke (and pressed fill) of the floating controls: the active tint at the user's
-     *         alpha — either plain (default) or carried by the terminal background.
-     */
+    /** Stroke (and pressed fill) of the floating controls: the active tint at the user's alpha,
+     * either plain or carried by the terminal background. */
     public int getFloatingButtonStroke() { return mFloatingButtonStroke; }
 
-    /** @return Whether the current scheme is perceived as light. */
     public boolean isSchemeLight() { return mIsSchemeLight; }
 
-    /** @return Cached raw scheme background colour. */
     public int getSchemeBackground() { return mSchemeBackground; }
 
-    /** @return Cached raw scheme foreground colour. */
     public int getSchemeForeground() { return mSchemeForeground; }
 
-    /** @return Cached divider colour (scheme foreground @ ~20% alpha). */
     public int getDividerColor() { return mDividerColor; }
 
-    /** @return Cached context-popup background colour (scheme bg + inactive overlay). */
     public int getHistoryPopupBg() { return mHistoryPopupBg; }
 
-    /** @return Cached history popup text colour. */
     public int getHistoryTextColor() { return mHistoryTextColor; }
 
-    /** @return Cached history popup separator colour (foreground @ ~24% alpha). */
     public int getHistoryPopupSepColor() { return mHistoryPopupSepColor; }
 
-    /** @return Cached highlight fill for the history popup item under the finger. */
     public int getHistoryHighlightFill() { return mHistoryHighlightFill; }
 
     // --- Static utility ---
 
     /**
-     * Alpha-composite {@code overlay} (with alpha) on top of {@code background}
-     * (assumed opaque) using standard over operator.
+     * Alpha-composite {@code overlay} (with alpha) on top of {@code background} (assumed opaque)
+     * using the standard over operator.
      *
-     * @return Fully opaque ARGB colour.
+     * @return a fully opaque ARGB colour.
      */
     public static int compositeColors(int background, int overlay) {
         int alpha = Color.alpha(overlay);

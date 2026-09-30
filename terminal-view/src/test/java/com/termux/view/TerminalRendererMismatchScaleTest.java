@@ -8,24 +8,15 @@ import org.junit.Test;
 /**
  * Regression tests for the font-width-mismatch scale in {@link TerminalRenderer}.
  *
- * <p>A run whose measured width does not match the width of its cells is drawn under
- * {@code canvas.scale(runWidthColumns / mes, 1f)} with its origin moved by
- * {@code left *= mes / runWidthColumns}, so that a glyph the font draws at the wrong advance still
- * lands inside its cells.
- *
- * <p>Both factors are divisions by {@code mes}, the sum of the per-code-point advances the measure
- * cache holds. For a run of code points that measure nothing — which is what a zero-advance glyph
- * measures, and what a glyph the font has no real advance for measures — {@code mes} is 0: the
- * scale becomes {@code Infinity} and the origin becomes 0. {@code canvas.scale()} does not reject a
- * non-finite factor, so the canvas is left holding a matrix with {@code Infinity} in it, where every
- * subsequent draw is undefined. The visible symptom was a Devanagari cluster, squeezed into one or
- * two cells, painted at the left edge of the grid on every row that contained a Hindi vowel sign
- * (U+093E/093F/0940 measured ~0 in the fallback font), over a background that was otherwise being
- * repainted correctly.</p>
+ * <p>Both factors divide by {@code mes}, the sum of the per-code-point advances the measure cache
+ * holds. A run of code points that measure nothing gives {@code mes == 0}, the scale becomes
+ * {@code Infinity}, and {@code canvas.scale()} does not reject a non-finite factor, so the canvas
+ * is left holding a matrix where every subsequent draw is undefined. The visible symptom was a
+ * Devanagari cluster painted at the left edge of the grid on every row that contained a Hindi vowel
+ * sign (U+093E/093F/0940 measured ~0 in the fallback font).</p>
  */
 public class TerminalRendererMismatchScaleTest {
 
-    /** The failure: a run of zero-advance code points must never produce a scale. */
     @Test
     public void zeroMeasuredWidthIsNotScalable() {
         assertFalse("mes == 0 divides by zero into an infinite scale",
@@ -34,7 +25,6 @@ public class TerminalRendererMismatchScaleTest {
             TerminalRenderer.isMismatchScaleUsable(7, 0f));
     }
 
-    /** A near-zero measurement is the same defect with a large finite scale. */
     @Test
     public void vanishingMeasuredWidthIsNotScalable() {
         assertFalse("a run measured 1000x narrower than its cells is not a glyph",
@@ -42,14 +32,12 @@ public class TerminalRendererMismatchScaleTest {
         assertFalse(TerminalRenderer.isMismatchScaleUsable(10, 0.01f));
     }
 
-    /** A run with no cells cannot be scaled onto cells. */
     @Test
     public void zeroWidthRunIsNotScalable() {
         assertFalse("runWidthColumns == 0 would also make mes / runWidthColumns infinite",
             TerminalRenderer.isMismatchScaleUsable(0, 1f));
     }
 
-    /** NaN must not sneak through the comparison. */
     @Test
     public void notANumberIsNotScalable() {
         assertFalse(TerminalRenderer.isMismatchScaleUsable(1, Float.NaN));
@@ -57,9 +45,8 @@ public class TerminalRendererMismatchScaleTest {
     }
 
     /**
-     * The ordinary cases must keep working — this is the path the whole block exists for: a
-     * box-drawing character or a CJK glyph from a fallback font, drawn at a different advance than
-     * the cell gives it, is squeezed by a small factor and has to stay scalable.
+     * The ordinary cases must keep working: a box-drawing character or a CJK glyph from a fallback
+     * font, drawn at a different advance than its cells, is squeezed by a small factor.
      */
     @Test
     public void ordinaryMismatchesRemainScalable() {
@@ -74,7 +61,7 @@ public class TerminalRendererMismatchScaleTest {
         assertTrue(TerminalRenderer.isMismatchScaleUsable(1, 8f));
     }
 
-    /** Just past a bound is not — the run is drawn as it is, inside the row clip. */
+    /** Past a bound the run is simply drawn as it is, inside the row clip. */
     @Test
     public void pastTheBoundsIsNotScalable() {
         assertFalse(TerminalRenderer.isMismatchScaleUsable(9, 1f));    // 9x magnification

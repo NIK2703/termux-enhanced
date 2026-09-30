@@ -76,12 +76,9 @@ public final class TermuxBubbleManager {
     private static final int REQUEST_CODE_DELETE = 101;
 
     /**
-     * Set while this app has posted a bubble and has not taken it down.
-     *
-     * <p>Single source of truth: every transition is reported to us, so nothing has to be asked of
-     * the system. We post it here, the user's dismissal arrives at {@code ACTION_BUBBLE_DISMISSED},
-     * and {@link #cancel} clears it. A record left by an earlier process is deliberately not counted
-     * — see {@link #isBubblePosted}.
+     * Set while this app has posted a bubble and has not taken it down. Every transition is reported
+     * to us, so nothing has to be asked of the system. A record left by an earlier process is
+     * deliberately not counted.
      */
     private static volatile boolean sBubblePosted;
 
@@ -174,11 +171,10 @@ public final class TermuxBubbleManager {
      * notification's "bubble" button and the automatic path; the post itself still tolerates
      * a refusal because per-app flags can lag a just-changed setting.
      *
-     * <p>A self-gating entry point, and deliberately the only version check here: every caller
-     * (the activity's background path, the service notification's action, the post itself) reaches
-     * it without one of its own, because {@link #isSupported} is what makes the API-23/24/29 calls
-     * below safe. {@code SuppressLint} because lint cannot follow a gate that lives inside the
-     * method — it is not a licence to call anything new here without a version of its own.
+     * <p>{@link #isSupported} is what makes the API-23/24/29 calls below safe, and callers reach
+     * this method without a version check of their own. {@code SuppressLint} because lint cannot
+     * follow a gate that lives inside the method — not a licence to call anything new here without
+     * a version of its own.
      */
     @SuppressLint("NewApi")
     public static boolean areBubblesAvailable(@NonNull Context context) {
@@ -280,11 +276,6 @@ public final class TermuxBubbleManager {
      *
      * @param sessionTitle human readable title, used for the notification and shortcut label.
      * @return {@code true} if the notification was posted (SystemUI still decides bubble vs. plain).
-     *
-     * <p>The other self-gating entry point, for the same reason as {@link #areBubblesAvailable}:
-     * the {@link #isSupported} test below is the version check, the callers that have none of their
-     * own (the bubble button's receiver, the debug hook) depend on it, and lint cannot follow a gate
-     * that lives inside the method.
      */
     @SuppressLint("NewApi")
     public static boolean showBubble(@NonNull Context context, @NonNull CharSequence sessionTitle) {
@@ -371,8 +362,8 @@ public final class TermuxBubbleManager {
         // Two shapes exist and only the older one is on API 29: verified in AOSP, android-10's
         // BubbleMetadata.Builder has only the no-arg constructor + setIntent()/setIcon();
         // Builder(PendingIntent, Icon) first appears in android-11, so the two-arg call would throw
-        // NoSuchMethodError on Android 10 — the same failure class as areBubblesEnabled(). The
-        // no-arg form is deprecated from API 30 but not removed, and both set the same fields.
+        // NoSuchMethodError on Android 10. The no-arg form is deprecated from API 30 but not
+        // removed, and both set the same fields.
         final Icon bubbleIcon = Icon.createWithResource(context, R.mipmap.ic_launcher);
         Notification.BubbleMetadata.Builder bubbleMetadata;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -395,8 +386,7 @@ public final class TermuxBubbleManager {
         // No guard: this whole method is @RequiresApi(Q) and setDeleteIntent is API 29 (verified in
         // android-10's api-versions, where Notification$BubbleMetadata$Builder carries no `since`
         // for it). It used to sit behind an SDK_INT >= R check, which is why Android 10 never
-        // reported a dismissal — sBubblePosted then stayed set for the life of the process, and the
-        // dispatcher raised no further bubble.
+        // reported a dismissal and sBubblePosted then stayed set for the life of the process.
         bubbleMetadata.setDeleteIntent(deleteIntent);
 
         Person self = new Person.Builder()
@@ -433,8 +423,7 @@ public final class TermuxBubbleManager {
         sBubblePosted = true;
 
         // The bubble's own button on the service notification is now redundant (the bubble is up), so
-        // that notification has to be rebuilt to drop it. This is the single place every posting path
-        // goes through — the automatic one, the notification's button, the debug hook — which is why
+        // that notification has to be rebuilt to drop it. Every posting path goes through here, so
         // the refresh lives here rather than at each call site.
         requestServiceNotificationRefresh(context);
         return true;
@@ -461,9 +450,8 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Remove the bubble as part of the service shutting down, asking for no notification rebuild.
-     *
-     * <p>The notification the rebuild would restore is being torn down on this same path, and the
+     * Remove the bubble as part of the service shutting down, asking for no notification rebuild:
+     * the notification the rebuild would restore is being torn down on this same path, and the
      * rebuild is delivered asynchronously — so it landed after {@code stopForeground()}, re-posting
      * a notification whose sessions had already been killed.
      */
@@ -476,16 +464,15 @@ public final class TermuxBubbleManager {
      * Cancel the bubble notification and forget the posted state, reporting whether one was up.
      * Whether the service notification is then rebuilt is the caller's decision.
      *
-     * <p>Private, and reached only from callers that have already passed {@link #isSupported},
-     * which is what makes the typed {@code getSystemService} below safe. SuppressLint for the same
-     * reason as the two public entry points: the gate is a caller's, and cannot be seen from here.
+     * <p>Reached only from callers that have already passed {@link #isSupported}, which is what
+     * makes the typed {@code getSystemService} below safe.
      */
     @SuppressLint("NewApi")
     private static boolean detachBubble(@NonNull Context context) {
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager == null) return false;
 
-        // Read before the cancel, obviously.
+        // Read before the cancel.
         final boolean wasPosted = isBubblePosted(context);
 
         notificationManager.cancel(TermuxConstants.TERMUX_BUBBLE_NOTIFICATION_ID);
@@ -500,7 +487,7 @@ public final class TermuxBubbleManager {
     /**
      * Ask the service to rebuild its notification so the "bubble" button tracks the bubble.
      * Sent as a start command (service is {@code exported="false"}; already in the foreground, so
-     * allowed from background). Carries no state — the service re-reads bubble state itself so the
+     * allowed from background). Carries no state — the service re-reads bubble state itself, so the
      * two cannot drift. Never fatal: a missed refresh leaves a stale button, not a broken feature.
      */
     private static void requestServiceNotificationRefresh(@NonNull Context context) {
@@ -513,16 +500,15 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Whether a bubble is currently up.
+     * Whether a bubble is currently up. The flag dies with the process, which takes the bubble with
+     * it. Used to avoid re-posting an already-up bubble and to decide whether the service
+     * notification still offers its bubble button.
      *
-     * <p>The flag alone is enough, where {@code getActiveNotifications()} used to be consulted too:
-     * a bubble SystemUI took down without telling us arrives as {@code ACTION_BUBBLE_DISMISSED},
-     * which reaches {@link #cancel}, and records from an earlier process are ignored on purpose —
-     * so the query could only ever confirm what the flag already knows, at the cost of a binder round
-     * trip on the terminal's input thread for every notification posted.
-     *
-     * <p>The flag dies with the process, which takes the bubble with it. Used to avoid re-posting an
-     * already-up bubble and to decide whether the service notification still offers its bubble button.
+     * <p>Querying {@code getActiveNotifications()} would only ever confirm what the flag already
+     * knows — a bubble SystemUI took down without telling us arrives as
+     * {@code ACTION_BUBBLE_DISMISSED}, and records from an earlier process are ignored on purpose
+     * — at the cost of a binder round trip on the terminal's input thread for every notification
+     * posted.
      */
     public static boolean isBubblePosted(@NonNull Context context) {
         return sBubblePosted;

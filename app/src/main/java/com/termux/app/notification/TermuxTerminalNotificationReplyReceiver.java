@@ -32,8 +32,6 @@ import com.termux.terminal.TerminalSession;
  * <p>Ordered so the answer never waits on bookkeeping: the pty write, then the card, then the
  * history. The card is cancelled rather than left to the platform, which would append the typed text
  * to it, leave the thread on screen, and keep the reply's progress indicator spinning.
- *
- * <p>Explicit intents only, so this stays unexported and needs no intent-filter.
  */
 public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
@@ -81,7 +79,7 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
 
         // SystemUI calls a receiver on its own thread and waits for it to return before dismissing
         // the reply, so everything in here is time the user spends watching a notification that has
-        // not gone yet. Held open for the history write below, which is off that path.
+        // not gone yet.
         final PendingResult pending = goAsync();
 
         session.write(text + "\r");
@@ -119,11 +117,10 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
     }
 
     /**
-     * Pull the typed text out of the inline reply, or {@code null} if there is none to be had.
-     *
-     * <p>The key is the {@link RemoteInput}'s own label, not a constant. Logs the bundle's real keys
-     * when nothing matches: a wrong key is otherwise invisible, since the platform appends the text
-     * to the notification either way and the reply looks delivered while nothing reaches the session.
+     * Pull the typed text out of the inline reply, or {@code null} if there is none to be had. The
+     * key is the {@link RemoteInput}'s own label, not a constant. Logs the bundle's real keys when
+     * nothing matches: a wrong key is otherwise invisible, since the platform appends the text to
+     * the notification either way and the reply looks delivered while nothing reaches the session.
      */
     @Nullable
     private static CharSequence readText(@NonNull Context context, @NonNull Intent intent) {
@@ -147,8 +144,8 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
     }
 
     /**
-     * Resolve a session handle against the live sessions. {@code TermuxShellManager} is reachable
-     * statically, which a BroadcastReceiver needs; a null manager means no session ever started.
+     * Resolve a session handle against the live sessions. A null shell manager means no session ever
+     * started.
      */
     @Nullable
     private static TerminalSession findSession(@NonNull String sessionHandle) {

@@ -378,6 +378,8 @@
     <string name="tab_close_description">Close tab</string>
     <string name="session_default_title">Terminal</string>
     <string name="swipe_rightmost_new_tab_title">Swipe the rightmost tab to create a new session</string>
+    <string name="gesture_directory_history_title">Show directory history in the swipe gesture</string>
+    <string name="new_tab_in_active_session_directory_title">Open a new tab in the current session\'s directory</string>
     <string name="new_tab_placeholder_hint">New session</string>
 
     <!-- Text input show preference -->

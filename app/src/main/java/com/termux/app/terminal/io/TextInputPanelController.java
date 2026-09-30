@@ -18,7 +18,6 @@ import com.termux.terminal.TerminalSession;
 
 /**
  * Controller for the terminal "text input" panel and its toggle button.
- * Wired into TermuxActivity to hold view references and save/restore text state.
  *
  * <p>Owns the panel's height: it rests at the size of the button that opens it and grows with the
  * text, up to the height the XML declares and the quarter-of-the-window limit — see
@@ -41,22 +40,21 @@ public final class TextInputPanelController {
      * The input panel may never occupy more than a {@code 1/MAX_HEIGHT_FRACTION} share of the
      * height of the area it shares with the terminal — a quarter. At the height the XML declares
      * the limit never engages in a phone-sized window, but the same fixed height would swallow
-     * most of a short window (floating bubble, split-screen, landscape with keyboard up) —
-     * exactly where the user loses the output they were typing against.
+     * most of a short window (floating bubble, split-screen, landscape with keyboard up).
      */
     private static final int MAX_HEIGHT_FRACTION = 4;
 
     /**
-     * Ceiling for the panel height in px, as declared in XML. Captured once in {@link #setup},
-     * so the clamp is always expressed against the designed height instead of against whatever the
-     * panel happens to measure right now (which would make the limit ratchet: each shrink would
-     * become the new "original", and the panel could never grow back when the window does).
+     * Ceiling for the panel height in px, as declared in XML. Captured once in
+     * {@link #capturePanelHeights}, so the clamp is always expressed against the designed height
+     * instead of against whatever the panel happens to measure right now (which would make the
+     * limit ratchet: each shrink would become the new "original").
      *
      * <p>Measured on the FIELD, not the container: the container is {@code wrap_content} with the
-     * field as its only child, so the field height IS the visible panel height (the plain
-     * {@code <shape>} background draws inside bounds), and it is the single value the XML
-     * declares — capping the container would clip the field inside a correct-looking frame.
-     * Container vertical margins are excluded: they are spacing to neighbours, not panel size.
+     * field as its only child, so the field height IS the visible panel height and it is the single
+     * value the XML declares — capping the container would clip the field inside a
+     * correct-looking frame. Container vertical margins are excluded: they are spacing to
+     * neighbours, not panel size.
      */
     private int mPanelBaseHeightPx = -1;
 
@@ -68,7 +66,7 @@ public final class TextInputPanelController {
      */
     private int mPanelRestHeightPx = -1;
 
-    /** The button's own height in px, kept across arrangement switches as the overlay's floor. */
+    /** The button's own height in px, kept across arrangement switches. */
     private int mToggleRestHeightPx = -1;
 
     /**
@@ -83,8 +81,7 @@ public final class TextInputPanelController {
 
     /**
      * Whether the panel floats over the terminal, and so is sized from its text. In the extra keys'
-     * place it keeps the fixed height the XML declares and merely scrolls, which is what it always
-     * did; the text-driven height belongs to the overlay only.
+     * place it keeps the fixed height the XML declares and merely scrolls.
      */
     private boolean mOverTerminal = false;
 
@@ -116,10 +113,7 @@ public final class TextInputPanelController {
     }
 
     /**
-     * Record the designed ceiling and the resting floor, so {@link #updatePanelHeight()} has both
-     * ends of the range as constants. See the two fields for why each is read off a particular
-     * view: the ceiling off the field (the one value the XML declares for the panel's size), the
-     * floor off the button (whose place the panel takes).
+     * Record the designed ceiling and the resting floor, so {@link #updatePanelHeight()} has both ends of the range.
      */
     private void capturePanelHeights() {
         if (mPanelBaseHeightPx > 0) return;
@@ -180,8 +174,8 @@ public final class TextInputPanelController {
         if (capPx == mHeightCapPx) return;
 
         mHeightCapPx = capPx;
-        // The ceiling just moved, so a panel that had grown into the old one has to give the
-        // difference back — and a panel that was held back by the old one may now have room.
+        // A panel that had grown into the old ceiling has to give the difference back — and one
+        // that was held back by it may now have room.
         updatePanelHeight();
     }
 
@@ -194,8 +188,7 @@ public final class TextInputPanelController {
     public void setOverTerminal(boolean overTerminal) {
         if (mOverTerminal == overTerminal) return;
         mOverTerminal = overTerminal;
-        // The resting floor is the toggle button's height, which only means anything for the
-        // overlay; dropping it here is what returns the panel to the full height it used to have.
+        // The floor only means anything for the overlay; dropping it returns the panel to the full height.
         mPanelRestHeightPx = overTerminal ? mToggleRestHeightPx : -1;
         mAppliedPanelHeightPx = -1;
         updatePanelHeight();
@@ -204,18 +197,14 @@ public final class TextInputPanelController {
     /**
      * Size the panel to its content: it rests at the height of the button that opens it, grows
      * with the text, and is held to the ceiling {@link #applyPanelHeightLimitForContentView}
-     * computed — past which the field scrolls internally, as it always has.
+     * computed — past which the field scrolls internally.
      *
      * <p>The height wanted comes from the text {@link Layout}, not from the field: the field is
      * being resized here, so asking it would just return the current answer. The layout reports
      * the height of the whole text block, which is what grows.
      *
-     * <p>In the extra keys' place there is no floor and nothing to grow from: the panel is the
-     * fixed height the XML declares, capped, and the field scrolls inside it.
-     *
      * <p>The floor wins over the ceiling. A window so short that its quarter is below the resting
-     * height is one where a smaller-than-the-button panel would be the only thing on screen; the
-     * quarter exists to stop the panel eating the terminal, not to shrink the panel out of use.
+     * height is one where a smaller-than-the-button panel would be the only thing on screen.
      */
     public void updatePanelHeight() {
         final EditText editText = mEditText;

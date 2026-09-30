@@ -61,8 +61,8 @@ public final class TerminalRenderer {
      * per code point, so the loop now does three reads from 128-entry arrays instead. Measured on
      * the render scan stand (48&times;80, 55 % fill): 16.6 &rarr; 9.8 µs/frame for the scan loop.</p>
      *
-     * <p>No per-row state and no new invariant: the tables are a pure function of
-     * (typeface, text size), both fixed for the lifetime of the renderer.</p>
+     * <p>The tables are a pure function of (typeface, text size), both fixed for the lifetime of
+     * the renderer, so they carry no per-row state.</p>
      */
     private final float[] asciiMeasure = new float[0x80];
     private final byte[] asciiWc = new byte[0x80];
@@ -70,8 +70,7 @@ public final class TerminalRenderer {
 
     /**
      * G5: the font-width mismatch tolerance ({@code 0.01 * mFontWidth}) and the expected width of a
-     * double-width cell, hoisted out of the per-cell loop. Two multiplies per cell removed from the
-     * hottest loop in the renderer for free.
+     * double-width cell, hoisted out of the per-cell loop.
      */
     private final float mFontWidthTolerance;
     private final float mFontWidth2;
@@ -128,7 +127,6 @@ public final class TerminalRenderer {
      * i.e. {@code ▀▄█▌▐░▒▓} and the quadrant / eighth variants). Such a glyph does not read as
      * text — it paints a solid (or dithered) area and is visually a background — so it must
      * honour the configured background transparency exactly like pass A's rectangles do.
-     * See {@link #drawRunText} for how that is done without an offscreen layer.
      */
     private boolean[] mRunBlockFill;
     /** Resolved ARGB foreground/background color of each run, computed once per row (see render). */
@@ -139,22 +137,20 @@ public final class TerminalRenderer {
     private final Paint mBgPaint = new Paint();
     /**
      * C2: identical to {@link #mBgPaint} but with {@link PorterDuff.Mode#SRC} permanently attached.
-     * Every translucent background fill (base fill, pass A, mismatch runs, cursor) needs SRC, and
-     * every opaque one needs the default SRC_OVER, so the renderer used to call
-     * {@code setXfermode(SRC)} / {@code setXfermode(null)} twice per rectangle — two native paint
-     * mutations for every run on every frame. Keeping two paints with a fixed mode makes the
-     * choice a field selection, and neither paint's mode is ever mutated at draw time.
+     * Every translucent background fill (base fill, pass A, mismatch runs, cursor) needs SRC and
+     * every opaque one needs the default SRC_OVER, which used to cost two native paint mutations
+     * per rectangle on every frame. Neither paint's mode is ever mutated at draw time.
      */
     private final Paint mBgSrcPaint = new Paint();
     /**
      * Dedicated base-fill paints, one per xfermode. The base fill used to share
-     * {@link #mBgPaint}/{@link #mBgSrcPaint} with pass A, the cursor fill, the mismatch-run
-     * fill and the A2 fast path, all of which mutate the paint's colour on every run. With the
-     * E2 hoist of the per-row base fill, that meant the colour set in pass A (or by the cursor
-     * rect) leaked into the base fill of the *next* row — a coloured block visually continued
-     * downward through the following rows' backgrounds until the next block rebased the colour.
-     * Splitting the base fill into its own paints, which no other code touches, is the only way
-     * to make the colour set here (once before the loop) hold for every row.
+     * {@link #mBgPaint}/{@link #mBgSrcPaint} with pass A, the cursor fill and the mismatch-run
+     * fill, all of which mutate the paint's colour on every run. With the E2 hoist of the per-row
+     * base fill, that meant the colour set in pass A (or by the cursor rect) leaked into the base
+     * fill of the *next* row — a coloured block visually continued downward through the following
+     * rows' backgrounds until the next block rebased the colour. Splitting the base fill into its
+     * own paints, which no other code touches, is the only way to make the colour set once before
+     * the loop hold for every row.
      */
     private final Paint mBaseFillPaint = new Paint();
     private final Paint mBaseFillSrcPaint = new Paint();
@@ -215,7 +211,7 @@ public final class TerminalRenderer {
      * <p>A legitimate mismatch is a glyph the font draws at a different advance than the cell
      * gives it: a box-drawing character from a fallback font at 18 px inside a 16 px cell, a CJK
      * glyph, braille. Those land within a small factor of 1, and compensating by it is the whole
-     * point of the scale block in {@link #drawRunText}.</p>
+     * point of the scale block.</p>
      *
      * <p>Past a factor of 8 the measurement is no longer describing a glyph: it is what a
      * zero-advance code point measures. A factor below 1/8 means the same thing from the other
@@ -257,11 +253,8 @@ public final class TerminalRenderer {
         mTextPaint.setTextSize(textSize);
 
         mBgPaint.setStyle(Paint.Style.FILL);
-        // C2: the SRC twin is set up once here and never touched again.
         mBgSrcPaint.setStyle(Paint.Style.FILL);
         mBgSrcPaint.setXfermode(SRC_XFERMODE);
-        // Base-fill paints: never mutated anywhere except in render() (setColor only), so the colour
-        // they hold when the row loop starts is exactly the colour every base fill uses.
         mBaseFillPaint.setStyle(Paint.Style.FILL);
         mBaseFillSrcPaint.setStyle(Paint.Style.FILL);
         mBaseFillSrcPaint.setXfermode(SRC_XFERMODE);
@@ -270,7 +263,6 @@ public final class TerminalRenderer {
         mFontAscent = (int) Math.ceil(mTextPaint.ascent());
         mFontLineSpacingAndAscent = mFontLineSpacing + mFontAscent;
         mFontWidth = mTextPaint.measureText("X");
-        // G5: derived constants used by the per-cell mismatch test.
         mFontWidthTolerance = 0.01f * mFontWidth;
         mFontWidth2 = 2.f * mFontWidth;
 
@@ -295,9 +287,9 @@ public final class TerminalRenderer {
         }
         bmpMeasures = shared;
 
-        // G1: fill the ASCII tables. shared[] is pre-measured for 0..0x7F both when it is created
-        // above and when it comes from the cache, so these entries are already the values
-        // measureCodePoint() would return.
+        // G1: shared[] is pre-measured for 0..0x7F both when it is created above and when it
+        // comes from the cache, so these entries are already the values measureCodePoint()
+        // would return.
         for (int i = 0; i < 0x80; i++) {
             final float measured = shared[i];
             final int wc = WcWidth.width(i);
@@ -356,7 +348,6 @@ public final class TerminalRenderer {
         return measured;
     }
 
-    /** Measure the on-screen width of a code point, using the per-code-point cache. */
     private float measureCodePoint(int codePoint, char[] line, int index, int count) {
         if (codePoint < 0x10000) {
             float cached = bmpMeasures[codePoint];
@@ -430,8 +421,6 @@ public final class TerminalRenderer {
         final int[] palette = mEmulator.mColors.mCurrentColors;
         final int cursorShape = mEmulator.getCursorStyle();
 
-        // Rows to actually render this frame. For a full repaint it is the whole visible range;
-        // for a partial repaint only the rows whose pixel band intersects dirtyRect.
         int renderStartRow = topRow;
         int renderEndRow = endRow; // exclusive
         if (dirtyRect != null) {
@@ -445,9 +434,9 @@ public final class TerminalRenderer {
         }
 
         // Background. A full repaint clears the entire canvas — this is what keeps theme /
-        // OSC color-scheme swaps correct (see the original comment). A partial repaint clears
-        // only the dirty region; the framework has already clipped the canvas to it, and we
-        // bound the fill explicitly so clean rows are never erased.
+        // OSC color-scheme swaps correct. A partial repaint clears only the dirty region; the
+        // framework has already clipped the canvas to it, and we bound the fill explicitly so
+        // clean rows are never erased.
         final int rawBgColor = reverseVideo
             ? palette[TextStyle.COLOR_INDEX_FOREGROUND]
             : palette[TextStyle.COLOR_INDEX_BACKGROUND];
@@ -461,8 +450,7 @@ public final class TerminalRenderer {
         // whose content actually changed are cleared and redrawn. Filling the whole band here would
         // erase the untouched rows in it — the canvas keeps the previous frame's pixels (the same
         // invariant the translucent SRC fill relies on), so leaving them alone is both correct and
-        // cheaper. dirtyRect.left/right are in view coordinates; the row loop draws after the
-        // canvas.translate(xOffset, yOffset) below, so they are shifted back there.
+        // cheaper.
         if (dirtyRect == null) {
             canvas.drawColor(bgColor, PorterDuff.Mode.SRC);
         }
@@ -476,19 +464,13 @@ public final class TerminalRenderer {
 
         ensureRunCapacity(columns);
 
-        // Right edge of the glyph grid in post-translate coordinates, and the two edges of the
-        // *view* in the same coordinates. The per-row base fill spans the view, not the grid
-        // — see the fill itself.
+        // Right edge of the glyph grid, and the two edges of the *view*, both in post-translate
+        // coordinates. The per-row base fill spans the view, not the grid.
         final float gridRight = columns * mFontWidth;
         // The canvas has been shifted by xOffset, so the view's own x = 0 and x = viewWidth sit
         // at -xOffset and viewWidth - xOffset here.
         final float viewLeft = -xOffset;
         final float viewRight = viewWidth - xOffset;
-        // Base-fill paints are dedicated: no other code path (pass A, cursor, mismatch, A2 fast
-        // path) ever sets a colour on them, so the colour we set here is the colour every row
-        // draws with.
-        // Fast path (mBackgroundAlpha >= 255): identical to the pre-transparency behaviour, no
-        // xfermode churn. Otherwise mBaseFillSrcPaint already carries SRC.
         final Paint baseFillPaint = (mBackgroundAlpha >= 255) ? mBaseFillPaint : mBaseFillSrcPaint;
         baseFillPaint.setColor(bgColor);
         // E3: a partial repaint in which *no* row of the clip is dirty cannot be a content change
@@ -510,7 +492,7 @@ public final class TerminalRenderer {
         // Vertical extent of the glyph grid in post-translate coordinates, with one line of slack at
         // each end so a glyph that overhangs its cell — every box-drawing and block-element run —
         // is still inside the clip. The slack is what keeps a frame of █ or ┏━ looking like one
-        // piece instead of a stack of separate cells; see the clip in the row loop below.
+        // piece instead of a stack of separate cells.
         final float gridTop = mFontLineSpacingAndAscent - mFontLineSpacing;
         final float gridBottom = mFontLineSpacingAndAscent + (endRow - topRow) * mFontLineSpacing
             + mFontLineSpacing;
@@ -523,11 +505,10 @@ public final class TerminalRenderer {
             if (row < renderStartRow || row >= renderEndRow) continue;
 
             // E2: skip rows whose content did not change. The pixels they show are still the ones
-            // from the previous frame, so neither the base fill nor any glyph is needed. This is
-            // what turns "the program touched 2 rows out of 48" into 2 rows of work instead of 48
-            // (and, together with the view's content anchor, into no work at all while the user is
-            // scrolled into history). The cursor is not part of the row's content, so the view
-            // marks the old and new cursor rows dirty itself when the cursor moves.
+            // from the previous frame, so neither the base fill nor any glyph is needed: "the
+            // program touched 2 rows out of 48" costs 2 rows of work instead of 48. The cursor
+            // is not part of the row's content, so the view marks the old and new cursor rows
+            // dirty itself when the cursor moves.
             //
             // Safety: the "previous frame still shows this row" invariant only holds once the view
             // has done a true full-frame repaint since the last structural event. Until then the
@@ -550,11 +531,11 @@ public final class TerminalRenderer {
             // clips the rect to the real damage anyway, so the painted area is unchanged — the
             // same clipped quad, just no longer able to out-run the text.
             //
-            // The fill also deliberately reaches past the glyph grid on both sides. `columns` is the
-            // *emulator's* column count while the grid's position is derived from the view's own
-            // width, so the two can disagree (a session resized by the bubble window, or by an
-            // offscreen pager page that holds size authority), and what is left over is then a band
-            // of columns the fill used to skip. Nothing ever replaces pixels out there: every
+            // The fill also deliberately reaches past the glyph grid on both sides. `columns` is
+            // the *emulator's* column count while the grid's position is derived from the view's
+            // own width, so the two can disagree (a session resized by the bubble window, or by
+            // an offscreen pager page that holds size authority), and what is left over is then a
+            // band of columns the fill used to skip. Nothing ever replaces pixels out there: every
             // invalidation the view issues is a row band, and a full repaint's drawColor() is the
             // only other thing that touches the margins — so one frame that painted a glyph into
             // such a column left it there for good, which is how a column of Devanagari piled up
@@ -574,20 +555,17 @@ public final class TerminalRenderer {
             TerminalRow lineObject = screen.getLineOrBlank(row);
             final char[] line = lineObject.mText;
             final int charsUsedInLine = lineObject.getSpaceUsed();
-            // G2: hoisted for the whole row — see the combining-char eater and the tail scan below.
+            // G2: the row-wide flag the tail pre-scan and the combining-char eater both consult.
             final boolean rowHasComplexChars = lineObject.hasNonOneWidthOrSurrogateChars();
 
             // T8 ("tail-run"): for plain rows, find the first column of the blank tail before the
-            // main column loop, then run the loop in a cheaper "tail mode" from that column on.
-            // Every cell in the tail is ' ' with WcWidth 1, so we can skip the WcWidth table
+            // main column loop, so the loop can run in a cheaper "tail mode" from that column on.
+            // Every cell in the tail is ' ' with WcWidth 1, which skips the WcWidth table
             // lookup, the isHighSurrogate branch, the code-point decode and the per-cell
-            // measureText — the four biggest per-cell costs in the hot loop. The run-merge and F0
-            // logic are identical to the content path, so runs of styled blanks (TUI status
-            // bars), cursor and selection cells and underline / strike-through decoration all
-            // still split and draw exactly as before. The pre-scan is a true char compare only
-            // when one char == one column (no wide, no surrogate, no combining), so the fast
-            // path is gated on `!mHasNonOneWidthOrSurrogateChars`; other rows walk all `columns`
-            // cells the same as today.
+            // measureText — the four biggest per-cell costs in the hot loop. The pre-scan is a true
+            // char compare only when one char == one column (no wide, no surrogate, no
+            // combining), so the fast path is gated on `!mHasNonOneWidthOrSurrogateChars`;
+            // other rows walk all `columns` cells the same as today.
             int tailStartCol = columns;
             boolean spaceMismatch = false;
             if (!rowHasComplexChars) {
@@ -607,7 +585,7 @@ public final class TerminalRenderer {
             // A2 fast path: a row that is nothing but spaces under a single uniform style, with no
             // cursor and no selection, has no glyph to draw — the only thing it can contribute to
             // the frame is a background rectangle when that style paints a non-default background.
-            // Skipping the run split here saves the per-column wcwidth + measure work and the
+            // Skipping the run split saves the per-column wcwidth + measure work and the
             // drawTextRun() of `columns` blanks. This is the common case for the empty rows below
             // the prompt, for cleared regions and for the tail of the alternate screen.
             if (cursorX < 0 && selx1 < 0 && selx2 < 0 && lineObject.isBlankAndUniform()) {
@@ -634,7 +612,7 @@ public final class TerminalRenderer {
             //   · one char wide — the row has no wide/surrogate/combining char,
             //   · under one single style — TerminalRow's maintained uniform-suffix bound,
             //   · and outside the cursor and the selection.
-            // So it is exactly one run, and the loop can stop there: emitting it directly replaces
+            // So it is exactly one run and the loop can stop there: emitting it directly replaces
             // `columns - g3Start` iterations of getStyle/cursor/selection/run-break bookkeeping
             // with two addRun() calls. This is the difference between "the tail is cheap" (T8) and
             // "the tail is free". Measured on the render scan stand: 16.6 -> 5.6 µs/frame with the
@@ -683,22 +661,18 @@ public final class TerminalRenderer {
             int lastRunStartColumn = -1;
             int lastRunStartIndex = 0;
             boolean lastRunFontWidthMismatch = false;
-            // H1: same, for the "this run paints solid area, not text" flag.
             boolean lastRunBlockFill = false;
             // A3: scale factor (measured / expected) of the current run's mismatched glyphs, -1 = none.
             float lastRunMismatchRatio = -1.f;
             int currentCharIndex = 0;
             float measuredWidthForRun = 0.f;
             // F0: char index just past the last non-space code point seen in the current run, and
-            // the two reasons a run must keep its trailing blanks. See the trim at the run closes.
+            // the two reasons a run must keep its trailing blanks.
             int runContentEnd = 0;
             boolean runHasCombining = false;
             boolean lastRunNoTrim = false;
 
             for (int column = 0; column < lastColumn; ) {
-                // T8: in the blank tail the cell is provably ' ' with WcWidth 1, so all the
-                // per-cell decode + measure work is unnecessary. The run-merge and F0 logic that
-                // follows is the same code in both modes.
                 final boolean inTail = column >= tailStartCol;
                 final char charAtIndex;
                 final boolean charIsHighsurrogate;
@@ -715,8 +689,8 @@ public final class TerminalRenderer {
                     measuredCodePointWidth = mFontWidth;
                 } else {
                     charAtIndex = line[currentCharIndex];
-                    // G1: ASCII is the common case and needs no WcWidth table lookup, no surrogate
-                    // branch and no measureCodePoint() call — three array reads instead.
+                    // G1: ASCII needs no WcWidth table lookup, no surrogate branch and no
+                    // measureCodePoint() call — three array reads instead.
                     if (charAtIndex < 0x80) {
                         charIsHighsurrogate = false;
                         charsForCodePoint = 1;
@@ -731,18 +705,17 @@ public final class TerminalRenderer {
                         measuredCodePointWidth = measureCodePoint(codePoint, line, currentCharIndex, charsForCodePoint);
                     }
                 }
-                // G5: the width the cell is supposed to occupy. wcwidth is 0, 1 or 2, so the
-                // multiply is avoided for the (by far most common) single-width case.
+                // G5: the width the cell is supposed to occupy — wcwidth is 0, 1 or 2, so
+                // the multiply is avoided for the (by far most common) single-width case.
                 final float expectedCodePointWidth = (codePointWcWidth == 1) ? mFontWidth
                     : (codePointWcWidth == 2) ? mFontWidth2 : codePointWcWidth * mFontWidth;
                 final boolean insideCursor = (cursorX == column || (codePointWcWidth == 2 && cursorX == column + 1));
                 final boolean insideSelection = column >= selx1 && column <= selx2;
                 final long style = lineObject.getStyle(column);
 
-                // Check if the measured text width for this code point is not the same as that expected by wcwidth().
-                // This could happen for some fonts which are not truly monospace, or for more exotic characters such as
-                // smileys which android font renders as wide.
-                // If this is detected, we draw this code point scaled to match what wcwidth() expects.
+                // A glyph whose measured width differs from what wcwidth() predicts — a font that is not
+                // truly monospace, or an exotic character like a smiley that android's font
+                // renders wide — is drawn scaled to the width wcwidth() expects.
                 // F5: same test as before, expressed as a multiply — one float division per code
                 // point of every frame removed from the hottest loop in the renderer.
                 // T8: the tail's ' ' is already known to match (the row was disqualified above when
@@ -779,9 +752,8 @@ public final class TerminalRenderer {
                     if (column != 0) {
                         final int columnWidthSinceLastRun = column - lastRunStartColumn;
                         int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
-                        // F0: hand drawTextRun() only up to the last non-blank code point of the
-                        // run. See the comment on the final addRun() below for why and when this
-                        // is safe.
+                        // F0: hand drawTextRun() only up to the last non-blank code point of
+                        // the run.
                         if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
                             charsSinceLastRun = runContentEnd - lastRunStartIndex;
                         }
@@ -798,8 +770,7 @@ public final class TerminalRenderer {
                     lastRunFontWidthMismatch = fontWidthMismatch;
                     lastRunBlockFill = blockFill;
                     lastRunMismatchRatio = mismatchRatio;
-                    // F0: a new run starts here, so its content boundary starts here too. Whether
-                    // it may be trimmed is decided by what the run *is*:
+                    // F0: whether the run may be trimmed at all is decided by what the run *is*:
                     //  · underline / strike-through are text decorations that drawTextRun() paints
                     //    across blank cells as well, so trimming would shorten the line;
                     //  · a mismatched run is drawn with a single canvas scale derived from the
@@ -838,9 +809,8 @@ public final class TerminalRenderer {
 
             int columnWidthSinceLastRun = columns - lastRunStartColumn;
             int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
-            // G3: the loop stopped at the tail, so close the run in progress there and emit the
-            // tail itself as a second run. g3Start == 0 means the loop never ran and there is no
-            // run in progress; `lastRunStartColumn == -1` would otherwise produce a bogus one.
+            // G3: g3Start == 0 means the loop never ran and there is no run in
+            // progress; `lastRunStartColumn == -1` would otherwise produce a bogus one.
             final boolean g3 = g3Start < columns;
             if (g3) columnWidthSinceLastRun = g3Start - lastRunStartColumn;
             // F0: trim the final run too — it is the one that holds the whole tail of the row,
@@ -863,10 +833,9 @@ public final class TerminalRenderer {
                     lastRunBlockFill);
             }
             if (g3) {
-                // The tail run: `columns - g3Start` blank cells under one style, no cursor and no
-                // selection in it. Its char count is 0 unless the style carries a text decoration —
-                // underline and strike-through are painted by drawTextRun() across blank cells too,
-                // so those runs keep their blanks (the same rule as F0's `lastRunNoTrim`).
+                // The tail run's char count is 0 unless the style carries a text
+                // decoration — underline and strike-through are painted by drawTextRun() across
+                // blank cells too, so those runs keep their blanks (F0's `lastRunNoTrim` rule).
                 final int tailColumns = columns - g3Start;
                 final long tailStyle = lineObject.getStyle(g3Start);
                 final boolean tailNoTrim = (TextStyle.decodeEffect(tailStyle)
@@ -908,12 +877,11 @@ public final class TerminalRenderer {
                 mRunCount = w + 1;
             }
 
-            // Pass A: background rectangles, grouped per consecutive same-color runs and drawn
-            // immediately with drawRect(). Mismatch runs (scaled glyphs) are skipped here and
-            // drawn in pass B with their scale. Note: no Path batching - drawPath() records the
-            // path into the display list and replays it after onDraw() returns, which is fragile
-            // (e.g. rewinding or reusing the path too early yields garbage primitives on some
-            // GPU drivers), so plain drawRect() calls are used instead.
+            // Pass A: background rectangles, drawn immediately with drawRect(). Mismatch runs (scaled
+            // glyphs) are skipped here and drawn in pass B with their scale. Note: no Path
+            // batching - drawPath() records the path into the display list and replays it after
+            // onDraw() returns, which is fragile (e.g. rewinding or reusing the path too early
+            // yields garbage primitives on some GPU drivers), so plain drawRect() calls are used.
             for (int i = 0; i < mRunCount; i++) {
                 if (mRunFontWidthMismatch[i]) continue;
                 final int backColor = mRunBackColor[i];
@@ -925,7 +893,6 @@ public final class TerminalRenderer {
                 // transparency in reverse-video mode).
                 if (backColor == rawBgColor) continue;
 
-                // Extend the group to the right while the background color stays the same.
                 int endRun = i + 1;
                 while (endRun < mRunCount && !mRunFontWidthMismatch[endRun]) {
                     if (mRunBackColor[endRun] != backColor) break;
@@ -943,7 +910,7 @@ public final class TerminalRenderer {
                 // by) their neighbours. bgFillPaint() picks SRC_OVER or SRC accordingly.
                 canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, bgFillPaint(backColor));
 
-                i = endRun - 1;  // skip the runs already covered by this rectangle
+                i = endRun - 1;
             }
 
             // Pass B: text (and cursor, and any scaled background) drawn on top of the backgrounds.
@@ -958,13 +925,12 @@ public final class TerminalRenderer {
 
         canvas.restore();
 
-        // E2: the per-row dirty set is dropped incrementally as each visible row is drawn (see
-        // clearRowDirty() above). Rows that were dirty but outside the clip keep their bit and
-        // are redrawn when they scroll back into view. Dropping the whole pending set up-front
-        // (the old behaviour) would lose those bits if the view forced a full draw into a
-        // partial clip while the surface was still "unknown" (see TerminalView.onDraw's
-        // mPixelsValid handling), so the global clearDirtyState() lives in the view now, called
-        // only after a real full-frame draw.
+        // E2: the per-row dirty set is dropped incrementally as each visible row is drawn.
+        // Rows that were dirty but outside the clip keep their bit and are redrawn when they
+        // scroll back into view; dropping the whole pending set up-front would lose those bits if
+        // the view forced a full draw into a partial clip while the surface was still "unknown",
+        // so the global clearDirtyState() lives in the view, called only after a real
+        // full-frame draw.
     }
 
     private void ensureRunCapacity(int columns) {
@@ -992,9 +958,9 @@ public final class TerminalRenderer {
      * together with the full effect bits, because {@link #drawRunText} reads bold / underline /
      * italic / strike / dim / invisible straight out of the style. The cursor colour must match as
      * well so a merged run never widens the cursor rectangle onto a cell that is not part of the
-     * cursor. Scaled (font-width-mismatched) runs are excluded: a run is drawn with one canvas
-     * scale derived from its own measured width, and two adjacent mismatch runs by construction
-     * have different ratios (A3 merged the ones that do not).</p>
+     * cursor. Scaled runs are excluded: a run is drawn with one canvas scale derived from its own
+     * measured width, and two adjacent mismatch runs by construction have different ratios (A3
+     * merged the ones that do not).</p>
      */
     private boolean runsMerge(int a, int b) {
         return mRunForeColor[a] == mRunForeColor[b]
@@ -1025,7 +991,6 @@ public final class TerminalRenderer {
         }
     }
 
-    /** G4: move run {@code from} to slot {@code to} during the in-place run compaction. */
     private void copyRun(int from, int to) {
         mRunStartColumn[to] = mRunStartColumn[from];
         mRunWidthColumns[to] = mRunWidthColumns[from];
@@ -1123,8 +1088,7 @@ public final class TerminalRenderer {
     /**
      * B4: must {@link Paint#setColor(int)} be called before drawing this run?
      *
-     * <p>Extracted so the invariant that matters can be tested without an Android {@link Canvas}:
-     * the "unknown" sentinel must not be equal to any colour the renderer can produce. With a
+     * <p>The "unknown" sentinel must not be equal to any colour the renderer can produce. With a
      * 32-bit memo it was — {@code 0xFFFFFFFF} (opaque white) collides with a sentinel of
      * {@code -1} — and the first white run of a frame was painted with the previous frame's
      * leftover colour. That is only observable when nothing else primed the memo first, which is
@@ -1138,8 +1102,7 @@ public final class TerminalRenderer {
      * May a font-width-mismatched run be rescaled to fit its cells, or is the measurement degenerate
      * and the run has to be drawn as it is?
      *
-     * <p>Extracted so the invariant that matters can be tested without an Android {@link Canvas}:
-     * {@code runWidthColumns / mes} and {@code mes / runWidthColumns} are the two factors
+     * <p>{@code runWidthColumns / mes} and {@code mes / runWidthColumns} are the two factors
      * {@link #drawRunText} hands to {@code canvas.scale()} and to the run origin, and for
      * {@code mes == 0} they are {@code Infinity} and {@code 0} — a non-finite canvas matrix, which
      * is what used to smear a Devanagari vowel sign into the margin of every row that contained one.
@@ -1221,8 +1184,8 @@ public final class TerminalRenderer {
             // exactly like pass A and the mismatch-run fill: same alpha, laid down in SRC.
             // An opaque cursor rect was the last remaining "solid" patch on a translucent
             // screen — it punched a dense hole through the wallpaper wherever it blinked.
-            // Only the *glyph* on top of a block cursor stays opaque (it is text, and it is
-            // drawn below by the normal text path with the reverse-video swap applied).
+            // Only the *glyph* on top of a block cursor stays opaque (it is text, drawn
+            // below by the normal text path with the reverse-video swap applied).
             final Paint cursorPaint = bgFillPaint(cursor);
             canvas.drawRect(left, y - cursorHeight, right, y, cursorPaint);
         }
@@ -1274,20 +1237,9 @@ public final class TerminalRenderer {
             // translucent terminal it is a background in everything but name. Leaving it opaque
             // punches a fully saturated hole through the wallpaper — the visible symptom was an
             // opencode input-box border drawn as a row of U+2580, 16 px of flat (245,245,245)
-            // with row std 0.00 while every neighbouring row sat at 10..39.
-            //
-            // The fix cannot be "push the alpha into the paint": SRC_OVER of (C, a) over the base
-            // fill, which is itself (A, a), composes to 2a-a^2, and SRC on a text paint erases the
-            // rest of the cell (a text paint's coverage is 0 outside the glyph — the same reason
-            // the mismatch fill above refuses to use mTextPaint for its rectangle).
-            //
-            // SRC_ATOP is the mode that does it in one draw: it replaces the destination's colour
-            // with the source's and keeps the destination's alpha, so the glyph's own coverage
-            // becomes the only partial-alpha term and the cell is handed to the compositor at
-            // exactly (a·(m·C + (1-m)·A), a) — the same value a pass-A rectangle of that colour
-            // would have produced, for every coverage m, rim included. Being idempotent for
-            // m = 1, it also makes the 1 px overlap between neighbouring block glyphs (fallback
-            // font: 18 px advance in a 16 px cell) invisible instead of a seam.
+            // with row std 0.00 while every neighbouring row sat at 10..39. SRC_ATOP is the mode
+            // that does it in one draw; see SRC_ATOP_XFERMODE for the arithmetic and for why the
+            // alternatives lose.
             //
             // The paint keeps its normal *opaque* colour: the transparency is contributed by the
             // destination alpha, not by the ink. Adding mBackgroundAlpha here would re-introduce

@@ -17,10 +17,10 @@ public final class WcWidth {
 
     /**
      * Lazy-filled cache of {@link #width(int)} for BMP code points (0..0xFFFF).
-     * A value of {@link #CACHE_UNINITIALIZED} means "not yet computed". This avoids the
-     * two binary searches per code point that {@link #width(int)} would otherwise do on every
-     * call (the emulator, TerminalRow and the renderer each call it for the same character).
-     * Memory: 64 KiB. Supplementary code points (rare in practice) are not cached.
+     * A value of {@link #CACHE_UNINITIALIZED} means "not yet computed". It saves the two binary
+     * searches per code point the emulator, TerminalRow and the renderer would otherwise repeat
+     * for the same character. Memory: 64 KiB. Supplementary code points (rare in practice) are
+     * not cached.
      */
     private static final byte[] BMP_WIDTH_CACHE = new byte[0x10000];
     private static final byte CACHE_UNINITIALIZED = -1;
@@ -524,7 +524,6 @@ public final class WcWidth {
         // First quick check for Latin1 etc. characters.
         if (c < table[0][0]) return false;
 
-        // Binary search in table.
         int bot = 0;
         int top = table.length - 1;
         while (top >= bot) {
@@ -552,7 +551,7 @@ public final class WcWidth {
         return computeWidth(ucs);
     }
 
-    /** Actual width computation behind {@link #width(int)}; kept separate so the BMP cache stays simple. */
+    /** Actual width computation behind {@link #width(int)}. */
     private static int computeWidth(int ucs) {
         if (ucs == 0 ||
             ucs == 0x034F ||
@@ -568,22 +567,19 @@ public final class WcWidth {
         // Termux change: Return 0 instead of -1.
         if (ucs < 32 || (0x07F <= ucs && ucs < 0x0A0)) return 0;
 
-        // combining characters with zero width
         if (intable(ZERO_WIDTH, ucs)) return 0;
         if (intable(ZERO_WIDTH_NOT_MARKS, ucs)) return 0;
 
-        // Wide first, then the combining-mark rule. The order does not change the answer — the wide
-        // table holds no Mn/Mc/Me code point (checked over all 1 114 112: 182 500 wide, none of them
-        // a mark) — but it decides who pays. BMP_WIDTH_CACHE memoizes the whole computation, so for
-        // anything below 0x10000 the order is irrelevant. Everything outside the BMP is recomputed
-        // on every call, and the renderer calls width() once per cell per frame, so an emoji-heavy
-        // row would reach Character.getType() on each one. A binary search over a small sorted table
-        // short-circuits that first.
+        // The wide table before the combining-mark rule. The order does not change the answer — the
+        // wide table holds no Mn/Mc/Me code point (checked over all 1 114 112: 182 500 wide, none of
+        // them a mark) — but it decides who pays: BMP_WIDTH_CACHE memoizes the whole computation, so
+        // below 0x10000 the order is irrelevant, whereas everything outside the BMP is recomputed on
+        // every call and the renderer calls width() once per cell per frame. A binary search over a
+        // small sorted table short-circuits that first.
         if (intable(WIDE_EASTASIAN, ucs)) return 2;
 
-        // Any Unicode combining mark is zero width, whatever the tables above happen to list.
-        //
-        // The tables are a transcription of jquast/wcwidth, which — like the C library original —
+        // Any Unicode combining mark is zero width, whatever the tables above happen to list. Those
+        // tables are a transcription of jquast/wcwidth, which — like the C library original —
         // enumerates only the code points that were {@code Mn}/{@code Me} when it was generated, and
         // leaves the {@code Mc} ("spacing combining mark") class out entirely. For Devanagari and the
         // other obligatory-shaping scripts that is the whole vowel-sign series, so U+093E (ा),

@@ -113,9 +113,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return !currentValue;
     }
 
-    /**
-     * Get whether extra keys should be hidden when the soft keyboard is hidden.
-     */
     public boolean shouldHideExtraKeysWithKeyboard() {
         if (!SharedPreferenceUtils.isKeyPresent(mSharedPreferences, TERMUX_APP.KEY_HIDE_EXTRA_KEYS_WITH_KEYBOARD)) {
             setHideExtraKeysWithKeyboard(TERMUX_APP.DEFAULT_VALUE_HIDE_EXTRA_KEYS_WITH_KEYBOARD);
@@ -138,9 +135,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     /**
      * Whether the input panel floats over the terminal instead of taking the extra-keys panel's
      * place in its strip.
-     *
-     * @return {@code false} by default — the panel takes the extra keys' place, as it always did;
-     *         see {@link TermuxPreferenceConstants.TERMUX_APP#KEY_TEXT_INPUT_OVER_TERMINAL}.
      */
     public boolean isTextInputOverTerminalEnabled() {
         return getBooleanByKey(TERMUX_APP.KEY_TEXT_INPUT_OVER_TERMINAL,
@@ -284,10 +278,7 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return MIN_FONTSIZE;
     }
 
-    /**
-     * The largest terminal font size, in pixels — the upper bound the pinch gesture, the
-     * {@code fontsize} preference and the Display settings slider all share.
-     */
+    /** The largest terminal font size, in pixels, sharing the same three bounds. */
     public int getMaxFontSize() {
         return MAX_FONTSIZE;
     }
@@ -376,9 +367,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
      * Whether the two controls drawn on the terminal (the input-panel toggle button and the
      * scrollbar thumb) have the terminal background colour mixed into them, so they read as part
      * of the terminal rather than as shapes pasted on it.
-     *
-     * @return {@code false} by default: both controls are then the plain translucent tints the
-     *         panel buttons use.
      */
     public boolean isContrastFloatingElementBackgroundEnabled() {
         return getBooleanByKey(TERMUX_APP.KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND,
@@ -503,11 +491,9 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
      * {@link com.termux.shared.termux.extrakeys.ExtraKeysCompaction} — so this is a UI preference,
      * not part of the stored {@code extra-keys} layout.
      *
-     * @param context used for the device-dependent default (on for phones, off for tablets), so it
-     *                must be a {@code Context} whose resources describe the device.
+     * @param context used for the device-dependent default (on for phones, off for tablets).
      */
     public boolean isExtraKeysCompactLandscapeEnabled(Context context) {
-        // Phone/tablet default (see javadoc); stored value wins once the user touches the switch.
         boolean tablet = isTablet(context);
         return getBooleanByKey(TERMUX_APP.KEY_EXTRA_KEYS_COMPACT_LANDSCAPE, !tablet);
     }

@@ -52,10 +52,6 @@ public final class TermuxTerminalNotificationDispatcher {
      * Window within which a further notification is dropped, when deduplication is on. Measured: one
      * event arrives as a burst 6-11 ms apart, separate events seconds apart. Nothing is delayed — a
      * notification is posted at once or dropped at once.
-     *
-     * <p>Public because it is the single source of the number: the settings screen formats it into
-     * the summary of the deduplication switch, so the text cannot promise a window the code does
-     * not apply.
      */
     public static final long DUPLICATE_WINDOW_MS = 200;
 
@@ -67,9 +63,9 @@ public final class TermuxTerminalNotificationDispatcher {
     private static volatile boolean sChannelCreated;
 
     /**
-     * Ids the protocol's channel used to carry, before the reason each time was worth a new one. Kept
-     * only so {@link #createChannel} can delete them; the platform never renames or retires a channel
-     * on its own, so without this they outlive the build that made them.
+     * Ids the protocol's channel used to carry, before the reason each time was worth a new one. The
+     * platform never renames or retires a channel on its own, so without this they outlive the
+     * build that made them.
      */
     private static final String[] STALE_CHANNEL_IDS = {
         "termux_terminal_notification_channel",
@@ -247,9 +243,8 @@ public final class TermuxTerminalNotificationDispatcher {
     }
 
     /**
-     * The inline reply: the text is typed into the session followed by a carriage return. Offered
-     * regardless of the program's {@code a} key, which governs its interest in the click, not the
-     * user's.
+     * The inline reply: offered regardless of the program's {@code a} key, which governs its
+     * interest in the click, not the user's.
      */
     private static Notification.Action buildReplyAction(@NonNull Context context, @NonNull TerminalSession session,
                                                          int notificationId) {
@@ -409,14 +404,12 @@ public final class TermuxTerminalNotificationDispatcher {
     /**
      * Whether the user has notifications switched on for this app.
      *
-     * <p>{@link NotificationManager#areNotificationsEnabled()} only exists from API 24, and this
-     * runs for every notification a program asks for, on the terminal's own thread — an unguarded
-     * call is a {@link NoSuchMethodError} on API 21–23, and it is raised on an emulator
+     * <p>{@link NotificationManager#areNotificationsEnabled()} only exists from API 24, and an
+     * unguarded call is a {@link NoSuchMethodError} on API 21–23 raised on an emulator
      * HandlerThread, so it takes the whole app down rather than failing one notification.
      *
-     * <p>Below 24 the platform exposes no query (the app-op behind it is not public API), so the
-     * answer is "post it": {@code notify()} on an app whose notifications are off is a silent no-op
-     * there, not a crash, which is the same outcome this check exists to reach.
+     * <p>Below 24 the platform exposes no query, so the answer is "post it": {@code notify()} on an
+     * app whose notifications are off is a silent no-op there, not a crash.
      */
     private static boolean areNotificationsEnabled(@NonNull NotificationManager manager) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true;

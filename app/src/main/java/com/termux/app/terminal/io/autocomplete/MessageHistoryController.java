@@ -45,7 +45,7 @@ public final class MessageHistoryController {
     private static final String PREF_PER_DIR = "per_directory_message_history";
     private static final String PREF_SAVE_CLEARED = "save_cleared_to_history";
 
-    /** Default when the pref is unset; the single source, read by the activity too. */
+    /** Default when the pref is unset; the activity reads it too. */
     public static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
 
     // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
@@ -66,7 +66,7 @@ public final class MessageHistoryController {
         return sShared;
     }
 
-    /** In-memory message history, newest first (index 0 = most recent). */
+    /** In-memory message history, newest first. */
     private final ArrayList<String> mMessageHistory = new ArrayList<>();
 
     /**
@@ -99,21 +99,18 @@ public final class MessageHistoryController {
     private final SharedPreferences mPrefs;
 
     // ── Debounced persistence ──
-    // save()/savePerDirectory()/saveGlobal() serialize the ENTIRE history store to
-    // JSON and rewrite the prefs file. Bursts of mutations (a message sent, then
-    // the field cleared, then a history pick) would each pay that cost, even though
-    // SharedPreferences.apply() is itself async — the in-memory mutation is already
-    // visible to readers. Coalescing keeps identical persistence semantics (the
-    // last mutation always lands on disk) at a fraction of the CPU/IO cost.
+    // Bursts of mutations (a message sent, then the field cleared, then a history pick) would each
+    // pay for a whole-store rewrite, even though SharedPreferences.apply() is itself async — the
+    // in-memory mutation is already visible to readers. Coalescing keeps identical persistence
+    // semantics (the last mutation always lands on disk) at a fraction of the CPU/IO cost.
     private static final long PERSIST_DEBOUNCE_MS = 250;
     private final Handler mPersistHandler = new Handler(Looper.getMainLooper());
     @Nullable private Runnable mPersistPending;
 
-    // P2: the (potentially large) JSON serialization + prefs write is moved OFF the
-    // main thread onto a single-threaded executor. A generation counter lets a newer
-    // persist supersede an older one still queued, so the on-disk state always ends
-    // at the latest mutation. flushPersist()/save() block on a synchronous commit so
-    // history is guaranteed on disk before onStop / a mode switch.
+    // P2: the (potentially large) JSON serialization + prefs write runs OFF the main thread on a
+    // single-threaded executor. A generation counter lets a newer persist supersede an older one
+    // still queued, so the on-disk state always ends at the latest mutation. flushPersist()/save()
+    // block on a synchronous commit so history is guaranteed on disk before onStop / a mode switch.
     private final ExecutorService mPersistExecutor =
             Executors.newSingleThreadExecutor(r -> {
                 Thread t = new Thread(r, "message-history-persist");
@@ -134,8 +131,7 @@ public final class MessageHistoryController {
      * <p>Done at construction because a notification reply can be the first thing in a process: the
      * broadcast starts the app with no activity, so nothing has applied the user's settings yet. A
      * write under the built-in defaults would then trim a store the user sized at 500 down to 100,
-     * or land in the global store while the user is on the per-directory one — the entry simply
-     * never appears, and the next write to that store is a rewrite of what is there.
+     * or land in the global store while the user is on the per-directory one.
      */
     private void applyStoredSettings() {
         mMessageHistoryMax = mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT);
@@ -175,13 +171,7 @@ public final class MessageHistoryController {
         }
     }
 
-    /**
-     * Serialize + write the current store on the persistence executor. The data is
-     * snapshotted on the calling (main) thread so the background task only reads
-     * immutable copies. {@code syncCommit} makes the final write a synchronous
-     * {@code commit()} (used by flushPersist/save) so the caller can be sure the
-     * bytes are on disk before returning.
-     */
+    /** Run a pending debounced persist now, synchronously (used by flushPersist). */
     private void persistAsync(boolean syncCommit) {
         final int gen = mPersistGeneration.incrementAndGet();
         if (mPerDirectoryMessageHistory) {
@@ -314,10 +304,8 @@ public final class MessageHistoryController {
                     return;
                 }
             } else {
-                // D-2: no resolvable CWD — drop the stale current-directory key so its
-                // (now-cleared) in-memory list cannot "resurrect" after the next
-                // directory switch (onHistoryDirectoryChanged would otherwise save the
-                // empty list back under the old key).
+                // D-2: drop the stale current-directory key, or its now-cleared in-memory list is
+                // saved back under the old key by the next directory switch.
                 mHistoryCurrentDirectory = null;
             }
             mMessageHistory.clear();
@@ -349,9 +337,8 @@ public final class MessageHistoryController {
     public void onHistoryDirectoryChanged(@NonNull String oldCwd, @NonNull String newCwd) {
         if (!mPerDirectoryMessageHistory) return;
 
-        // Same directory (the common case: switching tabs inside one project):
-        // the save/clear/reload round trip below would rebuild the identical list,
-        // so keep the in-memory state untouched.
+        // Same directory (the common case: switching tabs inside one project): the
+        // save/clear/reload round trip below would rebuild the identical list.
         if (newCwd.equals(oldCwd)) return;
 
         if (mHistoryCurrentDirectory != null) {
@@ -474,11 +461,9 @@ public final class MessageHistoryController {
     }
 
     /**
-     * Record a passively saved message (cleared from the input field, or the
-     * text replaced by a history pick). A brand-new message is inserted at the
-     * TOP (newest — the pre-promote-switch behaviour); a message already in the
-     * history keeps its exact position. Only messages actually SENT from the
-     * input field are promoted to the top.
+     * Record a passively saved message (cleared from the input field, or the text replaced by a
+     * history pick). A brand-new message is inserted at the TOP (newest — the pre-promote-switch
+     * behaviour); a message already in the history keeps its exact position.
      */
     public void addNewOnTop(@NonNull String message, @Nullable String cwd) {
         if (TextUtils.isEmpty(message)) return;
@@ -515,9 +500,8 @@ public final class MessageHistoryController {
      * of the target directory with that single command.
      *
      * <p>A null {@link #mHistoryCurrentDirectory} adopts {@code cwd} rather than doing nothing. It
-     * is null right after a clear, and an unadopted list has no key: {@link #persistAsync} writes the
-     * in-memory list under the current key, so with no key the entry was dropped on the floor and
-     * the first command after "clear all" never survived a restart.
+     * is null right after a clear, and an unadopted list has no key, so the entry was dropped on
+     * the floor and the first command after "clear all" never survived a restart.
      */
     private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {
         if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) return;
@@ -549,7 +533,7 @@ public final class MessageHistoryController {
 
     // ── Load / Persist ──
 
-    /** Load persisted history. Uses per-directory or global store based on {@link #mPerDirectoryMessageHistory}. */
+    /** Load persisted history. Uses the per-directory or the global store. */
     public void load(@NonNull String fallbackCwd) {
         mMessageHistory.clear();
         if (mPerDirectoryMessageHistory) {
@@ -631,16 +615,15 @@ public final class MessageHistoryController {
 
     private void saveGlobal() {
         // Bump the generation so any in-flight background persist (scheduled by a
-        // prior keystroke) is superseded rather than clobbering this synchronous
-        // write — see the generation-counter contract in persistAsync().
+        // prior keystroke) is superseded rather than clobbering this synchronous write.
         mPersistGeneration.incrementAndGet();
         mPrefs.edit().putString(PREF_MESSAGE_HISTORY,
             listToJson(mMessageHistory).toString()).apply();
     }
 
     private void savePerDirectory() {
-        // Same generation-supersede guard as saveGlobal(): a clear/migrate on the
-        // main thread must win over a background write still queued from typing.
+        // Same generation-supersede guard: a clear/migrate on the main thread must win over a
+        // background write still queued from typing.
         mPersistGeneration.incrementAndGet();
         if (mHistoryCurrentDirectory != null) {
             ArrayList<String> list = new ArrayList<>(mMessageHistory);

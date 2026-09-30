@@ -29,7 +29,6 @@ public class BottomStripAnchorsTest {
 
     @Test
     public void tabsAtBottomNeverShareOneAnchor() {
-        // The regression itself: equal anchors mean the terminal covers the tab panel.
         Assert.assertNotEquals(
             BottomStripAnchors.pagerAndTabs(true, TAB_STRIP, EXTRA_KEYS_STRIP)[0],
             BottomStripAnchors.pagerAndTabs(true, TAB_STRIP, EXTRA_KEYS_STRIP)[1]);
@@ -45,8 +44,8 @@ public class BottomStripAnchorsTest {
     }
 
     /**
-     * The input panel's legacy placement makes the panel itself the bottom strip. The decision must
-     * hold for that anchor too, or the two views would coincide by another route.
+     * The input panel's legacy placement makes the panel itself the bottom strip, so the two views
+     * would coincide by another route if the decision did not hold for that anchor too.
      */
     @Test
     public void inputPanelAsBottomStripStillKeepsTheTwoApart() {

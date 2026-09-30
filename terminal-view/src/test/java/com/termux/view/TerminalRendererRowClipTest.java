@@ -7,18 +7,14 @@ import org.junit.Test;
 /**
  * Regression tests for the per-row clip in {@link TerminalRenderer#render}.
  *
- * <p>The renderer clips each row so a glyph cannot paint outside the grid's columns: a run's
- * measured width is a per-code-point sum, while {@code Canvas.drawTextRun()} runs the real shaper,
- * so Devanagari conjuncts, emoji ZWJ sequences and a shaper-inserted dotted circle can all make a
- * run wider than its cells, and a run ending at the last column would then paint into the margin —
- * where no damage rect ever reaches, so the pixel survives every repaint.
+ * <p>A run's measured width is a per-code-point sum while {@code Canvas.drawTextRun()} runs the real
+ * shaper, so conjuncts, ZWJ sequences and a shaper-inserted dotted circle can all make a run wider
+ * than its cells, and a run ending at the last column would then paint into the margin, where no
+ * damage rect ever reaches.
  *
- * <p>That is the <em>horizontal</em> half. Clipping vertically to the row's own band as well is
- * wrong, and was wrong once already: box-drawing and block-element glyphs are drawn tall enough to
- * overhang their cell into the rows above and below, and that overhang is what makes a frame or a
- * filled bar read as one piece. Clipping to {@code [rowTop, heightOffset]} shaved it off and left a
- * 1 px line of background between every pair of rows, repeating at the row pitch across every frame
- * in the terminal.</p>
+ * <p>Clipping vertically to the row's own band as well is wrong, and was wrong once already:
+ * box-drawing and block-element glyphs overhang their cell into the rows above and below, and that
+ * overhang is what makes a frame or a filled bar read as one piece.</p>
  */
 public class TerminalRendererRowClipTest {
 
@@ -52,10 +48,7 @@ public class TerminalRendererRowClipTest {
         return new float[]{firstTop, lastBottom};
     }
 
-    /**
-     * Every drawn row must be inside the clip — a row clipped out of its own band would vanish
-     * entirely on a partial repaint.
-     */
+    /** A row clipped out of its own band would vanish entirely on a partial repaint. */
     @Test
     public void everyDrawnRowIsInsideTheClip() {
         final float lineSpacing = 29f, lineSpacingAndAscent = 22f;
@@ -67,10 +60,9 @@ public class TerminalRendererRowClipTest {
     }
 
     /**
-     * The regression itself: the clip has to leave at least a full line of vertical slack beyond the
-     * first and last row, because that is the overhang a block-element or box-drawing glyph needs to
-     * reach its neighbour. With no slack the overhang is shaved and a background line appears at
-     * every row boundary.
+     * The regression itself: at least a full line of vertical slack beyond the first and last row,
+     * because that is the overhang a block-element or box-drawing glyph needs to reach its
+     * neighbour. With no slack a background line appears at every row boundary.
      */
     @Test
     public void clipLeavesAFullLineOfVerticalSlack() {
@@ -86,7 +78,7 @@ public class TerminalRendererRowClipTest {
 
     /**
      * The horizontal half is what the damage model needs and must not be relaxed. The clip's right
-     * edge is the grid's, {@code columns * fontWidth} — a run that overruns its last column is cut
+     * edge is the grid's, {@code columns * fontWidth}: a run that overruns its last column is cut
      * there, not out at the view edge, which is what leaves no pixel stranded in the margin.
      */
     @Test
@@ -94,15 +86,12 @@ public class TerminalRendererRowClipTest {
         final float fontWidth = 14.4f;
         final int columns = 75;
         final float gridRight = columns * fontWidth;
-        // The right edge is the last column's boundary, so it is a whole number of cells wide and
-        // covers exactly the grid — never past it.
         assertTrue("grid right edge must be the columns' boundary",
             gridRight == (float) columns * fontWidth);
         assertTrue("a glyph overrunning column 74 is cut inside column 75's boundary",
             gridRight <= 75 * fontWidth + 1e-3f);
     }
 
-    /** A single-row frame and a tall one must both keep their slack — no off-by-one at the edges. */
     @Test
     public void slackHoldsForAnyRowCount() {
         final float lineSpacing = 29f, lineSpacingAndAscent = 22f;

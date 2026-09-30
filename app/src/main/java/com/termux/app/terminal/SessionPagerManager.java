@@ -14,6 +14,7 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.termux.R;
 
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import com.termux.app.TermuxActivity;
 import com.termux.app.TermuxService;
 
@@ -223,6 +224,12 @@ public final class SessionPagerManager {
     private void withDirectoryPicker(Consumer<DirectoryPickerController> action) {
         DirectoryPickerController picker = getDirectoryPicker();
         if (picker != null) action.accept(picker);
+    }
+
+    /** {@link #withDirectoryPicker} for a query; false when there is no picker. */
+    private boolean withDirectoryPickerBool(Predicate<DirectoryPickerController> query) {
+        DirectoryPickerController picker = getDirectoryPicker();
+        return picker != null && query.test(picker);
     }
 
     /** The session at {@code index} in the service's list, or null when there is none. */
@@ -606,7 +613,7 @@ public final class SessionPagerManager {
                 // Gated by shouldLatchAnchor(): mUserScrollInProgress keeps a programmatic
                 // scroll off popping the menu; mFingerDown keeps a FLING off popping it (the
                 // finger is already up — no anchor to latch, and the menu would be a flash of
-                // unreachable UI). Both fall through to the default working directory.
+                // unreachable UI). Both fall through to the new-tab default.
                 if (shouldLatchAnchor(positionOffset, reveal)) {
                     latchAnchor();
                 }
@@ -801,8 +808,8 @@ public final class SessionPagerManager {
         // that sync is a no-op — update the adapter below so the placeholder slot is rebound in place.
         //
         // The directory comes from the release position: the row the finger was over, or — for every
-        // position outside the rows — the working directory configured in Settings, so the gesture
-        // always creates a session, never nothing.
+        // position outside the rows — the new-tab default, so the gesture always creates a session,
+        // never nothing.
         final String directory = resolvePickDirectory();
         // Consume the pick now: endPickerGesture() must be free to release the overlay, and the
         // posted forceCommitOntoPlaceholder() must see the job as done.
@@ -1092,6 +1099,8 @@ public final class SessionPagerManager {
         if (mTerminalPagerAdapter == null || mTerminalPager == null) return;
         if (!mTerminalPagerAdapter.isPlaceholderActive()) return;
         if (mTerminalPager.getCurrentItem() != mTerminalPagerAdapter.getSessionCount() - 1) return;
+        // Reading every live session is only worth it if a list is actually going to be drawn.
+        if (!withDirectoryPickerBool(DirectoryPickerController::isHistoryEnabled)) return;
         mActivity.recordAllSessionDirectories();
         // Re-read the (now updated) history and pre-measure the labels while nothing is animating:
         // show() installs the rows a couple of frames later, on the gesture's critical frame.
@@ -1099,15 +1108,22 @@ public final class SessionPagerManager {
     }
 
     /**
-     * The directory the swipe selected: the row the finger was over on release, or the default
-     * working directory for every other release position (neutral zone at the anchor, the hint band,
-     * and the empty space above and below the list).
+     * The directory the swipe selected: the row the finger was over on release, or the shared
+     * new-tab default ({@code resolveNewTabDirectory()}) for every other release position.
+     *
+     * <p>A picked row is returned untouched — an explicit pick is a deliberate choice, not the
+     * fallback the switch is about. The fallback is still the session the user was standing on:
+     * {@code commitPlaceholderToSession()} runs from {@code onPageSelected()} before
+     * {@link #onTerminalPageSelected(int)}.
      */
     @NonNull
     private String resolvePickDirectory() {
         if (mForcedPickPending && mForcedPickDirectory != null) return mForcedPickDirectory;
         if (mPendingPickReady && mPendingPickDirectory != null) return mPendingPickDirectory;
-        return mActivity.getProperties().getDefaultWorkingDirectory();
+        // Null only when the switch is on and no session can be read; createNewSession() would
+        // then fall back to its own default, so keep a directory either way.
+        final String fallback = TermuxTerminalSessionActivityClient.resolveNewTabDirectory(mActivity);
+        return (fallback != null) ? fallback : mActivity.getProperties().getDefaultWorkingDirectory();
     }
 
     /**
