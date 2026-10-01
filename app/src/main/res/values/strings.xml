@@ -545,6 +545,7 @@
     <string name="extend_into_cutout_title">Extend into display cutout</string>
     <string name="bubble_on_background_title">Background bubble</string>
     <string name="bubble_on_background_summary">Show a bubble when the app goes to the background for quick access to the terminal over other apps</string>
+    <string name="bubble_window_height_title">Bubble window height</string>
 
 
 

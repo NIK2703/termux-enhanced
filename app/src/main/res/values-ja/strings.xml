@@ -419,6 +419,7 @@
     <string name="extend_into_cutout_title">ノッチ領域まで拡張</string>
     <string name="bubble_on_background_title">バックグラウンドでバブル</string>
     <string name="bubble_on_background_summary">アプリがバックグラウンドに移行したときに、他のアプリの上からターミナルにすばやくアクセスできるようバブルを表示します</string>
+    <string name="bubble_window_height_title">バブルウィンドウの高さ</string>
 
     
 

@@ -421,6 +421,7 @@
     <string name="extend_into_cutout_title">Çentik alanına genişletme</string>
     <string name="bubble_on_background_title">Arka planda baloncuk</string>
     <string name="bubble_on_background_summary">Uygulama arka plana geçtiğinde diğer uygulamaların üzerinde terminale hızlı erişim için baloncuk göster</string>
+    <string name="bubble_window_height_title">Baloncuk yüksekliği</string>
 
     
 

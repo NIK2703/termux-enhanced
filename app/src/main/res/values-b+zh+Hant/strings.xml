@@ -421,6 +421,7 @@
     <string name="extend_into_cutout_title">延伸至瀏海區域</string>
     <string name="bubble_on_background_title">背景氣泡</string>
     <string name="bubble_on_background_summary">進入背景時顯示氣泡，以便在其他應用程式上方快速存取終端機</string>
+    <string name="bubble_window_height_title">氣泡視窗高度</string>
 
 
 

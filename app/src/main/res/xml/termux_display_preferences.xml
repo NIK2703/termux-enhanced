@@ -267,5 +267,19 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
+        <!-- Share of the screen height the expanded bubble window takes. No summary: the value is on
+             the slider itself. app:defaultValue cannot be device-dependent and is overwritten on
+             bind; the real default (100% on phones, 60% on tablets) comes from
+             TermuxAppSharedPreferences.getDefaultBubbleWindowHeightPercent. -->
+        <com.termux.app.fragments.settings.UnitSeekBarPreference
+            app:key="bubble-window-height-percent"
+            app:title="@string/bubble_window_height_title"
+            app:min="30"
+            android:max="100"
+            app:defaultValue="60"
+            app:showSeekBarValue="true"
+            app:valueUnit="%"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 </PreferenceScreen>

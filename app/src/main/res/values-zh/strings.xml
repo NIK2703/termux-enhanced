@@ -421,6 +421,7 @@
     <string name="extend_into_cutout_title">延伸至刘海区域</string>
     <string name="bubble_on_background_title">后台气泡</string>
     <string name="bubble_on_background_summary">进入后台时显示气泡，以便在其他应用之上快速访问终端</string>
+    <string name="bubble_window_height_title">气泡高度</string>
 
 
 

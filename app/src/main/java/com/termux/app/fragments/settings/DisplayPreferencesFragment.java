@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.Keep;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -130,6 +131,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("bubble-on-background", prefs != null && prefs.isBubbleOnBackgroundEnabled(),
             value -> { if (prefs != null) prefs.setBubbleOnBackgroundEnabled(value); });
         configureBubbleOnBackgroundSupport();
+        configureBubbleWindowHeightPreference(prefs);
 
         // --- Terminal appearance (moved from Terminal screen) ---
         configureTerminalAppearancePreferences(prefs);
@@ -428,6 +430,27 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         final SwitchPreferenceCompat pref = findPreference("bubble-on-background");
         if (pref == null) return;
         pref.setEnabled(TermuxBubbleManager.isSupported(requireContext()));
+    }
+
+    /**
+     * The "bubble window height" slider, disabled with the bubble switch beside it: the height is
+     * only asked for when a bubble is posted. No styling reload — it is read when the next bubble
+     * is posted, so a bubble already on screen keeps its size.
+     */
+    private void configureBubbleWindowHeightPreference(@Nullable TermuxAppSharedPreferences prefs) {
+        final SeekBarPreference pref = findPreference("bubble-window-height-percent");
+        if (pref == null) return;
+
+        pref.setPersistent(false);
+        pref.setValue(prefs != null
+            ? prefs.getBubbleWindowHeightPercent(requireContext())
+            : TermuxAppSharedPreferences.getDefaultBubbleWindowHeightPercent(requireContext()));
+        pref.setEnabled(TermuxBubbleManager.isSupported(requireContext()));
+
+        pref.setOnPreferenceChangeListener((preference, newValue) -> {
+            if (prefs != null) prefs.setBubbleWindowHeightPercent((Integer) newValue);
+            return true;
+        });
     }
 
     private void updateStyling() {

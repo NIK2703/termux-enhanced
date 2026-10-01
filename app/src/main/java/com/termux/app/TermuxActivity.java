@@ -3993,7 +3993,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * there. {@link #onStop()} is not usable on its own either: it also fires for a screen-off and
      * for a rotation.
      *
-     * <p>Each guard below is load-bearing; the reasoning is written up in docs/bubble-auto-open.md.
+     * <p>Each guard below is load-bearing; removing one re-opens the failure it was added for.
      */
     private void maybeAutoOpenBubbleOnBackground() {
         // The bubble is this same class. Without this, leaving the bubble would open another one.

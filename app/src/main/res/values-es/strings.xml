@@ -351,6 +351,7 @@
     <string name="extend_into_cutout_title">Ampliar hasta la muesca</string>
     <string name="bubble_on_background_title">Burbuja en segundo plano</string>
     <string name="bubble_on_background_summary">Mostrar la burbuja cuando la aplicación pase a segundo plano para acceder rápidamente a la terminal encima de otras aplicaciones</string>
+    <string name="bubble_window_height_title">Altura de la burbuja</string>
     <string name="hide_soft_keyboard_on_startup_title">Ocultar teclado virtual al inicio</string>
     <string name="invalid_number">Introduzca un número válido.</string>
     <string name="report_issue_title">Termux: informar de un problema</string>

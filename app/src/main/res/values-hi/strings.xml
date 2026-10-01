@@ -378,6 +378,7 @@
     <string name="extend_into_cutout_title">कटआउट में विस्तार करें</string>
     <string name="bubble_on_background_title">पृष्ठभूमि में बबल</string>
     <string name="bubble_on_background_summary">ऐप के पृष्ठभूमि में जाने पर अन्य ऐप्स के ऊपर टर्मिनल तक त्वरित पहुँच के लिए बबल दिखाएँ</string>
+    <string name="bubble_window_height_title">बबल विंडो की ऊँचाई</string>
     <string name="shortcut_create_session_title">नया सत्र</string>
     <string name="shortcut_next_session_title">अगला सत्र</string>
     <string name="shortcut_previous_session_title">पिछला सत्र</string>

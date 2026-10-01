@@ -394,6 +394,7 @@
     <string name="extend_into_cutout_title">الامتداد إلى فتحة الكاميرا</string>
     <string name="bubble_on_background_title">فقاعة عند الانتقال إلى الخلفية</string>
     <string name="bubble_on_background_summary">إظهار فقاعة عند انتقال التطبيق إلى الخلفية للوصول السريع إلى الطرفية فوق التطبيقات الأخرى</string>
+    <string name="bubble_window_height_title">ارتفاع نافذة الفقاعة</string>
     <string name="session_shortcut_needs_modifier">عيّن اختصارًا يحتوي على مفاتيح التعديل Ctrl أو Alt أو Shift أو Fn</string>
     <string name="session_shortcut_needs_key">أضف المفتاح الذي تُطبَّق عليه مفاتيح التعديل</string>
     <string name="shortcut_create_session_title">جلسة جديدة</string>

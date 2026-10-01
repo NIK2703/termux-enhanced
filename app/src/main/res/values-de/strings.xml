@@ -400,6 +400,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extend_into_cutout_title">In den Displayausschnitt erweitern</string>
     <string name="bubble_on_background_title">Blase im Hintergrund</string>
     <string name="bubble_on_background_summary">Beim Wechsel in den Hintergrund eine Blase für den schnellen Zugriff auf das Terminal über anderen Apps anzeigen</string>
+    <string name="bubble_window_height_title">Höhe des Blasenfensters</string>
 
 
 

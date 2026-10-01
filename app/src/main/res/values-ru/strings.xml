@@ -468,6 +468,7 @@
     <string name="extend_into_cutout_title">Расширить в область выреза</string>
     <string name="bubble_on_background_title">Пузырёк при уходе в фон</string>
     <string name="bubble_on_background_summary">При уходе в фон показывать пузырёк для быстрого доступа к терминалу поверх других приложений</string>
+    <string name="bubble_window_height_title">Высота окна пузырька</string>
 
 
     <string name="shortcut_empty_summary">Не задано</string>

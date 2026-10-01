@@ -374,6 +374,21 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_BUBBLE_ON_BACKGROUND = "bubble-on-background";
         public static final boolean DEFAULT_VALUE_BUBBLE_ON_BACKGROUND = false;
 
+        /**
+         * How tall the expanded bubble window is, as a percentage of the screen height.
+         *
+         * <p>100% is the ceiling: the platform hands out less than the whole screen regardless (it
+         * keeps the insets, the bubble's pointer and its manage button), so more only overstates the
+         * request. The floor is the user's call — 30% is a cramped terminal but a usable strip.
+         *
+         * <p>The default is device-dependent, see {@code getDefaultBubbleWindowHeightPercent(Context)}.
+         */
+        public static final String KEY_BUBBLE_WINDOW_HEIGHT_PERCENT = "bubble-window-height-percent";
+        public static final int DEFAULT_VALUE_BUBBLE_WINDOW_HEIGHT_PERCENT_PHONE = 100;
+        public static final int DEFAULT_VALUE_BUBBLE_WINDOW_HEIGHT_PERCENT_TABLET = 60;
+        public static final int MIN_BUBBLE_WINDOW_HEIGHT_PERCENT = 30;
+        public static final int MAX_BUBBLE_WINDOW_HEIGHT_PERCENT = 100;
+
         /* int */
 
         public static final String KEY_BELL_BEHAVIOUR = "bell-character";

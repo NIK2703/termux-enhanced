@@ -24,6 +24,7 @@ import com.termux.app.TermuxActivity;
 import com.termux.app.TermuxService;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 
 import java.lang.reflect.Method;
 
@@ -533,13 +534,35 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Expanded bubble height. SystemUI clamps this to its own limits; ~60% of the screen keeps a
-     * terminal usable without covering everything behind it.
+     * Expanded bubble height in dp: the user's share of the screen height.
+     *
+     * <p>Not the height the window ends up with. SystemUI clamps the request ({@code
+     * BubblePositioner.getExpandedViewHeight()}: {@code desiredHeight > getMaxExpandedViewHeight()}
+     * ⇒ {@code MAX_HEIGHT}, then {@code BubbleExpandedView.updateHeight()} lays the bubble out at
+     * {@code getMaxExpandedViewHeight()} — the screen minus the insets, the bubble's pointer and
+     * the manage button). Below that maximum the request is taken literally, so 100% is the point
+     * where the platform, not this number, decides.
      */
     private static int desiredHeightDp(@NonNull Context context) {
         int screenHeightDp = context.getResources().getConfiguration().screenHeightDp;
         if (screenHeightDp <= 0) return 480;
-        return Math.round(screenHeightDp * 0.6f);
+        return Math.round(screenHeightDp * heightPercent(context) / 100f);
+    }
+
+    /**
+     * The slider's value. Read on every post, never cached, so a change takes effect on the next
+     * bubble; a read failure falls back to the device default rather than failing the post.
+     */
+    private static int heightPercent(@NonNull Context context) {
+        try {
+            TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context);
+            return preferences == null
+                ? TermuxAppSharedPreferences.getDefaultBubbleWindowHeightPercent(context)
+                : preferences.getBubbleWindowHeightPercent(context);
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to read bubble window height, using the default", e);
+            return TermuxAppSharedPreferences.getDefaultBubbleWindowHeightPercent(context);
+        }
     }
 
 }

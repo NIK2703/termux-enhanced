@@ -579,6 +579,39 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_BUBBLE_ON_BACKGROUND, value);
     }
 
+    /**
+     * Height of the expanded bubble window as a percent of the screen height, clamped on read as
+     * well as on write: the stored value may predate the bounds or have been edited directly.
+     *
+     * @param context used for the device-dependent default.
+     */
+    public int getBubbleWindowHeightPercent(Context context) {
+        return Math.max(TERMUX_APP.MIN_BUBBLE_WINDOW_HEIGHT_PERCENT,
+            Math.min(TERMUX_APP.MAX_BUBBLE_WINDOW_HEIGHT_PERCENT,
+                getInt(TERMUX_APP.KEY_BUBBLE_WINDOW_HEIGHT_PERCENT,
+                    getDefaultBubbleWindowHeightPercent(context))));
+    }
+
+    /**
+     * Default bubble window height: a phone fills the window, a tablet leaves it at 60%.
+     *
+     * <p>A phone has no room to spare next to the bubble, so taking the whole screen is what makes
+     * it a terminal rather than a strip; on a tablet the same window would bury a workspace that
+     * has the width to work alongside it. Static so the settings screen can reach it when its own
+     * preferences object is unavailable — the same device-dependent-default shape as
+     * {@link #isExtraKeysDynamicFontSizeEnabled(Context)}.
+     */
+    public static int getDefaultBubbleWindowHeightPercent(Context context) {
+        return isTablet(context)
+            ? TERMUX_APP.DEFAULT_VALUE_BUBBLE_WINDOW_HEIGHT_PERCENT_TABLET
+            : TERMUX_APP.DEFAULT_VALUE_BUBBLE_WINDOW_HEIGHT_PERCENT_PHONE;
+    }
+
+    public void setBubbleWindowHeightPercent(int value) {
+        setIntClamped(TERMUX_APP.KEY_BUBBLE_WINDOW_HEIGHT_PERCENT, value,
+            TERMUX_APP.MIN_BUBBLE_WINDOW_HEIGHT_PERCENT, TERMUX_APP.MAX_BUBBLE_WINDOW_HEIGHT_PERCENT);
+    }
+
     /* int */
 
     public int getBellBehaviour() {
