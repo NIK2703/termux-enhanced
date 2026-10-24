@@ -1430,8 +1430,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * shortcut, a styling reload and the Display settings slider alike.
      */
     public void applyTerminalFontSizeToAllViews() {
-        final int fontSize = mActivity.getPreferences().getFontSize();
-        forEachBoundTerminalView(terminalView -> terminalView.setTextSize(fontSize));
+        final int fontSizePx = mActivity.getPreferences().getFontSizePx();
+        forEachBoundTerminalView(terminalView -> terminalView.setTextSize(fontSizePx));
     }
 
     /**

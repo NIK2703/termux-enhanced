@@ -291,6 +291,26 @@ public final class TermuxBackupService extends Service {
         }
 
         mEpoch.incrementAndGet(); // new operation => invalidate any pending auto-dismiss timer
+        // Reset all per-operation state. The service instance can be reused for a second
+        // operation before it is destroyed; stale mFinished/mResultShown/mCancelled values
+        // would otherwise make the new operation look finished, suppress its result, or
+        // cancel it immediately.
+        mFinished = false;
+        mResultShown.set(false);
+        mCancelled.set(false);
+        mResult.set(null);
+        mProgressCopied = 0;
+        mProgressTotal = 0;
+        if (mMainHandler != null && mAutoDismissRunnable != null) {
+            mMainHandler.removeCallbacks(mAutoDismissRunnable);
+            mAutoDismissRunnable = null;
+        }
+        if (mStartedForeground) {
+            stopForegroundRemove();
+            mStartedForeground = false;
+        }
+        mInForeground = false;
+        cancelBackupNotification();
         // New operation: the previous progress notification (if any) is gone; the next
         // publishProgress() must re-post the current state instead of being throttled.
         mLastPostedProgressKey = PROGRESS_KEY_NONE;
@@ -414,6 +434,8 @@ public final class TermuxBackupService extends Service {
             os = null;
             if (holder[0] != null) {
                 // A cancelled or failed backup must not leave a partial destination file behind.
+                // Benign tar exit-1 warnings are mapped to null by TermuxBackupUtils, so a
+                // valid archive is never deleted here just because files changed during backup.
                 try { getContentResolver().delete(uri, null, null); } catch (Exception ignored) { }
                 out.set(holder[0]);
             }

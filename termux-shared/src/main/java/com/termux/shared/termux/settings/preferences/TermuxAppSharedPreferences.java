@@ -1,6 +1,7 @@
 package com.termux.shared.termux.settings.preferences;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.TypedValue;
 
 import androidx.annotation.NonNull;
@@ -18,9 +19,12 @@ import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants.T
 
 public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
-    private int MIN_FONTSIZE;
-    private int MAX_FONTSIZE;
-    private int DEFAULT_FONTSIZE;
+    /** Default terminal font size, in density-independent pixels. */
+    private static final int DEFAULT_FONTSIZE_DP = 12;
+    /** Smallest terminal font size, in density-independent pixels. */
+    private static final int MIN_FONTSIZE_DP = 8;
+    /** Largest terminal font size, in density-independent pixels. */
+    private static final int MAX_FONTSIZE_DP = 16;
 
     private TermuxAppSharedPreferences(@NonNull Context context) {
         super(context,
@@ -29,7 +33,7 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             SharedPreferenceUtils.getPrivateAndMultiProcessSharedPreferences(context,
                 TermuxConstants.TERMUX_DEFAULT_PREFERENCES_FILE_BASENAME_WITHOUT_EXTENSION));
 
-        setFontVariables(context);
+        migrateFontSizeToDp();
     }
 
     /**
@@ -213,6 +217,13 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_KEEP_SCREEN_ON, value);
     }
 
+    /**
+     * Default font sizes for consumers that still render in physical pixels (Termux:Float).
+     *
+     * <p>Termux itself persists its size in dp and converts on read, so it does not use this
+     * method. Kept for the float app, whose terminal still feeds the returned sizes straight into
+     * {@code Paint.setTextSize()}.
+     */
     public static int[] getDefaultFontSizes(Context context) {
         float dipInPixels = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, context.getResources().getDisplayMetrics());
 
@@ -245,49 +256,91 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         return sizes;
     }
 
-    public void setFontVariables(Context context) {
-        int[] sizes = getDefaultFontSizes(context);
+    /**
+     * Convert a font size persisted by an older build from physical pixels to dp.
+     *
+     * <p>Until this version {@link TERMUX_APP#KEY_FONTSIZE} held pixels, which made the same
+     * preference mean a different physical size on every display density. The value is now dp, so
+     * an old value is divided by the current density once, clamped to the new range, and written
+     * back together with {@link TERMUX_APP#KEY_FONTSIZE_IN_DP}. Writing both in one editor commit
+     * means the value and the marker cannot get out of step.
+     *
+     * <p>A missing {@code fontsize} key still gets the marker: the default is already dp, and
+     * without the marker a later {@link #setFontSize(int)} value would be mistaken for pixels on
+     * the next construction.
+     */
+    private void migrateFontSizeToDp() {
+        if (mSharedPreferences == null) return;
+        if (getBooleanByKey(TERMUX_APP.KEY_FONTSIZE_IN_DP, TERMUX_APP.DEFAULT_VALUE_KEY_FONTSIZE_IN_DP)) return;
 
-        DEFAULT_FONTSIZE = sizes[0];
-        MIN_FONTSIZE = sizes[1];
-        MAX_FONTSIZE = sizes[2];
-    }
-
-    public int getFontSize() {
-        int fontSize = SharedPreferenceUtils.getIntStoredAsString(mSharedPreferences, TERMUX_APP.KEY_FONTSIZE, DEFAULT_FONTSIZE);
-        return DataUtils.clamp(fontSize, MIN_FONTSIZE, MAX_FONTSIZE);
+        SharedPreferences.Editor editor = mSharedPreferences.edit();
+        if (isKeyPresentByKey(TERMUX_APP.KEY_FONTSIZE)) {
+            int fontSizePx = SharedPreferenceUtils.getIntStoredAsString(mSharedPreferences,
+                TERMUX_APP.KEY_FONTSIZE, DEFAULT_FONTSIZE_DP);
+            float density = mContext.getResources().getDisplayMetrics().density;
+            int fontSizeDp = density > 0f ? Math.round(fontSizePx / density) : fontSizePx;
+            fontSizeDp = DataUtils.clamp(fontSizeDp, MIN_FONTSIZE_DP, MAX_FONTSIZE_DP);
+            editor.putString(TERMUX_APP.KEY_FONTSIZE, Integer.toString(fontSizeDp));
+        }
+        editor.putBoolean(TERMUX_APP.KEY_FONTSIZE_IN_DP, true);
+        editor.apply();
     }
 
     /**
-     * Store the terminal font size, in pixels.
+     * The terminal font size in density-independent pixels.
+     *
+     * <p>This is the persisted value and the unit every user-facing control works in. Convert it
+     * with {@link #getFontSizePx()} before handing it to a view that draws text.
+     */
+    public int getFontSize() {
+        int fontSize = SharedPreferenceUtils.getIntStoredAsString(mSharedPreferences, TERMUX_APP.KEY_FONTSIZE, DEFAULT_FONTSIZE_DP);
+        return DataUtils.clamp(fontSize, MIN_FONTSIZE_DP, MAX_FONTSIZE_DP);
+    }
+
+    /**
+     * The terminal font size in physical pixels, for views that paint text.
+     *
+     * <p>{@code Paint.setTextSize()} and therefore {@code TerminalView.setTextSize()} work in
+     * pixels. The conversion happens on every read rather than being cached, so a display-density
+     * change is reflected by the next bind.
+     */
+    public int getFontSizePx() {
+        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, getFontSize(),
+            mContext.getResources().getDisplayMetrics()));
+    }
+
+    /**
+     * Store the terminal font size, in density-independent pixels.
      *
      * <p>Clamped to the same bounds {@link #getFontSize()} uses, so a value from outside the app
      * (old preferences file, external UI) can never be persisted out of range; the read-side
      * clamp stays as the second line of defence.
      */
     public void setFontSize(int value) {
-        value = DataUtils.clamp(value, MIN_FONTSIZE, MAX_FONTSIZE);
+        value = DataUtils.clamp(value, MIN_FONTSIZE_DP, MAX_FONTSIZE_DP);
         SharedPreferenceUtils.setIntStoredAsString(mSharedPreferences, TERMUX_APP.KEY_FONTSIZE, value, false);
     }
 
     /**
-     * The smallest terminal font size, in pixels — the lower bound the pinch gesture, the
-     * {@code fontsize} preference and the Display settings slider all share.
+     * The smallest terminal font size, in density-independent pixels — the lower bound the pinch
+     * gesture, the {@code fontsize} preference and the Display settings slider all share.
      */
     public int getMinFontSize() {
-        return MIN_FONTSIZE;
+        return MIN_FONTSIZE_DP;
     }
 
-    /** The largest terminal font size, in pixels, sharing the same three bounds. */
+    /** The largest terminal font size, in density-independent pixels, sharing the same three bounds. */
     public int getMaxFontSize() {
-        return MAX_FONTSIZE;
+        return MAX_FONTSIZE_DP;
     }
 
     /**
-     * The adjustment step of the terminal font size, in pixels — how much the pinch gesture moves
-     * the size per step, and the granularity the Display settings slider snaps to.
+     * The adjustment step of the terminal font size, in density-independent pixels — how much the
+     * pinch gesture moves the size per step, and the granularity the Display settings slider snaps
+     * to. One dp keeps the physical step identical across screen densities, which a pixel step
+     * could not.
      */
-    public static final int FONT_SIZE_STEP = 2;
+    public static final int FONT_SIZE_STEP = 1;
 
     public void changeFontSize(boolean increase) {
         int fontSize = getFontSize();

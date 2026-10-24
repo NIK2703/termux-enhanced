@@ -151,7 +151,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         // applied per page in TerminalPagerAdapter.onBindViewHolder, so skipping here is safe.
         TerminalView terminalView = mActivity.getTerminalView();
         if (terminalView != null) {
-            terminalView.setTextSize(mActivity.getPreferences().getFontSize());
+            terminalView.setTextSize(mActivity.getPreferences().getFontSizePx());
             terminalView.setKeepScreenOn(mActivity.getPreferences().shouldKeepScreenOn());
         }
     }

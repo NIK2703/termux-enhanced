@@ -703,4 +703,12 @@
     <string name="terminal_notification_channel_description">Messages des programmes exécutés dans une session de terminal</string>
     <string name="termux_notification_deduplication_title">Déduplication des notifications</string>
     <string name="termux_notification_deduplication_summary">Ignorer les notifications reçues dans les %1$d millisecondes suivant l\'envoi de la précédente</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">Insérer des chemins de fichiers</string>
+    <string name="file_path_picker_up">Monter</string>
+    <string name="file_path_picker_insert">Insérer</string>
+    <string name="file_path_picker_empty">Ce dossier est vide</string>
+    <string name="file_path_picker_loading">Chargement…</string>
+    <string name="file_path_picker_unreadable">Impossible de lire ce dossier</string>
 </resources>

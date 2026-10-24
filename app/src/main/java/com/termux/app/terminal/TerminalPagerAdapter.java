@@ -462,7 +462,7 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         mActivity.registerForContextMenu(terminalView);
 
         // Mirror the global terminal view configuration onto this page.
-        terminalView.setTextSize(mActivity.getPreferences().getFontSize());
+        terminalView.setTextSize(mActivity.getPreferences().getFontSizePx());
         terminalView.setKeepScreenOn(mActivity.getPreferences().shouldKeepScreenOn());
 
         // Attach the session. attachSession() reuses the session's existing TerminalEmulator

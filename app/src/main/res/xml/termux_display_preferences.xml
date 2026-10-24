@@ -27,18 +27,18 @@
             app:summary="@string/color_scheme_dark_summary"
             app:iconSpaceReserved="false" />
 
-        <!-- Terminal font size, in pixels — the very same preference the pinch-to-zoom gesture
-             writes, so both entry points stay in sync by construction. The bounds and the step are
-             (re)applied from code in DisplayPreferencesFragment, because the lower bound is derived
-             from the display density (4dp) and cannot be written as a literal here; app:min /
-             android:max only need to form a valid range so the preference inflates. -->
+        <!-- Terminal font size, in density-independent pixels — the very same preference the
+             pinch-to-zoom gesture writes, so both entry points stay in sync by construction. The
+             bounds and the step are (re)applied from code in DisplayPreferencesFragment, because
+             they live in TermuxAppSharedPreferences; app:min / android:max only need to form a
+             valid range so the preference inflates. -->
         <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="terminal-font-size"
             app:title="@string/terminal_font_size_title"
             app:min="1"
             android:max="256"
             app:showSeekBarValue="true"
-            app:valueUnit="px"
+            app:valueUnit="dp"
             app:iconSpaceReserved="false" />
 
         <com.termux.app.fragments.settings.UnitSeekBarPreference

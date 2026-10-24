@@ -1182,7 +1182,10 @@ public final class TerminalView extends View {
      * actually changes — the first call keeps the current typeface and the second keeps the size,
      * so neither can be skipped into a stale combination.
      *
-     * @param textSize the new font size, in density-independent pixels.
+     * @param textSize the new font size, in pixels — the unit {@code Paint.setTextSize()} works
+     *                 in. A caller whose source value is in dp (the Display settings preference
+     *                 is) must convert it with the current display density first; see
+     *                 {@code TermuxAppSharedPreferences#getFontSizePx()}.
      */
     public void setTextSize(int textSize) {
         if (mRenderer != null && mRenderer.mTextSize == textSize) return;

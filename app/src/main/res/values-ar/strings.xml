@@ -636,4 +636,12 @@
     <string name="terminal_notification_channel_description">رسائل من البرامج قيد التشغيل في جلسة طرفية</string>
     <string name="termux_notification_deduplication_title">إزالة تكرار الإشعارات</string>
     <string name="termux_notification_deduplication_summary">تجاهل الإشعارات الواردة خلال %1$d مللي ثانية من آخر إشعار تم إرساله</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">إدراج مسارات الملفات</string>
+    <string name="file_path_picker_up">أعلى</string>
+    <string name="file_path_picker_insert">إدراج</string>
+    <string name="file_path_picker_empty">هذا المجلد فارغ</string>
+    <string name="file_path_picker_loading">جارٍ التحميل…</string>
+    <string name="file_path_picker_unreadable">تعذر قراءة هذا المجلد</string>
 </resources>

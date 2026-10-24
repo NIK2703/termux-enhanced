@@ -24,9 +24,9 @@ import java.util.regex.Pattern;
  * optionally rescaled with {@code app:valueDivisor} (the extra-keys button margin slider counts
  * tenths of a dp, so {@code app:valueDivisor="10"} renders 15 as {@code 1.5 dp}).
  *
- * <p>Units matter: the Display-screen sliders are not all the same kind of number — font size
- * and blur radius are pixels, transparency is percent, terminal margins are dp. A bare
- * {@code 12} next to a slider says nothing.
+ * <p>Units matter: the Display-screen sliders are not all the same kind of number — font size is
+ * density-independent pixels, blur radius is pixels, transparency is percent, terminal margins are
+ * dp. A bare {@code 12} next to a slider says nothing.
  *
  * <p><b>Why a {@link TextWatcher}.</b> {@code SeekBarPreference} owns the label and rewrites it
  * itself from package-private {@code updateLabelValue(int)} (a subclass cannot override it; the

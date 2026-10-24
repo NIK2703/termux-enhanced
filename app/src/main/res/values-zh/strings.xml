@@ -655,4 +655,12 @@
     <string name="terminal_notification_channel_description">来自终端会话中运行程序的消息</string>
     <string name="termux_notification_deduplication_title">通知去重</string>
     <string name="termux_notification_deduplication_summary">丢弃在上一次发送通知后 %1$d 毫秒内到达的通知。</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">插入文件路径</string>
+    <string name="file_path_picker_up">上一级</string>
+    <string name="file_path_picker_insert">插入</string>
+    <string name="file_path_picker_empty">此文件夹为空</string>
+    <string name="file_path_picker_loading">正在加载…</string>
+    <string name="file_path_picker_unreadable">无法读取此文件夹</string>
 </resources>

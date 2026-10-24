@@ -201,9 +201,20 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_KEEP_SCREEN_ON = false;
 
         /**
-         * Defines the key for font size of termux terminal view.
+         * Defines the key for font size of termux terminal view, in density-independent pixels.
          */
         public static final String KEY_FONTSIZE = "fontsize";
+
+        /**
+         * Defines the key for whether {@link #KEY_FONTSIZE} is stored in density-independent
+         * pixels ({@code true}) rather than the legacy physical pixels ({@code false}).
+         *
+         * <p>Set by the one-time migration that runs when the preferences are constructed, so an
+         * old pixel value is converted exactly once and is never mistaken for a dp value after a
+         * restart.
+         */
+        public static final String KEY_FONTSIZE_IN_DP = "fontsize_in_dp";
+        public static final boolean DEFAULT_VALUE_KEY_FONTSIZE_IN_DP = false;
 
         /**
          * Defines the key for current termux terminal session.

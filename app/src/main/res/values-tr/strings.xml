@@ -692,4 +692,12 @@
     <string name="terminal_notification_channel_description">Terminal oturumunda çalışan programlardan gelen mesajlar</string>
     <string name="termux_notification_deduplication_title">Bildirim tekilleştirme</string>
     <string name="termux_notification_deduplication_summary">Gönderilen son bildirimden sonraki %1$d milisaniye içinde gelen bildirimleri yoksay</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">Dosya yollarını ekle</string>
+    <string name="file_path_picker_up">Yukarı</string>
+    <string name="file_path_picker_insert">Ekle</string>
+    <string name="file_path_picker_empty">Bu klasör boş</string>
+    <string name="file_path_picker_loading">Yükleniyor…</string>
+    <string name="file_path_picker_unreadable">Bu klasör okunamıyor</string>
 </resources>

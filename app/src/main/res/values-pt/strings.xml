@@ -599,4 +599,12 @@
     <string name="terminal_notification_channel_description">Mensagens de programas em execução em uma sessão do terminal</string>
     <string name="termux_notification_deduplication_title">Deduplicação de notificações</string>
     <string name="termux_notification_deduplication_summary">Descartar notificações recebidas até %1$d milissegundos após a última enviada</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">Inserir caminhos de arquivo</string>
+    <string name="file_path_picker_up">Acima</string>
+    <string name="file_path_picker_insert">Inserir</string>
+    <string name="file_path_picker_empty">Esta pasta está vazia</string>
+    <string name="file_path_picker_loading">Carregando…</string>
+    <string name="file_path_picker_unreadable">Não foi possível ler esta pasta</string>
 </resources>

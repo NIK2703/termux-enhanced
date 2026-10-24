@@ -221,12 +221,11 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     /**
-     * Font-size slider: same {@code fontsize} bounds as the pinch gesture, so the slider cannot
-     * reach a size the gesture cannot; the density-derived (4dp) lower bound must be applied here,
-     * not in the XML. {@link TermuxAppSharedPreferences#FONT_SIZE_STEP} only affects keyboard/DPAD
-     * stepping — a finger drag stays at full resolution so thumb and number cannot desync.
-     * Deliberately <em>not</em> {@link #configureSeekBarInt}: that helper recreates the activity on
-     * every value; here one broadcast is sent on finger release (default
+     * Font-size slider: same {@code fontsize} dp bounds as the pinch gesture, so the slider cannot
+     * reach a size the gesture cannot. {@link TermuxAppSharedPreferences#FONT_SIZE_STEP} only
+     * affects keyboard/DPAD stepping — a finger drag stays at full resolution so thumb and number
+     * cannot desync. Deliberately <em>not</em> {@link #configureSeekBarInt}: that helper recreates
+     * the activity on every value; here one broadcast is sent on finger release (default
      * {@code updatesContinuously = false}), not per frame.
      */
     private void configureFontSizeSeekBar(TermuxAppSharedPreferences prefs) {

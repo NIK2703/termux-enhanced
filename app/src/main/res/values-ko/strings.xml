@@ -690,4 +690,12 @@
     <string name="terminal_notification_channel_description">터미널 세션에서 실행 중인 프로그램의 메시지</string>
     <string name="termux_notification_deduplication_title">알림 중복 제거</string>
     <string name="termux_notification_deduplication_summary">마지막 알림을 보낸 지 %1$d밀리초 이내에 도착한 알림은 무시합니다.</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">파일 경로 삽입</string>
+    <string name="file_path_picker_up">위로</string>
+    <string name="file_path_picker_insert">삽입</string>
+    <string name="file_path_picker_empty">이 폴더는 비어 있습니다</string>
+    <string name="file_path_picker_loading">불러오는 중…</string>
+    <string name="file_path_picker_unreadable">이 폴더를 읽을 수 없습니다</string>
 </resources>

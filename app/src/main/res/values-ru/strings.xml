@@ -798,4 +798,12 @@
     <string name="notification_action_reply">Ответить</string>
     <string name="notification_terminal_reply_hint">Введите команду и отправьте</string>
     <string name="terminal_notification_channel_description">Сообщения от программ, запущенных в сеансе терминала</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">Вставить пути к файлам</string>
+    <string name="file_path_picker_up">Вверх</string>
+    <string name="file_path_picker_insert">Вставить</string>
+    <string name="file_path_picker_empty">Эта папка пуста</string>
+    <string name="file_path_picker_loading">Загрузка…</string>
+    <string name="file_path_picker_unreadable">Не удалось прочитать папку</string>
 </resources>

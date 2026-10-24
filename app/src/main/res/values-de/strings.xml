@@ -673,4 +673,12 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_notification_channel_description">Nachrichten von Programmen, die in einer Terminalsitzung laufen</string>
     <string name="termux_notification_deduplication_title">Doppelte Benachrichtigungen verwerfen</string>
     <string name="termux_notification_deduplication_summary">Benachrichtigungen verwerfen, die innerhalb von %1$d Millisekunden nach der zuletzt gesendeten Benachrichtigung eintreffen</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">Dateipfade einfügen</string>
+    <string name="file_path_picker_up">Nach oben</string>
+    <string name="file_path_picker_insert">Einfügen</string>
+    <string name="file_path_picker_empty">Dieser Ordner ist leer</string>
+    <string name="file_path_picker_loading">Wird geladen…</string>
+    <string name="file_path_picker_unreadable">Dieser Ordner kann nicht gelesen werden</string>
 </resources>

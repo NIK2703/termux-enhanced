@@ -623,4 +623,12 @@
     <string name="terminal_notification_channel_description">टर्मिनल सत्र में चल रहे प्रोग्रामों के संदेश</string>
     <string name="termux_notification_deduplication_title">सूचना डीडुप्लिकेशन</string>
     <string name="termux_notification_deduplication_summary">पिछली भेजी गई सूचना के %1$d मिलीसेकंड के भीतर आने वाली सूचनाएँ अस्वीकार करें।</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">फ़ाइल पथ डालें</string>
+    <string name="file_path_picker_up">ऊपर</string>
+    <string name="file_path_picker_insert">डालें</string>
+    <string name="file_path_picker_empty">यह फ़ोल्डर खाली है</string>
+    <string name="file_path_picker_loading">लोड हो रहा है…</string>
+    <string name="file_path_picker_unreadable">यह फ़ोल्डर पढ़ा नहीं जा सकता</string>
 </resources>

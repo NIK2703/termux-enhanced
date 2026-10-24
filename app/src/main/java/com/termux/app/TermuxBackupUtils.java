@@ -38,6 +38,15 @@ public final class TermuxBackupUtils {
     /** Upper bound on retained tar stderr (chars). Only the first chunk is kept for error reporting. */
     private static final int MAX_STDERR_CHARS = 64 * 1024;
 
+    /** Upper bound on stderr included in a log line; the full buffer can be tens of KiB. */
+    private static final int MAX_STDERR_LOG_CHARS = 4096;
+
+    /**
+     * GNU tar's "some files differ" exit status. It is a non-fatal warning: files changed or
+     * disappeared while they were being archived, but the archive itself is valid.
+     */
+    private static final int TAR_EXIT_WARNINGS = 1;
+
     public interface ResultListener {
         void onResult(@Nullable Error error);
     }
@@ -56,8 +65,13 @@ public final class TermuxBackupUtils {
     /**
      * Drain tar's stderr into {@code stderr}, capped at {@link #MAX_STDERR_CHARS}.
      * Only the first chunk is retained for error reporting.
+     *
+     * @param truncated set to {@code true} if stderr was longer than the cap. Callers that
+     *                  classify warnings from stderr must not treat a truncated buffer as
+     *                  proof that every diagnostic was benign.
      */
-    private static Thread startStderrPump(Process process, StringBuilder stderr) {
+    private static Thread startStderrPump(Process process, StringBuilder stderr,
+                                          @Nullable AtomicBoolean truncated) {
         Thread errPump = new Thread(() -> {
             try (InputStream e = process.getErrorStream()) {
                 byte[] buf = new byte[4096];
@@ -66,8 +80,11 @@ public final class TermuxBackupUtils {
                 // megabytes of warnings, which previously accumulated in memory for the
                 // whole operation.
                 while ((n = e.read(buf)) > 0) {
-                    if (stderr.length() < MAX_STDERR_CHARS)
+                    if (stderr.length() < MAX_STDERR_CHARS) {
                         stderr.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+                    } else if (truncated != null) {
+                        truncated.set(true);
+                    }
                 }
             } catch (IOException ignored) {
             }
@@ -344,7 +361,7 @@ public final class TermuxBackupUtils {
                 "--warning=no-file-changed", "-C", filesDir, "."};
         }
         cmd = wrapTarCommand(context, tarBinary, cmd);
-        runTar(context, cmd,
+        runTar(context, tarBinary, cmd,
             null, out, listener, progress,
             new File(parentDir), 0L, cancelled);
     }
@@ -459,7 +476,8 @@ public final class TermuxBackupUtils {
             }
 
             final StringBuilder stderr = new StringBuilder();
-            final Thread errPump = startStderrPump(process, stderr);
+            final AtomicBoolean stderrTruncated = new AtomicBoolean(false);
+            final Thread errPump = startStderrPump(process, stderr, stderrTruncated);
 
             final AtomicReference<IOException> pumpError = new AtomicReference<>();
             // totalBytes for restore is unknown here — the caller (fragment) gets
@@ -522,9 +540,17 @@ public final class TermuxBackupUtils {
                 listener.onResult(CANCELLED_ERROR);
             } else if (exitCode == 0) {
                 listener.onResult(null);
+            } else if (isBenignTarWarning(tarBinary, exitCode, stderr.toString(),
+                    stderrTruncated.get(), false)) {
+                // GNU tar exit 1 after extraction means only that some metadata (for example
+                // mtime) could not be applied; the files themselves were restored. Rolling the
+                // whole tree back would destroy a good restore.
+                logTarExit(exitCode, stderr.toString(), true);
+                listener.onResult(null);
             } else {
                 rollbackRestore(filesDir);
                 String msg = stderr.toString().trim();
+                logTarExit(exitCode, msg, false);
                 if (msg.isEmpty()) msg = context.getString(com.termux.R.string.error_tar_exit_code, exitCode);
                 listener.onResult(new Error(msg));
             }
@@ -548,9 +574,88 @@ public final class TermuxBackupUtils {
         logDirState("ROLLBACK after", filesDir);
     }
 
+    /**
+     * Whether a non-zero tar exit status is a warning rather than a failure.
+     *
+     * <p>GNU tar returns 1 ("some files differ") when a file changes or is removed while it is
+     * being archived. The resulting archive is complete and restorable, so reporting this as a
+     * failed backup is wrong. GNU tar reserves exit status 2 for fatal errors.
+     *
+     * <p>Toybox tar also returns 1 for warnings, but its diagnostics are unstructured. For a
+     * backup we accept only the two benign cases seen on a live container: a file disappearing
+     * between directory traversal and stat ("No such file or directory"), and a socket that tar
+     * cannot archive ("unknown file type"). Any other message — especially "Permission denied" —
+     * means files may be missing and must remain a failure. Truncated stderr is not classified
+     * as benign because a real error could have been cut off.
+     *
+     * @param isBackup {@code false} for restore: toybox exit 1 is never accepted there because
+     *                 it could mean a partially extracted tree.
+     */
+    private static boolean isBenignTarWarning(@NonNull String tarBinary, int exitCode,
+                                              @NonNull String stderr, boolean stderrTruncated,
+                                              boolean isBackup) {
+        if (exitCode != TAR_EXIT_WARNINGS) return false;
+        // GNU tar's exit-1 semantics are well-defined for both creation and extraction.
+        if (!isSystemTar(tarBinary)) return true;
+        if (!isBackup || stderrTruncated) return false;
+        return isBenignToyboxBackupStderr(stderr);
+    }
+
+    private static boolean isBenignToyboxBackupStderr(@NonNull String stderr) {
+        boolean sawWarning = false;
+        for (String rawLine : stderr.split("\n")) {
+            String line = rawLine.trim();
+            if (line.isEmpty()) continue;
+            // Toybox prints this summary after any per-file diagnostic; it is benign only if
+            // every other line matched a benign pattern below.
+            if ("tar: had errors".equals(line)) continue;
+            if (isBenignToyboxMissingFileLine(line)) {
+                sawWarning = true;
+                continue;
+            }
+            if (line.startsWith("tar: unknown file type '") && line.endsWith("'")) {
+                sawWarning = true;
+                continue;
+            }
+            return false;
+        }
+        return sawWarning;
+    }
+
+    /**
+     * A toybox "No such file or directory" line is benign only for a child entry that vanished
+     * during traversal. If the archive root itself disappeared, the backup is not usable.
+     */
+    private static boolean isBenignToyboxMissingFileLine(@NonNull String line) {
+        final String prefix = "tar: ";
+        final String suffix = ": No such file or directory";
+        if (!line.startsWith(prefix) || !line.endsWith(suffix)) return false;
+        String path = line.substring(prefix.length(), line.length() - suffix.length());
+        return !path.isEmpty() && !".".equals(path) && !"./".equals(path);
+    }
+
+    /** Log tar's exit status and a bounded stderr summary for post-mortem diagnostics. */
+    private static void logTarExit(int exitCode, @NonNull String stderr, boolean benign) {
+        String summary = stderr.trim();
+        if (summary.length() > MAX_STDERR_LOG_CHARS) {
+            int total = summary.length();
+            summary = summary.substring(0, MAX_STDERR_LOG_CHARS)
+                + "\n… (" + (total - MAX_STDERR_LOG_CHARS) + " chars truncated)";
+        }
+        String message = "tar exited with code " + exitCode
+            + (benign ? " (non-fatal warnings)" : "")
+            + (summary.isEmpty() ? "" : ": " + summary);
+        if (benign) {
+            Logger.logWarn(LOG_TAG, message);
+        } else {
+            Logger.logError(LOG_TAG, message);
+        }
+    }
+
     // ---- Shared runner (used by backup) ----
 
-    private static void runTar(@NonNull Context context, String[] command,
+    private static void runTar(@NonNull Context context, @NonNull String tarBinary,
+                               String[] command,
                                @Nullable InputStream in, @Nullable OutputStream out,
                                @NonNull ResultListener listener,
                                @Nullable ProgressCallback progress,
@@ -559,16 +664,20 @@ public final class TermuxBackupUtils {
                                @Nullable AtomicBoolean cancelled) {
         try {
             ProcessBuilder pb = new ProcessBuilder(command);
-            setupTarEnvironment(context, pb, command[0]);
+            // Use the resolved binary, not command[0]: on renamed-package forks the command
+            // may be prefixed with the ELF loader shim, and checking the loader path would
+            // misclassify the tar flavor.
+            setupTarEnvironment(context, pb, tarBinary);
             pb.directory(workingDir != null
                 ? workingDir
-                : new File(isSystemTar(command[0])
+                : new File(isSystemTar(tarBinary)
                     ? context.getFilesDir().getAbsolutePath()
                     : context.getFilesDir().getAbsolutePath() + "/usr"));
             final Process process = pb.start();
 
             final StringBuilder stderr = new StringBuilder();
-            final Thread errPump = startStderrPump(process, stderr);
+            final AtomicBoolean stderrTruncated = new AtomicBoolean(false);
+            final Thread errPump = startStderrPump(process, stderr, stderrTruncated);
 
             final AtomicReference<IOException> pumpError = new AtomicReference<>();
             final Thread dataPump;
@@ -659,8 +768,18 @@ public final class TermuxBackupUtils {
                 listener.onResult(CANCELLED_ERROR);
             } else if (exitCode == 0) {
                 listener.onResult(null);
+            } else if (isBenignTarWarning(tarBinary, exitCode, stderr.toString(),
+                    stderrTruncated.get(), true)) {
+                // A live container always has files changing or disappearing in usr/tmp and
+                // elsewhere. GNU tar reports that as exit 1 ("some files differ"), and toybox
+                // reports the equivalent cases as exit 1 with benign per-file diagnostics.
+                // The archive was still written successfully, so do not fail (and do not let
+                // the service delete the valid destination file).
+                logTarExit(exitCode, stderr.toString(), true);
+                listener.onResult(null);
             } else {
                 String msg = stderr.toString().trim();
+                logTarExit(exitCode, msg, false);
                 if (msg.isEmpty()) msg = context.getString(com.termux.R.string.error_tar_exit_code, exitCode);
                 listener.onResult(new Error(msg));
             }

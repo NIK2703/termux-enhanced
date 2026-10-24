@@ -691,4 +691,12 @@
     <string name="terminal_notification_channel_description">Pesan dari program yang berjalan di sesi terminal</string>
     <string name="termux_notification_deduplication_title">Deduplikasi notifikasi</string>
     <string name="termux_notification_deduplication_summary">Abaikan notifikasi yang tiba dalam %1$d milidetik setelah yang terakhir dikirim</string>
+
+    <!-- File path picker -->
+    <string name="file_path_picker_title">Sisipkan jalur file</string>
+    <string name="file_path_picker_up">Naik</string>
+    <string name="file_path_picker_insert">Sisipkan</string>
+    <string name="file_path_picker_empty">Folder ini kosong</string>
+    <string name="file_path_picker_loading">Memuat…</string>
+    <string name="file_path_picker_unreadable">Tidak dapat membaca folder ini</string>
 </resources>

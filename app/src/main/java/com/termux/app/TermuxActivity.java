@@ -41,6 +41,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.termux.R;
 import com.termux.app.api.file.FileReceiverActivity;
 import com.termux.app.bubble.TermuxBubbleManager;
+import com.termux.app.filepicker.FilePathPickerDialog;
 import com.termux.app.notification.TermuxTerminalNotificationDispatcher;
 import com.termux.app.terminal.TermuxActivityRootView;
 import com.termux.app.terminal.TermuxServiceConnectionManager;
@@ -100,6 +101,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -417,6 +419,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
     private TextInputPanelController mTextInputPanel;
     private AutoCompleteController mAutoCompleteCtrl;
+    /** Non-null while the file-path picker opened from the input-panel button is showing. */
+    @Nullable private FilePathPickerDialog mFilePathPicker;
     /** The session whose text the shared input field currently displays. Set ONLY by
      * restoreTextInputForSession() — the single authority that re-points the field.
      * Invariant: the field is always the live buffer of the CURRENT session; every
@@ -1355,6 +1359,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         super.onDestroy();
 
         Logger.logDebug(LOG_TAG, "onDestroy");
+
+        // The path picker owns a dialog window and a background listing thread; release both
+        // before the activity goes away.
+        if (mFilePathPicker != null) {
+            mFilePathPicker.dismiss();
+            mFilePathPicker = null;
+        }
 
         // Release the debug-hook handle only if it is still ours. The bubble window is a second
         // instance of this class; clearing unconditionally meant that closing the bubble blanked the
@@ -2768,11 +2779,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mDirectoryHistoryCtrl.setExcludedDirectory(mProperties.getDefaultWorkingDirectory());
             loadDirectoryHistory();
 
-            // A touch listener drives two gestures on the pencil button:
+            // A touch listener drives four gestures on the pencil button:
             //   - a plain tap toggles the text input panel (old click behaviour);
             //   - a swipe up (drag off the button) opens the message-history popup,
             //     which stays open while the finger is held; releasing over an item
-            //     picks it, releasing elsewhere just dismisses.
+            //     picks it, releasing elsewhere just dismisses;
+            //   - a swipe down pastes the clipboard;
+            //   - a swipe left opens the file-path picker.
             final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
             final float[] downXY = new float[2];
             final boolean[] gestureActive = { false };
@@ -2785,6 +2798,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // (showing the panel first if it is hidden), and must not fall back to a plain
             // tap on release.
             final boolean[] swipeDownPending = { false };
+            // Set once the finger has swiped left past the touch slop: the file-path picker
+            // has been opened and the release must not toggle the panel.
+            final boolean[] swipeLeftPending = { false };
 
             toggleTextInputButton.setOnTouchListener((v, event) -> {
                 switch (event.getActionMasked()) {
@@ -2793,6 +2809,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         downXY[1] = event.getRawY();
                         panelOpenAtDown[0] = isTextInputVisible();
                         swipeDownPending[0] = false;
+                        swipeLeftPending[0] = false;
                         gestureActive[0] = true;
                         mButtonTouchInProgress = true;
                         v.setPressed(true);
@@ -2804,6 +2821,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         // Open the history popup once the finger has dragged up past
                         // the touch slop (and the drag is more vertical than sideways).
                         if (!mPopupCtrl.isHistoryPopupShowing()
+                                && !swipeDownPending[0] && !swipeLeftPending[0]
                                 && dy < -touchSlop && Math.abs(dy) > Math.abs(dx)) {
                             mPopupCtrl.showMessageHistoryPopup(v);
                         }
@@ -2812,9 +2830,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         // immediately upon recognition (not on release). Latched so a wiggle
                         // back up mid-drag does not paste again or fall back to a toggle.
                         if (!mPopupCtrl.isHistoryPopupShowing() && !swipeDownPending[0]
+                                && !swipeLeftPending[0]
                                 && dy > touchSlop && Math.abs(dy) > Math.abs(dx)) {
                             swipeDownPending[0] = true;
                             pasteClipboardIntoTextInput();
+                        }
+                        // Swipe left past the touch slop opens the file-path picker. The
+                        // selected paths are inserted into the input panel when the picker
+                        // is confirmed (see openFilePathPicker()).
+                        if (!mPopupCtrl.isHistoryPopupShowing() && !swipeDownPending[0]
+                                && !swipeLeftPending[0]
+                                && dx < -touchSlop && Math.abs(dx) > Math.abs(dy)) {
+                            swipeLeftPending[0] = true;
+                            openFilePathPicker();
                         }
                         if (mPopupCtrl.isHistoryPopupShowing()) {
                             // Keep the button visually active (filled with the stroke colour)
@@ -2846,6 +2874,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         } else if (swipeDownPending[0]) {
                             // The swipe-down paste already fired on recognition in ACTION_MOVE;
                             // on release (or cancel) it must never fall back to a toggle.
+                        } else if (swipeLeftPending[0]) {
+                            // The picker was already opened on recognition in ACTION_MOVE.
                         } else if (gestureActive[0]
                                 && event.getActionMasked() == MotionEvent.ACTION_UP) {
                             // No popup was opened: treat as a plain tap -> toggle panel.
@@ -2854,6 +2884,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         }
                         gestureActive[0] = false;
                         swipeDownPending[0] = false;
+                        swipeLeftPending[0] = false;
                         mButtonTouchInProgress = false;
                         return true;
                     }
@@ -2879,6 +2910,32 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Open the file-path picker from the toggle button's left swipe. The paths are inserted into
+     * the text input panel when the picker is confirmed; the picker starts in the current session's
+     * working directory, so the user does not have to walk there from $HOME.
+     */
+    private void openFilePathPicker() {
+        if (mFilePathPicker != null) return;
+
+        String initialDirectory = null;
+        final TerminalSession session = getCurrentSession();
+        if (session != null) initialDirectory = session.getCwd();
+
+        mFilePathPicker = FilePathPickerDialog.show(this, initialDirectory,
+            paths -> insertPathsIntoTextInput(paths),
+            () -> mFilePathPicker = null);
+    }
+
+    /**
+     * Insert the picked filesystem paths, separated by single spaces, into the text input field.
+     * No quoting or escaping is added: the user asked for exactly the paths and spaces.
+     */
+    private void insertPathsIntoTextInput(@NonNull List<String> paths) {
+        if (paths.isEmpty()) return;
+        insertTextIntoTextInput(FilePathPickerDialog.joinPathsForInsertion(paths));
+    }
+
+    /**
      * Paste clipboard text into the text input field at the cursor position, replacing any
      * active selection. If the text input panel is currently hidden, it is shown first.
      * Called from a swipe-down gesture on the toggle button. A clipboard that is unset or
@@ -2887,7 +2944,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void pasteClipboardIntoTextInput() {
         String text = ShareUtils.getTextStringFromClipboardIfSet(this, true);
         if (text == null) return;
+        insertTextIntoTextInput(text);
+    }
 
+    /**
+     * Insert {@code text} into the text input field at the cursor, replacing any active selection.
+     * Shows the panel first when it is hidden. Shared by the clipboard-paste gesture, the
+     * file-path picker and anything else that types into the field on the user's behalf.
+     */
+    private void insertTextIntoTextInput(@NonNull String text) {
         final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
 

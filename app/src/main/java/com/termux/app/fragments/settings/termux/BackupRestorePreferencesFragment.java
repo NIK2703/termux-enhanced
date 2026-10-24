@@ -74,7 +74,9 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
 
             android.widget.CheckBox checkBox = new android.widget.CheckBox(activity);
             checkBox.setText(R.string.backup_include_tmp_checkbox);
-            checkBox.setChecked(true);
+            // The label asks whether to INCLUDE usr/tmp; keep it unchecked by default so
+            // backups skip the volatile tmp directory unless the user explicitly opts in.
+            checkBox.setChecked(false);
 
             android.widget.LinearLayout layout = new android.widget.LinearLayout(activity);
             layout.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -96,7 +98,9 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
                 .setTitle(R.string.backup_restore_dialog_title)
                 .setView(layout)
                 .setPositiveButton(android.R.string.ok, (d, which) -> {
-                    mExcludeTmpFromBackup = checkBox.isChecked();
+                    // The checkbox is an "include" switch; the service/backup API takes the
+                    // opposite flag.
+                    mExcludeTmpFromBackup = !checkBox.isChecked();
                     startBackupFileChooser();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
