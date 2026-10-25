@@ -89,6 +89,7 @@ public final class FilePathPickerDialog {
     @Nullable private File mCurrentDirectory;
     private long mLoadGeneration;
     private boolean mDismissed;
+    private boolean mCanNavigateUp;
 
     private FilePathPickerDialog(@NonNull Context context,
                                  @NonNull OnPathsPickedListener listener,
@@ -187,8 +188,34 @@ public final class FilePathPickerDialog {
             attributes.height = WindowManager.LayoutParams.MATCH_PARENT;
             window.setAttributes(attributes);
         }
+        configureFullHeightDialog();
 
         loadDirectory(startDirectory);
+    }
+
+    /**
+     * The window itself is full-height, but MaterialAlertDialog's internal parent panel is
+     * {@code wrap_content}: its button row would stay directly under the short custom view and
+     * the rest of the window would be an empty strip below the buttons. Stretch that panel and
+     * the custom-view host so the list (weight 1) takes the free space and the buttons sit at
+     * the bottom of the dialog.
+     */
+    private void configureFullHeightDialog() {
+        if (mDialog == null) return;
+
+        View parentPanel = mDialog.findViewById(com.google.android.material.R.id.parentPanel);
+        if (parentPanel != null) {
+            ViewGroup.LayoutParams params = parentPanel.getLayoutParams();
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            parentPanel.setLayoutParams(params);
+        }
+
+        View custom = mDialog.findViewById(com.google.android.material.R.id.custom);
+        if (custom != null) {
+            ViewGroup.LayoutParams params = custom.getLayoutParams();
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            custom.setLayoutParams(params);
+        }
     }
 
     private int dp(int value) {
@@ -200,13 +227,17 @@ public final class FilePathPickerDialog {
 
         mCurrentDirectory = directory;
         if (mPathView != null) mPathView.setText(directory.getAbsolutePath());
-        if (mUpButton != null) mUpButton.setEnabled(directory.getParentFile() != null);
+        // The parent's readability is checked off the UI thread together with this listing.
+        // Until then there is no valid "up" destination to offer.
+        mCanNavigateUp = false;
+        if (mUpButton != null) mUpButton.setVisibility(View.GONE);
 
         mLoadGeneration++;
         mAdapter.setEntries(Collections.emptyList());
         showEmptyState(R.string.file_path_picker_loading);
         updateSelectionUi();
 
+        final File parent = directory.getParentFile();
         final long generation = mLoadGeneration;
         mExecutor.execute(() -> {
             List<Entry> entries = null;
@@ -218,12 +249,19 @@ public final class FilePathPickerDialog {
                     Collections.sort(entries, ENTRY_COMPARATOR);
                 }
             } catch (SecurityException ignored) {
-                // Treated exactly like listFiles() returning null: the folder is unreadable.
+                // Treated exactly like listFiles() returning null: the directory is unreadable.
             }
 
             final List<Entry> loadedEntries = entries;
+            final boolean canNavigateUp = canListDirectory(parent);
             mMainHandler.post(() -> {
                 if (mDismissed || generation != mLoadGeneration) return;
+
+                mCanNavigateUp = canNavigateUp;
+                if (mUpButton != null) {
+                    mUpButton.setEnabled(canNavigateUp);
+                    mUpButton.setVisibility(canNavigateUp ? View.VISIBLE : View.GONE);
+                }
 
                 if (loadedEntries == null) {
                     mAdapter.setEntries(Collections.emptyList());
@@ -239,8 +277,22 @@ public final class FilePathPickerDialog {
         });
     }
 
+    /**
+     * The up button is only offered when the parent can actually be listed. Android can expose a
+     * parent directory that exists but denies reading it; entering it would show the unreadable
+     * state and, because its own parent may be just as inaccessible, leave no way back.
+     */
+    private static boolean canListDirectory(@Nullable File directory) {
+        if (directory == null || !directory.isDirectory()) return false;
+        try {
+            return directory.list() != null;
+        } catch (SecurityException ignored) {
+            return false;
+        }
+    }
+
     private void navigateUp() {
-        if (mCurrentDirectory == null) return;
+        if (mCurrentDirectory == null || !mCanNavigateUp) return;
         File parent = mCurrentDirectory.getParentFile();
         if (parent != null) loadDirectory(parent);
     }
@@ -285,7 +337,7 @@ public final class FilePathPickerDialog {
             bookmark.setContentDescription(path);
             bookmark.setOnClickListener(v -> {
                 File directory = new File(path);
-                if (directory.isDirectory() && directory.canRead()) loadDirectory(directory);
+                if (canListDirectory(directory)) loadDirectory(directory);
             });
             mBookmarksContainer.addView(bookmark);
         }

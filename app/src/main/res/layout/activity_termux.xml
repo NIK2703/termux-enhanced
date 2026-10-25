@@ -12,6 +12,8 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical">
 
         <!-- Session tabs container (default: top). The applyTabPanelPosition()
@@ -154,6 +156,60 @@
                 tools:ignore="LabelFor" />
 
         </FrameLayout>
+
+        <!-- Quick actions for the open input panel. They sit above the panel, immediately left
+             of the pencil when it is visible, and use the same floating-button design. While
+             the panel is closed the toggle button keeps these actions on its up/down/left
+             swipes, so the row is gone. TermuxActivity anchors them above the panel itself. -->
+        <LinearLayout
+            android:id="@+id/input_panel_actions"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:layout_above="@id/terminal_toolbar_container"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="80dp"
+            android:layout_marginBottom="6dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ImageButton
+                android:id="@+id/input_panel_paste_button"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/floating_button_background"
+                android:contentDescription="@string/action_input_paste"
+                android:padding="12dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_content_paste"
+                android:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/input_panel_attach_button"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/floating_button_background"
+                android:contentDescription="@string/action_input_attach"
+                android:padding="12dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_attach_file"
+                android:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/input_panel_history_button"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/floating_button_background"
+                android:contentDescription="@string/action_input_history"
+                android:padding="12dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_history"
+                android:tint="?attr/colorOnSurface" />
+
+        </LinearLayout>
 
         <!-- Floating toggle text input visibility button (pencil).
              Floats over the terminal, bottom-right, vertically centered with the

@@ -46,6 +46,9 @@
     <string name="action_create_named_session_confirm">Create</string>
 
     <string name="action_toggle_text_input">Text input</string>
+    <string name="action_input_history">Input history</string>
+    <string name="action_input_paste">Paste from clipboard</string>
+    <string name="action_input_attach">Attach file</string>
 
     <string name="msg_terminal_panel_enabling">Enabling terminal panel</string>
     <string name="msg_terminal_panel_disabling">Disabling terminal panel</string>
@@ -819,7 +822,7 @@
     <string name="file_path_picker_title">Insert file paths</string>
     <string name="file_path_picker_up">Up</string>
     <string name="file_path_picker_insert">Insert</string>
-    <string name="file_path_picker_empty">This folder is empty</string>
+    <string name="file_path_picker_empty">This directory is empty</string>
     <string name="file_path_picker_loading">Loading…</string>
-    <string name="file_path_picker_unreadable">Cannot read this folder</string>
+    <string name="file_path_picker_unreadable">Cannot read this directory</string>
 </resources>

@@ -46,6 +46,9 @@
     <string name="action_create_named_session_confirm">Создать</string>
 
     <string name="action_toggle_text_input">Ввод текста</string>
+    <string name="action_input_history">История ввода</string>
+    <string name="action_input_paste">Вставить из буфера обмена</string>
+    <string name="action_input_attach">Прикрепить файл</string>
 
     <string name="msg_terminal_panel_enabling">Включение панели терминала</string>
     <string name="msg_terminal_panel_disabling">Отключение панели терминала</string>
@@ -311,9 +314,9 @@
     <string name="input_history_cleared">История ввода очищена</string>
 
     
-    <string name="directory_history_clear_dialog_title">Очистить историю папок</string>
-    <string name="directory_history_clear_confirm">Очистить всю историю папок? Это действие необратимо.</string>
-    <string name="directory_history_cleared">История папок очищена</string>
+    <string name="directory_history_clear_dialog_title">Очистить историю директорий</string>
+    <string name="directory_history_clear_confirm">Очистить всю историю директорий? Это действие необратимо.</string>
+    <string name="directory_history_cleared">История директорий очищена</string>
 
     
     <string name="file_receiver_error_no_content">Действие отправки без содержимого — нечего сохранять.</string>
@@ -803,7 +806,7 @@
     <string name="file_path_picker_title">Вставить пути к файлам</string>
     <string name="file_path_picker_up">Вверх</string>
     <string name="file_path_picker_insert">Вставить</string>
-    <string name="file_path_picker_empty">Эта папка пуста</string>
+    <string name="file_path_picker_empty">Эта директория пуста</string>
     <string name="file_path_picker_loading">Загрузка…</string>
-    <string name="file_path_picker_unreadable">Не удалось прочитать папку</string>
+    <string name="file_path_picker_unreadable">Не удалось прочитать директорию</string>
 </resources>

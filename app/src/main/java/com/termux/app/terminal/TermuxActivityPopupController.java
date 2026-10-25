@@ -12,6 +12,7 @@ import android.util.TypedValue;
 import android.view.ContextMenu;
 import android.view.Gravity;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -47,6 +48,12 @@ public final class TermuxActivityPopupController {
         /** Overload taking an already-resolved CWD, so the caller can avoid a
          *  second /proc readlink when it already resolved one. */
         void onHistoryDirectoryChanged(@Nullable String resolvedCwd);
+
+        /** A history row was tapped in the interactive history popup. */
+        void onHistoryMessagePicked(@NonNull String message);
+
+        /** The popup's "Clear" row was tapped: remember the current text, then empty the field. */
+        void clearInputToHistory();
 
         // Keep-screen-on preference bridge
         boolean isKeepScreenOn();
@@ -124,6 +131,18 @@ public final class TermuxActivityPopupController {
     }
 
     public void showMessageHistoryPopup(@NonNull View anchor) {
+        showMessageHistoryPopup(anchor, false);
+    }
+
+    /**
+     * Show the message-history popup.
+     *
+     * @param interactive when true the popup itself accepts touches, so a quick tap on a
+     *                    history row picks it (used by the quick-action button). When false the
+     *                    popup stays non-touchable and the caller keeps the finger, as with the
+     *                    original swipe-up-on-the-pencil gesture.
+     */
+    public void showMessageHistoryPopup(@NonNull View anchor, boolean interactive) {
         dismissMessageHistoryPopup();
         mHistoryItemViews.clear();
         mHistoryHighlightIndex = -1;
@@ -222,6 +241,10 @@ public final class TermuxActivityPopupController {
             }
         }
 
+        if (interactive) {
+            for (View row : mHistoryItemViews) bindInteractiveHistoryRow(row);
+        }
+
         int popupWidth = Math.min(
                 mContext.getResources().getDisplayMetrics().widthPixels - TermuxActivityUtils.dpToPx(mContext, 24),
                 TermuxActivityUtils.dpToPx(mContext, 320));
@@ -230,7 +253,7 @@ public final class TermuxActivityPopupController {
         // history scrolls inside it. Kept for edge auto-scroll while the finger drags near
         // the top/bottom of the box.
         android.widget.ScrollView scroll = new android.widget.ScrollView(mContext);
-        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setVerticalScrollBarEnabled(interactive);
         scroll.addView(content, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -285,10 +308,12 @@ public final class TermuxActivityPopupController {
         // Content transparency only — keeps the elevation outline valid.
         scroll.setAlpha(0.9f);
         mHistoryPopup.setClippingEnabled(true);
-        // Do NOT let the popup intercept touches: the pencil button keeps the
-        // gesture so we track the finger over items via raw coordinates.
-        mHistoryPopup.setTouchable(false);
+        // The swipe gesture keeps the popup non-touchable: the pencil owns the finger and the
+        // release position is read from raw coordinates. The quick-action button, by contrast,
+        // opens a touchable popup whose rows are tapped directly.
+        mHistoryPopup.setTouchable(interactive);
         mHistoryPopup.setFocusable(false);
+        mHistoryPopup.setOutsideTouchable(interactive);
 
         // Bounded box: min(content, configured max, room above the button).
         // Gap between the button's top and the popup's bottom edge.
@@ -361,6 +386,53 @@ public final class TermuxActivityPopupController {
         tv.setTag(tag);
         addFullWidthRow(content, tv);
         mHistoryItemViews.add(tv);
+    }
+
+    /**
+     * Wire a row for the touchable variant of the popup. A tap performs the same action the
+     * pencil's release-over-row gesture performs, then closes the popup.
+     */
+    private void bindInteractiveHistoryRow(@NonNull View row) {
+        final Object tag = row.getTag();
+        if (!(tag instanceof Integer)) return;
+        final int selected = (Integer) tag;
+        final int highlight = mColorSchemeManager.getHistoryHighlightFill();
+        // The swipe variant paints the row under the finger directly. A tap has no drag to
+        // paint, so give it the same active fill from the moment the finger lands, before the
+        // click dismisses the popup. Returning false keeps the row's normal click handling.
+        row.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    v.setBackgroundColor(highlight);
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    v.setBackgroundColor(Color.TRANSPARENT);
+                    break;
+            }
+            return false;
+        });
+        row.setOnClickListener(v -> {
+            dismissMessageHistoryPopup();
+            activateHistorySelection(selected);
+        });
+    }
+
+    /**
+     * Perform the action for a history row chosen either by the swipe gesture's release or by
+     * tapping a row in the interactive popup. Out-of-range and no-selection tags are no-ops.
+     */
+    public void activateHistorySelection(int selected) {
+        if (selected == MESSAGE_HISTORY_CLEAR_ALL_TAG) {
+            if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
+                confirmClearAllHistory();
+            }
+        } else if (selected == MESSAGE_HISTORY_CLEAR_TAG) {
+            mHost.clearInputToHistory();
+        } else if (selected >= 0 && mMessageHistoryCtrl != null
+                && selected < mMessageHistoryCtrl.getHistoryList().size()) {
+            mHost.onHistoryMessagePicked(mMessageHistoryCtrl.getHistoryList().get(selected));
+        }
     }
 
     /** 1 dp full-width history separator in the scheme's separator colour. */

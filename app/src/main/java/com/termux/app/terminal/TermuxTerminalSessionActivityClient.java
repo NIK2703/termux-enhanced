@@ -58,6 +58,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     static final int MAX_SESSIONS = 8;
 
+    /** The quick actions that share the pencil's floating-button treatment. */
+    private static final int[] INPUT_PANEL_ACTION_IDS = {
+        R.id.input_panel_history_button,
+        R.id.input_panel_paste_button,
+        R.id.input_panel_attach_button
+    };
+
     /**
      * The session that was just created by a right-swipe-to-add gesture. The tab-strip's
      * right-end scroll must be deferred until this session's label is actually set (the shell
@@ -1587,18 +1594,24 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             .getDimensionPixelSize(R.dimen.floating_shadow_elevation);
         final int shadowColor = shadow ? floatingShadowColor() : 0;
 
+        final int textColor = mActivity.getButtonText();
+        final int elevationPx = shadow ? shadowElevationPx : 0;
+
         ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
         if (toggleBtn != null) {
-            // Pressed and focused both take the active colour for fill and stroke.
-            final android.graphics.drawable.GradientDrawable active =
-                    createOvalDrawable(stroke, strokePx, stroke);
-            android.graphics.drawable.StateListDrawable states =
-                    new android.graphics.drawable.StateListDrawable();
-            states.addState(new int[]{ android.R.attr.state_pressed }, active);
-            states.addState(new int[]{ android.R.attr.state_focused }, active);
-            states.addState(new int[]{}, createOvalDrawable(fill, strokePx, stroke));
-            applyCircleButtonStyle(toggleBtn, states, mActivity.getButtonText());
-            applyFloatingShadow(toggleBtn, shadow ? shadowElevationPx : 0, shadowColor);
+            applyFloatingButtonStyle(toggleBtn, fill, stroke, strokePx, textColor,
+                elevationPx, shadowColor);
+        }
+
+        // The quick actions are the pencil's peers while the input panel is open, so they must use
+        // the very same fill, stroke, icon tint and drag shadow — not the extra-keys button style.
+        // Each button gets its own state list: sharing one would press all three together.
+        for (int actionId : INPUT_PANEL_ACTION_IDS) {
+            ImageButton actionButton = mActivity.findViewById(actionId);
+            if (actionButton != null) {
+                applyFloatingButtonStyle(actionButton, fill, stroke, strokePx, textColor,
+                    elevationPx, shadowColor);
+            }
         }
 
         // The input panel, while it floats over the terminal, is drawn with that same pair: it is
@@ -1611,6 +1624,17 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 mActivity.getFloatingPanelStroke());
             applyFloatingShadow(mActivity.findViewById(R.id.terminal_toolbar_text_input_container),
                 shadow ? shadowElevationPx : 0, shadowColor);
+        }
+
+        // The action row sits directly above the floating panel, and the panel's own elevation
+        // would otherwise draw it over the lower edge of the row's shadows. Raise the row by a
+        // hair more than the panel so its children's shadows land on the panel instead of being
+        // covered by it. The row has no background of its own, so this changes only draw order.
+        final View actionRow = mActivity.findViewById(R.id.input_panel_actions);
+        if (actionRow != null) {
+            final View panel = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
+            final float panelElevation = panel != null ? panel.getElevation() : 0f;
+            actionRow.setTranslationZ(panelElevation > 0f ? panelElevation + 1f : 0f);
         }
 
         // Every bound page, not just the active one: a neighbour bound while it was off screen
@@ -1689,6 +1713,25 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         states.addState(new int[]{android.R.attr.state_selected}, active);
         states.addState(new int[]{}, idle);
         return states;
+    }
+
+    /**
+     * Paint a button exactly like the input-panel toggle: translucent fill and stroke, the active
+     * colour on press/focus, the scheme's icon tint and the same optional drag shadow.
+     */
+    private static void applyFloatingButtonStyle(ImageButton button, int fill, int stroke,
+                                                 int strokePx, int textColor, int elevationPx,
+                                                 int shadowColor) {
+        // Pressed and focused both take the active colour for fill and stroke.
+        final android.graphics.drawable.GradientDrawable active =
+            createOvalDrawable(stroke, strokePx, stroke);
+        final android.graphics.drawable.StateListDrawable states =
+            new android.graphics.drawable.StateListDrawable();
+        states.addState(new int[]{ android.R.attr.state_pressed }, active);
+        states.addState(new int[]{ android.R.attr.state_focused }, active);
+        states.addState(new int[]{}, createOvalDrawable(fill, strokePx, stroke));
+        applyCircleButtonStyle(button, states, textColor);
+        applyFloatingShadow(button, elevationPx, shadowColor);
     }
 
     /** Install {@code states} on a circle button and tint its icon with the scheme foreground. */
