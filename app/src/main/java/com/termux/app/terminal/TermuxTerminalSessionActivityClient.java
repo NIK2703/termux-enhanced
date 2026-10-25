@@ -1611,8 +1611,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
         // The input panel, while it floats over the terminal, is drawn with that same pair: it is
         // then one of the elements drawn on the terminal and has to follow the live terminal
-        // background exactly like the two controls above. Its other arrangement is an ordinary panel
-        // and is painted by applyPanelColors() instead.
+        // background exactly like the controls and the quick-action buttons above. Its other
+        // arrangement is an ordinary panel and is painted by applyPanelColors() instead.
         if (mActivity.isTextInputPanelOverTerminal()) {
             // The panel's own pair, not the toggle's — see FLOATING_PANEL_CONTRAST_OPACITY.
             applyTextInputPanelContainerColors(mActivity.getFloatingPanelFill(),

@@ -1375,8 +1375,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public void onDestroy() {
         super.onDestroy();
 
-        unregisterClipboardListener();
-
         Logger.logDebug(LOG_TAG, "onDestroy");
 
         // Release the debug-hook handle only if it is still ours. The bubble window is a second
@@ -3042,7 +3040,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final float[] downXY = new float[2];
         final boolean[] gestureActive = { false };
         final boolean[] gestureMoved = { false };
-        final boolean[] swipeUpPending = { false };
         final boolean[] closePopupOnly = { false };
 
         historyButton.setOnTouchListener((v, event) -> {
@@ -3052,7 +3049,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     downXY[1] = event.getRawY();
                     gestureActive[0] = true;
                     gestureMoved[0] = false;
-                    swipeUpPending[0] = false;
                     // Pressing the button while its popup is open acts as a close toggle: the
                     // popup goes away on press and the release must not open it again.
                     closePopupOnly[0] = mPopupCtrl.isHistoryPopupShowing();
@@ -3080,9 +3076,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
                         gestureMoved[0] = true;
                     }
-                    if (!swipeUpPending[0]
-                            && dy < -touchSlop && Math.abs(dy) > Math.abs(dx)) {
-                        swipeUpPending[0] = true;
+                    if (dy < -touchSlop && Math.abs(dy) > Math.abs(dx)) {
                         mPopupCtrl.showMessageHistoryPopup(v);
                         // The finger is already inside the popup's lower edge: paint the row it
                         // is over without waiting for another move event.
@@ -3109,7 +3103,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     }
                     gestureActive[0] = false;
                     gestureMoved[0] = false;
-                    swipeUpPending[0] = false;
                     closePopupOnly[0] = false;
                     v.post(() -> mButtonTouchInProgress = false);
                     return true;
@@ -3305,10 +3298,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final int toggleMarginEnd = getFloatingButtonLayoutMarginEnd(toggleButton);
         int wantedMarginEnd = toggleMarginEnd;
         if (toggleButton.getVisibility() == View.VISIBLE) {
-            final ViewGroup.LayoutParams toggleParams = toggleButton.getLayoutParams();
-            int toggleWidth = toggleParams != null ? toggleParams.width : 0;
-            if (toggleWidth <= 0) toggleWidth = dpToPx(46);
-            wantedMarginEnd += toggleWidth + dpToPx(INPUT_PANEL_ACTIONS_TOGGLE_GAP_DP);
+            wantedMarginEnd += toggleButton.getLayoutParams().width
+                + dpToPx(INPUT_PANEL_ACTIONS_TOGGLE_GAP_DP);
         }
         if (params.getMarginEnd() != wantedMarginEnd) {
             params.setMarginEnd(wantedMarginEnd);

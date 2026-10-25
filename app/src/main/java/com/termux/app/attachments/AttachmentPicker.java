@@ -63,19 +63,13 @@ public final class AttachmentPicker {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         return intent;
     }
 
     /** Intent for picking one directory through the system document-tree picker. */
     @NonNull
     public static Intent createDirectoryIntent() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-        return intent;
+        return new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
     }
 
     /**
@@ -231,7 +225,7 @@ public final class AttachmentPicker {
         } else {
             root = new File("/storage", volume);
         }
-        if (root == null || !root.isDirectory()) return null;
+        if (!root.isDirectory()) return null;
 
         return buildPathUnderRoot(root, relativePath);
     }
