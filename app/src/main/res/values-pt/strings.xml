@@ -35,6 +35,12 @@
     <string name="action_style_terminal">Estilo</string>
     <string name="action_toggle_keep_screen_on">Manter a tela ligada</string>
     <string name="action_toggle_text_input">Alternar entrada de texto</string>
+    <string name="action_input_history">Histórico de entrada</string>
+    <string name="action_input_paste">Colar da área de transferência</string>
+    <string name="action_input_attach">Anexar arquivo</string>
+    <string name="attachment_picker_error">Não foi possível anexar o item selecionado</string>
+    <string name="attachment_picker_empty">Nenhum dos itens selecionados pôde ser lido</string>
+    <string name="attachment_picker_directory_not_local">Este diretório não está disponível como caminho local</string>
     <string name="backup_dialog_run_in_background">Em segundo plano</string>
     <string name="backup_dialog_cancel">Cancelar</string>
     <string name="backup_preference_title">Backup do contêiner do Termux</string>
@@ -207,7 +213,7 @@
     <string name="text_input_toggle_button_title">Botão de alternância do painel de entrada</string>
     <string name="text_input_over_terminal_title">Painel de entrada sobre o terminal</string>
     <string name="input_panel_quick_actions_title">Botões adicionais do painel de entrada</string>
-    <string name="input_panel_quick_actions_disabled_summary">As ações adicionais são ativadas deslizando o botão de alternância do painel de entrada: para cima - histórico de entrada, para baixo - colar da área de transferência, para a esquerda - anexar arquivo</string>
+    <string name="input_panel_quick_actions_disabled_summary">As ações adicionais são ativadas deslizando sobre o botão de alternância do painel de entrada: para cima - histórico de entrada, para baixo - colar da área de transferência, para a esquerda - anexar arquivo</string>
     <string name="theme_mode_title">Tema do aplicativo</string>
     <string name="title_activity_termux_settings">Configurações do Termux</string>
     <string name="title_confirm_kill_process">Deseja realmente finalizar esta sessão?</string>

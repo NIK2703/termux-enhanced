@@ -50,8 +50,8 @@
     <string name="action_input_paste">Вставить из буфера обмена</string>
     <string name="action_input_attach">Прикрепить файл</string>
     <string name="attachment_picker_error">Не удалось прикрепить выбранный элемент</string>
-    <string name="attachment_picker_empty">Не выбрано ни одного доступного элемента</string>
-    <string name="attachment_picker_directory_not_local">Эта директория недоступна как локальный путь</string>
+    <string name="attachment_picker_empty">Не удалось прочитать ни одного из выбранных элементов</string>
+    <string name="attachment_picker_directory_not_local">Эта директория недоступна по локальному пути</string>
 
     <string name="msg_terminal_panel_enabling">Включение панели терминала</string>
     <string name="msg_terminal_panel_disabling">Отключение панели терминала</string>
@@ -300,7 +300,7 @@
     <string name="text_input_toggle_button_title">Кнопка переключения панели ввода</string>
     <string name="text_input_over_terminal_title">Панель ввода поверх терминала</string>
     <string name="input_panel_quick_actions_title">Дополнительные кнопки панели ввода</string>
-    <string name="input_panel_quick_actions_disabled_summary">Дополнительные действия активируются свайпами по кнопке переключения панели ввода: вверх - история ввода, вниз - вставка из буфера обмена, влево - прикрепление файла</string>
+    <string name="input_panel_quick_actions_disabled_summary">Дополнительные действия активируются свайпом по кнопке переключения панели ввода: вверх — история ввода, вниз — вставка из буфера обмена, влево — прикрепление файла</string>
 
     
     <string name="input_history_empty">История ввода пуста</string>

@@ -32,6 +32,12 @@
     <string name="title_create_named_session">Nouvelle session nommée</string>
     <string name="action_create_named_session_confirm">Créer</string>
     <string name="action_toggle_text_input">Saisie de texte</string>
+    <string name="action_input_history">Historique de saisie</string>
+    <string name="action_input_paste">Coller depuis le presse-papiers</string>
+    <string name="action_input_attach">Joindre un fichier</string>
+    <string name="attachment_picker_error">Impossible de joindre l\'élément sélectionné</string>
+    <string name="attachment_picker_empty">Aucun des éléments sélectionnés n\'a pu être lu</string>
+    <string name="attachment_picker_directory_not_local">Ce répertoire n\'est pas disponible comme chemin local</string>
     <string name="msg_terminal_panel_enabling">Activation du panneau du terminal</string>
     <string name="msg_terminal_panel_disabling">Désactivation du panneau du terminal</string>
     <string name="action_select_url">Sélectionner une URL</string>
@@ -169,7 +175,7 @@
 
     <string name="input_panel_quick_actions_title">Boutons supplémentaires du panneau de saisie</string>
 
-    <string name="input_panel_quick_actions_disabled_summary">Les actions supplémentaires sont activées en balayant le bouton de bascule du panneau de saisie : vers le haut - historique de saisie, vers le bas - coller depuis le presse-papiers, vers la gauche - joindre un fichier</string>
+    <string name="input_panel_quick_actions_disabled_summary">Les actions supplémentaires sont activées en balayant le bouton de bascule du panneau de saisie : vers le haut - afficher l\'historique de saisie, vers le bas - coller depuis le presse-papiers, vers la gauche - joindre un fichier</string>
     <string name="text_input_action_on_send_title">Action après l\'envoi</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Ne rien faire</item>

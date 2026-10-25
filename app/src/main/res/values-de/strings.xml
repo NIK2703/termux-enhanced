@@ -32,6 +32,12 @@
     <string name="action_style_terminal">Stil</string>
     <string name="action_toggle_keep_screen_on">Bildschirm anlassen</string>
     <string name="action_toggle_text_input">Texteingabe</string>
+    <string name="action_input_history">Eingabeverlauf</string>
+    <string name="action_input_paste">Aus der Zwischenablage einfügen</string>
+    <string name="action_input_attach">Datei anhängen</string>
+    <string name="attachment_picker_error">Das ausgewählte Element konnte nicht angehängt werden</string>
+    <string name="attachment_picker_empty">Keine lesbaren Elemente ausgewählt</string>
+    <string name="attachment_picker_directory_not_local">Dieses Verzeichnis ist nicht als lokaler Pfad verfügbar</string>
     <string name="backup_dialog_run_in_background">Im Hintergrund</string>
     <string name="backup_dialog_cancel">Abbrechen</string>
     <string name="backup_preference_title">Termux-Container sichern</string>
@@ -178,9 +184,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="text_input_toggle_button_title">Schalter für die Eingabeleiste</string>
     <string name="text_input_over_terminal_title">Eingabeleiste über dem Terminal</string>
 
-    <string name="input_panel_quick_actions_title">Zusätzliche Tasten der Eingabeleiste</string>
+    <string name="input_panel_quick_actions_title">Zusätzliche Schaltflächen der Eingabeleiste</string>
 
-    <string name="input_panel_quick_actions_disabled_summary">Zusätzliche Aktionen werden durch Wischen auf der Schaltfläche zum Umschalten der Eingabeleiste ausgelöst: nach oben - Eingabeverlauf, nach unten - aus der Zwischenablage einfügen, nach links - Datei anhängen</string>
+    <string name="input_panel_quick_actions_disabled_summary">Zusätzliche Aktionen werden durch Wischen über die Schaltfläche zum Umschalten der Eingabeleiste ausgelöst: nach oben – Eingabeverlauf, nach unten – aus der Zwischenablage einfügen, nach links – Datei anhängen</string>
     <string name="text_input_action_on_send_title">Aktion beim Senden</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Nichts tun</item>

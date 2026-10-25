@@ -35,6 +35,12 @@
     <string name="action_style_terminal">शैली</string>
     <string name="action_toggle_keep_screen_on">स्क्रीन चालू रखें</string>
     <string name="action_toggle_text_input">टेक्स्ट इनपुट</string>
+    <string name="action_input_history">इनपुट इतिहास</string>
+    <string name="action_input_paste">क्लिपबोर्ड से चिपकाएँ</string>
+    <string name="action_input_attach">फ़ाइल संलग्न करें</string>
+    <string name="attachment_picker_error">चयनित आइटम संलग्न नहीं किया जा सका</string>
+    <string name="attachment_picker_empty">चयनित आइटमों में से कोई भी पढ़ने योग्य नहीं था</string>
+    <string name="attachment_picker_directory_not_local">यह निर्देशिका स्थानीय पथ के रूप में उपलब्ध नहीं है</string>
     <string name="backup_dialog_run_in_background">पृष्ठभूमि में चलाएँ</string>
     <string name="backup_dialog_cancel">रद्द करें</string>
     <string name="backup_preference_title">Termux कंटेनर का बैकअप</string>

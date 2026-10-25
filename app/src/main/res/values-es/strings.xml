@@ -33,6 +33,12 @@
     <string name="title_create_named_session">Nueva sesión con nombre</string>
     <string name="action_create_named_session_confirm">Crear</string>
     <string name="action_toggle_text_input">Alternar entrada de texto</string>
+    <string name="action_input_history">Historial de entrada</string>
+    <string name="action_input_paste">Pegar desde el portapapeles</string>
+    <string name="action_input_attach">Adjuntar archivo</string>
+    <string name="attachment_picker_error">No se pudo adjuntar el elemento seleccionado</string>
+    <string name="attachment_picker_empty">No hay elementos legibles seleccionados</string>
+    <string name="attachment_picker_directory_not_local">Este directorio no está disponible como ruta local</string>
     <string name="msg_terminal_panel_enabling">Activando el panel del terminal</string>
     <string name="msg_terminal_panel_disabling">Desactivando el panel del terminal</string>
     <string name="action_select_url">Seleccionar URL</string>
@@ -173,7 +179,7 @@
 
     <string name="input_panel_quick_actions_title">Botones adicionales del panel de entrada</string>
 
-    <string name="input_panel_quick_actions_disabled_summary">Las acciones adicionales se activan deslizando el botón de alternancia del panel de entrada: arriba - historial de entrada, abajo - pegar desde el portapapeles, izquierda - adjuntar archivo</string>
+    <string name="input_panel_quick_actions_disabled_summary">Las acciones adicionales se activan deslizando sobre el botón de alternancia del panel de entrada: arriba - historial de entrada, abajo - pegar desde el portapapeles, izquierda - adjuntar archivo</string>
     <string name="text_input_action_on_send_title">Acción al enviar</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Nada</item>

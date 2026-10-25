@@ -36,6 +36,12 @@
     <string name="title_create_named_session">Yeni adlandırılmış oturum</string>
 <string name="action_create_named_session_confirm">Oluştur</string>
 <string name="action_toggle_text_input">Metin girişini aç/kapat</string>
+    <string name="action_input_history">Giriş geçmişi</string>
+    <string name="action_input_paste">Panodan yapıştır</string>
+    <string name="action_input_attach">Dosya ekle</string>
+    <string name="attachment_picker_error">Seçilen öğe eklenemedi</string>
+    <string name="attachment_picker_empty">Okunabilir öğe seçilmedi</string>
+    <string name="attachment_picker_directory_not_local">Bu dizin yerel bir yol olarak kullanılamıyor</string>
 <string name="msg_terminal_panel_enabling">Terminal paneli etkinleştiriliyor</string>
 <string name="msg_terminal_panel_disabling">Terminal paneli devre dışı bırakılıyor</string>
 <string name="action_select_url">URL seç</string>

@@ -33,6 +33,12 @@
 <string name="action_style_terminal">Gaya</string>
 <string name="action_toggle_keep_screen_on">Biarkan layar tetap menyala</string>
 <string name="action_toggle_text_input">Alihkan input teks</string>
+<string name="action_input_history">Riwayat input</string>
+<string name="action_input_paste">Tempel dari papan klip</string>
+<string name="action_input_attach">Lampirkan file</string>
+<string name="attachment_picker_error">Tidak dapat melampirkan item yang dipilih</string>
+<string name="attachment_picker_empty">Tidak ada item terpilih yang dapat dibaca</string>
+<string name="attachment_picker_directory_not_local">Direktori ini tidak tersedia sebagai jalur lokal</string>
 <string name="backup_dialog_run_in_background">Jalankan di latar belakang</string>
 <string name="backup_dialog_cancel">Batal</string>
 <string name="backup_preference_title">Pencadangan kontainer Termux</string>
@@ -179,7 +185,7 @@
 
 <string name="input_panel_quick_actions_title">Tombol tambahan panel input</string>
 
-<string name="input_panel_quick_actions_disabled_summary">Tindakan tambahan diaktifkan dengan menggesek tombol pengalih panel input: ke atas - riwayat input, ke bawah - tempel dari papan klip, ke kiri - lampirkan file</string>
+<string name="input_panel_quick_actions_disabled_summary">Tindakan tambahan diaktifkan dengan menggeser tombol pengalih panel input: ke atas - riwayat input, ke bawah - tempel dari papan klip, ke kiri - lampirkan file</string>
     <string name="text_input_action_on_send_title">Tindakan saat kirim</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Tidak melakukan apa pun</item>

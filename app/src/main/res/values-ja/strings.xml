@@ -31,6 +31,12 @@
 <string name="title_create_named_session">新しい名前付きセッション</string>
 <string name="action_create_named_session_confirm">作成</string>
 <string name="action_toggle_text_input">テキスト入力</string>
+<string name="action_input_history">入力履歴</string>
+<string name="action_input_paste">クリップボードから貼り付け</string>
+<string name="action_input_attach">ファイルを添付</string>
+<string name="attachment_picker_error">選択した項目を添付できませんでした</string>
+<string name="attachment_picker_empty">選択した項目を読み取れませんでした</string>
+<string name="attachment_picker_directory_not_local">このディレクトリはローカルパスとして利用できません</string>
 <string name="msg_terminal_panel_enabling">ターミナルパネルを有効化中</string>
 <string name="msg_terminal_panel_disabling">ターミナルパネルを無効化中</string>
 <string name="action_select_url">URLを選択</string>
@@ -166,7 +172,7 @@
 
 <string name="input_panel_quick_actions_title">入力パネルの追加ボタン</string>
 
-<string name="input_panel_quick_actions_disabled_summary">追加の操作は入力パネル切り替えボタンのスワイプで有効になります：上 - 入力履歴、下 - クリップボードから貼り付け、左 - ファイルを添付</string>
+<string name="input_panel_quick_actions_disabled_summary">追加の操作は、入力パネル切り替えボタンをスワイプすると有効になります。上：入力履歴、下：クリップボードから貼り付け、左：ファイルを添付</string>
     <string name="text_input_action_on_send_title">送信時の動作</string>
     <string-array name="text_input_action_on_send_entries">
         <item>何もしない</item>

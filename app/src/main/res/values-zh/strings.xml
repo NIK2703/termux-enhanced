@@ -39,6 +39,12 @@
     <string name="title_create_named_session">新建命名会话</string>
     <string name="action_create_named_session_confirm">创建</string>
     <string name="action_toggle_text_input">文本输入</string>
+    <string name="action_input_history">输入历史</string>
+    <string name="action_input_paste">从剪贴板粘贴</string>
+    <string name="action_input_attach">附加文件</string>
+    <string name="attachment_picker_error">无法附加所选项目</string>
+    <string name="attachment_picker_empty">所选项目均无法读取</string>
+    <string name="attachment_picker_directory_not_local">此目录无法用作本地路径</string>
     <string name="msg_terminal_panel_enabling">正在启用终端面板</string>
     <string name="msg_terminal_panel_disabling">正在禁用终端面板</string>
     <string name="action_select_url">选择链接</string>
@@ -178,9 +184,9 @@
     <string name="text_input_toggle_button_title">输入面板切换按钮</string>
     <string name="text_input_over_terminal_title">输入面板置于终端之上</string>
 
-    <string name="input_panel_quick_actions_title">输入面板的附加按钮</string>
+    <string name="input_panel_quick_actions_title">输入面板的额外按钮</string>
 
-    <string name="input_panel_quick_actions_disabled_summary">附加操作可通过在输入面板切换按钮上滑动来启用：向上 - 输入历史记录，向下 - 从剪贴板粘贴，向左 - 附加文件</string>
+    <string name="input_panel_quick_actions_disabled_summary">在输入面板切换按钮上滑动即可触发其他操作：上滑：输入历史，下滑：从剪贴板粘贴，左滑：附加文件</string>
     <string name="text_input_action_on_send_title">发送操作</string>
     <string-array name="text_input_action_on_send_entries">
         <item>无操作</item>

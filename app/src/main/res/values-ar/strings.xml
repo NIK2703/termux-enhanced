@@ -35,6 +35,12 @@
     <string name="action_style_terminal">النمط</string>
     <string name="action_toggle_keep_screen_on">إبقاء الشاشة مضاءة</string>
     <string name="action_toggle_text_input">إدخال النص</string>
+    <string name="action_input_history">سجل الإدخال</string>
+    <string name="action_input_paste">لصق من الحافظة</string>
+    <string name="action_input_attach">إرفاق ملف</string>
+    <string name="attachment_picker_error">تعذر إرفاق العنصر المحدد</string>
+    <string name="attachment_picker_empty">تعذرت قراءة العناصر المحددة</string>
+    <string name="attachment_picker_directory_not_local">هذا الدليل غير متاح كمسار محلي</string>
     <string name="backup_dialog_run_in_background">الخلفية</string>
     <string name="backup_dialog_cancel">إلغاء</string>
     <string name="backup_preference_title">نسخ حاوية Termux احتياطيًا</string>

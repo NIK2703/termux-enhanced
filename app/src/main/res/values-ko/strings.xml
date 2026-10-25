@@ -38,6 +38,12 @@
     <string name="action_style_terminal">스타일</string>
     <string name="action_toggle_keep_screen_on">화면 켜짐 유지</string>
     <string name="action_toggle_text_input">텍스트 입력</string>
+    <string name="action_input_history">입력 기록</string>
+    <string name="action_input_paste">클립보드에서 붙여넣기</string>
+    <string name="action_input_attach">파일 첨부</string>
+    <string name="attachment_picker_error">선택한 항목을 첨부할 수 없습니다</string>
+    <string name="attachment_picker_empty">읽을 수 있는 항목이 선택되지 않았습니다</string>
+    <string name="attachment_picker_directory_not_local">이 디렉터리는 로컬 경로로 사용할 수 없습니다</string>
     <string name="backup_dialog_run_in_background">백그라운드 실행</string>
     <string name="backup_dialog_cancel">취소</string>
     <string name="backup_preference_title">Termux 컨테이너 백업</string>

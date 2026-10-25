@@ -39,6 +39,12 @@
     <string name="title_create_named_session">新增具名工作階段</string>
     <string name="action_create_named_session_confirm">建立</string>
     <string name="action_toggle_text_input">文字輸入</string>
+    <string name="action_input_history">輸入紀錄</string>
+    <string name="action_input_paste">從剪貼簿貼上</string>
+    <string name="action_input_attach">附加檔案</string>
+    <string name="attachment_picker_error">無法附加所選項目</string>
+    <string name="attachment_picker_empty">所選項目皆無法讀取</string>
+    <string name="attachment_picker_directory_not_local">此目錄無法作為本機路徑使用</string>
     <string name="msg_terminal_panel_enabling">正在啟用終端機面板</string>
     <string name="msg_terminal_panel_disabling">正在停用終端機面板</string>
     <string name="action_select_url">選擇連結</string>
@@ -180,7 +186,7 @@
 
     <string name="input_panel_quick_actions_title">輸入面板的額外按鈕</string>
 
-    <string name="input_panel_quick_actions_disabled_summary">額外動作可透過在輸入面板切換按鈕上滑動來啟用：向上 - 輸入歷史記錄，向下 - 從剪貼簿貼上，向左 - 附加檔案</string>
+    <string name="input_panel_quick_actions_disabled_summary">在輸入面板切換按鈕上滑動即可啟用額外動作。向上：輸入紀錄；向下：從剪貼簿貼上；向左：附加檔案。</string>
     <string name="text_input_action_on_send_title">傳送動作</string>
     <string-array name="text_input_action_on_send_entries">
         <item>無動作</item>
