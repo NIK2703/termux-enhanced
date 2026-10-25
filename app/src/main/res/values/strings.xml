@@ -226,6 +226,10 @@
                 <string name="keyboard_state_follow_tab_switch_title">Keyboard state when switching tabs</string>
                 <string name="keyboard_state_follow_tab_switch_summary">When switching tabs, restore each tab’s keyboard state to what it was when you switched away.</string>
 
+                <!-- Double Tap Terminal To Open Keyboard -->
+                <string name="double_tap_terminal_opens_keyboard_title">Double-tap terminal to open keyboard</string>
+                <string name="double_tap_terminal_opens_keyboard_summary">Opens the keyboard when a single tap is consumed by terminal applications.</string>
+
         <!-- Terminal View Preferences -->
 
             <!-- View Category -->

@@ -109,6 +109,8 @@
                     <!-- Keyboard State On Tab Switch -->
                     <string name="keyboard_state_follow_tab_switch_title">Sekme değiştirirken klavye durumu</string>
                     <string name="keyboard_state_follow_tab_switch_summary">Sekmeler arasında geçiş yaparken, her sekmenin klavye durumu o sekmeden ayrıldığınızdaki hâliyle geri yüklenir.</string>
+                    <string name="double_tap_terminal_opens_keyboard_title">Klavyeyi açmak için terminale çift dokunun</string>
+                    <string name="double_tap_terminal_opens_keyboard_summary">Tek dokunuş terminalde çalışan uygulamalar tarafından yakalandığında klavyeyi açar.</string>
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">Etkin olmayan ögelerin arka plan opaklığı</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">Etkin ögelerin arka plan opaklığı</string>
 <string name="extra_keys_corner_radius_title">Düğme köşe yarıçapı</string>

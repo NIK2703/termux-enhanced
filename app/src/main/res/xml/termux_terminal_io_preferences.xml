@@ -185,6 +185,14 @@
             app:title="@string/keyboard_state_follow_tab_switch_title"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            app:key="double_tap_terminal_opens_keyboard"
+            app:dependency="soft_keyboard_enabled"
+            app:defaultValue="false"
+            app:summary="@string/double_tap_terminal_opens_keyboard_summary"
+            app:title="@string/double_tap_terminal_opens_keyboard_title"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

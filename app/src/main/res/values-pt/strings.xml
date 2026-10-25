@@ -184,6 +184,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Estado do teclado ao alternar abas</string>
     <string name="keyboard_state_follow_tab_switch_summary">Ao alternar abas, o estado do teclado de cada aba é restaurado para como estava quando você saiu dela.</string>
+    <string name="double_tap_terminal_opens_keyboard_title">Toque duplo no terminal para abrir o teclado</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">Abre o teclado quando programas em execução no terminal interceptam um toque simples.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Usar teclado virtual apenas sem teclado físico</string>
     <string name="termux_soft_keyboard_enabled_title">Teclado virtual ativado</string>
     <string name="termux_tasker_preferences_title">Termux:Tasker</string>

@@ -299,21 +299,40 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         return scale;
     }
 
+    /**
+     * Resolves the view a tap must act on. The cached active view is tried first, but a tap must
+     * not depend on it: after a jump of two+ tabs it is null until the destination page attaches,
+     * and showSoftKeyboard(context, null) is a silent no-op. TerminalView focuses the tapped view
+     * before invoking the client, so the focused view is the correct fallback.
+     */
+    private TerminalView getTerminalViewForTap() {
+        TerminalView terminalView = mActivity.getActiveTerminalView();
+        if (terminalView == null && mActivity.getCurrentFocus() instanceof TerminalView) {
+            terminalView = (TerminalView) mActivity.getCurrentFocus();
+        }
+        return terminalView;
+    }
+
+    /** Shows the soft keyboard for an explicit tap or double-tap on the terminal. */
+    private void showSoftKeyboardForTerminalTap(TerminalView terminalView) {
+        if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity)) {
+            // A tap is an explicit show request: clear a leftover SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            // (left by the cold-start hide / bubble suppression) first, or the window state works
+            // against the show. setSoftInputModeAdjustResize also keeps the window resizing
+            // (ALWAYS_HIDDEN alone replaces ADJUST_RESIZE).
+            KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
+            KeyboardUtils.showSoftKeyboard(mActivity, terminalView);
+        } else
+            Logger.logVerbose(LOG_TAG, "Not showing soft keyboard for terminal tap since it is disabled");
+    }
+
     @Override
     public void onSingleTapUp(MotionEvent e) {
         TerminalSession currentSession = mActivity.getCurrentSession();
         if (currentSession == null) return;
         TerminalEmulator term = currentSession.getEmulator();
         if (term == null) return;
-        // Resolve the view the IME must be shown for. The cached active view is tried first, but a
-        // tap must not depend on it: after a jump of two+ tabs it is null until the destination page
-        // attaches, and showSoftKeyboard(context, null) is a silent no-op — the reported "tapping
-        // the terminal does not open the keyboard". TerminalView.onSingleTapUp() focuses the tapped
-        // view before this callback, so the focused view is the correct fallback.
-        TerminalView terminalView = mActivity.getActiveTerminalView();
-        if (terminalView == null && mActivity.getCurrentFocus() instanceof TerminalView) {
-            terminalView = (TerminalView) mActivity.getCurrentFocus();
-        }
+        TerminalView terminalView = getTerminalViewForTap();
 
         if (mActivity.getProperties().shouldOpenTerminalTranscriptURLOnClick()) {
             if (terminalView == null) return;
@@ -329,21 +348,38 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         }
 
         if (!term.isMouseTrackingActive() && !e.isFromSource(InputDevice.SOURCE_MOUSE)) {
-            if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity)) {
-                // A tap is an explicit show request: clear a leftover SOFT_INPUT_STATE_ALWAYS_HIDDEN
-                // (left by the cold-start hide / bubble suppression) first, or the window state works
-                // against the show. setSoftInputModeAdjustResize also keeps the window resizing
-                // (ALWAYS_HIDDEN alone replaces ADJUST_RESIZE).
-                KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
-                KeyboardUtils.showSoftKeyboard(mActivity, terminalView);
-            } else
-                Logger.logVerbose(LOG_TAG, "Not showing soft keyboard onSingleTapUp since its disabled");
+            showSoftKeyboardForTerminalTap(terminalView);
         }
     }
 
     @Override
+    public boolean onDoubleTap(MotionEvent e) {
+        if (e.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
+
+        TermuxAppSharedPreferences preferences = mActivity.getPreferences();
+        if (preferences == null || !preferences.shouldDoubleTapTerminalOpenKeyboard()) return false;
+
+        TerminalSession currentSession = mActivity.getCurrentSession();
+        if (currentSession == null || currentSession.getEmulator() == null) return false;
+
+        TerminalView terminalView = getTerminalViewForTap();
+        if (terminalView == null) {
+            Logger.logVerbose(LOG_TAG, "Not showing soft keyboard onDoubleTap since the terminal view is not available");
+            return false;
+        }
+
+        showSoftKeyboardForTerminalTap(terminalView);
+        return true;
+    }
+
+    @Override
     public boolean shouldBackButtonBeMappedToEscape() {
-        return mActivity.getProperties().isBackKeyTheEscapeKey();
+        // While the IME is up, Back belongs to it: the first press dismisses the keyboard, as it
+        // does in every other app. Mapping that press to Escape as well left it unable to close the
+        // keyboard without also sending ESC. The setting applies to the next press, when there is
+        // no keyboard left to dismiss.
+        return mActivity.getProperties().isBackKeyTheEscapeKey()
+                && !mActivity.computeImeVisibility();
     }
 
     @Override

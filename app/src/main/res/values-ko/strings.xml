@@ -185,6 +185,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">탭 전환 시 키보드 상태</string>
     <string name="keyboard_state_follow_tab_switch_summary">탭을 전환할 때 각 탭에서 마지막으로 떠날 때의 키보드 상태를 복원합니다.</string>
+    <string name="double_tap_terminal_opens_keyboard_title">터미널을 두 번 탭하여 키보드 열기</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">터미널에서 실행 중인 프로그램이 한 번 탭을 가로챌 때 키보드를 엽니다.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">하드웨어 키보드 연결 시 소프트 키보드 숨기기</string>
     <string name="termux_soft_keyboard_enabled_title">소프트 키보드 사용</string>
     <string name="termux_tasker_preferences_summary">Termux:Tasker 앱 설정</string>

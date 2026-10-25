@@ -180,6 +180,15 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_KEYBOARD_STATE_FOLLOW_TAB_SWITCH = true;
 
         /**
+         * Defines the key for whether a double tap on the terminal opens the soft keyboard, for
+         * terminal applications that consume a single tap as a mouse click. It is disabled by
+         * default. Single taps are always delivered immediately; the double tap only adds the
+         * keyboard show after the second tap's action.
+         */
+        public static final String KEY_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD = "double_tap_terminal_opens_keyboard";
+        public static final boolean DEFAULT_VALUE_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD = false;
+
+        /**
          * Defines the key for whether the soft keyboard will be enabled only if no hardware keyboard
          * attached, for cases where users want to use a hardware keyboard instead.
          */

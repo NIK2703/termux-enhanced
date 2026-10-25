@@ -114,6 +114,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">切换标签页时的键盘状态</string>
     <string name="keyboard_state_follow_tab_switch_summary">切换标签页时，恢复每个标签页离开时的键盘状态。</string>
+    <string name="double_tap_terminal_opens_keyboard_title">双击终端打开键盘</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">当终端中运行的程序拦截点按操作时，双击终端即可打开键盘。</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">非活动元素背景不透明度</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">活动元素背景不透明度</string>
     <string name="termux_api_preferences_title">Termux:API</string>

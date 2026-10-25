@@ -172,6 +172,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Status keyboard saat berganti tab</string>
     <string name="keyboard_state_follow_tab_switch_summary">Saat berganti tab, status keyboard setiap tab dipulihkan sesuai keadaan saat Anda meninggalkan tab tersebut.</string>
+    <string name="double_tap_terminal_opens_keyboard_title">Ketuk terminal dua kali untuk membuka keyboard</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">Membuka keyboard saat ketukan tunggal ditangani oleh program yang berjalan di terminal.</string>
 <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Sembunyikan saat keyboard fisik terhubung</string>
 <string name="termux_soft_keyboard_enabled_title">Keyboard lunak</string>
 <string name="termux_tasker_preferences_summary">Pengaturan aplikasi Termux:Tasker</string>

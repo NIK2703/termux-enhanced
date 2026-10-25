@@ -173,6 +173,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Tastaturzustand beim Tab-Wechsel</string>
     <string name="keyboard_state_follow_tab_switch_summary">Beim Tab-Wechsel wird der Tastaturzustand jedes Tabs so wiederhergestellt, wie er beim Verlassen war.</string>
+    <string name="double_tap_terminal_opens_keyboard_title">Tastatur durch Doppeltippen im Terminal öffnen</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">Öffnet die Tastatur, wenn ein einzelnes Antippen von Programmen, die im Terminal laufen, abgefangen wird.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Bildschirmtastatur bei angeschlossener Hardware-Tastatur ausblenden</string>
     <string name="termux_soft_keyboard_enabled_title">Bildschirmtastatur verwenden</string>
     <string name="termux_tasker_preferences_summary">Einstellungen für die Termux:Tasker-App</string>

@@ -34,10 +34,25 @@ final class GestureAndScaleRecognizer {
     final Listener mListener;
     boolean isAfterLongPress;
 
+    /**
+     * Set when {@link GestureDetector} recognizes the second down of a double tap. The actual
+     * callback is delayed until the second up, after {@link Listener#onUp} has delivered the tap's
+     * regular action, so opening the keyboard cannot swallow that action.
+     */
+    private boolean mDoubleTapPending;
+    private boolean mDoubleTapUp;
+
     public GestureAndScaleRecognizer(Context context, Listener listener) {
         mListener = listener;
 
         mGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onSingleTapUp(MotionEvent e) {
+                // Dispatch immediately instead of waiting for onSingleTapConfirmed(): a tap must
+                // not be delayed just to find out whether a second tap follows.
+                return mListener.onSingleTapUp(e);
+            }
+
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
                 return mListener.onScroll(e2, dx, dy);
@@ -63,16 +78,20 @@ final class GestureAndScaleRecognizer {
         mGestureDetector.setOnDoubleTapListener(new GestureDetector.OnDoubleTapListener() {
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
-                return mListener.onSingleTapUp(e);
+                // Already dispatched by onSingleTapUp() above. This callback arrives after the
+                // double-tap timeout; repeating the tap here would restore the delay.
+                return false;
             }
 
             @Override
             public boolean onDoubleTap(MotionEvent e) {
-                return mListener.onDoubleTap(e);
+                mDoubleTapPending = true;
+                return true;
             }
 
             @Override
             public boolean onDoubleTapEvent(MotionEvent e) {
+                if (e.getAction() == MotionEvent.ACTION_UP) mDoubleTapUp = true;
                 return true;
             }
         });
@@ -103,10 +122,20 @@ final class GestureAndScaleRecognizer {
                     // This behaviour is desired when in e.g. vim with mouse events, where we do not
                     // want to move the cursor when lifting finger after a long press.
                     mListener.onUp(event);
+                    if (mDoubleTapPending && mDoubleTapUp) {
+                        // Delivered after onUp() so that the second tap's mouse click (if the
+                        // terminal application reports mouse events) is sent before the keyboard
+                        // opens and the window may resize.
+                        mListener.onDoubleTap(event);
+                    }
                 }
+                mDoubleTapPending = false;
+                mDoubleTapUp = false;
                 break;
             case MotionEvent.ACTION_CANCEL:
                 isAfterLongPress = false;
+                mDoubleTapPending = false;
+                mDoubleTapUp = false;
                 mListener.onCancel(event);
                 break;
         }

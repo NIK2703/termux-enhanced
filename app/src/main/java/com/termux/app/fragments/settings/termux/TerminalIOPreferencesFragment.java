@@ -277,6 +277,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "keyboard_state_follow_tab_switch":
                 mPreferences.setKeyboardStateFollowTabSwitch(value);
                 break;
+            case "double_tap_terminal_opens_keyboard":
+                mPreferences.setDoubleTapTerminalOpenKeyboard(value);
+                break;
             case "back-key":
                 mPreferences.setBackKeyBehaviour(value
                     ? TermuxPropertyConstants.IVALUE_BACK_KEY_BEHAVIOUR_ESCAPE
@@ -351,6 +354,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware();
             case "keyboard_state_follow_tab_switch":
                 return mPreferences.isKeyboardStateFollowTabSwitch();
+            case "double_tap_terminal_opens_keyboard":
+                return mPreferences.shouldDoubleTapTerminalOpenKeyboard();
             case "back-key":
                 return mPreferences.isBackKeyTheEscapeKey();
             case "volume-keys":

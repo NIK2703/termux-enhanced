@@ -107,6 +107,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">État du clavier lors du changement d\'onglet</string>
     <string name="keyboard_state_follow_tab_switch_summary">Lors du changement d\'onglet, l\'état du clavier de chaque onglet est restauré tel qu\'il était au moment de le quitter.</string>
+    <string name="double_tap_terminal_opens_keyboard_title">Ouvrir le clavier par double appui sur le terminal</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">Ouvre le clavier lorsqu\'un simple appui est intercepté par les programmes exécutés dans le terminal.</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Opacité du fond des éléments inactifs</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Opacité du fond des éléments actifs</string>
     <string name="termux_api_preferences_summary">Préférences de l\'application Termux:API</string>

@@ -22,6 +22,11 @@ public class TermuxTerminalViewClientBase implements TerminalViewClient {
     public void onSingleTapUp(MotionEvent e) {
     }
 
+    @Override
+    public boolean onDoubleTap(MotionEvent e) {
+        return false;
+    }
+
     public boolean shouldBackButtonBeMappedToEscape() {
         return false;
     }

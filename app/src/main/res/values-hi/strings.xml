@@ -172,6 +172,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">टैब बदलते समय कीबोर्ड की स्थिति</string>
     <string name="keyboard_state_follow_tab_switch_summary">टैब बदलते समय, प्रत्येक टैब के लिए कीबोर्ड की स्थिति वैसी ही बहाल की जाती है जैसी उससे हटते समय थी।</string>
+    <string name="double_tap_terminal_opens_keyboard_title">टर्मिनल पर डबल टैप से कीबोर्ड खोलें</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">जब टर्मिनल में चलने वाले प्रोग्राम एकल टैप को माउस क्लिक के रूप में ले लेते हैं, तो डबल टैप करने पर कीबोर्ड खुल जाता है।</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">हार्डवेयर कीबोर्ड कनेक्ट होने पर स्क्रीन कीबोर्ड छिपाएँ</string>
     <string name="termux_keyboard_header">कीबोर्ड</string>
     <string name="system_buttons_category_title">सिस्टम बटन</string>

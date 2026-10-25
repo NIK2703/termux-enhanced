@@ -98,6 +98,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">タブ切り替え時のキーボード状態</string>
     <string name="keyboard_state_follow_tab_switch_summary">タブを切り替えるとき、各タブのキーボード状態を、そのタブから離れたときの状態に復元します。</string>
+    <string name="double_tap_terminal_opens_keyboard_title">ターミナルをダブルタップしてキーボードを開く</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">ターミナル内のアプリが1回のタップを処理するときにキーボードを開きます。</string>
 <string name="termux_button_bg_inactive_alpha_title" formatted="false">非アクティブ項目の背景不透明度</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">アクティブ項目の背景不透明度</string>
 <string name="extra_keys_corner_radius_title">ボタンの角の丸み</string>

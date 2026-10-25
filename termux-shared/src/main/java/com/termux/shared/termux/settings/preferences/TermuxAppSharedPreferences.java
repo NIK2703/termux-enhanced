@@ -214,6 +214,14 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_KEYBOARD_STATE_FOLLOW_TAB_SWITCH, value);
     }
 
+    public boolean shouldDoubleTapTerminalOpenKeyboard() {
+        return getBooleanByKey(TERMUX_APP.KEY_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD, TERMUX_APP.DEFAULT_VALUE_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD);
+    }
+
+    public void setDoubleTapTerminalOpenKeyboard(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD, value);
+    }
+
     public boolean isSoftKeyboardEnabledOnlyIfNoHardware() {
         return getBooleanByKey(TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE, TERMUX_APP.DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED_ONLY_IF_NO_HARDWARE);
     }

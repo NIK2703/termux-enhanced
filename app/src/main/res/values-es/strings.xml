@@ -103,6 +103,8 @@
     <!-- Keyboard State On Tab Switch -->
     <string name="keyboard_state_follow_tab_switch_title">Estado del teclado al cambiar de pestaña</string>
     <string name="keyboard_state_follow_tab_switch_summary">Al cambiar de pestaña, se restaura el estado del teclado de cada pestaña tal como estaba al salir de ella.</string>
+    <string name="double_tap_terminal_opens_keyboard_title">Doble toque en el terminal para abrir el teclado</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">Abre el teclado cuando los programas que se ejecutan en el terminal interceptan un solo toque.</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">Opacidad del fondo de los elementos inactivos</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Opacidad del fondo de los elementos activos</string>
     <string name="extra_keys_corner_radius_title">Radio de redondeo de los botones</string>

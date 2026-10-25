@@ -168,6 +168,8 @@
 
                 <string name="keyboard_state_follow_tab_switch_title">Состояние клавиатуры при смене вкладок</string>
                 <string name="keyboard_state_follow_tab_switch_summary">При смене вкладок восстанавливать состояние клавиатуры для каждой вкладки, запомненное на момент переключения с неё</string>
+                <string name="double_tap_terminal_opens_keyboard_title">Двойной тап по терминалу для открытия клавиатуры</string>
+                <string name="double_tap_terminal_opens_keyboard_summary">Открывает клавиатуру в тех случаях, когда одиночный тап перехватывается терминальными приложениями</string>
 
         
 
