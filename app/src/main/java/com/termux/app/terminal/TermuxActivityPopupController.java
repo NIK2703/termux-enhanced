@@ -49,10 +49,9 @@ public final class TermuxActivityPopupController {
          *  second /proc readlink when it already resolved one. */
         void onHistoryDirectoryChanged(@Nullable String resolvedCwd);
 
-        /** A history row was tapped in the interactive history popup. */
         void onHistoryMessagePicked(@NonNull String message);
 
-        /** The popup's "Clear" row was tapped: remember the current text, then empty the field. */
+        /** The "Clear" row was tapped: remember the current text, then empty the field. */
         void clearInputToHistory();
 
         // Keep-screen-on preference bridge
@@ -135,12 +134,8 @@ public final class TermuxActivityPopupController {
     }
 
     /**
-     * Show the message-history popup.
-     *
-     * @param interactive when true the popup itself accepts touches, so a quick tap on a
-     *                    history row picks it (used by the quick-action button). When false the
-     *                    popup stays non-touchable and the caller keeps the finger, as with the
-     *                    original swipe-up-on-the-pencil gesture.
+     * Shows the history popup; {@code interactive} makes rows touchable so a tap picks one,
+     * otherwise the caller keeps the gesture and resolves the release from raw coordinates.
      */
     public void showMessageHistoryPopup(@NonNull View anchor, boolean interactive) {
         dismissMessageHistoryPopup();
@@ -308,16 +303,12 @@ public final class TermuxActivityPopupController {
         // Content transparency only — keeps the elevation outline valid.
         scroll.setAlpha(0.9f);
         mHistoryPopup.setClippingEnabled(true);
-        // The swipe gesture keeps the popup non-touchable: the pencil owns the finger and the
-        // release position is read from raw coordinates. The quick-action button, by contrast,
-        // opens a touchable popup whose rows are tapped directly.
+        // Non-touchable for the pencil gesture; touchable for the quick-action button.
         mHistoryPopup.setTouchable(interactive);
         mHistoryPopup.setFocusable(false);
         mHistoryPopup.setOutsideTouchable(interactive);
-        // A press on the anchor button counts as an outside touch for the popup. If PopupWindow
-        // dismisses on that ACTION_OUTSIDE, the button's own ACTION_DOWN sees no popup and treats
-        // the release as a fresh tap, reopening it. Swallow only that one case; every other
-        // outside touch still closes the popup through PopupWindow's normal path.
+        // A press on the anchor also counts as ACTION_OUTSIDE. Swallow just that case so the
+        // button's release is not treated as a fresh tap that reopens the popup.
         mHistoryPopup.setTouchInterceptor((popup, event) -> {
             if (!interactive || event.getActionMasked() != MotionEvent.ACTION_OUTSIDE) return false;
             final int[] loc = new int[2];
@@ -401,18 +392,14 @@ public final class TermuxActivityPopupController {
         mHistoryItemViews.add(tv);
     }
 
-    /**
-     * Wire a row for the touchable variant of the popup. A tap performs the same action the
-     * pencil's release-over-row gesture performs, then closes the popup.
-     */
+    /** Tapping a row runs the same action as the pencil release and closes the popup. */
     private void bindInteractiveHistoryRow(@NonNull View row) {
         final Object tag = row.getTag();
         if (!(tag instanceof Integer)) return;
         final int selected = (Integer) tag;
         final int highlight = mColorSchemeManager.getHistoryHighlightFill();
-        // The swipe variant paints the row under the finger directly. A tap has no drag to
-        // paint, so give it the same active fill from the moment the finger lands, before the
-        // click dismisses the popup. Returning false keeps the row's normal click handling.
+        // The swipe variant paints the row under the finger; a tap has no drag, so paint on
+        // ACTION_DOWN. Returning false keeps the normal click handling.
         row.setOnTouchListener((v, event) -> {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -431,10 +418,7 @@ public final class TermuxActivityPopupController {
         });
     }
 
-    /**
-     * Perform the action for a history row chosen either by the swipe gesture's release or by
-     * tapping a row in the interactive popup. Out-of-range and no-selection tags are no-ops.
-     */
+    /** Runs the action for the selected row; out-of-range and no-selection tags are no-ops. */
     public void activateHistorySelection(int selected) {
         if (selected == MESSAGE_HISTORY_CLEAR_ALL_TAG) {
             if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {

@@ -28,8 +28,8 @@ public class TermuxActivityBroadcastManager {
      */
     private static final String ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED = "com.termux.TEXT_INPUT_OVER_TERMINAL_CHANGED";
     /**
-     * The additional paste/attach/history buttons in the open input panel were switched on or
-     * off. Off restores the toggle button's swipes.
+     * The input panel's extra paste/attach/history buttons were switched on or off; off restores
+     * the toggle button's swipes.
      */
     private static final String ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED = "com.termux.INPUT_PANEL_QUICK_ACTIONS_CHANGED";
     /**

@@ -300,10 +300,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
     }
 
     /**
-     * Resolves the view a tap must act on. The cached active view is tried first, but a tap must
-     * not depend on it: after a jump of two+ tabs it is null until the destination page attaches,
-     * and showSoftKeyboard(context, null) is a silent no-op. TerminalView focuses the tapped view
-     * before invoking the client, so the focused view is the correct fallback.
+     * Resolve the view a tap must act on. The cached active view can be null right after a jump
+     * of two or more tabs, and showSoftKeyboard(context, null) is a silent no-op. TerminalView
+     * focuses the tapped view first, so focus is the fallback.
      */
     private TerminalView getTerminalViewForTap() {
         TerminalView terminalView = mActivity.getActiveTerminalView();
@@ -313,13 +312,11 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         return terminalView;
     }
 
-    /** Shows the soft keyboard for an explicit tap or double-tap on the terminal. */
     private void showSoftKeyboardForTerminalTap(TerminalView terminalView) {
         if (!KeyboardUtils.areDisableSoftKeyboardFlagsSet(mActivity)) {
             // A tap is an explicit show request: clear a leftover SOFT_INPUT_STATE_ALWAYS_HIDDEN
-            // (left by the cold-start hide / bubble suppression) first, or the window state works
-            // against the show. setSoftInputModeAdjustResize also keeps the window resizing
-            // (ALWAYS_HIDDEN alone replaces ADJUST_RESIZE).
+            // from the cold-start hide / bubble suppression first, or it works against the show.
+            // ADJUST_RESIZE also keeps the window resizing (ALWAYS_HIDDEN alone replaces it).
             KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
             KeyboardUtils.showSoftKeyboard(mActivity, terminalView);
         } else
@@ -374,10 +371,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
     @Override
     public boolean shouldBackButtonBeMappedToEscape() {
-        // While the IME is up, Back belongs to it: the first press dismisses the keyboard, as it
-        // does in every other app. Mapping that press to Escape as well left it unable to close the
-        // keyboard without also sending ESC. The setting applies to the next press, when there is
-        // no keyboard left to dismiss.
+        // While the IME is up, Back belongs to it: the first press dismisses the keyboard, as in
+        // every other app. Mapping that press to Escape too left it unable to close the keyboard
+        // without also sending ESC.
         return mActivity.getProperties().isBackKeyTheEscapeKey()
                 && !mActivity.computeImeVisibility();
     }

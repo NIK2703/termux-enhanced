@@ -80,12 +80,10 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             });
         }
 
-        // The row is created by the terminal window, so it has to be told when to remove or
-        // restore it instead of waiting for the next cold start.
+        // The terminal window creates the row, so notify it to remove or restore the row promptly.
         SwitchPreferenceCompat quickActionsPref = findPreference("input-panel-quick-actions");
         if (quickActionsPref != null) {
-            // The hint is useful only while the row is switched off: it names the gestures that
-            // take over. With the row on, the switch needs no explanation.
+            // The summary names the gesture fallback only while the row is off.
             quickActionsPref.setSummary(quickActionsPref.isChecked()
                 ? null : getString(R.string.input_panel_quick_actions_disabled_summary));
             quickActionsPref.setOnPreferenceChangeListener((preference, newValue) -> {

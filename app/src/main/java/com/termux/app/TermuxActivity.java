@@ -1153,8 +1153,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         if (mIsInvalidState) return;
 
-        // Follow clipboard changes while this window is in front: the paste quick action is
-        // hidden when there is nothing to paste and appears as soon as something is copied.
         registerClipboardListener();
 
         // Automatic bubble: this window is back in front, so the floating one is redundant. Done
@@ -1287,8 +1285,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     protected void onPause() {
         super.onPause();
 
-        // Clipboard notifications are only meaningful while this window is in front, and the
-        // listener would otherwise keep the activity alive through the clipboard service.
+        // The listener would otherwise keep the activity alive through the clipboard service.
         unregisterClipboardListener();
 
         // Cold-start hide re-assert is meaningless once we leave the foreground.
@@ -2696,11 +2693,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
         anchorAboveStrip(root, R.id.toggle_text_input_button, buttonAnchorId);
 
-        // The quick-action row has to clear the panel exactly like the pencil does. Anchoring it
-        // to the toolbar would leave it inside the panel's bounds — behind the panel's elevation
-        // when the panel floats over the terminal, and at its bottom edge when the panel takes
-        // the extra keys' place. Above the panel it sits beside the pencil whenever the pencil
-        // is visible, and just above the field when the panel floats over the terminal.
+        // Like the pencil, the row must clear the panel: anchored to the toolbar it would sit
+        // inside the panel's bounds, behind its elevation or at its bottom edge.
         final int actionAnchorId = panel.getVisibility() == View.VISIBLE
                 ? panel.getId() : panelAnchorId;
         anchorAboveStrip(root, R.id.input_panel_actions, actionAnchorId);
@@ -2806,10 +2800,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             //     picks it, releasing elsewhere just dismisses;
             //   - a swipe down pastes the clipboard;
             //   - a swipe left opens the system document picker.
-            // While the input panel is open and the additional buttons are enabled, those same
-            // actions live on the quick-action row to the left of the button, so the swipes are
-            // suppressed and only a tap toggles. With the row switched off, the swipes stay
-            // available whether the panel is open or closed, as they were before the row existed.
+            // With the panel open and the quick actions enabled the row owns these actions, so
+            // the swipes are suppressed and only a tap toggles. With the row switched off they
+            // stay available whether the panel is open or closed.
             final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
             final float[] downXY = new float[2];
             final boolean[] gestureActive = { false };
@@ -2833,9 +2826,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         downXY[0] = event.getRawX();
                         downXY[1] = event.getRawY();
                         panelOpenAtDown[0] = isTextInputVisible();
-                        // A touchable history popup may be open from the quick-action button.
-                        // Pressing the pencil takes over: close the menu so a tap can close the
-                        // panel, instead of the release being consumed as a menu selection.
+                        // A touchable history popup may be open from the quick actions; close it
+                        // so this press toggles the panel instead of selecting a row.
                         if (panelOpenAtDown[0] && mPopupCtrl.isHistoryPopupShowing()) {
                             mPopupCtrl.dismissMessageHistoryPopup();
                         }
@@ -2853,10 +2845,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
                             gestureMoved[0] = true;
                         }
-                        // The panel's open state owns the quick-action row. Do not also fire the
-                        // hidden swipes on the pencil, or a swipe left would open the picker from
-                        // the same button that now has a file button next to it. With the row
-                        // switched off there is nothing to defer to, so the swipes stay live.
+                        // With the row visible, a swipe left here would duplicate the file button
+                        // next to it; defer the swipes while the panel owns the actions.
                         if (!panelOpenAtDown[0] || !areInputPanelQuickActionsEnabled()) {
                             // Open the history popup once the finger has dragged up past
                             // the touch slop (and the drag is more vertical than sideways).
@@ -2910,8 +2900,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                             // The picker was already opened on recognition in ACTION_MOVE.
                         } else if (gestureActive[0] && !gestureMoved[0]
                                 && event.getActionMasked() == MotionEvent.ACTION_UP) {
-                            // No popup was opened and the finger stayed on the button: a plain
-                            // tap toggles the panel. A swipe that did nothing does not toggle.
+                            // A plain tap toggles the panel; a swipe that did nothing does not.
                             boolean currentlyVisible = panelOpenAtDown[0];
                             setTextInputVisible(!currentlyVisible);
                         }
@@ -2943,20 +2932,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     }
 
-    /**
-     * Wire the quick-action buttons that sit above the input panel, left of the pencil when it
-     * is visible. With the panel closed the row is hidden and the pencil's swipes keep doing
-     * these jobs.
-     */
     private void setInputPanelActionButtonsView() {
         mInputPanelActions = findViewById(R.id.input_panel_actions);
         if (mInputPanelActions == null) return;
 
         View historyButton = mInputPanelActions.findViewById(R.id.input_panel_history_button);
         if (historyButton != null) {
-            // Tap: touchable popup, one item per tap. Swipe up: the pencil's non-touchable
-            // popup, so the same gesture keeps the finger and picks the row it is over on
-            // release. The click listener remains for accessibility (performClick).
+            // Tap opens the touchable popup; swipe up is handled below. The click listener stays
+            // for accessibility (performClick).
             historyButton.setOnClickListener(v -> mPopupCtrl.showMessageHistoryPopup(v, true));
             setHistoryActionButtonGesture(historyButton);
         }
@@ -2980,12 +2963,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         updatePasteActionButtonVisibility();
     }
 
-    /**
-     * The paste action exists only while there is something to paste. When the clipboard is
-     * empty the button is removed from the row outright instead of leaving a dead action; a
-     * copy from any app brings it back while this window is in front, and returning to a window
-     * that was backgrounded during the copy refreshes it on resume/focus.
-     */
     private void updatePasteActionButtonVisibility() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mMainHandler.post(this::updatePasteActionButtonVisibility);
@@ -3030,10 +3007,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * The history quick action has two gestures. A tap opens the touchable popup, where each
-     * row is picked with a second tap. A swipe up opens the same non-touchable popup the pencil
-     * uses when the panel is closed: the finger stays down, the popup tracks it, and releasing
-     * over a row picks that row in one gesture.
+     * Tap opens the touchable popup (a second tap picks a row); swipe up opens the pencil's
+     * non-touchable popup and picks a row on release.
      */
     private void setHistoryActionButtonGesture(@NonNull View historyButton) {
         final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
@@ -3049,8 +3024,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     downXY[1] = event.getRawY();
                     gestureActive[0] = true;
                     gestureMoved[0] = false;
-                    // Pressing the button while its popup is open acts as a close toggle: the
-                    // popup goes away on press and the release must not open it again.
+                    // While the popup is open, a press only closes it; the release must not
+                    // reopen it.
                     closePopupOnly[0] = mPopupCtrl.isHistoryPopupShowing();
                     mPopupCtrl.dismissMessageHistoryPopup();
                     mButtonTouchInProgress = true;
@@ -3059,14 +3034,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 case MotionEvent.ACTION_MOVE: {
                     if (!gestureActive[0]) return true;
                     if (closePopupOnly[0]) {
-                        // This gesture is only closing the existing popup, not starting a new
-                        // swipe selection.
                         v.setPressed(true);
                         return true;
                     }
                     if (mPopupCtrl.isHistoryPopupShowing()) {
-                        // Keep the button lit and let the popup follow the finger, exactly like
-                        // the pencil's swipe-up selection.
+                        // Let the popup follow the finger, as with the pencil's swipe-up selection.
                         v.setPressed(true);
                         mPopupCtrl.updateHistoryHighlight(event.getRawX(), event.getRawY());
                         return true;
@@ -3078,8 +3050,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     }
                     if (dy < -touchSlop && Math.abs(dy) > Math.abs(dx)) {
                         mPopupCtrl.showMessageHistoryPopup(v);
-                        // The finger is already inside the popup's lower edge: paint the row it
-                        // is over without waiting for another move event.
+                        // The finger is already at the popup's lower edge; highlight its row
+                        // without waiting for another move event.
                         mPopupCtrl.updateHistoryHighlight(event.getRawX(), event.getRawY());
                         v.setPressed(true);
                     }
@@ -3097,8 +3069,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         }
                     } else if (!closePopupOnly[0] && gestureActive[0] && !gestureMoved[0]
                             && event.getActionMasked() == MotionEvent.ACTION_UP) {
-                        // No swipe: a plain press-and-release is the tap that opens the
-                        // touchable popup. performClick keeps accessibility and feedback.
+                        // A press without a swipe is a tap; performClick keeps accessibility and
+                        // feedback.
                         v.performClick();
                     }
                     gestureActive[0] = false;
@@ -3113,9 +3085,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * A quick-action press is still a press inside the input panel: if the EditText loses focus
-     * (and the IME starts to close), the panel must not auto-dismiss under the finger before the
-     * button's click is delivered. The listener returns false so the normal click still fires.
+     * Keep the panel from auto-dismissing if the EditText loses focus on press, before the
+     * button's click is delivered. Returns false so the normal click still fires.
      */
     private void keepPanelWhilePressingAction(@NonNull View button) {
         button.setOnTouchListener((v, event) -> {
@@ -3132,11 +3103,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         });
     }
 
-    /**
-     * Open the system document picker for files. Android uses a separate system picker for
-     * directories, so that one is opened by a long-press on the attach button instead of adding
-     * a second custom chooser in front of the system UI.
-     */
+    /** Open the system file picker; directories have their own system picker (attach long-press). */
     private void launchAttachmentFilePicker() {
         try {
             startActivityForResult(AttachmentPicker.createFilesIntent(),
@@ -3158,8 +3125,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * The system picker returns content URIs. Resolve them off the UI thread because files from
-     * providers without a local path have to be copied into Termux's attachment directory first.
+     * Resolve off the UI thread: content from providers without a local path is copied into
+     * Termux's attachment directory first.
      */
     private void handleAttachmentPickerResult(@NonNull Intent data, boolean directory) {
         final Context appContext = getApplicationContext();
@@ -3267,9 +3234,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 ? R.drawable.ic_keyboard_hide
                 : R.drawable.ic_keyboard_show);
         toggleTextInputButton.setContentDescription(getString(R.string.action_toggle_text_input));
-        // The row normally reserves the pencil's width so the two sit side by side. Over the
-        // terminal the pencil is gone, and that reserved gap would read as an empty button slot;
-        // hand it back so the row ends where the pencil would have.
+        // Over the terminal the pencil is gone; drop its reserved slot so the row ends where the
+        // pencil would have.
         updateInputPanelActionsEndMargin(toggleTextInputButton);
     }
 
@@ -3277,14 +3243,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private static final int INPUT_PANEL_ACTIONS_TOGGLE_GAP_DP = 6;
 
     /**
-     * Keep the quick-action row's right edge where the layout expects it: {@code gap} to the
-     * left of the pencil when the pencil is visible, and in the pencil's own place when the
-     * pencil is hidden over the terminal.
-     *
-     * <p>The row's horizontal position is carried by {@link #applyFloatingButtonMarginEnd} as a
-     * translation, identical to the pencil's, so only the layout margin changes here. The
-     * resulting effective margin stays the pencil's own when the pencil is gone, which is also
-     * the panel's margin in that placement.
+     * Keep the row's right edge beside the pencil when it is visible, and in its place when it
+     * is hidden. The horizontal position is carried by the shared translation (see
+     * {@link #applyFloatingButtonMarginEnd}), so only the layout margin changes here.
      */
     private void updateInputPanelActionsEndMargin(@NonNull ImageButton toggleButton) {
         if (mInputPanelActions == null) {
@@ -3307,12 +3268,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
     }
 
-    /**
-     * The quick-action row is an input-panel control: it appears with the panel and disappears
-     * with it, leaving the pencil's gestures as the only way to reach these actions while the
-     * panel is closed. The setting can keep the row out of the panel altogether, in which case
-     * the pencil's gestures also stay available while the panel is open.
-     */
     private void updateInputPanelActionButtonsVisibility() {
         if (mInputPanelActions == null) {
             mInputPanelActions = findViewById(R.id.input_panel_actions);
@@ -3324,7 +3279,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mInputPanelActions.setVisibility(wanted);
         }
         if (wanted == View.VISIBLE) {
-            // A copy made while the panel was closed must be reflected the moment it opens.
+            // Reflect a copy made while the panel was closed.
             updatePasteActionButtonVisibility();
         }
     }
@@ -3545,8 +3500,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (toggleButton == null) return;
         final float translationX = getFloatingButtonLayoutMarginEnd(toggleButton) - marginEndPx;
         toggleButton.setTranslationX(translationX);
-        // The quick-action row hangs off the button's layout position; carrying the same
-        // translation keeps the gap exact while the button dodges the scrollbar.
+        // Carry the same translation to the row so the gap to the pencil stays exact while the
+        // button dodges the scrollbar.
         if (mInputPanelActions == null) mInputPanelActions = findViewById(R.id.input_panel_actions);
         if (mInputPanelActions != null) mInputPanelActions.setTranslationX(translationX);
     }
@@ -4007,18 +3962,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return termuxPrefs().getBoolean("text_input_enabled", true);
     }
 
-    /**
-     * Whether the open input panel shows the additional paste, attach and history buttons.
-     * With this off, the toggle button's swipes provide the same actions as before.
-     */
+    /** Whether the open input panel shows the additional paste, attach and history buttons. */
     public boolean areInputPanelQuickActionsEnabled() {
         return getPreferences().areInputPanelQuickActionsEnabled();
     }
 
     /**
-     * Apply the additional-buttons setting while the window is alive: remove the row when it is
-     * switched off, restore it when it is switched on, and close a history popup that no longer
-     * has a button to belong to.
+     * Re-apply the setting live; a history popup loses its button when the row is removed.
      */
     public void applyInputPanelQuickActionsPreference() {
         if (!areInputPanelQuickActionsEnabled()) {

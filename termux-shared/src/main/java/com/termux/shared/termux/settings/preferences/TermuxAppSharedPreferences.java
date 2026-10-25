@@ -149,10 +149,7 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_TEXT_INPUT_OVER_TERMINAL, value);
     }
 
-    /**
-     * Whether the open input panel shows its additional paste, attach and history buttons.
-     * When off, the toggle button's swipes keep doing those jobs as before.
-     */
+    /** Whether the open input panel shows its extra paste, attach and history buttons. */
     public boolean areInputPanelQuickActionsEnabled() {
         return getBooleanByKey(TERMUX_APP.KEY_INPUT_PANEL_QUICK_ACTIONS,
             TERMUX_APP.DEFAULT_VALUE_INPUT_PANEL_QUICK_ACTIONS);

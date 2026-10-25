@@ -35,9 +35,8 @@ final class GestureAndScaleRecognizer {
     boolean isAfterLongPress;
 
     /**
-     * Set when {@link GestureDetector} recognizes the second down of a double tap. The actual
-     * callback is delayed until the second up, after {@link Listener#onUp} has delivered the tap's
-     * regular action, so opening the keyboard cannot swallow that action.
+     * Set on the second tap's down; its callback is delivered on the second up, after
+     * {@link Listener#onUp}, so opening the keyboard cannot swallow the tap action.
      */
     private boolean mDoubleTapPending;
     private boolean mDoubleTapUp;
@@ -48,8 +47,8 @@ final class GestureAndScaleRecognizer {
         mGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onSingleTapUp(MotionEvent e) {
-                // Dispatch immediately instead of waiting for onSingleTapConfirmed(): a tap must
-                // not be delayed just to find out whether a second tap follows.
+                // Dispatch immediately, not in onSingleTapConfirmed(), so a tap is never delayed
+                // waiting for a possible second tap.
                 return mListener.onSingleTapUp(e);
             }
 
@@ -78,8 +77,7 @@ final class GestureAndScaleRecognizer {
         mGestureDetector.setOnDoubleTapListener(new GestureDetector.OnDoubleTapListener() {
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
-                // Already dispatched by onSingleTapUp() above. This callback arrives after the
-                // double-tap timeout; repeating the tap here would restore the delay.
+                // Already dispatched by onSingleTapUp(); repeating it here would restore the delay.
                 return false;
             }
 
@@ -123,9 +121,8 @@ final class GestureAndScaleRecognizer {
                     // want to move the cursor when lifting finger after a long press.
                     mListener.onUp(event);
                     if (mDoubleTapPending && mDoubleTapUp) {
-                        // Delivered after onUp() so that the second tap's mouse click (if the
-                        // terminal application reports mouse events) is sent before the keyboard
-                        // opens and the window may resize.
+                        // Delivered after onUp() so the second tap's mouse click (if mouse events
+                        // are reported) is sent before the keyboard opens and may resize the window.
                         mListener.onDoubleTap(event);
                     }
                 }

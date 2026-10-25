@@ -80,8 +80,8 @@
             app:title="@string/text_input_over_terminal_title"
             app:iconSpaceReserved="false" />
 
-        <!-- Additional paste/attach/history buttons in the open panel. The summary is set in code
-             only while the switch is off, naming the toggle button's swipes that take over. -->
+        <!-- The summary is set in code and appears only while the switch is off, naming the swipe
+             fallback. -->
         <SwitchPreferenceCompat
             app:key="input-panel-quick-actions"
             app:dependency="text_input_enabled"

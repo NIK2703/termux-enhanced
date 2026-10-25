@@ -31,8 +31,7 @@
     <item name="autocomplete_popup_content_alpha" type="fraction">90%</item>
     <item name="autocomplete_popup_shadow_alpha" type="fraction">65%</item>
 
-    <!-- Shadow for the input-panel toggle, its quick actions and the input panel while it floats
-         over the terminal. -->
+    <!-- Shadow for the floating input-panel controls. -->
     <dimen name="floating_shadow_elevation">4dp</dimen>
     <item name="floating_shadow_alpha" type="fraction">60%</item>
 

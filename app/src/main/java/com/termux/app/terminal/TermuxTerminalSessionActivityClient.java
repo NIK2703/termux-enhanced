@@ -1133,11 +1133,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // token is a plain volatile read, which is why it is safe to include here even though this
         // runs on every tab switch.
         long monetToken = ColorSchemeUtils.monetToken(isNight);
-        // The preferences the derived floating-control colours are computed from, excluding the
-        // element-alpha sliders (those flow through the same path but are not part of the scheme
-        // identity). The background-transparency preference changes those colours without touching
-        // any scheme file or the palette, so without it here the "scheme already applied" gate would
-        // swallow the change and the settings screen would need a recreate to show it.
+        // The background-transparency preference changes the derived floating-control colours
+        // without touching any scheme file or the palette, so without it here the "scheme already
+        // applied" gate would swallow the change. The element-alpha sliders are deliberately not
+        // part of the scheme identity.
         TermuxAppSharedPreferences prefs = mActivity.getPreferences();
         return (isNight ? "n1" : "n0")
                 + "|" + (colorsFile == null ? "-" : colorsFile.lastModified() + ":" + colorsFile.length())
@@ -1584,8 +1583,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         final int stroke = mActivity.getFloatingButtonStroke();
         final int strokePx = Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke));
 
-        // The controls are always composited with the terminal background, so they always carry the
-        // same elevation shadow that lifts them off it.
+        // The toggle and quick actions are always composited with the terminal background, so
+        // they always carry the shadow that lifts them off it.
         final int shadowElevationPx = mActivity.getResources()
             .getDimensionPixelSize(R.dimen.floating_shadow_elevation);
         final int shadowColor = floatingShadowColor(isSchemeLight);
@@ -1598,9 +1597,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 shadowElevationPx, shadowColor);
         }
 
-        // The quick actions are the pencil's peers while the input panel is open, so they must use
-        // the very same fill, stroke, icon tint and drag shadow — not the extra-keys button style.
-        // Each button gets its own state list: sharing one would press all three together.
+        // Quick actions must match the pencil's fill, stroke, icon tint and shadow, not the
+        // extra-keys button style. Each needs its own state list, or a press would press all three.
         for (int actionId : INPUT_PANEL_ACTION_IDS) {
             ImageButton actionButton = mActivity.findViewById(actionId);
             if (actionButton != null) {
@@ -1609,10 +1607,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             }
         }
 
-        // The input panel, while it floats over the terminal, is drawn with that same pair: it is
-        // then one of the elements drawn on the terminal and has to follow the live terminal
-        // background exactly like the controls and the quick-action buttons above. Its other
-        // arrangement is an ordinary panel and is painted by applyPanelColors() instead.
+        // The floating panel follows the live terminal background too, with its own opacity pair;
+        // otherwise it is an ordinary panel painted by applyPanelColors().
         if (mActivity.isTextInputPanelOverTerminal()) {
             // The panel's own pair, not the toggle's — see FLOATING_PANEL_CONTRAST_OPACITY.
             applyTextInputPanelContainerColors(mActivity.getFloatingPanelFill(),
@@ -1621,10 +1617,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 shadowElevationPx, shadowColor);
         }
 
-        // The action row sits directly above the floating panel, and the panel's own elevation
-        // would otherwise draw it over the lower edge of the row's shadows. Raise the row by a
-        // hair more than the panel so its children's shadows land on the panel instead of being
-        // covered by it. The row has no background of its own, so this changes only draw order.
+        // The action row sits directly above the floating panel; raise it just above the panel's
+        // elevation so its children's shadows land on the panel instead of being drawn under it.
+        // The row has no background, so this only changes draw order.
         final View actionRow = mActivity.findViewById(R.id.input_panel_actions);
         if (actionRow != null) {
             final View panel = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
@@ -1637,11 +1632,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         forEachBoundTerminalView(this::applyScrollbarColorsTo);
     }
 
-    /**
-     * Black on light schemes, white on dark ones: a black shadow disappears against a dark
-     * terminal background. The alpha still comes from {@code floating_shadow_alpha}, so only the
-     * colour changes.
-     */
+    /** Black on light schemes, white on dark ones: a black shadow vanishes on a dark terminal. */
     private int floatingShadowColor(boolean isSchemeLight) {
         final float alpha = mActivity.getResources()
             .getFraction(R.fraction.floating_shadow_alpha, 1, 1);
@@ -1715,14 +1706,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         return states;
     }
 
-    /**
-     * Paint a button exactly like the input-panel toggle: translucent fill and stroke, the active
-     * colour on press/focus, the scheme's icon tint and the same drag shadow.
-     */
+    /** Style a button like the input-panel toggle: fill/stroke, press/focus states, icon tint,
+     * shadow. */
     private static void applyFloatingButtonStyle(ImageButton button, int fill, int stroke,
                                                  int strokePx, int textColor, int elevationPx,
                                                  int shadowColor) {
-        // Pressed and focused both take the active colour for fill and stroke.
         final android.graphics.drawable.GradientDrawable active =
             createOvalDrawable(stroke, strokePx, stroke);
         final android.graphics.drawable.StateListDrawable states =

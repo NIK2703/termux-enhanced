@@ -16,9 +16,9 @@ import com.termux.terminal.TextStyle;
  * inactive/active-alpha sliders or the terminal background transparency changes so that every
  * styled element uses fresh colours without recomputing them on every draw / event.
  * <p>
- * The terminal background transparency is used by exactly one thing here: as the weight the
- * terminal background COLOUR is mixed into the two controls drawn on the terminal with (see
- * {@link #deriveFloatingColors(int)}). It never changes the controls' own transparency.
+ * The terminal background transparency only weights how much terminal background colour is
+ * mixed into the controls drawn on it (see {@link #deriveFloatingColors(int)}); it never changes
+ * their own alpha.
  */
 public final class TermuxColorSchemeManager {
 
@@ -42,9 +42,8 @@ public final class TermuxColorSchemeManager {
     private TermuxColorSchemeManager() {}
 
     /**
-     * Opacity the two controls drawn on the terminal are painted at after their tint has been
-     * composited onto the terminal background. The tint goes in at double strength precisely
-     * because this halving undoes it, so the strength the eye ends up seeing is the configured one.
+     * Opacity of the controls drawn on the terminal once their tint has been composited onto the
+     * terminal background.
      */
     private static final int FLOATING_CONTROL_CONTRAST_OPACITY = 128; // 50%
 
@@ -55,10 +54,8 @@ public final class TermuxColorSchemeManager {
     private static final int FLOATING_PANEL_CONTRAST_OPACITY = 204; // 80%
 
     /**
-     * Strength multiplier the tint is taken at, relative to the configured alpha percentage. It
-     * compensates {@link #FLOATING_CONTROL_CONTRAST_OPACITY} —
-     * which halves the strength again — so the controls end up carrying the configured {@code pct}
-     * of their tint.
+     * Doubles the tint alpha because {@link #FLOATING_CONTROL_CONTRAST_OPACITY} halves it again,
+     * leaving the controls at the configured percentage.
      */
     private static final int FLOATING_CONTROL_CONTRAST_TINT_SCALE = 2;
 
@@ -88,9 +85,8 @@ public final class TermuxColorSchemeManager {
     private int mFloatingInactivePct = 0;
     private int mFloatingActivePct = 0;
     /**
-     * Terminal background transparency (0-100%), i.e. the weight its colour is mixed into the two
-     * colours above with — see {@link #deriveFloatingColors(int)}. Also reused when only the
-     * background changes.
+     * Terminal background transparency (0-100%), the weight its colour is mixed into the colours
+     * above with — see {@link #deriveFloatingColors(int)}. Retained for background-only refreshes.
      */
     private int mFloatingTransparencyPct = 0;
 
@@ -171,9 +167,8 @@ public final class TermuxColorSchemeManager {
         mButtonActiveBg = activeTint;
         mButtonText = mSchemeForeground;
 
-        // The two controls drawn straight on the terminal — the input-panel toggle and the scrollbar
-        // thumb — are always composited with the terminal background so they stay readable against
-        // it instead of merely lying on top of it.
+        // The input-panel toggle and the scrollbar thumb stay readable against the terminal
+        // background instead of merely lying on top of it.
         deriveFloatingColors(mSchemeBackground);
 
         // Text-selection highlight: scheme foreground tinted to ~15% alpha (scheme-consistent,
@@ -192,25 +187,9 @@ public final class TermuxColorSchemeManager {
     }
 
     /**
-     * Cache the colours of the two controls drawn on the terminal — the input-panel toggle and the
-     * scrollbar thumb — by mixing the terminal background colour into the tint, weighted by the
-     * terminal background's transparency: {@code colour = (1 - t) * tint + t * terminalBackground}.
-     * The composited colour is opaque; it is then painted at
-     * {@link #FLOATING_CONTROL_CONTRAST_OPACITY}, with the tint taken at
-     * {@link #FLOATING_CONTROL_CONTRAST_TINT_SCALE}× the configured alpha because that halving
-     * undoes it, leaving the controls at the configured strength, i.e. readable against the terminal
-     * instead of merely lying on it.
-     *
-     * <p>Why the mix keeps the tint direction true: at 0% the terminal background already sits under
-     * the control, so the control is the plain tint; the more of that background the wallpaper
-     * replaces, the more of the background's colour the control carries itself, and since the
-     * transparency is capped at 50% the tint still outweighs the background — a dark tint on a
-     * light scheme can never stop darkening and a light tint on a dark scheme can never stop
-     * lightening, whatever the wallpaper shows through.
-     *
-     * <p>The tint direction is decided from {@code background} rather than from the cached scheme
-     * lightness, because the colour only makes sense against the surface it is painted on — the
-     * terminal background, which a shell can change behind the app's back.
+     * Composite the terminal background into both tints (weighted by its transparency), then paint
+     * them at {@link #FLOATING_CONTROL_CONTRAST_OPACITY} with the tint scaled up to compensate.
+     * Tint direction follows {@code background}, which a shell can change behind the app's back.
      */
     private void deriveFloatingColors(int background) {
         final boolean backgroundIsLight = ColorSchemeUtils.isColorLight(background);
@@ -230,16 +209,10 @@ public final class TermuxColorSchemeManager {
     }
 
     /**
-     * Re-derive the floating controls' colours from the background the terminal is actually
-     * painting, leaving the rest of the cache alone.
-     *
-     * <p>A background that changed without the scheme changing would otherwise leave the controls
-     * carrying a colour the terminal no longer shows. A running shell can repaint the terminal
-     * through OSC 4/11 without {@link TerminalColors#COLOR_SCHEME} noticing — writing the live
-     * colour back would discard the user's scheme — so this is the only place that can pick the
-     * live colour up.
-     *
-     * <p>The transparency weight is NOT re-read here: it is a preference, and the caller re-runs
+     * Re-derive the floating controls' colours from the live terminal background, leaving the rest
+     * of the cache alone. A shell can repaint that background through OSC 4/11 without
+     * {@link TerminalColors#COLOR_SCHEME} noticing, so this is the only place that can pick the
+     * live colour up. The transparency weight is not re-read here; the caller re-runs
      * {@link #recompute(int, int, int)} when it changes.
      *
      * @return {@code true} when the cached colours changed, i.e. the caller has to re-apply them.

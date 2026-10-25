@@ -125,9 +125,8 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL = false;
 
         /**
-         * Defines the key for whether the open input panel shows its additional paste, attach and
-         * history buttons. When off, those actions are reached with the input-panel toggle
-         * button's swipes, exactly as they were before the buttons were added.
+         * Defines the key for whether the open input panel shows extra paste, attach and history
+         * buttons. When off, the toggle button's swipes still provide those actions.
          */
         public static final String KEY_INPUT_PANEL_QUICK_ACTIONS = "input-panel-quick-actions";
         public static final boolean DEFAULT_VALUE_INPUT_PANEL_QUICK_ACTIONS = true;
@@ -180,10 +179,9 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_KEYBOARD_STATE_FOLLOW_TAB_SWITCH = true;
 
         /**
-         * Defines the key for whether a double tap on the terminal opens the soft keyboard, for
-         * terminal applications that consume a single tap as a mouse click. It is disabled by
-         * default. Single taps are always delivered immediately; the double tap only adds the
-         * keyboard show after the second tap's action.
+         * Defines the key for whether a double tap opens the soft keyboard, for applications that
+         * consume a single tap as a mouse click. Off by default; single taps are still delivered
+         * immediately, and the keyboard is shown after the second tap's action.
          */
         public static final String KEY_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD = "double_tap_terminal_opens_keyboard";
         public static final boolean DEFAULT_VALUE_DOUBLE_TAP_TERMINAL_OPENS_KEYBOARD = false;

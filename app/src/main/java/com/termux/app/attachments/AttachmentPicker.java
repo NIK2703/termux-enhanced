@@ -29,15 +29,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Bridges Android's Storage Access Framework pickers to the real filesystem paths that the
- * terminal input panel can use.
- *
- * <p>The system picker returns {@code content://} URIs, while a shell needs paths. Local
- * providers (external storage, Downloads, MediaStore and Termux's own document provider) are
- * mapped back to their real paths. Files from providers that do not expose a local path are
- * copied into {@code $HOME/.termux/tmp/attachments} first, so the inserted path always points
- * at a readable file. A directory from such a provider cannot be represented as a local path
- * and is rejected with {@link DirectoryNotLocalException}.
+ * Resolves SAF picker results to local paths for the terminal input. Picked files without a
+ * local path are copied to {@code $HOME/.termux/tmp/attachments}; directories that are not
+ * local are rejected with {@link DirectoryNotLocalException}.
  */
 public final class AttachmentPicker {
 
@@ -56,7 +50,7 @@ public final class AttachmentPicker {
     private AttachmentPicker() {
     }
 
-    /** Intent for picking one or more readable files through the system document picker. */
+    /** Opens the system document picker for multiple files. */
     @NonNull
     public static Intent createFilesIntent() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -66,16 +60,13 @@ public final class AttachmentPicker {
         return intent;
     }
 
-    /** Intent for picking one directory through the system document-tree picker. */
+    /** Opens the system document-tree picker for one directory. */
     @NonNull
     public static Intent createDirectoryIntent() {
         return new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
     }
 
-    /**
-     * Resolve the result of a system picker to paths ready for insertion into the terminal
-     * input. The order of the selected files is preserved and duplicate paths are removed.
-     */
+    /** Returns local paths for the picker result, preserving order and dropping duplicates. */
     @NonNull
     public static List<String> resolve(@NonNull Context context, @NonNull Intent data,
                                        boolean directory) throws IOException {
@@ -97,7 +88,7 @@ public final class AttachmentPicker {
         return new ArrayList<>(paths);
     }
 
-    /** Join selected paths for the input panel: single spaces only, no quoting or escaping. */
+    /** Joins paths for insertion as-is: single spaces, no quoting or escaping. */
     @NonNull
     public static String joinPathsForInsertion(@NonNull List<String> paths) {
         StringBuilder joined = new StringBuilder();
@@ -141,7 +132,7 @@ public final class AttachmentPicker {
             return readablePath(getDocumentId(uri));
         }
 
-        // Termux's share provider also stores the real path in the URI path.
+        // The share provider stores the real path in the URI path.
         if ((context.getPackageName() + ".files").equals(authority)) {
             return readablePath(uri.getPath());
         }
@@ -175,7 +166,6 @@ public final class AttachmentPicker {
         } else if (AUTHORITY_DOWNLOADS.equals(authority)) {
             path = resolveDownloadsDocumentId(context, documentId, treeUri);
         } else if (documentId.startsWith("/")) {
-            // A few third-party providers use absolute paths as document ids.
             path = documentId;
         } else {
             path = null;
@@ -200,11 +190,10 @@ public final class AttachmentPicker {
             return resolveMediaDocumentId(context, documentId, uri);
         }
 
-        // A few third-party providers use absolute paths as document ids.
+        // Some third-party providers use absolute paths as document ids.
         if (documentId.startsWith("/")) return documentId;
 
-        // Some providers expose the real path through the legacy _data column. It is only a
-        // best-effort fallback; providers that do not expose it are handled by copying.
+        // Legacy _data column is a best-effort fallback; callers copy the stream if it is absent.
         return queryDataColumn(context, uri);
     }
 
@@ -323,7 +312,7 @@ public final class AttachmentPicker {
                 }
             }
         } catch (Exception ignored) {
-            // Providers are allowed not to expose _data; the caller copies the stream instead.
+            // Providers may not expose _data; the caller copies the stream instead.
         }
         return null;
     }
@@ -347,7 +336,7 @@ public final class AttachmentPicker {
                 }
             }
         } catch (IOException | RuntimeException e) {
-            // Do not leave a truncated file behind for the user to accidentally use.
+            // Do not leave a truncated file behind if the copy fails.
             //noinspection ResultOfMethodCallIgnored
             target.delete();
             throw e;
@@ -367,17 +356,13 @@ public final class AttachmentPicker {
                 }
             }
         } catch (Exception ignored) {
-            // Fall through to the URI's last segment.
         }
 
         String fallback = uri.getLastPathSegment();
         return fallback == null || fallback.isEmpty() ? DEFAULT_FILE_NAME : fallback;
     }
 
-    /**
-     * Keep the display name as the file name, but never let a provider choose a path. Names
-     * that would escape the attachment directory are replaced with a safe default.
-     */
+    /** Sanitizes a provider display name so it cannot escape the attachments directory. */
     @NonNull
     static String sanitizeFileName(@Nullable String name) {
         if (name == null || name.isEmpty()) return DEFAULT_FILE_NAME;

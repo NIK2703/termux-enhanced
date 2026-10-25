@@ -31,8 +31,8 @@ public interface TerminalViewClient {
     void onSingleTapUp(MotionEvent e);
 
     /**
-     * Called when a double tap on the terminal is completed, after the second tap's regular
-     * action has been delivered.
+     * Called after a double tap completes, once the second tap's regular action has been
+     * delivered.
      *
      * @return {@code true} if the double tap was handled.
      */
