@@ -167,6 +167,9 @@
     <string name="text_input_toggle_button_title">Bouton de bascule du panneau de saisie</string>
     <string name="text_input_over_terminal_title">Panneau de saisie sur le terminal</string>
 
+    <string name="input_panel_quick_actions_title">Boutons supplémentaires du panneau de saisie</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">Les actions supplémentaires sont activées en balayant le bouton de bascule du panneau de saisie : vers le haut - historique de saisie, vers le bas - coller depuis le presse-papiers, vers la gauche - joindre un fichier</string>
     <string name="text_input_action_on_send_title">Action après l\'envoi</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Ne rien faire</item>
@@ -437,9 +440,6 @@
     <string name="terminal_background_blur_radius_title">Rayon de flou de l\'arrière-plan</string>
     <string name="terminal_background_blur_radius_summary">Peut augmenter la consommation d\'énergie avec des arrière-plans dynamiques et un rayon de flou élevé. Avec des arrière-plans statiques, l\'impact sur la consommation est négligeable.</string>
 
-    <string name="contrast_floating_element_background_title">Fond contrasté pour les éléments au-dessus du terminal</string>
-    <string name="contrast_floating_element_background_summary">Le bouton de bascule du panneau de saisie et la poignée de défilement du terminal sont colorés en tenant compte de l\'arrière-plan du terminal</string>
-
     
     <string name="terminal_toolbar_scale_title">Échelle du panneau</string>
 
@@ -704,11 +704,4 @@
     <string name="termux_notification_deduplication_title">Déduplication des notifications</string>
     <string name="termux_notification_deduplication_summary">Ignorer les notifications reçues dans les %1$d millisecondes suivant l\'envoi de la précédente</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">Insérer des chemins de fichiers</string>
-    <string name="file_path_picker_up">Monter</string>
-    <string name="file_path_picker_insert">Insérer</string>
-    <string name="file_path_picker_empty">Ce dossier est vide</string>
-    <string name="file_path_picker_loading">Chargement…</string>
-    <string name="file_path_picker_unreadable">Impossible de lire ce dossier</string>
 </resources>

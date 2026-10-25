@@ -158,9 +158,10 @@
         </FrameLayout>
 
         <!-- Quick actions for the open input panel. They sit above the panel, immediately left
-             of the pencil when it is visible, and use the same floating-button design. While
-             the panel is closed the toggle button keeps these actions on its up/down/left
-             swipes, so the row is gone. TermuxActivity anchors them above the panel itself. -->
+             of the pencil when it is visible, and use the same floating-button design. The row is
+             shown only while the panel is open and the "Additional input panel buttons" setting
+             is on; otherwise the toggle button's up/down/left swipes keep doing these jobs.
+             TermuxActivity anchors them above the panel itself. -->
         <LinearLayout
             android:id="@+id/input_panel_actions"
             android:layout_width="wrap_content"

@@ -1135,10 +1135,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         long monetToken = ColorSchemeUtils.monetToken(isNight);
         // The preferences the derived floating-control colours are computed from, excluding the
         // element-alpha sliders (those flow through the same path but are not part of the scheme
-        // identity). The background-transparency and contrast-background switches both change those
-        // colours without touching any scheme file or the palette, so without them here the
-        // "scheme already applied" gate would swallow the change and the settings screen would need
-        // a recreate to show it.
+        // identity). The background-transparency preference changes those colours without touching
+        // any scheme file or the palette, so without it here the "scheme already applied" gate would
+        // swallow the change and the settings screen would need a recreate to show it.
         TermuxAppSharedPreferences prefs = mActivity.getPreferences();
         return (isNight ? "n1" : "n0")
                 + "|" + (colorsFile == null ? "-" : colorsFile.lastModified() + ":" + colorsFile.length())
@@ -1146,8 +1145,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 + "|s" + selectedScheme
                 + "|o" + monetOptions
                 + "|monet" + monetToken
-                + "|t" + prefs.getTerminalBackgroundTransparency()
-                + "|c" + prefs.isContrastFloatingElementBackgroundEnabled();
+                + "|t" + prefs.getTerminalBackgroundTransparency();
     }
 
     /**
@@ -1516,7 +1514,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             extraKeys.setButtonColors(buttonText, deriveActiveTextColor(buttonText), buttonBg, buttonActiveBg);
         }
 
-        applyFloatingControlColors();
+        applyFloatingControlColors(isSchemeLight);
 
         // Plain tab button (new session): no stroke — fill only, with an active
         // (pressed/swiped) background so the press/swipe gesture gives visible feedback.
@@ -1581,26 +1579,23 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * follows the <em>live</em> terminal background, which {@link #updateBackgroundColor()} knows
      * and {@link #applyPanelColors(boolean)} does not, so that is what re-runs just this.
      */
-    private void applyFloatingControlColors() {
+    private void applyFloatingControlColors(boolean isSchemeLight) {
         final int fill = mActivity.getFloatingButtonFill();
         final int stroke = mActivity.getFloatingButtonStroke();
         final int strokePx = Math.round(mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke));
 
-        // Only contrast mode: with it off these are ordinary panel controls with a panel behind
-        // them, where a shadow reads as detachment. Zeroing the elevation rather than skipping the
-        // call is what makes turning the option off actually take the shadow away.
-        final boolean shadow = mActivity.getColorSchemeManager().isFloatingContrastBackgroundEnabled();
+        // The controls are always composited with the terminal background, so they always carry the
+        // same elevation shadow that lifts them off it.
         final int shadowElevationPx = mActivity.getResources()
             .getDimensionPixelSize(R.dimen.floating_shadow_elevation);
-        final int shadowColor = shadow ? floatingShadowColor() : 0;
+        final int shadowColor = floatingShadowColor(isSchemeLight);
 
         final int textColor = mActivity.getButtonText();
-        final int elevationPx = shadow ? shadowElevationPx : 0;
 
         ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
         if (toggleBtn != null) {
             applyFloatingButtonStyle(toggleBtn, fill, stroke, strokePx, textColor,
-                elevationPx, shadowColor);
+                shadowElevationPx, shadowColor);
         }
 
         // The quick actions are the pencil's peers while the input panel is open, so they must use
@@ -1610,20 +1605,20 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             ImageButton actionButton = mActivity.findViewById(actionId);
             if (actionButton != null) {
                 applyFloatingButtonStyle(actionButton, fill, stroke, strokePx, textColor,
-                    elevationPx, shadowColor);
+                    shadowElevationPx, shadowColor);
             }
         }
 
         // The input panel, while it floats over the terminal, is drawn with that same pair: it is
-        // then one of the elements the "contrast floating element background" option covers, and it
-        // has to follow the live terminal background exactly like the two controls above. Its other
-        // arrangement is an ordinary panel and is painted by applyPanelColors() instead.
+        // then one of the elements drawn on the terminal and has to follow the live terminal
+        // background exactly like the two controls above. Its other arrangement is an ordinary panel
+        // and is painted by applyPanelColors() instead.
         if (mActivity.isTextInputPanelOverTerminal()) {
             // The panel's own pair, not the toggle's — see FLOATING_PANEL_CONTRAST_OPACITY.
             applyTextInputPanelContainerColors(mActivity.getFloatingPanelFill(),
                 mActivity.getFloatingPanelStroke());
             applyFloatingShadow(mActivity.findViewById(R.id.terminal_toolbar_text_input_container),
-                shadow ? shadowElevationPx : 0, shadowColor);
+                shadowElevationPx, shadowColor);
         }
 
         // The action row sits directly above the floating panel, and the panel's own elevation
@@ -1642,11 +1637,16 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         forEachBoundTerminalView(this::applyScrollbarColorsTo);
     }
 
-    /** Black rather than a scheme colour: tinting a shadow with the scheme reads as a border. */
-    private int floatingShadowColor() {
+    /**
+     * Black on light schemes, white on dark ones: a black shadow disappears against a dark
+     * terminal background. The alpha still comes from {@code floating_shadow_alpha}, so only the
+     * colour changes.
+     */
+    private int floatingShadowColor(boolean isSchemeLight) {
         final float alpha = mActivity.getResources()
             .getFraction(R.fraction.floating_shadow_alpha, 1, 1);
-        return android.graphics.Color.argb(Math.round(alpha * 255), 0, 0, 0);
+        final int channel = isSchemeLight ? 0 : 255;
+        return android.graphics.Color.argb(Math.round(alpha * 255), channel, channel, channel);
     }
 
     /**
@@ -1717,7 +1717,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     /**
      * Paint a button exactly like the input-panel toggle: translucent fill and stroke, the active
-     * colour on press/focus, the scheme's icon tint and the same optional drag shadow.
+     * colour on press/focus, the scheme's icon tint and the same drag shadow.
      */
     private static void applyFloatingButtonStyle(ImageButton button, int fill, int stroke,
                                                  int strokePx, int textColor, int elevationPx,
@@ -1762,7 +1762,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // session repainted its own palette) leaves the floating controls mixed with a colour
             // the terminal no longer shows.
             if (mActivity.getColorSchemeManager().refreshFloatingColorsForBackground(bg)) {
-                applyFloatingControlColors();
+                applyFloatingControlColors(ColorSchemeUtils.isColorLight(bg));
             }
             TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight(),
                 mActivity.getEffectiveBackgroundTransparency());

@@ -80,6 +80,25 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             });
         }
 
+        // The row is created by the terminal window, so it has to be told when to remove or
+        // restore it instead of waiting for the next cold start.
+        SwitchPreferenceCompat quickActionsPref = findPreference("input-panel-quick-actions");
+        if (quickActionsPref != null) {
+            // The hint is useful only while the row is switched off: it names the gestures that
+            // take over. With the row on, the switch needs no explanation.
+            quickActionsPref.setSummary(quickActionsPref.isChecked()
+                ? null : getString(R.string.input_panel_quick_actions_disabled_summary));
+            quickActionsPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                preference.setSummary(Boolean.TRUE.equals(newValue)
+                    ? null : getString(R.string.input_panel_quick_actions_disabled_summary));
+                android.content.Intent intent =
+                    new android.content.Intent("com.termux.INPUT_PANEL_QUICK_ACTIONS_CHANGED");
+                intent.setPackage(context.getPackageName());
+                context.sendBroadcast(intent);
+                return true;
+            });
+        }
+
         // Hand-rolled AlertDialog (not a ListPreference), so useSimpleSummaryProvider cannot
         // reach it; the selected option's name is written onto the row here instead.
         final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
@@ -289,6 +308,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "text-input-over-terminal":
                 if (mPreferences != null) mPreferences.setTextInputOverTerminalEnabled(value);
                 break;
+            case "input-panel-quick-actions":
+                if (mPreferences != null) mPreferences.setInputPanelQuickActionsEnabled(value);
+                break;
             case "text_input_append_enter":
                 if (mPreferences != null) mPreferences.setTextInputAppendEnter(value);
                 break;
@@ -347,6 +369,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return getTermuxPrefs().getBoolean("text_input_enabled", true);
             case "text-input-over-terminal":
                 return mPreferences == null || mPreferences.isTextInputOverTerminalEnabled();
+            case "input-panel-quick-actions":
+                return mPreferences == null || mPreferences.areInputPanelQuickActionsEnabled();
             case "text_input_append_enter":
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
             case "per_directory_message_history":

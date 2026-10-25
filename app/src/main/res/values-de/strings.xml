@@ -178,6 +178,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="text_input_toggle_button_title">Schalter für die Eingabeleiste</string>
     <string name="text_input_over_terminal_title">Eingabeleiste über dem Terminal</string>
 
+    <string name="input_panel_quick_actions_title">Zusätzliche Tasten der Eingabeleiste</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">Zusätzliche Aktionen werden durch Wischen auf der Schaltfläche zum Umschalten der Eingabeleiste ausgelöst: nach oben - Eingabeverlauf, nach unten - aus der Zwischenablage einfügen, nach links - Datei anhängen</string>
     <string name="text_input_action_on_send_title">Aktion beim Senden</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Nichts tun</item>
@@ -369,9 +372,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     <string name="terminal_background_blur_radius_title">Hintergrund-Unschärferadius</string>
     <string name="terminal_background_blur_radius_summary">Kann bei dynamischen Hintergründen mit hohem Unschärferadius den Energieverbrauch erhöhen. Bei statischen Hintergründen ist der Energieverbrauch vernachlässigbar.</string>
-
-    <string name="contrast_floating_element_background_title">Kontrastreicher Hintergrund für Elemente über dem Terminal</string>
-    <string name="contrast_floating_element_background_summary">Die Umschalttaste der Eingabeleiste und der Bildlaufgriff des Terminals werden unter Berücksichtigung des Terminalhintergrunds eingefärbt</string>
 
     <string name="terminal_toolbar_scale_title">Skalierung der Leiste</string>
 
@@ -674,11 +674,4 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_notification_deduplication_title">Doppelte Benachrichtigungen verwerfen</string>
     <string name="termux_notification_deduplication_summary">Benachrichtigungen verwerfen, die innerhalb von %1$d Millisekunden nach der zuletzt gesendeten Benachrichtigung eintreffen</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">Dateipfade einfügen</string>
-    <string name="file_path_picker_up">Nach oben</string>
-    <string name="file_path_picker_insert">Einfügen</string>
-    <string name="file_path_picker_empty">Dieser Ordner ist leer</string>
-    <string name="file_path_picker_loading">Wird geladen…</string>
-    <string name="file_path_picker_unreadable">Dieser Ordner kann nicht gelesen werden</string>
 </resources>

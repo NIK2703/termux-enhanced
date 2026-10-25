@@ -314,6 +314,19 @@ public final class TermuxActivityPopupController {
         mHistoryPopup.setTouchable(interactive);
         mHistoryPopup.setFocusable(false);
         mHistoryPopup.setOutsideTouchable(interactive);
+        // A press on the anchor button counts as an outside touch for the popup. If PopupWindow
+        // dismisses on that ACTION_OUTSIDE, the button's own ACTION_DOWN sees no popup and treats
+        // the release as a fresh tap, reopening it. Swallow only that one case; every other
+        // outside touch still closes the popup through PopupWindow's normal path.
+        mHistoryPopup.setTouchInterceptor((popup, event) -> {
+            if (!interactive || event.getActionMasked() != MotionEvent.ACTION_OUTSIDE) return false;
+            final int[] loc = new int[2];
+            anchor.getLocationOnScreen(loc);
+            final float x = event.getRawX();
+            final float y = event.getRawY();
+            return x >= loc[0] && x < loc[0] + anchor.getWidth()
+                && y >= loc[1] && y < loc[1] + anchor.getHeight();
+        });
 
         // Bounded box: min(content, configured max, room above the button).
         // Gap between the button's top and the popup's bottom edge.

@@ -149,6 +149,19 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_TEXT_INPUT_OVER_TERMINAL, value);
     }
 
+    /**
+     * Whether the open input panel shows its additional paste, attach and history buttons.
+     * When off, the toggle button's swipes keep doing those jobs as before.
+     */
+    public boolean areInputPanelQuickActionsEnabled() {
+        return getBooleanByKey(TERMUX_APP.KEY_INPUT_PANEL_QUICK_ACTIONS,
+            TERMUX_APP.DEFAULT_VALUE_INPUT_PANEL_QUICK_ACTIONS);
+    }
+
+    public void setInputPanelQuickActionsEnabled(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_INPUT_PANEL_QUICK_ACTIONS, value);
+    }
+
     public boolean shouldTextInputHideOnSend() {
         String action = getTextInputActionOnSend();
         return action.equals(TERMUX_APP.TEXT_INPUT_ACTION_ON_SEND_HIDE_PANEL)
@@ -414,20 +427,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
     public int getButtonBgActiveAlpha() {
         return getInt(TERMUX_APP.KEY_BUTTON_BG_ACTIVE_ALPHA, TERMUX_APP.DEFAULT_BUTTON_BG_ACTIVE_ALPHA);
-    }
-
-    /**
-     * Whether the two controls drawn on the terminal (the input-panel toggle button and the
-     * scrollbar thumb) have the terminal background colour mixed into them, so they read as part
-     * of the terminal rather than as shapes pasted on it.
-     */
-    public boolean isContrastFloatingElementBackgroundEnabled() {
-        return getBooleanByKey(TERMUX_APP.KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND,
-            TERMUX_APP.DEFAULT_CONTRAST_FLOATING_ELEMENT_BACKGROUND);
-    }
-
-    public void setContrastFloatingElementBackgroundEnabled(boolean value) {
-        setGenericBoolean(TERMUX_APP.KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND, value);
     }
 
     public boolean areCrashReportNotificationsEnabled(boolean readFromFile) {

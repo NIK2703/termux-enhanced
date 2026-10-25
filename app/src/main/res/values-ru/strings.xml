@@ -49,6 +49,9 @@
     <string name="action_input_history">История ввода</string>
     <string name="action_input_paste">Вставить из буфера обмена</string>
     <string name="action_input_attach">Прикрепить файл</string>
+    <string name="attachment_picker_error">Не удалось прикрепить выбранный элемент</string>
+    <string name="attachment_picker_empty">Не выбрано ни одного доступного элемента</string>
+    <string name="attachment_picker_directory_not_local">Эта директория недоступна как локальный путь</string>
 
     <string name="msg_terminal_panel_enabling">Включение панели терминала</string>
     <string name="msg_terminal_panel_disabling">Отключение панели терминала</string>
@@ -296,6 +299,8 @@
     
     <string name="text_input_toggle_button_title">Кнопка переключения панели ввода</string>
     <string name="text_input_over_terminal_title">Панель ввода поверх терминала</string>
+    <string name="input_panel_quick_actions_title">Дополнительные кнопки панели ввода</string>
+    <string name="input_panel_quick_actions_disabled_summary">Дополнительные действия активируются свайпами по кнопке переключения панели ввода: вверх - история ввода, вниз - вставка из буфера обмена, влево - прикрепление файла</string>
 
     
     <string name="input_history_empty">История ввода пуста</string>
@@ -436,9 +441,6 @@
 
     <string name="terminal_background_blur_radius_title">Радиус размытия фона</string>
     <string name="terminal_background_blur_radius_summary">Может вызывать повышенное энергопотребление при динамическом фоне с высоким радиусом размытия. На статическом фоне энергопотребление несущественно</string>
-
-    <string name="contrast_floating_element_background_title">Контрастный фон надтерминальных элементов</string>
-    <string name="contrast_floating_element_background_summary">Кнопка переключения панели ввода и ручка прокрутки терминала окрашиваются с учётом фона терминала</string>
 
     <string name="terminal_toolbar_scale_title">Масштаб панели</string>
 
@@ -802,11 +804,4 @@
     <string name="notification_terminal_reply_hint">Введите команду и отправьте</string>
     <string name="terminal_notification_channel_description">Сообщения от программ, запущенных в сеансе терминала</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">Вставить пути к файлам</string>
-    <string name="file_path_picker_up">Вверх</string>
-    <string name="file_path_picker_insert">Вставить</string>
-    <string name="file_path_picker_empty">Эта директория пуста</string>
-    <string name="file_path_picker_loading">Загрузка…</string>
-    <string name="file_path_picker_unreadable">Не удалось прочитать директорию</string>
 </resources>

@@ -175,6 +175,9 @@
     <string name="text_input_toggle_button_title">Giriş panelini aç/kapat düğmesi</string>
     <string name="text_input_over_terminal_title">Giriş panelini terminalin üstünde</string>
 
+    <string name="input_panel_quick_actions_title">Giriş paneli ek düğmeleri</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">Ek eylemler, giriş paneli aç/kapat düğmesinde kaydırılarak etkinleştirilir: yukarı - giriş geçmişi, aşağı - panodan yapıştır, sola - dosya ekle</string>
     <string name="text_input_action_on_send_title">Gönderim eylemi</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Hiçbir şey yapma</item>
@@ -382,9 +385,6 @@
 
     <string name="terminal_background_blur_radius_title">Arka plan bulanıklık yarıçapı</string>
     <string name="terminal_background_blur_radius_summary">Dinamik arka planlarda yüksek bulanıklık yarıçapı güç tüketimini artırabilir. Statik arka planlarda güç tüketimi önemsizdir.</string>
-
-    <string name="contrast_floating_element_background_title">Terminal üstü ögeler için kontrast arka plan</string>
-    <string name="contrast_floating_element_background_summary">Giriş paneli geçiş düğmesi ve terminal kaydırma tutamacı terminal arka planına göre renklendirilir</string>
 
     
     <string name="terminal_toolbar_scale_title">Araç çubuğu ölçeği</string>
@@ -693,11 +693,4 @@
     <string name="termux_notification_deduplication_title">Bildirim tekilleştirme</string>
     <string name="termux_notification_deduplication_summary">Gönderilen son bildirimden sonraki %1$d milisaniye içinde gelen bildirimleri yoksay</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">Dosya yollarını ekle</string>
-    <string name="file_path_picker_up">Yukarı</string>
-    <string name="file_path_picker_insert">Ekle</string>
-    <string name="file_path_picker_empty">Bu klasör boş</string>
-    <string name="file_path_picker_loading">Yükleniyor…</string>
-    <string name="file_path_picker_unreadable">Bu klasör okunamıyor</string>
 </resources>

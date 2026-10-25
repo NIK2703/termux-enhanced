@@ -125,6 +125,14 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL = false;
 
         /**
+         * Defines the key for whether the open input panel shows its additional paste, attach and
+         * history buttons. When off, those actions are reached with the input-panel toggle
+         * button's swipes, exactly as they were before the buttons were added.
+         */
+        public static final String KEY_INPUT_PANEL_QUICK_ACTIONS = "input-panel-quick-actions";
+        public static final boolean DEFAULT_VALUE_INPUT_PANEL_QUICK_ACTIONS = true;
+
+        /**
          * Defines the key for what should happen after sending a message from the text
          * input field (e.g. by pressing Enter on the keyboard). It is a single choice
          * that replaces the previously separate "hide input panel" and "hide keyboard"
@@ -282,17 +290,6 @@ public final class TermuxPreferenceConstants {
          */
         public static final String KEY_BUTTON_BG_ACTIVE_ALPHA = "button_bg_active_alpha";
         public static final int DEFAULT_BUTTON_BG_ACTIVE_ALPHA = 12;
-
-        /**
-         * Defines the key for whether the two controls drawn <b>on</b> the terminal — the
-         * input-panel toggle button and the scrollbar thumb — are mixed with the terminal
-         * background colour, so that they read as part of the terminal instead of as shapes pasted
-         * on it. The terminal background transparency is the weight of that mix (0% mixes nothing
-         * in); the controls keep their own configured transparency either way. Off by default:
-         * both controls are then the plain translucent tints the panel buttons use.
-         */
-        public static final String KEY_CONTRAST_FLOATING_ELEMENT_BACKGROUND = "contrast-floating-element-background";
-        public static final boolean DEFAULT_CONTRAST_FLOATING_ELEMENT_BACKGROUND = false;
 
         /* ###################################################################
          * Keys migrated from the ~/.termux/termux.properties file.

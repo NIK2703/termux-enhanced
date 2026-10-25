@@ -13,13 +13,11 @@ import com.termux.terminal.TextStyle;
  * Caches all UI colours derived from the terminal colour scheme and panel transparency prefs.
  * <p>
  * Must be {@link #recompute(TermuxAppSharedPreferences)}d whenever the scheme, the
- * inactive/active-alpha sliders, the terminal background transparency or the
- * "contrast floating element background" switch change so that every styled element uses fresh
- * colours without recomputing them on every draw / event.
+ * inactive/active-alpha sliders or the terminal background transparency changes so that every
+ * styled element uses fresh colours without recomputing them on every draw / event.
  * <p>
  * The terminal background transparency is used by exactly one thing here: as the weight the
- * terminal background COLOUR is mixed into the two controls drawn on the terminal with — and only
- * while the "contrast floating element background" option is on (see
+ * terminal background COLOUR is mixed into the two controls drawn on the terminal with (see
  * {@link #deriveFloatingColors(int)}). It never changes the controls' own transparency.
  */
 public final class TermuxColorSchemeManager {
@@ -44,10 +42,9 @@ public final class TermuxColorSchemeManager {
     private TermuxColorSchemeManager() {}
 
     /**
-     * Opacity the two controls drawn on the terminal are painted at in <b>contrast-background</b>
-     * mode, where their tint has already been composited onto the terminal background. The tint
-     * goes in at double strength there precisely because this halving undoes it, so the strength the
-     * eye ends up seeing is the configured one.
+     * Opacity the two controls drawn on the terminal are painted at after their tint has been
+     * composited onto the terminal background. The tint goes in at double strength precisely
+     * because this halving undoes it, so the strength the eye ends up seeing is the configured one.
      */
     private static final int FLOATING_CONTROL_CONTRAST_OPACITY = 128; // 50%
 
@@ -58,8 +55,8 @@ public final class TermuxColorSchemeManager {
     private static final int FLOATING_PANEL_CONTRAST_OPACITY = 204; // 80%
 
     /**
-     * Strength multiplier the tint is taken at in <b>contrast-background</b> mode, relative to the
-     * configured alpha percentage. It compensates {@link #FLOATING_CONTROL_CONTRAST_OPACITY} —
+     * Strength multiplier the tint is taken at, relative to the configured alpha percentage. It
+     * compensates {@link #FLOATING_CONTROL_CONTRAST_OPACITY} —
      * which halves the strength again — so the controls end up carrying the configured {@code pct}
      * of their tint.
      */
@@ -92,16 +89,10 @@ public final class TermuxColorSchemeManager {
     private int mFloatingActivePct = 0;
     /**
      * Terminal background transparency (0-100%), i.e. the weight its colour is mixed into the two
-     * colours above with — see {@link #deriveFloatingColors(int)}. Only used while
-     * {@link #mFloatingContrastBackground} is on. Also reused when only the background changes.
+     * colours above with — see {@link #deriveFloatingColors(int)}. Also reused when only the
+     * background changes.
      */
     private int mFloatingTransparencyPct = 0;
-    /**
-     * The "contrast floating element background" option: whether the terminal background colour is
-     * mixed into the two colours above at all. Off by default, i.e. both controls are the plain
-     * translucent tints the panel buttons use.
-     */
-    private boolean mFloatingContrastBackground = false;
 
     // --- Raw scheme colours ---
     private int mSchemeBackground = 0;
@@ -125,8 +116,7 @@ public final class TermuxColorSchemeManager {
      * {@code TermuxActivity.getEffectiveBackgroundTransparency()}, so the live activity must call
      * {@link #recompute(TermuxAppSharedPreferences, int)} with that value instead.
      *
-     * @param prefs app preferences (button alpha percentages, background transparency, contrast
-     *              floating element background).
+     * @param prefs app preferences (button alpha percentages, background transparency).
      */
     public void recompute(@NonNull TermuxAppSharedPreferences prefs) {
         recompute(prefs, prefs.getTerminalBackgroundTransparency());
@@ -136,19 +126,17 @@ public final class TermuxColorSchemeManager {
      * (Re)compute ALL cached colours from the scheme, the panel alpha percentages and the given
      * terminal background transparency.
      *
-     * @param prefs           app preferences (button alpha percentages, contrast floating element
-     *                        background).
+     * @param prefs           app preferences (button alpha percentages).
      * @param transparencyPct The transparency the terminal is actually painted with, i.e.
      *                        {@code TermuxActivity.getEffectiveBackgroundTransparency()}.
      */
     public void recompute(@NonNull TermuxAppSharedPreferences prefs, int transparencyPct) {
-        recompute(prefs.getButtonBgInactiveAlpha(), prefs.getButtonBgActiveAlpha(), transparencyPct,
-            prefs.isContrastFloatingElementBackgroundEnabled());
+        recompute(prefs.getButtonBgInactiveAlpha(), prefs.getButtonBgActiveAlpha(), transparencyPct);
     }
 
     /** Convenience overload using the default button alpha percentages and an opaque background. */
     public void recompute() {
-        recompute(5, 12, 0, false);
+        recompute(5, 12, 0);
     }
 
     /**
@@ -158,18 +146,13 @@ public final class TermuxColorSchemeManager {
      * @param activePct         Active button background alpha (0–100).
      * @param transparencyPct   Terminal background transparency (0–100), used as the weight the
      *                          terminal background colour is mixed into the two controls drawn on
-     *                          the terminal with. Their own transparency is NOT affected by it, and
-     *                          nothing is mixed in while {@code contrastBackground} is off.
-     * @param contrastBackground Whether the terminal background is mixed into those two controls at
-     *                          all; see {@link #deriveFloatingColors(int)}.
+     *                          the terminal with. Their own transparency is NOT affected by it.
      */
-    public void recompute(int inactivePct, int activePct, int transparencyPct,
-                          boolean contrastBackground) {
+    public void recompute(int inactivePct, int activePct, int transparencyPct) {
         mIsSchemeLight = ColorSchemeUtils.isTerminalSchemeLight();
         mFloatingInactivePct = inactivePct;
         mFloatingActivePct = activePct;
         mFloatingTransparencyPct = transparencyPct < 0 ? 0 : Math.min(transparencyPct, 100);
-        mFloatingContrastBackground = contrastBackground;
 
         // Raw scheme colours.
         mSchemeBackground = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
@@ -189,9 +172,8 @@ public final class TermuxColorSchemeManager {
         mButtonText = mSchemeForeground;
 
         // The two controls drawn straight on the terminal — the input-panel toggle and the scrollbar
-        // thumb. Off by default they are the SAME translucent tints the panel buttons use (same
-        // function, same scheme-based light/dark decision); with the contrast option on they are
-        // recomputed against the terminal background instead.
+        // thumb — are always composited with the terminal background so they stay readable against
+        // it instead of merely lying on top of it.
         deriveFloatingColors(mSchemeBackground);
 
         // Text-selection highlight: scheme foreground tinted to ~15% alpha (scheme-consistent,
@@ -211,22 +193,13 @@ public final class TermuxColorSchemeManager {
 
     /**
      * Cache the colours of the two controls drawn on the terminal — the input-panel toggle and the
-     * scrollbar thumb — in whichever of the two modes the "contrast floating element background"
-     * option selects.
-     *
-     * <p><b>Option off (default).</b> Both controls are the plain translucent tints the panel
-     * buttons use, at exactly the alpha the user configured for them — black on a light scheme,
-     * white on a dark one, decided from the scheme background colour alone. The terminal background
-     * is not involved at all.
-     *
-     * <p><b>Option on.</b> The terminal background colour is mixed into the tint, weighted by the
+     * scrollbar thumb — by mixing the terminal background colour into the tint, weighted by the
      * terminal background's transparency: {@code colour = (1 - t) * tint + t * terminalBackground}.
-     * Both are then composited into the background and painted at {@link
-     * #FLOATING_CONTROL_CONTRAST_OPACITY}, with the tint taken at {@link
-     * #FLOATING_CONTROL_CONTRAST_TINT_SCALE}× the configured alpha because that halving undoes it,
-     * leaving the controls at the configured strength, i.e. readable against the terminal instead
-     * of merely lying on it. The composited colour is opaque, so the 50% is what makes the control
-     * translucent again.
+     * The composited colour is opaque; it is then painted at
+     * {@link #FLOATING_CONTROL_CONTRAST_OPACITY}, with the tint taken at
+     * {@link #FLOATING_CONTROL_CONTRAST_TINT_SCALE}× the configured alpha because that halving
+     * undoes it, leaving the controls at the configured strength, i.e. readable against the terminal
+     * instead of merely lying on it.
      *
      * <p>Why the mix keeps the tint direction true: at 0% the terminal background already sits under
      * the control, so the control is the plain tint; the more of that background the wallpaper
@@ -235,34 +208,24 @@ public final class TermuxColorSchemeManager {
      * light scheme can never stop darkening and a light tint on a dark scheme can never stop
      * lightening, whatever the wallpaper shows through.
      *
-     * <p>Contrast mode decides the tint direction from {@code background} rather than from the
-     * cached scheme lightness, because there the colour only makes sense against the surface it is
-     * painted on — the terminal background, which a shell can change behind the app's back. In the
-     * default mode it is the scheme lightness, the same decision the panel buttons are drawn by.
+     * <p>The tint direction is decided from {@code background} rather than from the cached scheme
+     * lightness, because the colour only makes sense against the surface it is painted on — the
+     * terminal background, which a shell can change behind the app's back.
      */
     private void deriveFloatingColors(int background) {
-        if (!mFloatingContrastBackground) {
-            mFloatingButtonFill =
-                ColorSchemeUtils.getButtonBackground(mIsSchemeLight, mFloatingInactivePct);
-            mFloatingButtonStroke =
-                ColorSchemeUtils.getButtonActiveBackground(mIsSchemeLight, mFloatingActivePct);
-            mFloatingPanelFill = mFloatingButtonFill;
-            mFloatingPanelStroke = mFloatingButtonStroke;
-        } else {
-            final boolean backgroundIsLight = ColorSchemeUtils.isColorLight(background);
-            final int overlayInactive = ColorSchemeUtils.getButtonBackground(backgroundIsLight,
-                    Math.min(100, Math.round(mFloatingInactivePct * FLOATING_INACTIVE_CONTRAST_TINT_SCALE)));
-            final int overlayActive = ColorSchemeUtils.getButtonActiveBackground(backgroundIsLight,
-                    Math.min(100, Math.round(mFloatingActivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE)));
-            // One composite each, then two opacities over it, so the panel and the controls agree
-            // on colour and differ only in how much of the terminal each lets through.
-            final int fill = compositeColors(background, overlayInactive);
-            final int stroke = compositeColors(background, overlayActive);
-            mFloatingButtonFill = withAlpha(fill, FLOATING_CONTROL_CONTRAST_OPACITY);
-            mFloatingButtonStroke = withAlpha(stroke, FLOATING_CONTROL_CONTRAST_OPACITY);
-            mFloatingPanelFill = withAlpha(fill, FLOATING_PANEL_CONTRAST_OPACITY);
-            mFloatingPanelStroke = withAlpha(stroke, FLOATING_PANEL_CONTRAST_OPACITY);
-        }
+        final boolean backgroundIsLight = ColorSchemeUtils.isColorLight(background);
+        final int overlayInactive = ColorSchemeUtils.getButtonBackground(backgroundIsLight,
+                Math.min(100, Math.round(mFloatingInactivePct * FLOATING_INACTIVE_CONTRAST_TINT_SCALE)));
+        final int overlayActive = ColorSchemeUtils.getButtonActiveBackground(backgroundIsLight,
+                Math.min(100, Math.round(mFloatingActivePct * FLOATING_CONTROL_CONTRAST_TINT_SCALE)));
+        // One composite each, then two opacities over it, so the panel and the controls agree
+        // on colour and differ only in how much of the terminal each lets through.
+        final int fill = compositeColors(background, overlayInactive);
+        final int stroke = compositeColors(background, overlayActive);
+        mFloatingButtonFill = withAlpha(fill, FLOATING_CONTROL_CONTRAST_OPACITY);
+        mFloatingButtonStroke = withAlpha(stroke, FLOATING_CONTROL_CONTRAST_OPACITY);
+        mFloatingPanelFill = withAlpha(fill, FLOATING_PANEL_CONTRAST_OPACITY);
+        mFloatingPanelStroke = withAlpha(stroke, FLOATING_PANEL_CONTRAST_OPACITY);
         mFloatingBackground = background;
     }
 
@@ -270,25 +233,19 @@ public final class TermuxColorSchemeManager {
      * Re-derive the floating controls' colours from the background the terminal is actually
      * painting, leaving the rest of the cache alone.
      *
-     * <p>Only meaningful in contrast-background mode, where a background that changed without the
-     * scheme changing would leave the controls carrying a colour the terminal no longer shows. A
-     * running shell can repaint the terminal through OSC 4/11 without {@link
-     * TerminalColors#COLOR_SCHEME} noticing — writing the live colour back would discard the user's
-     * scheme — so this is the only place that can pick the live colour up.
+     * <p>A background that changed without the scheme changing would otherwise leave the controls
+     * carrying a colour the terminal no longer shows. A running shell can repaint the terminal
+     * through OSC 4/11 without {@link TerminalColors#COLOR_SCHEME} noticing — writing the live
+     * colour back would discard the user's scheme — so this is the only place that can pick the
+     * live colour up.
      *
-     * <p>In the default mode the background is only remembered, not used, so a background change
-     * must not repaint the controls. The transparency weight and the contrast option are NOT
-     * re-read here either: they are preferences, and the caller re-runs {@link
-     * #recompute(int, int, int, boolean)} when they change.
+     * <p>The transparency weight is NOT re-read here: it is a preference, and the caller re-runs
+     * {@link #recompute(int, int, int)} when it changes.
      *
      * @return {@code true} when the cached colours changed, i.e. the caller has to re-apply them.
      */
     public boolean refreshFloatingColorsForBackground(int background) {
         if (background == mFloatingBackground) return false;
-        if (!mFloatingContrastBackground) {
-            mFloatingBackground = background;
-            return false;
-        }
         final int fill = mFloatingButtonFill;
         final int stroke = mFloatingButtonStroke;
         final int panelFill = mFloatingPanelFill;
@@ -297,12 +254,6 @@ public final class TermuxColorSchemeManager {
         return fill != mFloatingButtonFill || stroke != mFloatingButtonStroke
             || panelFill != mFloatingPanelFill || panelStroke != mFloatingPanelStroke;
     }
-
-    /**
-     * @return Whether the terminal background is mixed into the two controls drawn on it — the
-     *         "contrast floating element background" option.
-     */
-    public boolean isFloatingContrastBackgroundEnabled() { return mFloatingContrastBackground; }
 
     /** Apply {@code alpha} (0–255) to the RGB of {@code color}, keeping the scheme hue. */
     private static int withAlpha(int color, int alpha) {
@@ -319,8 +270,8 @@ public final class TermuxColorSchemeManager {
 
     public int getTextSelectionHighlightColor() { return mTextSelectionHighlightColor; }
 
-    /** Fill of the floating controls: the inactive tint at the user's alpha, either plain or
-     * carried by the terminal background. */
+    /** Fill of the floating controls: the inactive tint at the user's alpha, composited with the
+     * terminal background. */
     public int getFloatingButtonFill() { return mFloatingButtonFill; }
 
     /** Fill of the input panel while it floats over the terminal — {@link #getFloatingButtonFill()}
@@ -331,7 +282,7 @@ public final class TermuxColorSchemeManager {
     public int getFloatingPanelStroke() { return mFloatingPanelStroke; }
 
     /** Stroke (and pressed fill) of the floating controls: the active tint at the user's alpha,
-     * either plain or carried by the terminal background. */
+     * composited with the terminal background. */
     public int getFloatingButtonStroke() { return mFloatingButtonStroke; }
 
     public boolean isSchemeLight() { return mIsSchemeLight; }

@@ -178,6 +178,9 @@
     <string name="text_input_toggle_button_title">输入面板切换按钮</string>
     <string name="text_input_over_terminal_title">输入面板置于终端之上</string>
 
+    <string name="input_panel_quick_actions_title">输入面板的附加按钮</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">附加操作可通过在输入面板切换按钮上滑动来启用：向上 - 输入历史记录，向下 - 从剪贴板粘贴，向左 - 附加文件</string>
     <string name="text_input_action_on_send_title">发送操作</string>
     <string-array name="text_input_action_on_send_entries">
         <item>无操作</item>
@@ -388,9 +391,6 @@
 
     <string name="terminal_background_blur_radius_title">背景模糊半径</string>
     <string name="terminal_background_blur_radius_summary">模糊半径较高且使用动态背景时可能增加耗电量；使用静态背景时，对耗电量的影响可忽略不计。</string>
-
-    <string name="contrast_floating_element_background_title">终端上层元素的对比背景</string>
-    <string name="contrast_floating_element_background_summary">输入面板切换按钮与终端滚动条滑块会结合终端背景着色</string>
 
     <string name="terminal_toolbar_scale_title">面板缩放</string>
 
@@ -656,11 +656,4 @@
     <string name="termux_notification_deduplication_title">通知去重</string>
     <string name="termux_notification_deduplication_summary">丢弃在上一次发送通知后 %1$d 毫秒内到达的通知。</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">插入文件路径</string>
-    <string name="file_path_picker_up">上一级</string>
-    <string name="file_path_picker_insert">插入</string>
-    <string name="file_path_picker_empty">此文件夹为空</string>
-    <string name="file_path_picker_loading">正在加载…</string>
-    <string name="file_path_picker_unreadable">无法读取此文件夹</string>
 </resources>

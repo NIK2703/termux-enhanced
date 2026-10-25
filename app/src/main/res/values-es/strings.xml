@@ -171,6 +171,9 @@
     <string name="text_input_toggle_button_title">Botón para alternar el panel de entrada</string>
     <string name="text_input_over_terminal_title">Panel de entrada sobre el terminal</string>
 
+    <string name="input_panel_quick_actions_title">Botones adicionales del panel de entrada</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">Las acciones adicionales se activan deslizando el botón de alternancia del panel de entrada: arriba - historial de entrada, abajo - pegar desde el portapapeles, izquierda - adjuntar archivo</string>
     <string name="text_input_action_on_send_title">Acción al enviar</string>
     <string-array name="text_input_action_on_send_entries">
         <item>Nada</item>
@@ -389,8 +392,6 @@
     <string name="terminal_background_blur_radius_title">Radio de desenfoque del fondo</string>
     <string name="terminal_background_blur_radius_summary">Puede aumentar el consumo de energía con fondos dinámicos y un radio de desenfoque alto. Con fondos estáticos, el impacto en el consumo es insignificante.</string>
 
-    <string name="contrast_floating_element_background_title">Fondo contrastado para elementos sobre el terminal</string>
-    <string name="contrast_floating_element_background_summary">El botón de alternancia del panel de entrada y el control de desplazamiento del terminal se colorean teniendo en cuenta el fondo del terminal</string>
     <string name="terminal_onclick_url_open_title">Abrir enlaces al tocar</string>
     <string name="terminal_toolbar_scale_title">Escala del panel</string>
     <string name="terminal_transcript_rows_summary">Número de líneas que se conservan en el búfer de desplazamiento.</string>
@@ -615,11 +616,4 @@
     <string name="termux_notification_deduplication_title">Deduplicación de notificaciones</string>
     <string name="termux_notification_deduplication_summary">Descartar las notificaciones que llegan en los %1$d milisegundos posteriores al último envío</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">Insertar rutas de archivo</string>
-    <string name="file_path_picker_up">Subir</string>
-    <string name="file_path_picker_insert">Insertar</string>
-    <string name="file_path_picker_empty">Esta carpeta está vacía</string>
-    <string name="file_path_picker_loading">Cargando…</string>
-    <string name="file_path_picker_unreadable">No se puede leer esta carpeta</string>
 </resources>

@@ -2,6 +2,7 @@ package com.termux.app;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
@@ -41,8 +42,8 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.termux.R;
 import com.termux.app.api.file.FileReceiverActivity;
+import com.termux.app.attachments.AttachmentPicker;
 import com.termux.app.bubble.TermuxBubbleManager;
-import com.termux.app.filepicker.FilePathPickerDialog;
 import com.termux.app.notification.TermuxTerminalNotificationDispatcher;
 import com.termux.app.terminal.TermuxActivityRootView;
 import com.termux.app.terminal.TermuxServiceConnectionManager;
@@ -425,8 +426,6 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
     private TextInputPanelController mTextInputPanel;
     private AutoCompleteController mAutoCompleteCtrl;
-    /** Non-null while the file-path picker opened from the input-panel button is showing. */
-    @Nullable private FilePathPickerDialog mFilePathPicker;
     /** The session whose text the shared input field currently displays. Set ONLY by
      * restoreTextInputForSession() — the single authority that re-points the field.
      * Invariant: the field is always the live buffer of the CURRENT session; every
@@ -1379,13 +1378,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         unregisterClipboardListener();
 
         Logger.logDebug(LOG_TAG, "onDestroy");
-
-        // The path picker owns a dialog window and a background listing thread; release both
-        // before the activity goes away.
-        if (mFilePathPicker != null) {
-            mFilePathPicker.dismiss();
-            mFilePathPicker = null;
-        }
 
         // Release the debug-hook handle only if it is still ours. The bubble window is a second
         // instance of this class; clearing unconditionally meant that closing the bubble blanked the
@@ -2815,9 +2807,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             //     which stays open while the finger is held; releasing over an item
             //     picks it, releasing elsewhere just dismisses;
             //   - a swipe down pastes the clipboard;
-            //   - a swipe left opens the file-path picker.
-            // While the input panel is open, those same actions live on the quick-action row
-            // to the left of the button, so the swipes are suppressed and only a tap toggles.
+            //   - a swipe left opens the system document picker.
+            // While the input panel is open and the additional buttons are enabled, those same
+            // actions live on the quick-action row to the left of the button, so the swipes are
+            // suppressed and only a tap toggles. With the row switched off, the swipes stay
+            // available whether the panel is open or closed, as they were before the row existed.
             final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
             final float[] downXY = new float[2];
             final boolean[] gestureActive = { false };
@@ -2831,8 +2825,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // (showing the panel first if it is hidden), and must not fall back to a plain
             // tap on release.
             final boolean[] swipeDownPending = { false };
-            // Set once the finger has swiped left past the touch slop: the file-path picker
-            // has been opened and the release must not toggle the panel.
+            // Set once the finger has swiped left past the touch slop: the system document
+            // picker has been opened and the release must not toggle the panel.
             final boolean[] swipeLeftPending = { false };
 
             toggleTextInputButton.setOnTouchListener((v, event) -> {
@@ -2863,8 +2857,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         }
                         // The panel's open state owns the quick-action row. Do not also fire the
                         // hidden swipes on the pencil, or a swipe left would open the picker from
-                        // the same button that now has a file button next to it.
-                        if (!panelOpenAtDown[0]) {
+                        // the same button that now has a file button next to it. With the row
+                        // switched off there is nothing to defer to, so the swipes stay live.
+                        if (!panelOpenAtDown[0] || !areInputPanelQuickActionsEnabled()) {
                             // Open the history popup once the finger has dragged up past
                             // the touch slop (and the drag is more vertical than sideways).
                             if (!mPopupCtrl.isHistoryPopupShowing()
@@ -2882,14 +2877,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                                 swipeDownPending[0] = true;
                                 pasteClipboardIntoTextInput();
                             }
-                            // Swipe left past the touch slop opens the file-path picker. The
-                            // selected paths are inserted into the input panel when the picker
-                            // is confirmed (see openFilePathPicker()).
+                            // Swipe left past the touch slop opens the system document picker
+                            // directly. The selected paths are inserted into the input panel
+                            // when the picker returns.
                             if (!mPopupCtrl.isHistoryPopupShowing() && !swipeDownPending[0]
                                     && !swipeLeftPending[0]
                                     && dx < -touchSlop && Math.abs(dx) > Math.abs(dy)) {
                                 swipeLeftPending[0] = true;
-                                openFilePathPicker();
+                                launchAttachmentFilePicker();
                             }
                         }
                         if (mPopupCtrl.isHistoryPopupShowing()) {
@@ -2976,7 +2971,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         View attachButton = mInputPanelActions.findViewById(R.id.input_panel_attach_button);
         if (attachButton != null) {
-            attachButton.setOnClickListener(v -> openFilePathPicker());
+            attachButton.setOnClickListener(v -> launchAttachmentFilePicker());
+            attachButton.setOnLongClickListener(v -> {
+                launchAttachmentDirectoryPicker();
+                return true;
+            });
             keepPanelWhilePressingAction(attachButton);
         }
 
@@ -3044,6 +3043,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final boolean[] gestureActive = { false };
         final boolean[] gestureMoved = { false };
         final boolean[] swipeUpPending = { false };
+        final boolean[] closePopupOnly = { false };
 
         historyButton.setOnTouchListener((v, event) -> {
             switch (event.getActionMasked()) {
@@ -3053,14 +3053,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     gestureActive[0] = true;
                     gestureMoved[0] = false;
                     swipeUpPending[0] = false;
-                    // A popup opened by the previous tap must not sit between the finger and
-                    // this gesture. Pressing the button starts a fresh one.
+                    // Pressing the button while its popup is open acts as a close toggle: the
+                    // popup goes away on press and the release must not open it again.
+                    closePopupOnly[0] = mPopupCtrl.isHistoryPopupShowing();
                     mPopupCtrl.dismissMessageHistoryPopup();
                     mButtonTouchInProgress = true;
                     v.setPressed(true);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
                     if (!gestureActive[0]) return true;
+                    if (closePopupOnly[0]) {
+                        // This gesture is only closing the existing popup, not starting a new
+                        // swipe selection.
+                        v.setPressed(true);
+                        return true;
+                    }
                     if (mPopupCtrl.isHistoryPopupShowing()) {
                         // Keep the button lit and let the popup follow the finger, exactly like
                         // the pencil's swipe-up selection.
@@ -3094,7 +3101,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                         if (event.getActionMasked() == MotionEvent.ACTION_UP) {
                             mPopupCtrl.activateHistorySelection(selected);
                         }
-                    } else if (gestureActive[0] && !gestureMoved[0]
+                    } else if (!closePopupOnly[0] && gestureActive[0] && !gestureMoved[0]
                             && event.getActionMasked() == MotionEvent.ACTION_UP) {
                         // No swipe: a plain press-and-release is the tap that opens the
                         // touchable popup. performClick keeps accessibility and feedback.
@@ -3103,6 +3110,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     gestureActive[0] = false;
                     gestureMoved[0] = false;
                     swipeUpPending[0] = false;
+                    closePopupOnly[0] = false;
                     v.post(() -> mButtonTouchInProgress = false);
                     return true;
                 }
@@ -3132,20 +3140,62 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Open the file-path picker from the toggle button's left swipe. The paths are inserted into
-     * the text input panel when the picker is confirmed; the picker starts in the current session's
-     * working directory, so the user does not have to walk there from $HOME.
+     * Open the system document picker for files. Android uses a separate system picker for
+     * directories, so that one is opened by a long-press on the attach button instead of adding
+     * a second custom chooser in front of the system UI.
      */
-    private void openFilePathPicker() {
-        if (mFilePathPicker != null) return;
+    private void launchAttachmentFilePicker() {
+        try {
+            startActivityForResult(AttachmentPicker.createFilesIntent(),
+                AttachmentPicker.REQUEST_PICK_FILES);
+        } catch (ActivityNotFoundException e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "No system document picker available", e);
+            Toast.makeText(this, R.string.attachment_picker_error, Toast.LENGTH_LONG).show();
+        }
+    }
 
-        String initialDirectory = null;
-        final TerminalSession session = getCurrentSession();
-        if (session != null) initialDirectory = session.getCwd();
+    private void launchAttachmentDirectoryPicker() {
+        try {
+            startActivityForResult(AttachmentPicker.createDirectoryIntent(),
+                AttachmentPicker.REQUEST_PICK_DIRECTORY);
+        } catch (ActivityNotFoundException e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "No system document-tree picker available", e);
+            Toast.makeText(this, R.string.attachment_picker_error, Toast.LENGTH_LONG).show();
+        }
+    }
 
-        mFilePathPicker = FilePathPickerDialog.show(this, initialDirectory,
-            paths -> insertPathsIntoTextInput(paths),
-            () -> mFilePathPicker = null);
+    /**
+     * The system picker returns content URIs. Resolve them off the UI thread because files from
+     * providers without a local path have to be copied into Termux's attachment directory first.
+     */
+    private void handleAttachmentPickerResult(@NonNull Intent data, boolean directory) {
+        final Context appContext = getApplicationContext();
+        new Thread(() -> {
+            try {
+                List<String> paths = AttachmentPicker.resolve(appContext, data, directory);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (paths.isEmpty()) {
+                        Toast.makeText(TermuxActivity.this,
+                            R.string.attachment_picker_empty, Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    insertPathsIntoTextInput(paths);
+                });
+            } catch (AttachmentPicker.DirectoryNotLocalException e) {
+                showAttachmentPickerError(R.string.attachment_picker_directory_not_local, e);
+            } catch (Exception e) {
+                showAttachmentPickerError(R.string.attachment_picker_error, e);
+            }
+        }, "termux-attachment-picker").start();
+    }
+
+    private void showAttachmentPickerError(int messageResId, @NonNull Exception e) {
+        Logger.logStackTraceWithMessage(LOG_TAG, "Attachment picker failed", e);
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            Toast.makeText(this, messageResId, Toast.LENGTH_LONG).show();
+        });
     }
 
     /**
@@ -3154,7 +3204,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     private void insertPathsIntoTextInput(@NonNull List<String> paths) {
         if (paths.isEmpty()) return;
-        insertTextIntoTextInput(FilePathPickerDialog.joinPathsForInsertion(paths));
+        insertTextIntoTextInput(AttachmentPicker.joinPathsForInsertion(paths));
     }
 
     /**
@@ -3172,7 +3222,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Insert {@code text} into the text input field at the cursor, replacing any active selection.
      * Shows the panel first when it is hidden. Shared by the clipboard-paste gesture, the
-     * file-path picker and anything else that types into the field on the user's behalf.
+     * attachment picker and anything else that types into the field on the user's behalf.
      */
     private void insertTextIntoTextInput(@NonNull String text) {
         final EditText editText = getTerminalToolbarTextInput();
@@ -3269,7 +3319,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * The quick-action row is an input-panel control: it appears with the panel and disappears
      * with it, leaving the pencil's gestures as the only way to reach these actions while the
-     * panel is closed.
+     * panel is closed. The setting can keep the row out of the panel altogether, in which case
+     * the pencil's gestures also stay available while the panel is open.
      */
     private void updateInputPanelActionButtonsVisibility() {
         if (mInputPanelActions == null) {
@@ -3277,7 +3328,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
         if (mInputPanelActions == null) return;
         final int wanted = isTextInputVisible() && isTextInputEnabled()
-                ? View.VISIBLE : View.GONE;
+                && areInputPanelQuickActionsEnabled() ? View.VISIBLE : View.GONE;
         if (mInputPanelActions.getVisibility() != wanted) {
             mInputPanelActions.setVisibility(wanted);
         }
@@ -3966,6 +4017,26 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Whether the open input panel shows the additional paste, attach and history buttons.
+     * With this off, the toggle button's swipes provide the same actions as before.
+     */
+    public boolean areInputPanelQuickActionsEnabled() {
+        return getPreferences().areInputPanelQuickActionsEnabled();
+    }
+
+    /**
+     * Apply the additional-buttons setting while the window is alive: remove the row when it is
+     * switched off, restore it when it is switched on, and close a history popup that no longer
+     * has a button to belong to.
+     */
+    public void applyInputPanelQuickActionsPreference() {
+        if (!areInputPanelQuickActionsEnabled()) {
+            mPopupCtrl.dismissMessageHistoryPopup();
+        }
+        updateToggleTextInputButtonIcon();
+    }
+
+    /**
      * Apply the {@code text_input_enabled} setting: with it off there is no panel and no button
      * to open one, with it on the panel comes back in whichever state this tab left it.
      */
@@ -4475,7 +4546,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         Logger.logVerbose(LOG_TAG, "onActivityResult: requestCode: " + requestCode + ", resultCode: "  + resultCode + ", data: "  + IntentUtils.getIntentString(data));
-        if (requestCode == PermissionUtils.REQUEST_GRANT_STORAGE_PERMISSION) {
+        if (requestCode == AttachmentPicker.REQUEST_PICK_FILES
+            || requestCode == AttachmentPicker.REQUEST_PICK_DIRECTORY) {
+            if (resultCode == RESULT_OK && data != null) {
+                handleAttachmentPickerResult(data,
+                    requestCode == AttachmentPicker.REQUEST_PICK_DIRECTORY);
+            }
+        } else if (requestCode == PermissionUtils.REQUEST_GRANT_STORAGE_PERMISSION) {
             requestStoragePermission(true);
         } else if (requestCode == REQUEST_BOOTSTRAP_SETUP) {
             if (resultCode == RESULT_OK && TermuxInstaller.isBootstrapInstalled(this)) {

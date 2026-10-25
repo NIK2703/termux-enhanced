@@ -195,6 +195,9 @@
     <string name="text_input_toggle_button_title">텍스트 입력 전환 버튼</string>
     <string name="text_input_over_terminal_title">입력 패널을 터미널 위에</string>
 
+    <string name="input_panel_quick_actions_title">입력 패널 추가 버튼</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">추가 작업은 입력 패널 전환 버튼을 스와이프하여 활성화됩니다: 위 - 입력 기록, 아래 - 클립보드에서 붙여넣기, 왼쪽 - 파일 첨부</string>
     <string name="text_input_action_on_send_title">전송 동작</string>
     <string-array name="text_input_action_on_send_entries">
         <item>아무 작업 안 함</item>
@@ -358,9 +361,6 @@
 
     <string name="terminal_background_blur_radius_title">배경 블러 반경</string>
     <string name="terminal_background_blur_radius_summary">동적 배경에서 블러 반경이 크면 전력 소모가 증가할 수 있습니다. 정적 배경에서는 전력에 미치는 영향이 미미합니다.</string>
-
-    <string name="contrast_floating_element_background_title">터미널 위 요소의 대비 배경</string>
-    <string name="contrast_floating_element_background_summary">입력 패널 전환 버튼과 터미널 스크롤 손잡이를 터미널 배경을 고려하여 착색합니다</string>
 
     
     <string name="terminal_toolbar_scale_title">패널 배율</string>
@@ -691,11 +691,4 @@
     <string name="termux_notification_deduplication_title">알림 중복 제거</string>
     <string name="termux_notification_deduplication_summary">마지막 알림을 보낸 지 %1$d밀리초 이내에 도착한 알림은 무시합니다.</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">파일 경로 삽입</string>
-    <string name="file_path_picker_up">위로</string>
-    <string name="file_path_picker_insert">삽입</string>
-    <string name="file_path_picker_empty">이 폴더는 비어 있습니다</string>
-    <string name="file_path_picker_loading">불러오는 중…</string>
-    <string name="file_path_picker_unreadable">이 폴더를 읽을 수 없습니다</string>
 </resources>

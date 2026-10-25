@@ -178,6 +178,9 @@
     <string name="text_input_toggle_button_title">輸入面板切換按鈕</string>
     <string name="text_input_over_terminal_title">輸入面板置於終端機之上</string>
 
+    <string name="input_panel_quick_actions_title">輸入面板的額外按鈕</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">額外動作可透過在輸入面板切換按鈕上滑動來啟用：向上 - 輸入歷史記錄，向下 - 從剪貼簿貼上，向左 - 附加檔案</string>
     <string name="text_input_action_on_send_title">傳送動作</string>
     <string-array name="text_input_action_on_send_entries">
         <item>無動作</item>
@@ -388,9 +391,6 @@
 
     <string name="terminal_background_blur_radius_title">背景模糊半徑</string>
     <string name="terminal_background_blur_radius_summary">模糊半徑較高且使用動態背景時可能增加耗電量；使用靜態背景時，對耗電量的影響可忽略不計。</string>
-
-    <string name="contrast_floating_element_background_title">終端機上層元素的對比背景</string>
-    <string name="contrast_floating_element_background_summary">輸入面板切換按鈕與終端機捲軸把手會將終端機背景納入著色考量</string>
 
     <string name="terminal_toolbar_scale_title">面板縮放</string>
 
@@ -656,11 +656,4 @@
     <string name="termux_notification_deduplication_title">通知去重複</string>
     <string name="termux_notification_deduplication_summary">捨棄在上次傳送通知後 %1$d 毫秒內抵達的通知。</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">插入檔案路徑</string>
-    <string name="file_path_picker_up">上一層</string>
-    <string name="file_path_picker_insert">插入</string>
-    <string name="file_path_picker_empty">此資料夾是空的</string>
-    <string name="file_path_picker_loading">載入中…</string>
-    <string name="file_path_picker_unreadable">無法讀取此資料夾</string>
 </resources>

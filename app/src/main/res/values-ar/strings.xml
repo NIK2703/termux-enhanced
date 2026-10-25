@@ -211,6 +211,9 @@
     <string name="text_input_toggle_button_title">زر تبديل لوحة الإدخال</string>
     <string name="text_input_over_terminal_title">لوحة الإدخال فوق الطرفية</string>
 
+    <string name="input_panel_quick_actions_title">أزرار لوحة الإدخال الإضافية</string>
+
+    <string name="input_panel_quick_actions_disabled_summary">يتم تفعيل الإجراءات الإضافية عن طريق السحب على زر تبديل لوحة الإدخال: لأعلى - سجل الإدخال، لأسفل - لصق من الحافظة، لليسار - إرفاق ملف</string>
     <string name="text_input_action_on_send_title">الإجراء عند الإرسال</string>
     <string-array name="text_input_action_on_send_entries">
         <item>لا شيء</item>
@@ -376,8 +379,6 @@
     <string name="terminal_background_blur_radius_title">نصف قطر تمويه الخلفية</string>
     <string name="terminal_background_blur_radius_summary">قد يزيد من استهلاك الطاقة مع الخلفيات المتحركة عند نصف قطر تمويه كبير. أما مع الخلفيات الثابتة فتأثير استهلاك الطاقة ضئيل.</string>
 
-    <string name="contrast_floating_element_background_title">خلفية متباينة لعناصر فوق الطرفية</string>
-    <string name="contrast_floating_element_background_summary">يُلوَّن زر تبديل لوحة الإدخال ومقبض تمرير الطرفية مع مراعاة خلفية الطرفية</string>
     <string name="terminal_toolbar_scale_title">مقياس اللوحة</string>
     <string name="default_working_directory_title">دليل العمل الافتراضي</string>
     <string name="default_working_directory_summary">الدليل الذي يُفتح للجلسات الجديدة (اتركه فارغًا للدليل الرئيسي).</string>
@@ -637,11 +638,4 @@
     <string name="termux_notification_deduplication_title">إزالة تكرار الإشعارات</string>
     <string name="termux_notification_deduplication_summary">تجاهل الإشعارات الواردة خلال %1$d مللي ثانية من آخر إشعار تم إرساله</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">إدراج مسارات الملفات</string>
-    <string name="file_path_picker_up">أعلى</string>
-    <string name="file_path_picker_insert">إدراج</string>
-    <string name="file_path_picker_empty">هذا المجلد فارغ</string>
-    <string name="file_path_picker_loading">جارٍ التحميل…</string>
-    <string name="file_path_picker_unreadable">تعذر قراءة هذا المجلد</string>
 </resources>

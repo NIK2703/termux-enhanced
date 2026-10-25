@@ -49,6 +49,9 @@
     <string name="action_input_history">Input history</string>
     <string name="action_input_paste">Paste from clipboard</string>
     <string name="action_input_attach">Attach file</string>
+    <string name="attachment_picker_error">Could not attach the selected item</string>
+    <string name="attachment_picker_empty">No readable items selected</string>
+    <string name="attachment_picker_directory_not_local">This directory is not available as a local path</string>
 
     <string name="msg_terminal_panel_enabling">Enabling terminal panel</string>
     <string name="msg_terminal_panel_disabling">Disabling terminal panel</string>
@@ -388,6 +391,8 @@
     <!-- Text input show preference -->
     <string name="text_input_toggle_button_title">Input panel toggle button</string>
     <string name="text_input_over_terminal_title">Input panel over terminal</string>
+    <string name="input_panel_quick_actions_title">Additional input panel buttons</string>
+    <string name="input_panel_quick_actions_disabled_summary">Additional actions are activated by swiping the input panel toggle button: up - input history, down - paste from clipboard, left - attach file</string>
 
     <!-- Message history -->
     <string name="input_history_empty">No input history</string>
@@ -517,9 +522,6 @@
 
     <string name="terminal_background_blur_radius_title">Background blur radius</string>
     <string name="terminal_background_blur_radius_summary">A high blur radius may increase power consumption with dynamic backgrounds. With static backgrounds, the power impact is negligible.</string>
-
-    <string name="contrast_floating_element_background_title">Contrasting background for over-terminal elements</string>
-    <string name="contrast_floating_element_background_summary">The input-panel toggle button and the terminal scrollbar thumb are coloured with the terminal background taken into account</string>
 
     <string name="terminal_toolbar_scale_title">Panel height scale</string>
 
@@ -818,11 +820,4 @@
     <string name="termux_notification_deduplication_title">Notification deduplication</string>
     <string name="termux_notification_deduplication_summary">Discard notifications arriving within %1$d milliseconds of the last one sent</string>
 
-    <!-- File path picker -->
-    <string name="file_path_picker_title">Insert file paths</string>
-    <string name="file_path_picker_up">Up</string>
-    <string name="file_path_picker_insert">Insert</string>
-    <string name="file_path_picker_empty">This directory is empty</string>
-    <string name="file_path_picker_loading">Loading…</string>
-    <string name="file_path_picker_unreadable">Cannot read this directory</string>
 </resources>
