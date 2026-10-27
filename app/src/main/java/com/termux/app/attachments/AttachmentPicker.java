@@ -88,15 +88,31 @@ public final class AttachmentPicker {
         return new ArrayList<>(paths);
     }
 
-    /** Joins paths for insertion as-is: single spaces, no quoting or escaping. */
+    /** Joins paths for insertion as double-quoted shell arguments separated by single spaces. */
     @NonNull
     public static String joinPathsForInsertion(@NonNull List<String> paths) {
         StringBuilder joined = new StringBuilder();
         for (String path : paths) {
             if (joined.length() > 0) joined.append(' ');
-            joined.append(path);
+            appendQuotedPath(joined, path);
         }
         return joined.toString();
+    }
+
+    /**
+     * Appends a path enclosed in double quotes. Shell-special characters inside double quotes
+     * are escaped so that the inserted argument always points at the selected file.
+     */
+    private static void appendQuotedPath(@NonNull StringBuilder out, @NonNull String path) {
+        out.append('"');
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (c == '\\' || c == '"' || c == '$' || c == '`') {
+                out.append('\\');
+            }
+            out.append(c);
+        }
+        out.append('"');
     }
 
     @NonNull

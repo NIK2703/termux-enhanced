@@ -3159,8 +3159,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Insert the picked filesystem paths, separated by single spaces, into the text input field.
-     * No quoting or escaping is added: the user asked for exactly the paths and spaces.
+     * Insert the picked filesystem paths, each enclosed in double quotes and separated by single
+     * spaces, into the text input field.
      */
     private void insertPathsIntoTextInput(@NonNull List<String> paths) {
         if (paths.isEmpty()) return;

@@ -9,10 +9,17 @@ import java.util.Collections;
 public class AttachmentPickerTest {
 
     @Test
-    public void joinPathsForInsertionUsesSingleSpacesWithoutQuoting() {
-        Assert.assertEquals("/data/a /data/b c",
+    public void joinPathsForInsertionQuotesEveryPath() {
+        Assert.assertEquals("\"/data/a\" \"/data/b c\"",
             AttachmentPicker.joinPathsForInsertion(
                 Arrays.asList("/data/a", "/data/b c")));
+    }
+
+    @Test
+    public void joinPathsForInsertionEscapesShellSpecialCharacters() {
+        Assert.assertEquals("\"/data/a\\\\b\\\"c\\$d\\`e\"",
+            AttachmentPicker.joinPathsForInsertion(
+                Collections.singletonList("/data/a\\b\"c$d`e")));
     }
 
     @Test
