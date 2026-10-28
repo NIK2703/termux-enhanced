@@ -318,9 +318,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "per_directory_message_history":
                 getTermuxPrefs().edit().putBoolean("per_directory_message_history", value).apply();
                 break;
-            case "save_cleared_to_history":
-                getTermuxPrefs().edit().putBoolean("save_cleared_to_history", value).apply();
-                break;
             default:
                 break;
         }
@@ -378,8 +375,6 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
             case "per_directory_message_history":
                 return getTermuxPrefs().getBoolean("per_directory_message_history", false);
-            case "save_cleared_to_history":
-                return getTermuxPrefs().getBoolean("save_cleared_to_history", true);
             default:
                 return false;
         }

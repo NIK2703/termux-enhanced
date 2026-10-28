@@ -114,7 +114,9 @@
 <string name="file_receiver_error_no_editor">File berikut tidak ada:\n$HOME/bin/termux-file-editor\n\nBuat file ini sebagai skrip atau symlink — file tersebut akan dipanggil dengan file yang diterima sebagai satu-satunya argumen.</string>
 <string name="file_receiver_error_no_url_opener">File berikut tidak ada:\n$HOME/bin/termux-url-opener\n\nBuat file ini sebagai skrip atau symlink — file tersebut akan dipanggil dengan URL yang dibagikan sebagai argumen pertamanya.</string>
 <string name="file_receiver_error_saving_file">Kesalahan saat menyimpan file:\n\n%s</string>
-<string name="input_history_clear">Hapus</string>
+<string name="input_history_clear">HAPUS</string>
+<string name="input_history_save">SIMPAN</string>
+<string name="input_history_and">DAN</string>
 <string name="input_history_clear_all">HAPUS RIWAYAT…</string>
 <string name="input_history_clear_all_button">Semua</string>
 <string name="input_history_clear_all_question">Tindakan ini akan menghapus seluruh riwayat input secara permanen.</string>
@@ -140,8 +142,6 @@
 <string name="notification_action_wake_unlock">Lepaskan wakelock</string>
 <string name="notification_wake_lock_held"> (wakelock ditahan)</string>
 <string name="per_directory_input_history_summary">Menyimpan riwayat input terpisah untuk setiap direktori kerja. Jika dinonaktifkan, semua sesi berbagi riwayat global.</string>
-<string name="input_history_save_cleared_title">Simpan teks yang dihapus ke riwayat</string>
-<string name="input_history_save_cleared_summary">Simpan teks yang dihapus dari kolom input ke riwayat.</string>
 <string name="per_directory_input_history_title">Riwayat input per direktori</string>
 <string name="permission_run_command_description">menjalankan perintah apa pun di lingkungan Termux dan mengakses file</string>
 <string name="permission_run_command_label">Menjalankan perintah di lingkungan Termux</string>

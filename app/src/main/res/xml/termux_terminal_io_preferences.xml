@@ -120,14 +120,6 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
-        <SwitchPreferenceCompat
-            app:key="save_cleared_to_history"
-            app:dependency="text_input_enabled"
-            app:title="@string/input_history_save_cleared_title"
-            app:summary="@string/input_history_save_cleared_summary"
-            app:defaultValue="true"
-            app:iconSpaceReserved="false" />
-
         <SeekBarPreference
             app:key="message_history_max"
             app:dependency="text_input_enabled"

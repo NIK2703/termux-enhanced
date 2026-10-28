@@ -137,8 +137,6 @@
     <string name="input_history_max_title">輸入紀錄的最大項目數</string>
     <string name="per_directory_input_history_title">依目錄分別儲存輸入紀錄</string>
     <string name="per_directory_input_history_summary">為每個工作目錄分別儲存輸入紀錄。關閉後，所有工作階段共用同一個全域紀錄。</string>
-    <string name="input_history_save_cleared_title">儲存已清空的輸入內容</string>
-    <string name="input_history_save_cleared_summary">將已從輸入框清空的輸入內容儲存到紀錄。</string>
     <string name="text_input_append_enter_title">傳送時附加 Enter</string>
     <string name="directory_history_max_title">工作目錄紀錄的最大項目數</string>
     <string name="restore_tabs_title">啟動時還原分頁</string>
@@ -207,6 +205,8 @@
     <string name="input_history_empty">沒有輸入紀錄</string>
     <string name="input_history_clear_all">清除紀錄…</string>
     <string name="input_history_clear">清除</string>
+    <string name="input_history_save">儲存</string>
+    <string name="input_history_and">與</string>
     <string name="input_history_clear_dialog_title">清除輸入紀錄</string>
     <string name="input_history_clear_question">清除輸入紀錄？</string>
     <string name="input_history_clear_confirm_current">確定要清除目前目錄儲存的所有輸入紀錄嗎？此操作無法復原。</string>

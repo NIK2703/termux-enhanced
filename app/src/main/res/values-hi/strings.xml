@@ -116,6 +116,8 @@
     <string name="file_receiver_error_no_url_opener">निम्नलिखित फ़ाइल मौजूद नहीं है:\n$HOME/bin/termux-url-opener\n\nइस फ़ाइल को एक स्क्रिप्ट या सिमलिंक के रूप में बनाएँ — इसे साझा किया गया URL पहले तर्क के रूप में पास किया जाएगा।</string>
     <string name="file_receiver_error_saving_file">फ़ाइल सहेजने में त्रुटि:\n\n%s</string>
     <string name="input_history_clear">साफ़ करें</string>
+    <string name="input_history_save">सहेजें</string>
+    <string name="input_history_and">और</string>
     <string name="input_history_clear_all">इतिहास साफ़ करें…</string>
     <string name="input_history_clear_all_button">सभी</string>
     <string name="input_history_clear_all_question">इससे सभी सहेजे गए इनपुट स्थायी रूप से हटा दिए जाएँगे।</string>
@@ -143,8 +145,6 @@
     <string name="notification_action_wake_unlock">वेक लॉक अक्षम करें</string>
     <string name="notification_wake_lock_held"> (वेक लॉक सक्रिय)</string>
     <string name="per_directory_input_history_summary">प्रत्येक कार्य निर्देशिका के लिए अलग इनपुट इतिहास रखें। अक्षम होने पर सभी सत्र एक साझा इतिहास का उपयोग करते हैं।</string>
-    <string name="input_history_save_cleared_title">साफ़ किया गया टेक्स्ट इतिहास में सहेजें</string>
-    <string name="input_history_save_cleared_summary">इनपुट फ़ील्ड से साफ़ किए गए टेक्स्ट को इतिहास में सहेजें।</string>
     <string name="per_directory_input_history_title">निर्देशिका-वार इनपुट इतिहास</string>
     <string name="permission_run_command_description">Termux वातावरण में कोई भी कमांड चलाना और फ़ाइलों तक पहुँचना</string>
     <string name="permission_run_command_label">Termux वातावरण में कमांड चलाना</string>

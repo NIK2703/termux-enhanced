@@ -123,6 +123,8 @@
     <string name="file_receiver_error_no_url_opener">الملف التالي غير موجود:\n$HOME/bin/termux-url-opener\n\nقم بإنشاء هذا الملف كبرنامج نصي أو رابط رمزي - سيتم استدعاؤه مع الرابط المشترك كوسيطة أولى.</string>
     <string name="file_receiver_error_saving_file">خطأ في حفظ الملف:\n\n%s</string>
     <string name="input_history_clear">مسح</string>
+    <string name="input_history_save">حفظ</string>
+    <string name="input_history_and">و</string>
     <string name="input_history_clear_all">مسح السجل…</string>
     <string name="input_history_clear_all_button">الكل</string>
     <string name="input_history_clear_all_question">سيؤدي هذا إلى حذف سجل الإدخال بالكامل بشكل دائم.</string>
@@ -166,8 +168,6 @@
     </plurals>
     <string name="notification_wake_lock_held"> (قفل الاستيقاظ مفعّل)</string>
     <string name="per_directory_input_history_summary">الاحتفاظ بسجل إدخال منفصل لكل دليل عمل. عند الإيقاف، تشارك جميع الجلسات سجلًا واحدًا عامًا.</string>
-    <string name="input_history_save_cleared_title">حفظ الممسوح في السجل</string>
-    <string name="input_history_save_cleared_summary">حفظ النص المُدخَل الممسوح من حقل الإدخال في السجل.</string>
     <string name="per_directory_input_history_title">سجل الإدخال حسب الدليل</string>
     <string name="permission_run_command_description">تنفيذ أوامر اعتباطية داخل بيئة Termux والوصول إلى الملفات</string>
     <string name="permission_run_command_label">تشغيل الأوامر في بيئة Termux</string>

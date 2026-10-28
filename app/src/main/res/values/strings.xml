@@ -286,8 +286,6 @@
     <string name="input_history_max_title">Maximum input history entries</string>
     <string name="per_directory_input_history_title">Per-directory input history</string>
     <string name="per_directory_input_history_summary">Keep a separate input history for each working directory. When off, all sessions share one global history.</string>
-    <string name="input_history_save_cleared_title">Save cleared text to history</string>
-    <string name="input_history_save_cleared_summary">Save text cleared from the input field to the history.</string>
 
     <!-- Text input preferences -->
     <string name="input_panel_title">Input panel</string>
@@ -401,7 +399,9 @@
     <!-- Message history -->
     <string name="input_history_empty">No input history</string>
     <string name="input_history_clear_all">Clear history…</string>
-    <string name="input_history_clear">Clear</string>
+    <string name="input_history_clear">CLEAR</string>
+    <string name="input_history_save">SAVE</string>
+    <string name="input_history_and">AND</string>
 
     <!-- Message history clear dialogs -->
     <string name="input_history_clear_dialog_title">Clear input history</string>

@@ -211,8 +211,6 @@
     <string name="input_history_max_title">Максимум элементов в истории ввода</string>
     <string name="per_directory_input_history_title">История ввода по директориям</string>
     <string name="per_directory_input_history_summary">Вести отдельную историю ввода для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
-    <string name="input_history_save_cleared_title">Очищаемые в истории</string>
-    <string name="input_history_save_cleared_summary">Сохранять в историю очищаемый из поля ввода текст</string>
 
     
     <string name="input_panel_title">Панель ввода</string>
@@ -307,7 +305,9 @@
     
     <string name="input_history_empty">История ввода пуста</string>
     <string name="input_history_clear_all">ОЧИСТИТЬ ИСТОРИЮ…</string>
-    <string name="input_history_clear">Очистить</string>
+    <string name="input_history_clear">ОЧИСТИТЬ</string>
+    <string name="input_history_save">СОХРАНИТЬ</string>
+    <string name="input_history_and">И</string>
 
     
     <string name="input_history_clear_dialog_title">Очистить историю ввода</string>

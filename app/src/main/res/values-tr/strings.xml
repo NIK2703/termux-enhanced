@@ -128,8 +128,6 @@
 <string name="input_history_max_title">Geçmişte tutulacak en fazla giriş sayısı</string>
 <string name="per_directory_input_history_title">Dizin başına giriş geçmişi</string>
 <string name="per_directory_input_history_summary">Her çalışma dizini için ayrı bir giriş geçmişi tutun. Kapalıyken tüm oturumlar ortak bir geçmiş kullanır.</string>
-<string name="input_history_save_cleared_title">Temizlenen girişleri geçmişte tut</string>
-<string name="input_history_save_cleared_summary">Giriş alanından silinen metinleri geçmişe kaydet.</string>
 <string name="text_input_append_enter_title">Gönderirken Enter ekle</string>
 <string name="directory_history_max_title">Geçmişte tutulacak en fazla dizin sayısı</string>
 <string name="restore_tabs_title">Başlatıldığında sekmeleri geri yükle</string>
@@ -203,7 +201,9 @@
     <string name="text_input_restore_mode_option_replace">Tüm giriş alanını değiştir</string>
 <string name="input_history_empty">Giriş geçmişi yok</string>
 <string name="input_history_clear_all">GEÇMİŞİ TEMİZLE…</string>
-<string name="input_history_clear">Temizle</string>
+<string name="input_history_clear">TEMİZLE</string>
+<string name="input_history_save">KAYDET</string>
+<string name="input_history_and">VE</string>
 <string name="input_history_clear_dialog_title">Giriş geçmişini temizle</string>
 <string name="input_history_clear_question">Giriş geçmişi temizlensin mi?</string>
 <string name="input_history_clear_confirm_current">Geçerli dizin için kaydedilen tüm girişler temizlensin mi? Bu işlem geri alınamaz.</string>

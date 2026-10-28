@@ -116,7 +116,9 @@
     <string name="file_receiver_error_no_editor">O seguinte arquivo não existe:\n$HOME/bin/termux-file-editor\n\nCrie este arquivo como um script ou link simbólico — ele será chamado com o arquivo recebido como único argumento.</string>
     <string name="file_receiver_error_no_url_opener">O seguinte arquivo não existe:\n$HOME/bin/termux-url-opener\n\nCrie este arquivo como um script ou link simbólico — ele será chamado com a URL compartilhada como primeiro argumento.</string>
     <string name="file_receiver_error_saving_file">Erro ao salvar o arquivo:\n\n%s</string>
-    <string name="input_history_clear">Limpar</string>
+    <string name="input_history_clear">LIMPAR</string>
+    <string name="input_history_save">SALVAR</string>
+    <string name="input_history_and">E</string>
     <string name="input_history_clear_all">LIMPAR HISTÓRICO…</string>
     <string name="input_history_clear_all_button">Tudo</string>
     <string name="input_history_clear_all_question">Esta ação excluirá permanentemente todo o histórico de entrada.</string>
@@ -144,8 +146,6 @@
     <string name="notification_action_wake_unlock">Liberar wakelock</string>
     <string name="notification_wake_lock_held"> (wakelock ativo)</string>
     <string name="per_directory_input_history_summary">Manter um histórico de entrada separado para cada diretório de trabalho. Quando desativado, todas as sessões compartilham um histórico global.</string>
-    <string name="input_history_save_cleared_title">Salvar textos limpos no histórico</string>
-    <string name="input_history_save_cleared_summary">Salvar no histórico o texto limpo do campo de entrada.</string>
     <string name="per_directory_input_history_title">Histórico de entrada por diretório</string>
     <string name="permission_run_command_description">executar comandos arbitrários no ambiente do Termux e acessar arquivos</string>
     <string name="permission_run_command_label">Executar comandos no ambiente do Termux</string>

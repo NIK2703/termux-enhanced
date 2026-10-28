@@ -119,6 +119,8 @@
     <string name="file_receiver_error_no_url_opener">다음 파일이 존재하지 않습니다:\n$HOME/bin/termux-url-opener\n\n이 파일을 스크립트 또는 심볼릭 링크로 만드세요. 이 파일은 공유된 URL을 첫 번째 인수로 받아 실행됩니다.</string>
     <string name="file_receiver_error_saving_file">파일을 저장하는 중 오류가 발생했습니다:\n\n%s</string>
     <string name="input_history_clear">지우기</string>
+    <string name="input_history_save">저장</string>
+    <string name="input_history_and">그리고</string>
     <string name="input_history_clear_all">전체 기록 지우기…</string>
     <string name="input_history_clear_all_button">모두</string>
     <string name="input_history_clear_all_question">모든 입력 기록을 영구적으로 삭제하시겠습니까?</string>
@@ -154,8 +156,6 @@
         <item quantity="other">, 작업 %d개</item>
     </plurals>
     <string name="per_directory_input_history_summary">각 디렉터리마다 별도의 입력 기록을 유지합니다. 비활성화하면 모든 세션이 하나의 전역 기록을 공유합니다.</string>
-    <string name="input_history_save_cleared_title">지운 입력 텍스트도 기록에 저장</string>
-    <string name="input_history_save_cleared_summary">입력란에서 지운 입력 텍스트를 기록에 저장합니다.</string>
     <string name="per_directory_input_history_title">디렉터리별 입력 기록</string>
     <string name="permission_run_command_description">Termux 환경에서 임의의 명령을 실행하고 파일에 접근할 수 있습니다</string>
     <string name="permission_run_command_label">Termux 환경에서 명령 실행</string>

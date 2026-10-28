@@ -122,8 +122,6 @@
     <string name="input_history_max_title">Número máximo de elementos del historial de entrada</string>
     <string name="per_directory_input_history_title">Historial de entrada por directorio</string>
     <string name="per_directory_input_history_summary">Mantener un historial de entrada separado para cada directorio de trabajo. Si está desactivado, todas las sesiones comparten un historial global.</string>
-    <string name="input_history_save_cleared_title">Guardar textos borrados en el historial</string>
-    <string name="input_history_save_cleared_summary">Guardar en el historial el texto introducido que se borre del campo de entrada.</string>
     <string name="text_input_append_enter_title">Añadir Enter al enviar</string>
     <string name="directory_history_max_title">Número máximo de directorios de trabajo en el historial</string>
     <string name="restore_tabs_title">Restaurar pestañas al inicio</string>
@@ -199,7 +197,9 @@
     <string name="text_input_restore_mode_option_replace">Reemplazar todo el campo de entrada</string>
     <string name="input_history_empty">El historial de entrada está vacío</string>
     <string name="input_history_clear_all">BORRAR HISTORIAL…</string>
-    <string name="input_history_clear">Borrar</string>
+    <string name="input_history_clear">BORRAR</string>
+    <string name="input_history_save">GUARDAR</string>
+    <string name="input_history_and">Y</string>
     <string name="input_history_clear_dialog_title">Borrar historial de entrada</string>
     <string name="input_history_clear_question">¿Borrar el historial de entrada?</string>
     <string name="input_history_clear_confirm_current">¿Borrar todo el historial de entrada del directorio actual? Esta acción es irreversible.</string>

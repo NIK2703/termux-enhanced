@@ -117,7 +117,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="file_receiver_error_no_editor">Die folgende Datei existiert nicht:\n$HOME/bin/termux-file-editor\n\nErstellen Sie diese Datei als Skript oder Symlink — sie wird mit der empfangenen Datei als einzigem Argument aufgerufen.</string>
     <string name="file_receiver_error_no_url_opener">Die folgende Datei existiert nicht:\n$HOME/bin/termux-url-opener\n\nErstellen Sie diese Datei als Skript oder Symlink — sie wird mit der übergebenen URL als erstem Argument aufgerufen.</string>
     <string name="file_receiver_error_saving_file">Fehler beim Speichern der Datei:\n\n%s</string>
-    <string name="input_history_clear">Leeren</string>
+    <string name="input_history_clear">LEEREN</string>
+    <string name="input_history_save">SPEICHERN</string>
+    <string name="input_history_and">UND</string>
     <string name="input_history_clear_all">VERLAUF LÖSCHEN…</string>
     <string name="input_history_clear_all_button">Alle</string>
     <string name="input_history_clear_all_question">Dadurch werden dauerhaft alle gespeicherten Eingaben gelöscht.</string>
@@ -140,8 +142,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="notification_action_wake_unlock">Wakelock freigeben</string>
     <string name="notification_wake_lock_held"> (Wakelock aktiv)</string>
     <string name="per_directory_input_history_summary">Für jedes Arbeitsverzeichnis einen separaten Eingabeverlauf führen. Wenn deaktiviert, verwenden alle Sitzungen einen gemeinsamen Verlauf.</string>
-    <string name="input_history_save_cleared_title">Gelöschte Eingaben im Verlauf speichern</string>
-    <string name="input_history_save_cleared_summary">Aus dem Eingabefeld gelöschte Eingaben im Verlauf speichern.</string>
     <string name="per_directory_input_history_title">Eingabeverlauf pro Verzeichnis</string>
     <string name="permission_run_command_description">beliebige Befehle in der Termux-Umgebung ausführen und auf Dateien zugreifen</string>
     <string name="permission_run_command_label">Befehle in der Termux-Umgebung ausführen</string>

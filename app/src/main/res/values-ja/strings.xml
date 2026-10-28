@@ -114,8 +114,6 @@
 <string name="input_history_max_title">入力履歴の最大件数</string>
 <string name="per_directory_input_history_title">ディレクトリごとの入力履歴</string>
 <string name="per_directory_input_history_summary">作業ディレクトリごとに個別の入力履歴を保持します。無効にすると、すべてのセッションで1つのグローバル履歴を共有します。</string>
-<string name="input_history_save_cleared_title">クリアした項目を履歴に保存</string>
-<string name="input_history_save_cleared_summary">入力欄からクリアしたテキストを履歴に保存します。</string>
 <string name="text_input_append_enter_title">送信時にEnterを追加</string>
 <string name="directory_history_max_title">最大記憶ディレクトリ数</string>
 <string name="restore_tabs_title">起動時にタブを復元</string>
@@ -193,6 +191,8 @@
 <string name="input_history_empty">入力履歴はありません</string>
 <string name="input_history_clear_all">履歴をクリア…</string>
 <string name="input_history_clear">クリア</string>
+<string name="input_history_save">保存</string>
+<string name="input_history_and">と</string>
 <string name="input_history_clear_dialog_title">入力履歴をクリア</string>
 <string name="input_history_clear_question">入力履歴をクリアしますか？</string>
 <string name="input_history_clear_confirm_current">現在のディレクトリの入力履歴をすべてクリアしますか？この操作は元に戻せません。</string>

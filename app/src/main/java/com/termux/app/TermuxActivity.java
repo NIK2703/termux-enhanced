@@ -728,9 +728,6 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
                     mMessageHistoryCtrl.save();
                     mMessageHistoryCtrl.setPerDirectoryEnabled(newValue);
                     loadMessageHistory();
-                } else if ("save_cleared_to_history".equals(key)) {
-                    mMessageHistoryCtrl.setSaveClearedToHistory(
-                            prefs.getBoolean("save_cleared_to_history", true));
                 }
             };
 
@@ -2779,7 +2776,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // Load the persisted sent-message history once.
             mMessageHistoryCtrl.setMaxSize(prefs.getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
             mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean("per_directory_message_history", false));
-            mMessageHistoryCtrl.setSaveClearedToHistory(prefs.getBoolean("save_cleared_to_history", true));
             loadMessageHistory();
 
             // Hot-reload: when the user toggles per-directory history in Settings,
@@ -3631,23 +3627,29 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mPopupCtrl.dismissMessageHistoryPopup();
     }
 
-    /** Bottom "Clear" item: remember the current input text in history, then empty the field. */
+    /**
+     * Combined input-history action row: optionally remember the current input text, then
+     * optionally empty the field. The three segments map to (save, clear) pairs:
+     * Save = (true, false), "and" = (true, true), Clear = (false, true).
+     */
     @Override
-    public void clearInputToHistory() {
+    public void onInputHistoryAction(boolean saveToHistory, boolean clearInput) {
         final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
-        // "Clear" (save cleared text): a brand-new message goes to the TOP of the
-        // history (pre-promote-switch behaviour); a message already in the history
-        // KEEPS its position. See MessageHistoryController.addNewOnTop().
-        if (!isTextInputVisible()) {
-            setTextInputVisible(true);
-        }
 
         String existing = editText.getText().toString();
-        if (!TextUtils.isEmpty(existing) && mMessageHistoryCtrl.isSaveClearedToHistory()) {
+        // A brand-new message goes to the TOP of the history (pre-promote-switch behaviour);
+        // a message already in the history KEEPS its position.
+        if (saveToHistory && !TextUtils.isEmpty(existing)) {
             addNewOnTop(existing);
         }
 
+        // Save-only must not touch the panel or the keyboard: leave the field exactly as it is.
+        if (!clearInput) return;
+
+        if (!isTextInputVisible()) {
+            setTextInputVisible(true);
+        }
         editText.setText("");
         setFocusOnInputForCurrentSession(true);
         saveTextInputForCurrentSession();
@@ -3695,8 +3697,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         } else {
             // LEGACY behaviour: replace the entire field, saving existing text to history.
             String existing = editText.getText().toString();
-            if (!TextUtils.isEmpty(existing) && !existing.equals(message)
-                    && mMessageHistoryCtrl.isSaveClearedToHistory()) {
+            if (!TextUtils.isEmpty(existing) && !existing.equals(message)) {
                 addNewOnTop(existing);
             }
             editText.setText(message);

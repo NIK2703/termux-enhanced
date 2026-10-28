@@ -137,8 +137,6 @@
     <string name="input_history_max_title">输入历史的最大条目数</string>
     <string name="per_directory_input_history_title">按目录分别保存输入历史</string>
     <string name="per_directory_input_history_summary">为每个工作目录分别保存输入历史。关闭后，所有会话共享同一个全局历史。</string>
-    <string name="input_history_save_cleared_title">保存已清空的输入内容</string>
-    <string name="input_history_save_cleared_summary">将已从输入框清空的输入内容保存到历史。</string>
     <string name="text_input_append_enter_title">发送时附加 Enter</string>
     <string name="directory_history_max_title">工作目录历史的最大条目数</string>
     <string name="restore_tabs_title">启动时恢复标签页</string>
@@ -207,6 +205,8 @@
     <string name="input_history_empty">没有输入历史</string>
     <string name="input_history_clear_all">清除历史…</string>
     <string name="input_history_clear">清除</string>
+    <string name="input_history_save">保存</string>
+    <string name="input_history_and">和</string>
     <string name="input_history_clear_dialog_title">清除输入历史</string>
     <string name="input_history_clear_question">清除输入历史？</string>
     <string name="input_history_clear_confirm_current">清除当前目录保存的所有输入历史？此操作不可撤销。</string>

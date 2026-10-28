@@ -43,7 +43,6 @@ public final class MessageHistoryController {
     /** Settings keys, read here so a write from outside the activity is configured the same way. */
     private static final String PREF_MAX = "message_history_max";
     private static final String PREF_PER_DIR = "per_directory_message_history";
-    private static final String PREF_SAVE_CLEARED = "save_cleared_to_history";
 
     /** Default when the pref is unset; the activity reads it too. */
     public static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
@@ -136,7 +135,6 @@ public final class MessageHistoryController {
     private void applyStoredSettings() {
         mMessageHistoryMax = mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT);
         mPerDirectoryMessageHistory = mPrefs.getBoolean(PREF_PER_DIR, false);
-        mSaveClearedToHistory = mPrefs.getBoolean(PREF_SAVE_CLEARED, true);
     }
 
     /** Schedule (or re-schedule) the store-wide persist on the main looper. */
@@ -252,19 +250,8 @@ public final class MessageHistoryController {
     }
 
 
-    /** Whether clearing the input field remembers its text in the history first. */
-    private boolean mSaveClearedToHistory = true;
-
     public void setMaxSize(int max) {
         mMessageHistoryMax = max;
-    }
-
-    public void setSaveClearedToHistory(boolean enabled) {
-        mSaveClearedToHistory = enabled;
-    }
-
-    public boolean isSaveClearedToHistory() {
-        return mSaveClearedToHistory;
     }
 
     // ── Observers ──
