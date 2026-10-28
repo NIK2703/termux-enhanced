@@ -13,7 +13,7 @@ import com.termux.terminal.TextStyle;
 import com.termux.terminal.WcWidth;
 
 /**
- * Executes the render command list planned by the Rust terminal core on an Android
+ * Executes the render command list planned by the native terminal core on an Android
  * {@link Canvas}. All terminal state interpretation (runs, colours, selection, reverse video,
  * cursor inversion) happens natively; this class only owns font shaping, glyph measurement and
  * the Canvas raster path, which is where the platform's emoji/CJK/box-drawing quality comes from.
@@ -386,8 +386,9 @@ public final class TerminalRenderer {
         final boolean translucentBlock = (effects & EFFECT_BLOCK_FILL) != 0
             && mBackgroundAlpha < 255;
         if (translucentBlock) mTextPaint.setXfermode(SRC_ATOP_XFERMODE);
+        // The char[] overload takes (index, count, contextIndex, contextCount), not an end index.
         canvas.drawTextRun(mTextUnits, startChar, charCount,
-            startChar, startChar + charCount, left, baseline, false, mTextPaint);
+            startChar, charCount, left, baseline, false, mTextPaint);
         if (translucentBlock) mTextPaint.setXfermode(null);
         if (scaled) canvas.restore();
     }
@@ -429,7 +430,7 @@ public final class TerminalRenderer {
                     scaled = true;
                 }
             }
-            canvas.drawTextRun(mTextUnits, index, clusterEnd - index, index, clusterEnd,
+            canvas.drawTextRun(mTextUnits, index, clusterEnd - index, index, clusterEnd - index,
                 scaled ? x / scale : x, baseline, false, mTextPaint);
             if (scaled) canvas.restore();
             x += expected;

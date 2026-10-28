@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * Java facade over the Rust terminal core.
+ * Java facade over the native terminal core (foot by default; the Rust core remains selectable as a rollback backend).
  *
  * <p>The VT parser, screen + transcript grid, alternate buffer, palette mirror, selection
  * extraction and render planning live in {@code libtermux_terminal.so}. This class keeps the
@@ -140,14 +140,15 @@ public final class TerminalEmulator {
     }
 
     public void resize(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
+        final boolean gridChanged = mRows != rows || mColumns != columns;
         mCellWidthPixels = cellWidthPixels;
         mCellHeightPixels = cellHeightPixels;
-        if (mRows == rows && mColumns == columns) return;
         if (columns < 2 || rows < 2) {
             throw new IllegalArgumentException("rows=" + rows + ", columns=" + columns);
         }
         syncPalette();
         TerminalNative.nativeResize(mNativeHandle, columns, rows, cellWidthPixels, cellHeightPixels);
+        if (!gridChanged) return;
         mColumns = columns;
         mRows = rows;
         mScreen.updateSize(columns, mTranscriptRows, rows);
@@ -374,7 +375,8 @@ public final class TerminalEmulator {
         }
     }
 
-    /** Build the packed render command list for one frame. See {@code render.rs} for the ABI. */
+    /** Build the packed render command list for one frame. The ABI is documented by
+     * {@code TerminalRenderer} and implemented in the selected native core. */
     public int[] getRenderCommands(int topRow, int selectionY1, int selectionY2,
                                    int selectionX1, int selectionX2, int backgroundAlpha,
                                    float fontWidth, int fontLineSpacing, int fontAscent,

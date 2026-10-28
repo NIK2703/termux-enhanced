@@ -1,6 +1,17 @@
 apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
 
+// foot is the default terminal core. The completed Rust core remains available
+// as a rollback backend through TERMUX_TERMINAL_BACKEND=rust or
+// -PtermuxTerminalBackend=rust.
+def terminalBackend = (System.getenv('TERMUX_TERMINAL_BACKEND')
+    ?: project.findProperty('termuxTerminalBackend') ?: 'foot').toString().toLowerCase()
+if (!(terminalBackend in ['foot', 'rust'])) {
+    throw new GradleException("Unknown terminal backend: ${terminalBackend} (expected foot or rust)")
+}
+
+def rustJniLibsDir = file("$buildDir/generated/rustJniLibs")
+
 android {
     namespace "com.termux.emulator"
 
@@ -12,8 +23,15 @@ android {
         targetSdkVersion project.properties.targetSdkVersion.toInteger()
 
         externalNativeBuild {
-            ndkBuild {
-                cFlags "-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections"
+            if (terminalBackend == 'foot') {
+                cmake {
+                    // Flags live in CMakeLists.txt so upstream foot and the adapter
+                    // share one reproducible configuration.
+                }
+            } else {
+                ndkBuild {
+                    cFlags "-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections"
+                }
             }
         }
 
@@ -33,26 +51,24 @@ android {
     }
 
     externalNativeBuild {
-        ndkBuild {
-            path "src/main/jni/Android.mk"
+        if (terminalBackend == 'foot') {
+            cmake {
+                path "src/main/foot/CMakeLists.txt"
+                version "3.22.1"
+            }
+        } else {
+            ndkBuild {
+                path "src/main/jni/Android.mk"
+            }
         }
     }
 
     // Rust terminal core. Cargo cannot run build scripts from /storage (noexec), so its
     // target directory defaults to an executable cache under the user's home; only the
     // finished .so files are copied into the Gradle build directory.
-    def rustAbis = (System.getenv("TERMUX_ARCH") ?: project.properties.termuxBuildAbis ?: "arm64-v8a")
-        .split(',').collect { it.trim() }.findAll { !it.isEmpty() }
-    def rustCargoTargetDir = System.getenv("TERMUX_CARGO_TARGET_DIR")
-        ?: "${System.getProperty('user.home')}/.cache/termux-terminal-target"
-    def rustJniLibsDir = file("$buildDir/generated/rustJniLibs")
-    sourceSets.main.jniLibs.srcDir rustJniLibsDir
-    def rustTargets = [
-        'arm64-v8a'  : ['aarch64-linux-android', 'aarch64-linux-android', 'aarch64_linux_android'],
-        'armeabi-v7a': ['armv7-linux-androideabi', 'armv7a-linux-androideabi', 'armv7_linux_androideabi'],
-        'x86_64'     : ['x86_64-linux-android', 'x86_64-linux-android', 'x86_64_linux_android'],
-        'x86'        : ['i686-linux-android', 'i686-linux-android', 'i686_linux_android'],
-    ]
+    if (terminalBackend == 'rust') {
+        sourceSets.main.jniLibs.srcDir rustJniLibsDir
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -123,7 +139,6 @@ tasks.register('checkstyle', Checkstyle) {
 // Build libtermux_terminal.so for each configured ABI and expose it as a jniLibs source.
 def rustCargoTargetDir = System.getenv("TERMUX_CARGO_TARGET_DIR")
     ?: "${System.getProperty('user.home')}/.cache/termux-terminal-target"
-def rustJniLibsDir = file("$buildDir/generated/rustJniLibs")
 def rustDir = file('src/main/rust')
 def rustAbis = (System.getenv("TERMUX_ARCH") ?: project.properties.termuxBuildAbis ?: "arm64-v8a")
     .split(',').collect { it.trim() }.findAll { !it.isEmpty() }
@@ -136,64 +151,69 @@ def rustTargets = [
 
 def execOperations = services.get(org.gradle.process.ExecOperations)
 
-def cargoBuildRust = tasks.register('cargoBuildRust') {
-    group = 'build'
-    description = 'Build the Rust terminal core for the configured Android ABIs'
-    inputs.file(file('src/main/rust/Cargo.toml'))
-    inputs.file(file('src/main/rust/Cargo.lock'))
-    inputs.dir(file('src/main/rust/src'))
-    inputs.dir(file('src/main/rust/vendor'))
-    outputs.dir(rustJniLibsDir)
+def cargoBuildRust = null
+if (terminalBackend == 'rust') {
+    cargoBuildRust = tasks.register('cargoBuildRust') {
+        group = 'build'
+        description = 'Build the Rust terminal core for the configured Android ABIs'
+        inputs.file(file('src/main/rust/Cargo.toml'))
+        inputs.file(file('src/main/rust/Cargo.lock'))
+        inputs.dir(file('src/main/rust/src'))
+        inputs.dir(file('src/main/rust/vendor'))
+        outputs.dir(rustJniLibsDir)
 
-    doLast {
-        def ndkRoot = System.getenv('ANDROID_NDK_HOME')
-        if (!ndkRoot) {
-            def props = new Properties()
-            def localProps = rootProject.file('local.properties')
-            if (localProps.exists()) localProps.withInputStream { props.load(it) }
-            ndkRoot = props.getProperty('ndk.dir') ?: "${props.getProperty('sdk.dir')}/ndk/${project.properties.ndkVersion}"
-        }
-        def prebuilt = null
-        for (arch in ['linux-aarch64', 'linux-x86_64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']) {
-            def dir = file("${ndkRoot}/toolchains/llvm/prebuilt/${arch}/bin")
-            if (new File(dir, 'llvm-ar').exists() || new File(dir, 'llvm-ar.exe').exists()) {
-                prebuilt = dir
-                break
+        doLast {
+            def ndkRoot = System.getenv('ANDROID_NDK_HOME')
+            if (!ndkRoot) {
+                def props = new Properties()
+                def localProps = rootProject.file('local.properties')
+                if (localProps.exists()) localProps.withInputStream { props.load(it) }
+                ndkRoot = props.getProperty('ndk.dir') ?: "${props.getProperty('sdk.dir')}/ndk/${project.properties.ndkVersion}"
             }
-        }
-        if (prebuilt == null) throw new GradleException("NDK LLVM toolchain not found under ${ndkRoot}")
-
-        rustAbis.each { abi ->
-            def target = rustTargets[abi]
-            if (target == null) throw new GradleException("Unsupported ABI for the Rust terminal core: ${abi}")
-            def targetTriple = target[0]
-            def clangPrefix = target[1]
-            def cargoEnvSuffix = target[2]
-            def clang = new File(prebuilt, "${clangPrefix}21-clang")
-            if (!clang.exists()) throw new GradleException("Clang wrapper not found: ${clang}")
-
-            execOperations.exec {
-                workingDir rustDir
-                environment 'CARGO_TARGET_DIR', rustCargoTargetDir
-                environment "CC_${cargoEnvSuffix}", clang.absolutePath
-                environment "AR_${cargoEnvSuffix}", new File(prebuilt, 'llvm-ar').absolutePath
-                environment "CARGO_TARGET_${cargoEnvSuffix.toUpperCase()}_LINKER", clang.absolutePath
-                commandLine 'cargo', 'build', '--release', '--target', targetTriple
+            def prebuilt = null
+            for (arch in ['linux-aarch64', 'linux-x86_64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']) {
+                def dir = file("${ndkRoot}/toolchains/llvm/prebuilt/${arch}/bin")
+                if (new File(dir, 'llvm-ar').exists() || new File(dir, 'llvm-ar.exe').exists()) {
+                    prebuilt = dir
+                    break
+                }
             }
+            if (prebuilt == null) throw new GradleException("NDK LLVM toolchain not found under ${ndkRoot}")
 
-            def produced = file("${rustCargoTargetDir}/${targetTriple}/release/libtermux_terminal.so")
-            if (!produced.exists()) throw new GradleException("Cargo did not produce ${produced}")
-            copy {
-                from produced
-                into file("${rustJniLibsDir}/${abi}")
+            rustAbis.each { abi ->
+                def target = rustTargets[abi]
+                if (target == null) throw new GradleException("Unsupported ABI for the Rust terminal core: ${abi}")
+                def targetTriple = target[0]
+                def clangPrefix = target[1]
+                def cargoEnvSuffix = target[2]
+                def clang = new File(prebuilt, "${clangPrefix}21-clang")
+                if (!clang.exists()) throw new GradleException("Clang wrapper not found: ${clang}")
+
+                execOperations.exec {
+                    workingDir rustDir
+                    environment 'CARGO_TARGET_DIR', rustCargoTargetDir
+                    environment "CC_${cargoEnvSuffix}", clang.absolutePath
+                    environment "AR_${cargoEnvSuffix}", new File(prebuilt, 'llvm-ar').absolutePath
+                    environment "CARGO_TARGET_${cargoEnvSuffix.toUpperCase()}_LINKER", clang.absolutePath
+                    commandLine 'cargo', 'build', '--release', '--target', targetTriple
+                }
+
+                def produced = file("${rustCargoTargetDir}/${targetTriple}/release/libtermux_terminal.so")
+                if (!produced.exists()) throw new GradleException("Cargo did not produce ${produced}")
+                copy {
+                    from produced
+                    into file("${rustJniLibsDir}/${abi}")
+                }
             }
         }
     }
 }
 
-tasks.named('preBuild').configure { dependsOn cargoBuildRust }
-tasks.whenTaskAdded { task ->
-    if (task.name.startsWith('merge') && task.name.endsWith('JniLibFolders')) {
-        task.dependsOn cargoBuildRust
+if (terminalBackend == 'rust') {
+    tasks.named('preBuild').configure { dependsOn cargoBuildRust }
+    tasks.whenTaskAdded { task ->
+        if (task.name.startsWith('merge') && task.name.endsWith('JniLibFolders')) {
+            task.dependsOn cargoBuildRust
+        }
     }
 }

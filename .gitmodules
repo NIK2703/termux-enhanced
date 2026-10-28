@@ -1,0 +1,3 @@
+[submodule "third_party/foot"]
+	path = third_party/foot
+	url = https://codeberg.org/dnkl/foot.git

@@ -98,16 +98,25 @@ public final class TerminalRow {
      * Create an immutable row snapshot from the native terminal core. The text array and
      * column-start table are already in the exact shape {@link #mText} and
      * {@link #findStartOfColumn(int)} expose, so selection code can keep operating on
-     * {@code char[]} without knowing about the Rust grid.
+     * {@code char[]} without knowing which native grid produced it.
      */
     TerminalRow(int columns, char[] text, int[] columnStarts, int spaceUsed, boolean lineWrap) {
+        this(columns, text, columnStarts, null, spaceUsed, lineWrap);
+    }
+
+    /** Snapshot with native per-cell styles; {@code null} means the default style everywhere. */
+    TerminalRow(int columns, char[] text, int[] columnStarts, long[] styles, int spaceUsed, boolean lineWrap) {
         mColumns = columns;
         mText = text;
         mColumnStarts = columnStarts;
         mSpaceUsed = (short) spaceUsed;
         mLineWrap = lineWrap;
         mStyle = new long[columns];
-        java.util.Arrays.fill(mStyle, TextStyle.NORMAL);
+        if (styles != null && styles.length >= columns) {
+            System.arraycopy(styles, 0, mStyle, 0, columns);
+        } else {
+            java.util.Arrays.fill(mStyle, TextStyle.NORMAL);
+        }
         mBlankAndUniform = true;
         for (int i = 0; i < spaceUsed; i++) {
             char c = text[i];

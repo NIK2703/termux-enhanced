@@ -82,17 +82,8 @@ public class StyleUniformSuffixTest extends TerminalTestCase {
 		assertSuffixIsReallyUniform(destination, "complex bulk copy");
 	}
 
-	public void testDeccaraKeepsTheBoundValid() {
-		// DECCARA writes mStyle directly through setOrClearEffect(), bypassing setChar(). The cells
-		// it does not touch keep their style, so a uniform suffix still starts past the region.
-		TerminalBuffer buffer = new TerminalBuffer(COLUMNS, 8, 4);
-		buffer.setOrClearEffect(TextStyle.CHARACTER_ATTRIBUTE_BOLD, true, false, false, 0, COLUMNS, 0, 3, 4, 8);
-		for (int row = 0; row < 4; row++) {
-			TerminalRow line = buffer.getLineOrBlank(row);
-			assertTrue("DECCARA: suffix start out of range", line.getStyleUniformFromColumn() <= COLUMNS);
-			assertSuffixIsReallyUniform(line, "DECCARA row " + row);
-		}
-	}
+	// DECCARA now mutates the native grid; its rendering behavior is covered by the PTY-driven
+	// rectangular-area tests instead of a Java TerminalBuffer mutator.
 
 	public void testFuzzNeverUnderestimatesTheSuffix() {
 		Random random = new Random(20260910L);

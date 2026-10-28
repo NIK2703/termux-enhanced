@@ -9,15 +9,20 @@
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::cell::Flags;
-use alacritty_terminal::vte::ansi::Color;
+use alacritty_terminal::vte::ansi::{Color, NamedColor};
 
 use crate::terminal::Terminal;
+
+/// Termux TextStyle.NORMAL: default foreground (256) and background (257).
+const STYLE_DEFAULT: u64 = (256u64 << 40) | (257u64 << 16);
 
 pub struct RowText {
     pub chars: Vec<u16>,
     /// First UTF-16 index of each column. A wide character's second column maps
     /// to the same index as its first, matching TerminalRow.findStartOfColumn().
     pub starts: Vec<usize>,
+    /// Termux-style encoded cell attributes, one per column.
+    pub styles: Vec<u64>,
     pub space_used: usize,
     pub line_wrap: bool,
     pub blank: bool,
@@ -29,6 +34,7 @@ impl RowText {
         Self {
             chars: vec![b' ' as u16; columns],
             starts: (0..=columns).collect(),
+            styles: vec![STYLE_DEFAULT; columns],
             space_used: columns,
             line_wrap: false,
             blank: true,
@@ -45,6 +51,66 @@ impl RowText {
     }
 }
 
+fn named_color_index(color: NamedColor) -> u32 {
+    use NamedColor::*;
+    match color {
+        Black | DimBlack => 0,
+        Red | DimRed => 1,
+        Green | DimGreen => 2,
+        Yellow | DimYellow => 3,
+        Blue | DimBlue => 4,
+        Magenta | DimMagenta => 5,
+        Cyan | DimCyan => 6,
+        White | DimWhite => 7,
+        BrightBlack => 8,
+        BrightRed => 9,
+        BrightGreen => 10,
+        BrightYellow => 11,
+        BrightBlue => 12,
+        BrightMagenta => 13,
+        BrightCyan => 14,
+        BrightWhite => 15,
+        Foreground | BrightForeground | DimForeground => 256,
+        Background => 257,
+        Cursor => 258,
+    }
+}
+
+fn encode_style(fg: Color, bg: Color, flags: Flags) -> u64 {
+    let mut style = 0u64;
+    if flags.contains(Flags::BOLD) {
+        style |= 1 << 0;
+    }
+    if flags.contains(Flags::ITALIC) {
+        style |= 1 << 1;
+    }
+    if flags.intersects(Flags::ALL_UNDERLINES) {
+        style |= 1 << 2;
+    }
+    style |= u64::from(flags.contains(Flags::INVERSE)) << 4;
+    style |= u64::from(flags.contains(Flags::HIDDEN)) << 5;
+    style |= u64::from(flags.contains(Flags::STRIKEOUT)) << 6;
+    style |= u64::from(flags.contains(Flags::DIM)) << 8;
+
+    match fg {
+        Color::Spec(rgb) => {
+            let rgb = u32::from(rgb.r) << 16 | u32::from(rgb.g) << 8 | u32::from(rgb.b);
+            style |= (1 << 9) | (u64::from(rgb) << 40);
+        }
+        Color::Named(name) => style |= u64::from(named_color_index(name)) << 40,
+        Color::Indexed(index) => style |= u64::from(index) << 40,
+    }
+    match bg {
+        Color::Spec(rgb) => {
+            let rgb = u32::from(rgb.r) << 16 | u32::from(rgb.g) << 8 | u32::from(rgb.b);
+            style |= (1 << 10) | (u64::from(rgb) << 16);
+        }
+        Color::Named(name) => style |= u64::from(named_color_index(name)) << 16,
+        Color::Indexed(index) => style |= u64::from(index) << 16,
+    }
+    style
+}
+
 pub fn row_text(terminal: &Terminal, external_row: i32) -> RowText {
     let grid = terminal.grid();
     let history = grid.history_size() as i32;
@@ -57,14 +123,17 @@ pub fn row_text(terminal: &Terminal, external_row: i32) -> RowText {
     let line = Line(external_row);
     let mut chars: Vec<u16> = Vec::with_capacity(columns);
     let mut starts = vec![0usize; columns + 1];
+    let mut styles = vec![STYLE_DEFAULT; columns];
     let mut line_wrap = false;
     let mut blank = true;
     let mut uniform_style = true;
     let mut first_style: Option<(Color, Color, u16)> = None;
     let mut last_start = 0usize;
+    let mut last_style = STYLE_DEFAULT;
 
     for column in 0..columns {
         let cell = &grid[line][Column(column)];
+        let style = encode_style(cell.fg, cell.bg, cell.flags);
         if cell.flags.contains(Flags::WRAPLINE) {
             line_wrap = true;
         }
@@ -77,13 +146,17 @@ pub fn row_text(terminal: &Terminal, external_row: i32) -> RowText {
                 starts[column] = chars.len();
                 chars.push(b' ' as u16);
                 last_start = starts[column];
+                last_style = style;
             }
+            styles[column] = last_style;
             blank = false;
             continue;
         }
 
         starts[column] = chars.len();
         last_start = starts[column];
+        last_style = style;
+        styles[column] = style;
         let mut encoded = [0u16; 2];
         let encoded = cell.c.encode_utf16(&mut encoded);
         chars.extend_from_slice(encoded);
@@ -106,7 +179,7 @@ pub fn row_text(terminal: &Terminal, external_row: i32) -> RowText {
     starts[columns] = chars.len();
     let space_used = chars.len();
 
-    RowText { chars, starts, space_used, line_wrap, blank, uniform_style }
+    RowText { chars, starts, styles, space_used, line_wrap, blank, uniform_style }
 }
 
 /// Push a UTF-16 slice into a String, combining surrogate pairs correctly.
@@ -247,11 +320,15 @@ pub fn get_word_at_location(terminal: &Terminal, x: i32, y: i32) -> String {
 pub fn encode_row(terminal: &Terminal, external_row: i32) -> Vec<i32> {
     let row = row_text(terminal, external_row);
     let columns = terminal.columns();
-    let mut out = Vec::with_capacity(3 + row.chars.len() + columns + 1);
+    let mut out = Vec::with_capacity(3 + row.chars.len() + columns + 1 + columns * 2);
     out.push(row.space_used as i32);
     out.push(if row.line_wrap { 1 } else { 0 });
     out.push(row.chars.len() as i32);
     out.extend(row.chars.iter().map(|&c| c as i32));
     out.extend(row.starts.iter().map(|&s| s as i32));
+    for &style in &row.styles {
+        out.push(style as u32 as i32);
+        out.push((style >> 32) as u32 as i32);
+    }
     out
 }

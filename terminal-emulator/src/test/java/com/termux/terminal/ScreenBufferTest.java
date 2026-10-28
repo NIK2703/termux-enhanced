@@ -2,46 +2,9 @@ package com.termux.terminal;
 
 public class ScreenBufferTest extends TerminalTestCase {
 
-	public void testBasics() {
-		TerminalBuffer screen = new TerminalBuffer(5, 3, 3);
-		assertEquals("", screen.getTranscriptText());
-		screen.setChar(0, 0, 'a', 0);
-		assertEquals("a", screen.getTranscriptText());
-		screen.setChar(0, 0, 'b', 0);
-		assertEquals("b", screen.getTranscriptText());
-		screen.setChar(2, 0, 'c', 0);
-		assertEquals("b c", screen.getTranscriptText());
-		screen.setChar(2, 2, 'f', 0);
-		assertEquals("b c\n\n  f", screen.getTranscriptText());
-		screen.blockSet(0, 0, 2, 2, 'X', 0);
-	}
-
-	/**
-	 * Rows that are materialized lazily — and the shared blank row handed out for rows that were
-	 * never written — must be filled with the buffer's default style, never with 0. Style 0 decodes
-	 * to palette index 0 for both the foreground and the background, which renders as black glyphs
-	 * on black background rectangles instead of the color scheme's default colors.
-	 */
-	public void testLazilyAllocatedRowsUseDefaultStyle() {
-		TerminalBuffer screen = new TerminalBuffer(5, 3, 3);
-		screen.setChar(0, 0, 'a', TextStyle.NORMAL);
-		// Changing the column count takes the copy path of resize(), which leaves every row unallocated.
-		screen.resize(8, 3, 6, new int[]{1, 0}, TextStyle.NORMAL, false);
-
-		for (int row = 0; row < 3; row++) {
-			long style = screen.getLineOrBlank(row).getStyle(7); // never written on this row
-			assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, TextStyle.decodeForeColor(style));
-			assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, TextStyle.decodeBackColor(style));
-		}
-	}
-
-	public void testBlockSet() {
-		TerminalBuffer screen = new TerminalBuffer(5, 3, 3);
-		screen.blockSet(0, 0, 2, 2, 'X', 0);
-		assertEquals("XX\nXX", screen.getTranscriptText());
-		screen.blockSet(1, 1, 2, 2, 'Y', 0);
-		assertEquals("XX\nXYY\n YY", screen.getTranscriptText());
-	}
+	// Direct TerminalBuffer mutation tests (setChar/blockSet/resize) were removed with the
+	// Java-side screen buffer: the grid is native now, and those operations are covered by the
+	// C core tests in terminal-emulator/src/main/foot/tests and the PTY-driven tests below.
 
 	public void testGetSelectedText() {
 		withTerminalSized(5, 3).enterString("ABCDEFGHIJ").assertLinesAre("ABCDE", "FGHIJ", "     ");

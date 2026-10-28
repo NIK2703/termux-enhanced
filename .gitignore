@@ -32,6 +32,7 @@ javac.*.args
 config/
 tmp-prootdbg/
 terminal-view/.cxx/
+terminal-emulator/.cxx/
 
 # Build / artifact downloads
 /downloads/

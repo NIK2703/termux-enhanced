@@ -104,12 +104,10 @@ public class ControlSequenceIntroducerTest extends TerminalTestCase {
         for (String suffix : List.of("", ":1", ":2", ":3", ":4", ":5")) {
             for (String stop : List.of("24", "4:0")) {
                 withTerminalSized(3, 3);
-                enterString("\033[4" + suffix + "m").assertLinesAre("   ", "   ", "   ");
-                assertEquals(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE, mTerminal.mEffect);
-                enterString("\033[4;1m").assertLinesAre("   ", "   ", "   ");
-                assertEquals(TextStyle.CHARACTER_ATTRIBUTE_BOLD | TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE, mTerminal.mEffect);
-                enterString("\033[" + stop + "m").assertLinesAre("   ", "   ", "   ");
-                assertEquals(TextStyle.CHARACTER_ATTRIBUTE_BOLD, mTerminal.mEffect);
+                enterString("\033[4" + suffix + "m").assertCurrentEffect(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE);
+                enterString("\033[4;1m").assertCurrentEffect(
+                        TextStyle.CHARACTER_ATTRIBUTE_BOLD | TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE);
+                enterString("\033[" + stop + "m").assertCurrentEffect(TextStyle.CHARACTER_ATTRIBUTE_BOLD);
             }
         }
     }
@@ -124,8 +122,7 @@ public class ControlSequenceIntroducerTest extends TerminalTestCase {
         b.append("4:0m");
         withTerminalSized(3, 3)
             .enterString(b.toString())
-            .assertLinesAre("   ", "   ", "   ");
-        assertEquals(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE, mTerminal.mEffect);
+            .assertCurrentEffect(TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE);
     }
 
 }

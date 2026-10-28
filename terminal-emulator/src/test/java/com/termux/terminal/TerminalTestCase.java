@@ -6,10 +6,8 @@ import junit.framework.TestCase;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public abstract class TerminalTestCase extends TestCase {
 
@@ -129,60 +127,47 @@ public abstract class TerminalTestCase extends TestCase {
 		}
 	}
 
-	private static final class LineWrapper {
-		final TerminalRow mLine;
-
-		public LineWrapper(TerminalRow line) {
-			mLine = line;
-		}
-
-		@Override
-		public int hashCode() {
-			return System.identityHashCode(mLine);
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			return o instanceof LineWrapper && ((LineWrapper) o).mLine == mLine;
-		}
-	}
-
 	protected TerminalTestCase assertInvariants() {
 		TerminalBuffer screen = mTerminal.getScreen();
-		TerminalRow[] lines = screen.mLines;
-
-		Set<LineWrapper> linesSet = new HashSet<>();
-		for (int i = 0; i < lines.length; i++) {
-			if (lines[i] == null) continue;
-			assertTrue("Line exists at multiple places: " + i, linesSet.add(new LineWrapper(lines[i])));
-			char[] text = lines[i].mText;
-			int usedChars = lines[i].getSpaceUsed();
+		final int history = screen.getActiveTranscriptRows();
+		for (int externalRow = -history; externalRow < mTerminal.mRows; externalRow++) {
+			TerminalRow line = screen.getLineOrBlank(externalRow);
+			char[] text = line.mText;
+			int usedChars = line.getSpaceUsed();
+			assertTrue("Used chars exceed row buffer at row=" + externalRow, usedChars <= text.length);
 			int currentColumn = 0;
 			for (int j = 0; j < usedChars; j++) {
 				char c = text[j];
 				int codePoint;
 				if (Character.isHighSurrogate(c)) {
+					assertTrue("High surrogate without following low surrogate at row=" + externalRow,
+							j + 1 < usedChars);
 					char lowSurrogate = text[++j];
-					assertTrue("High surrogate without following low surrogate", Character.isLowSurrogate(lowSurrogate));
+					assertTrue("High surrogate without following low surrogate at row=" + externalRow,
+							Character.isLowSurrogate(lowSurrogate));
 					codePoint = Character.toCodePoint(c, lowSurrogate);
 				} else {
-					assertFalse("Low surrogate without preceding high surrogate", Character.isLowSurrogate(c));
+					assertFalse("Low surrogate without preceding high surrogate at row=" + externalRow,
+							Character.isLowSurrogate(c));
 					codePoint = c;
 				}
-				assertFalse("Screen should never contain unassigned characters", Character.getType(codePoint) == Character.UNASSIGNED);
+				assertFalse("Screen should never contain unassigned characters",
+						Character.getType(codePoint) == Character.UNASSIGNED);
 				int width = WcWidth.width(codePoint);
-				assertFalse("The first column should not start with combining character", currentColumn == 0 && width < 0);
+				assertFalse("The first column should not start with combining character",
+						currentColumn == 0 && width < 0);
 				if (width > 0) currentColumn += width;
 			}
-			assertEquals("Line whose width does not match screens. line=" + new String(lines[i].mText, 0, lines[i].getSpaceUsed()),
-					screen.mColumns, currentColumn);
+			assertEquals("Line whose width does not match screen. row=" + externalRow
+					+ " text='" + new String(text, 0, usedChars) + "'",
+					mTerminal.mColumns, currentColumn);
 		}
 
-		assertEquals("The alt buffer should have have no history", mTerminal.mAltBuffer.mTotalRows, mTerminal.mAltBuffer.mScreenRows);
 		if (mTerminal.isAlternateBufferActive()) {
-			assertEquals("The alt buffer should be the same size as the screen", mTerminal.mRows, mTerminal.mAltBuffer.mTotalRows);
+			assertEquals("The alt buffer should have no history", 0, screen.getActiveTranscriptRows());
+			assertEquals("The alt buffer should be the same size as the screen",
+					mTerminal.mRows, mTerminal.mAltBuffer.mTotalRows);
 		}
-
 		return this;
 	}
 
@@ -217,12 +202,12 @@ public abstract class TerminalTestCase extends TestCase {
 
 	public TerminalTestCase assertLineWraps(boolean... lines) {
 		for (int i = 0; i < lines.length; i++)
-			assertEquals("line=" + i, lines[i], mTerminal.getScreen().mLines[mTerminal.getScreen().externalToInternalRow(i)].mLineWrap);
+			assertEquals("line=" + i, lines[i], mTerminal.getScreen().getLineOrBlank(i).mLineWrap);
 		return this;
 	}
 
 	protected TerminalTestCase assertLineStartsWith(int line, int... codePoints) {
-		char[] chars = mTerminal.getScreen().mLines[mTerminal.getScreen().externalToInternalRow(line)].mText;
+		char[] chars = mTerminal.getScreen().getLineOrBlank(line).mText;
 		int charIndex = 0;
 		for (int i = 0; i < codePoints.length; i++) {
 			int lineCodePoint = chars[charIndex++];
@@ -319,7 +304,7 @@ public abstract class TerminalTestCase extends TestCase {
 	}
 
 	private void assertColorAt(int externalRow, int column, int color, boolean foreground) {
-		long style = mTerminal.getScreen().mLines[mTerminal.getScreen().externalToInternalRow(externalRow)].getStyle(column);
+		long style = mTerminal.getScreen().getStyleAt(externalRow, column);
 		assertEquals(color, foreground ? TextStyle.decodeForeColor(style) : TextStyle.decodeBackColor(style));
 	}
 
@@ -331,6 +316,33 @@ public abstract class TerminalTestCase extends TestCase {
 		assertEquals("background at row=" + externalRow + ", column=" + column,
 				expectedBackground, TextStyle.decodeBackColor(style));
 		return this;
+	}
+
+	/**
+	 * Print a marker at the cursor and assert the style it received. This replaces the old
+	 * {@code mForeColor}/{@code mBackColor}/{@code mEffect} fields now that SGR state lives in
+	 * the native grid.
+	 */
+	public TerminalTestCase assertCurrentStyle(int expectedForeground, int expectedBackground, int expectedEffect) {
+		final int row = mTerminal.getCursorRow();
+		final int column = mTerminal.getCursorCol();
+		enterString("X");
+		long style = getStyleAt(row, column);
+		assertEquals("foreground at cursor", expectedForeground, TextStyle.decodeForeColor(style));
+		assertEquals("background at cursor", expectedBackground, TextStyle.decodeBackColor(style));
+		if (expectedEffect >= 0) {
+			assertEquals("effect at cursor", expectedEffect, TextStyle.decodeEffect(style));
+		}
+		enterString("\b\033[X");
+		return this;
+	}
+
+	public TerminalTestCase assertCurrentColors(int expectedForeground, int expectedBackground) {
+		return assertCurrentStyle(expectedForeground, expectedBackground, -1);
+	}
+
+	public TerminalTestCase assertCurrentEffect(int expectedEffect) {
+		return assertCurrentStyle(TextStyle.COLOR_INDEX_FOREGROUND, TextStyle.COLOR_INDEX_BACKGROUND, expectedEffect);
 	}
 
 	/** Assert full style (foreground, background, effect) at one cell via {@link #getStyleAt(int, int)}. */

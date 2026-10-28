@@ -6,7 +6,7 @@ import java.util.Set;
 /**
  * Read-only view of the native terminal grid plus the dirty-row bookkeeping used by the view.
  *
- * <p>The emulator state itself (screen, transcript, alternate buffer, reflow) lives in Rust.
+ * <p>The emulator state itself (screen, transcript, alternate buffer, reflow) lives in the native terminal core (foot by default, with the Rust core available as a rollback backend).
  * This class is the small Java facade the existing selection and rendering code was written
  * against: it exposes external row coordinates ({@code -history..screenRows-1}), row snapshots
  * for the text selection UI, and a dirty set addressed by <em>content anchors</em> so a dirty
@@ -201,10 +201,22 @@ public final class TerminalBuffer {
         if (charCount < 0 || 3 + charCount > encoded.length) return blankRow();
         char[] text = new char[charCount];
         for (int i = 0; i < charCount; i++) text[i] = (char) encoded[3 + i];
-        int startsLength = encoded.length - 3 - charCount;
-        int[] starts = new int[startsLength];
-        for (int i = 0; i < startsLength; i++) starts[i] = encoded[3 + charCount + i];
-        return new TerminalRow(mColumns, text, starts, spaceUsed, lineWrap);
+        final int startsOffset = 3 + charCount;
+        final int startsLength = Math.min(mColumns + 1, encoded.length - startsOffset);
+        int[] starts = new int[mColumns + 1];
+        for (int i = 0; i < startsLength; i++) starts[i] = encoded[startsOffset + i];
+        for (int i = startsLength; i <= mColumns; i++) starts[i] = charCount;
+        long[] styles = null;
+        final int stylesOffset = startsOffset + mColumns + 1;
+        if (encoded.length >= stylesOffset + mColumns * 2) {
+            styles = new long[mColumns];
+            for (int i = 0; i < mColumns; i++) {
+                final long low = encoded[stylesOffset + i * 2] & 0xffffffffL;
+                final long high = encoded[stylesOffset + i * 2 + 1] & 0xffffffffL;
+                styles[i] = (high << 32) | low;
+            }
+        }
+        return new TerminalRow(mColumns, text, starts, styles, spaceUsed, lineWrap);
     }
 
     private TerminalRow blankRow() {
@@ -230,8 +242,10 @@ public final class TerminalBuffer {
         return getLineOrBlank(externalRow);
     }
 
-    /** Compatibility: row styles are no longer stored on the Java side. */
+    /** Style of one cell, as encoded by {@link TextStyle}. */
     public long getStyleAt(int externalRow, int column) {
-        return TextStyle.NORMAL;
+        TerminalRow row = getLineOrBlank(externalRow);
+        if (column < 0 || column >= mColumns) return TextStyle.NORMAL;
+        return row.getStyle(column);
     }
 }

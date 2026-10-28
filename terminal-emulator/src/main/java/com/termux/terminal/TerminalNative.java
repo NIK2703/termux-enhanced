@@ -1,7 +1,7 @@
 package com.termux.terminal;
 
 /**
- * Thin JNI bridge to the Rust terminal core.
+ * Thin JNI bridge to the native terminal core. The default backend is foot (terminal-emulator/src/main/foot); the Rust core exposes the same entry points when built with -PtermuxTerminalBackend=rust.
  *
  * <p>The native side owns the VT parser, the screen/history grid, the palette mirror, selection
  * extraction and render planning. Instances are represented by an opaque handle; every call is
@@ -85,7 +85,7 @@ final class TerminalNative {
 
     static native String nativeWordAtLocation(long handle, int x, int y);
 
-    /** Packed render command list. See render.rs for the ABI. */
+    /** Packed render command list consumed by {@code TerminalRenderer}. */
     static native int[] nativeRender(long handle, int topRow, int selectionY1, int selectionY2,
                                      int selectionX1, int selectionX2, boolean cursorVisible,
                                      int cursorShape, int backgroundAlpha, float fontWidth,

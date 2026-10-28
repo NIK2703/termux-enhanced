@@ -138,109 +138,75 @@ public class TerminalTest extends TerminalTestCase {
 	}
 
 	public void selectGraphicsTestRun(char separator) {
+		final int defaultForeground = TextStyle.COLOR_INDEX_FOREGROUND;
+		final int defaultBackground = TextStyle.COLOR_INDEX_BACKGROUND;
 		withTerminalSized(5, 5);
-		enterString("\033[31m");
-		assertEquals(mTerminal.mForeColor, 1);
-		enterString("\033[32m");
-		assertEquals(mTerminal.mForeColor, 2);
-		enterString("\033[43m");
-		assertEquals(2, mTerminal.mForeColor);
-		assertEquals(3, mTerminal.mBackColor);
+		enterString("\033[31m").assertCurrentColors(1, defaultBackground);
+		enterString("\033[32m").assertCurrentColors(2, defaultBackground);
+		enterString("\033[43m").assertCurrentColors(2, 3);
 
 		// SGR 0 should reset both foreground and background color.
-		enterString("\033[0m");
-		assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-		assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, mTerminal.mBackColor);
+		enterString("\033[0m").assertCurrentColors(defaultForeground, defaultBackground);
 
 		// Test CSI resetting to default if sequence starts with ; or has sequential ;;
-        // Check TerminalEmulator.parseArg()
-        enterString("\033[31m\033[m");
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        enterString("\033[31m\033[;m".replace(';', separator));
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        enterString("\033[31m\033[0m");
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        enterString("\033[31m\033[0;m".replace(';', separator));
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        enterString("\033[31;;m");
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        enterString("\033[31::m");
-        assertEquals(1, mTerminal.mForeColor);
-        enterString("\033[31;m");
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        enterString("\033[31:m");
-        assertEquals(1, mTerminal.mForeColor);
-        enterString("\033[31;;41m");
-        assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-        assertEquals(1, mTerminal.mBackColor);
-        enterString("\033[0m");
-        assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, mTerminal.mBackColor);
+		// Check TerminalEmulator.parseArg()
+		enterString("\033[31m\033[m").assertCurrentColors(defaultForeground, defaultBackground);
+		enterString("\033[31m\033[;m".replace(';', separator)).assertCurrentColors(defaultForeground, defaultBackground);
+		enterString("\033[31m\033[0m").assertCurrentColors(defaultForeground, defaultBackground);
+		enterString("\033[31m\033[0;m".replace(';', separator)).assertCurrentColors(defaultForeground, defaultBackground);
+		enterString("\033[31;;m").assertCurrentColors(defaultForeground, defaultBackground);
+		enterString("\033[31::m").assertCurrentColors(1, defaultBackground);
+		enterString("\033[31;m").assertCurrentColors(defaultForeground, defaultBackground);
+		enterString("\033[31:m").assertCurrentColors(1, defaultBackground);
+		enterString("\033[31;;41m").assertCurrentColors(defaultForeground, 1);
+		enterString("\033[0m").assertCurrentColors(defaultForeground, defaultBackground);
 
 		// 256 colors:
-		enterString("\033[38;5;119m".replace(';', separator));
-		assertEquals(119, mTerminal.mForeColor);
-		assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, mTerminal.mBackColor);
-		enterString("\033[48;5;129m".replace(';', separator));
-		assertEquals(119, mTerminal.mForeColor);
-		assertEquals(129, mTerminal.mBackColor);
+		enterString("\033[38;5;119m".replace(';', separator)).assertCurrentColors(119, defaultBackground);
+		enterString("\033[48;5;129m".replace(';', separator)).assertCurrentColors(119, 129);
 
 		// Invalid parameter:
-		enterString("\033[48;8;129m".replace(';', separator));
-		assertEquals(119, mTerminal.mForeColor);
-		assertEquals(129, mTerminal.mBackColor);
+		enterString("\033[48;8;129m".replace(';', separator)).assertCurrentColors(119, 129);
 
 		// Multiple parameters at once:
-		enterString("\033[38;5;178".replace(';', separator) + ";" + "48;5;179m".replace(';', separator));
-		assertEquals(178, mTerminal.mForeColor);
-		assertEquals(179, mTerminal.mBackColor);
+		enterString("\033[38;5;178".replace(';', separator) + ";" + "48;5;179m".replace(';', separator))
+			.assertCurrentColors(178, 179);
 
 		// Omitted parameter means zero:
-		enterString("\033[38;5;m".replace(';', separator));
-		assertEquals(0, mTerminal.mForeColor);
-		assertEquals(179, mTerminal.mBackColor);
-		enterString("\033[48;5;m".replace(';', separator));
-		assertEquals(0, mTerminal.mForeColor);
-		assertEquals(0, mTerminal.mBackColor);
+		enterString("\033[38;5;m".replace(';', separator)).assertCurrentColors(0, 179);
+		enterString("\033[48;5;m".replace(';', separator)).assertCurrentColors(0, 0);
 
 		// 24 bit colors:
 		enterString(("\033[0m")); // Reset fg and bg colors.
 		enterString("\033[38;2;255;127;2m".replace(';', separator));
 		int expectedForeground = 0xff000000 | (255 << 16) | (127 << 8) | 2;
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, defaultBackground);
 		enterString("\033[48;2;1;2;254m".replace(';', separator));
 		int expectedBackground = 0xff000000 | (1 << 16) | (2 << 8) | 254;
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(expectedBackground, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, expectedBackground);
 
 		// 24 bit colors, set fg and bg at once:
 		enterString(("\033[0m")); // Reset fg and bg colors.
-		assertEquals(TextStyle.COLOR_INDEX_FOREGROUND, mTerminal.mForeColor);
-		assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, mTerminal.mBackColor);
+		assertCurrentColors(defaultForeground, defaultBackground);
 		enterString("\033[38;2;255;127;2".replace(';', separator) + ";" + "48;2;1;2;254m".replace(';', separator));
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(expectedBackground, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, expectedBackground);
 
 		// 24 bit colors, invalid input:
 		enterString("\033[38;2;300;127;2;48;2;1;300;254m".replace(';', separator));
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(expectedBackground, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, expectedBackground);
 
 		// 24 bit colors, omitted parameter means zero:
 		enterString("\033[38;2;255;127;m".replace(';', separator));
 		expectedForeground = 0xff000000 | (255 << 16) | (127 << 8);
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(expectedBackground, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, expectedBackground);
 		enterString("\033[38;2;123;;77m".replace(';', separator));
 		expectedForeground = 0xff000000 | (123 << 16) | 77;
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(expectedBackground, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, expectedBackground);
 
 		// 24 bit colors, extra sub-parameters are skipped:
 		expectedForeground = 0xff000000 | (255 << 16) | (127 << 8) | 2;
 		enterString("\033[0;38:2:255:127:2:48:2:1:2:254m");
-		assertEquals(expectedForeground, mTerminal.mForeColor);
-		assertEquals(TextStyle.COLOR_INDEX_BACKGROUND, mTerminal.mBackColor);
+		assertCurrentColors(expectedForeground, defaultBackground);
 	}
 
 	public void testBackgroundColorErase() {
