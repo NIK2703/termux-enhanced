@@ -51,7 +51,7 @@ public final class TermuxActivityPopupController {
 
         void onHistoryMessagePicked(@NonNull String message);
 
-        /** One of the combined input actions was selected. */
+        /** Applies the selected input-history action. */
         void onInputHistoryAction(boolean saveToHistory, boolean clearInput);
 
         // Keep-screen-on preference bridge
@@ -75,7 +75,6 @@ public final class TermuxActivityPopupController {
 
     // History popup state
     private final java.util.ArrayList<View> mHistoryItemViews = new java.util.ArrayList<>();
-    /** Combined bottom row: [Save] [and] [Clear]. */
     @Nullable private LinearLayout mHistoryActionRow = null;
     @Nullable private TextView mHistorySaveActionView = null;
     @Nullable private TextView mHistoryAndActionView = null;
@@ -118,8 +117,7 @@ public final class TermuxActivityPopupController {
     private static final int CONTEXT_MENU_SETTINGS_ID = 8;
     private static final int CONTEXT_MENU_REPORT_ID = 9;
 
-    // History popup synthetic-row tags. Negative values are action rows, non-negative
-    // values are real history indexes.
+    // Synthetic action rows use negative tags; history rows store their index.
     private static final int MESSAGE_HISTORY_SAVE_AND_CLEAR_TAG = -2;
     private static final int MESSAGE_HISTORY_CLEAR_ALL_TAG = -3;
     private static final int MESSAGE_HISTORY_SAVE_TAG = -4;
@@ -190,7 +188,6 @@ public final class TermuxActivityPopupController {
 
         // Synthetic "CLEAR HISTORY…" row pinned at the TOP. Selecting it opens a confirmation
         // dialog; confirming wipes all history. Shown only when there is history to clear.
-        // Coexists with the bottom Save/and/Clear action row, which acts on the input field.
         if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
             addSyntheticHistoryRow(content, mContext.getString(R.string.input_history_clear_all),
                     MESSAGE_HISTORY_CLEAR_ALL_TAG, padH, padV);
@@ -229,17 +226,20 @@ public final class TermuxActivityPopupController {
             }
         }
 
-        // Combined action row pinned at the BOTTOM (nearest the pencil):
-        // [Save] leaves the text in place, [and] saves then clears it, [Clear] only clears it.
-        // Shown only when the panel has text.
+        // Saving an input that is already in history would be a no-op, so show only Clear.
         if (!TextUtils.isEmpty(inputText)) {
-            // Thin separator above the action row: divider between the history list and
-            // the actions. Only meaningful when there IS a history list to separate it from.
             if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
                 content.addView(createHistorySeparator(), new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
             }
-            addFullWidthRow(content, createInputHistoryActionRow(padV));
+            final boolean alreadyInHistory = mMessageHistoryCtrl != null
+                    && mMessageHistoryCtrl.getHistoryList().contains(inputText);
+            if (alreadyInHistory) {
+                addSyntheticHistoryRow(content, mContext.getString(R.string.input_history_clear),
+                        MESSAGE_HISTORY_CLEAR_ONLY_TAG, padH, padV);
+            } else {
+                addFullWidthRow(content, createInputHistoryActionRow(padV));
+            }
         }
 
         if (interactive) {
@@ -401,18 +401,13 @@ public final class TermuxActivityPopupController {
         mHistoryItemViews.add(tv);
     }
 
-    /**
-     * Builds the combined bottom action row: {@code [Save] | [and] | [Clear]}. The middle
-     * segment is half as wide as the side ones; every label is centred in its segment.
-     */
     private View createInputHistoryActionRow(int padV) {
         LinearLayout row = new LinearLayout(mContext);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setBaselineAligned(false);
         mHistoryActionRow = row;
 
-        // Vertical dividers, 1 dp and the same colour as the horizontal separator
-        // between the history list and this row.
+        // Match the separator above the row.
         GradientDrawable divider = new GradientDrawable();
         divider.setColor(mColorSchemeManager.getHistoryPopupSepColor());
         divider.setSize(TermuxActivityUtils.dpToPx(mContext, 1), 1);
@@ -426,7 +421,6 @@ public final class TermuxActivityPopupController {
         mHistoryClearActionView = createInputHistoryActionSegment(
                 R.string.input_history_clear, MESSAGE_HISTORY_CLEAR_ONLY_TAG, padV);
 
-        // Save and Clear are twice as wide as the middle "and" segment.
         row.addView(mHistorySaveActionView, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f));
         row.addView(mHistoryAndActionView, new LinearLayout.LayoutParams(
@@ -434,21 +428,17 @@ public final class TermuxActivityPopupController {
         row.addView(mHistoryClearActionView, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f));
 
-        // The row (not its segments) is the hit-test target for the swipe gesture; the
-        // segment is resolved from the finger's x position.
+        // Swipe hit-testing targets the row; the segment is resolved from x.
         mHistoryItemViews.add(row);
         return row;
     }
 
-    /** One segment of the combined action row: all-caps, bold, centred, one line. */
     private TextView createInputHistoryActionSegment(int textRes, int tag, int padV) {
         TextView tv = new TextView(mContext);
         tv.setText(textRes);
         tv.setGravity(Gravity.CENTER);
         tv.setAllCaps(true);
         tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-        // Same font size and vertical padding as the old single "Clear" row, so the
-        // combined row keeps the height it had before the split.
         tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
         tv.setSingleLine(true);
@@ -459,7 +449,6 @@ public final class TermuxActivityPopupController {
         return tv;
     }
 
-    /** Binds the three segments of the combined row for the touchable popup. */
     private void bindInteractiveInputHistoryActionRow() {
         bindInteractiveInputActionSegment(mHistorySaveActionView, MESSAGE_HISTORY_SAVE_TAG);
         bindInteractiveInputActionSegment(mHistoryAndActionView, MESSAGE_HISTORY_SAVE_AND_CLEAR_TAG);
@@ -486,7 +475,7 @@ public final class TermuxActivityPopupController {
         });
     }
 
-    /** Paints the active segment, or the whole row when the middle "and" is selected. */
+    /** Paints the active segment; the middle action highlights the whole row. */
     private void highlightInputHistoryAction(int tag) {
         clearHistoryHighlight();
         paintInputHistoryAction(tag);
@@ -516,11 +505,9 @@ public final class TermuxActivityPopupController {
         return null;
     }
 
-    /** Resolve the action under {@code rawX} from the laid-out segment bounds. */
     private int resolveInputHistoryActionAt(float rawX, int rowLeft, int rowWidth) {
         if (rowWidth <= 0) return Integer.MIN_VALUE;
-        // Ask the actual views rather than row fractions: the middle segment is narrower
-        // than the others and the layout direction may place it in either order.
+        // Use the laid-out bounds: the middle is narrower and RTL swaps sides.
         if (isPointInsideSegment(mHistorySaveActionView, rawX, rowLeft)) {
             return MESSAGE_HISTORY_SAVE_TAG;
         }
@@ -653,7 +640,6 @@ public final class TermuxActivityPopupController {
         }
     }
 
-    /** Remove the active highlight, whether it is a whole row or one segment. */
     private void clearHistoryHighlight() {
         if (mActiveHighlightView != null) {
             mActiveHighlightView.setBackgroundColor(Color.TRANSPARENT);

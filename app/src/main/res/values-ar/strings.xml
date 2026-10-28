@@ -207,7 +207,7 @@
     <string name="keyboard_state_follow_tab_switch_title">حالة لوحة المفاتيح عند التبديل بين علامات التبويب</string>
     <string name="keyboard_state_follow_tab_switch_summary">عند التبديل بين علامات التبويب، تُستعاد حالة لوحة المفاتيح لكل علامة تبويب كما كانت عند مغادرتها.</string>
     <string name="double_tap_terminal_opens_keyboard_title">النقر المزدوج على الطرفية لفتح لوحة المفاتيح</string>
-    <string name="double_tap_terminal_opens_keyboard_summary">يفتح لوحة المفاتيح عندما تلتقط البرامج التي تعمل داخل الطرفية النقرة المفردة.</string>
+    <string name="double_tap_terminal_opens_keyboard_summary">يفتح لوحة المفاتيح عندما تلتقط تطبيقات الطرفية نقرة واحدة.</string>
     <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">إخفاء لوحة المفاتيح البرمجية عند توصيل لوحة مفاتيح عتادية</string>
     <string name="termux_soft_keyboard_enabled_title">لوحة المفاتيح البرمجية</string>
     <string name="termux_tasker_preferences_summary">تفضيلات تطبيق Termux:Tasker</string>

@@ -3627,24 +3627,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mPopupCtrl.dismissMessageHistoryPopup();
     }
 
-    /**
-     * Combined input-history action row: optionally remember the current input text, then
-     * optionally empty the field. The three segments map to (save, clear) pairs:
-     * Save = (true, false), "and" = (true, true), Clear = (false, true).
-     */
     @Override
     public void onInputHistoryAction(boolean saveToHistory, boolean clearInput) {
         final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
 
         String existing = editText.getText().toString();
-        // A brand-new message goes to the TOP of the history (pre-promote-switch behaviour);
-        // a message already in the history KEEPS its position.
+        // New messages go to the top; existing ones keep their position.
         if (saveToHistory && !TextUtils.isEmpty(existing)) {
             addNewOnTop(existing);
         }
 
-        // Save-only must not touch the panel or the keyboard: leave the field exactly as it is.
+        // Save-only leaves the field and keyboard untouched.
         if (!clearInput) return;
 
         if (!isTextInputVisible()) {

@@ -120,7 +120,7 @@
     <string name="file_receiver_error_saving_file">파일을 저장하는 중 오류가 발생했습니다:\n\n%s</string>
     <string name="input_history_clear">지우기</string>
     <string name="input_history_save">저장</string>
-    <string name="input_history_and">그리고</string>
+    <string name="input_history_and">및</string>
     <string name="input_history_clear_all">전체 기록 지우기…</string>
     <string name="input_history_clear_all_button">모두</string>
     <string name="input_history_clear_all_question">모든 입력 기록을 영구적으로 삭제하시겠습니까?</string>

@@ -186,7 +186,7 @@
 
     <string name="input_panel_quick_actions_title">输入面板的额外按钮</string>
 
-    <string name="input_panel_quick_actions_disabled_summary">在输入面板切换按钮上滑动即可触发其他操作：上滑：输入历史，下滑：从剪贴板粘贴，左滑：附加文件</string>
+    <string name="input_panel_quick_actions_disabled_summary">在输入面板切换按钮上滑动即可触发其他操作：上滑打开输入历史，下滑从剪贴板粘贴，左滑附加文件。</string>
     <string name="text_input_action_on_send_title">发送操作</string>
     <string-array name="text_input_action_on_send_entries">
         <item>无操作</item>
@@ -206,7 +206,7 @@
     <string name="input_history_clear_all">清除历史…</string>
     <string name="input_history_clear">清除</string>
     <string name="input_history_save">保存</string>
-    <string name="input_history_and">和</string>
+    <string name="input_history_and">并</string>
     <string name="input_history_clear_dialog_title">清除输入历史</string>
     <string name="input_history_clear_question">清除输入历史？</string>
     <string name="input_history_clear_confirm_current">清除当前目录保存的所有输入历史？此操作不可撤销。</string>

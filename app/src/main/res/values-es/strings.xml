@@ -197,7 +197,7 @@
     <string name="text_input_restore_mode_option_replace">Reemplazar todo el campo de entrada</string>
     <string name="input_history_empty">El historial de entrada está vacío</string>
     <string name="input_history_clear_all">BORRAR HISTORIAL…</string>
-    <string name="input_history_clear">BORRAR</string>
+    <string name="input_history_clear">LIMPIAR</string>
     <string name="input_history_save">GUARDAR</string>
     <string name="input_history_and">Y</string>
     <string name="input_history_clear_dialog_title">Borrar historial de entrada</string>
