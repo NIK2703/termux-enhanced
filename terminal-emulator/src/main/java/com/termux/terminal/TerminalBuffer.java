@@ -1,180 +1,155 @@
 package com.termux.terminal;
 
-import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * A circular buffer of {@link TerminalRow}:s which keeps notes about what is visible on a logical screen and the scroll
- * history.
- * <p>
- * See {@link #externalToInternalRow(int)} for how to map from logical screen rows to array indices.
+ * Read-only view of the native terminal grid plus the dirty-row bookkeeping used by the view.
+ *
+ * <p>The emulator state itself (screen, transcript, alternate buffer, reflow) lives in Rust.
+ * This class is the small Java facade the existing selection and rendering code was written
+ * against: it exposes external row coordinates ({@code -history..screenRows-1}), row snapshots
+ * for the text selection UI, and a dirty set addressed by <em>content anchors</em> so a dirty
+ * row keeps its identity when output scrolls the transcript.</p>
  */
 public final class TerminalBuffer {
 
-    TerminalRow[] mLines;
-    /** The length of {@link #mLines}. */
+    /**
+     * The native grid handle, or 0 for the detached compatibility constructor used by
+     * standalone buffer tests.
+     */
+    private final long mNativeHandle;
+
+    /** The number of columns visible on the screen. */
+    int mColumns;
+    /** The total number of rows kept by the terminal (screen + transcript). */
     int mTotalRows;
-    /** The number of rows and columns visible on the screen. */
-    int mScreenRows, mColumns;
-    /** The number of rows kept in history. */
-    private int mActiveTranscriptRows = 0;
-    /** The index in the circular buffer where the visible screen starts. */
-    private int mScreenFirstRow = 0;
+    /** The number of rows visible on the screen. */
+    int mScreenRows;
 
-    // ── Dirty-row tracking for partial redraws ────────────────────────────────────────────
-    // E2: one bit per *internal* (ring) row instead of an external-coordinate range.
-    //
-    // scrollDownOneLine() does not rewrite the rows in the screen window — it only advances
-    // mScreenFirstRow, i.e. changes which internal row an external coordinate points at. Tracking
-    // external rows would force every scroll to declare the whole buffer dirty, which is what made
-    // each output line cost a full frame. An internal row keeps its identity across a scroll, so it
-    // stays precise and scrollDownOneLine() only marks the single row it actually rewrites (the
-    // newly revealed one).
-    //
-    // The dirty set alone does not decide full-vs-partial: when the visible window moves (live
-    // bottom, wheel, fling, snap) every pixel changes although no row is dirty — that is the view's
-    // content-anchor check, see TerminalView.repaintAfterUpdate().
-    private long[] mDirtyRows;
-    private boolean mAnyRowDirty;
-    /** Forces a complete repaint: set on construction, resize, partial scrolls, buffer switches. */
     private boolean mAllDirty = true;
+    private final Set<Integer> mDirtyRows = new HashSet<>();
+    private int mCachedHistory = -1;
 
-    /** Shared read-only blank row returned by {@link #getLineOrBlank(int)} for never-written lines. */
     private TerminalRow mBlankRow;
     private int mBlankRowColumns = -1;
-    private long mBlankRowStyle = -1;
+
+    TerminalBuffer(long nativeHandle, int columns, int totalRows, int screenRows) {
+        mNativeHandle = nativeHandle;
+        mColumns = columns;
+        mTotalRows = totalRows;
+        mScreenRows = screenRows;
+    }
 
     /**
-     * Style for lazily materialized rows (see {@link #allocateFullLineIfNecessary(int)}) and the
-     * shared blank row: cells the program has <em>never written</em>, so they carry the scheme's
-     * default attributes.
-     * <p>
-     * Deliberately not refreshed from the current style in
-     * {@link #resize(int, int, int, int[], long, boolean)}: that leaks the attribute active at the
-     * resize into every blank cell, so a full-screen program ending on a reverse-video status line
-     * paints the empty area black. Cells the program <em>erased</em> are the exception and keep
-     * that SGR — hence {@code currentStyle} in resize's clear()/scrollDownOneLine() calls.
-     * <p>
-     * It must never be left at 0: style 0 decodes to palette index 0 for <em>both</em> the
-     * foreground and the background, so freshly allocated rows would render as black glyphs on black
-     * background rectangles instead of the scheme's default colors.
+     * Detached, empty buffer. Kept so code which only needs the coordinate helpers can be
+     * instantiated without a terminal; all content comes back blank.
      */
-    private long mDefaultStyle = TextStyle.NORMAL;
+    public TerminalBuffer(int columns, int totalRows, int screenRows) {
+        this(0, columns, totalRows, screenRows);
+    }
 
-    /** Mark a single external row as needing a repaint. */
+    void updateSize(int columns, int totalRows, int screenRows) {
+        mColumns = columns;
+        mTotalRows = totalRows;
+        mScreenRows = screenRows;
+        mBlankRow = null;
+        mBlankRowColumns = -1;
+        mCachedHistory = -1;
+        markAllDirty();
+    }
+
+    void invalidateHistoryCache() {
+        mCachedHistory = -1;
+    }
+
     public void markRowDirty(int externalRow) {
         if (mAllDirty) return;
-        // Defensive: callers may hold a row index from before the last resize — the view's
-        // "previous cursor row" is the realistic one (mLastCursorRow can still be 47 when a
-        // rotation cut the screen to 24 rows). externalToInternalRow() *throws* out of range,
-        // and a stale index denotes a row that no longer exists, i.e. nothing to repaint — so
-        // ignore it instead of turning a rotation into a crash.
-        if (externalRow < -mActiveTranscriptRows || externalRow > mScreenRows) return;
-        markInternalRowDirty(externalToInternalRow(externalRow));
+        final int history = getActiveTranscriptRows();
+        if (externalRow < -history || externalRow > mScreenRows) return;
+        mDirtyRows.add(anchorFor(externalRow));
     }
 
     /**
-     * E1/E2: mark a ring slot dirty. This is the only mark {@link #scrollDownOneLine(int, int, long)}
-     * needs for a full-screen scroll — the one row it clears. Everything else in the window merely
-     * moved, and movement is handled by the view's content anchor, not by the dirty set.
+     * Compatibility entry point for code that addresses ring slots. Native rows are identified
+     * by their content anchor, and {@link #externalToInternalRow(int)} returns exactly that.
      */
     public void markInternalRowDirty(int internalRow) {
-        if (mAllDirty || mDirtyRows == null) return;
-        if (internalRow < 0 || internalRow >= mTotalRows) return;
-        setDirtyBit(internalRow, true);
+        if (mAllDirty) return;
+        mDirtyRows.add(internalRow);
     }
 
-    private void setDirtyBit(int internalRow, boolean dirty) {
-        final int word = internalRow >>> 6;
-        final long mask = 1L << (internalRow & 63);
-        if (dirty) {
-            mDirtyRows[word] |= mask;
-            mAnyRowDirty = true;
-        } else {
-            mDirtyRows[word] &= ~mask;
-        }
-    }
-
-    private boolean isDirtyBitSet(int internalRow) {
-        return (mDirtyRows[internalRow >>> 6] & (1L << (internalRow & 63))) != 0L;
-    }
-
-    /** E2: has the content of this external row changed since it was last drawn? */
     public boolean isRowDirty(int externalRow) {
         if (mAllDirty) return true;
-        if (!mAnyRowDirty) return false;
-        final int internalRow = externalToInternalRow(externalRow);
-        if (internalRow < 0 || internalRow >= mTotalRows) return false;
-        return isDirtyBitSet(internalRow);
+        if (mDirtyRows.isEmpty()) return false;
+        final int history = getActiveTranscriptRows();
+        if (externalRow < -history || externalRow > mScreenRows) return false;
+        return mDirtyRows.contains(anchorFor(externalRow));
     }
 
-    /**
-     * E2: drop the dirty bit of one external row, once it has actually been drawn.
-     *
-     * <p>Rows that were dirty but not visible keep their bit: the emulator can write to a screen
-     * row while the user is scrolled away, and that row must still be repainted when it scrolls
-     * back into view. Clearing per drawn row (instead of dropping the whole state up-front, as
-     * the view used to do) is what makes that work.</p>
-     */
     public void clearRowDirty(int externalRow) {
-        if (mAllDirty || mDirtyRows == null) return;
-        final int internalRow = externalToInternalRow(externalRow);
-        if (internalRow < 0 || internalRow >= mTotalRows) return;
-        setDirtyBit(internalRow, false);
+        if (mAllDirty) return;
+        final int history = getActiveTranscriptRows();
+        if (externalRow < -history || externalRow > mScreenRows) return;
+        mDirtyRows.remove(anchorFor(externalRow));
     }
 
-    /** Force a complete repaint of this buffer on the next frame. */
     public void markAllDirty() {
-        if (mAllDirty) return;
         mAllDirty = true;
-        mAnyRowDirty = false;
-        if (mDirtyRows != null) java.util.Arrays.fill(mDirtyRows, 0L);
+        mDirtyRows.clear();
     }
 
     public boolean isAllDirty() {
         return mAllDirty;
     }
 
-    /**
-     * Reset dirty tracking once the pending repaint has been drawn.
-     *
-     * <p>Callers: only {@code TerminalRenderer.render()}, after the pixels are on the canvas. The
-     * dirty set is read *during* {@code onDraw()}, so it must not be cleared when the repaint is
-     * scheduled — only when it has happened.</p>
-     */
     public void clearDirtyState() {
         mAllDirty = false;
-        mAnyRowDirty = false;
-        if (mDirtyRows != null) java.util.Arrays.fill(mDirtyRows, 0L);
+        mDirtyRows.clear();
+    }
+
+    private int anchorFor(int externalRow) {
+        if (mNativeHandle == 0) return externalRow;
+        return TerminalNative.nativeAnchorRow(mNativeHandle, externalRow);
+    }
+
+    public int getActiveTranscriptRows() {
+        if (mNativeHandle == 0) return 0;
+        if (mCachedHistory < 0) {
+            mCachedHistory = TerminalNative.nativeHistorySize(mNativeHandle);
+        }
+        return mCachedHistory;
+    }
+
+    public int getActiveRows() {
+        return getActiveTranscriptRows() + mScreenRows;
     }
 
     /**
-     * Create a transcript screen.
-     *
-     * @param columns    the width of the screen in characters.
-     * @param totalRows  the height of the entire text area, in rows of text.
-     * @param screenRows the height of just the screen, not including the transcript that holds lines that have scrolled off
-     *                   the top of the screen.
+     * Content-addressed identity of an external row. It changes when the row's content moves
+     * (live output scrolling the screen), and stays the same when the viewport follows the
+     * content, which is exactly what {@code TerminalView.repaintAfterUpdate()} compares.
      */
-    public TerminalBuffer(int columns, int totalRows, int screenRows) {
-        mColumns = columns;
-        mTotalRows = totalRows;
-        mScreenRows = screenRows;
-        mLines = new TerminalRow[totalRows];
-        mDirtyRows = new long[(totalRows + 63) >>> 6];
-
-        blockSet(0, 0, columns, screenRows, ' ', TextStyle.NORMAL);
+    public int externalToInternalRow(int externalRow) {
+        if (mNativeHandle == 0) return externalRow;
+        return TerminalNative.nativeAnchorRow(mNativeHandle, externalRow);
     }
 
     public String getTranscriptText() {
-        return getSelectedText(0, -getActiveTranscriptRows(), mColumns, mScreenRows).trim();
+        return getTranscriptText(0);
     }
 
     public String getTranscriptTextWithoutJoinedLines() {
-        return getSelectedText(0, -getActiveTranscriptRows(), mColumns, mScreenRows, false).trim();
+        return getTranscriptText(1);
     }
 
     public String getTranscriptTextWithFullLinesJoined() {
-        return getSelectedText(0, -getActiveTranscriptRows(), mColumns, mScreenRows, true, true).trim();
+        return getTranscriptText(2);
+    }
+
+    private String getTranscriptText(int mode) {
+        if (mNativeHandle == 0) return "";
+        return TerminalNative.nativeTranscriptText(mNativeHandle, mode);
     }
 
     public String getSelectedText(int selX1, int selY1, int selX2, int selY2) {
@@ -186,562 +161,77 @@ public final class TerminalBuffer {
     }
 
     public String getSelectedText(int selX1, int selY1, int selX2, int selY2, boolean joinBackLines, boolean joinFullLines) {
-        final StringBuilder builder = new StringBuilder();
-        final int columns = mColumns;
-
-        if (selY1 < -getActiveTranscriptRows()) selY1 = -getActiveTranscriptRows();
-        if (selY2 >= mScreenRows) selY2 = mScreenRows - 1;
-
-        for (int row = selY1; row <= selY2; row++) {
-            int x1 = (row == selY1) ? selX1 : 0;
-            int x2;
-            if (row == selY2) {
-                x2 = selX2 + 1;
-                if (x2 > columns) x2 = columns;
-            } else {
-                x2 = columns;
-            }
-            TerminalRow lineObject = getLineOrBlank(row);
-            int x1Index = lineObject.findStartOfColumn(x1);
-            int x2Index = (x2 < mColumns) ? lineObject.findStartOfColumn(x2) : lineObject.getSpaceUsed();
-            if (x2Index == x1Index) {
-                // Selected the start of a wide character.
-                x2Index = lineObject.findStartOfColumn(x2 + 1);
-            }
-            char[] line = lineObject.mText;
-            int lastPrintingCharIndex = -1;
-            int i;
-            boolean rowLineWrap = getLineWrap(row);
-            if (rowLineWrap && x2 == columns) {
-                // If the line was wrapped, we shouldn't lose trailing space:
-                lastPrintingCharIndex = x2Index - 1;
-            } else {
-                for (i = x1Index; i < x2Index; ++i) {
-                    char c = line[i];
-                    if (c != ' ') lastPrintingCharIndex = i;
-                }
-            }
-
-            int len = lastPrintingCharIndex - x1Index + 1;
-            if (lastPrintingCharIndex != -1 && len > 0)
-                builder.append(line, x1Index, len);
-
-            boolean lineFillsWidth = lastPrintingCharIndex == x2Index - 1;
-            if ((!joinBackLines || !rowLineWrap) && (!joinFullLines || !lineFillsWidth)
-                && row < selY2 && row < mScreenRows - 1) builder.append('\n');
-        }
-        return builder.toString();
+        if (mNativeHandle == 0) return "";
+        return TerminalNative.nativeSelectedText(mNativeHandle, selX1, selY1, selX2, selY2, joinBackLines, joinFullLines);
     }
 
     public String getWordAtLocation(int x, int y) {
-        // Set y1 and y2 to the lines where the wrapped line starts and ends.
-        // I.e. if a line that is wrapped to 3 lines starts at line 4, and this
-        // is called with y=5, then y1 would be set to 4 and y2 would be set to 6.
-        int y1 = y;
-        int y2 = y;
-        while (y1 > 0 && !getSelectedText(0, y1 - 1, mColumns, y, true, true).contains("\n")) {
-            y1--;
-        }
-        while (y2 < mScreenRows && !getSelectedText(0, y, mColumns, y2 + 1, true, true).contains("\n")) {
-            y2++;
-        }
-
-        // Get the text for the whole wrapped line
-        String text = getSelectedText(0, y1, mColumns, y2, true, true);
-        // The index of x in text
-        int textOffset = (y - y1) * mColumns + x;
-
-        if (textOffset >= text.length()) {
-          // The click was to the right of the last word on the line, so
-          // there's no word to return
-          return "";
-        }
-
-        // Set x1 and x2 to the indices of the last space before x and the
-        // first space after x in text respectively
-        int x1 = text.lastIndexOf(' ', textOffset);
-        int x2 = text.indexOf(' ', textOffset);
-        if (x2 == -1) {
-            x2 = text.length();
-        }
-
-        if (x1 == x2) {
-          // The click was on a space, so there's no word to return
-          return "";
-        }
-        return text.substring(x1 + 1, x2);
-    }
-
-    public int getActiveTranscriptRows() {
-        return mActiveTranscriptRows;
-    }
-
-    public int getActiveRows() {
-        return mActiveTranscriptRows + mScreenRows;
-    }
-
-    /**
-     * Convert a row value from the public external coordinate system to our internal private coordinate system.
-     *
-     * <pre>
-     * - External coordinate system: -mActiveTranscriptRows to mScreenRows-1, with the screen being 0..mScreenRows-1.
-     * - Internal coordinate system: the mScreenRows lines starting at mScreenFirstRow comprise the screen, while the
-     *   mActiveTranscriptRows lines ending at mScreenFirstRow-1 form the transcript (as a circular buffer).
-     *
-     * External ↔ Internal:
-     *
-     * [ ...                            ]     [ ...                                     ]
-     * [ -mActiveTranscriptRows         ]     [ mScreenFirstRow - mActiveTranscriptRows ]
-     * [ ...                            ]     [ ...                                     ]
-     * [ 0 (visible screen starts here) ]  ↔  [ mScreenFirstRow                         ]
-     * [ ...                            ]     [ ...                                     ]
-     * [ mScreenRows-1                  ]     [ mScreenFirstRow + mScreenRows-1         ]
-     * </pre>
-     *
-     * @param externalRow a row in the external coordinate system.
-     * @return The row corresponding to the input argument in the private coordinate system.
-     */
-    public int externalToInternalRow(int externalRow) {
-        if (externalRow < -mActiveTranscriptRows || externalRow > mScreenRows)
-            throw new IllegalArgumentException("extRow=" + externalRow + ", mScreenRows=" + mScreenRows + ", mActiveTranscriptRows=" + mActiveTranscriptRows);
-        final int internalRow = mScreenFirstRow + externalRow;
-        return (internalRow < 0) ? (mTotalRows + internalRow) : (internalRow % mTotalRows);
-    }
-
-    /**
-     * Note: {@link #setLineWrap(int)} / {@link #clearLineWrap(int)} intentionally do NOT mark the
-     * row dirty. {@code mLineWrap} only affects text extraction ({@link #getSelectedText(int, int, int, int)}),
-     * never the rendered pixels, and the row's cells are always (re)written via {@link #setChar(int, int, int, long)}
-     * at the same time, which does mark it. If the renderer ever starts drawing based on wrap state,
-     * these methods must start calling {@link #markRowDirty(int)}.
-     */
-    public void setLineWrap(int row) {
-        // A3: allocate-if-necessary so lazy (null) transcript rows never NPE.
-        allocateFullLineIfNecessary(externalToInternalRow(row)).mLineWrap = true;
+        if (mNativeHandle == 0) return "";
+        return TerminalNative.nativeWordAtLocation(mNativeHandle, x, y);
     }
 
     public boolean getLineWrap(int row) {
-        // A3: a never-written (null) row has no wrap.
-        final TerminalRow line = mLines[externalToInternalRow(row)];
-        return line != null && line.mLineWrap;
+        return getLineOrBlank(row).mLineWrap;
+    }
+
+    public void setLineWrap(int row) {
+        // Line wrapping is owned by the native grid and set while text is written.
     }
 
     public void clearLineWrap(int row) {
-        // A3: a never-written (null) row has no wrap to clear.
-        final TerminalRow line = mLines[externalToInternalRow(row)];
-        if (line != null) line.mLineWrap = false;
+        // Line wrapping is owned by the native grid.
     }
 
     /**
-     * Resize the screen which this transcript backs. Currently, this only works if the number of columns does not
-     * change or the rows expand (that is, it only works when shrinking the number of rows).
-     *
-     * @param newColumns The number of columns the screen should have.
-     * @param newRows    The number of rows the screen should have.
-     * @param cursor     An int[2] containing the (column, row) cursor location.
-     */
-    public void resize(int newColumns, int newRows, int newTotalRows, int[] cursor, long currentStyle, boolean altScreen) {
-        // E2: the dirty set is indexed by internal (ring) row, so it has to be resized together
-        // with the ring — and before the re-flow below, which calls scrollDownOneLine().
-        mDirtyRows = new long[(newTotalRows + 63) >>> 6];
-        mAnyRowDirty = false;
-
-        // newRows > mTotalRows should not normally happen since mTotalRows is TRANSCRIPT_ROWS (10000):
-        if (newColumns == mColumns && newRows <= mTotalRows) {
-            // Fast resize where just the rows changed.
-            int shiftDownOfTopRow = mScreenRows - newRows;
-            if (shiftDownOfTopRow > 0 && shiftDownOfTopRow < mScreenRows) {
-                // Shrinking. Check if we can skip blank rows at bottom below cursor.
-                for (int i = mScreenRows - 1; i > 0; i--) {
-                    if (cursor[1] >= i) break;
-                    int r = externalToInternalRow(i);
-                    if (mLines[r] == null || mLines[r].isBlank()) {
-                        if (--shiftDownOfTopRow == 0) break;
-                    }
-                }
-            } else if (shiftDownOfTopRow < 0) {
-                // Negative shift down = expanding. Only move screen up if there is transcript to show:
-                int actualShift = Math.max(shiftDownOfTopRow, -mActiveTranscriptRows);
-                if (shiftDownOfTopRow != actualShift) {
-                    // The new lines revealed by the resizing are not all from the transcript. Blank the below ones.
-                    for (int i = 0; i < actualShift - shiftDownOfTopRow; i++)
-                        allocateFullLineIfNecessary((mScreenFirstRow + mScreenRows + i) % mTotalRows).clear(currentStyle);
-                    shiftDownOfTopRow = actualShift;
-                }
-            }
-            mScreenFirstRow += shiftDownOfTopRow;
-            mScreenFirstRow = (mScreenFirstRow < 0) ? (mScreenFirstRow + mTotalRows) : (mScreenFirstRow % mTotalRows);
-            mTotalRows = newTotalRows;
-            mActiveTranscriptRows = altScreen ? 0 : Math.max(0, mActiveTranscriptRows + shiftDownOfTopRow);
-            cursor[1] -= shiftDownOfTopRow;
-            mScreenRows = newRows;
-        } else {
-            // Copy away old state and update new:
-            TerminalRow[] oldLines = mLines;
-            // A3: do NOT eagerly allocate every transcript row (up to 50000). Leave the array slots
-            // null and let setChar/allocateFullLineIfNecessary/getLineOrBlank materialize only the
-            // rows that are actually written — the same lazy pattern the constructor already uses via
-            // blockSet→setChar. This avoids ~1.8–45 MB of garbage (and a GC pause) on every
-            // orientation change / font switch, while all direct mLines readers above are null-safe.
-            mLines = new TerminalRow[newTotalRows];
-
-            final int oldActiveTranscriptRows = mActiveTranscriptRows;
-            final int oldScreenFirstRow = mScreenFirstRow;
-            final int oldScreenRows = mScreenRows;
-            final int oldTotalRows = mTotalRows;
-            mTotalRows = newTotalRows;
-            mScreenRows = newRows;
-            mActiveTranscriptRows = mScreenFirstRow = 0;
-            mColumns = newColumns;
-
-            int newCursorRow = -1;
-            int newCursorColumn = -1;
-            int oldCursorRow = cursor[1];
-            int oldCursorColumn = cursor[0];
-            boolean newCursorPlaced = false;
-
-            int currentOutputExternalRow = 0;
-            int currentOutputExternalColumn = 0;
-
-            // Loop over every character in the initial state.
-            // Blank lines should be skipped only if at end of transcript (just as is done in the "fast" resize), so we
-            // keep track how many blank lines we have skipped if we later on find a non-blank line.
-            int skippedBlankLines = 0;
-            for (int externalOldRow = -oldActiveTranscriptRows; externalOldRow < oldScreenRows; externalOldRow++) {
-                // Do what externalToInternalRow() does but for the old state:
-                int internalOldRow = oldScreenFirstRow + externalOldRow;
-                internalOldRow = (internalOldRow < 0) ? (oldTotalRows + internalOldRow) : (internalOldRow % oldTotalRows);
-
-                TerminalRow oldLine = oldLines[internalOldRow];
-                boolean cursorAtThisRow = externalOldRow == oldCursorRow;
-                // The cursor may only be on a non-null line, which we should not skip:
-                if (oldLine == null || (!(!newCursorPlaced && cursorAtThisRow)) && oldLine.isBlank()) {
-                    skippedBlankLines++;
-                    continue;
-                } else if (skippedBlankLines > 0) {
-                    // After skipping some blank lines we encounter a non-blank line. Insert the skipped blank lines.
-                    for (int i = 0; i < skippedBlankLines; i++) {
-                        if (currentOutputExternalRow == mScreenRows - 1) {
-                            scrollDownOneLine(0, mScreenRows, currentStyle);
-                        } else {
-                            currentOutputExternalRow++;
-                        }
-                        currentOutputExternalColumn = 0;
-                    }
-                    skippedBlankLines = 0;
-                }
-
-                int lastNonSpaceIndex = 0;
-                boolean justToCursor = false;
-                if (cursorAtThisRow || oldLine.mLineWrap) {
-                    // Take the whole line, either because of cursor on it, or if line wrapping.
-                    lastNonSpaceIndex = oldLine.getSpaceUsed();
-                    if (cursorAtThisRow) justToCursor = true;
-                } else {
-                    for (int i = 0; i < oldLine.getSpaceUsed(); i++)
-                        // Compare text only: indexing mStyle[] with char indices is a bug.
-                        if (oldLine.mText[i] != ' ')
-                            lastNonSpaceIndex = i + 1;
-                }
-
-                // B2/F6/G6: a plain row (one char per column) is copied with two arraycopies per
-                // chunk instead of one setChar() per cell — a rotation re-flows the whole
-                // transcript, so this is thousands of rows times the row width. Cursor rows are
-                // excluded: the loop below also has to place the cursor and to stop at it.
-                int currentOldCol = 0;
-                long styleAtCol = 0;
-                int oldCharIndex = 0;
-                if (!cursorAtThisRow && !oldLine.mHasNonOneWidthOrSurrogateChars) {
-                    // G6: chunked, so the bulk path also covers rows that have to wrap. B2 bailed
-                    // out unless the whole row fitted the new width — exactly the case that
-                    // dominates when the screen gets *narrower* (landscape -> portrait, the most
-                    // common rotation), where every long line fell back to per-char setChar(). A
-                    // plain row has char index == column in both directions, so any sub-interval is
-                    // still two arraycopies; only the chunk length has to stop at the right margin.
-                    // Rows with wide/surrogate/combining chars keep the per-char path (index != column).
-                    while (oldCharIndex < lastNonSpaceIndex) {
-                        if (currentOutputExternalColumn == mColumns) {
-                            setLineWrap(currentOutputExternalRow);
-                            if (currentOutputExternalRow == mScreenRows - 1) {
-                                if (newCursorPlaced) newCursorRow--;
-                                scrollDownOneLine(0, mScreenRows, currentStyle);
-                            } else {
-                                currentOutputExternalRow++;
-                            }
-                            currentOutputExternalColumn = 0;
-                        }
-                        final int chunk = Math.min(lastNonSpaceIndex - oldCharIndex,
-                            mColumns - currentOutputExternalColumn);
-                        TerminalRow newLine = allocateFullLineIfNecessary(externalToInternalRow(currentOutputExternalRow));
-                        // false = the destination turned out not to be plain after all; fall back to
-                        // the per-char loop for the rest of the row (oldCharIndex/currentOldCol/
-                        // currentOutputExternalColumn are all consistent, so it simply resumes).
-                        if (!newLine.copyPlainInterval(oldLine, oldCharIndex, currentOutputExternalColumn, chunk)) break;
-                        oldCharIndex += chunk;
-                        currentOldCol += chunk;
-                        currentOutputExternalColumn += chunk;
-                    }
-                }
-
-                for (int i = oldCharIndex; i < lastNonSpaceIndex; i++) {
-                    // Note that looping over java character, not cells.
-                    char c = oldLine.mText[i];
-                    int codePoint = (Character.isHighSurrogate(c)) ? Character.toCodePoint(c, oldLine.mText[++i]) : c;
-                    int displayWidth = WcWidth.width(codePoint);
-                    // Use the last style if this is a zero-width character:
-                    if (displayWidth > 0) styleAtCol = oldLine.getStyle(currentOldCol);
-
-                    // Line wrap as necessary:
-                    if (currentOutputExternalColumn + displayWidth > mColumns) {
-                        setLineWrap(currentOutputExternalRow);
-                        if (currentOutputExternalRow == mScreenRows - 1) {
-                            if (newCursorPlaced) newCursorRow--;
-                            scrollDownOneLine(0, mScreenRows, currentStyle);
-                        } else {
-                            currentOutputExternalRow++;
-                        }
-                        currentOutputExternalColumn = 0;
-                    }
-
-                    int offsetDueToCombiningChar = ((displayWidth <= 0 && currentOutputExternalColumn > 0) ? 1 : 0);
-                    int outputColumn = currentOutputExternalColumn - offsetDueToCombiningChar;
-                    setChar(outputColumn, currentOutputExternalRow, codePoint, styleAtCol);
-
-                    if (displayWidth > 0) {
-                        if (oldCursorRow == externalOldRow && oldCursorColumn == currentOldCol) {
-                            newCursorColumn = currentOutputExternalColumn;
-                            newCursorRow = currentOutputExternalRow;
-                            newCursorPlaced = true;
-                        }
-                        currentOldCol += displayWidth;
-                        currentOutputExternalColumn += displayWidth;
-                        if (justToCursor && newCursorPlaced) break;
-                    }
-                }
-                // Old row has been copied. Check if we need to insert newline if old line was not wrapping:
-                if (externalOldRow != (oldScreenRows - 1) && !oldLine.mLineWrap) {
-                    if (currentOutputExternalRow == mScreenRows - 1) {
-                        if (newCursorPlaced) newCursorRow--;
-                        scrollDownOneLine(0, mScreenRows, currentStyle);
-                    } else {
-                        currentOutputExternalRow++;
-                    }
-                    currentOutputExternalColumn = 0;
-                }
-            }
-
-            cursor[0] = newCursorColumn;
-            cursor[1] = newCursorRow;
-        }
-
-        // Handle cursor scrolling off screen:
-        if (cursor[0] < 0 || cursor[1] < 0) cursor[0] = cursor[1] = 0;
-        markAllDirty();
-    }
-
-    /**
-     * Block copy lines and associated metadata from one location to another in the circular buffer, taking wraparound
-     * into account.
-     *
-     * @param srcInternal The first line to be copied.
-     * @param len         The number of lines to be copied.
-     */
-    private void blockCopyLinesDown(int srcInternal, int len) {
-        if (len == 0) return;
-        int totalRows = mTotalRows;
-
-        int start = len - 1;
-        // Save away line to be overwritten:
-        TerminalRow lineToBeOverWritten = mLines[(srcInternal + start + 1) % totalRows];
-        // Do the copy from bottom to top.
-        for (int i = start; i >= 0; --i)
-            mLines[(srcInternal + i + 1) % totalRows] = mLines[(srcInternal + i) % totalRows];
-        // Put back overwritten line, now above the block:
-        mLines[(srcInternal) % totalRows] = lineToBeOverWritten;
-    }
-
-    /**
-     * Scroll the screen down one line. To scroll the whole screen of a 24 line screen, the arguments would be (0, 24).
-     *
-     * @param topMargin    First line that is scrolled.
-     * @param bottomMargin One line after the last line that is scrolled.
-     * @param style        the style for the newly exposed line.
-     */
-    public void scrollDownOneLine(int topMargin, int bottomMargin, long style) {
-        if (topMargin > bottomMargin - 1 || topMargin < 0 || bottomMargin > mScreenRows)
-            throw new IllegalArgumentException("topMargin=" + topMargin + ", bottomMargin=" + bottomMargin + ", mScreenRows=" + mScreenRows);
-
-        // E1: a full-screen scroll changes only the *mapping* external row -> internal row — every
-        // row in the window keeps its TerminalRow (only mScreenFirstRow advances). Marking
-        // everything dirty, the previous behaviour, forced a full frame per output line, even while
-        // scrolled into history where the view compensates so not a single pixel moves. A partial
-        // scroll (scroll region, htop/vi) is different: blockCopyLinesDown() physically moves
-        // references between ring slots, so those slots really change — full repaint there.
-        if (!(topMargin == 0 && bottomMargin == mScreenRows)) markAllDirty();
-
-        // Copy the fixed topMargin lines one line down so that they remain on screen in same position:
-        blockCopyLinesDown(mScreenFirstRow, topMargin);
-        // Copy the fixed mScreenRows-bottomMargin lines one line down so that they remain on screen in same
-        // position:
-        blockCopyLinesDown(externalToInternalRow(bottomMargin), mScreenRows - bottomMargin);
-
-        // Update the screen location in the ring buffer:
-        mScreenFirstRow = (mScreenFirstRow + 1) % mTotalRows;
-        // Note that the history has grown if not already full:
-        if (mActiveTranscriptRows < mTotalRows - mScreenRows) mActiveTranscriptRows++;
-
-        // Blank the newly revealed line above the bottom margin:
-        int blankRow = externalToInternalRow(bottomMargin - 1);
-        clearOrCreateRow(blankRow, style);
-        // E1: the only row whose content actually changed in this scroll.
-        markInternalRowDirty(blankRow);
-    }
-
-    private void clearOrCreateRow(int internalRow, long style) {
-        if (mLines[internalRow] == null) {
-            mLines[internalRow] = new TerminalRow(mColumns, style);
-        } else {
-            mLines[internalRow].clear(style);
-        }
-    }
-
-    /**
-     * Block copy characters from one position in the screen to another. The two positions can overlap. All characters
-     * of the source and destination must be within the bounds of the screen, or else an InvalidParameterException will
-     * be thrown.
-     *
-     * @param sx source X coordinate
-     * @param sy source Y coordinate
-     * @param w  width
-     * @param h  height
-     * @param dx destination X coordinate
-     * @param dy destination Y coordinate
-     */
-    public void blockCopy(int sx, int sy, int w, int h, int dx, int dy) {
-        if (w == 0) return;
-        if (sx < 0 || sx + w > mColumns || sy < 0 || sy + h > mScreenRows || dx < 0 || dx + w > mColumns || dy < 0 || dy + h > mScreenRows)
-            throw new IllegalArgumentException();
-        for (int y = 0; y < h; y++) {
-            markRowDirty(sy + y);
-            markRowDirty(dy + y);
-        }
-        boolean copyingUp = sy > dy;
-        for (int y = 0; y < h; y++) {
-            int y2 = copyingUp ? y : (h - (y + 1));
-            TerminalRow sourceRow = allocateFullLineIfNecessary(externalToInternalRow(sy + y2));
-            allocateFullLineIfNecessary(externalToInternalRow(dy + y2)).copyInterval(sourceRow, sx, sx + w, dx);
-        }
-    }
-
-    /**
-     * Block set characters. All characters must be within the bounds of the screen, or else and
-     * InvalidParemeterException will be thrown. Typically this is called with a "val" argument of 32 to clear a block
-     * of characters.
-     */
-    public void blockSet(int sx, int sy, int w, int h, int val, long style) {
-        if (sx < 0 || sx + w > mColumns || sy < 0 || sy + h > mScreenRows) {
-            throw new IllegalArgumentException(
-                "Illegal arguments! blockSet(" + sx + ", " + sy + ", " + w + ", " + h + ", " + val + ", " + mColumns + ", " + mScreenRows + ")");
-        }
-        // B2/F6: erasing whole rows is an Arrays.fill per row, not one setChar() per cell — the
-        // constructor alone used to run screenRows*columns of them to blank a buffer whose rows
-        // are already blank on allocation.
-        if (val == ' ' && sx == 0 && w == mColumns) {
-            for (int y = 0; y < h; y++) {
-                markRowDirty(sy + y);
-                allocateFullLineIfNecessary(externalToInternalRow(sy + y)).clear(style);
-            }
-            return;
-        }
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-                setChar(sx + x, sy + y, val, style);
-    }
-
-    public TerminalRow allocateFullLineIfNecessary(int row) {
-        TerminalRow line = mLines[row];
-        if (line == null) line = mLines[row] = new TerminalRow(mColumns, mDefaultStyle);
-        return line;
-    }
-
-    /**
-     * Read-only access to the line at an external row, falling back to a shared blank row when the
-     * line has never been written to. Unlike {@link #allocateFullLineIfNecessary(int)} this never
-     * mutates the buffer, so it is safe to call from the renderer during {@code onDraw} without
-     * allocating rows (and without racing a background writer). The returned blank row must only be
-     * read, never modified.
+     * Materialize one row as a {@link TerminalRow} snapshot. The returned object is immutable
+     * and safe to read from the renderer / selection controller.
      */
     public TerminalRow getLineOrBlank(int externalRow) {
-        if (mBlankRow == null || mBlankRowColumns != mColumns || mBlankRowStyle != mDefaultStyle) {
-            mBlankRow = new TerminalRow(mColumns, mDefaultStyle);
+        final int history = getActiveTranscriptRows();
+        if (externalRow < -history || externalRow > mScreenRows) {
+            throw new IllegalArgumentException("extRow=" + externalRow + ", mScreenRows=" + mScreenRows
+                + ", mActiveTranscriptRows=" + history);
+        }
+        if (mNativeHandle == 0) return blankRow();
+        final int[] encoded = TerminalNative.nativeRow(mNativeHandle, externalRow);
+        if (encoded == null || encoded.length < 3) return blankRow();
+        final int spaceUsed = encoded[0];
+        final boolean lineWrap = encoded[1] != 0;
+        final int charCount = encoded[2];
+        if (charCount < 0 || 3 + charCount > encoded.length) return blankRow();
+        char[] text = new char[charCount];
+        for (int i = 0; i < charCount; i++) text[i] = (char) encoded[3 + i];
+        int startsLength = encoded.length - 3 - charCount;
+        int[] starts = new int[startsLength];
+        for (int i = 0; i < startsLength; i++) starts[i] = encoded[3 + charCount + i];
+        return new TerminalRow(mColumns, text, starts, spaceUsed, lineWrap);
+    }
+
+    private TerminalRow blankRow() {
+        if (mBlankRow == null || mBlankRowColumns != mColumns) {
+            char[] text = new char[mColumns];
+            java.util.Arrays.fill(text, ' ');
+            int[] starts = new int[mColumns + 1];
+            for (int i = 0; i <= mColumns; i++) starts[i] = i;
+            mBlankRow = new TerminalRow(mColumns, text, starts, mColumns, false);
             mBlankRowColumns = mColumns;
-            mBlankRowStyle = mDefaultStyle;
         }
-        TerminalRow line = mLines[externalToInternalRow(externalRow)];
-        return line != null ? line : mBlankRow;
+        return mBlankRow;
     }
 
-    public void setChar(int column, int row, int codePoint, long style) {
-        if (row  < 0 || row >= mScreenRows || column < 0 || column >= mColumns)
-            throw new IllegalArgumentException("TerminalBuffer.setChar(): row=" + row + ", column=" + column + ", mScreenRows=" + mScreenRows + ", mColumns=" + mColumns);
-        // G7: this is the hottest write path in the emulator — it runs once per output code point,
-        // i.e. tens of thousands of times per `cat` of a large file. It used to resolve the external
-        // row twice: once inside markRowDirty() (which re-derived the ring slot from the external
-        // index, modulo and all) and once here. Resolve it once and use the ring-slot variant
-        // directly. The defensive bounds check inside markRowDirty() is dead weight here too —
-        // `row` has just been validated to be a live screen row.
-        row = externalToInternalRow(row);
-        markInternalRowDirty(row);
-        allocateFullLineIfNecessary(row).setChar(column, codePoint, style);
+    /**
+     * Legacy helper: accepts a content anchor (as returned by
+     * {@link #externalToInternalRow(int)}) and materializes the corresponding row.
+     */
+    public TerminalRow allocateFullLineIfNecessary(int internalRow) {
+        if (mNativeHandle == 0) return blankRow();
+        long scroll = TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
+        int externalRow = (int) (internalRow - scroll);
+        return getLineOrBlank(externalRow);
     }
 
+    /** Compatibility: row styles are no longer stored on the Java side. */
     public long getStyleAt(int externalRow, int column) {
-        return allocateFullLineIfNecessary(externalToInternalRow(externalRow)).getStyle(column);
+        return TextStyle.NORMAL;
     }
-
-    /** Support for http://vt100.net/docs/vt510-rm/DECCARA and http://vt100.net/docs/vt510-rm/DECCARA */
-    public void setOrClearEffect(int bits, boolean setOrClear, boolean reverse, boolean rectangular, int leftMargin, int rightMargin, int top, int left,
-                                 int bottom, int right) {
-        for (int y = top; y < bottom; y++) {
-            markRowDirty(y);
-            // A3: allocate-if-necessary so lazy (null) transcript rows never NPE.
-            TerminalRow line = allocateFullLineIfNecessary(externalToInternalRow(y));
-            // E4: setOrClearEffect writes line.mStyle[x] directly, bypassing setChar(), so the
-            // "every cell has the same style" invariant the A2 fast path relies on is no longer
-            // something we know — drop the flag rather than try to prove uniformity.
-            line.mBlankAndUniform = false;
-            int startOfLine = (rectangular || y == top) ? left : leftMargin;
-            int endOfLine = (rectangular || y + 1 == bottom) ? right : rightMargin;
-            // G3: same reason as mBlankAndUniform above, but this bound is only *raised*: the
-            // cells from endOfLine on were not touched, so a uniform suffix still starts there.
-            line.noteStyleRangeWritten(endOfLine);
-            for (int x = startOfLine; x < endOfLine; x++) {
-                long currentStyle = line.getStyle(x);
-                int foreColor = TextStyle.decodeForeColor(currentStyle);
-                int backColor = TextStyle.decodeBackColor(currentStyle);
-                int effect = TextStyle.decodeEffect(currentStyle);
-                if (reverse) {
-                    // Clear out the bits to reverse and add them back in reversed:
-                    effect = (effect & ~bits) | (bits & ~effect);
-                } else if (setOrClear) {
-                    effect |= bits;
-                } else {
-                    effect &= ~bits;
-                }
-                line.mStyle[x] = TextStyle.encode(foreColor, backColor, effect);
-            }
-        }
-    }
-
-    public void clearTranscript() {
-        if (mScreenFirstRow < mActiveTranscriptRows) {
-            Arrays.fill(mLines, mTotalRows + mScreenFirstRow - mActiveTranscriptRows, mTotalRows, null);
-            Arrays.fill(mLines, 0, mScreenFirstRow, null);
-        } else {
-            Arrays.fill(mLines, mScreenFirstRow - mActiveTranscriptRows, mScreenFirstRow, null);
-        }
-        mActiveTranscriptRows = 0;
-        markAllDirty();
-    }
-
 }

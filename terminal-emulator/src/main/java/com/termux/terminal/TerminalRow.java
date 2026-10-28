@@ -91,6 +91,35 @@ public final class TerminalRow {
         return mStyleUniformFrom;
     }
 
+    /** Column -> first UTF-16 index mapping for an immutable snapshot row, or null for a mutable row. */
+    private int[] mColumnStarts;
+
+    /**
+     * Create an immutable row snapshot from the native terminal core. The text array and
+     * column-start table are already in the exact shape {@link #mText} and
+     * {@link #findStartOfColumn(int)} expose, so selection code can keep operating on
+     * {@code char[]} without knowing about the Rust grid.
+     */
+    TerminalRow(int columns, char[] text, int[] columnStarts, int spaceUsed, boolean lineWrap) {
+        mColumns = columns;
+        mText = text;
+        mColumnStarts = columnStarts;
+        mSpaceUsed = (short) spaceUsed;
+        mLineWrap = lineWrap;
+        mStyle = new long[columns];
+        java.util.Arrays.fill(mStyle, TextStyle.NORMAL);
+        mBlankAndUniform = true;
+        for (int i = 0; i < spaceUsed; i++) {
+            char c = text[i];
+            if (c != ' ') {
+                mBlankAndUniform = false;
+                if (Character.isHighSurrogate(c) || WcWidth.width(c) != 1) {
+                    mHasNonOneWidthOrSurrogateChars = true;
+                }
+            }
+        }
+    }
+
     /** Construct a blank row (containing only whitespace, ' ') with a specified style. */
     public TerminalRow(int columns, long style) {
         mColumns = columns;
@@ -182,6 +211,11 @@ public final class TerminalRow {
     /** Note that the column may end up past the second half of a wide character. */
     public int findStartOfColumn(int column) {
         if (column == mColumns) return getSpaceUsed();
+        if (mColumnStarts != null) {
+            if (column < 0) return 0;
+            if (column >= mColumns) return getSpaceUsed();
+            return mColumnStarts[column];
+        }
 
         // A1: resume the scan from the memoized position when the requested column is at or after it,
         // which is the common case for left-to-right output. Otherwise scan from the start.
