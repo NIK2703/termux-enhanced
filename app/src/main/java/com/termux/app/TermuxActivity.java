@@ -3575,7 +3575,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * one directory never leak into another.
      */
     public void addToMessageHistory(@NonNull String message) {
-        if (TextUtils.isEmpty(message)) return;
+        if (MessageHistoryController.isBlankMessage(message)) return;
         mMessageHistoryCtrl.addToMessageHistory(message, getCurrentCwdForHistory());
     }
 
@@ -3585,7 +3585,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * its position. See {@link MessageHistoryController#addNewOnTop}.
      */
     public void addNewOnTop(@NonNull String message) {
-        if (TextUtils.isEmpty(message)) return;
+        if (MessageHistoryController.isBlankMessage(message)) return;
         mMessageHistoryCtrl.addNewOnTop(message, getCurrentCwdForHistory());
     }
 
@@ -3633,12 +3633,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (editText == null) return;
 
         String existing = editText.getText().toString();
-        // New messages go to the top; existing ones keep their position.
-        if (saveToHistory && !TextUtils.isEmpty(existing)) {
+        if (saveToHistory && !MessageHistoryController.isBlankMessage(existing)) {
             addNewOnTop(existing);
         }
 
-        // Save-only leaves the field and keyboard untouched.
         if (!clearInput) return;
 
         if (!isTextInputVisible()) {
@@ -3691,7 +3689,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         } else {
             // LEGACY behaviour: replace the entire field, saving existing text to history.
             String existing = editText.getText().toString();
-            if (!TextUtils.isEmpty(existing) && !existing.equals(message)) {
+            if (!MessageHistoryController.isBlankMessage(existing)
+                    && !MessageHistoryController.messagesEqual(existing, message)) {
                 addNewOnTop(existing);
             }
             editText.setText(message);

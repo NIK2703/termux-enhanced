@@ -51,7 +51,6 @@ public final class TermuxActivityPopupController {
 
         void onHistoryMessagePicked(@NonNull String message);
 
-        /** Applies the selected input-history action. */
         void onInputHistoryAction(boolean saveToHistory, boolean clearInput);
 
         // Keep-screen-on preference bridge
@@ -226,15 +225,16 @@ public final class TermuxActivityPopupController {
             }
         }
 
-        // Saving an input that is already in history would be a no-op, so show only Clear.
+        // Blank or already saved: show only Clear.
         if (!TextUtils.isEmpty(inputText)) {
             if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
                 content.addView(createHistorySeparator(), new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
             }
-            final boolean alreadyInHistory = mMessageHistoryCtrl != null
-                    && mMessageHistoryCtrl.getHistoryList().contains(inputText);
-            if (alreadyInHistory) {
+            final boolean clearOnly = MessageHistoryController.isBlankMessage(inputText)
+                    || (mMessageHistoryCtrl != null
+                        && mMessageHistoryCtrl.containsMessage(inputText));
+            if (clearOnly) {
                 addSyntheticHistoryRow(content, mContext.getString(R.string.input_history_clear),
                         MESSAGE_HISTORY_CLEAR_ONLY_TAG, padH, padV);
             } else {
@@ -407,7 +407,6 @@ public final class TermuxActivityPopupController {
         row.setBaselineAligned(false);
         mHistoryActionRow = row;
 
-        // Match the separator above the row.
         GradientDrawable divider = new GradientDrawable();
         divider.setColor(mColorSchemeManager.getHistoryPopupSepColor());
         divider.setSize(TermuxActivityUtils.dpToPx(mContext, 1), 1);
@@ -428,7 +427,7 @@ public final class TermuxActivityPopupController {
         row.addView(mHistoryClearActionView, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f));
 
-        // Swipe hit-testing targets the row; the segment is resolved from x.
+        // The row is one hit-test target; x selects the segment.
         mHistoryItemViews.add(row);
         return row;
     }
@@ -475,7 +474,6 @@ public final class TermuxActivityPopupController {
         });
     }
 
-    /** Paints the active segment; the middle action highlights the whole row. */
     private void highlightInputHistoryAction(int tag) {
         clearHistoryHighlight();
         paintInputHistoryAction(tag);

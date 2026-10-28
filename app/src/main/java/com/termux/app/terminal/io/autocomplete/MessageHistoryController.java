@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * to build popup UI, and calls {@link #addToMessageHistory(String, String)} after
  * a command is executed.
  * <p>
+ * Entries are trimmed at the edges; internal spacing is preserved.
+ * <p>
  * In per-directory mode ({@link #setPerDirectoryEnabled(boolean)}) the controller
  * fragments the history by {@code CWD}, migrating any previously-global entries
  * into the first real directory automatically.
@@ -261,6 +263,41 @@ public final class MessageHistoryController {
         return mMessageHistory;
     }
 
+    /** Whether {@code message}, ignoring edge whitespace, is already in the history. */
+    public boolean containsMessage(@Nullable String message) {
+        String normalized = trimMessage(message);
+        return !normalized.isEmpty() && mMessageHistory.contains(normalized);
+    }
+
+    /** Whether {@code message} is null or consists only of whitespace. */
+    public static boolean isBlankMessage(@Nullable String message) {
+        if (message == null) return true;
+        for (int i = 0; i < message.length(); i++) {
+            if (!isEdgeWhitespace(message.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    /** Compare two history messages, ignoring leading and trailing whitespace. */
+    public static boolean messagesEqual(@Nullable String first, @Nullable String second) {
+        return trimMessage(first).equals(trimMessage(second));
+    }
+
+    /** Strips edge whitespace, preserving internal spacing. */
+    @NonNull
+    private static String trimMessage(@Nullable String message) {
+        if (message == null) return "";
+        int start = 0;
+        int end = message.length();
+        while (start < end && isEdgeWhitespace(message.charAt(start))) start++;
+        while (end > start && isEdgeWhitespace(message.charAt(end - 1))) end--;
+        return start == 0 && end == message.length() ? message : message.substring(start, end);
+    }
+
+    private static boolean isEdgeWhitespace(char c) {
+        return Character.isWhitespace(c) || Character.isSpaceChar(c);
+    }
+
     public int getHistoryVersion() {
         return mHistoryVersion;
     }
@@ -380,8 +417,8 @@ public final class MessageHistoryController {
         ArrayList<String> out = new ArrayList<>(arr.length());
         HashSet<String> seen = useSeenSet ? new HashSet<>(arr.length()) : null;
         for (int i = 0; i < arr.length(); i++) {
-            String s = arr.optString(i, null);
-            if (TextUtils.isEmpty(s)) continue;
+            String s = trimMessage(arr.optString(i, null));
+            if (s.isEmpty()) continue;
             if (seen != null) {
                 if (seen.add(s)) out.add(s);
             } else if (!out.contains(s)) {
@@ -393,6 +430,15 @@ public final class MessageHistoryController {
 
     // ── Mutations ──
 
+    /** Moves {@code value} to the front; returns false if it was already there. */
+    private static boolean promoteToTop(@NonNull ArrayList<String> list, @NonNull String value) {
+        int index = list.indexOf(value);
+        if (index == 0) return false;
+        if (index > 0) list.remove(index);
+        list.add(0, value);
+        return true;
+    }
+
     /**
      * Add a just-sent message to the history.
      *
@@ -401,13 +447,16 @@ public final class MessageHistoryController {
      *                 was sent (used for cross-directory detection).
      */
     public void addToMessageHistory(@NonNull String message, @Nullable String cwd) {
-        if (TextUtils.isEmpty(message)) return;
+        String normalized = trimMessage(message);
+        if (normalized.isEmpty()) return;
 
         ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
-        mMessageHistory.remove(message);      // dedup
-        mMessageHistory.add(0, message);      // newest first
+        boolean changed = promoteToTop(mMessageHistory, normalized);
+        // A lowered limit still needs trimming even when the order is unchanged.
+        if (!changed && mMessageHistory.size() <= mMessageHistoryMax) return;
+
         trimToMaxSize();
         schedulePersist();
         mHistoryVersion++;
@@ -425,11 +474,12 @@ public final class MessageHistoryController {
      * foreground list and the current directory alone.
      */
     public void addToMessageHistoryInDirectory(@NonNull String message, @Nullable String cwd) {
-        if (TextUtils.isEmpty(message)) return;
+        String normalized = trimMessage(message);
+        if (normalized.isEmpty()) return;
 
         ensureLoaded(cwd);
         if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) {
-            addToMessageHistory(message, cwd);
+            addToMessageHistory(normalized, cwd);
             return;
         }
 
@@ -438,8 +488,9 @@ public final class MessageHistoryController {
             dirHistory = new ArrayList<>();
             mMessageHistoryPerDirectory.put(cwd, dirHistory);
         }
-        dirHistory.remove(message);            // dedup
-        dirHistory.add(0, message);            // newest first
+        boolean changed = promoteToTop(dirHistory, normalized);
+        if (!changed && dirHistory.size() <= mMessageHistoryMax) return;
+
         while (dirHistory.size() > mMessageHistoryMax) {
             dirHistory.remove(dirHistory.size() - 1);
         }
@@ -453,14 +504,15 @@ public final class MessageHistoryController {
      * behaviour); a message already in the history keeps its exact position.
      */
     public void addNewOnTop(@NonNull String message, @Nullable String cwd) {
-        if (TextUtils.isEmpty(message)) return;
+        String normalized = trimMessage(message);
+        if (normalized.isEmpty()) return;
 
         ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
-        if (mMessageHistory.indexOf(message) >= 0) return; // already present: keep position
+        if (mMessageHistory.indexOf(normalized) >= 0) return;
 
-        mMessageHistory.add(0, message);      // newest first
+        mMessageHistory.add(0, normalized);
         trimToMaxSize();
         schedulePersist();
         mHistoryVersion++;

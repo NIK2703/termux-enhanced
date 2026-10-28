@@ -160,6 +160,114 @@ public class MessageHistoryControllerTest {
         assertEquals("[\"git status\",\"ls -la\"]", String.valueOf(stored(HOME)));
     }
 
+    // Edge whitespace
+
+    @Test
+    public void savingTrimsEdgeWhitespaceAndDeduplicatesOnTheTrimmedValue() {
+        ctrl.addToMessageHistory("  ls -la  ", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addNewOnTop("  pwd  ", HOME);
+        ctrl.addNewOnTop("pwd", HOME);
+        ctrl.save();
+
+        assertEquals("[pwd, ls -la, git status]", String.valueOf(ctrl.getHistoryList()));
+        assertEquals("[\"pwd\",\"ls -la\",\"git status\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void replyIntoAnotherDirectoryTrimsEdgeWhitespace() {
+        ctrl.addToMessageHistoryInDirectory("  yes  ", LOG_DIR);
+        ctrl.addToMessageHistoryInDirectory("yes", LOG_DIR);
+        ctrl.save();
+
+        assertEquals("[\"yes\"]", String.valueOf(stored(LOG_DIR)));
+    }
+
+    @Test
+    public void reSendingNewestMessageDoesNotChangeOrderOrVersion() {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        int version = ctrl.getHistoryVersion();
+
+        ctrl.addToMessageHistory("  git status  ", HOME);
+        assertEquals("[git status, ls -la]", String.valueOf(ctrl.getHistoryList()));
+        assertEquals(version, ctrl.getHistoryVersion());
+
+        ctrl.save();
+        assertEquals("[\"git status\",\"ls -la\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void repeatedReplyOfNewestEntryDoesNotBumpVersion() {
+        ctrl.addToMessageHistoryInDirectory("yes", LOG_DIR);
+        int version = ctrl.getHistoryVersion();
+
+        ctrl.addToMessageHistoryInDirectory("  yes  ", LOG_DIR);
+        assertEquals(version, ctrl.getHistoryVersion());
+
+        ctrl.save();
+        assertEquals("[\"yes\"]", String.valueOf(stored(LOG_DIR)));
+    }
+
+    @Test
+    public void reSendingNewestEntryStillEnforcesALoweredLimit() {
+        ctrl.setMaxSize(3);
+        ctrl.addToMessageHistory("one", HOME);
+        ctrl.addToMessageHistory("two", HOME);
+        ctrl.addToMessageHistory("three", HOME);
+        ctrl.setMaxSize(1);
+
+        ctrl.addToMessageHistory("three", HOME);
+
+        assertEquals("[three]", String.valueOf(ctrl.getHistoryList()));
+    }
+
+    @Test
+    public void blankMessageDetectionUsesUnicodeWhitespace() {
+        assertTrue(MessageHistoryController.isBlankMessage(null));
+        assertTrue(MessageHistoryController.isBlankMessage(""));
+        assertTrue(MessageHistoryController.isBlankMessage(" \t\n\u00A0"));
+        assertFalse(MessageHistoryController.isBlankMessage(" ls "));
+        assertFalse(MessageHistoryController.isBlankMessage("a b"));
+    }
+
+    @Test
+    public void loadTrimsLegacyEntriesAndDeduplicatesThem() throws Exception {
+        String store = new JSONObject()
+            .put(HOME, new JSONArray().put("  ls  ").put("ls").put("   ").put("git  "))
+            .toString();
+        prefs.edit().putString("message_history_per_directory", store).commit();
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+
+        assertEquals("[ls, git]", String.valueOf(reloaded.getHistoryList()));
+    }
+
+    @Test
+    public void containsAndEqualityIgnoreEdgeWhitespaceButNotInternalSpacing() {
+        ctrl.addToMessageHistory("  git status  ", HOME);
+
+        assertTrue(ctrl.containsMessage("git status"));
+        assertTrue(ctrl.containsMessage("\tgit status \n"));
+        assertTrue(ctrl.containsMessage("\u00A0git status\u00A0"));
+        assertFalse(ctrl.containsMessage("git  status"));
+        assertFalse(ctrl.containsMessage("   "));
+
+        assertTrue(MessageHistoryController.messagesEqual("  git status  ", "git status"));
+        assertFalse(MessageHistoryController.messagesEqual("git  status", "git status"));
+    }
+
+    @Test
+    public void whitespaceOnlyMessagesAreIgnored() {
+        ctrl.addToMessageHistory(" \t\n ", HOME);
+        ctrl.addNewOnTop("   ", HOME);
+        ctrl.addToMessageHistoryInDirectory("  ", LOG_DIR);
+
+        assertEquals("[]", String.valueOf(ctrl.getHistoryList()));
+    }
+
     // A reply that cold-starts the process
 
     @Test
