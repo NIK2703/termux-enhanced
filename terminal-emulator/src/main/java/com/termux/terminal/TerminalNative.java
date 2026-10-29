@@ -1,7 +1,7 @@
 package com.termux.terminal;
 
 /**
- * Thin JNI bridge to the native terminal core. The default backend is foot (terminal-emulator/src/main/foot); the Rust core exposes the same entry points when built with -PtermuxTerminalBackend=rust.
+ * Thin JNI bridge to the foot terminal core in terminal-emulator/src/main/foot.
  *
  * <p>The native side owns the VT parser, the screen/history grid, the palette mirror, selection
  * extraction and render planning. Instances are represented by an opaque handle; every call is

@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * Java facade over the native terminal core (foot by default; the Rust core remains selectable as a rollback backend).
+ * Java facade over the native foot terminal core.
  *
  * <p>The VT parser, screen + transcript grid, alternate buffer, palette mirror, selection
  * extraction and render planning live in {@code libtermux_terminal.so}. This class keeps the

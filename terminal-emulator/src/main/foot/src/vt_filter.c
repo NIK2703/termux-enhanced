@@ -224,7 +224,7 @@ valid_utf8_length(const uint8_t *data, size_t length)
     return 0;
 }
 
-/* Lossy UTF-8 conversion matching Rust's String::from_utf8_lossy(). */
+/* Lossy UTF-8 conversion with U+FFFD replacement. */
 static char *
 utf8_lossy_dup(const uint8_t *data, size_t length)
 {
@@ -760,9 +760,9 @@ finish_csi(struct vt_filter *filter, uint8_t final, struct buffer *out)
         (final == 'h' || final == 'l');
 
     if (deccolm) {
-        /* Alacritty's DECCOLM resets the scrolling region (which also homes
-         * the cursor) and clears the current grid. Translate those two side
-         * effects into sequences foot understands. */
+        /* DECCOLM resets the scrolling region (which also homes the cursor)
+         * and clears the current grid. Translate those two side effects into
+         * sequences foot understands. */
         buffer_append(out, "\033[r\033[2J", 7);
     } else if (!filter->overflow) {
         buffer_append(out, filter->introducer.data, filter->introducer.length);

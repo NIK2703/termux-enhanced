@@ -515,7 +515,7 @@ main(void)
     }
     free(render_text);
 
-    /* Word lookup follows the Rust implementation (space delimited). */
+    /* Word lookup is space delimited. */
     headless_resize(ht, 20, 3, 8, 16);
     feed(ht, "\x1b[2J\x1b[H" "hello world");
     char *word = headless_word_at_location(ht, 1, 0);

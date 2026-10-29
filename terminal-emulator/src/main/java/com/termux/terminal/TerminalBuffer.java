@@ -3,11 +3,12 @@ package com.termux.terminal;
 /**
  * Read-only view of the native terminal grid plus the dirty-row bookkeeping used by the view.
  *
- * <p>The emulator state itself (screen, transcript, alternate buffer, reflow) lives in the native terminal core (foot by default, with the Rust core available as a rollback backend).
- * This class is the small Java facade the existing selection and rendering code was written
- * against: it exposes external row coordinates ({@code -history..screenRows-1}), row snapshots
- * for the text selection UI, and a dirty set addressed by <em>content anchors</em> so a dirty
- * row keeps its identity when output scrolls the transcript.</p>
+ * <p>The emulator state itself (screen, transcript, alternate buffer, reflow) lives in the
+ * native foot terminal core. This class is the small Java facade the existing selection and
+ * rendering code was written against: it exposes external row coordinates
+ * ({@code -history..screenRows-1}), row snapshots for the text selection UI, and a dirty set
+ * addressed by <em>content anchors</em> so a dirty row keeps its identity when output scrolls
+ * the transcript.</p>
  */
 public final class TerminalBuffer {
 

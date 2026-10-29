@@ -8,7 +8,7 @@
  * Streaming pre-filter for sequences handled by Termux rather than foot:
  *
  *  - OSC 99 notifications are assembled here so Termux keeps the exact
- *    chunking/query semantics exposed by the Rust backend.
+ *    chunking/query semantics of the terminal core.
  *  - OSC 10/11/12 accept the xterm list form (fg;bg;cursor), which foot only
  *    parses one colour at a time.
  *  - DECCOLM (CSI ? 3 h/l) is translated into the side effects Termux relies

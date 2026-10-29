@@ -96,7 +96,7 @@ static int
 total_grid_rows(int screen_rows, int transcript_rows)
 {
     /* Termux's "transcript rows" setting is the total ring-buffer height,
-     * screen rows included, matching Rust's Terminal::new(). */
+     * screen rows included. */
     int requested = transcript_rows > 0 ? transcript_rows : screen_rows;
     if (requested < screen_rows)
         requested = screen_rows;
@@ -568,8 +568,8 @@ row_text_init(
         if (wc >= CELL_SPACER) {
             if (column == 0) {
                 /* Leading continuation without its base (a wide glyph split by
-                 * the left edge): treat it as a real blank cell, matching the
-                 * Rust row_text() LEADING_WIDE_CHAR_SPACER case. */
+                 * the left edge): treat it as a real blank cell so the cell
+                 * map stays stable. */
                 out->starts[column] = (int32_t)out->char_count;
                 base_start = out->char_count;
                 base_style = cell_style(cell);
@@ -934,7 +934,7 @@ headless_transcript_text(struct headless_terminal *ht, int mode)
     if (text == NULL)
         return strdup("");
 
-    /* Rust's transcript extraction trims leading/trailing whitespace. */
+    /* Transcript extraction trims leading/trailing whitespace. */
     char *start = text;
     while (*start == ' ' || *start == '\n' || *start == '\r' || *start == '\t')
         start++;
@@ -1070,11 +1070,11 @@ count_scroll_damage(uint64_t *counter, const struct grid *grid)
 }
 
 /*
- * Alacritty's vendored grid increments its monotonic scroll counter for every
- * scroll_up(), including partial scroll regions and the alternate screen.
- * Reverse scrolls (RI, IL) do not touch it. foot records the same operations as
- * DAMAGE_SCROLL in the active grid's damage list, so mirror that accounting
- * here instead of only counting full-screen scrolls.
+ * Increment the monotonic scroll counter for every scroll_up(), including
+ * partial scroll regions and the alternate screen. Reverse scrolls (RI, IL) do
+ * not touch it. foot records the same operations as DAMAGE_SCROLL in the active
+ * grid's damage list, so mirror that accounting here instead of only counting
+ * full-screen scrolls.
  */
 static void
 mark_scroll_damage_rows(struct grid *grid, int rows)
@@ -1446,8 +1446,8 @@ headless_reset(struct headless_terminal *ht)
     set_color_theme(&conf->colors_light, ht->defaults);
     term_reset(term, true);
     headless_palette(ht, ht->palette);
-    /* Match alacritty: the monotonic counter survives a reset, while the
-     * baseline is moved so the next viewport query starts from zero. */
+    /* The monotonic counter survives a reset, while the baseline is moved so
+     * the next viewport query starts from zero. */
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
     ht->scroll_base = ht->scroll_count;
@@ -1536,8 +1536,8 @@ headless_resize(
      * When the screen does not grow, keep the cursor on the same visual row.
      * foot intentionally anchors reflow to the last row, which is right when
      * pulling lines out of scrollback, but it means shrinking height pushes
-     * still-visible top rows into history. Termux, like alacritty, keeps the
-     * cursor's row and discards blank rows below it instead.
+     * still-visible top rows into history. Termux keeps the cursor's row and
+     * discards blank rows below it instead.
      */
     if (rows <= old_rows) {
         const int rows_per_grid = term->normal.num_rows;
@@ -1635,8 +1635,8 @@ headless_resize(
         term->alt.cursor.point.row = rows - 1;
 
     selection_cancel(term);
-    /* Reflow may leave damage records behind, but a resize is not a scroll in
-     * alacritty's counter and must not shift the viewport anchor. */
+    /* Reflow may leave damage records behind, but a resize is not a scroll and
+     * must not shift the viewport anchor. */
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 }
