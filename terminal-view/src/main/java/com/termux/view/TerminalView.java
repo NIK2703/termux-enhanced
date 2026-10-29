@@ -166,13 +166,25 @@ public final class TerminalView extends View {
      *
      * <p>Set to {@code false} on every event that may make the canvas forget the previous frame
      * (session attach/detach, size change, view attach, window visibility becoming visible,
-     * text-size/typeface change, transparency change, and any explicit {@code invalidate()}
-     * outside the row-anchor path). Set to {@code true} only after a frame that demonstrably
+     * text-size/typeface change, transparency change, any explicit {@code invalidate()} outside
+     * the row-anchor path, and a row band that an ancestor clips horizontally). Set to
+     * {@code true} only after a frame that demonstrably
      * covered the entire view, i.e. a full-repaint draw — partial draws don't validate the
      * rows outside the clip, so the flag stays {@code false} until a real full-frame draw
      * happens.</p>
      */
     private boolean mPixelsValid = false;
+
+    /**
+     * Whether a full-width row damage rectangle is waiting for a frame.
+     *
+     * <p>Kept separately from the clip because an ancestor can clip the requested rectangle
+     * before {@link #onDraw} sees it: the pager translates a page while a swipe settles and its
+     * overscroll spring can hold it a few pixels off-screen. If that happens, only part of every
+     * dirty row is painted. The frame must then be treated as an unknown surface, so the dirty
+     * bits survive and the clipped bands are re-requested instead of being left stale.</p>
+     */
+    private boolean mPendingFullWidthDamage = false;
 
     /**
      * Clip bounds of the last frame that arrived while {@link #mPixelsValid} was still
@@ -194,6 +206,7 @@ public final class TerminalView extends View {
         // previous-frame content is no longer trustworthy. (Partial invalidates leave the rest
         // of the surface intact and do not affect this flag.)
         mPixelsValid = false;
+        mPendingFullWidthDamage = false;
         // A full invalidate supersedes any outstanding request for the uncovered part: it already
         // covers it, so the recovery bookkeeping starts over (and the next partial frame must ask
         // again rather than assume the request is still pending).
@@ -1146,6 +1159,7 @@ public final class TerminalView extends View {
         if (top < 0) top = 0;
         if (bottom > getHeight()) bottom = getHeight();
         if (top >= bottom) return;
+        mPendingFullWidthDamage = true;
         invalidate(0, top, getWidth(), bottom);
     }
 
@@ -2579,6 +2593,16 @@ public final class TerminalView extends View {
             // full-clip draw that validates the rest.
             boolean hasClip = canvas.getClipBounds(mClipBounds);
             boolean isFullClip = !hasClip || isFullRepaint(mClipBounds);
+            // A requested full-width row band that arrives horizontally clipped means an ancestor
+            // cut part of every dirty row out of this frame. Treat the surface as unknown: draw
+            // all visible rows inside the clip (the renderer then leaves the dirty set alone) and
+            // request the missing side bands, so the partial frame cannot validate stale pixels.
+            if (TerminalRenderer.fullWidthDamageWasClipped(
+                    isFullClip, mPendingFullWidthDamage,
+                    mClipBounds.left, mClipBounds.right, getWidth())) {
+                mPixelsValid = false;
+            }
+            mPendingFullWidthDamage = false;
             Rect dirtyRect = (isFullClip || !mPixelsValid) ? null : mClipBounds;
             // With the surface still "unknown" this frame painted every visible row, but only
             // inside the clip. Whatever the clip left out still holds the pixels of an older

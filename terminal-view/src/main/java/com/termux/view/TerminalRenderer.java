@@ -562,6 +562,22 @@ public final class TerminalRenderer {
     }
 
     /**
+     * Whether a full-width row damage rectangle was cut down by an ancestor before this frame.
+     *
+     * <p>Row damage is always invalidated across the whole width, but an ancestor (the session
+     * pager translates its pages while a swipe settles, and its elastic spring can leave a page
+     * a few pixels off-centre) may clip the canvas horizontally. Drawing such a frame updates
+     * only the visible part of the dirty rows; treating it as complete would clear their dirty
+     * bits and strand the clipped-off strips with the previous frame's pixels. Overlay damage
+     * (scrollbar band, cursor cell) is intentionally narrower and must not trigger recovery.</p>
+     */
+    static boolean fullWidthDamageWasClipped(boolean fullClip, boolean pendingFullWidthDamage,
+                                             int clipLeft, int clipRight, int viewWidth) {
+        return !fullClip && pendingFullWidthDamage
+            && (clipLeft > 0 || clipRight < viewWidth);
+    }
+
+    /**
      * The fast path is only valid for plain text: bold and italic may select a face with a
      * different advance, so those runs must still be measured and, if needed, cell-fitted.
      */
