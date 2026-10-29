@@ -15,7 +15,6 @@ public class RenderPayloadTest extends TerminalTestCase {
     private static final int OP_ROW_BEGIN = 1;
     private static final int OP_ROW_END = 2;
     private static final int OP_RECT = 3;
-    private static final int OP_TEXT = 4;
     private static final int OP_CURSOR = 5;
     private static final int OP_FRAME_BEGIN = 6;
     private static final int OP_DAMAGE = 7;
@@ -46,9 +45,6 @@ public class RenderPayloadTest extends TerminalTestCase {
                 case OP_RECT:
                 case OP_CURSOR:
                     cursor += 4;
-                    break;
-                case OP_TEXT:
-                    cursor += 7;
                     break;
                 case OP_FILL_RECT:
                     cursor += 5;

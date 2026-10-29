@@ -320,10 +320,11 @@ Sink добавляет mark в UTF-16 payload предыдущего `OP_GLYPH`
 слиянии соседних глифов пропущенные пробелы добавляются в payload, а
 `widthColumns` явно хранит ширину всего run.
 
-`OP_TEXT`/`OP_RECT`/`OP_CURSOR` остаются в ABI для legacy fallback-планировщика
-(`use_canvas = false`) и для строк, у которых нет native row. По умолчанию
-JNI-путь включает Canvas-ветку. Runtime-флаг `render.frame_abi` не вводится:
-Java уже умеет работать без frame header, а полный откат делается revert'ом.
+`OP_RECT`/`OP_CURSOR` остаются в ABI только для строк, у которых нет
+native row. Legacy-планировщик и `OP_TEXT` удалены: JNI-путь всегда вызывает
+upstream `render_cell()` через Canvas bridge. Runtime-флаг
+`render.frame_abi` не вводится: Java уже умеет работать без frame header, а
+полный откат делается revert'ом.
 
 ---
 
@@ -366,9 +367,8 @@ OP_FRAME_BEGIN
   renderTop, renderRows, damageRangeCount
 OP_DAMAGE(firstRow, lastRow)        # повторяется damageRangeCount раз
 OP_ROW_BEGIN(row)
-OP_RECT(startCol, endCol, color, spanView)              # legacy planner
-OP_TEXT(startChar, charCount, startCol, widthCols, fg, bg, effects)
-OP_CURSOR(col, widthCols, color, shape)
+OP_RECT(startCol, endCol, color, spanView)              # only when no native row
+OP_CURSOR(col, widthCols, color, shape)                 # only when no native row
 OP_FILL_RECT(x, y, width, height, argb)                 # Canvas bridge
 OP_GLYPH(startChar, charCount, x, baseline, widthColumns, argb, effects)
 OP_FILL_TRAPEZOID(x1, y1, x2, y2, x3, y3, x4, y4, argb)
@@ -453,12 +453,12 @@ repaint не мог «потерять» полное повреждение.
 - [ ] Убрать Java dirty-зеркало полностью (этап 6); сейчас оно остаётся
       fallback-источником, поэтому критерий «один источник истины» ещё не закрыт.
 
-### Этап 3. Первый frame/row/cell planner — выполнен, теперь fallback
+### Этап 3. Первый frame/row/cell planner — заменён upstream-путём
 
-Этот этап дал рабочий Canvas-рендер и остаётся вторым путём
-(`use_canvas = false`) для A/B и для строк без native row. Его семантика
-повторяет `render_cell()`, но не является буквальным upstream-кодом; этап 5
-заменяет её на извлечённый `render_cell()`/`render_row()`.
+Этот этап дал рабочий Canvas-рендер, но его семантика повторяла
+`render_cell()`, не являясь буквальным upstream-кодом. После этапа 5
+планировщик удалён; `foot_render_model_render_frame()` больше не содержит
+второго обхода ячеек и `OP_TEXT`.
 
 - [x] `grid_render()` → `foot_render_model_render_frame()`.
 - [x] `render_row()`: обход ячеек, run-группировка, wide-символы, trailing
@@ -541,8 +541,12 @@ repaint не мог «потерять» полное повреждение.
       trapezoid, точная позиция glyph baseline, пропуск text payload.
 - [x] Согласование целой native-сетки с дробным `mFontWidth` через
       `canvasScaleX()`; `dim.amount` выставлен в upstream-default 1.5.
-- [x] Canvas-путь включён по умолчанию; `headless_set_use_canvas(false)` и
-      `foot_render_model_set_use_canvas()` оставлены для fallback/A-B.
+- [x] Canvas-путь является единственным: `headless_set_use_canvas()` и
+      `foot_render_model_set_use_canvas()` удалены, legacy planner удалён.
+- [x] Termux bold-in-bright перенесён в bridge: brighten только по индексу
+      0..7 (base16/base256), независимо от совпадения RGB с базовой палитрой;
+      foot-овский palette-match отключён, чтобы `38;5;16` не становился
+      bright из-за совпадения с palette[0].
 - [x] Combining marks сливаются в предыдущий `OP_GLYPH`, пробельные глифы не
       эмитятся; `OP_GLYPH` несёт явный `widthColumns`.
 - [x] LTR-батчинг: соседние глифы с одинаковым стилем/шириной сливаются в один
@@ -558,16 +562,18 @@ repaint не мог «потерять» полное повреждение.
 - [ ] Визуальная проверка на устройстве (`tmux`, `htop`, OpenCode TUI, emoji,
       CJK, styled underline, transparency) и p95-профилирование. Заблокировано
       активной Termux-сессией; `adb install`/`force-stop` не применялись.
-- [ ] Решить, удалять ли legacy planner после device-parity. Сейчас он остаётся
-      вторым путём и не влияет на Canvas-ветку по умолчанию.
+- [x] Legacy planner удалён; Canvas bridge — единственный путь отрисовки
+      клеток.
 
 ### Этап 6. Cleanup
 
 - [ ] Удалить Java dirty-зеркало после стабилизации.
-- [ ] Удалить legacy command-ABI и legacy planner, если device-parity
-      подтверждён.
-- [ ] Обновить документацию и тесты.
+- [x] Удалить legacy planner и `OP_TEXT` из native/Java command-ABI.
+      `OP_RECT`/`OP_CURSOR` сохранены для строк без native row.
+- [x] Обновить документацию и тесты; native/JVM-тесты покрывают Canvas-only
+      поток и Termux bold-in-bright.
 - [ ] Проверить, что `third_party/foot` остаётся pinned и не патчится.
+      SHA-256 extracted-блока по-прежнему проверяется при configure/сборке.
 
 ---
 
@@ -610,7 +616,7 @@ repaint не мог «потерять» полное повреждение.
 - новые opcode корректно пропускаются в `loadRenderText` и исполняются в
   основном цикле (`OP_FILL_RECT`, `OP_GLYPH`, `OP_FILL_TRAPEZOID`);
 - `RenderPayloadTest` проверяет LTR-порядок UTF-16 payload, новый
-  `OP_GLYPH.widthColumns` и совпадение с legacy `getRenderText()`;
+  `OP_GLYPH.widthColumns` и совпадение с `getRenderText()`;
 - full clip → `clearDirtyState` → native commit all;
 - partial clip оставляет dirty вне clip;
 - scrolled-up streaming не вызывает full-screen dirty и перерисовывает только
@@ -645,7 +651,7 @@ repaint не мог «потерять» полное повреждение.
 | Full damage вызывает лишние кадры | full снимается только после полного commit; на scrolled-up output full не ставится |
 | Selection на wide-символе выделяет половину | bridge расширяет selection до всей wide-ячейки; native canvas-тест |
 | Выделение невидимо при `fg == bg` | upstream `render_cell()` инвертирует фон; native canvas-тест |
-| Canvas-путь регрессирует | native canvas-тесты + legacy planner за `use_canvas=false`; откат — `git revert` этапа |
+| Canvas-путь регрессирует | native canvas-тесты; откат — `git revert` этапа, legacy-планировщика больше нет |
 | `.inc` разошёлся с pinned `render.c` | configure/PRE_BUILD проверяют source/output SHA-256; `--write` только после осознанного re-pin |
 | shim расходится с pixman/fcft | API ограничен фактическими вызовами блока; `-Wno-unused` не скрывает несовпадение типов |
 | Полупрозрачный фон темнеет | shim снимает premultiply перед передачей ARGB в Canvas |
@@ -660,18 +666,17 @@ native всё ещё коммитит painted rows; frame header можно иг
 Откат этапа 3: вернуть planner-код в `headless.c`, оставив `FootRenderModel`
 владельцем viewport/damage; command-ABI и Java при этом не меняются.
 
-Откат этапа 5: `headless_set_use_canvas(false)` переключает на legacy planner
-без изменения ABI; полный откат — убрать `foot_canvas_*` из CMake и вернуть
-`render_model.c` к вызову старого планировщика. Java-парсер новых opcode можно
-оставить: они просто не появятся в потоке.
+Откат этапа 5: убрать `foot_canvas_*` из CMake и вернуть `render_model.c` к
+старому планировщику из истории git; Java-парсер новых opcode можно оставить:
+они просто не появятся в потоке.
 
 ---
 
 ## 11. Изменённые файлы этапов 1–5
 
 - `terminal-emulator/src/main/foot/src/render_model.c` — viewport, full damage,
-  commit, frame/damage header, Canvas sink и legacy fallback planner;
-  переиспользуемые command/text buffers.
+  commit, frame/damage header, Canvas sink; переиспользуемые command/text
+  buffers. Legacy planner удалён.
 - `terminal-emulator/src/main/foot/src/render_model.h` — API модели и palette
   layout.
 - `terminal-emulator/src/main/foot/src/foot-render-cell.inc` — verbatim
@@ -825,8 +830,8 @@ JNI-поверхность не меняются.
   окружением, поэтому `adb install`/`force-stop` не применялись. Визуальная
   проверка `tmux`/`htop`/OpenCode TUI, emoji/CJK, styled underline и
   transparency, а также device-профилирование p95 остаются за пользователем.
-- Legacy planner не удалён: он доступен через `headless_set_use_canvas(false)`
-  и остаётся страховкой до device-parity.
+- На момент этого APK legacy planner ещё оставался; в следующем этапе он
+  удалён вместе с `OP_TEXT` и `headless_set_use_canvas()`.
 
 ### Дополнительно: Canvas batching и отзывчивость прокрутки (29.10.2026)
 
@@ -867,8 +872,8 @@ JNI-поверхность не меняются.
 - у fallback-глифов блоков и у основного пробела/текста разные advance, поэтому
   общий scale сжимал блоки относительно их клеточных фонов и оставлял шов на
   каждой границе клетки;
-- legacy-путь `OP_TEXT` в этой ситуации уже использовал `drawTextClusters()` и
-  подгонял каждый code point/cluster в свою клетку.
+- прежний `OP_TEXT`-путь в этой ситуации уже использовал `drawTextClusters()`
+  и подгонял каждый code point/cluster в свою клетку.
 
 Исправление: `drawGlyph()` и `drawTextRun()` теперь идут через общий `drawRun()`;
 `runNeedsClusterFallback()` выбирает per-cluster путь при любом несовпадении
@@ -905,7 +910,7 @@ upper half block) шириной 14 px и высотой 14 px каждая, ц�
 
 Причина — потеря effect-бита при переходе на upstream Canvas-путь:
 
-- legacy `OP_TEXT` получает эффекты из `effects_for_cell()`, где для
+- прежний `OP_TEXT` получал эффекты из `effects_for_cell()`, где для
   U+2580..U+259F выставлен `EFFECT_BLOCK_FILL` (1 << 7);
 - `canvas_draw_glyph()` для `OP_GLYPH` заново собирал effects только из
   `font_index` (bold/italic) и терял этот бит;
@@ -941,3 +946,35 @@ upper half block) шириной 14 px и высотой 14 px каждая, ц�
 Устройство не перезапускалось. Установка APK, визуальная проверка
 прозрачности полосы `▀` в OpenCode и остального TUI остаются за
 пользователем.
+
+### Canvas-only cleanup и bold-in-bright parity (29.10.2026)
+
+Удалён второй, legacy-планировщик клеток. `FootRenderModel` теперь всегда
+вызывает upstream `render_cell()` через Canvas bridge; `use_canvas`,
+`headless_set_use_canvas()`, `foot_render_model_set_use_canvas()`, `OP_TEXT`
+и Java `drawTextRun()` удалены. `OP_RECT`/`OP_CURSOR` остались только для
+редких строк без native row.
+
+При переносе обнаружилась регрессия bold-in-bright: foot сравнивает
+разрешённый RGB с первыми восемью цветами палитры, поэтому `38;5;16` (чёрный,
+совпадающий с palette[0]) ошибочно становился palette[8]. Termux исторически
+повышает яркость только по индексу: base16/base256 `fg < 8`. Bridge теперь
+отключает foot-овский цветовой проход и временно сдвигает `attrs.fg` на +8
+только для этих клеток, сохраняя bold-шрифт; после строки атрибуты
+восстанавливаются.
+
+Проверки:
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`; старые
+  semantic-тесты переведены на Canvas opcodes, проверка `38;5;16` больше не
+  ловит ложный bright;
+- `terminal-view` JVM: 42/42;
+- `terminal-emulator` `RenderPayloadTest`: успешно;
+- `foot-render-cell.inc` SHA-256 не изменился: `dcf1ba...efe5`;
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning;
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `4383e39d04a2b445c61d159e7910204b1ab121b96f555ac1c9bc5e926c1f57ac`;
+- готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage6-canvas-only.apk`;
+- device-проверка не выполнялась: установка APK остаётся за пользователем.

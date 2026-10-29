@@ -55,11 +55,6 @@ void foot_render_model_sync_view(
 
 int foot_render_model_view_top(const struct foot_render_model *model);
 
-/* Temporary migration switch. true runs upstream render_cell(); false uses
- * the old planner. Android's JNI path leaves this at the default (true). */
-void foot_render_model_set_use_canvas(
-    struct foot_render_model *model, bool use_canvas);
-
 /* Request a complete repaint of the current visible set. */
 void foot_render_model_damage_all(struct foot_render_model *model);
 bool foot_render_model_is_full_damage(const struct foot_render_model *model);
@@ -84,7 +79,7 @@ void foot_render_model_commit_all(
  * Plan one packed frame:
  *
  *   OP_FRAME_BEGIN, OP_DAMAGE...,
- *   OP_ROW_BEGIN, OP_RECT/OP_CURSOR/OP_TEXT..., OP_ROW_END,
+ *   OP_ROW_BEGIN, OP_RECT/OP_CURSOR/OP_FILL_RECT/OP_GLYPH..., OP_ROW_END,
  *   ...,
  *   OP_FRAME_END, OP_END, text length, UTF-16 units
  *

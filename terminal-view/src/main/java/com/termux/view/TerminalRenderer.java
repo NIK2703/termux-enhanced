@@ -26,7 +26,6 @@ public final class TerminalRenderer {
     private static final int OP_ROW_BEGIN = 1;
     private static final int OP_ROW_END = 2;
     private static final int OP_RECT = 3;
-    private static final int OP_TEXT = 4;
     private static final int OP_CURSOR = 5;
     private static final int OP_FRAME_BEGIN = 6;
     private static final int OP_DAMAGE = 7;
@@ -37,13 +36,7 @@ public final class TerminalRenderer {
 
     private static final int EFFECT_BOLD = 1;
     private static final int EFFECT_ITALIC = 1 << 1;
-    private static final int EFFECT_UNDERLINE = 1 << 2;
-    private static final int EFFECT_BLINK = 1 << 3;
-    private static final int EFFECT_INVERSE = 1 << 4;
-    private static final int EFFECT_INVISIBLE = 1 << 5;
-    private static final int EFFECT_STRIKETHROUGH = 1 << 6;
     private static final int EFFECT_BLOCK_FILL = 1 << 7;
-    private static final int EFFECT_DIM = 1 << 8;
 
     private static final int CURSOR_BLOCK = 0;
     private static final int CURSOR_UNDERLINE = 1;
@@ -326,18 +319,6 @@ public final class TerminalRenderer {
                     drawCursor(canvas, column, widthColumns, color, shape, rowTop);
                     break;
                 }
-                case OP_TEXT: {
-                    int startChar = commands[cursor++];
-                    int charCount = commands[cursor++];
-                    int startColumn = commands[cursor++];
-                    int widthColumns = commands[cursor++];
-                    int foreground = commands[cursor++];
-                    cursor++; // background colour, already painted by OP_RECT
-                    int effects = commands[cursor++];
-                    drawTextRun(canvas, startChar, charCount, startColumn, widthColumns,
-                        foreground, effects, baseline);
-                    break;
-                }
                 case OP_FILL_RECT: {
                     int x = commands[cursor++];
                     int y = commands[cursor++];
@@ -455,9 +436,6 @@ public final class TerminalRenderer {
                     case OP_CURSOR:
                         i += 4;
                         break;
-                    case OP_TEXT:
-                        i += 7;
-                        break;
                     case OP_FILL_RECT:
                         i += 5;
                         break;
@@ -554,40 +532,6 @@ public final class TerminalRenderer {
             baseline, effects);
     }
 
-    private void drawTextRun(Canvas canvas, int startChar, int charCount, int startColumn,
-                             int widthColumns, int foreground, int effects, float baseline) {
-        if (charCount <= 0 || startChar < 0 || startChar + charCount > mTextUnitCount) return;
-        if ((effects & EFFECT_INVISIBLE) != 0) return;
-
-        final boolean bold = (effects & (EFFECT_BOLD | EFFECT_BLINK)) != 0;
-        final boolean underline = (effects & EFFECT_UNDERLINE) != 0;
-        final boolean italic = (effects & EFFECT_ITALIC) != 0;
-        final boolean strike = (effects & EFFECT_STRIKETHROUGH) != 0;
-        final boolean dim = (effects & EFFECT_DIM) != 0;
-
-        if (dim) {
-            int red = (0xFF & (foreground >> 16)) * 2 / 3;
-            int green = (0xFF & (foreground >> 8)) * 2 / 3;
-            int blue = (0xFF & foreground) * 2 / 3;
-            foreground = 0xFF000000 | (red << 16) | (green << 8) | blue;
-        }
-
-        applyTextStyle(foreground, bold, underline, italic, strike);
-
-        final float left = startColumn * mFontWidth;
-        final float expectedWidth = widthColumns * mFontWidth;
-        // Skip shaping only for plain, narrow ASCII. Styled text may resolve to a different
-        // face (Android can pick a proportional italic fallback), whose natural advance is
-        // not widthColumns * mFontWidth; measuring it keeps the old cell-fitting behaviour.
-        final float measured = (asciiFastPathAllowed(bold, italic, charCount, widthColumns)
-            && isAsciiNarrow(startChar, charCount))
-            ? expectedWidth
-            : measureNeutral(startChar, charCount);
-
-        drawRun(canvas, startChar, charCount, widthColumns, left, expectedWidth, measured,
-            baseline, effects);
-    }
-
     /**
      * Draw one run of cells, picking the per-cluster fallback whenever the run's measured
      * advance does not match its cell span.
@@ -596,8 +540,8 @@ public final class TerminalRenderer {
      * Block-art wordmarks are exactly such a run: full blocks, half blocks and the spaces
      * between letters do not necessarily share the font's advance. Scaling the whole run to
      * its cell span squeezes the blocks away from their background fills and leaves a seam at
-     * every cell boundary. Splitting into code-point clusters, as the legacy {@code OP_TEXT}
-     * path already did, fits each cell independently and keeps the art seamless.</p>
+     * every cell boundary. Splitting into code-point clusters fits each cell independently
+     * and keeps the art seamless.</p>
      */
     private void drawRun(Canvas canvas, int startChar, int charCount, int widthColumns,
                          float left, float expectedWidth, float measured, float baseline,

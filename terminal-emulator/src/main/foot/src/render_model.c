@@ -15,7 +15,6 @@ enum render_opcode {
     OP_ROW_BEGIN = 1,
     OP_ROW_END = 2,
     OP_RECT = 3,
-    OP_TEXT = 4,
     OP_CURSOR = 5,
     OP_FRAME_BEGIN = 6,
     OP_DAMAGE = 7,
@@ -51,10 +50,6 @@ struct foot_render_model {
     size_t text_len;
     size_t text_cap;
     uint32_t frame_id;
-
-    /* Upstream render_cell()/render_row() through the Canvas shim. The legacy
-     * planner remains available as a temporary fallback for A/B testing. */
-    bool use_canvas;
 };
 
 static int
@@ -131,10 +126,7 @@ row_is_visible(const struct foot_render_model *model, int external_row)
 struct foot_render_model *
 foot_render_model_create(void)
 {
-    struct foot_render_model *model = calloc(1, sizeof(struct foot_render_model));
-    if (model != NULL)
-        model->use_canvas = true;
-    return model;
+    return calloc(1, sizeof(struct foot_render_model));
 }
 
 void
@@ -256,14 +248,6 @@ foot_render_model_view_top(const struct foot_render_model *model)
 }
 
 void
-foot_render_model_set_use_canvas(
-    struct foot_render_model *model, bool use_canvas)
-{
-    if (model != NULL)
-        model->use_canvas = use_canvas;
-}
-
-void
 foot_render_model_damage_all(struct foot_render_model *model)
 {
     if (model == NULL)
@@ -362,23 +346,6 @@ foot_render_model_commit_all(
 }
 
 static int32_t
-color_argb(
-    const int32_t *palette, enum color_source source,
-    uint32_t value, int default_index)
-{
-    switch (source) {
-    case COLOR_DEFAULT:
-        return palette[default_index];
-    case COLOR_BASE16:
-    case COLOR_BASE256:
-        return palette[value & 0xff];
-    case COLOR_RGB:
-        return (int32_t)(0xff000000u | (value & 0xffffffu));
-    }
-    return palette[default_index];
-}
-
-static int32_t
 with_alpha(int32_t color, int alpha)
 {
     if (alpha >= 255)
@@ -394,44 +361,6 @@ without_lightness(int32_t color)
     /* Keep the alpha channel, invert only the visible RGB colour. */
     const uint32_t rgb = ((uint32_t)color & 0x00ffffffu) ^ 0x00ffffffu;
     return (int32_t)(((uint32_t)color & 0xff000000u) | rgb);
-}
-
-static int
-cell_width(const struct terminal *term, const struct row *row, int column)
-{
-    if (row == NULL || column + 1 >= term->cols)
-        return 1;
-    const char32_t next = row->cells[column + 1].wc;
-    if (next >= CELL_SPACER)
-        return (int)(next - CELL_SPACER) + 1;
-    return 1;
-}
-
-static bool
-cell_intersects_selection(
-    bool in_selection, int selection_start, int selection_end,
-    int column, int width)
-{
-    return in_selection &&
-        column <= selection_end &&
-        column + width - 1 >= selection_start;
-}
-
-static int
-effects_for_cell(const struct cell *cell)
-{
-    int effects = 0;
-    if (cell->attrs.bold) effects |= 1;
-    if (cell->attrs.italic) effects |= 2;
-    if (cell->attrs.underline) effects |= 4;
-    if (cell->attrs.blink) effects |= 8;
-    if (cell->attrs.reverse) effects |= 16;
-    if (cell->attrs.conceal) effects |= 32;
-    if (cell->attrs.strikethrough) effects |= 64;
-    if (cell->wc >= 0x2580 && cell->wc <= 0x259f)
-        effects |= EFFECT_BLOCK_FILL;
-    if (cell->attrs.dim) effects |= 256;
-    return effects;
 }
 
 static bool
@@ -675,7 +604,7 @@ canvas_draw_glyph(
      * Upstream paint_*() backends draw one glyph at a time. Android's Canvas
      * has a comparatively high cost per drawTextRun() call, so coalesce
      * adjacent cells with identical style into one text run. This is the same
-     * run shape the legacy planner emitted (OP_TEXT), just built from the
+     * run shape the Canvas sink expects, just built from the
      * upstream per-cell renderer instead of a second cell walk.
      */
     if (ctx->last_glyph_cmd >= 0 &&
@@ -820,17 +749,6 @@ render_canvas_row(
     return true;
 }
 
-struct render_run {
-    int start_column;
-    int width_columns;
-    int start_char;
-    int char_count;
-    int32_t fg;
-    int32_t bg;
-    int effects;
-    bool cursor;
-};
-
 int32_t *
 foot_render_model_render_frame(
     struct foot_render_model *model, struct terminal *term,
@@ -939,18 +857,6 @@ foot_render_model_render_frame(
         commands[count++] = end_row - 1;
     }
 
-    /* A phone-sized terminal fits in the stack buffer; only very wide grids
-     * pay for a heap allocation. The run table never escapes this function. */
-    struct render_run stack_runs[256];
-    struct render_run *runs = stack_runs;
-    bool runs_heap = false;
-    if ((size_t)(columns + 1) > sizeof(stack_runs) / sizeof(stack_runs[0])) {
-        runs = malloc((size_t)(columns + 1) * sizeof(runs[0]));
-        if (runs == NULL)
-            goto fail;
-        runs_heap = true;
-    }
-
     for (int row = top_row; row < end_row; row++) {
         if (row < min_top || row >= screen_rows)
             continue;
@@ -958,8 +864,7 @@ foot_render_model_render_frame(
         struct row *native_row = row_for_external(term, row);
         const bool is_cursor_row = cursor_visible && row == cursor_row;
 
-        if (model->use_canvas && native_row != NULL &&
-            term->fonts[0] != NULL) {
+        if (native_row != NULL && term->fonts[0] != NULL) {
             const bool in_selection =
                 row >= selection_y1 && row <= selection_y2;
             int selection_start =
@@ -991,7 +896,7 @@ foot_render_model_render_frame(
             continue;
         }
 
-        if (native_row == NULL) {
+        if (native_row == NULL || term->fonts[0] == NULL) {
             /* Still emit a row frame: TerminalRenderer fills the row with the
              * base colour and commits it on OP_ROW_END. Skipping a blank row
              * here would leave stale pixels in partial frames. */
@@ -1043,180 +948,6 @@ foot_render_model_render_frame(
             commands[count++] = OP_ROW_END;
             continue;
         }
-
-        const bool in_selection =
-            row >= selection_y1 && row <= selection_y2;
-        const int selection_start =
-            row == selection_y1 ? selection_x1 : 0;
-        const int selection_end =
-            row == selection_y2 ? selection_x2 : columns - 1;
-
-        int run_count = 0;
-        int cursor_run = -1;
-        int column = 0;
-
-        while (column < columns) {
-            const struct cell *cell = &native_row->cells[column];
-            if (cell->wc >= CELL_SPACER) {
-                column++;
-                continue;
-            }
-
-            int width = cell_width(term, native_row, column);
-            if (width > columns - column)
-                width = columns - column;
-
-            const bool inside_cursor = is_cursor_row &&
-                cursor_col >= column && cursor_col < column + width;
-            const bool inside_selection = cell_intersects_selection(
-                in_selection, selection_start, selection_end, column, width);
-            const bool cursor_block = inside_cursor && cursor_shape == 0;
-
-            int32_t fg = color_argb(
-                palette, cell->attrs.fg_src, cell->attrs.fg,
-                FOOT_RENDER_COLOR_FOREGROUND);
-            int32_t bg = color_argb(
-                palette, cell->attrs.bg_src, cell->attrs.bg,
-                FOOT_RENDER_COLOR_BACKGROUND);
-
-            /* Termux's long-standing bold-in-bright rule: only the first
-             * eight palette entries are brightened, not arbitrary 256-colour
-             * indexes that happen to share the same low bits. */
-            if (cell->attrs.bold &&
-                (cell->attrs.fg_src == COLOR_BASE16 ||
-                 cell->attrs.fg_src == COLOR_BASE256) &&
-                cell->attrs.fg < 8)
-            {
-                fg = palette[cell->attrs.fg + 8];
-            }
-
-            const bool reverse_here =
-                term->reverse || inside_selection || cursor_block;
-            if (reverse_here ^ cell->attrs.reverse) {
-                int32_t swap = fg;
-                fg = bg;
-                bg = swap;
-            }
-
-            /* Selection must stay visible when a cell explicitly uses the
-             * same foreground and background. foot does the same in
-             * render_cell() by inverting the selected background. */
-            if (inside_selection &&
-                (fg & 0x00ffffff) == (bg & 0x00ffffff))
-            {
-                bg = without_lightness(bg);
-            }
-            bg = with_alpha(bg, background_alpha);
-
-            const int start_char = (int)model->text_len;
-            if (!render_text_append(model, term, cell->wc))
-                goto fail;
-            const int char_count = (int)model->text_len - start_char;
-            const int effects = effects_for_cell(cell);
-
-            struct render_run run = {
-                .start_column = column,
-                .width_columns = width,
-                .start_char = start_char,
-                .char_count = char_count,
-                .fg = fg,
-                .bg = bg,
-                .effects = effects,
-                .cursor = inside_cursor,
-            };
-
-            bool merged = false;
-            if (run_count > 0) {
-                struct render_run *last = &runs[run_count - 1];
-                if (last->fg == run.fg && last->bg == run.bg &&
-                    last->effects == run.effects &&
-                    last->cursor == run.cursor &&
-                    last->start_column + last->width_columns == run.start_column)
-                {
-                    last->width_columns += run.width_columns;
-                    last->char_count =
-                        run.start_char + run.char_count - last->start_char;
-                    merged = true;
-                }
-            }
-            if (!merged)
-                runs[run_count++] = run;
-            if (inside_cursor)
-                cursor_run = run_count - 1;
-            column += width;
-        }
-
-        if (!reserve_commands(model, (size_t)count + 8 +
-                                     (size_t)run_count * 16))
-        {
-            goto fail;
-        }
-        commands = model->commands;
-
-        commands[count++] = OP_ROW_BEGIN;
-        commands[count++] = row;
-
-        for (int i = 0; i < run_count; i++) {
-            const struct render_run *run = &runs[i];
-            if (run->bg == base_bg)
-                continue;
-            commands[count++] = OP_RECT;
-            commands[count++] = run->start_column;
-            commands[count++] = run->start_column + run->width_columns;
-            commands[count++] = run->bg;
-            commands[count++] = 1; /* RECT_SPAN_VIEW */
-        }
-
-        if (cursor_run >= 0) {
-            const struct render_run *run = &runs[cursor_run];
-            commands[count++] = OP_CURSOR;
-            commands[count++] = run->start_column;
-            commands[count++] = run->width_columns;
-            commands[count++] = cursor_color;
-            commands[count++] = cursor_shape;
-        }
-
-        for (int i = 0; i < run_count; i++) {
-            const struct render_run *run = &runs[i];
-            if (run->effects & 32)
-                continue;
-
-            bool has_content = false;
-            for (int c = 0; c < run->char_count; c++) {
-                if (run->start_char + c < (int)model->text_len &&
-                    model->text[run->start_char + c] != ' ')
-                {
-                    has_content = true;
-                    break;
-                }
-            }
-            const bool decorated = (run->effects & (4 | 64)) != 0;
-            if (!has_content && !decorated)
-                continue;
-
-            int char_count = run->char_count;
-            if (!decorated) {
-                while (char_count > 0 &&
-                       run->start_char + char_count - 1 < (int)model->text_len &&
-                       model->text[run->start_char + char_count - 1] == ' ')
-                {
-                    char_count--;
-                }
-            }
-            if (char_count == 0)
-                continue;
-
-            commands[count++] = OP_TEXT;
-            commands[count++] = run->start_char;
-            commands[count++] = char_count;
-            commands[count++] = run->start_column;
-            commands[count++] = run->width_columns;
-            commands[count++] = run->fg;
-            commands[count++] = run->bg;
-            commands[count++] = run->effects;
-        }
-
-        commands[count++] = OP_ROW_END;
     }
 
     /* The Canvas path appends commands from render_cell() through the sink,
@@ -1236,14 +967,10 @@ foot_render_model_render_frame(
     for (size_t i = 0; i < text_length; i++)
         commands[count++] = model->text[i];
 
-    if (runs_heap)
-        free(runs);
     *out_count = count;
     return commands;
 
 fail:
-    if (runs_heap)
-        free(runs);
     *out_count = 0;
     return NULL;
 }

@@ -114,6 +114,7 @@ foot_canvas_prepare_frame(
         conf->tweak.grapheme_shaping = false;
         conf->tweak.overflowing_glyphs = false;
         conf->url.style = UNDERLINE_NONE;
+        conf->bold_in_bright.enabled = false;
         conf->use_custom_underline_offset = false;
         conf->underline_thickness = (struct pt_or_px){.px = -1, .pt = 0};
         conf->strikeout_thickness = (struct pt_or_px){.px = -1, .pt = 0};
@@ -274,6 +275,34 @@ foot_canvas_render_row(
     const bool kbd_focus = term->kbd_focus;
     term->kbd_focus = true;
 
+    /* foot's palette-based bold brightening matches resolved colours against
+     * the base eight entries. Termux has always brightened by palette index
+     * instead, and only for indexes 0..7. Disable foot's colour pass (set in
+     * foot_canvas_prepare_frame()) and apply the index rule here, without
+     * changing the bold font selection. */
+    unsigned char stack_changed[256] = {0};
+    unsigned char *changed = stack_changed;
+    if (term->cols > (int)sizeof(stack_changed)) {
+        changed = calloc((size_t)term->cols, 1);
+        if (changed == NULL)
+            changed = stack_changed;
+    }
+    const bool can_brighten = term->cols <= (int)sizeof(stack_changed) ||
+        changed != stack_changed;
+    if (can_brighten) {
+        for (int col = 0; col < term->cols; col++) {
+            struct cell *cell = &row->cells[col];
+            if (cell->attrs.bold &&
+                (cell->attrs.fg_src == COLOR_BASE16 ||
+                 cell->attrs.fg_src == COLOR_BASE256) &&
+                cell->attrs.fg < 8)
+            {
+                cell->attrs.fg += 8;
+                changed[col] = 1;
+            }
+        }
+    }
+
     /* Upstream render_row() walks right-to-left. That order is fine for a
      * pixel backend, but Canvas text runs must be emitted in logical
      * left-to-right order so adjacent cells can be coalesced into one
@@ -298,6 +327,14 @@ foot_canvas_render_row(
             last_col = col;
         }
         if (last_col < first_col) {
+            if (can_brighten) {
+                for (int col = 0; col < term->cols; col++) {
+                    if (changed[col])
+                        row->cells[col].attrs.fg -= 8;
+                }
+            }
+            if (changed != stack_changed)
+                free(changed);
             term->kbd_focus = kbd_focus;
             foot_canvas_target_destroy(target);
             return;
@@ -306,6 +343,15 @@ foot_canvas_render_row(
 
     for (int col = first_col; col <= last_col; col++)
         render_cell(term, target, NULL, row, row_no, col, cursor_col == col);
+
+    if (can_brighten) {
+        for (int col = 0; col < term->cols; col++) {
+            if (changed[col])
+                row->cells[col].attrs.fg -= 8;
+        }
+    }
+    if (changed != stack_changed)
+        free(changed);
 
     term->kbd_focus = kbd_focus;
     foot_canvas_target_destroy(target);

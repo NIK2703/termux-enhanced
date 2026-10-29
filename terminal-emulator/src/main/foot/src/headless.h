@@ -34,10 +34,6 @@ int *headless_append(
 void headless_set_view(struct headless_terminal *ht, int top_row);
 int headless_view_top(const struct headless_terminal *ht);
 
-/* Temporary A/B switch: true selects upstream render_cell() through the Canvas
- * shim (the Android default); false keeps the pre-bridge planner for tests. */
-void headless_set_use_canvas(struct headless_terminal *ht, bool use_canvas);
-
 /* Retire native damage after rows were painted. */
 void headless_commit_rows(
     struct headless_terminal *ht, const int *rows, int count);
@@ -83,7 +79,7 @@ char *headless_word_at_location(
     struct headless_terminal *ht, int x, int y);
 
 /* Packed render payload: commands terminated by OP_END, followed by the
- * UTF-16 text length and the text units referenced by OP_TEXT commands.
+ * UTF-16 text length and the text units referenced by OP_GLYPH commands.
  * The buffer is reused and stays valid until the next headless_render() on the
  * same terminal; the caller must not free it. */
 int32_t *headless_render(

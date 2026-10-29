@@ -1379,13 +1379,6 @@ headless_view_top(const struct headless_terminal *ht)
 }
 
 void
-headless_set_use_canvas(struct headless_terminal *ht, bool use_canvas)
-{
-    if (ht != NULL)
-        foot_render_model_set_use_canvas(ht->render_model, use_canvas);
-}
-
-void
 headless_commit_rows(
     struct headless_terminal *ht, const int *rows, int count)
 {

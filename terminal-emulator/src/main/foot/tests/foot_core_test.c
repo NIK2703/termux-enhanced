@@ -19,7 +19,6 @@ enum {
     OP_ROW_BEGIN = 1,
     OP_ROW_END = 2,
     OP_RECT = 3,
-    OP_TEXT = 4,
     OP_CURSOR = 5,
     OP_FRAME_BEGIN = 6,
     OP_DAMAGE = 7,
@@ -30,23 +29,6 @@ enum {
 };
 
 static int failures;
-
-/*
- * The original smoke tests assert the pre-bridge semantic command stream.
- * Keep them running through the fallback planner; canvas_render_tests()
- * exercises the upstream render_cell() path explicitly.
- */
-static struct headless_terminal *
-test_create_legacy(
-    int columns, int rows, int transcript_rows,
-    int cell_width, int cell_height, const int32_t *palette)
-{
-    struct headless_terminal *ht = (headless_create)(
-        columns, rows, transcript_rows, cell_width, cell_height, palette);
-    headless_set_use_canvas(ht, false);
-    return ht;
-}
-#define headless_create(...) test_create_legacy(__VA_ARGS__)
 
 #define CHECK(condition)                                                        \
     do {                                                                        \
@@ -74,9 +56,6 @@ payload_has_frame_end(const int32_t *commands, int command_count)
         case OP_RECT:
         case OP_CURSOR:
             cursor += 4;
-            break;
-        case OP_TEXT:
-            cursor += 7;
             break;
         case OP_FILL_RECT:
             cursor += 5;
@@ -218,12 +197,16 @@ has_text_fg(const int32_t *commands, int count, int wanted)
         } else if (op == 2) {
         } else if (op == 3 || op == 5) {
             cursor += 4;
-        } else if (op == 4) {
-            cursor += 4; /* start char, count, start col, width */
+        } else if (op == 9) {
+            cursor += 5; /* x, y, width, height, colour */
+        } else if (op == 10) {
+            cursor += 5; /* start char, count, x, baseline, width */
             const int fg = commands[cursor++];
-            cursor += 2; /* background and effects */
+            cursor++; /* effects */
             if (fg == wanted)
                 return true;
+        } else if (op == 11) {
+            cursor += 9;
         } else if (op == 6) {
             /* frame header: 8 fields, then OP_DAMAGE triples */
             if (cursor + 8 > count)
@@ -244,212 +227,6 @@ static int *append_dirty(
     struct headless_terminal *ht, const char *text, int *dirty_count);
 static void commit_dirty(
     struct headless_terminal *ht, int *dirty, int count);
-
-struct text_run {
-    int start_char;
-    int char_count;
-    int start_column;
-    int width_columns;
-    int32_t fg;
-    int32_t bg;
-    int effects;
-};
-
-static bool
-find_text_run(
-    const int32_t *commands, int count, int column, struct text_run *out)
-{
-    int cursor = 0;
-    while (cursor < count) {
-        const int op = commands[cursor++];
-        if (op == 0)
-            break;
-        if (op == 1) {
-            cursor++;
-        } else if (op == 2) {
-        } else if (op == 3 || op == 5) {
-            cursor += 4;
-        } else if (op == 4) {
-            struct text_run run;
-            run.start_char = commands[cursor++];
-            run.char_count = commands[cursor++];
-            run.start_column = commands[cursor++];
-            run.width_columns = commands[cursor++];
-            run.fg = commands[cursor++];
-            run.bg = commands[cursor++];
-            run.effects = commands[cursor++];
-            if (column >= run.start_column &&
-                column < run.start_column + run.width_columns)
-            {
-                if (out != NULL)
-                    *out = run;
-                return true;
-            }
-        } else if (op == 6) {
-            if (cursor + 8 > count)
-                break;
-            const int damage_count = commands[cursor + 7];
-            cursor += 8 + damage_count * 3;
-        } else if (op == 7) {
-            cursor += 2;
-        } else if (op == 8) {
-        } else {
-            break;
-        }
-    }
-    return false;
-}
-
-struct cursor_rect {
-    int column;
-    int width_columns;
-    int32_t color;
-    int shape;
-};
-
-static bool
-find_cursor_rect(
-    const int32_t *commands, int count, struct cursor_rect *out)
-{
-    int cursor = 0;
-    while (cursor < count) {
-        const int op = commands[cursor++];
-        if (op == 0)
-            break;
-        if (op == 1) {
-            cursor++;
-        } else if (op == 2) {
-        } else if (op == 3) {
-            cursor += 4;
-        } else if (op == 4) {
-            cursor += 7;
-        } else if (op == 5) {
-            struct cursor_rect rect;
-            rect.column = commands[cursor++];
-            rect.width_columns = commands[cursor++];
-            rect.color = commands[cursor++];
-            rect.shape = commands[cursor++];
-            if (out != NULL)
-                *out = rect;
-            return true;
-        } else if (op == 6) {
-            if (cursor + 8 > count)
-                break;
-            const int damage_count = commands[cursor + 7];
-            cursor += 8 + damage_count * 3;
-        } else if (op == 7) {
-            cursor += 2;
-        } else if (op == 8) {
-        } else {
-            break;
-        }
-    }
-    return false;
-}
-
-static void
-render_planner_policy_tests(void)
-{
-    struct headless_terminal *ht = headless_create(6, 2, 6, 8, 16, palette);
-    CHECK(ht != NULL);
-    if (ht == NULL)
-        return;
-
-    /* A selection that starts on the spacer of a wide cell still selects the
-     * whole grapheme. The run covers both columns. */
-    int dirty_count = 0;
-    int *dirty = append_dirty(ht, "A\xe7\x95\x8c" "B", &dirty_count);
-    commit_dirty(ht, dirty, dirty_count);
-
-    int command_count = 0;
-    int32_t *commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 6, 2,
-        &command_count);
-    CHECK(commands != NULL);
-
-    struct text_run normal_wide;
-    CHECK(find_text_run(commands, command_count, 1, &normal_wide));
-    CHECK(normal_wide.start_column == 0);
-    CHECK(normal_wide.width_columns >= 3); /* A, wide cell and B merged */
-    CHECK(normal_wide.fg == palette[256]);
-    CHECK(normal_wide.bg == palette[257]);
-
-    commands = headless_render(
-        ht, 0, 0, 0, 2, 2, false, 0, 255, 8.0f, 16, 12, 6, 2,
-        &command_count);
-    CHECK(commands != NULL);
-
-    struct text_run selected_wide;
-    CHECK(find_text_run(commands, command_count, 1, &selected_wide));
-    CHECK(selected_wide.width_columns == 2);
-    CHECK(selected_wide.fg == palette[257]);
-    CHECK(selected_wide.bg == palette[256]);
-    CHECK(selected_wide.start_column == 1);
-
-    headless_destroy(ht);
-
-    /* Selecting text whose explicit foreground equals its background must
-     * still produce a visible selection. */
-    ht = headless_create(6, 2, 6, 8, 16, palette);
-    CHECK(ht != NULL);
-    if (ht == NULL)
-        return;
-    dirty = append_dirty(
-        ht, "\x1b[38;2;10;20;30m\x1b[48;2;10;20;30mX", &dirty_count);
-    commit_dirty(ht, dirty, dirty_count);
-
-    commands = headless_render(
-        ht, 0, 0, 0, 0, 0, false, 0, 255, 8.0f, 16, 12, 6, 2,
-        &command_count);
-    CHECK(commands != NULL);
-    struct text_run equal_colors;
-    CHECK(find_text_run(commands, command_count, 0, &equal_colors));
-    CHECK(equal_colors.fg == (int32_t)0xff0a141e);
-    CHECK(equal_colors.bg == (int32_t)0xfff5ebe1);
-    CHECK(equal_colors.fg != equal_colors.bg);
-
-    headless_destroy(ht);
-
-    /* Cursor policy: underline keeps cell colours, block inverts them, and a
-     * cursor on a wide cell covers both columns. */
-    ht = headless_create(6, 2, 6, 8, 16, palette);
-    CHECK(ht != NULL);
-    if (ht == NULL)
-        return;
-    dirty = append_dirty(ht, "\xe7\x95\x8c", &dirty_count);
-    dirty = append_dirty(ht, "\x1b[1;1H", &dirty_count);
-    commit_dirty(ht, dirty, dirty_count);
-
-    commands = headless_render(
-        ht, 0, -1, -1, 0, 0, true, 1, 255, 8.0f, 16, 12, 6, 2,
-        &command_count);
-    CHECK(commands != NULL);
-    struct text_run underline;
-    CHECK(find_text_run(commands, command_count, 0, &underline));
-    CHECK(underline.width_columns == 2);
-    CHECK(underline.fg == palette[256]);
-    CHECK(underline.bg == palette[257]);
-    struct cursor_rect cursor;
-    CHECK(find_cursor_rect(commands, command_count, &cursor));
-    CHECK(cursor.column == 0 && cursor.width_columns == 2);
-    CHECK(cursor.color == palette[258]);
-    CHECK(cursor.shape == 1);
-
-    commands = headless_render(
-        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 6, 2,
-        &command_count);
-    CHECK(commands != NULL);
-    struct text_run block;
-    CHECK(find_text_run(commands, command_count, 0, &block));
-    CHECK(block.width_columns == 2);
-    CHECK(block.fg == palette[257]);
-    CHECK(block.bg == palette[256]);
-    CHECK(find_cursor_rect(commands, command_count, &cursor));
-    CHECK(cursor.column == 0 && cursor.width_columns == 2);
-    CHECK(cursor.shape == 0);
-
-    headless_destroy(ht);
-}
 
 static int *
 append_dirty(struct headless_terminal *ht, const char *text, int *dirty_count)
@@ -758,8 +535,6 @@ canvas_render_tests(void)
     CHECK(ht != NULL);
     if (ht == NULL)
         return;
-    headless_set_use_canvas(ht, true);
-
     feed(ht, "abc");
     headless_commit_all_rows(ht);
     int command_count = 0;
@@ -786,8 +561,6 @@ canvas_render_tests(void)
             if (op == OP_ROW_BEGIN) cursor++;
         } else if (op == OP_RECT || op == OP_CURSOR) {
             cursor += 4;
-        } else if (op == OP_TEXT) {
-            cursor += 7;
         } else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             const int damage = commands[cursor + 7];
@@ -841,7 +614,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -885,7 +657,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -933,7 +704,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -981,7 +751,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -1031,7 +800,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -1080,7 +848,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -1118,7 +885,6 @@ canvas_render_tests(void)
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
         else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
-        else if (op == OP_TEXT) cursor += 7;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -1152,7 +918,6 @@ main(void)
     dirty_tracking_tests();
     frame_header_tests();
     render_state_tests();
-    render_planner_policy_tests();
     scrolled_view_scroll_tests();
     struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
     CHECK(ht != NULL);
@@ -1402,15 +1167,17 @@ main(void)
                 cursor += 2;
             } else if (op == 8) {
                 saw_frame_end = true;
-            } else if (op == 4) {
+            } else if (op == 9) {
+                cursor += 5; /* x, y, width, height, colour */
+            } else if (op == 10) {
                 const int start_char = commands[cursor++];
                 const int char_count = commands[cursor++];
-                const int start_column = commands[cursor++];
-                const int width_columns = commands[cursor++];
-                cursor += 3; /* fg, bg, effects */
+                const int x = commands[cursor++];
+                cursor += 2; /* baseline, cell width */
+                cursor += 2; /* fg, effects */
                 if (start_char < 0 || char_count <= 0 ||
                     start_char + char_count > render_text_length ||
-                    start_column < 0 || start_column + width_columns > 10) {
+                    x < 0 || x > 10 * 8) {
                     structure_ok = false;
                 }
                 for (int i = 0; i < char_count; i++) {
@@ -1419,6 +1186,8 @@ main(void)
                     else if (unit == 0x754c) saw_wide = true;
                     else if (unit == 'B') saw_b = true;
                 }
+            } else if (op == 11) {
+                cursor += 9;
             } else {
                 structure_ok = false;
                 break;
@@ -1455,8 +1224,12 @@ main(void)
             } else if (op == 2) {
             } else if (op == 3 || op == 5) {
                 cursor += 4;
-            } else if (op == 4) {
+            } else if (op == 9) {
+                cursor += 5;
+            } else if (op == 10) {
                 cursor += 7;
+            } else if (op == 11) {
+                cursor += 9;
             } else if (op == 6) {
                 if (cursor + 8 > command_count)
                     break;
