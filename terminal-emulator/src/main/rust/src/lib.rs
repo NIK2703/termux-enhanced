@@ -436,13 +436,3 @@ pub extern "system" fn Java_com_termux_terminal_TerminalNative_nativeRenderText<
     let units = with_terminal(&mut env, handle, |terminal| render::text_units(terminal)).unwrap_or_default();
     to_int_array(&mut env, &units)
 }
-
-#[no_mangle]
-pub extern "system" fn Java_com_termux_terminal_TerminalNative_nativeRenderDirtyRows<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    handle: jlong,
-) -> JIntArray<'local> {
-    let rows = with_terminal(&mut env, handle, |terminal| render::dirty_rows(terminal)).unwrap_or_default();
-    to_int_array(&mut env, &rows)
-}

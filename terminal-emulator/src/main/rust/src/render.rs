@@ -353,19 +353,14 @@ pub fn build(
     }
 
     commands.push(OP_END);
+    // Keep the UTF-16 payload in the same array as the commands: one JNI
+    // transition and one allocation per frame instead of two.
+    commands.push(text.len() as i32);
+    commands.extend(text.iter().map(|&unit| unit as i32));
     terminal.set_render_text(text);
     commands
 }
 
 pub fn text_units(terminal: &Terminal) -> Vec<i32> {
     terminal.render_text().iter().map(|&unit| unit as i32).collect()
-}
-
-pub fn dirty_rows(terminal: &Terminal) -> Vec<i32> {
-    // Dirty tracking lives in the Java facade: it needs cursor moves, selection
-    // changes and viewport anchoring, none of which are grid mutations. The
-    // native side still exposes row hashes through `append`; this endpoint is a
-    // compatibility stub for callers that prefer to poll.
-    let _ = terminal;
-    Vec::new()
 }

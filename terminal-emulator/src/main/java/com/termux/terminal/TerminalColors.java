@@ -13,18 +13,28 @@ public final class TerminalColors {
      */
     public final int[] mCurrentColors = new int[TextStyle.NUM_INDEXED_COLORS];
 
+    /** Monotonic counter bumped whenever the Java-owned palette is changed. */
+    private int mVersion;
+
     public TerminalColors() {
         reset();
+    }
+
+    /** Version used by {@link TerminalEmulator} to avoid re-uploading an unchanged palette. */
+    public int getVersion() {
+        return mVersion;
     }
 
     /** Reset a particular indexed color with the default color from the color theme. */
     public void reset(int index) {
         mCurrentColors[index] = COLOR_SCHEME.mDefaultColors[index];
+        mVersion++;
     }
 
     /** Reset all indexed colors with the default color from the color theme. */
     public void reset() {
         System.arraycopy(COLOR_SCHEME.mDefaultColors, 0, mCurrentColors, 0, TextStyle.NUM_INDEXED_COLORS);
+        mVersion++;
     }
 
     /**
@@ -70,7 +80,10 @@ public final class TerminalColors {
     /** Try parse a color from a text parameter and into a specified index. */
     public void tryParseColor(int intoIndex, String textParameter) {
         int c = parse(textParameter);
-        if (c != 0) mCurrentColors[intoIndex] = c;
+        if (c != 0 && mCurrentColors[intoIndex] != c) {
+            mCurrentColors[intoIndex] = c;
+            mVersion++;
+        }
     }
 
     /**

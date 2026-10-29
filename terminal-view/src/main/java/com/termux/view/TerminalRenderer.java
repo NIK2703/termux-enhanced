@@ -20,6 +20,7 @@ import com.termux.terminal.WcWidth;
  */
 public final class TerminalRenderer {
 
+    /** Command stream terminator; the UTF-16 text payload follows it. */
     private static final int OP_END = 0;
     private static final int OP_ROW_BEGIN = 1;
     private static final int OP_ROW_END = 2;
@@ -72,6 +73,8 @@ public final class TerminalRenderer {
     private final float[] mBmpMeasures = new float[0x10000];
 
     private char[] mTextUnits = new char[1024];
+    /** Number of valid UTF-16 units in {@link #mTextUnits} for the current frame. */
+    private int mTextUnitCount;
 
     private long mLastPaintForeColorKey = -1L;
     private boolean mLastPaintBold;
@@ -176,10 +179,14 @@ public final class TerminalRenderer {
         final Paint baseFillPaint = (mBackgroundAlpha >= 255) ? mBaseFillPaint : mBaseFillSrcPaint;
         baseFillPaint.setColor(bgColor);
 
-        final int[] commands = emulator.getRenderCommands(topRow, selectionY1, selectionY2,
+        // For a partial frame, only ask the native core to build commands for the rows that
+        // intersect the clip. Native row indices stay absolute (relative to topRow); the
+        // renderer still positions them with currentRow - topRow.
+        final int renderRows = renderEndRow - renderStartRow;
+        final int[] commands = emulator.getRenderCommands(renderStartRow, selectionY1, selectionY2,
             selectionX1, selectionX2, mBackgroundAlpha, mFontWidth, mFontLineSpacing,
-            mFontAscent, columns, rows);
-        loadRenderText(emulator.getRenderText());
+            mFontAscent, columns, renderRows);
+        loadRenderText(commands, emulator);
 
         if (commands == null || commands.length == 0) {
             canvas.restore();
@@ -276,13 +283,66 @@ public final class TerminalRenderer {
         canvas.restore();
     }
 
+    /**
+     * The native render payload carries its UTF-16 text after {@code OP_END}. Prefer that copy:
+     * it avoids a second JNI call and a second int[] allocation. Fall back to the legacy
+     * {@code nativeRenderText} entry point for an older native library.
+     */
+    private void loadRenderText(int[] commands, TerminalEmulator emulator) {
+        if (commands != null) {
+            int i = 0;
+            while (i < commands.length) {
+                final int op = commands[i++];
+                if (op == OP_END) {
+                    if (i + 1 < commands.length) {
+                        final int count = commands[i];
+                        if (count >= 0 && i + 1 + count <= commands.length) {
+                            loadRenderText(commands, i + 1, count);
+                            return;
+                        }
+                    }
+                    break;
+                }
+                switch (op) {
+                    case OP_ROW_BEGIN:
+                    case OP_ROW_END:
+                        i += (op == OP_ROW_BEGIN) ? 1 : 0;
+                        break;
+                    case OP_RECT:
+                    case OP_CURSOR:
+                        i += 4;
+                        break;
+                    case OP_TEXT:
+                        i += 7;
+                        break;
+                    default:
+                        i = commands.length;
+                        break;
+                }
+            }
+        }
+        loadRenderText(emulator.getRenderText());
+    }
+
+    private void loadRenderText(int[] units, int offset, int count) {
+        if (count <= 0) {
+            mTextUnitCount = 0;
+            return;
+        }
+        if (mTextUnits.length < count) mTextUnits = new char[count];
+        for (int i = 0; i < count; i++) mTextUnits[i] = (char) units[offset + i];
+        mTextUnitCount = count;
+    }
+
     private void loadRenderText(int[] units) {
         if (units == null) {
             if (mTextUnits.length > 0) java.util.Arrays.fill(mTextUnits, '\0');
+            mTextUnitCount = 0;
             return;
         }
         if (mTextUnits.length < units.length) mTextUnits = new char[units.length];
         for (int i = 0; i < units.length; i++) mTextUnits[i] = (char) units[i];
+        mTextUnitCount = units.length;
     }
 
     private Paint backgroundPaint(int color) {
@@ -310,7 +370,7 @@ public final class TerminalRenderer {
 
     private void drawTextRun(Canvas canvas, int startChar, int charCount, int startColumn,
                              int widthColumns, int foreground, int effects, float baseline) {
-        if (charCount <= 0 || startChar < 0 || startChar + charCount > mTextUnits.length) return;
+        if (charCount <= 0 || startChar < 0 || startChar + charCount > mTextUnitCount) return;
         if ((effects & EFFECT_INVISIBLE) != 0) return;
 
         final boolean bold = (effects & (EFFECT_BOLD | EFFECT_BLINK)) != 0;

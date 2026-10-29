@@ -60,10 +60,10 @@ final class TerminalNative {
 
     static native void nativeClearScrollCounter(long handle);
 
-    /** Stable content address of an external row (scroll counter + row). */
+    /** Legacy per-row anchor query; retained for the fixed 27-method JNI ABI. */
     static native int nativeAnchorRow(long handle, int externalRow);
 
-    /** Absolute (unclamped) scroll count used to invert {@link #nativeAnchorRow}. */
+    /** Absolute (unclamped) scroll count used as the base of content anchors. */
     static native long nativeAbsoluteScrollCount(long handle);
 
     static native boolean nativeIsAlternate(long handle);
@@ -85,12 +85,15 @@ final class TerminalNative {
 
     static native String nativeWordAtLocation(long handle, int x, int y);
 
-    /** Packed render command list consumed by {@code TerminalRenderer}. */
+    /**
+     * Packed render payload consumed by {@code TerminalRenderer}: commands terminated by
+     * {@code OP_END}, followed by the UTF-16 text length and the text units.
+     */
     static native int[] nativeRender(long handle, int topRow, int selectionY1, int selectionY2,
                                      int selectionX1, int selectionX2, boolean cursorVisible,
                                      int cursorShape, int backgroundAlpha, float fontWidth,
                                      int fontLineSpacing, int fontAscent, int columns, int rows);
 
-    /** UTF-16 payload referenced by TEXT commands of the most recent render. */
+    /** Legacy separate UTF-16 payload; kept for the fixed 27-method JNI ABI. */
     static native int[] nativeRenderText(long handle);
 }

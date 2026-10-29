@@ -61,12 +61,21 @@ public final class TerminalColorScheme {
 
     public final int[] mDefaultColors = new int[TextStyle.NUM_INDEXED_COLORS];
 
+    /** Monotonic counter bumped whenever the default palette is replaced. */
+    private int mVersion;
+
     public TerminalColorScheme() {
         reset();
     }
 
+    /** Version used by {@link TerminalEmulator} to avoid re-uploading an unchanged palette. */
+    public int getVersion() {
+        return mVersion;
+    }
+
     private void reset() {
         System.arraycopy(DEFAULT_COLORSCHEME, 0, mDefaultColors, 0, TextStyle.NUM_INDEXED_COLORS);
+        mVersion++;
     }
 
     public void updateWith(Properties props) {
@@ -103,6 +112,7 @@ public final class TerminalColorScheme {
 
         if (!cursorPropExists)
             setCursorColorForBackground();
+        mVersion++;
     }
 
     /**
@@ -116,10 +126,11 @@ public final class TerminalColorScheme {
         int backgroundColor = mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
         int brightness = TerminalColors.getPerceivedBrightnessOfColor(backgroundColor);
         if (brightness > 0) {
-            if (brightness < 130)
-                mDefaultColors[TextStyle.COLOR_INDEX_CURSOR] = 0xffffffff;
-            else
-                mDefaultColors[TextStyle.COLOR_INDEX_CURSOR] = 0xff000000;
+            final int cursor = brightness < 130 ? 0xffffffff : 0xff000000;
+            if (mDefaultColors[TextStyle.COLOR_INDEX_CURSOR] != cursor) {
+                mDefaultColors[TextStyle.COLOR_INDEX_CURSOR] = cursor;
+                mVersion++;
+            }
         }
     }
 

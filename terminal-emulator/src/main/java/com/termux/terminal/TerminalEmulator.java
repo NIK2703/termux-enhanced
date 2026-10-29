@@ -66,6 +66,8 @@ public final class TerminalEmulator {
     private boolean mTerminalFocused;
     private boolean mAutoScrollDisabled;
     private int mModeBits;
+    private int mSyncedColorVersion = -1;
+    private int mSyncedDefaultVersion = -1;
 
     private static final Pattern PASTE_STRIP_PATTERN = Pattern.compile("(\u001B|[\u0080-\u009F])");
     private static final Pattern PASTE_NEWLINE_PATTERN = Pattern.compile("\r?\n");
@@ -362,6 +364,11 @@ public final class TerminalEmulator {
      * output and rendering.
      */
     private void syncPalette() {
+        final int colorVersion = mColors.getVersion();
+        final int defaultVersion = TerminalColors.COLOR_SCHEME.getVersion();
+        if (colorVersion == mSyncedColorVersion && defaultVersion == mSyncedDefaultVersion) return;
+        mSyncedColorVersion = colorVersion;
+        mSyncedDefaultVersion = defaultVersion;
         boolean changed = TerminalNative.nativeSetPalette(mNativeHandle,
             mColors.mCurrentColors, TerminalColors.COLOR_SCHEME.mDefaultColors);
         if (changed) mScreen.markAllDirty();

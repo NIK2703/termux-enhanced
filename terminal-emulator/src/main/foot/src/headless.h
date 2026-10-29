@@ -53,6 +53,8 @@ char *headless_transcript_text(struct headless_terminal *ht, int mode);
 char *headless_word_at_location(
     struct headless_terminal *ht, int x, int y);
 
+/* Packed render payload: commands terminated by OP_END, followed by the
+ * UTF-16 text length and the text units referenced by OP_TEXT commands. */
 int32_t *headless_render(
     struct headless_terminal *ht, int top_row,
     int selection_y1, int selection_y2, int selection_x1, int selection_x2,

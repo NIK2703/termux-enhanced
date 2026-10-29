@@ -1,8 +1,5 @@
 package com.termux.terminal;
 
-import java.util.HashSet;
-import java.util.Set;
-
 /**
  * Read-only view of the native terminal grid plus the dirty-row bookkeeping used by the view.
  *
@@ -28,8 +25,12 @@ public final class TerminalBuffer {
     int mScreenRows;
 
     private boolean mAllDirty = true;
-    private final Set<Integer> mDirtyRows = new HashSet<>();
+    /** Dirty row anchors, stored as a small primitive set. */
+    private int[] mDirtyRows = new int[16];
+    private int mDirtyCount;
     private int mCachedHistory = -1;
+    /** Low 32 bits of the native monotonic scroll counter. */
+    private long mAnchorBase;
 
     private TerminalRow mBlankRow;
     private int mBlankRowColumns = -1;
@@ -39,6 +40,9 @@ public final class TerminalBuffer {
         mColumns = columns;
         mTotalRows = totalRows;
         mScreenRows = screenRows;
+        if (nativeHandle != 0) {
+            mAnchorBase = TerminalNative.nativeAbsoluteScrollCount(nativeHandle);
+        }
     }
 
     /**
@@ -55,48 +59,68 @@ public final class TerminalBuffer {
         mScreenRows = screenRows;
         mBlankRow = null;
         mBlankRowColumns = -1;
-        mCachedHistory = -1;
+        invalidateHistoryCache();
         markAllDirty();
     }
 
     void invalidateHistoryCache() {
         mCachedHistory = -1;
+        if (mNativeHandle != 0) {
+            mAnchorBase = TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
+        }
     }
 
     public void markRowDirty(int externalRow) {
         if (mAllDirty) return;
         final int history = getActiveTranscriptRows();
         if (externalRow < -history || externalRow > mScreenRows) return;
-        mDirtyRows.add(anchorFor(externalRow));
-    }
-
-    /**
-     * Compatibility entry point for code that addresses ring slots. Native rows are identified
-     * by their content anchor, and {@link #externalToInternalRow(int)} returns exactly that.
-     */
-    public void markInternalRowDirty(int internalRow) {
-        if (mAllDirty) return;
-        mDirtyRows.add(internalRow);
+        addDirtyAnchor(anchorFor(externalRow));
     }
 
     public boolean isRowDirty(int externalRow) {
         if (mAllDirty) return true;
-        if (mDirtyRows.isEmpty()) return false;
+        if (mDirtyCount == 0) return false;
         final int history = getActiveTranscriptRows();
         if (externalRow < -history || externalRow > mScreenRows) return false;
-        return mDirtyRows.contains(anchorFor(externalRow));
+        return containsDirtyAnchor(anchorFor(externalRow));
     }
 
     public void clearRowDirty(int externalRow) {
         if (mAllDirty) return;
         final int history = getActiveTranscriptRows();
         if (externalRow < -history || externalRow > mScreenRows) return;
-        mDirtyRows.remove(anchorFor(externalRow));
+        removeDirtyAnchor(anchorFor(externalRow));
+    }
+
+    private boolean containsDirtyAnchor(int anchor) {
+        for (int i = 0; i < mDirtyCount; i++) {
+            if (mDirtyRows[i] == anchor) return true;
+        }
+        return false;
+    }
+
+    private void addDirtyAnchor(int anchor) {
+        if (containsDirtyAnchor(anchor)) return;
+        if (mDirtyCount == mDirtyRows.length) {
+            int[] grown = new int[mDirtyRows.length * 2];
+            System.arraycopy(mDirtyRows, 0, grown, 0, mDirtyCount);
+            mDirtyRows = grown;
+        }
+        mDirtyRows[mDirtyCount++] = anchor;
+    }
+
+    private void removeDirtyAnchor(int anchor) {
+        for (int i = 0; i < mDirtyCount; i++) {
+            if (mDirtyRows[i] == anchor) {
+                mDirtyRows[i] = mDirtyRows[--mDirtyCount];
+                return;
+            }
+        }
     }
 
     public void markAllDirty() {
         mAllDirty = true;
-        mDirtyRows.clear();
+        mDirtyCount = 0;
     }
 
     public boolean isAllDirty() {
@@ -105,12 +129,12 @@ public final class TerminalBuffer {
 
     public void clearDirtyState() {
         mAllDirty = false;
-        mDirtyRows.clear();
+        mDirtyCount = 0;
     }
 
     private int anchorFor(int externalRow) {
         if (mNativeHandle == 0) return externalRow;
-        return TerminalNative.nativeAnchorRow(mNativeHandle, externalRow);
+        return (int) (mAnchorBase + externalRow);
     }
 
     public int getActiveTranscriptRows() {
@@ -132,7 +156,7 @@ public final class TerminalBuffer {
      */
     public int externalToInternalRow(int externalRow) {
         if (mNativeHandle == 0) return externalRow;
-        return TerminalNative.nativeAnchorRow(mNativeHandle, externalRow);
+        return (int) (mAnchorBase + externalRow);
     }
 
     public String getTranscriptText() {
@@ -237,8 +261,7 @@ public final class TerminalBuffer {
      */
     public TerminalRow allocateFullLineIfNecessary(int internalRow) {
         if (mNativeHandle == 0) return blankRow();
-        long scroll = TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
-        int externalRow = (int) (internalRow - scroll);
+        int externalRow = (int) (internalRow - mAnchorBase);
         return getLineOrBlank(externalRow);
     }
 

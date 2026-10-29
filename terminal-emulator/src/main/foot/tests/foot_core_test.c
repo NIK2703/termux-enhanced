@@ -150,10 +150,81 @@ has_text_fg(const int32_t *commands, int count, int wanted)
     return false;
 }
 
+static int *
+append_dirty(struct headless_terminal *ht, const char *text, int *dirty_count)
+{
+    return headless_append(ht, (const uint8_t *)text, strlen(text), dirty_count);
+}
+
+static bool
+dirty_has(const int *dirty, int count, int row)
+{
+    for (int i = 0; i < count; i++) {
+        if (dirty[i] == row)
+            return true;
+    }
+    return false;
+}
+
+static void
+dirty_tracking_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "A", &dirty_count);
+    free(dirty); /* drain the initial reset damage */
+
+    dirty = append_dirty(ht, "B", &dirty_count);
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
+    free(dirty);
+
+    dirty = append_dirty(ht, "\x1b[2;1H", &dirty_count);
+    CHECK(dirty_count == 0);
+    free(dirty);
+    dirty = append_dirty(ht, "\x1b[2K", &dirty_count);
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 1));
+    free(dirty);
+
+    dirty = append_dirty(ht, "\x1b[5;1H", &dirty_count);
+    CHECK(dirty_count == 0);
+    free(dirty);
+    dirty = append_dirty(ht, "\n", &dirty_count);
+    CHECK(dirty_count == 5);
+    for (int row = 0; row < 5; row++)
+        CHECK(dirty_has(dirty, dirty_count, row));
+    free(dirty);
+
+    /* Switching to the alternate screen changes every visible cell. */
+    dirty = append_dirty(ht, "\x1b[?1049h", &dirty_count);
+    CHECK(dirty_count == 5);
+    free(dirty);
+    dirty = append_dirty(ht, "\x1b[?1049l", &dirty_count);
+    CHECK(dirty_count == 5);
+    free(dirty);
+    headless_destroy(ht);
+
+    /* OSC 4 only dirties rows that actually use the changed palette entry. */
+    ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+    dirty = append_dirty(ht, "\x1b[31mA\x1b[0m", &dirty_count);
+    free(dirty);
+    dirty = append_dirty(ht, "\x1b]4;1;rgb:11/22/33\x07", &dirty_count);
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
+    free(dirty);
+    headless_destroy(ht);
+}
+
 int
 main(void)
 {
     init_palette();
+    dirty_tracking_tests();
     struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
     CHECK(ht != NULL);
     if (ht == NULL)
@@ -417,6 +488,49 @@ main(void)
     free(render_text);
     free(commands);
 
+    /* The packed payload after OP_END mirrors headless_render_text(), and a
+     * partial render keeps absolute row numbers while starting text at zero. */
+    commands = headless_render(
+        ht, 1, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
+    CHECK(commands != NULL);
+    render_text_length = 0;
+    render_text = headless_render_text(ht, &render_text_length);
+    CHECK(render_text != NULL);
+    if (commands != NULL && render_text != NULL) {
+        int cursor = 0;
+        int packed_offset = -1;
+        int row_begin = -1;
+        int text_units = 0;
+        while (cursor < command_count) {
+            const int op = commands[cursor++];
+            if (op == 0) {
+                packed_offset = cursor;
+                break;
+            }
+            if (op == 1) {
+                row_begin = commands[cursor++];
+            } else if (op == 2) {
+            } else if (op == 3 || op == 5) {
+                cursor += 4;
+            } else if (op == 4) {
+                cursor += 7;
+            } else {
+                break;
+            }
+        }
+        CHECK(row_begin == 1);
+        CHECK(packed_offset >= 0 && packed_offset + 1 < command_count);
+        if (packed_offset >= 0 && packed_offset + 1 < command_count) {
+            text_units = commands[packed_offset];
+            CHECK(text_units == render_text_length);
+            CHECK(packed_offset + 1 + text_units <= command_count);
+            for (int i = 0; i < text_units; i++)
+                CHECK(commands[packed_offset + 1 + i] == render_text[i]);
+        }
+    }
+    free(render_text);
+    free(commands);
+
     /* Word lookup follows the Rust implementation (space delimited). */
     headless_resize(ht, 20, 3, 8, 16);
     feed(ht, "\x1b[2J\x1b[H" "hello world");
@@ -601,6 +715,13 @@ main(void)
     feed(ht, "\r\xcc\x81X");
     text = row_utf8(ht, 0);
     CHECK(text != NULL && strncmp(text, " \xcc\x81X", 4) == 0);
+    free(text);
+
+    /* 0x9d is also a UTF-8 continuation byte; it must not be mistaken for a
+     * standalone C1 OSC introducer. */
+    feed(ht, "\r\x1b[2K\xe6\x9e\x9dX");
+    text = row_utf8(ht, 0);
+    CHECK(text != NULL && strncmp(text, "\xe6\x9e\x9dX", 4) == 0);
     free(text);
 
     headless_destroy(ht);

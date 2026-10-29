@@ -800,9 +800,47 @@ filter_feed(
     size_t *out_length)
 {
     struct buffer out = {0};
+    size_t i = 0;
 
-    for (size_t i = 0; i < length; i++) {
-        const uint8_t byte = data[i];
+    while (i < length) {
+        /* The common case is a long run of plain text. Copy it in one go
+         * instead of paying a buffer_append() call per byte. ESC and C1 OSC
+         * always end the run; a high-bit byte only needs inspection when a
+         * combining mark could be at the start of a line. */
+        if (filter->state == STATE_GROUND) {
+            const size_t start = i;
+            while (i < length) {
+                const uint8_t byte = data[i];
+                if (byte == 0x1b)
+                    break;
+                if (byte >= 0x80) {
+                    if (filter->line_start)
+                        break;
+                    /* Skip a complete UTF-8 sequence. In particular, a
+                     * continuation byte 0x9d must not be mistaken for C1 OSC. */
+                    const size_t sequence = valid_utf8_length(data + i, length - i);
+                    if (sequence > 1) {
+                        i += sequence;
+                        continue;
+                    }
+                    if (byte == 0x9d)
+                        break;
+                    i++;
+                    continue;
+                }
+                if (byte == '\r')
+                    filter->line_start = true;
+                else if (byte != '\n' && byte >= 0x20)
+                    filter->line_start = false;
+                i++;
+            }
+            if (i > start)
+                buffer_append(&out, data + start, i - start);
+            if (i >= length)
+                break;
+        }
+
+        const uint8_t byte = data[i++];
 
         switch (filter->state) {
         case STATE_GROUND:
@@ -811,9 +849,10 @@ filter_feed(
             } else if (byte == 0x9d) {
                 begin_sequence(filter, STATE_OSC, "\x9d", 1);
             } else if (byte >= 0x80) {
+                const size_t start = i - 1;
                 char32_t codepoint;
                 const size_t sequence =
-                    decode_utf8(data + i, length - i, &codepoint);
+                    decode_utf8(data + start, length - start, &codepoint);
                 if (sequence > 0) {
                     /* Termux gives a combining mark at the start of a line a
                      * space to attach to. foot would silently drop it. */
@@ -822,7 +861,7 @@ filter_feed(
                     {
                         append_char(&out, ' ');
                     }
-                    buffer_append(&out, data + i, sequence);
+                    buffer_append(&out, data + start, sequence);
                     filter->line_start = false;
                     i += sequence - 1;
                 } else {
@@ -948,11 +987,58 @@ vt_filter_destroy(struct vt_filter *filter)
 void
 vt_filter_feed(
     struct vt_filter *filter, const uint8_t *data, size_t length,
-    uint8_t **out_data, size_t *out_length)
+    uint8_t **out_data, size_t *out_length, bool *out_owned)
 {
     *out_data = NULL;
     *out_length = 0;
+    *out_owned = false;
     if (filter == NULL || length == 0)
         return;
+
+    /* Plain text in the ground state needs no rewriting. Detect it up front
+     * and hand the caller the original bytes instead of allocating and copying
+     * a same-sized buffer. ESC and C1 OSC always need the state machine; a
+     * high-bit byte only does while a line-start combining mark is possible. */
+    if (filter->state == STATE_GROUND) {
+        bool line_start = filter->line_start;
+        bool plain = true;
+        for (size_t i = 0; i < length; ) {
+            const uint8_t byte = data[i];
+            if (byte == 0x1b) {
+                plain = false;
+                break;
+            }
+            if (byte >= 0x80) {
+                if (line_start) {
+                    plain = false;
+                    break;
+                }
+                const size_t sequence = valid_utf8_length(data + i, length - i);
+                if (sequence > 1) {
+                    i += sequence;
+                    continue;
+                }
+                if (byte == 0x9d) {
+                    plain = false;
+                    break;
+                }
+                i++;
+                continue;
+            }
+            if (byte == '\r')
+                line_start = true;
+            else if (byte != '\n' && byte >= 0x20)
+                line_start = false;
+            i++;
+        }
+        if (plain) {
+            filter->line_start = line_start;
+            *out_data = (uint8_t *)data;
+            *out_length = length;
+            return;
+        }
+    }
+
     *out_data = filter_feed(filter, data, length, out_length);
+    *out_owned = *out_data != NULL;
 }

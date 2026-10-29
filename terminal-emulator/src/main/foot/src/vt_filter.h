@@ -34,10 +34,12 @@ void vt_filter_destroy(struct vt_filter *filter);
 void vt_filter_reset(struct vt_filter *filter);
 
 /*
- * Feed PTY bytes. Bytes intended for the terminal core are returned in a
- * malloc()ed buffer; *out_length is zero when the whole chunk was consumed by
+ * Feed PTY bytes. Bytes intended for the terminal core are returned in
+ * *out_data. When the chunk needs no rewriting, *out_data points at the input
+ * and *out_owned is false; otherwise it points at a malloc()ed buffer and
+ * *out_owned is true. *out_length is zero when the whole chunk was consumed by
  * the filter (a complete OSC 99, for example).
  */
 void vt_filter_feed(
     struct vt_filter *filter, const uint8_t *data, size_t length,
-    uint8_t **out_data, size_t *out_length);
+    uint8_t **out_data, size_t *out_length, bool *out_owned);

@@ -64,9 +64,6 @@ struct headless_terminal {
     uint64_t scroll_count;
     uint64_t scroll_base;
 
-    uint64_t *row_hashes;
-    int row_hash_count;
-
     struct vt_filter *filter;
 
     struct event_record *events_head;
@@ -1043,51 +1040,6 @@ headless_word_at_location(struct headless_terminal *ht, int x, int y)
     return result != NULL ? result : strdup("");
 }
 
-static uint64_t
-hash_bytes(uint64_t hash, const void *data, size_t length)
-{
-    const uint8_t *bytes = data;
-    for (size_t i = 0; i < length; i++) {
-        hash ^= bytes[i];
-        hash *= 1099511628211ull;
-    }
-    return hash;
-}
-
-static uint64_t
-hash_row(const struct headless_terminal *ht, int external_row)
-{
-    const struct row *row = row_at(ht, external_row);
-    uint64_t hash = 1469598103934665603ull;
-    const int columns = ht->term.cols;
-
-    if (row == NULL) {
-        for (int i = 0; i < columns; i++)
-            hash = hash_bytes(hash, " ", 1);
-        return hash;
-    }
-
-    hash = hash_bytes(hash, &row->linebreak, sizeof(row->linebreak));
-    for (int i = 0; i < columns; i++) {
-        const struct cell *cell = &row->cells[i];
-        hash = hash_bytes(hash, &cell->wc, sizeof(cell->wc));
-        hash = hash_bytes(hash, &cell->attrs, sizeof(cell->attrs));
-    }
-    return hash;
-}
-
-static void
-ensure_hash_rows(struct headless_terminal *ht, int rows)
-{
-    if (ht->row_hash_count == rows && ht->row_hashes != NULL)
-        return;
-    uint64_t *hashes = realloc(ht->row_hashes, (size_t)rows * sizeof(hashes[0]));
-    if (hashes == NULL)
-        return;
-    ht->row_hashes = hashes;
-    ht->row_hash_count = rows;
-}
-
 static void
 count_scroll_damage(uint64_t *counter, const struct grid *grid)
 {
@@ -1110,9 +1062,56 @@ count_scroll_damage(uint64_t *counter, const struct grid *grid)
  * here instead of only counting full-screen scrolls.
  */
 static void
+mark_scroll_damage_rows(struct grid *grid, int rows)
+{
+    if (tll_length(grid->scroll_damage) == 0)
+        return;
+
+    tll_foreach(grid->scroll_damage, it) {
+        const struct damage *damage = &it->item;
+        switch (damage->type) {
+        case DAMAGE_SCROLL:
+        case DAMAGE_SCROLL_REVERSE: {
+            int start = damage->region.start;
+            int end = damage->region.end;
+            if (start < 0)
+                start = 0;
+            if (end > rows)
+                end = rows;
+            for (int r = start; r < end; r++) {
+                struct row *row = grid_row(grid, r);
+                if (row != NULL)
+                    row->dirty = true;
+            }
+            break;
+        }
+
+        case DAMAGE_SCROLL_IN_VIEW:
+        case DAMAGE_SCROLL_REVERSE_IN_VIEW:
+            /* A view-relative scroll can affect any visible row; be conservative. */
+            for (int r = 0; r < rows; r++) {
+                struct row *row = grid_row(grid, r);
+                if (row != NULL)
+                    row->dirty = true;
+            }
+            break;
+        }
+    }
+}
+
+static void
 process_scroll_damage(struct headless_terminal *ht)
 {
     struct terminal *term = &ht->term;
+
+    /* Rows moved by a scroll are not necessarily marked dirty by foot's
+     * cell-level damage tracking. Mirror the region recorded in the damage
+     * list before consuming it. Process both grids: input may switch to the
+     * alternate screen and back within one chunk, leaving the normal grid's
+     * damage in a list that is no longer the active one. */
+    mark_scroll_damage_rows(&term->normal, term->rows);
+    mark_scroll_damage_rows(&term->alt, term->rows);
+
     count_scroll_damage(&ht->scroll_count, &term->normal);
     count_scroll_damage(&ht->scroll_count, &term->alt);
     tll_free(term->normal.scroll_damage);
@@ -1129,35 +1128,25 @@ headless_append(
         return NULL;
 
     const int rows = ht->term.rows;
-    ensure_hash_rows(ht, rows);
-    uint64_t *before = NULL;
-    if (ht->row_hashes != NULL) {
-        before = malloc((size_t)rows * sizeof(before[0]));
-        if (before == NULL)
-            return NULL;
-        for (int i = 0; i < rows; i++)
-            before[i] = hash_row(ht, i);
-    }
-
     const int history_before = history_size(ht);
     const int mode_before = headless_mode_bits(ht);
     const bool alternate_before = headless_is_alternate(ht);
 
     uint8_t *filtered = NULL;
     size_t filtered_length = 0;
+    bool filtered_owned = false;
     if (ht->filter != NULL) {
         vt_filter_feed(
-            ht->filter, data, length, &filtered, &filtered_length);
+            ht->filter, data, length, &filtered, &filtered_length,
+            &filtered_owned);
     } else {
-        filtered = malloc(length);
-        if (filtered != NULL) {
-            memcpy(filtered, data, length);
-            filtered_length = length;
-        }
+        filtered = (uint8_t *)data;
+        filtered_length = length;
     }
     if (filtered_length > 0)
         vt_from_slave(&ht->term, filtered, filtered_length);
-    free(filtered);
+    if (filtered_owned)
+        free(filtered);
     flush_ptmx_buffers(ht);
     process_scroll_damage(ht);
 
@@ -1173,34 +1162,56 @@ headless_append(
         event_push_format(ht, "colors");
     }
 
-    int *dirty = malloc((size_t)rows * sizeof(dirty[0]));
-    if (dirty == NULL) {
-        free(before);
-        return NULL;
-    }
-    int count = 0;
-
     const bool all_dirty =
         alternate_before != alternate_after ||
         history_after < history_before ||
-        mode_before != mode_after ||
-        before == NULL;
+        mode_before != mode_after;
 
-    for (int i = 0; i < rows; i++) {
-        if (all_dirty || before[i] != hash_row(ht, i))
+    int *dirty = NULL;
+    int count = 0;
+
+    if (all_dirty) {
+        dirty = malloc((size_t)rows * sizeof(dirty[0]));
+        if (dirty == NULL)
+            return NULL;
+        for (int i = 0; i < rows; i++)
             dirty[count++] = i;
+    } else {
+        for (int i = 0; i < rows; i++) {
+            const struct row *row = row_at(ht, i);
+            if (row != NULL && row->dirty)
+                count++;
+        }
+        if (count > 0) {
+            dirty = malloc((size_t)count * sizeof(dirty[0]));
+            if (dirty == NULL)
+                return NULL;
+            int next = 0;
+            for (int i = 0; i < rows; i++) {
+                struct row *row = row_at(ht, i);
+                if (row != NULL && row->dirty) {
+                    dirty[next++] = i;
+                    row->dirty = false;
+                }
+            }
+            count = next;
+        }
     }
 
-    free(before);
+    /* All visible rows were reported; clear their flags so the next append
+     * starts from a clean slate. */
+    if (all_dirty) {
+        for (int i = 0; i < rows; i++) {
+            struct row *row = row_at(ht, i);
+            if (row != NULL)
+                row->dirty = false;
+        }
+    }
 
     if (alternate_before != alternate_after)
         event_push_format(ht, "colors");
 
     *dirty_count = count;
-    if (count == 0) {
-        free(dirty);
-        return NULL;
-    }
     return dirty;
 }
 
@@ -1379,7 +1390,6 @@ headless_create(
     set_color_theme(&conf->colors_light, default_palette);
     headless_set_palette(ht, default_palette, default_palette);
 
-    ensure_hash_rows(ht, rows);
     term_reset(term, true);
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
@@ -1405,7 +1415,6 @@ headless_reset(struct headless_terminal *ht)
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
     ht->scroll_base = ht->scroll_count;
-    ensure_hash_rows(ht, term->rows);
     flush_ptmx_buffers(ht);
 }
 
@@ -1593,7 +1602,6 @@ headless_resize(
      * alacritty's counter and must not shift the viewport anchor. */
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
-    ensure_hash_rows(ht, rows);
 }
 
 char *
@@ -2022,7 +2030,9 @@ headless_render(
         commands[count++] = 2; /* OP_ROW_END */
     }
 
-    int32_t *resized = reserve_commands(commands, &command_capacity, (size_t)count + 1);
+    const size_t text_length = ht->render_text_len;
+    int32_t *resized = reserve_commands(
+        commands, &command_capacity, (size_t)count + 2 + text_length);
     if (resized == NULL) {
         free(commands);
         free(runs);
@@ -2031,6 +2041,11 @@ headless_render(
     }
     commands = resized;
     commands[count++] = 0; /* OP_END */
+    /* The UTF-16 payload travels in the same array as the commands, saving a
+     * second JNI transition and a second array allocation per frame. */
+    commands[count++] = (int32_t)text_length;
+    for (size_t i = 0; i < text_length; i++)
+        commands[count++] = ht->render_text[i];
     free(runs);
     *out_count = count;
     return commands;
@@ -2108,7 +2123,6 @@ headless_destroy(struct headless_terminal *ht)
         ht->events_head = next;
     }
 
-    free(ht->row_hashes);
     free(ht->render_text);
     vt_filter_destroy(ht->filter);
     free(ht);
