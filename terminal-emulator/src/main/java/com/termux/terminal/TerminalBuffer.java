@@ -64,10 +64,19 @@ public final class TerminalBuffer {
     }
 
     void invalidateHistoryCache() {
+        invalidateHistoryCache(mNativeHandle != 0
+            ? (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle) : 0);
+    }
+
+    /** Refresh the cache using an anchor base already obtained from nativeAppend(). */
+    void invalidateHistoryCache(int anchorBase) {
         mCachedHistory = -1;
-        if (mNativeHandle != 0) {
-            mAnchorBase = TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
-        }
+        mAnchorBase = anchorBase;
+    }
+
+    /** Seed the history size carried by the nativeAppend() state header. */
+    void setCachedHistorySize(int history) {
+        mCachedHistory = history;
     }
 
     public void markRowDirty(int externalRow) {
@@ -75,6 +84,12 @@ public final class TerminalBuffer {
         final int history = getActiveTranscriptRows();
         if (externalRow < -history || externalRow > mScreenRows) return;
         addDirtyAnchor(anchorFor(externalRow));
+    }
+
+    /** Mark the whole visible screen, leaving transcript rows untouched. */
+    public void markAllScreenRowsDirty() {
+        if (mAllDirty) return;
+        for (int row = 0; row < mScreenRows; row++) markRowDirty(row);
     }
 
     public boolean isRowDirty(int externalRow) {

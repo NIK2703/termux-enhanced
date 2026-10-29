@@ -37,6 +37,10 @@ int headless_cursor_col(const struct headless_terminal *ht);
 int headless_mode_bits(const struct headless_terminal *ht);
 int headless_scroll_counter(const struct headless_terminal *ht);
 void headless_clear_scroll_counter(struct headless_terminal *ht);
+enum {
+    HEADLESS_APPEND_PARTIAL_SCROLL = 1 << 0,
+};
+int headless_last_append_flags(const struct headless_terminal *ht);
 int headless_anchor_row(const struct headless_terminal *ht, int external_row);
 int64_t headless_absolute_scroll_count(const struct headless_terminal *ht);
 bool headless_is_alternate(const struct headless_terminal *ht);

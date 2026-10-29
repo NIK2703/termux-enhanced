@@ -66,6 +66,14 @@ public final class TerminalEmulator {
     private boolean mTerminalFocused;
     private boolean mAutoScrollDisabled;
     private int mModeBits;
+    private int mCursorRow;
+    private int mCursorCol;
+    /** Absolute scroll count last reported by nativeAppend(). */
+    private int mNativeScrollCounter;
+    /** Value of mNativeScrollCounter at the last clearScrollCounter(). */
+    private int mScrollBase;
+    /** True when the last append scrolled only part of the screen. */
+    private boolean mLastAppendPartialScroll;
     private int mSyncedColorVersion = -1;
     private int mSyncedDefaultVersion = -1;
 
@@ -85,6 +93,10 @@ public final class TerminalEmulator {
             cellWidthPixels, cellHeightPixels, mColors.mCurrentColors);
         mScreen = new TerminalBuffer(mNativeHandle, columns, mTranscriptRows, rows);
         mAltBuffer = new TerminalBuffer(mNativeHandle, columns, rows, rows);
+        mCursorRow = TerminalNative.nativeCursorRow(mNativeHandle);
+        mCursorCol = TerminalNative.nativeCursorCol(mNativeHandle);
+        mNativeScrollCounter = (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
+        mScrollBase = mNativeScrollCounter;
         setCursorStyle();
         mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
         mCursorBlinkState = true;
@@ -156,6 +168,9 @@ public final class TerminalEmulator {
         mScreen.updateSize(columns, mTranscriptRows, rows);
         mAltBuffer.updateSize(columns, rows, rows);
         mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
+        mCursorRow = TerminalNative.nativeCursorRow(mNativeHandle);
+        mCursorCol = TerminalNative.nativeCursorCol(mNativeHandle);
+        mNativeScrollCounter = (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
     }
 
     public boolean hasSize(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
@@ -164,11 +179,11 @@ public final class TerminalEmulator {
     }
 
     public int getCursorRow() {
-        return TerminalNative.nativeCursorRow(mNativeHandle);
+        return mCursorRow;
     }
 
     public int getCursorCol() {
-        return TerminalNative.nativeCursorCol(mNativeHandle);
+        return mCursorCol;
     }
 
     /** Get the terminal cursor style, one of {@link #TERMINAL_CURSOR_STYLES_LIST}. */
@@ -239,24 +254,58 @@ public final class TerminalEmulator {
         int oldCursorStyle = mCursorStyle;
         int oldModeBits = mModeBits;
 
-        int[] dirtyRows = TerminalNative.nativeAppend(mNativeHandle, buffer, length);
-        mScreen.invalidateHistoryCache();
-        mAltBuffer.invalidateHistoryCache();
+        int[] state = TerminalNative.nativeAppend(mNativeHandle, buffer, length);
+        int newCursorStyle;
+        if (state != null && state.length >= TerminalNative.APPEND_STATE_HEADER_SIZE) {
+            // The header carries everything the view needs for this update, so no
+            // follow-up JNI queries are required for the append itself.
+            final int anchorBase = state[5];
+            final int historySize = state[6];
+            mScreen.invalidateHistoryCache(anchorBase);
+            mAltBuffer.invalidateHistoryCache(anchorBase);
+            mScreen.setCachedHistorySize(historySize);
+            mAltBuffer.setCachedHistorySize(historySize);
 
-        if (dirtyRows != null) {
-            for (int row : dirtyRows) mScreen.markRowDirty(row);
+            int dirtyCount = state[0];
+            if (dirtyCount < 0) dirtyCount = 0;
+            final int available = state.length - TerminalNative.APPEND_STATE_HEADER_SIZE;
+            if (dirtyCount > available) {
+                // A truncated payload must not leave undrawn rows behind.
+                mScreen.markAllDirty();
+                dirtyCount = available;
+            }
+            for (int i = 0; i < dirtyCount; i++) {
+                mScreen.markRowDirty(state[TerminalNative.APPEND_STATE_HEADER_SIZE + i]);
+            }
+
+            mModeBits = state[1];
+            newCursorStyle = state[2];
+            mCursorRow = state[3];
+            mCursorCol = state[4];
+            mNativeScrollCounter = state[5];
+            mLastAppendPartialScroll =
+                (state[7] & TerminalNative.APPEND_FLAG_PARTIAL_SCROLL) != 0;
+        } else {
+            // Native append failed (or an older library is installed): the dirty set is
+            // unknown, so repaint everything and refresh the caches through the legacy calls.
+            mScreen.invalidateHistoryCache();
+            mAltBuffer.invalidateHistoryCache();
+            mScreen.markAllDirty();
+            mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
+            newCursorStyle = TerminalNative.nativeCursorStyle(mNativeHandle);
+            mCursorRow = TerminalNative.nativeCursorRow(mNativeHandle);
+            mCursorCol = TerminalNative.nativeCursorCol(mNativeHandle);
+            mNativeScrollCounter = (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
+            mLastAppendPartialScroll = false;
         }
 
-        mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
         handleModeChanges(oldModeBits, mModeBits);
-
-        int newCursorStyle = TerminalNative.nativeCursorStyle(mNativeHandle);
         if (newCursorStyle != mCursorStyle) {
             mCursorStyle = newCursorStyle;
             // A shape change repaints no cell, so dirty-row tracking needs a nudge.
-            mScreen.markRowDirty(getCursorRow());
+            mScreen.markRowDirty(mCursorRow);
         } else if (oldCursorStyle != mCursorStyle) {
-            mScreen.markRowDirty(getCursorRow());
+            mScreen.markRowDirty(mCursorRow);
         }
 
         drainEvents();
@@ -400,11 +449,25 @@ public final class TerminalEmulator {
     }
 
     public int getScrollCounter() {
-        return TerminalNative.nativeScrollCounter(mNativeHandle);
+        final int delta = mNativeScrollCounter - mScrollBase;
+        return delta > 0 ? delta : 0;
     }
 
     public void clearScrollCounter() {
-        TerminalNative.nativeClearScrollCounter(mNativeHandle);
+        // The absolute counter is carried by the append state, so consuming the delta is
+        // a plain Java field update instead of another JNI transition.
+        mScrollBase = mNativeScrollCounter;
+    }
+
+    /**
+     * Consume the "partial scroll" marker for the most recent append. When the view is
+     * scrolled up it must repaint every visible screen row, because following the scroll
+     * counter shifts rows outside the scroll region into different viewport slots.
+     */
+    public boolean consumePartialScrollFlag() {
+        final boolean value = mLastAppendPartialScroll;
+        mLastAppendPartialScroll = false;
+        return value;
     }
 
     public boolean isAutoScrollDisabled() {
@@ -429,6 +492,12 @@ public final class TerminalEmulator {
         refreshPaletteFromNative();
         setCursorStyle();
         mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
+        mCursorRow = TerminalNative.nativeCursorRow(mNativeHandle);
+        mCursorCol = TerminalNative.nativeCursorCol(mNativeHandle);
+        mNativeScrollCounter = (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
+        // headless_reset() moves the native baseline to the current absolute count.
+        mScrollBase = mNativeScrollCounter;
+        mLastAppendPartialScroll = false;
         mCursorBlinkState = true;
         drainEvents();
         mSession.onColorsChanged();

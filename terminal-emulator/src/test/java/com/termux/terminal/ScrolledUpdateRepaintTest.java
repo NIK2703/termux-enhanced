@@ -224,6 +224,8 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         }
         if (!skipScrolling && mTopRow != 0) mTopRow = 0;
         mTerminal.clearScrollCounter();
+        final boolean partialScroll = mTerminal.consumePartialScrollFlag();
+        if (partialScroll && mTopRow != 0) screen.markAllScreenRowsDirty();
 
         // ---- repaintAfterUpdate() ----
         int cursorExtRow = mTerminal.getCursorRow();

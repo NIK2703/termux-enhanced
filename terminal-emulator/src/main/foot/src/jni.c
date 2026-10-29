@@ -159,16 +159,33 @@ Java_com_termux_terminal_TerminalNative_nativeAppend(
     (*env)->GetByteArrayRegion(env, data, 0, length, (jbyte *)bytes);
 
     int dirty_count = 0;
+    jint header[8];
+    int *dirty = NULL;
     pthread_mutex_lock(&handle->lock);
-    int *dirty = headless_append(handle->terminal, bytes, (size_t)length, &dirty_count);
+    dirty = headless_append(handle->terminal, bytes, (size_t)length, &dirty_count);
+    if (dirty_count < 0)
+        dirty_count = 0;
+    header[0] = (jint)dirty_count;
+    header[1] = (jint)headless_mode_bits(handle->terminal);
+    header[2] = (jint)headless_cursor_style(handle->terminal);
+    header[3] = (jint)headless_cursor_row(handle->terminal);
+    header[4] = (jint)headless_cursor_col(handle->terminal);
+    header[5] = (jint)headless_absolute_scroll_count(handle->terminal);
+    header[6] = (jint)headless_history_size(handle->terminal);
+    header[7] = (jint)headless_last_append_flags(handle->terminal);
     pthread_mutex_unlock(&handle->lock);
     free(bytes);
 
-    if (dirty == NULL || dirty_count <= 0) {
+    const jsize total = (jsize)(8 + dirty_count);
+    jintArray result = (*env)->NewIntArray(env, total);
+    if (result == NULL) {
         free(dirty);
         return NULL;
     }
-    jintArray result = make_int_array(env, (const int32_t *)dirty, dirty_count);
+    (*env)->SetIntArrayRegion(env, result, 0, 8, header);
+    if (dirty_count > 0)
+        (*env)->SetIntArrayRegion(
+            env, result, 8, (jsize)dirty_count, (const jint *)dirty);
     free(dirty);
     return result;
 }

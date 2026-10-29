@@ -63,6 +63,7 @@ struct headless_terminal {
 
     uint64_t scroll_count;
     uint64_t scroll_base;
+    int last_append_flags;
 
     struct vt_filter *filter;
 
@@ -809,6 +810,12 @@ headless_scroll_counter(const struct headless_terminal *ht)
     return (int)value;
 }
 
+int
+headless_last_append_flags(const struct headless_terminal *ht)
+{
+    return ht->last_append_flags;
+}
+
 void
 headless_clear_scroll_counter(struct headless_terminal *ht)
 {
@@ -1124,6 +1131,7 @@ headless_append(
     int *dirty_count)
 {
     *dirty_count = 0;
+    ht->last_append_flags = 0;
     if (length == 0)
         return NULL;
 
@@ -1131,6 +1139,7 @@ headless_append(
     const int history_before = history_size(ht);
     const int mode_before = headless_mode_bits(ht);
     const bool alternate_before = headless_is_alternate(ht);
+    const uint64_t scroll_before = ht->scroll_count;
 
     uint8_t *filtered = NULL;
     size_t filtered_length = 0;
@@ -1207,6 +1216,9 @@ headless_append(
                 row->dirty = false;
         }
     }
+
+    if (!all_dirty && count < rows && ht->scroll_count > scroll_before)
+        ht->last_append_flags |= HEADLESS_APPEND_PARTIAL_SCROLL;
 
     if (alternate_before != alternate_after)
         event_push_format(ht, "colors");
@@ -1395,6 +1407,7 @@ headless_create(
     tll_free(term->alt.scroll_damage);
     ht->scroll_count = 0;
     ht->scroll_base = 0;
+    ht->last_append_flags = 0;
     return ht;
 }
 
@@ -1415,6 +1428,7 @@ headless_reset(struct headless_terminal *ht)
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
     ht->scroll_base = ht->scroll_count;
+    ht->last_append_flags = 0;
     flush_ptmx_buffers(ht);
 }
 
@@ -1818,11 +1832,19 @@ headless_render(
     }
     int count = 0;
 
-    struct run *runs = malloc((size_t)(columns + 1) * sizeof(runs[0]));
-    if (runs == NULL) {
-        free(commands);
-        *out_count = 0;
-        return NULL;
+    /* A phone-sized terminal fits in the stack buffer; only very wide grids pay
+     * for a heap allocation. The run table is scratch space and never escapes. */
+    struct run stack_runs[256];
+    struct run *runs = stack_runs;
+    bool runs_heap = false;
+    if ((size_t)(columns + 1) > sizeof(stack_runs) / sizeof(stack_runs[0])) {
+        runs = malloc((size_t)(columns + 1) * sizeof(runs[0]));
+        if (runs == NULL) {
+            free(commands);
+            *out_count = 0;
+            return NULL;
+        }
+        runs_heap = true;
     }
 
     for (int row = top_row; row < end_row; row++) {
@@ -1838,7 +1860,7 @@ headless_render(
                 commands, &command_capacity, (size_t)count + 16);
             if (resized == NULL) {
                 free(commands);
-                free(runs);
+                if (runs_heap) free(runs);
                 *out_count = 0;
                 return NULL;
             }
@@ -1958,7 +1980,7 @@ headless_render(
         int32_t *resized = reserve_commands(commands, &command_capacity, needed);
         if (resized == NULL) {
             free(commands);
-            free(runs);
+            if (runs_heap) free(runs);
             *out_count = 0;
             return NULL;
         }
@@ -2035,7 +2057,7 @@ headless_render(
         commands, &command_capacity, (size_t)count + 2 + text_length);
     if (resized == NULL) {
         free(commands);
-        free(runs);
+        if (runs_heap) free(runs);
         *out_count = 0;
         return NULL;
     }
@@ -2046,7 +2068,7 @@ headless_render(
     commands[count++] = (int32_t)text_length;
     for (size_t i = 0; i < text_length; i++)
         commands[count++] = ht->render_text[i];
-    free(runs);
+    if (runs_heap) free(runs);
     *out_count = count;
     return commands;
 }

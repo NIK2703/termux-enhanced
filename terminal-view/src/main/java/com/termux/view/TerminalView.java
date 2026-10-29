@@ -886,6 +886,15 @@ public final class TerminalView extends View {
 
         mEmulator.clearScrollCounter();
 
+        // A partial scroll leaves rows outside the region in place, but following the
+        // scroll counter moves every visible screen row to a different viewport slot.
+        // Repaint the visible screen only in that scrolled-up case; at the live bottom
+        // the native region rows are sufficient.
+        final boolean partialScroll = mEmulator.consumePartialScrollFlag();
+        if (partialScroll && mTopRow != 0) {
+            mEmulator.getScreen().markAllScreenRowsDirty();
+        }
+
         // Invariant: the elastic over-drag may only exist while mTopRow sits exactly on a
         // boundary. If the buffer changed under us (transcript cleared, alternate buffer,
         // session switch) the screen is no longer against the edge it was pulled from.

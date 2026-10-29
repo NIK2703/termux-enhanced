@@ -18,6 +18,7 @@ pub const COLOR_COUNT: usize = 259;
 pub const METHOD_COLOR_INDEX_FOREGROUND: usize = 256;
 pub const METHOD_COLOR_INDEX_BACKGROUND: usize = 257;
 pub const METHOD_COLOR_INDEX_CURSOR: usize = 258;
+pub const APPEND_FLAG_PARTIAL_SCROLL: i32 = 1 << 0;
 
 pub(crate) struct Listener {
     events: Arc<Mutex<Vec<TerminalEvent>>>,
@@ -258,7 +259,15 @@ impl Handler for TermuxHandler<'_> {
     }
 
     fn clear_screen(&mut self, mode: ClearMode) {
-        self.term.clear_screen(mode);
+        match mode {
+            ClearMode::All => {
+                // Termux clears the visible screen in place. Alacritty's ClearMode::All
+                // instead scrolls the viewport into history, which moves the user's
+                // scrollback anchor when the view is scrolled up.
+                self.term.grid_mut().reset_region(..);
+            },
+            _ => self.term.clear_screen(mode),
+        }
     }
 
     fn clear_tabs(&mut self, mode: TabulationClearMode) {
@@ -461,6 +470,7 @@ pub struct Terminal {
     transcript_rows: usize,
     reverse_video: bool,
     scroll_base: u64,
+    last_append_flags: i32,
     last_hashes: Vec<u64>,
     /// UTF-16 payload of the most recent `render::build` call.
     render_text: Vec<u16>,
@@ -503,6 +513,7 @@ impl Terminal {
             transcript_rows,
             reverse_video: false,
             scroll_base: 0,
+            last_append_flags: 0,
             last_hashes: Vec::new(),
             render_text: Vec::new(),
         };
@@ -587,6 +598,10 @@ impl Terminal {
 
     pub fn absolute_scroll_count(&self) -> u64 {
         self.term.grid().scroll_count()
+    }
+
+    pub fn last_append_flags(&self) -> i32 {
+        self.last_append_flags
     }
 
     pub fn mode_bits(&self) -> u32 {
@@ -689,9 +704,11 @@ impl Terminal {
 
     /// Feed raw PTY bytes. Returns the visible rows whose content changed.
     pub fn append(&mut self, bytes: &[u8]) -> Vec<i32> {
+        self.last_append_flags = 0;
         let alt_before = self.is_alternate_screen();
         let mode_before = self.mode_bits();
         let history_before = self.history_size();
+        let scroll_before = self.term.grid().scroll_count();
         let before = self.screen_hashes();
 
         let mut filtered = Vec::with_capacity(bytes.len());
@@ -748,6 +765,14 @@ impl Terminal {
             }
             self.last_hashes = after;
         }
+
+        // A partial scroll region leaves the rows outside the region in place while
+        // the view follows the scroll counter by shifting its top row. Report the
+        // condition so the view can repaint all visible screen rows; at the live
+        // bottom no compensation happens and the region rows are enough.
+        if scroll_before != self.term.grid().scroll_count() && dirty.len() < self.rows {
+            self.last_append_flags |= APPEND_FLAG_PARTIAL_SCROLL;
+        }
         dirty
     }
 
@@ -758,6 +783,7 @@ impl Terminal {
         self.reverse_video = false;
         self.palette = self.defaults;
         self.scroll_base = self.term.grid().scroll_count();
+        self.last_append_flags = 0;
         self.last_hashes = self.screen_hashes();
         if let Ok(mut events) = self.events.lock() {
             events.push(TerminalEvent::ColorsChanged);

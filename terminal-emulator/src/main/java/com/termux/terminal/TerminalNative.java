@@ -22,7 +22,22 @@ final class TerminalNative {
 
     static native void nativeDestroy(long handle);
 
-    /** Feed raw PTY bytes; returns the visible rows whose content changed. */
+    /**
+     * Header size of the packed state array returned by {@link #nativeAppend}.
+     * Layout: dirty count, mode bits, cursor style, cursor row, cursor column,
+     * absolute scroll count, history size, flags, followed by the dirty screen rows.
+     */
+    static final int APPEND_STATE_HEADER_SIZE = 8;
+
+    /** The append contained a scroll that did not cover the whole screen. */
+    static final int APPEND_FLAG_PARTIAL_SCROLL = 1;
+
+    /**
+     * Feed raw PTY bytes. Returns the packed state described by
+     * {@link #APPEND_STATE_HEADER_SIZE}; dirty rows are screen-relative indices.
+     * The array is returned even when no row is dirty, so the caller can update
+     * its cached mode/cursor/scroll state without extra JNI calls.
+     */
     static native int[] nativeAppend(long handle, byte[] data, int length);
 
     static native void nativeReset(long handle);

@@ -123,8 +123,35 @@ pub extern "system" fn Java_com_termux_terminal_TerminalNative_nativeAppend<'loc
         let _ = env.get_byte_array_region(&data, 0, &mut buffer);
     }
     let bytes: Vec<u8> = buffer.into_iter().map(|value| value as u8).collect();
-    let dirty = with_terminal(&mut env, handle, |terminal| terminal.append(&bytes)).unwrap_or_default();
-    to_int_array(&mut env, &dirty)
+    let state = with_terminal(&mut env, handle, |terminal| {
+        let dirty = terminal.append(&bytes);
+        (
+            dirty,
+            terminal.mode_bits(),
+            terminal.cursor_style(),
+            terminal.cursor_row(),
+            terminal.cursor_col(),
+            terminal.absolute_scroll_count(),
+            terminal.history_size(),
+            terminal.last_append_flags(),
+        )
+    });
+    let (dirty, mode_bits, cursor_style, cursor_row, cursor_col, scroll, history, flags) =
+        match state {
+            Some(values) => values,
+            None => (Vec::new(), 0, 0, 0, 0, 0, 0, 0),
+        };
+    let mut result = Vec::with_capacity(8 + dirty.len());
+    result.push(dirty.len() as i32);
+    result.push(mode_bits as i32);
+    result.push(cursor_style);
+    result.push(cursor_row);
+    result.push(cursor_col);
+    result.push(scroll as i32);
+    result.push(history as i32);
+    result.push(flags);
+    result.extend(dirty);
+    to_int_array(&mut env, &result)
 }
 
 #[no_mangle]

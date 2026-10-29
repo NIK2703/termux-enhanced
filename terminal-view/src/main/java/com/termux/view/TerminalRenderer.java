@@ -69,9 +69,6 @@ public final class TerminalRenderer {
 
     private int mBackgroundAlpha = 255;
 
-    /** Lazily filled measurement cache for BMP code points. */
-    private final float[] mBmpMeasures = new float[0x10000];
-
     private char[] mTextUnits = new char[1024];
     /** Number of valid UTF-16 units in {@link #mTextUnits} for the current frame. */
     private int mTextUnitCount;
@@ -102,13 +99,6 @@ public final class TerminalRenderer {
         mFontAscent = (int) Math.ceil(mTextPaint.ascent());
         mFontLineSpacingAndAscent = mFontLineSpacing + mFontAscent;
         mFontWidth = mTextPaint.measureText("X");
-
-        // Warm the ASCII measurement cache, which is almost the entire hot path.
-        StringBuilder builder = new StringBuilder(" ");
-        for (int i = 0; i < 0x80; i++) {
-            builder.setCharAt(0, (char) i);
-            mBmpMeasures[i] = mTextPaint.measureText(builder, 0, 1);
-        }
     }
 
     /**
@@ -390,7 +380,14 @@ public final class TerminalRenderer {
 
         final float left = startColumn * mFontWidth;
         final float expectedWidth = widthColumns * mFontWidth;
-        final float measured = measureNeutral(startChar, charCount);
+        // The terminal font is monospaced, so a run of narrow ASCII cells has an exact
+        // advance of widthColumns * mFontWidth. Skipping measureText() here is safe and
+        // removes a shaping call for the common shell/TUI text path. Runs with wide,
+        // combining, or fallback glyphs still take the measured path below.
+        final float measured = (widthColumns > 0 && charCount == widthColumns
+            && isAsciiNarrow(startChar, charCount))
+            ? expectedWidth
+            : measureNeutral(startChar, charCount);
 
         if (expectedWidth > 0f && mismatch(measured, expectedWidth)) {
             drawTextClusters(canvas, startChar, charCount, left, baseline, effects);
@@ -520,16 +517,11 @@ public final class TerminalRenderer {
         return measured;
     }
 
-    private float measureClusterCodePoint(int codePoint, int index, int count) {
-        if (count == 1 && codePoint < 0x10000) {
-            float cached = mBmpMeasures[codePoint];
-            if (cached == 0f && codePoint != 0) {
-                cached = measureNeutral(index, count);
-                mBmpMeasures[codePoint] = cached;
-            }
-            return cached;
+    private boolean isAsciiNarrow(int startChar, int charCount) {
+        for (int i = 0; i < charCount; i++) {
+            if (mTextUnits[startChar + i] >= 0x80) return false;
         }
-        return measureNeutral(index, count);
+        return true;
     }
 
     private void resetPaintState() {
