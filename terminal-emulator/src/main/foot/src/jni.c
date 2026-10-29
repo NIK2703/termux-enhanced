@@ -11,12 +11,31 @@
 struct jni_handle {
     pthread_mutex_t lock;
     struct headless_terminal *terminal;
+    /* Reused input scratch for nativeAppend/nativeAppendInto. */
+    uint8_t *append_input;
+    size_t append_input_cap;
 };
 
 static struct jni_handle *
 handle_from(jlong handle)
 {
     return (struct jni_handle *)(intptr_t)handle;
+}
+
+static uint8_t *
+reserve_append_input(struct jni_handle *handle, size_t length)
+{
+    if (length <= handle->append_input_cap)
+        return handle->append_input;
+    size_t capacity = handle->append_input_cap > 0 ? handle->append_input_cap : 4096;
+    while (capacity < length)
+        capacity *= 2;
+    uint8_t *resized = realloc(handle->append_input, capacity);
+    if (resized == NULL)
+        return NULL;
+    handle->append_input = resized;
+    handle->append_input_cap = capacity;
+    return resized;
 }
 
 static int32_t *
@@ -138,7 +157,29 @@ Java_com_termux_terminal_TerminalNative_nativeDestroy(JNIEnv *env, jclass clazz,
     handle->terminal = NULL;
     pthread_mutex_unlock(&handle->lock);
     pthread_mutex_destroy(&handle->lock);
+    free(handle->append_input);
     free(handle);
+}
+
+static int
+fill_append_state(
+    struct jni_handle *handle, const uint8_t *bytes, size_t length,
+    jint header[8], int **out_dirty)
+{
+    int dirty_count = 0;
+    int *dirty = headless_append(handle->terminal, bytes, length, &dirty_count);
+    if (dirty_count < 0)
+        dirty_count = 0;
+    header[0] = (jint)dirty_count;
+    header[1] = (jint)headless_mode_bits(handle->terminal);
+    header[2] = (jint)headless_cursor_style(handle->terminal);
+    header[3] = (jint)headless_cursor_row(handle->terminal);
+    header[4] = (jint)headless_cursor_col(handle->terminal);
+    header[5] = (jint)headless_absolute_scroll_count(handle->terminal);
+    header[6] = (jint)headless_history_size(handle->terminal);
+    header[7] = (jint)headless_last_append_flags(handle->terminal);
+    *out_dirty = dirty;
+    return dirty_count;
 }
 
 JNIEXPORT jintArray JNICALL
@@ -153,40 +194,80 @@ Java_com_termux_terminal_TerminalNative_nativeAppend(
     jsize array_length = (*env)->GetArrayLength(env, data);
     if (length > array_length)
         length = array_length;
-    uint8_t *bytes = malloc((size_t)length);
-    if (bytes == NULL)
+    if (length <= 0)
         return NULL;
-    (*env)->GetByteArrayRegion(env, data, 0, length, (jbyte *)bytes);
 
     int dirty_count = 0;
     jint header[8];
     int *dirty = NULL;
     jintArray result = NULL;
     pthread_mutex_lock(&handle->lock);
-    dirty = headless_append(handle->terminal, bytes, (size_t)length, &dirty_count);
-    if (dirty_count < 0)
-        dirty_count = 0;
-    header[0] = (jint)dirty_count;
-    header[1] = (jint)headless_mode_bits(handle->terminal);
-    header[2] = (jint)headless_cursor_style(handle->terminal);
-    header[3] = (jint)headless_cursor_row(handle->terminal);
-    header[4] = (jint)headless_cursor_col(handle->terminal);
-    header[5] = (jint)headless_absolute_scroll_count(handle->terminal);
-    header[6] = (jint)headless_history_size(handle->terminal);
-    header[7] = (jint)headless_last_append_flags(handle->terminal);
+    uint8_t *bytes = reserve_append_input(handle, (size_t)length);
+    if (bytes != NULL) {
+        (*env)->GetByteArrayRegion(env, data, 0, length, (jbyte *)bytes);
+        dirty_count = fill_append_state(handle, bytes, (size_t)length, header, &dirty);
 
-    const jsize total = (jsize)(8 + dirty_count);
-    result = (*env)->NewIntArray(env, total);
-    if (result != NULL) {
-        (*env)->SetIntArrayRegion(env, result, 0, 8, header);
-        if (dirty_count > 0) {
-            (*env)->SetIntArrayRegion(
-                env, result, 8, (jsize)dirty_count, (const jint *)dirty);
+        const jsize total = (jsize)(8 + dirty_count);
+        result = (*env)->NewIntArray(env, total);
+        if (result != NULL) {
+            (*env)->SetIntArrayRegion(env, result, 0, 8, header);
+            if (dirty_count > 0) {
+                (*env)->SetIntArrayRegion(
+                    env, result, 8, (jsize)dirty_count, (const jint *)dirty);
+            }
         }
     }
     pthread_mutex_unlock(&handle->lock);
-    free(bytes);
     return result;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_termux_terminal_TerminalNative_nativeAppendInto(
+    JNIEnv *env, jclass clazz, jlong handle_value, jbyteArray data, jint length,
+    jintArray out)
+{
+    (void)clazz;
+    struct jni_handle *handle = handle_from(handle_value);
+    if (handle == NULL || data == NULL || length <= 0)
+        return 0;
+
+    jsize array_length = (*env)->GetArrayLength(env, data);
+    if (length > array_length)
+        length = array_length;
+    if (length <= 0)
+        return 0;
+
+    const jsize capacity = out != NULL ? (*env)->GetArrayLength(env, out) : 0;
+    jint total = 0;
+    pthread_mutex_lock(&handle->lock);
+    /* The dirty set can never contain more entries than visible rows. Check the
+     * worst case before feeding the PTY bytes: the append mutates terminal state,
+     * so an undersized buffer must be rejected before any input is consumed. */
+    const jint rows = (jint)headless_rows(handle->terminal);
+    const jint required = 8 + rows;
+    if (capacity < required) {
+        pthread_mutex_unlock(&handle->lock);
+        return -required;
+    }
+
+    uint8_t *bytes = reserve_append_input(handle, (size_t)length);
+    if (bytes != NULL) {
+        (*env)->GetByteArrayRegion(env, data, 0, length, (jbyte *)bytes);
+        int dirty_count = 0;
+        jint header[8];
+        int *dirty = NULL;
+        dirty_count = fill_append_state(handle, bytes, (size_t)length, header, &dirty);
+        if (dirty_count > rows)
+            dirty_count = rows;
+        total = (jint)(8 + dirty_count);
+        (*env)->SetIntArrayRegion(env, out, 0, 8, header);
+        if (dirty_count > 0) {
+            (*env)->SetIntArrayRegion(
+                env, out, 8, (jsize)dirty_count, (const jint *)dirty);
+        }
+    }
+    pthread_mutex_unlock(&handle->lock);
+    return total;
 }
 
 JNIEXPORT void JNICALL
@@ -224,12 +305,14 @@ Java_com_termux_terminal_TerminalNative_nativeDrainEvents(
     (void)clazz;
     struct jni_handle *handle = handle_from(handle_value);
     if (handle == NULL)
-        return utf8_to_jstring(env, "");
+        return NULL;
 
     pthread_mutex_lock(&handle->lock);
     char *events = headless_drain_events(handle->terminal);
     pthread_mutex_unlock(&handle->lock);
-    jstring result = utf8_to_jstring(env, events != NULL ? events : "");
+    if (events == NULL)
+        return NULL;
+    jstring result = utf8_to_jstring(env, events);
     free(events);
     return result;
 }

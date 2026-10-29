@@ -40,11 +40,19 @@ final class TerminalNative {
      */
     static native int[] nativeAppend(long handle, byte[] data, int length);
 
+    /**
+     * Fill {@code out} with the packed append state and return its length, or
+     * {@code -required} when {@code out} cannot hold the header plus one entry per visible
+     * row. An undersized call does not consume {@code data}. Reusing the caller's array
+     * avoids a fresh JNI allocation on every PTY chunk.
+     */
+    static native int nativeAppendInto(long handle, byte[] data, int length, int[] out);
+
     static native void nativeReset(long handle);
 
     static native void nativeResize(long handle, int columns, int rows, int cellWidth, int cellHeight);
 
-    /** Newline-joined event records, or an empty string. */
+    /** Newline-joined event records, or null when no events are pending. */
     static native String nativeDrainEvents(long handle);
 
     static native int[] nativePalette(long handle);

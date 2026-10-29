@@ -1186,12 +1186,15 @@ headless_append(
     const int mode_after = headless_mode_bits(ht);
     const bool alternate_after = headless_is_alternate(ht);
 
-    int32_t current_palette[PALETTE_SIZE];
-    headless_palette(ht, current_palette);
-    bool palette_changed = memcmp(current_palette, ht->palette, sizeof(current_palette)) != 0;
-    if (palette_changed) {
-        memcpy(ht->palette, current_palette, sizeof(current_palette));
-        event_push_format(ht, "colors");
+    /* A chunk that produced no output cannot have changed the terminal palette. */
+    if (filtered_length > 0) {
+        int32_t current_palette[PALETTE_SIZE];
+        headless_palette(ht, current_palette);
+        bool palette_changed = memcmp(current_palette, ht->palette, sizeof(current_palette)) != 0;
+        if (palette_changed) {
+            memcpy(ht->palette, current_palette, sizeof(current_palette));
+            event_push_format(ht, "colors");
+        }
     }
 
     const bool all_dirty =
@@ -1199,42 +1202,17 @@ headless_append(
         history_after < history_before ||
         mode_before != mode_after;
 
-    int *dirty = NULL;
+    int *dirty = reserve_append_dirty(ht, rows);
+    if (dirty == NULL)
+        return NULL;
     int count = 0;
 
-    if (all_dirty) {
-        dirty = reserve_append_dirty(ht, rows);
-        if (dirty == NULL)
-            return NULL;
-        for (int i = 0; i < rows; i++)
+    /* The buffer is sized for the whole screen, so collect and clear in one
+     * pass instead of scanning every row twice. */
+    for (int i = 0; i < rows; i++) {
+        struct row *row = row_at(ht, i);
+        if (all_dirty || (row != NULL && row->dirty)) {
             dirty[count++] = i;
-    } else {
-        for (int i = 0; i < rows; i++) {
-            const struct row *row = row_at(ht, i);
-            if (row != NULL && row->dirty)
-                count++;
-        }
-        if (count > 0) {
-            dirty = reserve_append_dirty(ht, count);
-            if (dirty == NULL)
-                return NULL;
-            int next = 0;
-            for (int i = 0; i < rows; i++) {
-                struct row *row = row_at(ht, i);
-                if (row != NULL && row->dirty) {
-                    dirty[next++] = i;
-                    row->dirty = false;
-                }
-            }
-            count = next;
-        }
-    }
-
-    /* All visible rows were reported; clear their flags so the next append
-     * starts from a clean slate. */
-    if (all_dirty) {
-        for (int i = 0; i < rows; i++) {
-            struct row *row = row_at(ht, i);
             if (row != NULL)
                 row->dirty = false;
         }
@@ -1646,7 +1624,7 @@ headless_drain_events(struct headless_terminal *ht)
 {
     flush_ptmx_buffers(ht);
     if (ht->events_head == NULL)
-        return strdup("");
+        return NULL;
 
     size_t length = 0;
     for (struct event_record *node = ht->events_head; node != NULL; node = node->next)
@@ -1661,7 +1639,7 @@ headless_drain_events(struct headless_terminal *ht)
             ht->events_head = next;
         }
         ht->events_tail = NULL;
-        return strdup("");
+        return NULL;
     }
 
     size_t offset = 0;

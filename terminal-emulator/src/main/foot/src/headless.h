@@ -17,13 +17,16 @@ void headless_resize(
     struct headless_terminal *ht, int columns, int rows,
     int cell_width, int cell_height);
 
-/* Returns a borrowed array of dirty visible rows, or NULL. The array stays valid
+/* Returns a borrowed array of dirty visible rows, or NULL on failure. The array
+ * may be non-NULL with *dirty_count == 0 when nothing changed. It stays valid
  * until the next headless_append() on the same terminal; the caller must not
  * free it. */
 int *headless_append(
     struct headless_terminal *ht, const uint8_t *data, size_t length,
     int *dirty_count);
 
+/* Returns a malloc'ed newline-joined event string, or NULL when no events are
+ * pending. The caller owns the returned string. */
 char *headless_drain_events(struct headless_terminal *ht);
 
 int headless_palette(struct headless_terminal *ht, int32_t out[259]);

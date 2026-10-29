@@ -76,6 +76,8 @@ public final class TerminalEmulator {
     private boolean mLastAppendPartialScroll;
     private int mSyncedColorVersion = -1;
     private int mSyncedDefaultVersion = -1;
+    /** Reused packed append state; sized for the header plus one entry per visible row. */
+    private int[] mAppendState;
 
     private static final Pattern PASTE_STRIP_PATTERN = Pattern.compile("(\u001B|[\u0080-\u009F])");
     private static final Pattern PASTE_NEWLINE_PATTERN = Pattern.compile("\r?\n");
@@ -86,6 +88,7 @@ public final class TerminalEmulator {
         mClient = client;
         mRows = rows;
         mColumns = columns;
+        mAppendState = new int[TerminalNative.APPEND_STATE_HEADER_SIZE + rows];
         mCellWidthPixels = cellWidthPixels;
         mCellHeightPixels = cellHeightPixels;
         mTranscriptRows = getTerminalTranscriptRows(transcriptRows);
@@ -165,6 +168,9 @@ public final class TerminalEmulator {
         if (!gridChanged) return;
         mColumns = columns;
         mRows = rows;
+        if (mAppendState.length < TerminalNative.APPEND_STATE_HEADER_SIZE + rows) {
+            mAppendState = new int[TerminalNative.APPEND_STATE_HEADER_SIZE + rows];
+        }
         mScreen.updateSize(columns, mTranscriptRows, rows);
         mAltBuffer.updateSize(columns, rows, rows);
         mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
@@ -254,9 +260,17 @@ public final class TerminalEmulator {
         int oldCursorStyle = mCursorStyle;
         int oldModeBits = mModeBits;
 
-        int[] state = TerminalNative.nativeAppend(mNativeHandle, buffer, length);
+        int[] state;
+        int stateLength;
+        while (true) {
+            state = mAppendState;
+            stateLength = TerminalNative.nativeAppendInto(mNativeHandle, buffer, length, state);
+            if (stateLength >= 0) break;
+            // The native screen grew before this append; size for the worst case and retry.
+            mAppendState = new int[-stateLength];
+        }
         int newCursorStyle;
-        if (state != null && state.length >= TerminalNative.APPEND_STATE_HEADER_SIZE) {
+        if (stateLength >= TerminalNative.APPEND_STATE_HEADER_SIZE) {
             // The header carries everything the view needs for this update, so no
             // follow-up JNI queries are required for the append itself.
             final int anchorBase = state[5];
@@ -268,7 +282,7 @@ public final class TerminalEmulator {
 
             int dirtyCount = state[0];
             if (dirtyCount < 0) dirtyCount = 0;
-            final int available = state.length - TerminalNative.APPEND_STATE_HEADER_SIZE;
+            final int available = stateLength - TerminalNative.APPEND_STATE_HEADER_SIZE;
             if (dirtyCount > available) {
                 // A truncated payload must not leave undrawn rows behind.
                 mScreen.markAllDirty();
