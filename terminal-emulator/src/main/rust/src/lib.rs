@@ -453,6 +453,58 @@ pub extern "system" fn Java_com_termux_terminal_TerminalNative_nativeRender<'loc
     to_int_array(&mut env, &commands)
 }
 
+/// Render into a caller-owned Java array. Returns the payload length, or the negated
+/// required length when the array is too small.
+#[no_mangle]
+pub extern "system" fn Java_com_termux_terminal_TerminalNative_nativeRenderInto<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    top_row: jint,
+    selection_y1: jint,
+    selection_y2: jint,
+    selection_x1: jint,
+    selection_x2: jint,
+    cursor_visible: jboolean,
+    cursor_shape: jint,
+    background_alpha: jint,
+    font_width: jfloat,
+    font_line_spacing: jint,
+    font_ascent: jint,
+    columns: jint,
+    rows: jint,
+    out: JIntArray<'local>,
+) -> jint {
+    let commands = with_terminal(&mut env, handle, |terminal| {
+        render::build(
+            terminal,
+            top_row,
+            selection_y1,
+            selection_y2,
+            selection_x1,
+            selection_x2,
+            cursor_visible != 0,
+            cursor_shape,
+            background_alpha,
+            font_width,
+            font_line_spacing,
+            font_ascent,
+            columns,
+            rows,
+        )
+    })
+    .unwrap_or_default();
+
+    let capacity = env.get_array_length(&out).unwrap_or(0).max(0) as usize;
+    if commands.len() > capacity {
+        return -(commands.len() as jint);
+    }
+    if !commands.is_empty() {
+        let _ = env.set_int_array_region(&out, 0, &commands);
+    }
+    commands.len() as jint
+}
+
 /// Text payload for the last render, as UTF-16 code units.
 #[no_mangle]
 pub extern "system" fn Java_com_termux_terminal_TerminalNative_nativeRenderText<'local>(

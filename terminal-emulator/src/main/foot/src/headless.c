@@ -73,6 +73,14 @@ struct headless_terminal {
     int32_t *render_text;
     size_t render_text_len;
     size_t render_text_cap;
+
+    /* Scratch buffers reused across appends and frames. They are borrowed by the
+     * caller until the next call on the same terminal and must not be freed. */
+    int *append_dirty;
+    size_t append_dirty_cap;
+
+    int32_t *render_commands;
+    size_t render_commands_cap;
 };
 
 static int
@@ -1125,6 +1133,21 @@ process_scroll_damage(struct headless_terminal *ht)
     tll_free(term->alt.scroll_damage);
 }
 
+static int *
+reserve_append_dirty(struct headless_terminal *ht, int count)
+{
+    if (count <= 0)
+        return NULL;
+    if ((size_t)count > ht->append_dirty_cap) {
+        int *resized = realloc(ht->append_dirty, (size_t)count * sizeof(resized[0]));
+        if (resized == NULL)
+            return NULL;
+        ht->append_dirty = resized;
+        ht->append_dirty_cap = (size_t)count;
+    }
+    return ht->append_dirty;
+}
+
 int *
 headless_append(
     struct headless_terminal *ht, const uint8_t *data, size_t length,
@@ -1180,7 +1203,7 @@ headless_append(
     int count = 0;
 
     if (all_dirty) {
-        dirty = malloc((size_t)rows * sizeof(dirty[0]));
+        dirty = reserve_append_dirty(ht, rows);
         if (dirty == NULL)
             return NULL;
         for (int i = 0; i < rows; i++)
@@ -1192,7 +1215,7 @@ headless_append(
                 count++;
         }
         if (count > 0) {
-            dirty = malloc((size_t)count * sizeof(dirty[0]));
+            dirty = reserve_append_dirty(ht, count);
             if (dirty == NULL)
                 return NULL;
             int next = 0;
@@ -1725,6 +1748,20 @@ reserve_commands(int32_t *commands, size_t *capacity, size_t needed)
     return resized;
 }
 
+/* Keep the reusable command buffer and the terminal's ownership in sync. */
+static bool
+reserve_render_commands(struct headless_terminal *ht, int32_t **commands,
+                        size_t *capacity, size_t needed)
+{
+    int32_t *resized = reserve_commands(*commands, capacity, needed);
+    if (resized == NULL)
+        return false;
+    *commands = resized;
+    ht->render_commands = resized;
+    ht->render_commands_cap = *capacity;
+    return true;
+}
+
 static int32_t *
 render_text_append(struct headless_terminal *ht, char32_t wc)
 {
@@ -1824,9 +1861,11 @@ headless_render(
 
     ht->render_text_len = 0;
 
-    size_t command_capacity = (size_t)(rows + 1) * 32 + 8;
-    int32_t *commands = malloc(command_capacity * sizeof(commands[0]));
-    if (commands == NULL) {
+    size_t command_capacity = ht->render_commands_cap;
+    int32_t *commands = ht->render_commands;
+    if (!reserve_render_commands(ht, &commands, &command_capacity,
+                                 (size_t)(rows + 1) * 32 + 8))
+    {
         *out_count = 0;
         return NULL;
     }
@@ -1840,7 +1879,6 @@ headless_render(
     if ((size_t)(columns + 1) > sizeof(stack_runs) / sizeof(stack_runs[0])) {
         runs = malloc((size_t)(columns + 1) * sizeof(runs[0]));
         if (runs == NULL) {
-            free(commands);
             *out_count = 0;
             return NULL;
         }
@@ -1856,15 +1894,13 @@ headless_render(
             /* Still emit a row frame: TerminalRenderer fills the row with the
              * base colour and clears its dirty flag on OP_ROW_END. Skipping a
              * blank row here would leave stale pixels in partial frames. */
-            int32_t *resized = reserve_commands(
-                commands, &command_capacity, (size_t)count + 16);
-            if (resized == NULL) {
-                free(commands);
+            if (!reserve_render_commands(ht, &commands, &command_capacity,
+                                         (size_t)count + 16))
+            {
                 if (runs_heap) free(runs);
                 *out_count = 0;
                 return NULL;
             }
-            commands = resized;
             const bool in_selection = row >= selection_y1 && row <= selection_y2;
             const int selection_start = row == selection_y1 ? selection_x1 : 0;
             const int selection_end = row == selection_y2 ? selection_x2 : columns - 1;
@@ -1977,14 +2013,11 @@ headless_render(
         }
 
         const size_t needed = (size_t)count + 8 + (size_t)run_count * 16;
-        int32_t *resized = reserve_commands(commands, &command_capacity, needed);
-        if (resized == NULL) {
-            free(commands);
+        if (!reserve_render_commands(ht, &commands, &command_capacity, needed)) {
             if (runs_heap) free(runs);
             *out_count = 0;
             return NULL;
         }
-        commands = resized;
 
         commands[count++] = 1; /* OP_ROW_BEGIN */
         commands[count++] = row;
@@ -2053,15 +2086,13 @@ headless_render(
     }
 
     const size_t text_length = ht->render_text_len;
-    int32_t *resized = reserve_commands(
-        commands, &command_capacity, (size_t)count + 2 + text_length);
-    if (resized == NULL) {
-        free(commands);
+    if (!reserve_render_commands(ht, &commands, &command_capacity,
+                                 (size_t)count + 2 + text_length))
+    {
         if (runs_heap) free(runs);
         *out_count = 0;
         return NULL;
     }
-    commands = resized;
     commands[count++] = 0; /* OP_END */
     /* The UTF-16 payload travels in the same array as the commands, saving a
      * second JNI transition and a second array allocation per frame. */
@@ -2146,6 +2177,8 @@ headless_destroy(struct headless_terminal *ht)
     }
 
     free(ht->render_text);
+    free(ht->append_dirty);
+    free(ht->render_commands);
     vt_filter_destroy(ht->filter);
     free(ht);
 }

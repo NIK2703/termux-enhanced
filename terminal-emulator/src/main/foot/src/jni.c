@@ -161,6 +161,7 @@ Java_com_termux_terminal_TerminalNative_nativeAppend(
     int dirty_count = 0;
     jint header[8];
     int *dirty = NULL;
+    jintArray result = NULL;
     pthread_mutex_lock(&handle->lock);
     dirty = headless_append(handle->terminal, bytes, (size_t)length, &dirty_count);
     if (dirty_count < 0)
@@ -173,20 +174,18 @@ Java_com_termux_terminal_TerminalNative_nativeAppend(
     header[5] = (jint)headless_absolute_scroll_count(handle->terminal);
     header[6] = (jint)headless_history_size(handle->terminal);
     header[7] = (jint)headless_last_append_flags(handle->terminal);
-    pthread_mutex_unlock(&handle->lock);
-    free(bytes);
 
     const jsize total = (jsize)(8 + dirty_count);
-    jintArray result = (*env)->NewIntArray(env, total);
-    if (result == NULL) {
-        free(dirty);
-        return NULL;
+    result = (*env)->NewIntArray(env, total);
+    if (result != NULL) {
+        (*env)->SetIntArrayRegion(env, result, 0, 8, header);
+        if (dirty_count > 0) {
+            (*env)->SetIntArrayRegion(
+                env, result, 8, (jsize)dirty_count, (const jint *)dirty);
+        }
     }
-    (*env)->SetIntArrayRegion(env, result, 0, 8, header);
-    if (dirty_count > 0)
-        (*env)->SetIntArrayRegion(
-            env, result, 8, (jsize)dirty_count, (const jint *)dirty);
-    free(dirty);
+    pthread_mutex_unlock(&handle->lock);
+    free(bytes);
     return result;
 }
 
@@ -553,12 +552,45 @@ Java_com_termux_terminal_TerminalNative_nativeRender(
         selection_x1, selection_x2, cursor_visible != JNI_FALSE,
         cursor_shape, background_alpha, font_width, font_line_spacing,
         font_ascent, columns, rows, &count);
-    pthread_mutex_unlock(&handle->lock);
-    if (commands == NULL)
-        return make_int_array(env, NULL, 0);
     jintArray result = make_int_array(env, commands, count);
-    free(commands);
+    pthread_mutex_unlock(&handle->lock);
     return result;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_termux_terminal_TerminalNative_nativeRenderInto(
+    JNIEnv *env, jclass clazz, jlong handle_value,
+    jint top_row, jint selection_y1, jint selection_y2,
+    jint selection_x1, jint selection_x2, jboolean cursor_visible,
+    jint cursor_shape, jint background_alpha, jfloat font_width,
+    jint font_line_spacing, jint font_ascent, jint columns, jint rows,
+    jintArray out)
+{
+    (void)clazz;
+    struct jni_handle *handle = handle_from(handle_value);
+    if (handle == NULL)
+        return 0;
+
+    const jsize capacity = out != NULL ? (*env)->GetArrayLength(env, out) : 0;
+    int count = 0;
+    pthread_mutex_lock(&handle->lock);
+    int32_t *commands = headless_render(
+        handle->terminal, top_row, selection_y1, selection_y2,
+        selection_x1, selection_x2, cursor_visible != JNI_FALSE,
+        cursor_shape, background_alpha, font_width, font_line_spacing,
+        font_ascent, columns, rows, &count);
+    if (commands == NULL) {
+        pthread_mutex_unlock(&handle->lock);
+        return 0;
+    }
+    if (count > capacity) {
+        pthread_mutex_unlock(&handle->lock);
+        return -(jint)count;
+    }
+    if (count > 0)
+        (*env)->SetIntArrayRegion(env, out, 0, (jsize)count, (const jint *)commands);
+    pthread_mutex_unlock(&handle->lock);
+    return (jint)count;
 }
 
 JNIEXPORT jintArray JNICALL

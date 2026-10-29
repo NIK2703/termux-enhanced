@@ -73,6 +73,9 @@ public final class TerminalRenderer {
     /** Number of valid UTF-16 units in {@link #mTextUnits} for the current frame. */
     private int mTextUnitCount;
 
+    /** Reused packed render payload; grows only when the native payload outgrows it. */
+    private int[] mRenderCommands = new int[1024];
+
     private long mLastPaintForeColorKey = -1L;
     private boolean mLastPaintBold;
     private boolean mLastPaintUnderline;
@@ -173,15 +176,20 @@ public final class TerminalRenderer {
         // intersect the clip. Native row indices stay absolute (relative to topRow); the
         // renderer still positions them with currentRow - topRow.
         final int renderRows = renderEndRow - renderStartRow;
-        final int[] commands = emulator.getRenderCommands(renderStartRow, selectionY1, selectionY2,
-            selectionX1, selectionX2, mBackgroundAlpha, mFontWidth, mFontLineSpacing,
-            mFontAscent, columns, renderRows);
-        loadRenderText(commands, emulator);
-
-        if (commands == null || commands.length == 0) {
+        int commandCount;
+        while (true) {
+            commandCount = emulator.fillRenderCommands(mRenderCommands, renderStartRow,
+                selectionY1, selectionY2, selectionX1, selectionX2, mBackgroundAlpha,
+                mFontWidth, mFontLineSpacing, mFontAscent, columns, renderRows);
+            if (commandCount >= 0) break;
+            mRenderCommands = new int[-commandCount];
+        }
+        if (commandCount == 0) {
             canvas.restore();
             return;
         }
+        final int[] commands = mRenderCommands;
+        loadRenderText(commands, commandCount, emulator);
 
         final float gridTop = mFontLineSpacingAndAscent - mFontLineSpacing;
         final float gridBottom = mFontLineSpacingAndAscent + (endRow - topRow) * mFontLineSpacing
@@ -195,7 +203,7 @@ public final class TerminalRenderer {
         boolean rowDrawn = false;
         float baseline = 0f;
 
-        while (cursor < commands.length) {
+        while (cursor < commandCount) {
             final int op = commands[cursor++];
             if (op == OP_END) break;
 
@@ -264,7 +272,7 @@ public final class TerminalRenderer {
                 }
                 default:
                     // Unknown opcode: stop rather than misinterpreting the rest of the stream.
-                    cursor = commands.length;
+                    cursor = commandCount;
                     break;
             }
         }
@@ -278,15 +286,15 @@ public final class TerminalRenderer {
      * it avoids a second JNI call and a second int[] allocation. Fall back to the legacy
      * {@code nativeRenderText} entry point for an older native library.
      */
-    private void loadRenderText(int[] commands, TerminalEmulator emulator) {
+    private void loadRenderText(int[] commands, int limit, TerminalEmulator emulator) {
         if (commands != null) {
             int i = 0;
-            while (i < commands.length) {
+            while (i < limit) {
                 final int op = commands[i++];
                 if (op == OP_END) {
-                    if (i + 1 < commands.length) {
+                    if (i + 1 < limit) {
                         final int count = commands[i];
-                        if (count >= 0 && i + 1 + count <= commands.length) {
+                        if (count >= 0 && i + 1 + count <= limit) {
                             loadRenderText(commands, i + 1, count);
                             return;
                         }
@@ -306,7 +314,7 @@ public final class TerminalRenderer {
                         i += 7;
                         break;
                     default:
-                        i = commands.length;
+                        i = limit;
                         break;
                 }
             }

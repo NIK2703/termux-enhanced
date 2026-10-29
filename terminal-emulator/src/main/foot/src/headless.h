@@ -17,7 +17,9 @@ void headless_resize(
     struct headless_terminal *ht, int columns, int rows,
     int cell_width, int cell_height);
 
-/* Returns a malloc()ed array of dirty visible rows, or NULL. */
+/* Returns a borrowed array of dirty visible rows, or NULL. The array stays valid
+ * until the next headless_append() on the same terminal; the caller must not
+ * free it. */
 int *headless_append(
     struct headless_terminal *ht, const uint8_t *data, size_t length,
     int *dirty_count);
@@ -58,7 +60,9 @@ char *headless_word_at_location(
     struct headless_terminal *ht, int x, int y);
 
 /* Packed render payload: commands terminated by OP_END, followed by the
- * UTF-16 text length and the text units referenced by OP_TEXT commands. */
+ * UTF-16 text length and the text units referenced by OP_TEXT commands.
+ * The buffer is reused and stays valid until the next headless_render() on the
+ * same terminal; the caller must not free it. */
 int32_t *headless_render(
     struct headless_terminal *ht, int top_row,
     int selection_y1, int selection_y2, int selection_x1, int selection_x2,

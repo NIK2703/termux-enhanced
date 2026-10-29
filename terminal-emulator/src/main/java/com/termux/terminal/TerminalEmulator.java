@@ -443,6 +443,20 @@ public final class TerminalEmulator {
             fontWidth, fontLineSpacing, fontAscent, columns, rows);
     }
 
+    /**
+     * Fill a caller-owned buffer with the packed render payload. Returns the payload length
+     * or {@code -required} when the buffer is too small.
+     */
+    public int fillRenderCommands(int[] out, int topRow, int selectionY1, int selectionY2,
+                                  int selectionX1, int selectionX2, int backgroundAlpha,
+                                  float fontWidth, int fontLineSpacing, int fontAscent,
+                                  int columns, int rows) {
+        syncPalette();
+        return TerminalNative.nativeRenderInto(mNativeHandle, topRow, selectionY1, selectionY2,
+            selectionX1, selectionX2, shouldCursorBeVisible(), mCursorStyle, backgroundAlpha,
+            fontWidth, fontLineSpacing, fontAscent, columns, rows, out);
+    }
+
     /** UTF-16 payload referenced by TEXT commands of the most recent render. */
     public int[] getRenderText() {
         return TerminalNative.nativeRenderText(mNativeHandle);

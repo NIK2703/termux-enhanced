@@ -58,8 +58,7 @@ static int
 feed(struct headless_terminal *ht, const char *text)
 {
     int dirty = 0;
-    int *rows = headless_append(ht, (const uint8_t *)text, strlen(text), &dirty);
-    free(rows);
+    headless_append(ht, (const uint8_t *)text, strlen(text), &dirty);
     return dirty;
 }
 
@@ -175,36 +174,28 @@ dirty_tracking_tests(void)
         return;
 
     int dirty_count = 0;
-    int *dirty = append_dirty(ht, "A", &dirty_count);
-    free(dirty); /* drain the initial reset damage */
+    int *dirty = append_dirty(ht, "A", &dirty_count); /* drain the initial reset damage */
 
     dirty = append_dirty(ht, "B", &dirty_count);
     CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
-    free(dirty);
 
     dirty = append_dirty(ht, "\x1b[2;1H", &dirty_count);
     CHECK(dirty_count == 0);
-    free(dirty);
     dirty = append_dirty(ht, "\x1b[2K", &dirty_count);
     CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 1));
-    free(dirty);
 
     dirty = append_dirty(ht, "\x1b[5;1H", &dirty_count);
     CHECK(dirty_count == 0);
-    free(dirty);
     dirty = append_dirty(ht, "\n", &dirty_count);
     CHECK(dirty_count == 5);
     for (int row = 0; row < 5; row++)
         CHECK(dirty_has(dirty, dirty_count, row));
-    free(dirty);
 
     /* Switching to the alternate screen changes every visible cell. */
     dirty = append_dirty(ht, "\x1b[?1049h", &dirty_count);
     CHECK(dirty_count == 5);
-    free(dirty);
     dirty = append_dirty(ht, "\x1b[?1049l", &dirty_count);
     CHECK(dirty_count == 5);
-    free(dirty);
     headless_destroy(ht);
 
     /* OSC 4 only dirties rows that actually use the changed palette entry. */
@@ -213,10 +204,8 @@ dirty_tracking_tests(void)
     if (ht == NULL)
         return;
     dirty = append_dirty(ht, "\x1b[31mA\x1b[0m", &dirty_count);
-    free(dirty);
     dirty = append_dirty(ht, "\x1b]4;1;rgb:11/22/33\x07", &dirty_count);
     CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
-    free(dirty);
     headless_destroy(ht);
 }
 
@@ -282,7 +271,6 @@ main(void)
         ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL);
     CHECK(has_text_fg(commands, command_count, palette[1]));
-    free(commands);
     encoded = row(ht, 3, &count);
     CHECK(encoded != NULL);
     if (encoded != NULL) {
@@ -297,7 +285,6 @@ main(void)
         ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL);
     CHECK(has_text_fg(commands, command_count, palette[9]));
-    free(commands);
     encoded = row(ht, 3, &count);
     CHECK(encoded != NULL);
     if (encoded != NULL) {
@@ -422,7 +409,6 @@ main(void)
     CHECK(commands != NULL);
     CHECK(has_text_fg(commands, command_count, palette[16]));
     CHECK(!has_text_fg(commands, command_count, palette[24]));
-    free(commands);
 
     /* A blank row still has the identity column map. */
     encoded = row(ht, -1, &count);
@@ -486,7 +472,6 @@ main(void)
         CHECK(saw_a && saw_wide && saw_b);
     }
     free(render_text);
-    free(commands);
 
     /* The packed payload after OP_END mirrors headless_render_text(), and a
      * partial render keeps absolute row numbers while starting text at zero. */
@@ -529,7 +514,6 @@ main(void)
         }
     }
     free(render_text);
-    free(commands);
 
     /* Word lookup follows the Rust implementation (space delimited). */
     headless_resize(ht, 20, 3, 8, 16);
@@ -613,8 +597,7 @@ main(void)
     for (int i = 0; i < query_count; i++)
         memcpy(queries + i * 4, "\x1b[6n", 4);
     int dirty_count = 0;
-    int *dirty = headless_append(ht, (const uint8_t *)queries, (size_t)query_count * 4, &dirty_count);
-    free(dirty);
+    headless_append(ht, (const uint8_t *)queries, (size_t)query_count * 4, &dirty_count);
     free(queries);
     events = headless_drain_events(ht);
     CHECK(events != NULL);
@@ -773,8 +756,7 @@ main(void)
             bytes[j] = (uint8_t)(rng >> 24);
         }
         int dirty_count = 0;
-        int *dirty = headless_append(ht, bytes, (size_t)n, &dirty_count);
-        free(dirty);
+        headless_append(ht, bytes, (size_t)n, &dirty_count);
 
         if ((i & 63) == 0) {
             const int columns = headless_columns(ht);
@@ -792,7 +774,6 @@ main(void)
                 ht, -headless_history_size(ht), -1, -1, 0, 0, false, 0, 255,
                 8.0f, 16, 12, columns, rows, &command_count);
             CHECK(commands != NULL);
-            free(commands);
             char *events = headless_drain_events(ht);
             free(events);
         }

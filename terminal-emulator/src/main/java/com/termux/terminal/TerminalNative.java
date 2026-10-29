@@ -75,7 +75,7 @@ final class TerminalNative {
 
     static native void nativeClearScrollCounter(long handle);
 
-    /** Legacy per-row anchor query; retained for the fixed 27-method JNI ABI. */
+    /** Legacy per-row anchor query; retained for the JNI ABI. */
     static native int nativeAnchorRow(long handle, int externalRow);
 
     /** Absolute (unclamped) scroll count used as the base of content anchors. */
@@ -109,6 +109,17 @@ final class TerminalNative {
                                      int cursorShape, int backgroundAlpha, float fontWidth,
                                      int fontLineSpacing, int fontAscent, int columns, int rows);
 
-    /** Legacy separate UTF-16 payload; kept for the fixed 27-method JNI ABI. */
+    /**
+     * Fill {@code out} with the packed render payload and return its length, or
+     * {@code -required} when {@code out} is too small. Reusing the caller's array avoids a
+     * fresh JNI allocation on every frame.
+     */
+    static native int nativeRenderInto(long handle, int topRow, int selectionY1, int selectionY2,
+                                       int selectionX1, int selectionX2, boolean cursorVisible,
+                                       int cursorShape, int backgroundAlpha, float fontWidth,
+                                       int fontLineSpacing, int fontAscent, int columns, int rows,
+                                       int[] out);
+
+    /** Legacy separate UTF-16 payload; kept for the fixed JNI ABI. */
     static native int[] nativeRenderText(long handle);
 }
