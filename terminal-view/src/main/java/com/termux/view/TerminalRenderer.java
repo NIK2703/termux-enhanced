@@ -380,26 +380,27 @@ public final class TerminalRenderer {
 
         final float left = startColumn * mFontWidth;
         final float expectedWidth = widthColumns * mFontWidth;
-        // The terminal font is monospaced, so a run of narrow ASCII cells has an exact
-        // advance of widthColumns * mFontWidth. Skipping measureText() here is safe and
-        // removes a shaping call for the common shell/TUI text path. Runs with wide,
-        // combining, or fallback glyphs still take the measured path below.
-        final float measured = (widthColumns > 0 && charCount == widthColumns
+        // Skip shaping only for plain, narrow ASCII. Styled text may resolve to a different
+        // face (Android can pick a proportional italic fallback), whose natural advance is
+        // not widthColumns * mFontWidth; measuring it keeps the old cell-fitting behaviour.
+        final float measured = (asciiFastPathAllowed(bold, italic, charCount, widthColumns)
             && isAsciiNarrow(startChar, charCount))
             ? expectedWidth
             : measureNeutral(startChar, charCount);
 
-        if (expectedWidth > 0f && mismatch(measured, expectedWidth)) {
+        if (expectedWidth > 0f && mismatch(measured, expectedWidth)
+            && isMismatchScaleUsable(widthColumns, measured / mFontWidth)) {
             drawTextClusters(canvas, startChar, charCount, left, baseline, effects);
         } else {
-            drawGlyphs(canvas, startChar, charCount, left, expectedWidth, measured, baseline, effects);
+            drawGlyphs(canvas, startChar, charCount, widthColumns, left, expectedWidth, measured,
+                baseline, effects);
         }
     }
 
     private void applyTextStyle(int foreground, boolean bold, boolean underline, boolean italic,
                                 boolean strike) {
-        final long key = foreground & 0xFFFFFFFFL;
-        if (key != mLastPaintForeColorKey) {
+        final long key = foreColorKey(foreground);
+        if (needsForeColorSet(foreground, mLastPaintForeColorKey)) {
             mTextPaint.setColor(foreground);
             mLastPaintForeColorKey = key;
         }
@@ -426,11 +427,13 @@ public final class TerminalRenderer {
      * font glyph at 18 px in a 16 px cell, for example) the caller splits it into clusters and
      * this method scales each one to its cell width.
      */
-    private void drawGlyphs(Canvas canvas, int startChar, int charCount, float left,
-                            float expectedWidth, float measured, float baseline, int effects) {
+    private void drawGlyphs(Canvas canvas, int startChar, int charCount, int widthColumns,
+                            float left, float expectedWidth, float measured, float baseline,
+                            int effects) {
         boolean scaled = false;
         float scale = 1f;
-        if (expectedWidth > 0f && measured > 0f && mismatch(measured, expectedWidth)) {
+        if (expectedWidth > 0f && mismatch(measured, expectedWidth)
+            && isMismatchScaleUsable(widthColumns, measured / mFontWidth)) {
             scale = expectedWidth / measured;
             if (scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE) {
                 canvas.save();
@@ -479,7 +482,8 @@ public final class TerminalRenderer {
             float measured = measureNeutral(index, clusterEnd - index);
             boolean scaled = false;
             float scale = 1f;
-            if (expected > 0f && measured > 0f && mismatch(measured, expected)) {
+            if (expected > 0f && mismatch(measured, expected)
+                && isMismatchScaleUsable(width, measured / mFontWidth)) {
                 scale = expected / measured;
                 if (scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE) {
                     canvas.save();
@@ -498,6 +502,31 @@ public final class TerminalRenderer {
 
     private boolean mismatch(float measured, float expected) {
         return Math.abs(measured - expected) > Math.max(0.01f * mFontWidth, 0.01f);
+    }
+
+    /**
+     * Whether a run's width mismatch can be corrected with {@code canvas.scale()}.
+     *
+     * @param runWidthColumns width of the run's cells, in columns.
+     * @param mes             the run's measured width in <em>cells</em>, i.e. already divided by
+     *                        {@link #mFontWidth}. Zero for a run of zero-advance code points.
+     */
+    static boolean isMismatchScaleUsable(int runWidthColumns, float mes) {
+        if (runWidthColumns <= 0 || !(mes > 0f)) return false;   // also rejects NaN
+        final float scale = runWidthColumns / mes;
+        return scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE;
+    }
+
+    /**
+     * Unsigned key of an ARGB colour. Kept separate from the {@code -1} "unknown" sentinel so
+     * opaque white ({@code 0xFFFFFFFF}) cannot be mistaken for a freshly reset memo.
+     */
+    static long foreColorKey(int foreground) {
+        return foreground & 0xFFFFFFFFL;
+    }
+
+    static boolean needsForeColorSet(int foreground, long lastKey) {
+        return foreColorKey(foreground) != lastKey;
     }
 
     private float measureNeutral(int index, int count) {
@@ -522,6 +551,15 @@ public final class TerminalRenderer {
             if (mTextUnits[startChar + i] >= 0x80) return false;
         }
         return true;
+    }
+
+    /**
+     * The fast path is only valid for plain text: bold and italic may select a face with a
+     * different advance, so those runs must still be measured and, if needed, cell-fitted.
+     */
+    static boolean asciiFastPathAllowed(boolean bold, boolean italic, int charCount,
+                                        int widthColumns) {
+        return !bold && !italic && charCount > 0 && charCount == widthColumns;
     }
 
     private void resetPaintState() {
