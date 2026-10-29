@@ -152,4 +152,12 @@ final class TerminalNative {
 
     /** Legacy separate UTF-16 payload; kept for the fixed JNI ABI. */
     static native int[] nativeRenderText(long handle);
+
+    /**
+     * Copy one visible sixel surface into a caller-owned bitmap. {@code imageId}
+     * and {@code revision} come from an OP_IMAGE render command. Returns null
+     * when the image has scrolled away or was modified before the copy.
+     */
+    static native int[] nativeSixelPixels(long handle, long imageId, int revision,
+                                          int width, int height);
 }

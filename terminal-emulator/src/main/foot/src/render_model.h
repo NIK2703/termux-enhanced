@@ -79,7 +79,7 @@ void foot_render_model_commit_all(
  * Plan one packed frame:
  *
  *   OP_FRAME_BEGIN, OP_DAMAGE...,
- *   OP_ROW_BEGIN, OP_RECT/OP_CURSOR/OP_FILL_RECT/OP_GLYPH..., OP_ROW_END,
+ *   OP_ROW_BEGIN, OP_FILL_RECT/OP_GLYPH/OP_FILL_TRAPEZOID..., OP_ROW_END,
  *   ...,
  *   OP_FRAME_END, OP_END, text length, UTF-16 units
  *

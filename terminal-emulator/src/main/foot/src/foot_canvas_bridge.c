@@ -2,8 +2,9 @@
  * Upstream foot cell renderer bridged to the Canvas command stream.
  *
  * render_cell() and render_row() are extracted verbatim from the pinned
- * third_party/foot/render.c (see foot-render-cell.inc). Only the pixman/fcft
- * shim and this thin adapter are Android-specific.
+ * third_party/foot/render.c (see foot-render-cell.inc). This adapter only
+ * prepares foot's per-row state and installs Android-compatible metrics; the
+ * pixman/fcft shim turns upstream paint calls into Canvas sink callbacks.
  */
 
 #include "foot_canvas_backend.h"
@@ -16,6 +17,7 @@
 #include "config.h"
 #include "grid.h"
 #include "macros.h"
+#include "sixel.h"
 #include "terminal.h"
 #include "util.h"
 #include "xmalloc.h"
@@ -86,6 +88,8 @@ foot_canvas_prepare_frame(
         ? metrics->cell_width : 1;
     const int cell_height = metrics->cell_height > 0
         ? metrics->cell_height : 1;
+    const bool cell_size_changed =
+        term->cell_width != cell_width || term->cell_height != cell_height;
     int baseline = metrics->font_baseline;
     if (baseline <= 0)
         baseline = cell_height * 4 / 5;
@@ -106,6 +110,8 @@ foot_canvas_prepare_frame(
     term->width = term->cols * cell_width;
     term->height = term->rows * cell_height;
     term->font_line_height.px = (int16_t)cell_height;
+    if (cell_size_changed)
+        sixel_cell_size_changed(term);
 
     struct config *conf = (struct config *)term->conf;
     if (conf != NULL) {
@@ -113,7 +119,6 @@ foot_canvas_prepare_frame(
         conf->can_shape_grapheme = false;
         conf->tweak.grapheme_shaping = false;
         conf->tweak.overflowing_glyphs = false;
-        conf->url.style = UNDERLINE_NONE;
         conf->bold_in_bright.enabled = false;
         conf->use_custom_underline_offset = false;
         conf->underline_thickness = (struct pt_or_px){.px = -1, .pt = 0};
@@ -232,29 +237,6 @@ foot_canvas_prepare_row(
     }
 }
 
-static bool
-cell_needs_canvas_render(const struct cell *cell, bool has_cursor)
-{
-    if (has_cursor || cell->attrs.selected || cell->attrs.reverse)
-        return true;
-
-    /* A non-default background or a text decoration is visible even when the
-     * cell itself is blank. Foreground-only attributes on a blank cell are
-     * not. */
-    if (cell->attrs.bg_src != COLOR_DEFAULT ||
-        cell->attrs.underline ||
-        cell->attrs.strikethrough ||
-        cell->attrs.url)
-    {
-        return true;
-    }
-
-    return cell->wc != 0 &&
-        cell->wc != U' ' &&
-        cell->wc != U'\t' &&
-        cell->wc < CELL_SPACER;
-}
-
 void
 foot_canvas_render_row(
     struct terminal *term, struct row *row, int row_no, int cursor_col,
@@ -303,46 +285,10 @@ foot_canvas_render_row(
         }
     }
 
-    /* Upstream render_row() walks right-to-left. That order is fine for a
-     * pixel backend, but Canvas text runs must be emitted in logical
-     * left-to-right order so adjacent cells can be coalesced into one
-     * drawTextRun(). The per-cell renderer itself is still the verbatim
-     * upstream render_cell(); only the trivial loop direction is adapted. */
-    int first_col = 0;
-    int last_col = term->cols - 1;
-
-    /* A fully default-background row is already painted by Java's row base
-     * fill. Avoid walking every blank cell through render_cell(); that is
-     * pure overhead during scrolling. Rows with a cursor, selection, explicit
-     * background, reverse video or styled underline ranges keep the full
-     * walk. */
-    if (cursor_col < 0 && !term->reverse && row->extra == NULL) {
-        first_col = term->cols;
-        last_col = -1;
-        for (int col = 0; col < term->cols; col++) {
-            if (!cell_needs_canvas_render(&row->cells[col], false))
-                continue;
-            if (first_col == term->cols)
-                first_col = col;
-            last_col = col;
-        }
-        if (last_col < first_col) {
-            if (can_brighten) {
-                for (int col = 0; col < term->cols; col++) {
-                    if (changed[col])
-                        row->cells[col].attrs.fg -= 8;
-                }
-            }
-            if (changed != stack_changed)
-                free(changed);
-            term->kbd_focus = kbd_focus;
-            foot_canvas_target_destroy(target);
-            return;
-        }
-    }
-
-    for (int col = first_col; col <= last_col; col++)
-        render_cell(term, target, NULL, row, row_no, col, cursor_col == col);
+    /* Run the upstream row loop verbatim. It walks right-to-left; the Canvas
+     * sink buffers this row and replays draw operations left-to-right, where
+     * adjacent glyphs can be coalesced into one drawTextRun(). */
+    render_row(term, target, NULL, row, row_no, cursor_col);
 
     if (can_brighten) {
         for (int col = 0; col < term->cols; col++) {

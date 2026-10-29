@@ -4,8 +4,15 @@
 #include <stdint.h>
 
 typedef struct pixman_image pixman_image_t;
-typedef struct pixman_region32 { int dummy; } pixman_region32_t;
 typedef struct pixman_box32 { int32_t x1, y1, x2, y2; } pixman_box32_t;
+/* A small rectangle-set region. The upstream sixel code uses regions for
+ * overlap/cropping; a real list keeps those operations correct without
+ * pulling in the full pixman library. */
+typedef struct pixman_region32 {
+    pixman_box32_t *rects;
+    int count;
+    int capacity;
+} pixman_region32_t;
 
 typedef int32_t pixman_fixed_t;
 typedef struct pixman_point_fixed {
@@ -39,12 +46,18 @@ typedef enum {
     PIXMAN_FORMAT_A8R8G8B8,
     PIXMAN_FORMAT_X8R8G8B8,
     PIXMAN_FORMAT_A8,
+    PIXMAN_a2r10g10b10,
+    PIXMAN_a2b10g10r10,
 } pixman_format_code_t;
+
+#define PIXMAN_TYPE_ARGB 0
+#define PIXMAN_FORMAT_TYPE(format) ((void)(format), PIXMAN_TYPE_ARGB)
 
 typedef enum {
     PIXMAN_OP_SRC,
     PIXMAN_OP_OVER,
     PIXMAN_OP_CLEAR,
+    PIXMAN_OP_OVER_REVERSE,
 } pixman_op_t;
 
 typedef enum {
@@ -55,9 +68,16 @@ typedef enum {
     PIXMAN_FILTER_BILINEAR,
 } pixman_filter_t;
 
-typedef struct { float xx, yx, xy, yy, x0, y0; } pixman_transform_t;
+typedef struct pixman_transform { float xx, yx, xy, yy, x0, y0; } pixman_transform_t;
+typedef struct pixman_f_transform { float xx, yx, xy, yy, x0, y0; } pixman_f_transform_t;
+void pixman_f_transform_init_scale(pixman_f_transform_t *, double, double);
+void pixman_transform_from_pixman_f_transform(
+    pixman_transform_t *, const pixman_f_transform_t *);
 
 void *pixman_image_get_data(pixman_image_t *);
+int pixman_image_get_width(pixman_image_t *);
+int pixman_image_get_height(pixman_image_t *);
+pixman_image_t *pixman_image_ref(pixman_image_t *);
 pixman_format_code_t pixman_image_get_format(pixman_image_t *);
 void pixman_image_unref(pixman_image_t *);
 pixman_image_t *pixman_image_create_bits(
@@ -88,8 +108,11 @@ void pixman_region32_destroy(pixman_region32_t *);
 void pixman_region32_init(pixman_region32_t *);
 void pixman_region32_init_rect(
     pixman_region32_t *, int, int, unsigned, unsigned);
+void pixman_region32_init_rects(
+    pixman_region32_t *, const pixman_box32_t *, int);
 void pixman_region32_fini(pixman_region32_t *);
 bool pixman_region32_empty(pixman_region32_t *);
+bool pixman_region32_not_empty(pixman_region32_t *);
 void pixman_region32_copy(
     pixman_region32_t *, const pixman_region32_t *);
 void pixman_region32_union(

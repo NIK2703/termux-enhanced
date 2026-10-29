@@ -18,14 +18,13 @@ enum {
     OP_END = 0,
     OP_ROW_BEGIN = 1,
     OP_ROW_END = 2,
-    OP_RECT = 3,
-    OP_CURSOR = 5,
     OP_FRAME_BEGIN = 6,
     OP_DAMAGE = 7,
     OP_FRAME_END = 8,
     OP_FILL_RECT = 9,
     OP_GLYPH = 10,
     OP_FILL_TRAPEZOID = 11,
+    OP_IMAGE = 12,
 };
 
 static int failures;
@@ -53,10 +52,6 @@ payload_has_frame_end(const int32_t *commands, int command_count)
             break;
         case OP_ROW_END:
             break;
-        case OP_RECT:
-        case OP_CURSOR:
-            cursor += 4;
-            break;
         case OP_FILL_RECT:
             cursor += 5;
             break;
@@ -65,6 +60,9 @@ payload_has_frame_end(const int32_t *commands, int command_count)
             break;
         case OP_FILL_TRAPEZOID:
             cursor += 9;
+            break;
+        case OP_IMAGE:
+            cursor += 8;
             break;
         case OP_FRAME_BEGIN:
             if (cursor + 8 > command_count)
@@ -195,8 +193,6 @@ has_text_fg(const int32_t *commands, int count, int wanted)
         if (op == 1) {
             cursor++;
         } else if (op == 2) {
-        } else if (op == 3 || op == 5) {
-            cursor += 4;
         } else if (op == 9) {
             cursor += 5; /* x, y, width, height, colour */
         } else if (op == 10) {
@@ -207,6 +203,8 @@ has_text_fg(const int32_t *commands, int count, int wanted)
                 return true;
         } else if (op == 11) {
             cursor += 9;
+        } else if (op == 12) {
+            cursor += 8;
         } else if (op == 6) {
             /* frame header: 8 fields, then OP_DAMAGE triples */
             if (cursor + 8 > count)
@@ -528,6 +526,195 @@ scrolled_view_scroll_tests(void)
 }
 
 static void
+scrolled_cursor_tests(void)
+{
+    struct headless_terminal *ht =
+        headless_create(10, 3, 8, 16, 12, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    /* Force a non-zero grid->offset, then put the cursor at the top of the
+     * live screen. The renderer must map cursor.point.row (a ring index) to
+     * the external viewport address; comparing those numbers directly hides
+     * or misplaces the cursor after scrollback starts. */
+    feed(ht, "one\r\ntwo\r\nthree\r\nfour\r\n");
+    CHECK(headless_history_size(ht) > 0);
+    headless_set_view(ht, 0);
+    feed(ht, "\x1b[1;1H");
+    headless_commit_all_rows(ht);
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+
+    int cursor_fills = 0;
+    int cursor_y = -1;
+    int cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) {
+            const int x = commands[cursor++];
+            const int y = commands[cursor++];
+            const int w = commands[cursor++];
+            const int h = commands[cursor++];
+            const int32_t color = commands[cursor++];
+            if (x == 0 && w == 8 && h == 16 && color == palette[258]) {
+                cursor_fills++;
+                cursor_y = y;
+            }
+        } else if (op == OP_GLYPH) cursor += 7;
+        else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else if (op == OP_IMAGE) cursor += 8;
+        else break;
+    }
+    CHECK(cursor_fills == 1);
+    CHECK(cursor_y == 0);
+
+    headless_destroy(ht);
+}
+
+static void
+sixel_render_tests(void)
+{
+    struct headless_terminal *ht =
+        headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    /* One red sixel column (six pixels, 2:1 aspect ratio). */
+    feed(ht, "\x1bPq#0;2;100;0;0#0~\x1b\\");
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL);
+
+    int image_count = 0;
+    int image_x = -1;
+    int image_y = -1;
+    int image_width = 0;
+    int image_height = 0;
+    uint64_t image_id = 0;
+    uint32_t image_revision = 0;
+    int cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) {
+            cursor++;
+        } else if (op == OP_ROW_END || op == OP_FRAME_END) {
+        } else if (op == OP_FILL_RECT) {
+            cursor += 5;
+        } else if (op == OP_GLYPH) {
+            cursor += 7;
+        } else if (op == OP_FILL_TRAPEZOID) {
+            cursor += 9;
+        } else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) {
+            cursor += 2;
+        } else if (op == OP_IMAGE) {
+            if (cursor + 8 > command_count) break;
+            image_x = commands[cursor++];
+            image_y = commands[cursor++];
+            image_width = commands[cursor++];
+            image_height = commands[cursor++];
+            const uint32_t image_id_lo = (uint32_t)commands[cursor++];
+            const uint32_t image_id_hi = (uint32_t)commands[cursor++];
+            image_id = ((uint64_t)image_id_hi << 32) | image_id_lo;
+            image_revision = (uint32_t)commands[cursor++];
+            cursor++; /* opaque */
+            image_count++;
+        } else {
+            break;
+        }
+    }
+
+    CHECK(image_count == 1);
+    CHECK(image_x == 0 && image_y == 0);
+    CHECK(image_width == 1);
+    CHECK(image_height > 0 && image_height <= 16);
+    CHECK(image_id != 0);
+
+    int pixel_width = 0;
+    int pixel_height = 0;
+    uint32_t pixel_revision = 0;
+    uint32_t *pixels = headless_sixel_pixels(
+        ht, image_id, image_width, image_height, image_revision,
+        &pixel_width, &pixel_height, &pixel_revision);
+    CHECK(pixels != NULL);
+    CHECK(pixel_width == image_width && pixel_height == image_height);
+    CHECK(pixel_revision == image_revision);
+    if (pixels != NULL)
+        CHECK((pixels[0] & 0x00ffffffu) == 0x00ff0000u);
+
+    /* Clean frames do not need to resend an unchanged image. */
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL);
+    bool saw_image = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END)
+            break;
+        if (op == OP_IMAGE) {
+            saw_image = true;
+            break;
+        }
+        if (op == OP_ROW_BEGIN)
+            cursor++;
+        else if (op == OP_ROW_END || op == OP_FRAME_END)
+            ;
+        else if (op == OP_FILL_RECT)
+            cursor += 5;
+        else if (op == OP_GLYPH)
+            cursor += 7;
+        else if (op == OP_FILL_TRAPEZOID)
+            cursor += 9;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) {
+            cursor += 2;
+        } else {
+            break;
+        }
+    }
+    CHECK(!saw_image);
+
+    /* Text overwrites the left edge of a wider image. Upstream crops the
+     * surface through a pixman region subtraction; exercise that path before
+     * the renderer hands the remaining chunks back to Java. */
+    feed(ht,
+         "\x1b[2J\x1b[1;1H"
+         "\x1bPq#0;2;100;0;0#0~~~~~~~~~~~~~~~~~~~~\x1b\\X");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(payload_has_frame_end(commands, command_count));
+
+    headless_destroy(ht);
+}
+
+static void
 canvas_render_tests(void)
 {
     struct headless_terminal *ht =
@@ -559,8 +746,6 @@ canvas_render_tests(void)
             break;
         } else if (op == OP_ROW_BEGIN || op == OP_ROW_END) {
             if (op == OP_ROW_BEGIN) cursor++;
-        } else if (op == OP_RECT || op == OP_CURSOR) {
-            cursor += 4;
         } else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             const int damage = commands[cursor + 7];
@@ -613,7 +798,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -656,7 +840,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -703,7 +886,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -731,6 +913,43 @@ canvas_render_tests(void)
     CHECK(saw_b);
     free(render_text);
 
+    /* OSC-8 links are underlined by upstream render_cell() when the URL
+     * attribute is present. Android has no URL-mode UI, so the bridge enables
+     * the always-on OSC-8 underline; this also exercises the URL branch of the
+     * reused upstream renderer rather than a separate decoration pass. */
+    feed(ht, "\x1b[2J\x1b[H\x1b]8;;https://example.com\x1b\\X\x1b]8;;\x1b\\");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    bool saw_url_underline = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) {
+            const int x = commands[cursor++];
+            cursor++; /* y */
+            const int w = commands[cursor++];
+            const int h = commands[cursor++];
+            const int32_t color = commands[cursor++];
+            if (x == 0 && w == 8 && h > 0 && h < 16 &&
+                color == palette[3])
+                saw_url_underline = true;
+        } else if (op == OP_GLYPH) {
+            cursor += 7;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(saw_url_underline);
+
     /* Adjacent cells sharing an explicit background must not break the text
      * run. The fills are coalesced into one rectangle and the glyphs into one
      * Canvas drawTextRun(), which is important for coloured status lines and
@@ -750,7 +969,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -799,7 +1017,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -847,7 +1064,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -884,7 +1100,6 @@ canvas_render_tests(void)
         if (op == OP_END) break;
         if (op == OP_ROW_BEGIN) cursor++;
         else if (op == OP_ROW_END) {}
-        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
         else if (op == OP_FRAME_BEGIN) {
             if (cursor + 8 > command_count) break;
             cursor += 8 + commands[cursor + 7] * 3;
@@ -914,7 +1129,9 @@ int
 main(void)
 {
     init_palette();
+    sixel_render_tests();
     canvas_render_tests();
+    scrolled_cursor_tests();
     dirty_tracking_tests();
     frame_header_tests();
     render_state_tests();

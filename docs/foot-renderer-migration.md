@@ -3,18 +3,20 @@
 **Ветка:** `feature/foot-terminal-core`
 **Версия приложения:** `0.118.0+enhanced.22` (не меняется)
 **Исходный foot:** `152487e494993ad7fb5633a27c7d7ad0f8810ea5`
-**Статус:** выполнены этапы 1–4 (владение viewport/dirty, commit-ABI,
-frame/damage ABI, scroll-damage и scrolled-up производительность). Этап 5
-подключает **настоящий upstream** `render_cell()` из
+**Статус:** выполнены этапы 1–5, Canvas-only cleanup этапа 6, этап 7
+(OSC-8 underline и sixel) и архитектурное уплотнение этапа 8. Canvas-путь
+переиспользует **настоящий upstream** `render_row()`/`render_cell()` из
 `third_party/foot/render.c` через Canvas compatibility backend: извлечённый
 блок компилируется как `foot-render-cell.inc`, а `pixman`/`fcft` заменены
-тонким shim'ом, который выдаёт команды Canvas вместо растеризации. В
-Canvas-ветке ячейки обходятся слева направо, соседние глифы и полноячеечные
-фоны объединяются в один run, а пустые клетки не проходят через upstream
-`render_cell()`; это снижает число `drawTextRun()`/`drawRect()` на кадр при
-прокрутке. Старый планировщик оставлен только как временный fallback.
-Пиксельный `memmove`-scroll по-прежнему требует retained/native ARGB-backend
-(этап 4). Ограничения Canvas-пути зафиксированы в 6.4 и 10.
+тонким shim'ом, который выдаёт команды Canvas вместо растеризации. Bridge
+вызывает upstream `render_row()` буквально; правый-налево порядок ячеек
+переупорядочивается в Canvas-sink'е перед эмиссией LTR text run'ов. Legacy
+planner, `OP_TEXT` и fallback-политика `OP_RECT`/`OP_CURSOR` удалены:
+`render_cell()` — единственный источник цветов, selection и курсора. OSC-8
+ссылки всегда подчёркиваются upstream-кодом, а sixel собирается upstream
+`sixel.c`; Android получает готовые ARGB-пиксели через `OP_IMAGE` и рисует их
+`Bitmap`. Пиксельный `memmove`-scroll по-прежнему требует retained/native
+ARGB-backend (этап 4). Ограничения Canvas-пути зафиксированы в 6.4, 6.5 и 10.
 
 ---
 
@@ -38,8 +40,8 @@ Canvas-ветке ячейки обходятся слева направо, с�
 
 `render.c` — это не «чистый» рендерер, а Wayland-приложение:
 
-- `pixman_image_t`, `fcft`, `shm`, `buffer_chain`, `wayland`, CSD, search, URL-mode,
-  IME, sixel, overlays и render workers;
+- `pixman_image_t`, `fcft`, `shm`, `buffer_chain`, `wayland`, CSD, search, IME,
+  URL-mode UI, overlays и render workers;
 - `grid_render()` ожидает `struct buffer`, `shm_buffer`, `wl_surface` и pixel format;
 - отрисовка ячеек завязана на `pixman` и `fcft`, которых в Android-сборке нет
   (в `include/` лежат только shadow-заголовки).
@@ -51,7 +53,25 @@ Canvas-ветке ячейки обходятся слева направо, с�
 `include/fcft/fcft.h` и `include/wayland.h` расширены до минимального
 API-подмножества, а `foot_canvas_shim.c` реализует это подмножество поверх
 команд Canvas. Всё, что не входит в блок (Wayland, workers, shm, CSD,
-search, URL-mode, sixel, overlays), остаётся вне Android-рендера.
+search, URL-mode UI, overlays), остаётся вне Android-рендера. При этом upstream
+`sixel.c` и `hsl.c` компилируются: sixel-декодер, палитра, размещение, crop и
+reflow переиспользуются, а pixman/fcft-совместимость и передача результата в
+Canvas живут в `foot_canvas_shim.c` и `TerminalRenderer`. OSC-8 URL-mode UI на
+Android отсутствует, но атрибут ссылки и подчёркивание остаются в upstream
+`render_cell()`.
+
+**Почему не `grid_render()` целиком.** После этапа 8 upstream `render_row()`
+используется буквально, но `grid_render()` всё ещё не линкуется. Он владеет не
+только циклом строк: `shm_get_buffer()`/`buffer_chain`, двойной буферизацией,
+reapply старого damage, scroll-damage `memmove`, render workers, наложением
+sixel на `buf->pix[0]`, overlay/IME/search/URL UI и Wayland-commit. Чтобы
+подключить его без Wayland, понадобился бы полноценный `struct buffer`/shm
+shim с retained ARGB-поверхностью и Java-commit backend, а не тонкая замена
+pixman/fcft. Это отдельный retained-ARGB этап, а не текущая адаптация Canvas.
+Поэтому граница переиспользования сейчас: upstream `render_row()`/`render_cell()`,
+upstream `sixel.c`/`hsl.c`, а Android владеет frame/damage header, сортировкой
+операций под Canvas, шрифтами и Bitmap-кэшем. URL-mode, search, IME и overlays
+относятся к Android UI scope.
 
 Извлечение проверяется на этапе configure и перед каждой сборкой:
 `tools/check-render-cell.sh --check` сверяет SHA-256 исходника, SHA-256
@@ -74,16 +94,21 @@ FootRenderModel (src/render_model.c)                        [наш слой п�
    │  frame/damage header, row selection, canvas sink
    │
    ├── foot-render-cell.inc                                 [upstream, verbatim]
-   │      render_cell() в LTR-цикле: fg/bg, attrs, cursor, selection
+   │      render_row() → render_cell(): fg/bg, attrs, cursor, selection
+   │
+   ├── sixel.c + hsl.c                                     [upstream, verbatim]
+   │      sixel decode → grid->sixel_images → sync/scale/crop/reflow
    │
    ├── foot_canvas_bridge.c                                 [тонкий адаптер]
-   │      synthetic fcft fonts, attrs.clean reset, selection spans
+   │      synthetic fcft fonts, attrs.clean reset, selection spans,
+   │      literal render_row()
    │
    └── foot_canvas_shim.c                                   [pixman/fcft shim]
           fills/glyphs/trapezoids → OP_FILL_RECT/OP_GLYPH/OP_FILL_TRAPEZOID
+          sixel pixman surface    → OP_IMAGE + nativeSixelPixels()
    ▼
 TerminalRenderer (Canvas)                                   [Android backend]
-   │  glyph shaping, Paint, Canvas, clip, commit
+   │  glyph shaping, Paint, Canvas, Bitmap cache, clip, commit
    ▼
 Surface
 
@@ -94,12 +119,13 @@ headless.c (адаптер) ── palette / append / events / snapshots / JNI w
 
 | Слой | Владеет | Не владеет |
 |---|---|---|
-| foot core | grid, row, cell, cursor, selection, scroll damage | пикселями, Canvas, JNI |
-| `FootRenderModel` | viewport, pending full damage, commit dirty, frame/damage header, выбор строк для Canvas | текстом, шрифтами, Canvas |
-| `foot-render-cell.inc` | upstream-политика cell/row: цвета, attrs, cursor, selection | Wayland, shm, workers |
-| `foot_canvas_shim` | pixman/fcft-совместимость, преобразование примитивов в команды | реальной растеризацией шрифтов |
-| `headless.c` | append, палитра, события, snapshot, JNI-facing state | решением «что и где рисовать» |
-| `TerminalRenderer` | шрифты, Canvas, clip, фактическая отрисовка | семантикой терминала |
+| foot core | grid, row, cell, cursor, selection, scroll damage, sixel placements | пикселями, Canvas, JNI |
+| `FootRenderModel` | viewport, pending full damage, commit dirty, frame/damage header, выбор строк, row-op buffer/sort, damage-gate и `OP_IMAGE` | текстом, шрифтами, Canvas |
+| `foot-render-cell.inc` | upstream-политика cell/row: цвета, attrs, cursor, selection, OSC-8 underline | Wayland, shm, workers |
+| upstream `sixel.c` | sixel decode, палитра, размещение, crop, scale, reflow | Canvas, JNI, Bitmap |
+| `foot_canvas_shim` | pixman/fcft-совместимость, region algebra, sixel-поверхности, команды | реальной растеризацией шрифтов |
+| `headless.c` | append, палитра, события, snapshot, JNI-facing state, доступ к sixel-пикселям | решением «что и где рисовать» |
+| `TerminalRenderer` | шрифты, Canvas, clip, Bitmap-кэш sixel, фактическая отрисовка | семантикой терминала |
 | `TerminalView` | `mTopRow`, инвалидация, scrollbar, clip | dirty-состоянием native-ядра |
 
 ---
@@ -120,6 +146,11 @@ headless.c (адаптер) ── palette / append / events / snapshots / JNI w
    помечает все видимые строки; компенсация `mTopRow` при выводе — нет.
 6. **Координаты внешние.** `0` — верх live screen, отрицательные значения — history.
    Внутренние ring-индексы наружу не выходят.
+7. **Sixel identity стабильна.** `OP_IMAGE` несёт id и revision поверхности.
+   Java не угадывает изображение по координатам: id не переиспользуется, а
+   revision меняется при любом изменении пикселей.
+8. **Sixel рисуется после строк.** `OP_IMAGE` идёт после row/fill-команд кадра,
+   чтобы фон частичной строки не закрасил ещё валидное изображение.
 
 ---
 
@@ -238,25 +269,28 @@ Full damage снимается только после commit всех види�
 Пока full damage pending, append сообщает `APPEND_FLAG_FULL_DAMAGE`; Java
 заменяет отдельные dirty-строки на `markAllDirty()` и делает полный invalidate.
 
-### 6.4. Upstream `render_cell()` через Canvas backend
+### 6.4. Upstream `render_row()` через Canvas backend
 
 `foot_render_model_render_frame()` по-прежнему принимает уже
 синхронизированный viewport, band и параметры Android-вида, не трогает
 `grid->view` и не снимает dirty. Для каждой видимой строки он вызывает
-`foot_canvas_render_row()`, а тот — **буквально** upstream `render_cell()` из
-`foot-render-cell.inc`. `render_row()` также извлечён и проверяется хэшем, но
-его цикл справа налево не используется: Canvas-текст должен идти в логическом
-порядке LTR, иначе невозможно объединять соседние глифы в один run.
+`foot_canvas_render_row()`, а тот — **буквально** upstream `render_row()` из
+`foot-render-cell.inc`. Никакого второго LTR-цикла по клеткам нет: upstream
+сам обходит строку справа налево, а Canvas-sink складывает операции строки в
+буфер и перед эмиссией сортирует их по x (при равном x сохраняется исходный
+порядок). Поэтому логический порядок text run'ов остаётся LTR, а порядок
+внутри клетки — background → cursor → glyph → underline/strikeout/URL.
 
 ```text
 foot_canvas_render_row()
-  └─ for col = first .. last          # LTR, пустые края отброшены
-       render_cell()
-         ├─ attrs.clean / confined
-         ├─ fg/bg + reverse + selection + cursor colors
-         ├─ fcft glyph lookup
-         ├─ pixman fill/composite/trapezoid
-         └─ underline / strikeout / URL
+  └─ render_row()                     # upstream verbatim, right-to-left
+       └─ render_cell()
+            ├─ attrs.clean / confined
+            ├─ fg/bg + reverse + selection + cursor colors
+            ├─ fcft glyph lookup
+            ├─ pixman fill/composite/trapezoid → sink callbacks
+            └─ underline / strikeout / URL
+  └─ canvas_flush_ops()               # stable sort by x, replay LTR
 ```
 
 Android-специфичны только шесть вещей:
@@ -272,16 +306,14 @@ Android-специфичны только шесть вещей:
    `pixman_composite_trapezoids()`/`triangles()` — в
    `OP_FILL_TRAPEZOID`. Поэтому upstream-код сам выбирает цвета, курсор,
    selection и стили подчёркивания, а Canvas лишь исполняет примитивы.
-3. **Сброс `attrs.clean` и отсечение пустых клеток.** Canvas не хранит
-   поверхность ячеек между кадрами. `foot_canvas_prepare_row()` снимает
-   `attrs.clean` со всей строки, иначе upstream пропустил бы «чистые» ячейки
-   после заполнения фона. Единица commit'а — строка (`row->dirty`), а не
-   ячейка. При этом bridge не вызывает `render_cell()` для заведомо пустых
-   клеток с default-фоном и без видимых атрибутов; строка обходится только
-   от первой до последней такой клетки. Курсор, selection, reverse,
-   explicit bg, underline/strikeout/url и `row->extra` отключают это
-   отсечение. `attrs.confined`/`overflowing_glyphs` отключены: глифы не
-   должны вылезать за свою клетку.
+3. **Сброс `attrs.clean`.** Canvas не хранит поверхность ячеек между кадрами.
+   `foot_canvas_prepare_row()` снимает `attrs.clean` со всей строки, иначе
+   upstream пропустил бы «чистые» ячейки после заполнения фона. Единица
+   commit'а — строка (`row->dirty`), а не ячейка. Bridge больше не фильтрует
+   пустые клетки отдельным pre-scan'ом: upstream проходит строку целиком, а
+   sink сам отбрасывает default-фон, который уже нарисован Java.
+   `attrs.confined`/`overflowing_glyphs` отключены: глифы не должны вылезать
+   за свою клетку.
 4. **Согласование сетки.** Upstream оперирует целыми пикселями клетки
    (`round(font_width)`), а Java раскладывает колонки по дробному
    `mFontWidth`. `TerminalRenderer.canvasScaleX()` переводит x/width команд
@@ -290,15 +322,19 @@ Android-специфичны только шесть вещей:
    `foot_canvas_prepare_frame()` выставляет `conf->dim.amount = 1.5`
    (значение по умолчанию из `config.c`), потому что headless-конфиг
    создаётся через `calloc`, а не через загрузчик конфигурации foot.
-5. **Коалесинг Canvas-команд.** Sink объединяет соседние глифы с одинаковыми
-   baseline, ARGB, effects и шириной клетки в один `OP_GLYPH`/`drawTextRun()`;
-   пропущенные пробелы восстанавливаются в payload (до 256 клеток), поэтому
-   обычная строка — это один text run, а не одна команда на символ. Полноячеечные
-   fill-прямоугольники одинакового цвета и подряд идущие по x также
-   сливаются в один `OP_FILL_RECT`. Это важно для selection, reverse video и
-   цветных status-line: без слияния каждый такой фон разрывал бы glyph-run.
-   Явно сменённый фон, underline/strikeout и trapezoid по-прежнему начинают
-   новый run.
+5. **Коалесинг и LTR-replay Canvas-команд.** Sink сначала складывает
+   операции строки в `canvas_draw_op[]`, затем стабильно сортирует по x и
+   только после этого эмитит команды. Это компенсирует right-to-left порядок
+   upstream `render_row()` и сохраняет порядок операций внутри клетки. При
+   replay соседние глифы с одинаковыми baseline, ARGB, effects и шириной
+   клетки объединяются в один `OP_GLYPH`/`drawTextRun()`; пропущенные пробелы
+   восстанавливаются в payload (до 256 клеток), поэтому обычная строка — это
+   один text run, а не одна команда на символ. Полноячеечные fill-прямоугольники
+   одинакового цвета и подряд идущие по x также сливаются в один
+   `OP_FILL_RECT`. Это важно для selection, reverse video и цветных
+   status-line: без слияния каждый такой фон разрывал бы glyph-run. Явно
+   сменённый фон, underline/strikeout и trapezoid по-прежнему начинают новый
+   run.
 6. **Прозрачность фона.** Upstream в режиме `ALPHA_MODE_DEFAULT` применяет
    `term->colors.alpha` только к `COLOR_DEFAULT`-ячейкам, а Termux исторически
    делал полупрозрачными и явно закрашенные фоны. Поэтому Canvas-sink
@@ -310,21 +346,62 @@ Selection передаётся в upstream через `cell->attrs.selected`. Br
 расширяет диапазон колонок до целого wide-grapheme, если endpoint попал на
 spacer-ячейку. Upstream сам инвертирует цвета, обрабатывает `fg == bg` и
 рисует block/underline/bar cursor. `term->kbd_focus` временно выставляется
-только на время синхронного `render_cell()`; видимость курсора кодируется
-`cursor_col`, а не состоянием фокуса VT-ядра.
+только на время синхронного `render_row()`; видимость курсора кодируется
+`cursor_col`, а не состоянием фокуса VT-ядра. Отдельной fallback-отрисовки
+курсора/selection в render model больше нет.
 
 Combining marks: `render_cell()` выдаёт base-глиф и затем zero-width marks.
 Sink добавляет mark в UTF-16 payload предыдущего `OP_GLYPH` и увеличивает его
 `charCount`, чтобы Android шейпил base+marks вместе, а не рисовал mark
-отдельно. Пробельные глифы не эмитятся: фон уже нарисован fill-командой; при
-слиянии соседних глифов пропущенные пробелы добавляются в payload, а
-`widthColumns` явно хранит ширину всего run.
+отдельно. Пустые клетки (`wc == 0`) не дают глифа: фон уже нарисован
+fill-командой; при слиянии соседних глифов пропущенные пробелы добавляются в
+payload, а `widthColumns` явно хранит ширину всего run.
 
-`OP_RECT`/`OP_CURSOR` остаются в ABI только для строк, у которых нет
-native row. Legacy-планировщик и `OP_TEXT` удалены: JNI-путь всегда вызывает
-upstream `render_cell()` через Canvas bridge. Runtime-флаг
+`OP_RECT`/`OP_CURSOR` удалены из ABI вместе с fallback-политикой для строк
+без native row. Legacy-планировщик и `OP_TEXT` тоже удалены: JNI-путь всегда
+вызывает upstream `render_row()` через Canvas bridge. Runtime-флаг
 `render.frame_abi` не вводится: Java уже умеет работать без frame header, а
 полный откат делается revert'ом.
+
+### 6.5. OSC-8 и sixel
+
+**OSC-8.** У Android нет URL-mode UI, поэтому `conf->url.osc8_underline`
+выставлен в `OSC8_UNDERLINE_ALWAYS`, а `conf->url.style = UNDERLINE_SINGLE`.
+Подчёркивание рисует сам upstream `render_cell()` через обычный
+`OP_FILL_RECT`; отдельного Java-декоратора нет. URL-режим (подсветка при
+наведении, открытие ссылки) остаётся вне Android-рендера.
+
+**Sixel.** `conf->tweak.sixel = true`; `sixel.c` и `hsl.c` компилируются из
+pinned `third_party/foot`. VT340-палитра sixel (`colors_dark/light.sixel`)
+заполняется рядом с обычной темой, а не оставляется нулевой. При изменении
+размера клетки вызывается `sixel_cell_size_changed()`, при resize/reflow —
+`sixel_reflow()`. Перед кадром `sixel_sync_cache()` создаёт/пересоздаёт
+масштабированную поверхность; crop при перекрытии текстом выполняет region
+algebra из shim'а.
+
+Путь изображения в Canvas:
+
+```text
+upstream sixel.c
+  └─ grid->sixel_images[i] → six->pix (ARGB32 pixman surface)
+       └─ FootRenderModel: damage-gate по строкам изображения
+            └─ OP_IMAGE(x, y, width, height, idLo, idHi, revision, opaque)
+                 └─ TerminalRenderer: Bitmap cache по id/revision
+                      └─ nativeSixelPixels(id, revision, w, h)
+                           └─ копия ARGB под JNI-lock → Bitmap.createBitmap()
+```
+
+`x`/`y` — row-relative пиксели: `y = 0` — верх строки, в которой начинается
+sixel. `idLo` идёт первым, затем `idHi`; Java собирает
+`((long) idHi << 32) | (idLo & 0xffffffffL)`. Изображение передаётся после
+row-команд, чтобы частичная перерисовка фона не закрыла валидный sixel. Если
+изображение ушло из grid, изменило размер или revision, JNI возвращает `NULL`,
+а Java удаляет устаревший `Bitmap`. Кэш ограничен 24 поверхностями.
+
+Пиксели копируются в `jintArray` сразу под тем же mutex, что append/resize;
+указатель `headless_sixel_pixels()` не живёт дольше JNI-вызова. Ширина и
+высота в команде — intrinsic-размер поверхности; Java масштабирует только
+горизонтальную сетку через `mCanvasScaleX`, как и остальные Canvas-команды.
 
 ---
 
@@ -367,11 +444,10 @@ OP_FRAME_BEGIN
   renderTop, renderRows, damageRangeCount
 OP_DAMAGE(firstRow, lastRow)        # повторяется damageRangeCount раз
 OP_ROW_BEGIN(row)
-OP_RECT(startCol, endCol, color, spanView)              # only when no native row
-OP_CURSOR(col, widthCols, color, shape)                 # only when no native row
 OP_FILL_RECT(x, y, width, height, argb)                 # Canvas bridge
 OP_GLYPH(startChar, charCount, x, baseline, widthColumns, argb, effects)
 OP_FILL_TRAPEZOID(x1, y1, x2, y2, x3, y3, x4, y4, argb)
+OP_IMAGE(x, y, width, height, idLo, idHi, revision, opaque)
 OP_ROW_END
 ...
 OP_FRAME_END
@@ -386,8 +462,16 @@ unpremultiplied Android-цвет; shim снимает premultiply, которо�
 bold/italic: underline/strikeout/curly уже нарисованы upstream-кодом как
 fill/trapezoid. `widthColumns` — явная ширина run в клетках; она не
 выводится из первого codepoint, потому что run может содержать пробелы,
-wide-символы, combining marks и ZWJ-кластеры. Ячейки обходятся LTR, поэтому
-UTF-16 payload также идёт в порядке колонок; Java читает его по индексам.
+wide-символы, combining marks и ZWJ-кластеры. Sink сортирует операции строки
+по x перед эмиссией, поэтому UTF-16 payload идёт в порядке колонок, хотя
+upstream `render_row()` обходит ячейки справа налево; Java читает payload по
+индексам.
+`OP_IMAGE` использует ту же row-relative систему: `y = 0` — верх строки, в
+которой начинается sixel. `idLo`/`idHi` образуют стабильный 64-битный id
+поверхности, `revision` инкрементируется при изменении пикселей, `opaque`
+сейчас информативный (Java всегда рисует ARGB с блендингом). Сами пиксели
+забираются отдельным JNI-вызовом `nativeSixelPixels(handle, id, revision, w, h)`
+только когда Java ещё не имеет актуального `Bitmap`.
 
 Свойства:
 
@@ -523,7 +607,7 @@ repaint не мог «потерять» полное повреждение.
   подтверждено; device-профилирование остаётся;
 - p95 кадра не хуже текущего — требует device-прогона.
 
-### Этап 5. Upstream `render_cell()` через Canvas bridge — выполнен
+### Этап 5. Upstream `render_row()`/`render_cell()` через Canvas bridge — выполнен
 
 - [x] Расширить shadow-заголовки `pixman.h`, `fcft/fcft.h`, `wayland.h` до
       API, которое реально использует извлечённый блок.
@@ -532,9 +616,9 @@ repaint не мог «потерять» полное повреждение.
 - [x] `foot_canvas_shim.c`: solid/bits/target images, fills, glyph composites,
       trapezoids/triangles, synthetic fcft fonts и glyph cache.
 - [x] `foot_canvas_bridge.c`: synthetic fonts из `font_width`/`font_line_spacing`/
-      `font_ascent`, сброс `attrs.clean`, selection spans, LTR-вызов upstream
-      `render_cell()`; `render_row()` остаётся извлечённым и проверяется
-      хэшем.
+      `font_ascent`, сброс `attrs.clean`, selection spans, буквальный вызов
+      upstream `render_row()`; `render_cell()` остаётся извлечённым и
+      проверяется хэшем.
 - [x] Canvas sink: `OP_FILL_RECT`, `OP_GLYPH`, `OP_FILL_TRAPEZOID`;
       row-relative координаты и unpremultiplied ARGB.
 - [x] `TerminalRenderer`: исполнение новых opcode, clip строки, Path для
@@ -547,14 +631,14 @@ repaint не мог «потерять» полное повреждение.
       0..7 (base16/base256), независимо от совпадения RGB с базовой палитрой;
       foot-овский palette-match отключён, чтобы `38;5;16` не становился
       bright из-за совпадения с palette[0].
-- [x] Combining marks сливаются в предыдущий `OP_GLYPH`, пробельные глифы не
-      эмитятся; `OP_GLYPH` несёт явный `widthColumns`.
+- [x] Combining marks сливаются в предыдущий `OP_GLYPH`; пустые клетки
+      (`wc == 0`) не дают глифа; `OP_GLYPH` несёт явный `widthColumns`.
+- [x] Sink буферизует операции строки и стабильно сортирует их по x перед
+      LTR-эмиссией, компенсируя right-to-left обход upstream `render_row()`.
 - [x] LTR-батчинг: соседние глифы с одинаковым стилем/шириной сливаются в один
       text run, пропущенные пробелы восстанавливаются в payload.
 - [x] Полноячеечные fills одинакового цвета сливаются по x, поэтому
       selection/reverse/status-line не разрывают glyph-run.
-- [x] Пустые default-клетки не вызывают `render_cell()`; строка обходится только
-      от первой до последней видимой клетки.
 - [x] Native canvas-тесты: обычный глиф, block cursor, selection inversion,
       wide CJK positioning, слитый цветной фон и один glyph-run.
 - [x] `tools/check-render-cell.sh --check` на configure и перед сборкой
@@ -568,12 +652,55 @@ repaint не мог «потерять» полное повреждение.
 ### Этап 6. Cleanup
 
 - [ ] Удалить Java dirty-зеркало после стабилизации.
-- [x] Удалить legacy planner и `OP_TEXT` из native/Java command-ABI.
-      `OP_RECT`/`OP_CURSOR` сохранены для строк без native row.
+- [x] Удалить legacy planner и `OP_TEXT` из native/Java command-ABI;
+      `OP_RECT`/`OP_CURSOR` и fallback-политика для строк без native row тоже
+      удалены.
 - [x] Обновить документацию и тесты; native/JVM-тесты покрывают Canvas-only
       поток и Termux bold-in-bright.
 - [ ] Проверить, что `third_party/foot` остаётся pinned и не патчится.
       SHA-256 extracted-блока по-прежнему проверяется при configure/сборке.
+
+### Этап 7. OSC-8 underline и sixel — реализован
+
+- [x] `conf->tweak.sixel = true`; upstream `sixel.c`/`hsl.c` собираются из
+      pinned submodule, sixel-стабы удалены.
+- [x] VT340 sixel-палитра заполняется вместе с terminal theme; включены
+      нужные shadow-поля `wayland.h` и `hsl.h`.
+- [x] `sixel_cell_size_changed()` на смену метрик клетки, `sixel_reflow()` на
+      resize/reflow.
+- [x] `FootRenderModel` выдаёт `OP_IMAGE` после row-команд, только для
+      повреждённых строк и с обрезкой по видимому band.
+- [x] `headless_sixel_pixels()` проверяет id, revision и размеры; JNI копирует
+      ARGB под lock в `jintArray`.
+- [x] `TerminalRenderer` кэширует `Bitmap` по id/revision, удаляет устаревшие
+      записи и ограничивает кэш 24 изображениями.
+- [x] OSC-8: `OSC8_UNDERLINE_ALWAYS` + `UNDERLINE_SINGLE`; подчёркивание
+      рисует upstream `render_cell()`, URL-mode UI отсутствует.
+- [x] Native-тесты: красный sixel и `OP_IMAGE`, чтение пикселей, отсутствие
+      повторной отправки на чистом кадре, перекрытие/обрезка текстом, OSC-8
+      underline.
+- [ ] Визуальная проверка sixel/OSC-8 на устройстве: масштаб при смене
+      размера клетки, прокрутка, перекрытие текстом, прозрачность фона.
+
+### Этап 8. Архитектурное уплотнение — выполнен
+
+- [x] `foot_canvas_render_row()` вызывает upstream `render_row()` буквально;
+      второго LTR-цикла по `render_cell()` больше нет.
+- [x] Canvas-sink буферизует операции одной строки (`canvas_draw_op[]`),
+      стабильно сортирует по x и только затем эмитит `OP_FILL_RECT`/
+      `OP_GLYPH`/`OP_FILL_TRAPEZOID`; combining marks наследуют `sort_x`
+      базового глифа.
+- [x] Удалены fallback-политика и opcode `OP_RECT`/`OP_CURSOR`; курсор,
+      selection и цвета теперь приходят только из upstream
+      `render_cell()`/`draw_cursor()`.
+- [x] Исправлено сопоставление курсора при scrollback: `cursor.point.row` —
+      ring-индекс, а render-строка — внешний адрес. Сравнение row-указателей
+      через `grid_row()` не теряет курсор при `grid->offset != 0`.
+- [x] Native regression: курсор на верхней строке live screen при непустой
+      истории должен дать ровно один cursor-fill в `y == 0`.
+- [x] Проверено, что `grid_render()` целиком пока не интегрируется без
+      retained `struct buffer`/shm backend; оценка зафиксирована в разделе 2.
+- [ ] Визуальная проверка на устройстве и p95 после сборки APK.
 
 ---
 
@@ -600,12 +727,22 @@ repaint не мог «потерять» полное повреждение.
 - partial scroll region помечает только слоты, у которых сменился row-указатель;
 - Canvas bridge: обычный глиф, block cursor с contrast glyph, selection
   inversion, wide CJK на позиции 0/2 колонки;
+- Canvas bridge: курсор на верхней строке live screen при непустой истории
+  рисуется ровно один раз в `y == 0`, а не теряется из-за ring/external
+  несовпадения;
 - Canvas bridge: три соседних ASCII-глифа дают один `OP_GLYPH` с `charCount=3`
   и `widthColumns=3`;
 - Canvas bridge: три клетки с одинаковым явным фоном дают один fill шириной
   24 px и один glyph-run;
 - Canvas bridge: явно закрашенный фон при `background_alpha=128` получает
   alpha 128, а не остаётся непрозрачным;
+- sixel: красный sixel даёт один `OP_IMAGE` с ненулевым id, `headless_sixel_pixels()`
+  возвращает поверхность нужного размера и красный пиксель;
+- sixel: чистый кадр после commit не повторяет `OP_IMAGE`;
+- sixel: перекрытие широкого изображения текстом проходит через crop/region
+  subtraction и не теряет `OP_FRAME_END`;
+- OSC-8: `\e]8;;URL\e\\X\e]8;;\e\\` даёт underline-fill цвета foreground,
+  нарисованный upstream `render_cell()`;
 - `check-render-cell.sh --check` подтверждает source/output SHA-256 и точный
   диапазон извлечения.
 
@@ -614,9 +751,14 @@ repaint не мог «потерять» полное повреждение.
 - `TerminalRenderer` коммитит только `rowDrawn`-строки;
 - `canvasScaleX()` переводит целую native-сетку в дробный `mFontWidth`;
 - новые opcode корректно пропускаются в `loadRenderText` и исполняются в
-  основном цикле (`OP_FILL_RECT`, `OP_GLYPH`, `OP_FILL_TRAPEZOID`);
+  основном цикле (`OP_FILL_RECT`, `OP_GLYPH`, `OP_FILL_TRAPEZOID`, `OP_IMAGE`);
+- `OP_IMAGE` использует `Bitmap`-кэш по id/revision, повторно не дергает JNI
+  для неизменившейся поверхности и удаляет bitmap при `NULL`/новой revision;
+- `nativeSixelPixels()` копирует только актуальную поверхность и отклоняет
+  несовпадение revision/размеров;
 - `RenderPayloadTest` проверяет LTR-порядок UTF-16 payload, новый
-  `OP_GLYPH.widthColumns` и совпадение с `getRenderText()`;
+  `OP_GLYPH.widthColumns`, совпадение с `getRenderText()`, корректную сборку
+  64-битного id из `idLo`/`idHi` и получение sixel-пикселей через JNI;
 - full clip → `clearDirtyState` → native commit all;
 - partial clip оставляет dirty вне clip;
 - scrolled-up streaming не вызывает full-screen dirty и перерисовывает только
@@ -628,6 +770,14 @@ repaint не мог «потерять» полное повреждение.
 - scrollbar band и cursor blink не теряют native damage;
 - `mPixelsValid == false` → рисуются все видимые строки, commit all.
 
+Локальный JVM-прогон `terminal-emulator` требует Android `libtermux_terminal.so`:
+`System.loadLibrary()` ищет его в `java.library.path`, а Termux-linker не
+открывает `.so` из `/storage`. Для проверки библиотеку из
+`terminal-emulator/build/intermediates/cxx/Debug/.../obj/arm64-v8a/` кладут в
+`$PREFIX/lib`, а Gradle test task запускают с `-Djava.library.path=$PREFIX/lib`
+(init script). Иначе тесты падают с `UnsatisfiedLinkError`, не из-за кода
+рендерера.
+
 ### Устройство
 
 1. `top`/`htop` в scrolled-up режиме.
@@ -636,6 +786,9 @@ repaint не мог «потерять» полное повреждение.
 4. История: прокрутка вверх, вывод внизу, возврат на дно.
 5. Смена темы/палитры при прокрученной истории.
 6. Resize/поворот, alternate screen (`less`, `vim`).
+7. Sixel-изображение: отрисовка, смена размера шрифта/клетки, прокрутка,
+   перекрытие текстом и прозрачный фон.
+8. OSC-8 ссылка: подчёркивание и его сохранение после прокрутки/перерисовки.
 
 ---
 
@@ -655,6 +808,11 @@ repaint не мог «потерять» полное повреждение.
 | `.inc` разошёлся с pinned `render.c` | configure/PRE_BUILD проверяют source/output SHA-256; `--write` только после осознанного re-pin |
 | shim расходится с pixman/fcft | API ограничен фактическими вызовами блока; `-Wno-unused` не скрывает несовпадение типов |
 | Полупрозрачный фон темнеет | shim снимает premultiply перед передачей ARGB в Canvas |
+| sixel-пиксели меняются после `OP_IMAGE` | JNI копирует под lock и сверяет revision/размеры; Java удаляет устаревший Bitmap |
+| `Bitmap`-кэш sixel растёт | кэш ограничен 24 записями, старые `Bitmap.recycle()` |
+| sixel не переживает resize/reflow | `sixel_cell_size_changed()`/`sixel_reflow()` + `sixel_sync_cache()` перед кадром |
+| кроп sixel при перекрытии текстом ломает поверхность | region algebra shim'а; native-тест с перекрытием |
+| OSC-8 ссылка не видна без URL-mode UI | всегда включён upstream underline; native-тест fill'а |
 
 Откат этапа 1: вернуть очистку `row->dirty` в append, убрать `nativeSetView`/
 `nativeCommit*` вызовы, вернуть `headless_render` без viewport-модели. Версия и
@@ -670,46 +828,59 @@ native всё ещё коммитит painted rows; frame header можно иг
 старому планировщику из истории git; Java-парсер новых opcode можно оставить:
 они просто не появятся в потоке.
 
+Откат этапа 7: выключить `conf->tweak.sixel`, вернуть sixel-стабы вместо
+`upstream sixel.c`/`hsl.c`, убрать `OP_IMAGE` из render model и Java-парсер
+`Bitmap`; OSC-8 вернуть к `OSC8_UNDERLINE_URL_MODE` (ссылки перестанут быть
+видны без URL-mode UI).
+
 ---
 
-## 11. Изменённые файлы этапов 1–5
+## 11. Изменённые файлы этапов 1–8
 
 - `terminal-emulator/src/main/foot/src/render_model.c` — viewport, full damage,
-  commit, frame/damage header, Canvas sink; переиспользуемые command/text
-  buffers. Legacy planner удалён.
+  commit, frame/damage header, row-op buffer/sort, Canvas sink; переиспользуемые
+  command/text buffers. Legacy planner удалён; добавлен damage-gated
+  `OP_IMAGE` и pointer-сопоставление курсора при scrollback.
 - `terminal-emulator/src/main/foot/src/render_model.h` — API модели и palette
   layout.
 - `terminal-emulator/src/main/foot/src/foot-render-cell.inc` — verbatim
   upstream `attrs_to_font()` … `render_row()`; генерируется скриптом.
-- `terminal-emulator/src/main/foot/src/foot_canvas_backend.h` — sink и
-  frame/row API Canvas-моста.
+- `terminal-emulator/src/main/foot/src/foot_canvas_backend.h` — sink,
+  frame/row API Canvas-моста и id/revision sixel-изображений.
 - `terminal-emulator/src/main/foot/src/foot_canvas_bridge.c` — synthetic fonts,
-  сброс `attrs.clean`, selection spans, отсечение пустых клеток и LTR-вызов
-  upstream `render_cell()`.
+  сброс `attrs.clean`, selection spans, буквальный вызов upstream
+  `render_row()`; инвалидация sixel-кэша при смене клетки.
 - `terminal-emulator/src/main/foot/src/foot_canvas_shim.c` — pixman/fcft
-  compatibility backend, glyph cache, Canvas-примитивы.
+  compatibility backend, glyph cache, Canvas-примитивы, region algebra,
+  sixel-поверхности и их id/revision.
 - `terminal-emulator/src/main/foot/tools/check-render-cell.sh` — извлечение,
   SHA-256 и режим `--check` для configure/PRE_BUILD.
 - `terminal-emulator/src/main/foot/src/headless.c` — append, dirty ownership,
-  палитра, события, snapshot, тонкие JNI-обёртки; metrics handoff.
-- `terminal-emulator/src/main/foot/src/headless.h` — новые entry points.
-- `terminal-emulator/src/main/foot/src/jni.c` — JNI setView/commit.
-- `terminal-emulator/src/main/foot/tests/foot_core_test.c` — damage/frame/planner
-  и Canvas-bridge regression tests.
-- `terminal-emulator/src/main/foot/CMakeLists.txt` — сборка модуля, теста и
-  проверка извлечённого блока.
+  палитра, события, snapshot, тонкие JNI-обёртки; VT340 sixel-палитра,
+  `sixel_reflow()`/`sixel_cell_size_changed()` и доступ к пикселям.
+- `terminal-emulator/src/main/foot/src/headless.h` — новые entry points,
+  включая `headless_sixel_pixels()`.
+- `terminal-emulator/src/main/foot/src/jni.c` — JNI setView/commit и
+  `nativeSixelPixels`.
+- `terminal-emulator/src/main/foot/tests/foot_core_test.c` — damage/frame/planner,
+  Canvas-bridge, OSC-8 underline и sixel regression tests.
+- `terminal-emulator/src/main/foot/CMakeLists.txt` — сборка модуля, теста,
+  upstream `sixel.c`/`hsl.c` и проверка извлечённого блока.
+- `terminal-emulator/src/main/foot/include/{pixman,wayland,srgb}.h` — shadow-API
+  для upstream sixel/pixman-пути.
 - `terminal-view/src/main/java/com/termux/view/TerminalRenderer.java` — frame
-  parser, native damage, painted-row commit, новые Canvas opcode.
+  parser, native damage, painted-row commit, новые Canvas opcode и Bitmap-кэш
+  sixel.
 - `terminal-view/src/main/java/com/termux/view/TerminalView.java` — viewport
   synchronization, clip/invalidation.
 - `terminal-emulator/src/main/java/com/termux/terminal/TerminalNative.java` —
-  native-методы viewport/commit и флаг полного повреждения.
+  native-методы viewport/commit, флаг полного повреждения и sixel-пиксели.
 - `terminal-emulator/src/main/java/com/termux/terminal/TerminalEmulator.java` —
-  `setViewport`, `commitRenderRows`, append flags.
+  `setViewport`, `commitRenderRows`, append flags, `getSixelPixels()`.
 - `terminal-emulator/src/main/java/com/termux/terminal/TerminalBuffer.java` —
   native commit all при сбросе dirty state.
 - `terminal-emulator/src/test/java/com/termux/terminal/RenderPayloadTest.java` —
-  frame-заголовок и damage-диапазоны.
+  frame-заголовок, damage-диапазоны, `OP_IMAGE` и sixel-пиксели через JNI.
 - `terminal-emulator/src/test/java/com/termux/terminal/AppendStateBufferTest.java` —
   native commit/viewport.
 - `terminal-emulator/src/test/java/com/termux/terminal/ScrolledUpdateRepaintTest.java` —
@@ -950,10 +1121,11 @@ upper half block) шириной 14 px и высотой 14 px каждая, ц�
 ### Canvas-only cleanup и bold-in-bright parity (29.10.2026)
 
 Удалён второй, legacy-планировщик клеток. `FootRenderModel` теперь всегда
-вызывает upstream `render_cell()` через Canvas bridge; `use_canvas`,
+вызывает upstream `render_row()` через Canvas bridge; `use_canvas`,
 `headless_set_use_canvas()`, `foot_render_model_set_use_canvas()`, `OP_TEXT`
-и Java `drawTextRun()` удалены. `OP_RECT`/`OP_CURSOR` остались только для
-редких строк без native row.
+и его Java-обработчик удалены. Позже, на этапе 8, удалены и `OP_RECT`/
+`OP_CURSOR`: fallback-строк без native row больше нет, а курсор и selection
+рисует только upstream `render_cell()`.
 
 При переносе обнаружилась регрессия bold-in-bright: foot сравнивает
 разрешённый RGB с первыми восемью цветами палитры, поэтому `38;5;16` (чёрный,
@@ -978,3 +1150,64 @@ upper half block) шириной 14 px и высотой 14 px каждая, ц�
 - готовый файл:
   `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage6-canvas-only.apk`;
 - device-проверка не выполнялась: установка APK остаётся за пользователем.
+
+---
+
+## 16. Фактическая проверка этапа 7 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`; включены
+  sixel-проверки (`OP_IMAGE`, пиксели, отсутствие повторной отправки на чистом
+  кадре, перекрытие/обрезка текстом) и OSC-8 underline.
+- `check-render-cell.sh --check`: `foot-render-cell.inc: ok`, SHA-256
+  `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`.
+- `RenderPayloadTest`: 3/3, включая end-to-end `OP_IMAGE` →
+  `nativeSixelPixels()` и проверку красного пикселя; `AppendStateBufferTest`:
+  2/2. Итого целевые JVM-тесты: 5/5.
+- `terminal-view` JVM: 42/42; `:terminal-emulator:compileDebugJavaWithJavac` и
+  `:terminal-view:compileDebugJavaWithJavac`: успешно.
+- При проверке найден и исправлен реальный баг ABI: native кладёт `idLo`
+  первым, а Java собирала id в обратном порядке. Без исправления
+  `nativeSixelPixels()` всегда возвращал `NULL`, хотя `OP_IMAGE` уже
+  появлялся в потоке. Regression-тест теперь получает пиксели через JNI.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `fc8cc5a2963c166dd83d8c1ff574c068f773cf515f3283d6069c269933c18c0a`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage7-sixel-url.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` с
+  `Java_com_termux_terminal_TerminalNative_nativeSixelPixels`; debug-вывод
+  sixel в библиотеке отсутствует.
+- Устройство не перезапускалось: текущая Termux-сессия является рабочим
+  окружением, поэтому `adb install`/`force-stop` не применялись. Установка и
+  визуальная проверка sixel/OSC-8 остаются за пользователем.
+
+---
+
+## 17. Фактическая проверка этапа 8 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Bridge вызывает
+  upstream `render_row()`; sink сортирует row-операции по x и сохраняет
+  порядок внутри клетки. Добавлен regression на курсор при непустой истории:
+  ровно один cursor-fill в `y == 0`, без потери из-за сравнения ring-индекса
+  `cursor.point.row` с внешним адресом строки.
+- `check-render-cell.sh --check`: `foot-render-cell.inc: ok`, SHA-256
+  `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`.
+  Извлечённый upstream-блок не менялся.
+- Целевые JVM-тесты: `RenderPayloadTest` 3/3, `AppendStateBufferTest` 2/2
+  (5/5).
+- `terminal-view` JVM: 42/42; Java-компиляция `terminal-emulator` и
+  `terminal-view` успешна.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `701ca9e01ceed6648689b3b56ac44f86fbe04cc4d2828f0d1a9134997c5516ae`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage8-render-row.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` с обновлённым
+  `render_row()`-путём и исправлением курсора.
+- Устройство не перезапускалось: установка APK и визуальная проверка
+  `tmux`/`htop`/OpenCode TUI, sixel/OSC-8, курсора в history и p95 остаются за
+  пользователем.

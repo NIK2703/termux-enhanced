@@ -35,12 +35,25 @@ struct foot_canvas {
 
 struct pixman_image {
     enum image_kind kind;
+    /* Monotonic identity used by the Java Bitmap cache. Unlike the image
+     * pointer, it is never reused after a pixman image is freed. */
+    uint64_t id;
     uint32_t solid;
     uint32_t *bits;
     int width;
     int height;
     int stride;
     pixman_format_code_t format;
+
+    /* Sixel needs one scaling composite per image after a cell-size change.
+     * Keep the transform factors instead of the full fixed-point matrix. */
+    bool has_transform;
+    double scale_x;
+    double scale_y;
+
+    /* Incremented whenever this image's pixels are changed. The Java side
+     * uses it to invalidate its Bitmap cache for a sixel image. */
+    uint32_t revision;
 
     char32_t glyph_cp;
     int glyph_y;
@@ -55,6 +68,17 @@ struct canvas_glyph_cache {
     struct fcft_glyph glyph;
     struct canvas_glyph_cache *next;
 };
+
+static uint64_t next_image_id = 1;
+
+static uint64_t
+allocate_image_id(void)
+{
+    uint64_t id = next_image_id++;
+    if (id == 0)
+        id = next_image_id++;
+    return id;
+}
 
 static uint8_t
 pixman_channel_to_argb(uint16_t channel, uint16_t alpha)
@@ -112,6 +136,7 @@ foot_canvas_target_create(
     }
     *target = (struct pixman_image){
         .kind = IMAGE_TARGET,
+        .id = allocate_image_id(),
         .format = PIXMAN_a8r8g8b8,
         .canvas = canvas,
     };
@@ -127,10 +152,40 @@ foot_canvas_target_destroy(pixman_image_t *target)
     free(target);
 }
 
+uint32_t
+foot_canvas_image_revision(pixman_image_t *image)
+{
+    return image != NULL ? image->revision : 0;
+}
+
+uint64_t
+foot_canvas_image_id(pixman_image_t *image)
+{
+    return image != NULL ? image->id : 0;
+}
+
 void *
 pixman_image_get_data(pixman_image_t *image)
 {
     return image != NULL ? image->bits : NULL;
+}
+
+int
+pixman_image_get_width(pixman_image_t *image)
+{
+    return image != NULL ? image->width : 0;
+}
+
+int
+pixman_image_get_height(pixman_image_t *image)
+{
+    return image != NULL ? image->height : 0;
+}
+
+pixman_image_t *
+pixman_image_ref(pixman_image_t *image)
+{
+    return image;
 }
 
 pixman_format_code_t
@@ -151,6 +206,7 @@ pixman_image_create_bits(
         stride = width * 4;
     *image = (struct pixman_image){
         .kind = IMAGE_BITS,
+        .id = allocate_image_id(),
         .bits = bits,
         .width = width,
         .height = height,
@@ -176,6 +232,7 @@ pixman_image_create_solid_fill(const pixman_color_t *color)
         return NULL;
     *image = (struct pixman_image){
         .kind = IMAGE_SOLID,
+        .id = allocate_image_id(),
         .solid = argb_from_pixman(color),
         .format = PIXMAN_a8r8g8b8,
     };
@@ -191,8 +248,19 @@ pixman_image_unref(pixman_image_t *image)
 void
 pixman_image_set_transform(pixman_image_t *image, const pixman_transform_t *transform)
 {
-    (void)image;
-    (void)transform;
+    if (image == NULL)
+        return;
+    image->has_transform = transform != NULL;
+    if (transform == NULL) {
+        image->scale_x = 1.0;
+        image->scale_y = 1.0;
+        return;
+    }
+    /* pixman_transform_t stores fixed-point values. Sixel only uses a
+     * symmetric scale here; the caller's destination size is authoritative if
+     * this extraction is ambiguous. */
+    image->scale_x = (double)transform->xx / 65536.0;
+    image->scale_y = (double)transform->yy / 65536.0;
 }
 
 void
@@ -255,7 +323,45 @@ pixman_image_fill_rectangles(
                 }
             }
         }
+        image->revision++;
     }
+}
+
+static uint32_t
+blend_over_pixel(uint32_t src, uint32_t dst)
+{
+    const uint32_t sa = src >> 24;
+    if (sa == 0)
+        return dst;
+    if (sa == 255)
+        return src;
+    const uint32_t inv = 255 - sa;
+    const uint32_t dr = (dst >> 16) & 0xff;
+    const uint32_t dg = (dst >> 8) & 0xff;
+    const uint32_t db = dst & 0xff;
+    const uint32_t r = ((src >> 16) & 0xff) + (dr * inv + 127) / 255;
+    const uint32_t g = ((src >> 8) & 0xff) + (dg * inv + 127) / 255;
+    const uint32_t b = (src & 0xff) + (db * inv + 127) / 255;
+    return ((sa + (dst >> 24) * inv / 255) << 24) |
+        ((r > 255 ? 255 : r) << 16) |
+        ((g > 255 ? 255 : g) << 8) |
+        (b > 255 ? 255 : b);
+}
+
+static uint32_t
+image_pixel(const struct pixman_image *image, int x, int y, uint32_t fallback)
+{
+    if (image == NULL)
+        return fallback;
+    if (image->kind == IMAGE_SOLID)
+        return image->solid;
+    if (image->kind != IMAGE_BITS || image->bits == NULL)
+        return fallback;
+    if (x < 0 || y < 0 || x >= image->width || y >= image->height)
+        return fallback;
+    const uint32_t *row = (const uint32_t *)((const char *)image->bits +
+                                             (size_t)y * image->stride);
+    return row[x];
 }
 
 void
@@ -264,45 +370,76 @@ pixman_image_composite32(
     pixman_image_t *dst, int src_x, int src_y, int mask_x, int mask_y,
     int dst_x, int dst_y, int width, int height)
 {
-    (void)op;
-    (void)src_x;
-    (void)src_y;
     (void)mask_x;
     (void)mask_y;
-    (void)width;
-    (void)height;
 
-    if (dst == NULL || dst->kind != IMAGE_TARGET || dst->canvas == NULL ||
-        dst->canvas->sink == NULL)
+    if (dst == NULL || width <= 0 || height <= 0)
+        return;
+
+    if (dst->kind == IMAGE_TARGET && dst->canvas != NULL &&
+        dst->canvas->sink != NULL)
     {
+        const struct foot_canvas *canvas = dst->canvas;
+        struct pixman_image *glyph = NULL;
+        if (mask != NULL && mask->kind == IMAGE_GLYPH)
+            glyph = mask;
+        else if (src != NULL && src->kind == IMAGE_GLYPH)
+            glyph = src;
+
+        if (glyph != NULL && canvas->sink->draw_glyph != NULL) {
+            uint32_t argb = 0xffffffffu;
+            if (src != NULL && src->kind == IMAGE_SOLID)
+                argb = src->solid;
+            canvas->sink->draw_glyph(
+                canvas->sink->data, glyph->glyph_cp, dst_x,
+                row_y(canvas, dst_y) + glyph->glyph_y,
+                argb, glyph->glyph_font_index);
+            return;
+        }
+
+        if (src != NULL && src->kind == IMAGE_SOLID &&
+            canvas->sink->fill_rect != NULL)
+        {
+            canvas->sink->fill_rect(
+                canvas->sink->data, dst_x, row_y(canvas, dst_y), width, height,
+                src->solid);
+        }
         return;
     }
 
-    const struct foot_canvas *canvas = dst->canvas;
-    struct pixman_image *glyph = NULL;
-    if (mask != NULL && mask->kind == IMAGE_GLYPH)
-        glyph = mask;
-    else if (src != NULL && src->kind == IMAGE_GLYPH)
-        glyph = src;
-
-    if (glyph != NULL && canvas->sink->draw_glyph != NULL) {
-        uint32_t argb = 0xffffffffu;
-        if (src != NULL && src->kind == IMAGE_SOLID)
-            argb = src->solid;
-        canvas->sink->draw_glyph(
-            canvas->sink->data, glyph->glyph_cp, dst_x,
-            row_y(canvas, dst_y) + glyph->glyph_y,
-            argb, glyph->glyph_font_index);
+    if (dst->kind != IMAGE_BITS || dst->bits == NULL)
         return;
-    }
 
-    if (src != NULL && src->kind == IMAGE_SOLID &&
-        canvas->sink->fill_rect != NULL)
-    {
-        canvas->sink->fill_rect(
-            canvas->sink->data, dst_x, row_y(canvas, dst_y), width, height,
-            src->solid);
+    /* Sixel cropping/scaling composites into an owned ARGB32 buffer. */
+    for (int y = 0; y < height; y++) {
+        const int dy = dst_y + y;
+        if (dy < 0 || dy >= dst->height)
+            continue;
+        uint32_t *dst_row = (uint32_t *)((char *)dst->bits +
+                                         (size_t)dy * dst->stride);
+        for (int x = 0; x < width; x++) {
+            const int dx = dst_x + x;
+            if (dx < 0 || dx >= dst->width)
+                continue;
+
+            int sx = src_x + x;
+            int sy = src_y + y;
+            if (src != NULL && src->has_transform) {
+                sx = (int)(x * src->scale_x);
+                sy = (int)(y * src->scale_y);
+            }
+            const uint32_t source = image_pixel(src, sx, sy, 0);
+            if (op == PIXMAN_OP_SRC)
+                dst_row[dx] = source;
+            else if (op == PIXMAN_OP_CLEAR)
+                dst_row[dx] = 0;
+            else if (op == PIXMAN_OP_OVER_REVERSE)
+                dst_row[dx] = blend_over_pixel(dst_row[dx], source);
+            else
+                dst_row[dx] = blend_over_pixel(source, dst_row[dx]);
+        }
     }
+    dst->revision++;
 }
 
 void
@@ -380,8 +517,38 @@ pixman_int_to_fixed(int value)
     return (pixman_fixed_t)(value << 16);
 }
 
-/* Region storage is not needed: clipping is already applied by the Canvas row
- * clip and by the cell-level bounds checked by render_cell(). */
+/* A compact rectangle-set region used by the upstream sixel code. The normal
+ * cell renderer never needs it, so only the operations sixel.c actually calls
+ * are implemented. Rectangles are kept as a list; subtract may split a
+ * rectangle into four pieces, exactly like pixman's region algebra. */
+static void
+region_reserve(pixman_region32_t *region, int count)
+{
+    if (region == NULL || count <= region->capacity)
+        return;
+    int capacity = region->capacity > 0 ? region->capacity : 4;
+    while (capacity < count)
+        capacity *= 2;
+    pixman_box32_t *resized = realloc(
+        region->rects, (size_t)capacity * sizeof(resized[0]));
+    if (resized == NULL)
+        return;
+    region->rects = resized;
+    region->capacity = capacity;
+}
+
+static void
+region_add(pixman_region32_t *region, int x1, int y1, int x2, int y2)
+{
+    if (region == NULL || x1 >= x2 || y1 >= y2)
+        return;
+    region_reserve(region, region->count + 1);
+    if (region->count >= region->capacity)
+        return;
+    region->rects[region->count++] =
+        (pixman_box32_t){x1, y1, x2, y2};
+}
+
 pixman_region32_t *
 pixman_region32_create(int count)
 {
@@ -392,98 +559,274 @@ pixman_region32_create(int count)
 void
 pixman_region32_destroy(pixman_region32_t *region)
 {
+    if (region == NULL)
+        return;
+    free(region->rects);
     free(region);
 }
 
-void pixman_region32_init(pixman_region32_t *region) { (void)region; }
-void pixman_region32_init_rect(
+void
+pixman_region32_init(pixman_region32_t *region)
+{
+    if (region != NULL)
+        memset(region, 0, sizeof(*region));
+}
+
+void
+pixman_region32_init_rect(
     pixman_region32_t *region, int x, int y, unsigned width, unsigned height)
 {
-    (void)region;
-    (void)x;
-    (void)y;
-    (void)width;
-    (void)height;
+    if (region == NULL)
+        return;
+    memset(region, 0, sizeof(*region));
+    region_add(region, x, y, x + (int)width, y + (int)height);
 }
-void pixman_region32_fini(pixman_region32_t *region) { (void)region; }
-bool pixman_region32_empty(pixman_region32_t *region) { (void)region; return true; }
-void pixman_region32_copy(
+
+void
+pixman_region32_init_rects(
+    pixman_region32_t *region, const pixman_box32_t *boxes, int count)
+{
+    if (region == NULL)
+        return;
+    memset(region, 0, sizeof(*region));
+    for (int i = 0; i < count; i++)
+        region_add(region, boxes[i].x1, boxes[i].y1, boxes[i].x2, boxes[i].y2);
+}
+
+void
+pixman_region32_fini(pixman_region32_t *region)
+{
+    if (region == NULL)
+        return;
+    free(region->rects);
+    memset(region, 0, sizeof(*region));
+}
+
+bool
+pixman_region32_empty(pixman_region32_t *region)
+{
+    return region == NULL || region->count == 0;
+}
+
+bool
+pixman_region32_not_empty(pixman_region32_t *region)
+{
+    return region != NULL && region->count > 0;
+}
+
+void
+pixman_region32_copy(
     pixman_region32_t *dst, const pixman_region32_t *src)
 {
-    (void)dst;
-    (void)src;
+    if (dst == NULL || src == NULL || dst == src)
+        return;
+    pixman_region32_fini(dst);
+    region_reserve(dst, src->count);
+    for (int i = 0; i < src->count && i < dst->capacity; i++)
+        dst->rects[dst->count++] = src->rects[i];
 }
-void pixman_region32_union(
+
+void
+pixman_region32_union(
     pixman_region32_t *new_region, pixman_region32_t *region1,
     pixman_region32_t *region2)
 {
-    (void)new_region;
-    (void)region1;
-    (void)region2;
+    if (new_region == NULL)
+        return;
+    if (new_region != region1 && new_region != region2)
+        pixman_region32_fini(new_region);
+    const int base = new_region->count;
+    (void)base;
+    if (region1 != NULL && region1 != new_region) {
+        for (int i = 0; i < region1->count; i++)
+            region_add(new_region, region1->rects[i].x1, region1->rects[i].y1,
+                region1->rects[i].x2, region1->rects[i].y2);
+    }
+    if (region2 != NULL && region2 != new_region) {
+        for (int i = 0; i < region2->count; i++)
+            region_add(new_region, region2->rects[i].x1, region2->rects[i].y1,
+                region2->rects[i].x2, region2->rects[i].y2);
+    }
 }
-void pixman_region32_union_rect(
+
+void
+pixman_region32_union_rect(
     pixman_region32_t *region, pixman_region32_t *source, int x, int y,
     unsigned width, unsigned height)
 {
-    (void)region;
-    (void)source;
-    (void)x;
-    (void)y;
-    (void)width;
-    (void)height;
+    if (region == NULL)
+        return;
+    if (source != NULL && source != region) {
+        for (int i = 0; i < source->count; i++)
+            region_add(region, source->rects[i].x1, source->rects[i].y1,
+                source->rects[i].x2, source->rects[i].y2);
+    }
+    region_add(region, x, y, x + (int)width, y + (int)height);
 }
-void pixman_region32_subtract(
+
+static void
+region_subtract_one(
+    const pixman_box32_t *a, const pixman_box32_t *b,
+    pixman_region32_t *out)
+{
+    const int x1 = a->x1 > b->x1 ? a->x1 : b->x1;
+    const int y1 = a->y1 > b->y1 ? a->y1 : b->y1;
+    const int x2 = a->x2 < b->x2 ? a->x2 : b->x2;
+    const int y2 = a->y2 < b->y2 ? a->y2 : b->y2;
+    if (x1 >= x2 || y1 >= y2) {
+        region_add(out, a->x1, a->y1, a->x2, a->y2);
+        return;
+    }
+    /* Top, bottom, left and right remainder. */
+    region_add(out, a->x1, a->y1, a->x2, y1);
+    region_add(out, a->x1, y2, a->x2, a->y2);
+    region_add(out, a->x1, y1, x1, y2);
+    region_add(out, x2, y1, a->x2, y2);
+}
+
+void
+pixman_region32_subtract(
     pixman_region32_t *region, pixman_region32_t *region1,
     pixman_region32_t *region2)
 {
-    (void)region;
-    (void)region1;
-    (void)region2;
+    if (region == NULL || region1 == NULL)
+        return;
+    pixman_region32_t result;
+    memset(&result, 0, sizeof(result));
+    for (int i = 0; i < region1->count; i++) {
+        pixman_region32_t current;
+        memset(&current, 0, sizeof(current));
+        region_add(&current, region1->rects[i].x1, region1->rects[i].y1,
+            region1->rects[i].x2, region1->rects[i].y2);
+        for (int j = 0; region2 != NULL && j < region2->count; j++) {
+            pixman_region32_t next;
+            memset(&next, 0, sizeof(next));
+            for (int k = 0; k < current.count; k++)
+                region_subtract_one(&current.rects[k], &region2->rects[j], &next);
+            free(current.rects);
+            current = next;
+        }
+        for (int k = 0; k < current.count; k++)
+            region_add(&result, current.rects[k].x1, current.rects[k].y1,
+                current.rects[k].x2, current.rects[k].y2);
+        free(current.rects);
+    }
+    if (region == region1 || region == region2)
+        pixman_region32_fini(region);
+    free(region->rects);
+    *region = result;
 }
-void pixman_region32_intersect(
+
+void
+pixman_region32_intersect(
     pixman_region32_t *new_region, pixman_region32_t *region1,
     pixman_region32_t *region2)
 {
-    (void)new_region;
-    (void)region1;
-    (void)region2;
+    if (new_region == NULL || region1 == NULL || region2 == NULL)
+        return;
+    pixman_region32_t result;
+    memset(&result, 0, sizeof(result));
+    for (int i = 0; i < region1->count; i++) {
+        for (int j = 0; j < region2->count; j++) {
+            const pixman_box32_t *a = &region1->rects[i];
+            const pixman_box32_t *b = &region2->rects[j];
+            const int x1 = a->x1 > b->x1 ? a->x1 : b->x1;
+            const int y1 = a->y1 > b->y1 ? a->y1 : b->y1;
+            const int x2 = a->x2 < b->x2 ? a->x2 : b->x2;
+            const int y2 = a->y2 < b->y2 ? a->y2 : b->y2;
+            if (x1 < x2 && y1 < y2)
+                region_add(&result, x1, y1, x2, y2);
+        }
+    }
+    if (new_region == region1 || new_region == region2)
+        pixman_region32_fini(new_region);
+    free(new_region->rects);
+    *new_region = result;
 }
-void pixman_region32_intersect_rect(
+
+void
+pixman_region32_intersect_rect(
     pixman_region32_t *region, pixman_region32_t *source, int x, int y,
     unsigned width, unsigned height)
 {
-    (void)region;
-    (void)source;
-    (void)x;
-    (void)y;
-    (void)width;
-    (void)height;
+    pixman_region32_t rect;
+    pixman_region32_init_rect(&rect, x, y, width, height);
+    pixman_region32_intersect(region, source, &rect);
+    pixman_region32_fini(&rect);
 }
-bool pixman_region32_contains_point(
+
+bool
+pixman_region32_contains_point(
     pixman_region32_t *region, int x, int y, pixman_box32_t *box)
 {
-    (void)region;
-    (void)x;
-    (void)y;
-    if (box != NULL)
-        *box = (pixman_box32_t){0, 0, 0, 0};
+    if (region == NULL)
+        return false;
+    for (int i = 0; i < region->count; i++) {
+        const pixman_box32_t *rect = &region->rects[i];
+        if (x >= rect->x1 && x < rect->x2 && y >= rect->y1 && y < rect->y2) {
+            if (box != NULL)
+                *box = *rect;
+            return true;
+        }
+    }
     return false;
 }
+
 pixman_box32_t *
 pixman_region32_rectangles(pixman_region32_t *region, int *count)
 {
-    (void)region;
     if (count != NULL)
-        *count = 0;
-    return NULL;
+        *count = region != NULL ? region->count : 0;
+    return region != NULL ? region->rects : NULL;
 }
-void pixman_region32_translate(pixman_region32_t *region, int x, int y)
+
+void
+pixman_region32_translate(pixman_region32_t *region, int x, int y)
 {
-    (void)region;
-    (void)x;
-    (void)y;
+    if (region == NULL)
+        return;
+    for (int i = 0; i < region->count; i++) {
+        region->rects[i].x1 += x;
+        region->rects[i].x2 += x;
+        region->rects[i].y1 += y;
+        region->rects[i].y2 += y;
+    }
 }
-void pixman_region32_clear(pixman_region32_t *region) { (void)region; }
+
+void
+pixman_region32_clear(pixman_region32_t *region)
+{
+    if (region != NULL)
+        region->count = 0;
+}
+
+void
+pixman_f_transform_init_scale(
+    pixman_f_transform_t *transform, double x, double y)
+{
+    if (transform == NULL)
+        return;
+    *transform = (pixman_f_transform_t){
+        .xx = (float)x, .yy = (float)y,
+        .yx = 0, .xy = 0, .x0 = 0, .y0 = 0,
+    };
+}
+
+void
+pixman_transform_from_pixman_f_transform(
+    pixman_transform_t *dst, const pixman_f_transform_t *src)
+{
+    if (dst == NULL || src == NULL)
+        return;
+    *dst = (pixman_transform_t){
+        .xx = (int32_t)(src->xx * 65536.0f),
+        .yx = (int32_t)(src->yx * 65536.0f),
+        .xy = (int32_t)(src->xy * 65536.0f),
+        .yy = (int32_t)(src->yy * 65536.0f),
+        .x0 = (int32_t)(src->x0 * 65536.0f),
+        .y0 = (int32_t)(src->y0 * 65536.0f),
+    };
+}
 
 /* Small sRGB helper used by the extracted foot renderer. Linear blending is
  * disabled on Android, so the lookup table is only needed for compilation. */
@@ -593,6 +936,7 @@ rasterize_char(struct fcft_font *font, char32_t cp)
     entry->cp = cp;
     entry->image = (struct pixman_image){
         .kind = IMAGE_GLYPH,
+        .id = allocate_image_id(),
         .width = glyph_width,
         .height = font->height,
         .format = PIXMAN_a8r8g8b8,

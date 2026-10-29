@@ -29,6 +29,7 @@ set(FOOT_COPIED_HEADERS
     terminal.h vt.h csi.h grid.h char32.h composed.h misc.h
     xmalloc.h xsnprintf.h log.h debug.h macros.h util.h
     base64.h uri.h osc.h dcs.h
+    hsl.h
 )
 
 set(FOOT_SOURCES
@@ -47,6 +48,8 @@ set(FOOT_SOURCES
     xsnprintf.c
     log.c
     debug.c
+    hsl.c
+    sixel.c
 )
 
 file(MAKE_DIRECTORY "${FOOT_BUILD_SRC}")

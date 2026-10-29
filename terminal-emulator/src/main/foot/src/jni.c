@@ -1,4 +1,5 @@
 #include <jni.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -788,5 +789,46 @@ Java_com_termux_terminal_TerminalNative_nativeRenderText(
         return make_int_array(env, NULL, 0);
     jintArray result = make_int_array(env, text, count);
     free(text);
+    return result;
+}
+
+JNIEXPORT jintArray JNICALL
+Java_com_termux_terminal_TerminalNative_nativeSixelPixels(
+    JNIEnv *env, jclass clazz, jlong handle_value, jlong image_id,
+    jint revision, jint width, jint height)
+{
+    (void)clazz;
+    struct jni_handle *handle = handle_from(handle_value);
+    if (handle == NULL || width <= 0 || height <= 0 ||
+        width > INT_MAX / height)
+    {
+        return NULL;
+    }
+
+    int actual_width = 0;
+    int actual_height = 0;
+    uint32_t actual_revision = 0;
+    uint32_t *pixels = NULL;
+
+    pthread_mutex_lock(&handle->lock);
+    pixels = headless_sixel_pixels(
+        handle->terminal, (uint64_t)image_id, width, height,
+        (uint32_t)revision, &actual_width, &actual_height, &actual_revision);
+    if (pixels == NULL || actual_width != width || actual_height != height ||
+        actual_revision != (uint32_t)revision)
+    {
+        pixels = NULL;
+    }
+
+    jintArray result = NULL;
+    if (pixels != NULL) {
+        const jsize length = (jsize)((int64_t)width * height);
+        result = (*env)->NewIntArray(env, length);
+        if (result != NULL) {
+            (*env)->SetIntArrayRegion(
+                env, result, 0, length, (const jint *)(const void *)pixels);
+        }
+    }
+    pthread_mutex_unlock(&handle->lock);
     return result;
 }

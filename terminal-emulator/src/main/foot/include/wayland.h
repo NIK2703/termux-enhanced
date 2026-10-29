@@ -45,6 +45,8 @@ struct wayland {
     int shape_manager_version;
     tll(struct terminal *) terms;
     tll(struct seat) seats;
+    bool shm_have_argb2101010;
+    bool shm_have_abgr2101010;
 };
 void wl_surface_commit(struct wl_surface *);
 void xdg_toplevel_set_maximized(struct xdg_toplevel *);

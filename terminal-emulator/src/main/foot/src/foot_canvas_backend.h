@@ -11,13 +11,13 @@ struct row;
 struct fcft_font;
 
 /*
- * Canvas compatibility backend for upstream foot render_cell().
+ * Canvas compatibility backend for upstream foot render_row().
  *
- * render_row() is part of the extracted, hash-checked upstream block, but the
- * bridge calls render_cell() directly in left-to-right order so Canvas text
- * runs stay in logical order. The callbacks receive row-relative pixel
- * coordinates. The render model turns them into packed render commands;
- * TerminalRenderer executes those commands on Android's Canvas.
+ * foot_canvas_render_row() calls the extracted, hash-checked upstream
+ * render_row() verbatim. Its callbacks receive row-relative pixel coordinates
+ * in upstream (right-to-left) cell order. The render model buffers one row and
+ * replays the paint operations left-to-right, where Canvas text runs can be
+ * coalesced; TerminalRenderer executes the packed commands on Android.
  */
 struct foot_canvas_sink {
     void *data;
@@ -52,7 +52,7 @@ void foot_canvas_prepare_row(
     struct terminal *term, struct row *row,
     int selection_start, int selection_end);
 
-/* Run upstream render_cell() left-to-right for one row with the Canvas sink. */
+/* Run upstream render_row() verbatim for one row with the Canvas sink. */
 void foot_canvas_render_row(
     struct terminal *term, struct row *row, int row_no, int cursor_col,
     const struct foot_canvas_sink *sink);
@@ -67,3 +67,9 @@ struct fcft_font *foot_canvas_font_create(
 pixman_image_t *foot_canvas_target_create(
     const struct foot_canvas_sink *sink, int row, int cell_height);
 void foot_canvas_target_destroy(pixman_image_t *target);
+
+/* Revision of a cached sixel image; changes when its pixels are modified. */
+uint32_t foot_canvas_image_revision(pixman_image_t *image);
+
+/* Stable identity of a pixman image, used as the Java Bitmap cache key. */
+uint64_t foot_canvas_image_id(pixman_image_t *image);

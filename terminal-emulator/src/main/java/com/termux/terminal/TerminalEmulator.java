@@ -506,6 +506,11 @@ public final class TerminalEmulator {
         return TerminalNative.nativeRenderText(mNativeHandle);
     }
 
+    /** Fetch an ARGB32 sixel surface by the id/revision in an OP_IMAGE command. */
+    public int[] getSixelPixels(long imageId, int revision, int width, int height) {
+        return TerminalNative.nativeSixelPixels(mNativeHandle, imageId, revision, width, height);
+    }
+
     public int getScrollCounter() {
         final int delta = mNativeScrollCounter - mScrollBase;
         return delta > 0 ? delta : 0;

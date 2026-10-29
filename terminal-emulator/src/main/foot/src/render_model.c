@@ -7,6 +7,7 @@
 #include "composed.h"
 #include "foot_canvas_backend.h"
 #include "grid.h"
+#include "sixel.h"
 #include "terminal.h"
 
 /* Render command opcodes. Kept in sync with TerminalRenderer.java. */
@@ -14,19 +15,58 @@ enum render_opcode {
     OP_END = 0,
     OP_ROW_BEGIN = 1,
     OP_ROW_END = 2,
-    OP_RECT = 3,
-    OP_CURSOR = 5,
     OP_FRAME_BEGIN = 6,
     OP_DAMAGE = 7,
     OP_FRAME_END = 8,
     OP_FILL_RECT = 9,
     OP_GLYPH = 10,
     OP_FILL_TRAPEZOID = 11,
+    OP_IMAGE = 12,
 };
 
 /* Effect bits shared with TerminalRenderer.java. */
 enum render_effect {
     EFFECT_BLOCK_FILL = 1 << 7,
+};
+
+/*
+ * Upstream render_row() paints cells right-to-left. That is correct for a
+ * pixel backend, but Canvas text runs must be emitted in logical order so
+ * adjacent cells can share one drawTextRun(). The sink buffers one row of
+ * paint operations, then replays them left-to-right. Sorting by x and then by
+ * arrival order also preserves the per-cell order (background, cursor, glyph,
+ * decorations) that upstream render_cell() relies on.
+ */
+enum canvas_draw_kind {
+    CANVAS_DRAW_RECT,
+    CANVAS_DRAW_GLYPH,
+    CANVAS_DRAW_TRAPEZOID,
+};
+
+struct canvas_draw_op {
+    enum canvas_draw_kind kind;
+    int sort_x;
+    size_t sequence;
+    union {
+        struct {
+            int x;
+            int y;
+            int width;
+            int height;
+            uint32_t argb;
+        } rect;
+        struct {
+            char32_t codepoint;
+            int x;
+            int baseline;
+            uint32_t argb;
+            int font_index;
+        } glyph;
+        struct {
+            int x1, y1, x2, y2, x3, y3, x4, y4;
+            uint32_t argb;
+        } trapezoid;
+    } u;
 };
 
 struct foot_render_model {
@@ -50,6 +90,11 @@ struct foot_render_model {
     size_t text_len;
     size_t text_cap;
     uint32_t frame_id;
+
+    /* Scratch row operation list. Reused across rows and frames. */
+    struct canvas_draw_op *draw_ops;
+    size_t draw_ops_len;
+    size_t draw_ops_cap;
 };
 
 static int
@@ -137,6 +182,7 @@ foot_render_model_destroy(struct foot_render_model *model)
     free(model->committed);
     free(model->commands);
     free(model->text);
+    free(model->draw_ops);
     free(model);
 }
 
@@ -355,14 +401,6 @@ with_alpha(int32_t color, int alpha)
     return (color & 0x00ffffff) | (alpha << 24);
 }
 
-static int32_t
-without_lightness(int32_t color)
-{
-    /* Keep the alpha channel, invert only the visible RGB colour. */
-    const uint32_t rgb = ((uint32_t)color & 0x00ffffffu) ^ 0x00ffffffu;
-    return (int32_t)(((uint32_t)color & 0xff000000u) | rgb);
-}
-
 static bool
 reserve_commands(struct foot_render_model *model, size_t needed)
 {
@@ -457,6 +495,8 @@ struct canvas_sink_ctx {
     int last_full_fill_y;
     int last_full_fill_width;
     uint32_t last_full_fill_argb;
+    /* Index into model->draw_ops of the last non-combining glyph. */
+    int last_glyph_op;
     bool failed;
 };
 
@@ -483,14 +523,142 @@ canvas_append(struct canvas_sink_ctx *ctx, size_t fields)
     return out;
 }
 
+static bool
+canvas_record_op(struct canvas_sink_ctx *ctx, struct canvas_draw_op op)
+{
+    struct foot_render_model *model = ctx->model;
+    if (ctx->failed)
+        return false;
+
+    if (model->draw_ops_len >= model->draw_ops_cap) {
+        size_t capacity = model->draw_ops_cap > 0
+            ? model->draw_ops_cap * 2 : 64;
+        struct canvas_draw_op *resized = realloc(
+            model->draw_ops, capacity * sizeof(resized[0]));
+        if (resized == NULL) {
+            ctx->failed = true;
+            return false;
+        }
+        model->draw_ops = resized;
+        model->draw_ops_cap = capacity;
+    }
+
+    op.sequence = model->draw_ops_len;
+    model->draw_ops[model->draw_ops_len++] = op;
+    return true;
+}
+
+static int
+canvas_op_compare(const void *lhs_ptr, const void *rhs_ptr)
+{
+    const struct canvas_draw_op *lhs = lhs_ptr;
+    const struct canvas_draw_op *rhs = rhs_ptr;
+
+    if (lhs->sort_x != rhs->sort_x)
+        return lhs->sort_x < rhs->sort_x ? -1 : 1;
+    if (lhs->sequence != rhs->sequence)
+        return lhs->sequence < rhs->sequence ? -1 : 1;
+    return 0;
+}
+
 static void
-canvas_fill_rect(
+canvas_collect_fill_rect(
     void *data, int x, int y, int width, int height, uint32_t argb)
 {
     struct canvas_sink_ctx *ctx = data;
     if (width <= 0 || height <= 0)
         return;
 
+    struct canvas_draw_op op = {
+        .kind = CANVAS_DRAW_RECT,
+        .sort_x = x,
+    };
+    op.u.rect.x = x;
+    op.u.rect.y = y;
+    op.u.rect.width = width;
+    op.u.rect.height = height;
+    op.u.rect.argb = argb;
+    canvas_record_op(ctx, op);
+}
+
+static void
+canvas_collect_glyph(
+    void *data, char32_t codepoint, int x, int baseline, uint32_t argb,
+    int font_index)
+{
+    struct canvas_sink_ctx *ctx = data;
+    if (ctx->failed || codepoint == 0 || (argb >> 24) == 0)
+        return;
+    if (codepoint >= CELL_COMB_CHARS_LO && codepoint <= CELL_COMB_CHARS_HI)
+        return;
+
+    const int cols = wcwidth((wchar_t)codepoint);
+    const bool combining = cols == 0;
+
+    int sort_x = x;
+    if (combining &&
+        ctx->last_glyph_op >= 0 &&
+        (size_t)ctx->last_glyph_op < ctx->model->draw_ops_len)
+    {
+        sort_x = ctx->model->draw_ops[ctx->last_glyph_op].sort_x;
+    }
+
+    struct canvas_draw_op op = {
+        .kind = CANVAS_DRAW_GLYPH,
+        .sort_x = sort_x,
+    };
+    op.u.glyph.codepoint = codepoint;
+    op.u.glyph.x = x;
+    op.u.glyph.baseline = baseline;
+    op.u.glyph.argb = argb;
+    op.u.glyph.font_index = font_index;
+
+    if (!canvas_record_op(ctx, op))
+        return;
+    if (!combining)
+        ctx->last_glyph_op = (int)ctx->model->draw_ops_len - 1;
+}
+
+static int
+min_int4(int a, int b, int c, int d)
+{
+    int result = a;
+    if (b < result) result = b;
+    if (c < result) result = c;
+    if (d < result) result = d;
+    return result;
+}
+
+static void
+canvas_collect_fill_trapezoid(
+    void *data,
+    int x1, int y1, int x2, int y2,
+    int x3, int y3, int x4, int y4,
+    uint32_t argb)
+{
+    struct canvas_sink_ctx *ctx = data;
+
+    struct canvas_draw_op op = {
+        .kind = CANVAS_DRAW_TRAPEZOID,
+        .sort_x = min_int4(x1, x2, x3, x4),
+    };
+    op.u.trapezoid.x1 = x1;
+    op.u.trapezoid.y1 = y1;
+    op.u.trapezoid.x2 = x2;
+    op.u.trapezoid.y2 = y2;
+    op.u.trapezoid.x3 = x3;
+    op.u.trapezoid.y3 = y3;
+    op.u.trapezoid.x4 = x4;
+    op.u.trapezoid.y4 = y4;
+    op.u.trapezoid.argb = argb;
+    canvas_record_op(ctx, op);
+}
+
+static void
+canvas_emit_fill_rect(
+    struct canvas_sink_ctx *ctx,
+    int x, int y, int width, int height, uint32_t argb)
+{
     /* Termux applies the configured background alpha to every painted
      * surface, not only to COLOR_DEFAULT cells. Upstream's ALPHA_MODE_DEFAULT
      * leaves explicit/reverse/selection/cursor fills opaque, while the legacy
@@ -546,14 +714,11 @@ canvas_fill_rect(
 }
 
 static void
-canvas_draw_glyph(
-    void *data, char32_t codepoint, int x, int baseline, uint32_t argb,
-    int font_index)
+canvas_emit_glyph(
+    struct canvas_sink_ctx *ctx, char32_t codepoint, int x, int baseline,
+    uint32_t argb, int font_index)
 {
-    struct canvas_sink_ctx *ctx = data;
-    if (ctx->failed || codepoint == 0 || (argb >> 24) == 0)
-        return;
-    if (codepoint >= CELL_COMB_CHARS_LO && codepoint <= CELL_COMB_CHARS_HI)
+    if (ctx->failed)
         return;
 
     int cols = wcwidth((wchar_t)codepoint);
@@ -620,9 +785,9 @@ canvas_draw_glyph(
         if (x > expected_x && (x - expected_x) % cell_width == 0)
             gap = (x - expected_x) / cell_width;
 
-        /* Spaces are skipped by render_cell(); put them back into the run so a
-         * word gap does not split an otherwise contiguous row. Wide glyph
-         * gaps are left alone to keep shaping clusters predictable. */
+        /* Empty cells (wc == 0) do not produce a glyph; put spaces back into
+         * the run so a gap does not split an otherwise contiguous row. Wide
+         * glyph gaps are left alone to keep shaping clusters predictable. */
         if (x == expected_x || (cols == 1 && gap > 0 && gap <= 256)) {
             const int start_char = (int)ctx->model->text_len;
             for (int i = 0; i < gap; i++) {
@@ -677,13 +842,12 @@ canvas_draw_glyph(
 }
 
 static void
-canvas_fill_trapezoid(
-    void *data,
+canvas_emit_fill_trapezoid(
+    struct canvas_sink_ctx *ctx,
     int x1, int y1, int x2, int y2,
     int x3, int y3, int x4, int y4,
     uint32_t argb)
 {
-    struct canvas_sink_ctx *ctx = data;
     if ((int32_t)argb == ctx->base_bg)
         return;
 
@@ -703,10 +867,48 @@ canvas_fill_trapezoid(
     cmd[9] = (int32_t)argb;
 }
 
+static void
+canvas_flush_ops(struct canvas_sink_ctx *ctx)
+{
+    struct foot_render_model *model = ctx->model;
+    if (ctx->failed || model->draw_ops_len == 0) {
+        model->draw_ops_len = 0;
+        return;
+    }
+
+    qsort(model->draw_ops, model->draw_ops_len, sizeof(model->draw_ops[0]),
+        canvas_op_compare);
+
+    for (size_t i = 0; i < model->draw_ops_len && !ctx->failed; i++) {
+        const struct canvas_draw_op *op = &model->draw_ops[i];
+        switch (op->kind) {
+        case CANVAS_DRAW_RECT:
+            canvas_emit_fill_rect(ctx, op->u.rect.x, op->u.rect.y,
+                op->u.rect.width, op->u.rect.height, op->u.rect.argb);
+            break;
+        case CANVAS_DRAW_GLYPH:
+            canvas_emit_glyph(ctx, op->u.glyph.codepoint, op->u.glyph.x,
+                op->u.glyph.baseline, op->u.glyph.argb,
+                op->u.glyph.font_index);
+            break;
+        case CANVAS_DRAW_TRAPEZOID:
+            canvas_emit_fill_trapezoid(ctx,
+                op->u.trapezoid.x1, op->u.trapezoid.y1,
+                op->u.trapezoid.x2, op->u.trapezoid.y2,
+                op->u.trapezoid.x3, op->u.trapezoid.y3,
+                op->u.trapezoid.x4, op->u.trapezoid.y4,
+                op->u.trapezoid.argb);
+            break;
+        }
+    }
+
+    model->draw_ops_len = 0;
+}
+
 static const struct foot_canvas_sink canvas_sink = {
-    .fill_rect = canvas_fill_rect,
-    .draw_glyph = canvas_draw_glyph,
-    .fill_trapezoid = canvas_fill_trapezoid,
+    .fill_rect = canvas_collect_fill_rect,
+    .draw_glyph = canvas_collect_glyph,
+    .fill_trapezoid = canvas_collect_fill_trapezoid,
 };
 
 static bool
@@ -723,6 +925,7 @@ render_canvas_row(
     commands[(*count)++] = OP_ROW_BEGIN;
     commands[(*count)++] = row;
 
+    model->draw_ops_len = 0;
     struct canvas_sink_ctx ctx = {
         .model = model,
         .term = term,
@@ -731,6 +934,7 @@ render_canvas_row(
         .base_bg = base_bg,
         .last_glyph_cmd = -1,
         .last_full_fill_cmd = -1,
+        .last_glyph_op = -1,
         .failed = false,
     };
 
@@ -740,12 +944,89 @@ render_canvas_row(
     sink.data = &ctx;
     foot_canvas_render_row(
         term, native_row, row, cursor_col, &sink);
+    canvas_flush_ops(&ctx);
     if (ctx.failed)
         return false;
 
     if (!reserve_commands(model, (size_t)*count + 1))
         return false;
     model->commands[(*count)++] = OP_ROW_END;
+    return true;
+}
+
+static bool
+render_canvas_sixel_images(
+    struct foot_render_model *model, struct terminal *term,
+    int top_row, int visible_rows, bool full_damage, int *count)
+{
+    struct grid *grid = term->grid;
+    if (tll_length(grid->sixel_images) == 0)
+        return true;
+
+    const int cell_width = term->cell_width;
+    const int cell_height = term->cell_height;
+    if (cell_width <= 0 || cell_height <= 0)
+        return true;
+
+    tll_foreach(grid->sixel_images, it) {
+        struct sixel *six = &it->item;
+
+        /* A font/cell-size change invalidates the cached pixman surface. The
+         * scaled copy is produced here, before it is handed to Java. */
+        sixel_sync_cache(term, six);
+        if (six->pix == NULL || six->width <= 0 || six->height <= 0)
+            continue;
+
+        /* six->pos.row is an absolute ring index. Convert it to the external
+         * viewport address used by OP_ROW_BEGIN, then to pixels relative to
+         * the top row of this render call. */
+        int external = six->pos.row - grid->offset;
+        if (external > grid->num_rows / 2)
+            external -= grid->num_rows;
+        else if (external < -grid->num_rows / 2)
+            external += grid->num_rows;
+
+        const int image_rows = (six->height + cell_height - 1) / cell_height;
+        int first_external = external;
+        int last_external = external + image_rows - 1;
+        if (first_external < top_row)
+            first_external = top_row;
+        const int render_last = top_row + visible_rows - 1;
+        if (last_external > render_last)
+            last_external = render_last;
+        if (first_external > last_external)
+            continue;
+
+        if (!full_damage) {
+            bool visible_damage = false;
+            for (int row = first_external; row <= last_external; row++) {
+                if (foot_render_model_row_is_damaged(model, term, row)) {
+                    visible_damage = true;
+                    break;
+                }
+            }
+            if (!visible_damage)
+                continue;
+        }
+
+        if (!reserve_commands(model, (size_t)*count + 9))
+            return false;
+
+        const uint64_t image_id = foot_canvas_image_id(six->pix);
+        const uint32_t revision = foot_canvas_image_revision(six->pix);
+        int32_t *cmd = model->commands + *count;
+        *count += 9;
+        cmd[0] = OP_IMAGE;
+        cmd[1] = six->pos.col * cell_width;
+        cmd[2] = (external - top_row) * cell_height;
+        cmd[3] = six->width;
+        cmd[4] = six->height;
+        cmd[5] = (int32_t)(image_id & 0xffffffffu);
+        cmd[6] = (int32_t)(image_id >> 32);
+        cmd[7] = (int32_t)revision;
+        cmd[8] = six->opaque ? 1 : 0;
+    }
+
     return true;
 }
 
@@ -788,13 +1069,16 @@ foot_render_model_render_frame(
 
     const int cursor_row = term->grid->cursor.point.row;
     const int cursor_col = term->grid->cursor.point.col;
+    struct row *cursor_native_row = grid_row(term->grid, cursor_row);
     const int32_t base_bg = with_alpha(
         term->reverse
             ? palette[FOOT_RENDER_COLOR_FOREGROUND]
             : palette[FOOT_RENDER_COLOR_BACKGROUND],
         background_alpha);
-    const int32_t cursor_color = with_alpha(
-        palette[FOOT_RENDER_COLOR_CURSOR], background_alpha);
+
+    /* Cursor rendering is owned by upstream render_cell()/draw_cursor(). The
+     * argument remains in the JNI ABI, but the old planner fallback is gone. */
+    (void)cursor_shape;
 
     model->text_len = 0;
 
@@ -862,7 +1146,13 @@ foot_render_model_render_frame(
             continue;
 
         struct row *native_row = row_for_external(term, row);
-        const bool is_cursor_row = cursor_visible && row == cursor_row;
+        /* cursor.point.row is a ring index, while row is an external viewport
+         * address. Compare row pointers instead of numbers: with scrollback
+         * history grid->offset is non-zero, so row == cursor_row highlights
+         * the wrong row (or no row at all). */
+        const bool is_cursor_row =
+            cursor_visible && native_row != NULL &&
+            native_row == cursor_native_row;
 
         if (native_row != NULL && term->fonts[0] != NULL) {
             const bool in_selection =
@@ -896,58 +1186,25 @@ foot_render_model_render_frame(
             continue;
         }
 
-        if (native_row == NULL || term->fonts[0] == NULL) {
-            /* Still emit a row frame: TerminalRenderer fills the row with the
-             * base colour and commits it on OP_ROW_END. Skipping a blank row
-             * here would leave stale pixels in partial frames. */
-            if (!reserve_commands(model, (size_t)count + 16))
-                goto fail;
-            commands = model->commands;
+        /* Still emit a row frame: TerminalRenderer fills the row with the
+         * base colour and commits it on OP_ROW_END. Selection and cursor
+         * policy live exclusively in upstream render_row(), which needs a
+         * native row and prepared fonts; there is no parallel fallback. */
+        if (!reserve_commands(model, (size_t)count + 2))
+            goto fail;
+        commands = model->commands;
+        commands[count++] = OP_ROW_BEGIN;
+        commands[count++] = row;
+        commands[count++] = OP_ROW_END;
+    }
 
-            const bool in_selection =
-                row >= selection_y1 && row <= selection_y2;
-            const int selection_start =
-                row == selection_y1 ? selection_x1 : 0;
-            const int selection_end =
-                row == selection_y2 ? selection_x2 : columns - 1;
-
-            commands[count++] = OP_ROW_BEGIN;
-            commands[count++] = row;
-            if (in_selection && selection_end >= selection_start) {
-                int start = selection_start;
-                int end = selection_end;
-                if (start < 0) start = 0;
-                if (end > columns - 1) end = columns - 1;
-                if (end >= start) {
-                    int32_t selection_bg = with_alpha(
-                        term->reverse
-                            ? palette[FOOT_RENDER_COLOR_BACKGROUND]
-                            : palette[FOOT_RENDER_COLOR_FOREGROUND],
-                        background_alpha);
-                    if ((selection_bg & 0x00ffffff) ==
-                        (base_bg & 0x00ffffff))
-                    {
-                        selection_bg = without_lightness(selection_bg);
-                    }
-                    if (selection_bg != base_bg) {
-                        commands[count++] = OP_RECT;
-                        commands[count++] = start;
-                        commands[count++] = end + 1;
-                        commands[count++] = selection_bg;
-                        commands[count++] = 1; /* RECT_SPAN_VIEW */
-                    }
-                }
-            }
-            if (is_cursor_row && cursor_col >= 0 && cursor_col < columns) {
-                commands[count++] = OP_CURSOR;
-                commands[count++] = cursor_col;
-                commands[count++] = 1;
-                commands[count++] = cursor_color;
-                commands[count++] = cursor_shape;
-            }
-            commands[count++] = OP_ROW_END;
-            continue;
-        }
+    /* Sixel images are viewport-anchored surfaces, not part of a cell run.
+     * Emit them after the row commands so a partial-row background repaint
+     * cannot cover an image that is still valid. */
+    if (!render_canvas_sixel_images(
+            model, term, top_row, end_row - top_row, frame_full_damage, &count))
+    {
+        goto fail;
     }
 
     /* The Canvas path appends commands from render_cell() through the sink,

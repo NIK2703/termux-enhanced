@@ -1,12 +1,15 @@
 package com.termux.view;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.util.LongSparseArray;
 
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalBuffer;
@@ -25,22 +28,17 @@ public final class TerminalRenderer {
     private static final int OP_END = 0;
     private static final int OP_ROW_BEGIN = 1;
     private static final int OP_ROW_END = 2;
-    private static final int OP_RECT = 3;
-    private static final int OP_CURSOR = 5;
     private static final int OP_FRAME_BEGIN = 6;
     private static final int OP_DAMAGE = 7;
     private static final int OP_FRAME_END = 8;
     private static final int OP_FILL_RECT = 9;
     private static final int OP_GLYPH = 10;
     private static final int OP_FILL_TRAPEZOID = 11;
+    private static final int OP_IMAGE = 12;
 
     private static final int EFFECT_BOLD = 1;
     private static final int EFFECT_ITALIC = 1 << 1;
     private static final int EFFECT_BLOCK_FILL = 1 << 7;
-
-    private static final int CURSOR_BLOCK = 0;
-    private static final int CURSOR_UNDERLINE = 1;
-    private static final int CURSOR_BAR = 2;
 
     private static final float MAX_MISMATCH_SCALE = 8f;
     private static final float MIN_MISMATCH_SCALE = 0.125f;
@@ -57,7 +55,25 @@ public final class TerminalRenderer {
     private final Paint mBgSrcPaint = new Paint();
     private final Paint mBaseFillPaint = new Paint();
     private final Paint mBaseFillSrcPaint = new Paint();
+    private final Paint mImagePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Path mPath = new Path();
+    private final Rect mImageSrcRect = new Rect();
+    private final RectF mImageDstRect = new RectF();
+
+    private static final int MAX_CACHED_SIXEL_IMAGES = 24;
+
+    private static final class SixelBitmap {
+        final Bitmap bitmap;
+        final int revision;
+
+        SixelBitmap(Bitmap bitmap, int revision) {
+            this.bitmap = bitmap;
+            this.revision = revision;
+        }
+    }
+
+    /** Decoded sixel surfaces keyed by the native image id. */
+    private final LongSparseArray<SixelBitmap> mSixelBitmaps = new LongSparseArray<>();
 
     /** Width of a single monospaced character, measured on 'X'. */
     final float mFontWidth;
@@ -266,6 +282,22 @@ public final class TerminalRenderer {
                 cursor += 2; /* stray range outside a frame header */
                 continue;
             }
+            if (op == OP_IMAGE) {
+                if (cursor + 8 > commandCount) break;
+                final int x = commands[cursor++];
+                final int y = commands[cursor++];
+                final int width = commands[cursor++];
+                final int height = commands[cursor++];
+                final int imageIdLo = commands[cursor++];
+                final int imageIdHi = commands[cursor++];
+                final long imageId = ((long) imageIdHi << 32)
+                    | (imageIdLo & 0xFFFFFFFFL);
+                final int revision = commands[cursor++];
+                cursor++; /* opaque flag; Android always blends ARGB */
+                drawSixel(canvas, emulator, imageId, revision, x, y, width, height,
+                    mFontLineSpacingAndAscent);
+                continue;
+            }
 
             if (op == OP_ROW_BEGIN) {
                 currentRow = commands[cursor++];
@@ -300,25 +332,6 @@ public final class TerminalRenderer {
             if (!rowDrawn) continue;
 
             switch (op) {
-                case OP_RECT: {
-                    int startColumn = commands[cursor++];
-                    int endColumn = commands[cursor++];
-                    int color = commands[cursor++];
-                    cursor++; // RECT_SPAN_VIEW: rows already extend to the view edges.
-                    float left = startColumn * mFontWidth;
-                    float right = endColumn * mFontWidth;
-                    canvas.drawRect(left, rowTop, right, rowTop + mFontLineSpacing,
-                        backgroundPaint(color));
-                    break;
-                }
-                case OP_CURSOR: {
-                    int column = commands[cursor++];
-                    int widthColumns = commands[cursor++];
-                    int color = commands[cursor++];
-                    int shape = commands[cursor++];
-                    drawCursor(canvas, column, widthColumns, color, shape, rowTop);
-                    break;
-                }
                 case OP_FILL_RECT: {
                     int x = commands[cursor++];
                     int y = commands[cursor++];
@@ -432,10 +445,6 @@ public final class TerminalRenderer {
                     case OP_ROW_END:
                         i += (op == OP_ROW_BEGIN) ? 1 : 0;
                         break;
-                    case OP_RECT:
-                    case OP_CURSOR:
-                        i += 4;
-                        break;
                     case OP_FILL_RECT:
                         i += 5;
                         break;
@@ -444,6 +453,9 @@ public final class TerminalRenderer {
                         break;
                     case OP_FILL_TRAPEZOID:
                         i += 9;
+                        break;
+                    case OP_IMAGE:
+                        i += 8;
                         break;
                     case OP_FRAME_BEGIN: {
                         if (i + 7 >= limit) { i = limit; break; }
@@ -496,18 +508,59 @@ public final class TerminalRenderer {
         return mBgSrcPaint;
     }
 
-    private void drawCursor(Canvas canvas, int column, int widthColumns, int color, int shape,
-                            float rowTop) {
-        float left = column * mFontWidth;
-        float right = left + widthColumns * mFontWidth;
-        float top = rowTop;
-        float bottom = rowTop + mFontLineSpacing;
-        if (shape == CURSOR_UNDERLINE) {
-            top = bottom - mFontLineSpacing / 4f;
-        } else if (shape == CURSOR_BAR) {
-            right = left + (right - left) / 4f;
+    /**
+     * Draw a sixel surface emitted by the native renderer. The native command
+     * carries the surface's intrinsic pixel size; only the horizontal cell grid
+     * needs the same fractional-font correction as the other Canvas commands.
+     */
+    private void drawSixel(Canvas canvas, TerminalEmulator emulator, long imageId,
+                           int revision, int x, int y, int width, int height,
+                           float rowTopBase) {
+        if (width <= 0 || height <= 0 || (long) width * height > Integer.MAX_VALUE) return;
+
+        SixelBitmap cached = mSixelBitmaps.get(imageId);
+        if (cached != null && cached.revision == revision) {
+            drawSixelBitmap(canvas, cached.bitmap, x, y, width, height, rowTopBase);
+            return;
         }
-        canvas.drawRect(left, top, right, bottom, backgroundPaint(color));
+
+        final int[] pixels = emulator.getSixelPixels(imageId, revision, width, height);
+        if (pixels == null || pixels.length < width * height) {
+            if (cached != null) {
+                mSixelBitmaps.remove(imageId);
+                cached.bitmap.recycle();
+            }
+            return;
+        }
+
+        Bitmap bitmap;
+        try {
+            bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888);
+        } catch (RuntimeException e) {
+            return;
+        }
+
+        if (cached != null) {
+            mSixelBitmaps.remove(imageId);
+            cached.bitmap.recycle();
+        }
+        if (mSixelBitmaps.size() >= MAX_CACHED_SIXEL_IMAGES) {
+            final SixelBitmap oldest = mSixelBitmaps.valueAt(0);
+            mSixelBitmaps.removeAt(0);
+            if (oldest != null) oldest.bitmap.recycle();
+        }
+        mSixelBitmaps.put(imageId, new SixelBitmap(bitmap, revision));
+        drawSixelBitmap(canvas, bitmap, x, y, width, height, rowTopBase);
+    }
+
+    private void drawSixelBitmap(Canvas canvas, Bitmap bitmap, int x, int y,
+                                 int width, int height, float rowTopBase) {
+        mImageSrcRect.set(0, 0, width, height);
+        final float left = x * mCanvasScaleX;
+        final float right = (x + width) * mCanvasScaleX;
+        final float top = rowTopBase + y;
+        mImageDstRect.set(left, top, right, top + height);
+        canvas.drawBitmap(bitmap, mImageSrcRect, mImageDstRect, mImagePaint);
     }
 
     private void drawGlyph(Canvas canvas, int startChar, int charCount, float x,

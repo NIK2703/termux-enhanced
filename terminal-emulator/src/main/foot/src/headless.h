@@ -91,3 +91,13 @@ int32_t *headless_render(
 
 int32_t *headless_render_text(
     struct headless_terminal *ht, int *out_count);
+
+/* Borrowed ARGB32 pixels for a sixel image currently in the active grid.
+ * The image is identified by the id carried in an OP_IMAGE render command.
+ * The pointer stays valid until the next append/reset/resize; the caller must
+ * not free it. Returns NULL when the image is no longer present or its
+ * revision/dimensions no longer match the request. */
+uint32_t *headless_sixel_pixels(
+    struct headless_terminal *ht, uint64_t image_id,
+    int expected_width, int expected_height, uint32_t expected_revision,
+    int *out_width, int *out_height, uint32_t *out_revision);

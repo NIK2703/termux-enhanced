@@ -1397,6 +1397,13 @@ headless_commit_all_rows(struct headless_terminal *ht)
         ht->render_model, &ht->term, history_size(ht));
 }
 
+static const uint32_t default_sixel_colors[16] = {
+    0xff000000, 0xff3333cc, 0xffcc2121, 0xff33cc33,
+    0xffcc33cc, 0xff33cccc, 0xffcccc33, 0xff878787,
+    0xff424242, 0xff545499, 0xff994242, 0xff549954,
+    0xff995499, 0xff549999, 0xff999954, 0xffcccccc,
+};
+
 static void
 set_color_theme(
     struct color_theme *theme, const int32_t palette[FOOT_RENDER_PALETTE_SIZE])
@@ -1410,6 +1417,7 @@ set_color_theme(
     theme->cursor.text = theme->fg;
     theme->cursor.cursor = (uint32_t)palette[FOOT_RENDER_COLOR_CURSOR] & 0xffffff;
     theme->use_custom.cursor = true;
+    memcpy(theme->sixel, default_sixel_colors, sizeof(theme->sixel));
     for (int i = 0; i < 256; i++)
         theme->table[i] = (uint32_t)palette[i] & 0xffffff;
 }
@@ -1557,9 +1565,12 @@ headless_create(
     conf->initial_color_theme = COLOR_THEME_DARK;
     conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_DOUBLE;
     conf->tweak.grapheme_shaping = false;
-    conf->tweak.sixel = false;
+    conf->tweak.sixel = true;
     conf->tweak.surface_bit_depth = SHM_BITS_8;
-    conf->url.osc8_underline = OSC8_UNDERLINE_URL_MODE;
+    /* Android has no URL-mode UI. Keep OSC-8 links visible by reusing the
+     * upstream underline pass instead of disabling the URL attribute. */
+    conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
+    conf->url.style = UNDERLINE_SINGLE;
     conf->bell.system_bell = true;
     conf->bell.urgent = false;
     conf->bell.notify = false;
@@ -1624,6 +1635,8 @@ headless_resize(
 
     struct terminal *term = &ht->term;
     const bool grid_changed = term->cols != columns || term->rows != rows;
+    const bool cell_size_changed =
+        term->cell_width != cell_width || term->cell_height != cell_height;
     if (!grid_changed) {
         /* Font/cell metrics only. Reflowing the grid here would be wasteful
          * and could churn scrollback/line-break state for no reason. */
@@ -1633,6 +1646,8 @@ headless_resize(
         term->cell_height = cell_height;
         term->width = columns * cell_width;
         term->height = rows * cell_height;
+        if (cell_size_changed)
+            sixel_cell_size_changed(term);
         return;
     }
     const int old_rows = term->rows;
@@ -1776,6 +1791,9 @@ headless_resize(
     ((struct config *)term->conf)->scrollback.lines = (uint32_t)history_limit(ht);
     ht->cell_width = cell_width;
     ht->cell_height = cell_height;
+    if (cell_size_changed)
+        sixel_cell_size_changed(term);
+    sixel_reflow(term);
     tll_free(term->tab_stops);
     for (int i = 0; i < columns; i += 8)
         tll_push_back(term->tab_stops, i);
@@ -1874,6 +1892,53 @@ int32_t *
 headless_render_text(struct headless_terminal *ht, int *out_count)
 {
     return foot_render_model_render_text(ht->render_model, out_count);
+}
+
+uint32_t *
+headless_sixel_pixels(
+    struct headless_terminal *ht, uint64_t image_id,
+    int expected_width, int expected_height, uint32_t expected_revision,
+    int *out_width, int *out_height, uint32_t *out_revision)
+{
+    if (out_width != NULL)
+        *out_width = 0;
+    if (out_height != NULL)
+        *out_height = 0;
+    if (out_revision != NULL)
+        *out_revision = 0;
+    if (ht == NULL || image_id == 0)
+        return NULL;
+
+    tll_foreach(ht->term.grid->sixel_images, it) {
+        struct sixel *six = &it->item;
+        if (six->pix == NULL ||
+            foot_canvas_image_id(six->pix) != image_id)
+        {
+            continue;
+        }
+
+        const uint32_t revision = foot_canvas_image_revision(six->pix);
+        if (six->width != expected_width ||
+            six->height != expected_height ||
+            revision != expected_revision)
+        {
+            return NULL;
+        }
+
+        uint32_t *pixels = pixman_image_get_data(six->pix);
+        if (pixels == NULL)
+            return NULL;
+
+        if (out_width != NULL)
+            *out_width = six->width;
+        if (out_height != NULL)
+            *out_height = six->height;
+        if (out_revision != NULL)
+            *out_revision = revision;
+        return pixels;
+    }
+
+    return NULL;
 }
 
 void
