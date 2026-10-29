@@ -34,6 +34,22 @@ int *headless_append(
 void headless_set_view(struct headless_terminal *ht, int top_row);
 int headless_view_top(const struct headless_terminal *ht);
 
+/* Mark visible rows dirty for Android overlays that are not part of terminal
+ * content (for example the scrollbar band). The rows are repainted and retired
+ * through the normal commit path. */
+void headless_damage_rows(
+    struct headless_terminal *ht, const int *rows, int count);
+
+/*
+ * Replay one foot scroll-damage record on a locked ARGB_8888 pixel buffer.
+ * The move itself is the verbatim upstream grid_render_scroll()/
+ * grid_render_scroll_reverse() block. Returns false for invalid geometry so
+ * the Java renderer can request a full repaint.
+ */
+bool headless_scroll_surface_rows(
+    struct headless_terminal *ht, void *pixels, int width, int height,
+    int stride, int start, int end, int lines, bool reverse);
+
 /* Retire native damage after rows were painted. */
 void headless_commit_rows(
     struct headless_terminal *ht, const int *rows, int count);

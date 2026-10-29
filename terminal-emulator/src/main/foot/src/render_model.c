@@ -5,10 +5,31 @@
 #include <wchar.h>
 
 #include "composed.h"
+#include "debug.h"
 #include "foot_canvas_backend.h"
 #include "grid.h"
+#include "log.h"
 #include "sixel.h"
 #include "terminal.h"
+#include "util.h"
+
+/*
+ * dirty_old_cursor()/dirty_cursor() are extracted verbatim from the pinned
+ * upstream render.c. The adapter below only decides when the policy runs:
+ * Android renders partial bands and defers row->dirty clearing until Java has
+ * committed the Canvas frame, so calling upstream on every partial frame
+ * would re-dirty the cursor row forever.
+ */
+#include "foot-render-damage.inc"
+
+/*
+ * pixman_region_for_coords*() and mark_selected_region() are extracted
+ * verbatim from the pinned upstream selection.c. They provide foot's normal
+ * selection geometry, its old/new region diff, and the selected-bit policy.
+ * The adapter maps Android's transcript-relative coordinates onto ring rows
+ * and applies the visible-selection policy per painted row.
+ */
+#include "foot-selection.inc"
 
 /* Render command opcodes. Kept in sync with TerminalRenderer.java. */
 enum render_opcode {
@@ -22,6 +43,7 @@ enum render_opcode {
     OP_GLYPH = 10,
     OP_FILL_TRAPEZOID = 11,
     OP_IMAGE = 12,
+    OP_SCROLL = 13,
 };
 
 /* Effect bits shared with TerminalRenderer.java. */
@@ -95,6 +117,31 @@ struct foot_render_model {
     struct canvas_draw_op *draw_ops;
     size_t draw_ops_len;
     size_t draw_ops_cap;
+
+    /*
+     * Cursor and selection are overlays: they are not part of row content and
+     * therefore do not set row->dirty in the VT core. Track their previous
+     * frame state here so native damage remains the single source of truth for
+     * what the Canvas has to repaint. Java still mirrors damage for
+     * invalidation, but no longer decides which rows are drawn.
+     */
+    struct row *last_cursor_row;
+    int last_cursor_row_index;
+    int last_cursor_col;
+    bool last_cursor_visible;
+    int last_cursor_shape;
+    bool cursor_tracking_valid;
+
+    int last_selection_y1;
+    int last_selection_y2;
+    int last_selection_x1;
+    int last_selection_x2;
+    bool last_selection_active;
+    bool selection_tracking_valid;
+
+    /* Scroll damage queued by headless_append(). Kept until the next render so
+     * the Android retained surface can replay it as a pixel blit. */
+    tll(struct damage) pending_scroll;
 };
 
 static int
@@ -168,10 +215,401 @@ row_is_visible(const struct foot_render_model *model, int external_row)
            external_row < model->view_top + model->rows;
 }
 
+static void
+mark_external_row_dirty(struct terminal *term, int external_row)
+{
+    struct row *row = row_for_external(term, external_row);
+    if (row != NULL)
+        row->dirty = true;
+}
+
+static bool
+selection_is_active(int y1, int y2, int x1, int x2)
+{
+    /* Java uses all -1 for "no selection". A real selection may start in the
+     * transcript (negative y), including row -1, so x decides the sentinel. */
+    return x1 >= 0 && x2 >= 0 && y2 >= y1;
+}
+
+static int
+selection_grapheme_start(
+    const struct terminal *term, int external_row, int col)
+{
+    const struct row *row = row_for_external(term, external_row);
+    if (row == NULL)
+        return col;
+
+    /* An endpoint on a spacer half belongs to the base cell, matching
+     * upstream selection_modify(). */
+    while (col > 0 && row->cells[col].wc >= CELL_SPACER)
+        col--;
+    return col;
+}
+
+static int
+selection_grapheme_end(
+    const struct terminal *term, int external_row, int col)
+{
+    const struct row *row = row_for_external(term, external_row);
+    if (row == NULL)
+        return col;
+
+    while (col + 1 < term->cols && row->cells[col + 1].wc >= CELL_SPACER)
+        col++;
+    return col;
+}
+
+/*
+ * Apply upstream selection_dirty_cells()'s visible-selection policy to one
+ * row. foot calls that function for every grid_render() and relies on it
+ * re-dirtying selected empty cells. Android commits row damage only after Java
+ * has drawn the Canvas frame, so calling the whole-grid version every frame
+ * would keep those rows dirty forever. Marking is therefore done only for rows
+ * that are already being painted; the region geometry and selected-bit policy
+ * still come from the extracted upstream selection code.
+ */
+static void
+mark_row_selection(
+    struct terminal *term, struct row *row, int external_row)
+{
+    if (term == NULL || row == NULL || row->cells == NULL)
+        return;
+
+    for (int col = 0; col < term->cols; col++)
+        row->cells[col].attrs.selected = false;
+
+    if (term->selection.coords.start.row < 0 ||
+        term->selection.coords.end.row < 0)
+    {
+        return;
+    }
+
+    const int abs_row = external_row_index(term, external_row);
+    const int rel_row = grid_row_abs_to_sb(term->grid, term->rows, abs_row);
+
+    pixman_region32_t selection = pixman_region_for_coords(
+        term, &term->selection.coords.start, &term->selection.coords.end);
+    pixman_region32_t visible;
+    pixman_region32_init(&visible);
+    pixman_region32_intersect_rect(
+        &visible, &selection, 0, rel_row, (unsigned)term->cols, 1);
+
+    int count = 0;
+    pixman_box32_t *boxes = pixman_region32_rectangles(&visible, &count);
+    if (boxes != NULL && count > 0) {
+        mark_selected_region(
+            term, boxes, (size_t)count, MARK_SELECTION_MARK_FOR_RENDER);
+    }
+
+    pixman_region32_fini(&visible);
+    pixman_region32_fini(&selection);
+}
+
+static int clamp_row(int row, int rows);
+static bool scroll_damage_applies(
+    const struct grid *grid, const struct damage *damage);
+
+static void
+apply_upstream_cursor_damage(struct terminal *term, bool visible)
+{
+    /*
+     * dirty_cursor()/dirty_old_cursor() use term->hide_cursor, which is the
+     * VT-owned DECTCEM state. Android's cursor_visible argument additionally
+     * reflects focus and blink policy, so expose it only for this synchronous
+     * damage-policy call and restore the terminal state afterwards.
+     */
+    const bool hide_cursor = term->hide_cursor;
+    term->hide_cursor = !visible;
+    dirty_old_cursor(term);
+    dirty_cursor(term);
+    term->hide_cursor = hide_cursor;
+}
+
+/*
+ * Foot's grid_render() calls dirty_old_cursor()/dirty_cursor() before building
+ * the damage region. The Canvas bridge bypasses grid_render(), so the adapter
+ * detects overlay changes and lets the extracted upstream functions dirty the
+ * old/new rows.
+ */
+static void
+track_cursor_damage(
+    struct foot_render_model *model, struct terminal *term,
+    bool visible, int shape)
+{
+    const struct coord *cursor = &term->grid->cursor.point;
+    const int row_index = cursor->row;
+    struct row *row = grid_row(term->grid, row_index);
+    const int col = cursor->col;
+
+    const bool changed =
+        !model->cursor_tracking_valid ||
+        visible != model->last_cursor_visible ||
+        shape != model->last_cursor_shape ||
+        (visible &&
+         (row != model->last_cursor_row || col != model->last_cursor_col));
+
+    if (changed) {
+        /* The ring index may have been recycled while the viewport was
+         * following output. Invalidate upstream's remembered row instead of
+         * dirtying a slot that now contains unrelated content. */
+        if (term->render.last_cursor.row != NULL &&
+            grid_row(term->grid, model->last_cursor_row_index) !=
+                model->last_cursor_row)
+        {
+            term->render.last_cursor.row = NULL;
+        }
+
+        apply_upstream_cursor_damage(term, visible);
+    }
+
+    model->last_cursor_row = row;
+    model->last_cursor_row_index = row_index;
+    model->last_cursor_col = col;
+    model->last_cursor_visible = visible;
+    model->last_cursor_shape = shape;
+    model->cursor_tracking_valid = true;
+}
+
+static void
+mark_selection_region(
+    struct terminal *term, const struct coord *start, const struct coord *end,
+    enum mark_selection_variant variant)
+{
+    pixman_region32_t region = pixman_region_for_coords(term, start, end);
+
+    int count = 0;
+    pixman_box32_t *boxes = pixman_region32_rectangles(&region, &count);
+    if (boxes != NULL && count > 0)
+        mark_selected_region(term, boxes, (size_t)count, variant);
+
+    pixman_region32_fini(&region);
+}
+
+/*
+ * Android selection coordinates are transcript-relative (the same addressing
+ * Java uses for copying text). Convert them to absolute ring rows, then let
+ * the extracted upstream region code diff the old and new selections exactly
+ * like selection_modify() does: rows in both regions are dirtied, and cells
+ * are marked/unmarked before the Canvas bridge repaints them.
+ */
+static void
+sync_native_selection(
+    struct foot_render_model *model, struct terminal *term,
+    int y1, int y2, int x1, int x2)
+{
+    const int requested_x1 = x1;
+    const int requested_x2 = x2;
+    const bool active = selection_is_active(y1, y2, x1, x2);
+    const bool changed =
+        !model->selection_tracking_valid ||
+        active != model->last_selection_active ||
+        (active &&
+         (y1 != model->last_selection_y1 ||
+          y2 != model->last_selection_y2 ||
+          x1 != model->last_selection_x1 ||
+          x2 != model->last_selection_x2));
+
+    if (!changed)
+        return;
+
+    term->selection.kind = SELECTION_CHAR_WISE;
+
+    const bool old_active =
+        term->selection.coords.start.row >= 0 &&
+        term->selection.coords.end.row >= 0;
+    if (old_active) {
+        mark_selection_region(
+            term, &term->selection.coords.start, &term->selection.coords.end,
+            MARK_SELECTION_UNMARK_AND_DIRTY);
+    }
+
+    if (active) {
+        if (x1 < 0)
+            x1 = 0;
+        if (x2 < 0)
+            x2 = 0;
+        if (x1 >= term->cols)
+            x1 = term->cols - 1;
+        if (x2 >= term->cols)
+            x2 = term->cols - 1;
+        if (y1 == y2 && x2 < x1) {
+            const int tmp = x1;
+            x1 = x2;
+            x2 = tmp;
+        }
+
+        x1 = selection_grapheme_start(term, y1, x1);
+        x2 = selection_grapheme_end(term, y2, x2);
+
+        term->selection.coords.start = (struct coord){
+            .col = x1, .row = external_row_index(term, y1)};
+        term->selection.coords.end = (struct coord){
+            .col = x2, .row = external_row_index(term, y2)};
+
+        mark_selection_region(
+            term, &term->selection.coords.start, &term->selection.coords.end,
+            MARK_SELECTION_MARK_AND_DIRTY);
+    } else {
+        term->selection.coords.start = (struct coord){-1, -1};
+        term->selection.coords.end = (struct coord){-1, -1};
+    }
+
+    model->last_selection_y1 = y1;
+    model->last_selection_y2 = y2;
+    model->last_selection_x1 = active ? requested_x1 : -1;
+    model->last_selection_x2 = active ? requested_x2 : -1;
+    model->last_selection_active = active;
+    model->selection_tracking_valid = true;
+}
+
+static void
+track_scroll_replacement_damage(
+    struct foot_render_model *model, struct terminal *term)
+{
+    if (model->full_damage)
+        return;
+
+    tll_foreach(model->pending_scroll, it) {
+        const struct damage *damage = &it->item;
+        if (!scroll_damage_applies(term->grid, damage))
+            continue;
+
+        int start = clamp_row(damage->region.start, term->rows);
+        int end = clamp_row(damage->region.end, term->rows);
+        if (damage->lines < end - start)
+            continue;
+
+        /* No pixel blit can preserve any row in a fully replaced region. */
+        for (int r = start; r < end; r++)
+            mark_external_row_dirty(term, model->view_top + r);
+    }
+}
+
+static void
+reset_overlay_tracking(
+    struct foot_render_model *model, struct terminal *term)
+{
+    if (term != NULL) {
+        /* Do not let the upstream cursor-damage policy touch a row that was
+         * remembered before a reset, resize or viewport change. */
+        term->render.last_cursor.row = NULL;
+        term->render.last_cursor.hidden = true;
+
+        /* A reset always requests full damage, so every visible row is
+         * repainted (and its selected bits are rebuilt) from the Java
+         * selection coordinates. Drop the old absolute selection first. */
+        term->selection.kind = SELECTION_CHAR_WISE;
+        term->selection.coords.start = (struct coord){-1, -1};
+        term->selection.coords.end = (struct coord){-1, -1};
+    }
+
+    model->last_cursor_row = NULL;
+    model->last_cursor_row_index = 0;
+    model->last_cursor_col = 0;
+    model->last_cursor_visible = false;
+    model->last_cursor_shape = 0;
+    model->cursor_tracking_valid = false;
+
+    model->last_selection_y1 = -1;
+    model->last_selection_y2 = -1;
+    model->last_selection_x1 = -1;
+    model->last_selection_x2 = -1;
+    model->last_selection_active = false;
+    model->selection_tracking_valid = false;
+}
+
+static bool
+scroll_damage_applies(const struct grid *grid, const struct damage *damage)
+{
+    switch (damage->type) {
+    case DAMAGE_SCROLL:
+    case DAMAGE_SCROLL_REVERSE:
+        /* foot only records these when the viewport follows the live screen;
+         * the pixel backend must not move a viewport the user scrolled away. */
+        return grid->view == grid->offset;
+    case DAMAGE_SCROLL_IN_VIEW:
+    case DAMAGE_SCROLL_REVERSE_IN_VIEW:
+        return true;
+    }
+    return false;
+}
+
+static bool
+scroll_damage_is_reverse(const struct damage *damage)
+{
+    return damage->type == DAMAGE_SCROLL_REVERSE ||
+           damage->type == DAMAGE_SCROLL_REVERSE_IN_VIEW;
+}
+
+static void
+discard_pending_scroll(struct foot_render_model *model)
+{
+    tll_free(model->pending_scroll);
+}
+
+static void
+discard_scroll_damage(struct foot_render_model *model, struct terminal *term)
+{
+    if (term != NULL) {
+        tll_free(term->normal.scroll_damage);
+        tll_free(term->alt.scroll_damage);
+    }
+    discard_pending_scroll(model);
+}
+
+void
+foot_render_model_queue_scroll(
+    struct foot_render_model *model, const struct grid *grid)
+{
+    if (model == NULL || grid == NULL)
+        return;
+    tll_foreach(grid->scroll_damage, it)
+        tll_push_back(model->pending_scroll, it->item);
+}
+
+bool
+foot_render_model_has_pending_scroll(const struct foot_render_model *model)
+{
+    return model != NULL && tll_length(model->pending_scroll) > 0;
+}
+
+bool
+foot_render_model_scroll_covers_row(
+    const struct foot_render_model *model, const struct terminal *term,
+    int external_row)
+{
+    if (model == NULL || term == NULL || model->full_damage)
+        return false;
+
+    const int view_row = external_row - model->view_top;
+    if (view_row < 0 || view_row >= model->rows)
+        return false;
+
+    tll_foreach(model->pending_scroll, it) {
+        const struct damage *damage = &it->item;
+        if (!scroll_damage_applies(term->grid, damage))
+            continue;
+        if (view_row >= damage->region.start && view_row < damage->region.end)
+            return true;
+    }
+    return false;
+}
+
+static int
+clamp_row(int row, int rows)
+{
+    if (row < 0)
+        return 0;
+    if (row > rows)
+        return rows;
+    return row;
+}
+
 struct foot_render_model *
 foot_render_model_create(void)
 {
-    return calloc(1, sizeof(struct foot_render_model));
+    struct foot_render_model *model = calloc(1, sizeof(*model));
+    return model;
 }
 
 void
@@ -179,6 +617,7 @@ foot_render_model_destroy(struct foot_render_model *model)
 {
     if (model == NULL)
         return;
+    tll_free(model->pending_scroll);
     free(model->committed);
     free(model->commands);
     free(model->text);
@@ -197,6 +636,8 @@ foot_render_model_reset(
     model->view_top = 0;
     term->grid->view = term->grid->offset;
     model->full_damage = true;
+    reset_overlay_tracking(model, term);
+    discard_scroll_damage(model, term);
     (void)history;
     if (ensure_committed(model))
         reset_committed(model);
@@ -211,6 +652,8 @@ foot_render_model_resize(
 
     model->rows = term->rows;
     model->full_damage = true;
+    reset_overlay_tracking(model, term);
+    discard_scroll_damage(model, term);
     if (ensure_committed(model))
         reset_committed(model);
 
@@ -247,6 +690,8 @@ foot_render_model_set_view(
 
     /* The same addresses now show different content. */
     model->full_damage = true;
+    reset_overlay_tracking(model, term);
+    discard_scroll_damage(model, term);
     if (ensure_committed(model))
         reset_committed(model);
 }
@@ -278,8 +723,17 @@ foot_render_model_sync_view(
             (term->grid->offset + top) & (term->grid->num_rows - 1);
     }
 
-    if (moved_down)
+    /* Selection endpoints are viewport addresses. Following output can move
+     * the viewport without changing the content under it, but the addresses
+     * still have to be re-evaluated before dirtying old selection rows. */
+    if (model->selection_tracking_valid)
+        model->selection_tracking_valid = false;
+
+    if (moved_down) {
         model->full_damage = true;
+        reset_overlay_tracking(model, term);
+        discard_scroll_damage(model, term);
+    }
 
     /* If full damage is already pending, rows committed at the old address no
      * longer identify the same viewport slots. Keep the request, start over. */
@@ -388,6 +842,7 @@ foot_render_model_commit_all(
     }
 
     model->full_damage = false;
+    discard_pending_scroll(model);
     reset_committed(model);
 }
 
@@ -915,8 +1370,7 @@ static bool
 render_canvas_row(
     struct foot_render_model *model, struct terminal *term,
     struct row *native_row, int row, int cursor_col,
-    int selection_start, int selection_end, int columns, int32_t base_bg,
-    int *count)
+    int columns, int32_t base_bg, int *count)
 {
     if (!reserve_commands(model, (size_t)*count + 2))
         return false;
@@ -938,8 +1392,8 @@ render_canvas_row(
         .failed = false,
     };
 
-    foot_canvas_prepare_row(
-        term, native_row, selection_start, selection_end);
+    foot_canvas_prepare_row(term, native_row);
+    mark_row_selection(term, native_row, row);
     struct foot_canvas_sink sink = canvas_sink;
     sink.data = &ctx;
     foot_canvas_render_row(
@@ -1076,14 +1530,22 @@ foot_render_model_render_frame(
             : palette[FOOT_RENDER_COLOR_BACKGROUND],
         background_alpha);
 
-    /* Cursor rendering is owned by upstream render_cell()/draw_cursor(). The
-     * argument remains in the JNI ABI, but the old planner fallback is gone. */
-    (void)cursor_shape;
+    /* Cursor and selection are overlays: mark the rows whose overlay state
+     * changed before computing this frame's damage ranges. This is the part of
+     * foot's grid_render() policy that the Canvas bridge has to reproduce. */
+    track_cursor_damage(model, term, cursor_visible, cursor_shape);
+    sync_native_selection(
+        model, term, selection_y1, selection_y2, selection_x1, selection_x2);
+    track_scroll_replacement_damage(model, term);
 
     model->text_len = 0;
 
     const bool frame_full_damage =
         foot_render_model_is_full_damage(model);
+
+    /* A full repaint supersedes any pending scroll damage. */
+    if (frame_full_damage)
+        discard_scroll_damage(model, term);
 
     /* Coalesce consecutive damaged rows into ranges for the frame header. */
     int damage_ranges = 0;
@@ -1100,7 +1562,8 @@ foot_render_model_render_frame(
     }
 
     const size_t header_size =
-        (size_t)(rows + 1) * 32 + (size_t)damage_ranges * 3 + 32;
+        (size_t)(rows + 1) * 32 + (size_t)damage_ranges * 3 +
+        (size_t)tll_length(model->pending_scroll) * 5 + 32;
     if (!reserve_commands(model, header_size))
         return NULL;
 
@@ -1141,6 +1604,29 @@ foot_render_model_render_frame(
         commands[count++] = end_row - 1;
     }
 
+    /* Replay foot's scroll damage before the row commands. The Android
+     * renderer applies these to its retained surface, then paints only the
+     * newly exposed rows that foot marked dirty. */
+    if (!frame_full_damage) {
+        tll_foreach(model->pending_scroll, it) {
+            const struct damage *damage = &it->item;
+            if (!scroll_damage_applies(term->grid, damage))
+                continue;
+
+            int start = clamp_row(damage->region.start, screen_rows);
+            int end = clamp_row(damage->region.end, screen_rows);
+            const int lines = damage->lines;
+            if (lines <= 0 || lines >= end - start)
+                continue;
+
+            commands[count++] = OP_SCROLL;
+            commands[count++] = start;
+            commands[count++] = end;
+            commands[count++] = lines;
+            commands[count++] = scroll_damage_is_reverse(damage) ? 1 : 0;
+        }
+    }
+
     for (int row = top_row; row < end_row; row++) {
         if (row < min_top || row >= screen_rows)
             continue;
@@ -1155,31 +1641,11 @@ foot_render_model_render_frame(
             native_row == cursor_native_row;
 
         if (native_row != NULL && term->fonts[0] != NULL) {
-            const bool in_selection =
-                row >= selection_y1 && row <= selection_y2;
-            int selection_start =
-                row == selection_y1 ? selection_x1 : 0;
-            int selection_end =
-                row == selection_y2 ? selection_x2 : columns - 1;
-            if (!in_selection) {
-                selection_start = -1;
-                selection_end = -1;
-            } else {
-                if (selection_start < 0)
-                    selection_start = 0;
-                if (selection_end > columns - 1)
-                    selection_end = columns - 1;
-                if (selection_end < selection_start) {
-                    selection_start = -1;
-                    selection_end = -1;
-                }
-            }
-
             const int canvas_cursor_col =
                 is_cursor_row ? cursor_col : -1;
             if (!render_canvas_row(
                     model, term, native_row, row, canvas_cursor_col,
-                    selection_start, selection_end, columns, base_bg, &count))
+                    columns, base_bg, &count))
             {
                 goto fail;
             }
@@ -1224,6 +1690,7 @@ foot_render_model_render_frame(
     for (size_t i = 0; i < text_length; i++)
         commands[count++] = model->text[i];
 
+    discard_scroll_damage(model, term);
     *out_count = count;
     return commands;
 

@@ -1,4 +1,6 @@
 #include <jni.h>
+#include <android/bitmap.h>
+#include <dlfcn.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -9,6 +11,54 @@
 
 #define PALETTE_SIZE 259
 #define APPEND_STATE_HEADER_SIZE 9
+
+/*
+ * libjnigraphics is only needed when a retained Bitmap is actually moved.
+ * Resolve it lazily instead of adding a DT_NEEDED entry: the native unit
+ * tests load this library inside a host JVM, where Android's graphics
+ * runtime is not present.
+ */
+struct jnigraphics_api {
+    int (*get_info)(JNIEnv *, jobject, AndroidBitmapInfo *);
+    int (*lock_pixels)(JNIEnv *, jobject, void **);
+    int (*unlock_pixels)(JNIEnv *, jobject);
+};
+
+static pthread_once_t jnigraphics_once = PTHREAD_ONCE_INIT;
+static struct jnigraphics_api jnigraphics;
+
+static void
+load_jnigraphics(void)
+{
+    void *handle = dlopen("libjnigraphics.so", RTLD_NOW | RTLD_LOCAL);
+    if (handle == NULL)
+        return;
+    jnigraphics.get_info =
+        (int (*)(JNIEnv *, jobject, AndroidBitmapInfo *))
+        dlsym(handle, "AndroidBitmap_getInfo");
+    jnigraphics.lock_pixels =
+        (int (*)(JNIEnv *, jobject, void **))
+        dlsym(handle, "AndroidBitmap_lockPixels");
+    jnigraphics.unlock_pixels =
+        (int (*)(JNIEnv *, jobject))
+        dlsym(handle, "AndroidBitmap_unlockPixels");
+    if (jnigraphics.get_info == NULL ||
+        jnigraphics.lock_pixels == NULL ||
+        jnigraphics.unlock_pixels == NULL)
+    {
+        jnigraphics.get_info = NULL;
+        jnigraphics.lock_pixels = NULL;
+        jnigraphics.unlock_pixels = NULL;
+        dlclose(handle);
+    }
+}
+
+static bool
+have_jnigraphics(void)
+{
+    pthread_once(&jnigraphics_once, load_jnigraphics);
+    return jnigraphics.get_info != NULL;
+}
 
 struct jni_handle {
     pthread_mutex_t lock;
@@ -378,6 +428,68 @@ Java_com_termux_terminal_TerminalNative_nativeCommitRows(
         headless_commit_rows(handle->terminal, (const int *)rows, count);
     }
     pthread_mutex_unlock(&handle->lock);
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_terminal_TerminalNative_nativeDamageRows(
+    JNIEnv *env, jclass clazz, jlong handle_value,
+    jintArray rows_array, jint count)
+{
+    (void)clazz;
+    struct jni_handle *handle = handle_from(handle_value);
+    if (handle == NULL || rows_array == NULL || count <= 0)
+        return;
+
+    jsize length = (*env)->GetArrayLength(env, rows_array);
+    if (count > length)
+        count = length;
+    if (count <= 0)
+        return;
+
+    pthread_mutex_lock(&handle->lock);
+    jint *rows = reserve_commit_rows(handle, count);
+    if (rows != NULL) {
+        (*env)->GetIntArrayRegion(env, rows_array, 0, count, rows);
+        headless_damage_rows(handle->terminal, (const int *)rows, count);
+    }
+    pthread_mutex_unlock(&handle->lock);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_termux_terminal_TerminalNative_nativeScrollSurfaceRows(
+    JNIEnv *env, jclass clazz, jlong handle_value, jobject bitmap,
+    jint start, jint end, jint lines, jboolean reverse)
+{
+    (void)clazz;
+    struct jni_handle *handle = handle_from(handle_value);
+    if (handle == NULL || bitmap == NULL)
+        return JNI_FALSE;
+    if (lines <= 0)
+        return JNI_TRUE;
+    if (!have_jnigraphics())
+        return JNI_FALSE;
+
+    AndroidBitmapInfo info;
+    if (jnigraphics.get_info(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS)
+        return JNI_FALSE;
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.stride == 0)
+        return JNI_FALSE;
+    if (start < 0 || end <= start || lines < 0)
+        return JNI_FALSE;
+
+    void *pixels = NULL;
+    if (jnigraphics.lock_pixels(env, bitmap, &pixels) !=
+        ANDROID_BITMAP_RESULT_SUCCESS)
+        return JNI_FALSE;
+
+    pthread_mutex_lock(&handle->lock);
+    const bool moved = headless_scroll_surface_rows(
+        handle->terminal, pixels, (int)info.width, (int)info.height,
+        (int)info.stride, start, end, lines, reverse != JNI_FALSE);
+    pthread_mutex_unlock(&handle->lock);
+
+    jnigraphics.unlock_pixels(env, bitmap);
+    return moved ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL

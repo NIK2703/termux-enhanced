@@ -1108,6 +1108,7 @@ public final class TerminalView extends View {
         if (first < minRow) first = minRow;
         if (last > maxRow) last = maxRow;
         for (int row = first; row <= last; row++) screen.markRowDirty(row);
+        mEmulator.damageOverlayRows(first, last);
     }
 
     /**
@@ -1167,6 +1168,7 @@ public final class TerminalView extends View {
         if (markRows) {
             TerminalBuffer screen = mEmulator.getScreen();
             for (int row = first; row <= last; row++) screen.markRowDirty(row);
+            mEmulator.damageOverlayRows(first, last);
         }
         int top = rowToPixelTop(first);
         int bottom = rowToPixelTop(last + 1);
@@ -2641,7 +2643,7 @@ public final class TerminalView extends View {
             if (mTopRow < minTopRow) mTopRow = minTopRow;
             syncNativeViewport();
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
-                mGridOffsetX, glyphYOffset(), getWidth(), dirtyRect, mPixelsValid);
+                mGridOffsetX, glyphYOffset(), getWidth(), getHeight(), dirtyRect, mPixelsValid);
             // A full-clip frame really did paint every visible row — the surface now holds the
             // correct pixels for them, so the next partial repaint can safely skip non-dirty rows.
             // It is also the only moment it's safe to drop the dirty set wholesale: rows outside a
@@ -2651,6 +2653,14 @@ public final class TerminalView extends View {
                 mPixelsValid = true;
                 mUncoveredRecoveryClip.setEmpty();
                 mEmulator.getScreen().clearDirtyState();
+            }
+            // A scroll replay that could not touch the retained bitmap leaves the
+            // moved rows in the clip wrong, and the partial command set never
+            // generated the rows outside it. Rebuild the whole surface; the next
+            // frame is a true full-clip repaint, so the per-row skip is safe again.
+            if (mRenderer.consumeScrollReplayFailure()) {
+                mPixelsValid = false;
+                invalidate();
             }
 
             // Text selection handles are only meaningful on a full repaint: while selecting,

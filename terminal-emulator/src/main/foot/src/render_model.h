@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct terminal;
+struct grid;
 struct foot_render_model;
 
 /*
@@ -54,6 +55,21 @@ void foot_render_model_sync_view(
     struct foot_render_model *model, struct terminal *term, int history);
 
 int foot_render_model_view_top(const struct foot_render_model *model);
+
+/* Move scroll damage from an input grid into the render model's pending queue.
+ * The next frame replays it as a retained-surface blit. */
+void foot_render_model_queue_scroll(
+    struct foot_render_model *model, const struct grid *grid);
+
+/* True while a queued scroll has not been replayed/discarded. */
+bool foot_render_model_has_pending_scroll(
+    const struct foot_render_model *model);
+
+/* True when the queued scroll region covers this visible external row. Used by
+ * the Java dirty mirror to invalidate the moved band without forcing a redraw. */
+bool foot_render_model_scroll_covers_row(
+    const struct foot_render_model *model, const struct terminal *term,
+    int external_row);
 
 /* Request a complete repaint of the current visible set. */
 void foot_render_model_damage_all(struct foot_render_model *model);

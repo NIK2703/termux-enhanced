@@ -3,9 +3,10 @@
 **Ветка:** `feature/foot-terminal-core`
 **Версия приложения:** `0.118.0+enhanced.22` (не меняется)
 **Исходный foot:** `152487e494993ad7fb5633a27c7d7ad0f8810ea5`
-**Статус:** выполнены этапы 1–5, Canvas-only cleanup этапа 6, этап 7
-(OSC-8 underline и sixel) и архитектурное уплотнение этапа 8. Canvas-путь
-переиспользует **настоящий upstream** `render_row()`/`render_cell()` из
+**Статус:** выполнены этапы 1–14: Canvas-путь, retained-ARGB scroll replay,
+upstream scroll-damage mover, upstream cursor-damage policy, upstream
+selection-damage policy и upstream-разметка видимого selection.
+Canvas-путь переиспользует **настоящий upstream** `render_row()`/`render_cell()` из
 `third_party/foot/render.c` через Canvas compatibility backend: извлечённый
 блок компилируется как `foot-render-cell.inc`, а `pixman`/`fcft` заменены
 тонким shim'ом, который выдаёт команды Canvas вместо растеризации. Bridge
@@ -15,8 +16,23 @@ planner, `OP_TEXT` и fallback-политика `OP_RECT`/`OP_CURSOR` удале
 `render_cell()` — единственный источник цветов, selection и курсора. OSC-8
 ссылки всегда подчёркиваются upstream-кодом, а sixel собирается upstream
 `sixel.c`; Android получает готовые ARGB-пиксели через `OP_IMAGE` и рисует их
-`Bitmap`. Пиксельный `memmove`-scroll по-прежнему требует retained/native
-ARGB-backend (этап 4). Ограничения Canvas-пути зафиксированы в 6.4, 6.5 и 10.
+`Bitmap`. Повреждение прокрутки проигрывается на retained ARGB-поверхности
+через `OP_SCROLL` **тем же** upstream `grid_render_scroll()`/
+`grid_render_scroll_reverse()`, что и в `render.c`: извлечённый
+`foot-grid-scroll.inc` делает `memmove` непосредственно по pixels, полученным
+из `AndroidBitmap_lockPixels()`. Moved-строки не перерисовываются.
+Повреждение курсора тоже вынесено из Android-адаптера: `dirty_old_cursor()` и
+`dirty_cursor()` извлечены verbatim в `foot-render-damage.inc`, а модель лишь
+определяет момент вызова с учётом частичных кадров и отложенного commit.
+Selection-damage использует upstream `pixman_region_for_coords*()` и
+`mark_selected_region()` из `foot-selection.inc`: Android передаёт
+transcript-relative координаты, адаптер переводит их в absolute ring rows и
+выполняет тот же diff старой/новой области, что `selection_modify()`.
+Видимые selected-биты также выставляет upstream-политика
+`MARK_SELECTION_MARK_FOR_RENDER`; адаптер применяет её к каждой уже
+перерисовываемой строке, поэтому trailing пустые клетки не подсвечиваются, как
+в foot.
+Ограничения Canvas-пути зафиксированы в 6.4, 6.5, 10 и 11.
 
 ---
 
@@ -73,10 +89,40 @@ upstream `sixel.c`/`hsl.c`, а Android владеет frame/damage header, со�
 операций под Canvas, шрифтами и Bitmap-кэшем. URL-mode, search, IME и overlays
 относятся к Android UI scope.
 
-Извлечение проверяется на этапе configure и перед каждой сборкой:
-`tools/check-render-cell.sh --check` сверяет SHA-256 исходника, SHA-256
-сгенерированного файла и точный диапазон строк. Команда пересоздания:
-`sh terminal-emulator/src/main/foot/tools/check-render-cell.sh --write`.
+Помимо cell renderer'а, из того же pinned-файла извлекаются scroll-damage
+pixel movers: `grid_render_scroll()` … `grid_render_scroll_reverse()` в
+`src/foot-grid-scroll.inc`. Они используют upstream `struct buffer`, но
+`buf->data` указывает на pixels, полученные из Android `Bitmap`; SHM-ветка
+отключена, поэтому исполняется upstream `memmove` fallback. `render_margin()`
+в Android-сборке недостижим (его вызывает только успешный SHM scroll), поэтому
+для компиляции извлечённого блока оставлен пустой shim.
+
+Политика повреждения курсора извлекается отдельным непрерывным блоком
+`dirty_old_cursor()` … `dirty_cursor()` в `src/foot-render-damage.inc`.
+Android-адаптер не дублирует правила «какие строки пометить»: он только
+сравнивает overlay-состояние с предыдущим кадром, подставляет видимость
+курсора на время синхронного вызова и защищает upstream `last_cursor` от
+переиспользованного ring-row. Это необходимо потому, что Android рисует
+частичные band'ы и снимает `row->dirty` только после Java-commit.
+
+Текст обычного selection тоже идёт через upstream: `extract.c` компилируется
+без изменений, а `foreach_selected_normal()` … `selection_to_text()` извлекаются
+в `src/foot-selection-text.inc`. Android-адаптер только переводит
+transcript-relative координаты в absolute ring rows, расширяет wide-endpoint до
+целого grapheme и сохраняет Termux-совместимый trim печатных пробелов в конце
+hard-line. Transcript-режимы и word lookup остаются на отдельном walker'е,
+поскольку upstream `extract.c` не выражает их флаги.
+
+Все пять извлечений проверяются на этапе configure и перед каждой сборкой:
+`tools/check-render-cell.sh --check`, `tools/check-render-damage.sh --check`,
+`tools/check-selection-region.sh --check`, `tools/check-selection-text.sh --check`
+и `tools/check-grid-scroll.sh --check` сверяют SHA-256 исходника, SHA-256
+сгенерированного файла и точный диапазон строк. Команды пересоздания:
+`sh terminal-emulator/src/main/foot/tools/check-render-cell.sh --write`,
+`sh terminal-emulator/src/main/foot/tools/check-render-damage.sh --write`,
+`sh terminal-emulator/src/main/foot/tools/check-selection-region.sh --write`,
+`sh terminal-emulator/src/main/foot/tools/check-selection-text.sh --write` и
+`sh terminal-emulator/src/main/foot/tools/check-grid-scroll.sh --write`.
 
 ---
 
@@ -91,24 +137,31 @@ foot terminal core (terminal.c, vt.c, csi.c, grid.c, ...)   [upstream, без и
    ▼
 FootRenderModel (src/render_model.c)                        [наш слой политики]
    │  viewport, full damage, commit
-   │  frame/damage header, row selection, canvas sink
+   │  frame/damage header, per-row selection marking, canvas sink,
+   │  pending scroll queue
    │
    ├── foot-render-cell.inc                                 [upstream, verbatim]
    │      render_row() → render_cell(): fg/bg, attrs, cursor, selection
+   │
+   ├── foot-render-damage.inc                               [upstream, verbatim]
+   │      dirty_old_cursor() / dirty_cursor(): cursor damage policy
+   │
+   ├── foot-selection.inc                                  [upstream, verbatim]
+   │      pixman_region_for_coords() / mark_selected_region(): selection
+   │      damage diff and MARK_FOR_RENDER policy
    │
    ├── sixel.c + hsl.c                                     [upstream, verbatim]
    │      sixel decode → grid->sixel_images → sync/scale/crop/reflow
    │
    ├── foot_canvas_bridge.c                                 [тонкий адаптер]
-   │      synthetic fcft fonts, attrs.clean reset, selection spans,
-   │      literal render_row()
+   │      synthetic fcft fonts, attrs.clean reset, literal render_row()
    │
    └── foot_canvas_shim.c                                   [pixman/fcft shim]
           fills/glyphs/trapezoids → OP_FILL_RECT/OP_GLYPH/OP_FILL_TRAPEZOID
           sixel pixman surface    → OP_IMAGE + nativeSixelPixels()
    ▼
 TerminalRenderer (Canvas)                                   [Android backend]
-   │  glyph shaping, Paint, Canvas, Bitmap cache, clip, commit
+   │  glyph shaping, Paint, Canvas, retained view Bitmap, upstream scroll mover, commit
    ▼
 Surface
 
@@ -120,12 +173,13 @@ headless.c (адаптер) ── palette / append / events / snapshots / JNI w
 | Слой | Владеет | Не владеет |
 |---|---|---|
 | foot core | grid, row, cell, cursor, selection, scroll damage, sixel placements | пикселями, Canvas, JNI |
-| `FootRenderModel` | viewport, pending full damage, commit dirty, frame/damage header, выбор строк, row-op buffer/sort, damage-gate и `OP_IMAGE` | текстом, шрифтами, Canvas |
+| `FootRenderModel` | viewport, pending full damage, pending scroll, commit dirty, frame/damage header, выбор строк, row-op buffer/sort, damage-gate, `OP_SCROLL` и `OP_IMAGE` | текстом, шрифтами, Canvas |
 | `foot-render-cell.inc` | upstream-политика cell/row: цвета, attrs, cursor, selection, OSC-8 underline | Wayland, shm, workers |
+| `foot-selection.inc` | upstream geometry/damage selection: region diff, selected bits, dirty rows | Canvas, JNI, Java-координаты |
 | upstream `sixel.c` | sixel decode, палитра, размещение, crop, scale, reflow | Canvas, JNI, Bitmap |
 | `foot_canvas_shim` | pixman/fcft-совместимость, region algebra, sixel-поверхности, команды | реальной растеризацией шрифтов |
-| `headless.c` | append, палитра, события, snapshot, JNI-facing state, доступ к sixel-пикселям | решением «что и где рисовать» |
-| `TerminalRenderer` | шрифты, Canvas, clip, Bitmap-кэш sixel, фактическая отрисовка | семантикой терминала |
+| `headless.c` | append, палитра, события, snapshot, JNI-facing state, доступ к sixel-пикселям, scroll-region dirty | решением «что и где рисовать» |
+| `TerminalRenderer` | шрифты, Canvas, clip, retained view Bitmap, upstream scroll replay, Bitmap-кэш sixel, фактическая отрисовка | семантикой терминала |
 | `TerminalView` | `mTopRow`, инвалидация, scrollbar, clip | dirty-состоянием native-ядра |
 
 ---
@@ -151,6 +205,14 @@ headless.c (адаптер) ── palette / append / events / snapshots / JNI w
    revision меняется при любом изменении пикселей.
 8. **Sixel рисуется после строк.** `OP_IMAGE` идёт после row/fill-команд кадра,
    чтобы фон частичной строки не закрасил ещё валидное изображение.
+9. **Scroll replay идёт до строк и только на retained surface.** `OP_SCROLL`
+   адресует viewport-relative row-регион; native core применяет upstream
+   `grid_render_scroll()`/`grid_render_scroll_reverse()` к pixels
+   view-размерного ARGB `Bitmap`, затем Java рисует только реально
+   повреждённые строки кадра и блитит затронутый band. Full damage отменяет
+   pending scroll, а регион, заменённый целиком, эмитится обычными
+   `OP_DAMAGE`-строками. Exposed-строки не очищаются в native memmove: они
+   обязаны прийти обычным dirty-damage и быть полностью закрашены row-путём.
 
 ---
 
@@ -217,24 +279,28 @@ alternate screen всегда `0`, normal — из ring и `transcript_rows`.
 ```text
 append(data)
   ├─ vt_from_slave()
-  ├─ process_scroll_damage(): row->dirty для затронутых scroll-регионов
-  │     (region clamp; *_IN_VIEW — относительно grid->view)
+  ├─ process_scroll_damage(): применимые DAMAGE_SCROLL* копируются в
+  │     model->pending_scroll; row->dirty для затронутых строк; scroll-списки
+  │     обоих grid освобождаются, чтобы не считать их дважды
   ├─ viewport-before snapshot: сравнение row-указателей по слотам
   │     (ловит grid_swap_row без row->dirty; NULL-строка → full damage)
   ├─ scroll counter: DAMAGE_SCROLL.lines или дельта ring-offset
   │     (совместимость и тесты; UI использует native view top)
   ├─ sync_view(): перечитать grid->view; сдвиг вниз → full damage
   ├─ full_damage при alt-switch / history shrink / mode change / потере строки
-  ├─ вернуть внешние строки, у которых full_damage || row->dirty
+  ├─ вернуть внешние строки, у которых full_damage || row->dirty ||
+  │     строка входит в pending scroll region
   │     (row->dirty НЕ очищается)
   └─ если full_damage ещё pending, выставить APPEND_FLAG_FULL_DAMAGE
 
 render(top_row, clip, rows)
   ├─ set_viewport() уже вызван view-слоем
   ├─ planner выдаёт frame-заголовок с view_top/full_damage
+  ├─ planner выдаёт OP_SCROLL-регионы (до row-команд)
   ├─ planner выдаёт OP_DAMAGE-диапазоны для запрошенного band
   ├─ planner выдаёт команды для запрошенных строк
-  └─ TerminalRenderer рисует и собирает фактически нарисованные строки
+  └─ TerminalRenderer применяет upstream scroll mover к retained Bitmap, рисует строки и
+      собирает фактически нарисованные строки
 
 commitRows(painted)
   ├─ row->dirty = false для каждой нарисованной видимой строки
@@ -342,9 +408,13 @@ Android-специфичны только шесть вещей:
    (фон, reverse, selection, block cursor); тонкие подчёркивания/зачёркивания
    остаются непрозрачными, как foreground.
 
-Selection передаётся в upstream через `cell->attrs.selected`. Bridge
+Selection передаётся в upstream через `cell->attrs.selected`. Render model
 расширяет диапазон колонок до целого wide-grapheme, если endpoint попал на
-spacer-ячейку. Upstream сам инвертирует цвета, обрабатывает `fg == bg` и
+spacer-ячейку, строит регион через upstream `pixman_region_for_coords()` и
+вызывает upstream `mark_selected_region()` с
+`MARK_SELECTION_MARK_FOR_RENDER` для каждой уже перерисовываемой строки.
+Bridge больше не вычисляет selection span: он только сбрасывает
+`attrs.clean`. Upstream сам инвертирует цвета, обрабатывает `fg == bg` и
 рисует block/underline/bar cursor. `term->kbd_focus` временно выставляется
 только на время синхронного `render_row()`; видимость курсора кодируется
 `cursor_col`, а не состоянием фокуса VT-ядра. Отдельной fallback-отрисовки
@@ -403,6 +473,60 @@ row-команд, чтобы частичная перерисовка фона 
 высота в команде — intrinsic-размер поверхности; Java масштабирует только
 горизонтальную сетку через `mCanvasScaleX`, как и остальные Canvas-команды.
 
+### 6.6. Retained surface и scroll replay
+
+Canvas больше не является единственным носителем предыдущего кадра. Каждый
+`TerminalRenderer` владеет view-размерным `Bitmap` в `ARGB_8888`; в него
+рисуются row-команды, а в конце кадра нужный band блитится на View-canvas с
+`PorterDuff.Mode.SRC`. Поэтому прозрачный фон не композитится повторно, а
+retained-пиксели остаются авторитетными и за пределами текущего clip'а.
+
+`OP_SCROLL` (opcode 13) эмитится **до** row-команд и содержит
+`start, end, lines, reverse`. `start`/`end` — viewport-relative строки, а не
+внешние адреса. Java передаёт их вместе с native handle и retained `Bitmap` в
+`nativeScrollSurfaceRows()`; JNI берёт pixels через
+`AndroidBitmap_lockPixels()` и передаёт их в
+`foot_grid_scroll_apply_rows()`. Native core сам выводит пиксельный band из
+`term->margins.top`, `term->cell_height` и `term->rows`, проверяет, что band
+целиком помещается в Bitmap, и вызывает извлечённые upstream
+`grid_render_scroll()`/`grid_render_scroll_reverse()` с `struct buffer`,
+указывающим на locked pixels. Никакого второго `memmove` в JNI больше нет.
+`libjnigraphics.so` резолвится через `dlopen()`/`dlsym()` при первом scroll, а
+не через `DT_NEEDED`: иначе host-JVM-тесты Termux пытаются загрузить Android
+graphics runtime и падают в `ProtoLogNative`.
+
+Для обычного scroll'а upstream двигает содержимое вверх (`start+lines →
+start`), для `reverse` — вниз. Upstream **не очищает** освободившийся band:
+он остаётся старым содержимым Bitmap, пока обычный frame не закрасит
+exposed-строки целиком. Это безопасно, потому что эти строки входят в
+frame-damage и рисуются row-командами; при прозрачном фоне
+`PorterDuff.Mode.SRC` заменяет старые пиксели, а не композитит поверх них.
+Если grid переведён elastic over-drag'ом (`mSurfaceYOffset` не соответствует
+обычному row origin), Java не применяет `OP_SCROLL`, а просит полный кадр:
+частично видимую band нельзя двигать построчным memmove.
+
+Порядок и правила:
+
+1. `process_scroll_damage()` копирует только применимые повреждения активного
+   grid в `pending_scroll`; `DAMAGE_SCROLL*` применяется при
+   `grid->view == grid->offset`, `*_IN_VIEW` — всегда.
+2. `headless_append()` добавляет все строки scroll-региона в Java dirty mirror.
+   Это нужно, чтобы `TerminalView` инвалидировал именно band, содержимое
+   которого передвинулось, хотя native `row->dirty` у moved-строк нет.
+3. Когда pending scroll есть, pointer-based `mark_moved_viewport_rows()` не
+   дублирует ту же работу.
+4. `render_frame()` не эмитит `OP_SCROLL`, если `lines >= region_size`:
+   такой регион заменён целиком и должен быть перерисован обычными строками.
+   Full damage отбрасывает `pending_scroll` до формирования заголовка.
+5. После успешной сборки кадра pending scroll очищается независимо от того,
+   был ли кадр частичным: Java уже применила move к retained surface.
+6. Полный кадр очищает весь `Bitmap` фоном и блитит его целиком; частичный —
+   только band `renderStartRow..renderEndRow`. Если `Bitmap` ещё не создан,
+   изменился размер/viewport/фон или Java потеряла валидность пикселей,
+   surface пересоздаётся/очищается и все видимые строки рисуются заново.
+7. При нехватке памяти под `Bitmap` рендерер откатывается на прямой canvas:
+   scroll не проигрывается, а все строки кадра принудительно перерисовываются.
+
 ---
 
 ## 7. ABI
@@ -448,6 +572,7 @@ OP_FILL_RECT(x, y, width, height, argb)                 # Canvas bridge
 OP_GLYPH(startChar, charCount, x, baseline, widthColumns, argb, effects)
 OP_FILL_TRAPEZOID(x1, y1, x2, y2, x3, y3, x4, y4, argb)
 OP_IMAGE(x, y, width, height, idLo, idHi, revision, opaque)
+OP_SCROLL(startRow, endRow, lines, reverse)             # viewport-relative
 OP_ROW_END
 ...
 OP_FRAME_END
@@ -472,6 +597,13 @@ upstream `render_row()` обходит ячейки справа налево; J
 сейчас информативный (Java всегда рисует ARGB с блендингом). Сами пиксели
 забираются отдельным JNI-вызовом `nativeSixelPixels(handle, id, revision, w, h)`
 только когда Java ещё не имеет актуального `Bitmap`.
+`OP_SCROLL` идёт до первой row-команды и применяется к retained surface
+через `nativeScrollSurfaceRows(handle, bitmap, startRow, endRow, lines,
+reverse)`. `startRow`/`endRow` — viewport-relative, `lines` — целые строки;
+native core сам вычисляет пиксельный band по `term->cell_height`/`margins` и
+вызывает upstream `grid_render_scroll()`/`grid_render_scroll_reverse()`.
+Операция не эмитится для региона, который заменён целиком, и отменяется full
+damage.
 
 Свойства:
 
@@ -480,6 +612,10 @@ upstream `render_row()` обходит ячейки справа налево; J
 - `damageRangeCount` и `OP_DAMAGE` описывают только запрошенный band
   `[renderTop, renderTop + renderRows)`. Непрерывные dirty-строки схлопываются в
   один диапазон, поэтому число диапазонов не больше числа строк.
+- `OP_SCROLL` описывает сдвиг целого региона независимо от запрошенного band;
+  строки самого региона попадают в Java dirty mirror, чтобы view
+  инвалидировал весь передвинутый band. `OP_SCROLL` не заменяет `OP_DAMAGE`
+  для новых/изменённых строк.
 - `fullDamage == 1` означает, что native не снял полное повреждение viewport;
   renderer рисует все строки band независимо от списка диапазонов.
 - `frameId` монотонно растёт; сейчас используется как задел для диагностики
@@ -558,17 +694,17 @@ repaint не мог «потерять» полное повреждение.
 - [x] Native-тесты planner'а: run grouping, bright, cursor policy, wide
       selection, selection при одинаковых fg/bg.
 
-### Этап 4. Scroll damage и производительность — выполнен для Canvas-backend
+### Этап 4. Scroll damage и производительность — выполнен
 
-- [x] `process_scroll_damage()` превращает `DAMAGE_SCROLL*` в row-damage.
-      `DAMAGE_SCROLL_IN_VIEW` клампится к `region`, координаты переводятся через
-      `grid->view`, а не помечают весь viewport.
+- [x] `process_scroll_damage()` классифицирует `DAMAGE_SCROLL*` и складывает
+      применимые повреждения активного grid в `pending_scroll`. Регион
+      клампится, `DAMAGE_SCROLL_IN_VIEW` считается относительно `grid->view`;
+      scroll-списки обоих grid освобождаются после queueing.
 - [x] Добавлено сравнение identity строк по видимым слотам до/после append.
-      foot делает `grid_swap_row()` без `row->dirty`; Canvas не умеет двигать
-      пиксели, поэтому слот, в котором сменился row-указатель, помечается
-      dirty. Это покрывает partial scroll region при прокрученной истории.
-      Если слот стал `NULL` или snapshot не выделился, запрашивается full
-      damage.
+      foot делает `grid_swap_row()` без `row->dirty`; при отсутствии pending
+      scroll слот, в котором сменился row-указатель, помечается dirty. Это
+      покрывает partial scroll region при прокрученной истории. Если слот стал
+      `NULL` или snapshot не выделился, запрашивается full damage.
 - [x] Исправлен scroll counter для scrolled-up output: учитывается дельта
       ring-offset, даже когда foot не пишет `DAMAGE_SCROLL`.
 - [x] Follow-text переведён на точный native `view_top` из append-state:
@@ -590,11 +726,10 @@ repaint не мог «потерять» полное повреждение.
 - [x] Native-тесты: full-screen scroll в scrolled-up режиме не двигает видимые
       слоты, но увеличивает counter; partial region помечает только сдвинутые
       слоты.
-- [ ] Отдельный `OP_SCROLL`/честный `memmove`-scroll не вводится для Canvas:
-      у Canvas нет читаемой/перемещаемой поверхности, поэтому scroll всё равно
-      требует перерисовки затронутых строк. Это возможно только после перехода
-      на retained/native ARGB-backend; текущий row-damage — эквивалент политики
-      `grid_render_scroll()` для Canvas.
+- [x] `OP_SCROLL` и честный `memmove` введены на retained ARGB surface:
+      native queue → frame op → `nativeScrollSurfaceRows()` под
+      `AndroidBitmap_lockPixels()` → band blit. Full damage отменяет pending
+      scroll, а полностью заменённый регион откатывается на row-damage.
 - [ ] Сравнить на устройстве p95 кадра, `tmux`, `htop`, OpenCode TUI и быстрый
       поток вывода. Проверка заблокирована: текущая Termux-сессия является
       рабочим окружением, `adb install`/`force-stop` не применялись.
@@ -616,9 +751,10 @@ repaint не мог «потерять» полное повреждение.
 - [x] `foot_canvas_shim.c`: solid/bits/target images, fills, glyph composites,
       trapezoids/triangles, synthetic fcft fonts и glyph cache.
 - [x] `foot_canvas_bridge.c`: synthetic fonts из `font_width`/`font_line_spacing`/
-      `font_ascent`, сброс `attrs.clean`, selection spans, буквальный вызов
-      upstream `render_row()`; `render_cell()` остаётся извлечённым и
-      проверяется хэшем.
+      `font_ascent`, сброс `attrs.clean`, буквальный вызов upstream
+      `render_row()`; `render_cell()` остаётся извлечённым и проверяется
+      хэшем. Selection spans того этапа заменены upstream-разметкой на этапе
+      14.
 - [x] Canvas sink: `OP_FILL_RECT`, `OP_GLYPH`, `OP_FILL_TRAPEZOID`;
       row-relative координаты и unpremultiplied ARGB.
 - [x] `TerminalRenderer`: исполнение новых opcode, clip строки, Path для
@@ -702,6 +838,133 @@ repaint не мог «потерять» полное повреждение.
       retained `struct buffer`/shm backend; оценка зафиксирована в разделе 2.
 - [ ] Визуальная проверка на устройстве и p95 после сборки APK.
 
+### Этап 9. Retained ARGB surface и scroll replay — выполнен
+
+- [x] `TerminalRenderer` владеет view-размерным `ARGB_8888 Bitmap`; row-команды
+      рисуются в него, а на View-canvas блитится только изменённый band.
+- [x] `OP_SCROLL` эмитится до row-команд; pending scroll отбрасывается при full
+      damage и для региона, заменённого целиком.
+- [x] `nativeDamageRows()` позволяет Android overlays (scrollbar band) вернуть
+      native damage без второго источника истины.
+- [x] Ошибка `lockPixels`/отсутствие Bitmap bridge приводит к полной
+      перерисовке кадра, а не к потере scroll-содержимого.
+
+### Этап 10. Upstream scroll-damage mover — выполнен
+
+- [x] `grid_render_scroll()`/`grid_render_scroll_reverse()` извлечены verbatim
+      в `src/foot-grid-scroll.inc`; диапазон и SHA-256 проверяются
+      `tools/check-grid-scroll.sh`.
+- [x] `foot_grid_scroll_apply_rows()` строит upstream `struct buffer` поверх
+      pixels из `AndroidBitmap_lockPixels()` и вызывает эти функции; JNI
+      больше не содержит собственного `memmove`.
+- [x] JNI/Java ABI передаёт `handle, bitmap, start, end, lines, reverse`;
+      native core сам выводит пиксельный band из `term->cell_height`/`margins`
+      и проверяет его границы.
+- [x] Убрано обнуление exposed-band: upstream semantics требует, чтобы эти
+      строки пришли обычным dirty-damage и были закрашены row-путём.
+- [x] Некорректная геометрия, elastic over-drag или отсутствие Bitmap bridge
+      возвращают `false`, после чего Java запрашивает полный кадр.
+- [x] Native regression: forward/reverse/partial scroll, stride padding,
+      полностью заменённый регион и invalid geometry.
+- [ ] Визуальная проверка scroll replay на устройстве и p95 после сборки APK.
+
+### Этап 11. Upstream cursor-damage policy — выполнен
+
+- [x] `dirty_old_cursor()`/`dirty_cursor()` извлечены verbatim из pinned
+      `render.c` в `src/foot-render-damage.inc`; диапазон и SHA-256
+      проверяются `tools/check-render-damage.sh`.
+- [x] `FootRenderModel` больше не дублирует правила пометки строк: он только
+      определяет, когда overlay-состояние изменилось, и вызывает upstream
+      функции.
+- [x] `term->hide_cursor` подставляется из Android `cursor_visible` только на
+      время синхронного damage-вызова и затем восстанавливается, чтобы не
+      менять DECTCEM-состояние VT-ядра.
+- [x] Upstream `last_cursor` защищён от переиспользованного ring-row: при
+      несовпадении сохранённого row-указателя и индекса он инвалидируется до
+      вызова.
+- [x] Повторный частичный кадр с неизменившимся курсором не переотмечает его
+      строку: `row->dirty` снимается только после Java-commit.
+- [x] Native regression: движение видимого курсора помечает старую и новую
+      строки; скрытие/показ, смена shape и неизменный курсор в partial band.
+- [ ] Визуальная проверка курсора (block/underline/beam/hollow, blink, history,
+      selection) на устройстве.
+
+### Этап 12. Upstream selection-damage policy — выполнен
+
+- [x] `pixman_region_for_coords_normal()` … `mark_selected_region()` извлечены
+      verbatim из pinned `selection.c` в `src/foot-selection.inc`; диапазон и
+      SHA-256 проверяются `tools/check-selection-region.sh`.
+- [x] `sync_native_selection()` переводит transcript-relative координаты Java
+      в absolute ring rows и выполняет diff старой/новой области через
+      upstream `MARK_SELECTION_UNMARK_AND_DIRTY`/`MARK_SELECTION_MARK_AND_DIRTY`.
+      Это повторяет `selection_modify()` без вызова `render_refresh()`.
+- [x] Selection активен, если `x1 >= 0 && x2 >= 0`; отсутствие selection —
+      все четыре координаты `-1`. Благодаря этому выделение в history,
+      включая строку `-1`, больше не теряется.
+- [x] При reset/viewport change absolute selection сбрасывается; full damage
+      перерисовывает видимые строки и заново применяет координаты Java.
+- [x] Canvas bridge на этом этапе ещё вычислял видимый span строки; этап 14
+      заменил его upstream-разметкой `MARK_SELECTION_MARK_FOR_RENDER`.
+- [x] Native regression: пустые клетки внутри selection дают один fill;
+      снятие selection убирает selected-биты; selection в history помечает
+      строки `-2/-1`; повторный кадр без изменений не помечает строки.
+- [ ] Визуальная проверка selection (обычное, history, wide/CJK, снятие) на
+      устройстве.
+
+### Этап 13. Upstream selection text — выполнен
+
+- [x] `extract.c` собирается без изменений из pinned submodule;
+      `foreach_selected_normal()` … `selection_to_text()` извлечены verbatim
+      в `src/foot-selection-text.inc`; диапазон и SHA-256 проверяются
+      `tools/check-selection-text.sh`.
+- [x] `headless_selected_text()` для обычного copy (`join_back_lines=true`,
+      `join_full_lines=false`) больше не обходит grid через
+      `row_text_init()`: адаптер временно выставляет absolute ring coords,
+      вызывает upstream `selection_to_text()` и восстанавливает selection
+      state.
+- [x] Концы selection на spacer/base wide-символа расширяются до целого
+      grapheme; координаты клампятся к history/screen.
+- [x] Termux-совместимость сохранена: upstream отбрасывает never-written
+      trailing cells, а адаптер дополнительно обрезает печатные пробелы в
+      конце hard-line; wrapped-строки склеиваются, hard linebreak остаются.
+- [x] Transcript modes (`join_back_lines=false` / `join_full_lines=true`) и
+      word lookup остаются на прежнем walker'е: upstream `extract.c` не
+      выражает эти два режима.
+- [x] Native regression: wide/spacer selection, wrapped vs hard newline,
+      interior spaces, trailing printed spaces, empty-only selection.
+- [x] JVM: selection-тесты `ScreenBufferTest` 3/3 (добавлен Unicode case),
+      целевые rendering/scroll тесты 19/19, `terminal-view` 42/42.
+- [ ] Визуальная проверка copy на устройстве: обычный текст, history,
+      wide/CJK, wrapped-строки, URL и вставка в другое приложение.
+
+### Этап 14. Upstream selection visual policy — выполнен
+
+- [x] `mark_row_selection()` в `render_model.c` строит регион через upstream
+      `pixman_region_for_coords()` и применяет
+      `MARK_SELECTION_MARK_FOR_RENDER` к пересечению selection с одной
+      отрисовываемой строкой. Это тело `selection_dirty_cells()` из
+      `selection.c`, ограниченное одной строкой.
+- [x] Полный `selection_dirty_cells()` не вызывается каждый кадр: upstream
+      помечает `row->dirty` для пустых selected-клеток, а Android снимает
+      dirty только после Java-commit, из-за чего такие строки перерисовывались
+      бы бесконечно. Разметка выполняется только для строк, которые уже
+      входят в текущий frame damage.
+- [x] `sync_native_selection()` расширяет оба endpoint'а до whole grapheme:
+      spacer → base для start/end и base → spacer для end. Это то же
+      правило, что в upstream `selection_modify()`.
+- [x] `foot_canvas_prepare_row()` больше не перебирает selection spans и не
+      выставляет `attrs.selected`; bridge только сбрасывает `attrs.clean`
+      перед буквальным `render_row()`.
+- [x] Визуальная семантика пустых клеток теперь foot-совместимая: внутренние
+      пустые клетки перед непустой клеткой подсвечиваются, trailing пустые
+      клетки — нет. Прежнее Termux-поведение «выделять весь span до конца»
+      удалено вместе с custom span-кодом.
+- [x] Native regression: trailing blanks не дают selection fill; wide-endpoint
+      на spacer'е подсвечивает обе колонки grapheme; прежние проверки
+      инверсии цветов, `fg == bg`, history-damage и снятия selection проходят.
+- [ ] Визуальная проверка selection на устройстве: обычное, history, wide/CJK,
+      пустые клетки, снятие.
+
 ---
 
 ## 9. Тестирование
@@ -720,12 +983,18 @@ repaint не мог «потерять» полное повреждение.
 - run grouping и bold-in-bright;
 - cursor: underline не перекрашивает ячейку, block перекрашивает, wide-cell
   курсор занимает обе колонки;
-- selection: начало на spacer'е wide-символа выделяет весь grapheme;
+- selection: начало/конец на spacer'е wide-символа выделяет весь grapheme;
 - selection при `fg == bg` получает видимый инвертированный фон;
+- selection visual policy: внутренние пустые клетки перед непустой
+  подсвечиваются и сливаются в fill, trailing пустые клетки не
+  подсвечиваются; снятие selection снимает selected-биты перед перерисовкой;
+- selection в history: отрицательные transcript-координаты (включая строку
+  `-1`) переводятся в absolute ring rows и помечают старые/новые строки;
+  повторный кадр без изменения selection не переотмечает строки;
 - full-screen scroll при прокрученной истории увеличивает scroll counter, но не
   помечает неизменившиеся видимые слоты;
 - partial scroll region помечает только слоты, у которых сменился row-указатель;
-- Canvas bridge: обычный глиф, block cursor с contrast glyph, selection
+- Canvas path: обычный глиф, block cursor с contrast glyph, selection
   inversion, wide CJK на позиции 0/2 колонки;
 - Canvas bridge: курсор на верхней строке live screen при непустой истории
   рисуется ровно один раз в `y == 0`, а не теряется из-за ring/external
@@ -736,6 +1005,11 @@ repaint не мог «потерять» полное повреждение.
   24 px и один glyph-run;
 - Canvas bridge: явно закрашенный фон при `background_alpha=128` получает
   alpha 128, а не остаётся непрозрачным;
+- `headless_scroll_surface_rows()`/upstream scroll mover: forward, reverse и
+  partial scroll двигают целые terminal-строки с учётом `stride`, padding
+  едет вместе со строкой, exposed-band остаётся нетронутым до row-damage;
+- полностью заменённый scroll-регион не трогает pixels и возвращает успех;
+  invalid `end`/пустой регион возвращают `false` для полного repaint;
 - sixel: красный sixel даёт один `OP_IMAGE` с ненулевым id, `headless_sixel_pixels()`
   возвращает поверхность нужного размера и красный пиксель;
 - sixel: чистый кадр после commit не повторяет `OP_IMAGE`;
@@ -743,8 +1017,16 @@ repaint не мог «потерять» полное повреждение.
   subtraction и не теряет `OP_FRAME_END`;
 - OSC-8: `\e]8;;URL\e\\X\e]8;;\e\\` даёт underline-fill цвета foreground,
   нарисованный upstream `render_cell()`;
-- `check-render-cell.sh --check` подтверждает source/output SHA-256 и точный
-  диапазон извлечения.
+- selection text: обычный copy идёт через upstream `extract.c`; wide-символ
+  выбирается с любой половины, wrapped-строки склеиваются, hard linebreak
+  сохраняются, внутренние пробелы не теряются, печатные пробелы в конце
+  hard-line обрезаются, empty-only selection даёт пустую строку;
+- transcript modes и word lookup по-прежнему используют прежний walker и не
+  меняют свою семантику;
+- `check-render-cell.sh --check`, `check-render-damage.sh --check`,
+  `check-selection-region.sh --check`, `check-selection-text.sh --check` и
+  `check-grid-scroll.sh --check` подтверждают source/output SHA-256 и точные
+  диапазоны извлечения.
 
 ### Java/Canvas
 
@@ -802,10 +1084,15 @@ repaint не мог «потерять» полное повреждение.
 | `grid->view` уезжает при append | `sync_view()` перечитывает foot после каждого append |
 | Один chunk прокручивает больше половины ring | follow-text использует точный `view_top`, а не дельту offset; сдвиг вниз → full damage |
 | Full damage вызывает лишние кадры | full снимается только после полного commit; на scrolled-up output full не ставится |
-| Selection на wide-символе выделяет половину | bridge расширяет selection до всей wide-ячейки; native canvas-тест |
+| Selection на wide-символе выделяет половину | render model расширяет оба endpoint'а до whole grapheme, затем upstream `mark_selected_region()`; native canvas-тест |
+| Selection в history с `y = -1` раньше считался неактивным | active определяется по `x1/x2 >= 0`, отсутствие selection — все четыре `-1`; native regression на строки `-2/-1` |
+| Большое selection в history перебирает много ring-rows | region строится один раз на строку, а не на кадр; marking выполняется только для строк текущего frame damage |
+| Selection visual расходится с foot для пустых клеток | используется `MARK_SELECTION_MARK_FOR_RENDER`: trailing blanks не подсвечиваются; native regression |
 | Выделение невидимо при `fg == bg` | upstream `render_cell()` инвертирует фон; native canvas-тест |
 | Canvas-путь регрессирует | native canvas-тесты; откат — `git revert` этапа, legacy-планировщика больше нет |
 | `.inc` разошёлся с pinned `render.c` | configure/PRE_BUILD проверяют source/output SHA-256; `--write` только после осознанного re-pin |
+| scroll-band не совпадает с геометрией terminal core | native проверяет `margins.top`/`cell_height`/`rows` и границы Bitmap; ошибка → полный repaint |
+| upstream memmove не очищает exposed-band | эти строки входят в frame damage и полностью закрашиваются row-путём; native regression проверяет границы |
 | shim расходится с pixman/fcft | API ограничен фактическими вызовами блока; `-Wno-unused` не скрывает несовпадение типов |
 | Полупрозрачный фон темнеет | shim снимает premultiply перед передачей ARGB в Canvas |
 | sixel-пиксели меняются после `OP_IMAGE` | JNI копирует под lock и сверяет revision/размеры; Java удаляет устаревший Bitmap |
@@ -835,37 +1122,70 @@ native всё ещё коммитит painted rows; frame header можно иг
 
 ---
 
-## 11. Изменённые файлы этапов 1–8
+## 11. Изменённые файлы этапов 1–14
 
 - `terminal-emulator/src/main/foot/src/render_model.c` — viewport, full damage,
   commit, frame/damage header, row-op buffer/sort, Canvas sink; переиспользуемые
   command/text buffers. Legacy planner удалён; добавлен damage-gated
-  `OP_IMAGE` и pointer-сопоставление курсора при scrollback.
+  `OP_IMAGE`, pointer-сопоставление курсора при scrollback, вызов upstream
+  cursor-damage policy, upstream selection-damage diff и per-row
+  `MARK_SELECTION_MARK_FOR_RENDER` policy.
 - `terminal-emulator/src/main/foot/src/render_model.h` — API модели и palette
   layout.
 - `terminal-emulator/src/main/foot/src/foot-render-cell.inc` — verbatim
   upstream `attrs_to_font()` … `render_row()`; генерируется скриптом.
+- `terminal-emulator/src/main/foot/src/foot-render-damage.inc` — verbatim
+  upstream `dirty_old_cursor()` … `dirty_cursor()`; генерируется скриптом.
+- `terminal-emulator/src/main/foot/src/foot-selection.inc` — verbatim upstream
+  `pixman_region_for_coords_normal()` … `mark_selected_region()`;
+  генерируется скриптом.
+- `terminal-emulator/src/main/foot/src/foot-selection-text.inc` — verbatim
+  upstream `foreach_selected_normal()` … `selection_to_text()`;
+  генерируется скриптом.
+- `terminal-emulator/src/main/foot/src/foot_selection_text.c` — Android adapter:
+  компилирует upstream `extract.c` и извлечённый selection-text walker без
+  Wayland/clipboard-зависимостей.
+- `terminal-emulator/src/main/foot/src/foot-grid-scroll.inc` — verbatim
+  upstream `grid_render_scroll()` … `grid_render_scroll_reverse()`;
+  генерируется скриптом.
+- `terminal-emulator/src/main/foot/src/foot_grid_scroll.c` — Android adapter:
+  `struct buffer` поверх locked Bitmap pixels, validation пиксельного band,
+  вызов извлечённых upstream scroll-функций.
+- `terminal-emulator/src/main/foot/src/foot_grid_scroll.h` — entry point
+  `foot_grid_scroll_apply_rows()`.
 - `terminal-emulator/src/main/foot/src/foot_canvas_backend.h` — sink,
   frame/row API Canvas-моста и id/revision sixel-изображений.
 - `terminal-emulator/src/main/foot/src/foot_canvas_bridge.c` — synthetic fonts,
-  сброс `attrs.clean`, selection spans, буквальный вызов upstream
-  `render_row()`; инвалидация sixel-кэша при смене клетки.
+  сброс `attrs.clean`, буквальный вызов upstream `render_row()`; selection
+  spans удалены, инвалидация sixel-кэша при смене клетки.
 - `terminal-emulator/src/main/foot/src/foot_canvas_shim.c` — pixman/fcft
   compatibility backend, glyph cache, Canvas-примитивы, region algebra,
   sixel-поверхности и их id/revision.
 - `terminal-emulator/src/main/foot/tools/check-render-cell.sh` — извлечение,
   SHA-256 и режим `--check` для configure/PRE_BUILD.
+- `terminal-emulator/src/main/foot/tools/check-render-damage.sh` — то же для
+  upstream cursor-damage policy.
+- `terminal-emulator/src/main/foot/tools/check-selection-region.sh` — то же для
+  upstream selection geometry/damage.
+- `terminal-emulator/src/main/foot/tools/check-selection-text.sh` — то же для
+  upstream selection-text walker'а.
+- `terminal-emulator/src/main/foot/tools/check-grid-scroll.sh` — то же для
+  upstream scroll-damage mover'ов.
 - `terminal-emulator/src/main/foot/src/headless.c` — append, dirty ownership,
   палитра, события, snapshot, тонкие JNI-обёртки; VT340 sixel-палитра,
-  `sixel_reflow()`/`sixel_cell_size_changed()` и доступ к пикселям.
+  `sixel_reflow()`/`sixel_cell_size_changed()`, доступ к пикселям,
+  `headless_scroll_surface_rows()` и upstream selection-text adapter с
+  wide-endpoint expansion и Termux-совместимым trim.
 - `terminal-emulator/src/main/foot/src/headless.h` — новые entry points,
-  включая `headless_sixel_pixels()`.
-- `terminal-emulator/src/main/foot/src/jni.c` — JNI setView/commit и
-  `nativeSixelPixels`.
+  включая `headless_sixel_pixels()` и scroll-surface replay.
+- `terminal-emulator/src/main/foot/src/jni.c` — JNI setView/commit, damage rows,
+  `nativeSixelPixels` и retained-surface scroll через upstream mover.
 - `terminal-emulator/src/main/foot/tests/foot_core_test.c` — damage/frame/planner,
-  Canvas-bridge, OSC-8 underline и sixel regression tests.
+  Canvas-bridge, cursor/selection damage, OSC-8 underline, sixel и
+  scroll-surface regression tests.
 - `terminal-emulator/src/main/foot/CMakeLists.txt` — сборка модуля, теста,
-  upstream `sixel.c`/`hsl.c` и проверка извлечённого блока.
+  upstream `extract.c`, `sixel.c`/`hsl.c` и проверки всех пяти извлечённых
+  блоков.
 - `terminal-emulator/src/main/foot/include/{pixman,wayland,srgb}.h` — shadow-API
   для upstream sixel/pixman-пути.
 - `terminal-view/src/main/java/com/termux/view/TerminalRenderer.java` — frame
@@ -880,9 +1200,13 @@ native всё ещё коммитит painted rows; frame header можно иг
 - `terminal-emulator/src/main/java/com/termux/terminal/TerminalBuffer.java` —
   native commit all при сбросе dirty state.
 - `terminal-emulator/src/test/java/com/termux/terminal/RenderPayloadTest.java` —
-  frame-заголовок, damage-диапазоны, `OP_IMAGE` и sixel-пиксели через JNI.
+  frame-заголовок, damage-диапазоны, `OP_IMAGE`, sixel-пиксели через JNI и
+  no-selection sentinel `{-1,-1,-1,-1}`.
 - `terminal-emulator/src/test/java/com/termux/terminal/AppendStateBufferTest.java` —
   native commit/viewport.
+- `terminal-emulator/src/test/java/com/termux/terminal/ScreenBufferTest.java` —
+  upstream selection text, включая wide/CJK endpoint и join-full-lines
+  compatibility.
 - `terminal-emulator/src/test/java/com/termux/terminal/ScrolledUpdateRepaintTest.java` —
   shadow-canvas regression для scrolled-up streaming и partial scroll region;
   native viewport синхронизируется так же, как в `TerminalView`.
@@ -1210,4 +1534,247 @@ upper half block) шириной 14 px и высотой 14 px каждая, ц�
   `render_row()`-путём и исправлением курсора.
 - Устройство не перезапускалось: установка APK и визуальная проверка
   `tmux`/`htop`/OpenCode TUI, sixel/OSC-8, курсора в history и p95 остаются за
+  пользователем.
+
+---
+
+## 18. Фактическая проверка этапа 9 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Добавлены
+  regressions на:
+  - forward-scroll `OP_SCROLL(0, 3, 1, false)` и dirty нижней строки;
+  - отсутствие повторного scroll-op на следующем чистом кадре;
+  - reverse-scroll на alternate screen (`reverse == true`);
+  - fallback для региона, заменённого целиком: `OP_SCROLL` не эмитится,
+    все строки региона приходят обычным damage;
+  - full damage отменяет pending scroll и не эмитит `OP_SCROLL`.
+- `check-render-cell.sh --check`: `foot-render-cell.inc: ok`, SHA-256
+  `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`.
+  Извлечённый upstream-блок не менялся.
+- Целевые JVM-тесты: `RenderPayloadTest` 3/3, `AppendStateBufferTest` 2/2,
+  `ScrolledUpdateRepaintTest` 14/14 (19/19). `terminal-view` JVM: 42/42.
+- Найден и исправлен интеграционный дефект: статическая линковка с
+  `jnigraphics` добавляла `DT_NEEDED libjnigraphics.so`, из-за чего
+  host-JVM-тесты в Termux падали с
+  `Native registration unable to find class ... ProtoLogNative`. Теперь
+  `AndroidBitmap_*` резолвится лениво через `dlopen()`/`dlsym()`, а библиотека
+  не зависит от Android graphics runtime при загрузке.
+- `nativeScrollSurfaceRows()` возвращает `boolean`: если bitmap bridge
+  недоступен или `lockPixels` не удался, renderer перерисовывает полосу
+  обычными row-командами и просит `TerminalView` назначить полный кадр. Тот же
+  fallback используется, если retained Bitmap вообще не удалось выделить.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `011f0e44f0a3b424c86ad57cdce2e7a9cb46623de5bd9dde5de64a84a5f40cc3`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage9-scroll-replay.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` с
+  `Java_com_termux_terminal_TerminalNative_nativeScrollSurfaceRows` и
+  `...nativeDamageRows`; `DT_NEEDED` содержит только `liblog`, `libm`,
+  `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка
+  `tmux`/`htop`/OpenCode TUI, sixel/OSC-8, курсора в history и p95 остаются за
+  пользователем.
+
+---
+
+## 19. Фактическая проверка этапа 10 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Добавлены
+  regressions на retained-surface scroll mover:
+  - forward scroll двигает целые terminal-строки вверх, reverse — вниз;
+  - partial region не трогает строки вне `start..end`;
+  - `stride` с padding переносится вместе со строкой;
+  - полностью заменённый регион (`lines >= end-start`) не меняет pixels;
+  - invalid `end` и пустой регион возвращают `false` для full repaint;
+  - reverse scroll по-прежнему помечает верхнюю exposed-строку dirty.
+- `check-render-cell.sh --check`: `foot-render-cell.inc: ok`, SHA-256
+  `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`.
+- `check-grid-scroll.sh --check`: `foot-grid-scroll.inc: ok`, SHA-256
+  `d95c3c4489b15b39ce0c73b5c1369eea3e9aed26817f0a67984ff96d496ccaba`.
+  Извлечённый upstream `grid_render_scroll()`/`grid_render_scroll_reverse()`
+  не редактировался.
+- Целевые JVM-тесты: `RenderPayloadTest` 3/3, `AppendStateBufferTest` 2/2,
+  `ScrolledUpdateRepaintTest` 14/14 (19/19). `terminal-view` JVM: 42/42;
+  Java-компиляция обоих модулей успешна.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `e9c53e66983df9661c8ac145e4ccf474f2f34266522c5b42ba509b6a1f7b3f95`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage10-upstream-scroll.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `3c5b9a67ebe4e89b27e168c9772b4c33d5854d1c515e96b0c86dd8ecb044a979`) с
+  `Java_com_termux_terminal_TerminalNative_nativeScrollSurfaceRows` и
+  `...nativeDamageRows`; `DT_NEEDED` содержит только `liblog`, `libm`,
+  `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка scroll
+  replay в `tmux`/`htop`/OpenCode TUI, sixel/OSC-8, курсора в history и p95
+  остаются за пользователем.
+
+---
+
+## 20. Фактическая проверка этапа 11 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Добавлены
+  regressions на upstream cursor-damage policy:
+  - движение видимого курсора помечает старую и новую строки;
+  - скрытие и повторный показ курсора помечают его строку;
+  - смена shape перерисовывает строку без изменения позиции;
+  - неизменившийся курсор в partial band не переотмечает строку, поскольку
+    `row->dirty` снимается только после Java-commit.
+- `check-render-cell.sh --check`: `foot-render-cell.inc: ok`, SHA-256
+  `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`.
+- `check-render-damage.sh --check`: `foot-render-damage.inc: ok`, SHA-256
+  `c8ae73c223872482f2aff03df471b246c7eb0e1e5233a151db08b290ad98f9e2`.
+  Извлечённые upstream `dirty_old_cursor()`/`dirty_cursor()` не редактировались.
+- `check-grid-scroll.sh --check`: `foot-grid-scroll.inc: ok`, SHA-256
+  `d95c3c4489b15b39ce0c73b5c1369eea3e9aed26817f0a67984ff96d496ccaba`.
+- Целевые JVM-тесты: `RenderPayloadTest` 3/3, `AppendStateBufferTest` 2/2,
+  `ScrolledUpdateRepaintTest` 14/14 (19/19). `terminal-view` JVM: 42/42;
+  Java-компиляция обоих модулей успешна.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `44dfda7fb8360c4226f598fdf4ec2eac4a255ab5b49cf9dfdca1130a9007efcd`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage11-upstream-cursor-damage.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `f4ce598f8cef5bc88bf79283214ebd712351ff000716abd3ac143f315db15909`) с
+  `Java_com_termux_terminal_TerminalNative_nativeScrollSurfaceRows` и
+  `...nativeDamageRows`; `DT_NEEDED` содержит только `liblog`, `libm`,
+  `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка курсора
+  (block/underline/beam/hollow, blink, history, selection) остаются за
+  пользователем.
+
+---
+
+## 21. Фактическая проверка этапа 12 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Добавлены
+  regressions на upstream selection-damage policy:
+  - пустые клетки внутри диапазона получают selected-биты и сливаются в один
+    fill шириной 24 px;
+  - снятие selection убирает selected-биты до перерисовки строки;
+  - selection в history (`y = -2..-1`) переводится в absolute ring rows и
+    помечает обе видимые строки;
+  - повторный кадр с теми же координатами не помечает строки;
+  - снятие history-selection снова помечает те же строки.
+- `check-selection-region.sh --check`: `foot-selection.inc: ok`, SHA-256
+  `4bd93815e1bd226030acedeaa8783dca407ea4c28d2208a614b254d75cc9121f`.
+  Извлечённые upstream `pixman_region_for_coords*()` и
+  `mark_selected_region()` не редактировались.
+- `check-render-cell.sh --check`: `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`.
+- `check-render-damage.sh --check`: `c8ae73c223872482f2aff03df471b246c7eb0e1e5233a151db08b290ad98f9e2`.
+- `check-grid-scroll.sh --check`: `d95c3c4489b15b39ce0c73b5c1369eea3e9aed26817f0a67984ff96d496ccaba`.
+- Целевые JVM-тесты: `RenderPayloadTest` 3/3, `AppendStateBufferTest` 2/2,
+  `ScrolledUpdateRepaintTest` 14/14 (19/19). `terminal-view` JVM: 42/42.
+- В Java no-selection теперь передаётся как все четыре `-1`; active selection
+  определяется по `x1/x2 >= 0`. Это позволяет выделять transcript-row `-1`,
+  которая раньше совпадала с sentinel-значением. `TerminalRenderer` уже
+  использует `{-1,-1,-1,-1}` через `mDefaultSelectors`, тесты обновлены.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `3d4f53674673e1781771cb9c416f27943ec96f50a01a14eac1ae5a2573b7b0cb`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage12-upstream-selection-damage.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `717ad59b0796546c97d717ef22af3d4471c3708aa6c3042c86b5a8348e388e03`) с
+  `nativeRender`, `nativeRenderInto`, `nativeRenderText`,
+  `nativeScrollSurfaceRows` и `nativeDamageRows`; `DT_NEEDED` содержит только
+  `liblog`, `libm`, `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка selection
+  (обычное, history, wide/CJK, снятие), а также cursor/scroll из этапов 10–11
+  остаются за пользователем.
+
+---
+
+## 22. Фактическая проверка этапа 13 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Добавлены
+  regressions на upstream selection text:
+  - wide-символ копируется при выборе base- или spacer-колонки;
+  - wrapped-строки склеиваются, hard linebreak сохраняется;
+  - внутренние пробелы не теряются;
+  - печатные trailing spaces в конце hard-line обрезаются;
+  - selection только из пустых клеток даёт пустую строку.
+- `check-selection-text.sh --check`: `foot-selection-text.inc: ok`, SHA-256
+  `87df5b285c1cb8203386ac693d3492134daccf792f2c261c480b7c786a2e8394`.
+  Извлечённые upstream `foreach_selected_normal()` … `selection_to_text()` не
+  редактировались; `extract.c` собран из pinned submodule без патчей.
+- Остальные extraction checks:
+  - `check-render-cell.sh --check`: `dcf1ba3b1562d2703e05e153998a4fbc07ad4073504dc324666656a0ace9efe5`;
+  - `check-render-damage.sh --check`: `c8ae73c223872482f2aff03df471b246c7eb0e1e5233a151db08b290ad98f9e2`;
+  - `check-selection-region.sh --check`: `4bd93815e1bd226030acedeaa8783dca407ea4c28d2208a614b254d75cc9121f`;
+  - `check-grid-scroll.sh --check`: `d95c3c4489b15b39ce0c73b5c1369eea3e9aed26817f0a67984ff96d496ccaba`.
+- JVM: selection-тесты `ScreenBufferTest` 3/3 (normal, Unicode wide/CJK,
+  join-full-lines compatibility); целевые rendering/scroll тесты
+  `RenderPayloadTest` 3/3, `AppendStateBufferTest` 2/2,
+  `ScrolledUpdateRepaintTest` 14/14 (19/19); `terminal-view` 42/42.
+- Полный `terminal-emulator` suite: 246 тестов, 48 failures. Набор падающих
+  тестов идентичен stage 12 (проверено diff'ом списков); это прежние
+  legacy-семантические расхождения native-порта, не регрессия этапа 13.
+  В частности, `testGetWordAtLocation` падал и на stage 12.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `1af191b21ad976034199f960c3e53dcf8b48e65ba3188decc9ebf5adc6c47efc`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage13-upstream-selection-text.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `7f23a3be607279aaf4666cf0302597eaf886882c4c336387cc2eeec4e51eaf6c`) с
+  `nativeRender`, `nativeRenderInto`, `nativeRenderText`,
+  `nativeScrollSurfaceRows` и `nativeDamageRows`; `DT_NEEDED` содержит только
+  `liblog`, `libm`, `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка copy
+  (обычный текст, history, wide/CJK, wrapped-строки, URL, вставка в другое
+  приложение) остаются за пользователем.
+
+---
+
+## 23. Фактическая проверка этапа 14 (29.10.2026)
+
+- `foot_core_test` (NDK arm64): `foot core smoke test: ok`. Добавлены
+  regressions на upstream selection visual policy:
+  - trailing пустые клетки внутри диапазона не получают selection fill;
+  - внутренние пустые клетки перед непустой клеткой по-прежнему сливаются в
+    один fill;
+  - endpoint на spacer'е wide-символа подсвечивает весь grapheme;
+  - запись в клетку при неизменном selection восстанавливает selected-биты
+    при перерисовке повреждённой строки.
+- Все extraction checks без изменений:
+  `check-render-cell.sh`, `check-render-damage.sh`,
+  `check-selection-region.sh`, `check-selection-text.sh`,
+  `check-grid-scroll.sh` — `ok`.
+- JVM: `RenderPayloadTest` 3/3; selection-тесты `ScreenBufferTest` 3/3
+  (normal, Unicode wide/CJK, join-full-lines). `testGetWordAtLocation`
+  остаётся известным pre-existing падением, не связанным с этапом 14.
+- Целевые rendering/scroll тесты: `ScrolledUpdateRepaintTest` 14/14,
+  `ScrollFollowTextTest` 6/6, `DirtyStateTest` 3/3 (23/23);
+  `terminal-view` 42/42.
+- Полный `terminal-emulator` suite на этом этапе не перезапускался: stage 14
+  меняет только native selection visual path, а stage 13 зафиксировал
+  48 прежних legacy-падений.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning
+  (вне рендерера).
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `e4c605bc2bcfa0f3901229154e6ca9e85b51708ab58d68dde3a87eff355d2fd9`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage14-upstream-selection-visual.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `89fa85c22a10eff68d44d41de8f7ca0e7f5f2c15725c38fad4d963822a0d95c2`) с
+  `nativeRender`, `nativeRenderInto`, `nativeRenderText`,
+  `nativeScrollSurfaceRows` и `nativeDamageRows`; `DT_NEEDED` содержит только
+  `liblog`, `libm`, `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка selection
+  (обычное, history, wide/CJK, пустые клетки, снятие) остаются за
   пользователем.

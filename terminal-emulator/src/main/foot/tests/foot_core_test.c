@@ -25,6 +25,7 @@ enum {
     OP_GLYPH = 10,
     OP_FILL_TRAPEZOID = 11,
     OP_IMAGE = 12,
+    OP_SCROLL = 13,
 };
 
 static int failures;
@@ -63,6 +64,9 @@ payload_has_frame_end(const int32_t *commands, int command_count)
             break;
         case OP_IMAGE:
             cursor += 8;
+            break;
+        case OP_SCROLL:
+            cursor += 4;
             break;
         case OP_FRAME_BEGIN:
             if (cursor + 8 > command_count)
@@ -221,6 +225,62 @@ has_text_fg(const int32_t *commands, int count, int wanted)
     return false;
 }
 
+static bool
+has_fill(
+    const int32_t *commands, int count,
+    int x, int y, int width, int height, int color)
+{
+    int cursor = 0;
+    while (commands != NULL && cursor < count) {
+        const int op = commands[cursor++];
+        if (op == OP_END)
+            break;
+        switch (op) {
+        case OP_ROW_BEGIN:
+            cursor += 1;
+            break;
+        case OP_ROW_END:
+        case OP_FRAME_END:
+            break;
+        case OP_FRAME_BEGIN:
+            if (cursor + 8 > count)
+                return false;
+            cursor += 8 + commands[cursor + 7] * 3;
+            break;
+        case OP_DAMAGE:
+            cursor += 2;
+            break;
+        case OP_FILL_RECT:
+            if (cursor + 5 > count)
+                return false;
+            if (commands[cursor] == x && commands[cursor + 1] == y &&
+                commands[cursor + 2] == width &&
+                commands[cursor + 3] == height &&
+                commands[cursor + 4] == color)
+            {
+                return true;
+            }
+            cursor += 5;
+            break;
+        case OP_GLYPH:
+            cursor += 7;
+            break;
+        case OP_FILL_TRAPEZOID:
+            cursor += 9;
+            break;
+        case OP_IMAGE:
+            cursor += 8;
+            break;
+        case OP_SCROLL:
+            cursor += 4;
+            break;
+        default:
+            return false;
+        }
+    }
+    return false;
+}
+
 static int *append_dirty(
     struct headless_terminal *ht, const char *text, int *dirty_count);
 static void commit_dirty(
@@ -319,6 +379,431 @@ frame_row_damaged(const int32_t *commands, int count, int row)
     return false;
 }
 
+static bool
+find_scroll_op(
+    const int32_t *commands, int count, int *start, int *end,
+    int *lines, bool *reverse)
+{
+    if (commands == NULL)
+        return false;
+
+    int cursor = 0;
+    while (cursor < count) {
+        const int op = commands[cursor++];
+        if (op == OP_END)
+            break;
+        switch (op) {
+        case OP_ROW_BEGIN:
+            cursor += 1;
+            break;
+        case OP_ROW_END:
+        case OP_FRAME_END:
+            break;
+        case OP_FRAME_BEGIN:
+            if (cursor + 8 > count)
+                return false;
+            cursor += 8 + commands[cursor + 7] * 3;
+            break;
+        case OP_DAMAGE:
+            cursor += 2;
+            break;
+        case OP_FILL_RECT:
+            cursor += 5;
+            break;
+        case OP_GLYPH:
+            cursor += 7;
+            break;
+        case OP_FILL_TRAPEZOID:
+            cursor += 9;
+            break;
+        case OP_IMAGE:
+            cursor += 8;
+            break;
+        case OP_SCROLL:
+            if (cursor + 4 > count)
+                return false;
+            if (start != NULL)
+                *start = commands[cursor];
+            if (end != NULL)
+                *end = commands[cursor + 1];
+            if (lines != NULL)
+                *lines = commands[cursor + 2];
+            if (reverse != NULL)
+                *reverse = commands[cursor + 3] != 0;
+            return true;
+        default:
+            return false;
+        }
+    }
+    return false;
+}
+
+static void
+scroll_replay_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 3, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "one\r\ntwo\r\nthree", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    headless_commit_all_rows(ht);
+
+    /* A line feed at the bottom scrolls the screen up. foot records the moved
+     * region as scroll damage; the face of the frame must carry it so Java can
+     * memmove the retained surface instead of redrawing the moved rows. */
+    dirty = append_dirty(ht, "\r\nfour", &dirty_count);
+    CHECK(dirty_has(dirty, dirty_count, 0));
+    CHECK(dirty_has(dirty, dirty_count, 1));
+    CHECK(dirty_has(dirty, dirty_count, 2));
+
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    int start = -1;
+    int end = -1;
+    int lines = 0;
+    bool reverse = true;
+    CHECK(find_scroll_op(
+        commands, command_count, &start, &end, &lines, &reverse));
+    CHECK(start == 0 && end == 3 && lines == 1 && !reverse);
+    CHECK(frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    CHECK(!find_scroll_op(
+        commands, command_count, NULL, NULL, NULL, NULL));
+    headless_commit_all_rows(ht);
+
+    /* A scroll that replaces the whole region is not a pixel move. The frame
+     * has to fall back to ordinary damaged rows and omit OP_SCROLL. */
+    dirty = append_dirty(ht, "\n\n\n", &dirty_count);
+    CHECK(dirty_count > 0);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL && commands[3] == 0);
+    CHECK(!find_scroll_op(
+        commands, command_count, NULL, NULL, NULL, NULL));
+    CHECK(frame_row_damaged(commands, command_count, 0));
+    CHECK(frame_row_damaged(commands, command_count, 1));
+    CHECK(frame_row_damaged(commands, command_count, 2));
+
+    /* Full damage supersedes a pending scroll: the frame must not ask Java to
+     * move pixels that the full repaint is about to replace. */
+    headless_destroy(ht);
+    ht = headless_create(10, 3, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+    dirty = append_dirty(ht, "seed", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    headless_commit_all_rows(ht);
+    dirty = append_dirty(ht, "\r\nx\x1b[?1049h", &dirty_count);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL && commands[3] == 1);
+    CHECK(!find_scroll_op(
+        commands, command_count, NULL, NULL, NULL, NULL));
+
+    /* CSI T scrolls in the opposite direction. Use the alternate screen: its
+     * viewport never moves into scrollback, so the reverse op reaches the
+     * frame instead of being superseded by viewport full damage. */
+    headless_destroy(ht);
+    ht = headless_create(10, 3, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+    dirty = append_dirty(ht, "\x1b[?1049h", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    headless_commit_all_rows(ht);
+
+    dirty = append_dirty(ht, "\x1b[T", &dirty_count);
+    CHECK(dirty_count > 0);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    start = -1;
+    end = -1;
+    lines = 0;
+    reverse = false;
+    CHECK(find_scroll_op(
+        commands, command_count, &start, &end, &lines, &reverse));
+    CHECK(start == 0 && end == 3 && lines == 1 && reverse);
+    CHECK(frame_row_damaged(commands, command_count, 0));
+
+    headless_destroy(ht);
+}
+
+static void
+scroll_surface_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 3, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    enum { width = 80, height = 48, cell_height = 16, stride = width * 4 + 16 };
+    uint8_t *pixels = malloc((size_t)stride * height);
+    CHECK(pixels != NULL);
+    if (pixels == NULL) {
+        headless_destroy(ht);
+        return;
+    }
+
+    uint32_t *words = (uint32_t *)pixels;
+    const size_t words_per_row = stride / sizeof(words[0]);
+    const size_t row_words = (size_t)cell_height * words_per_row;
+
+    for (int y = 0; y < height; y++) {
+        for (size_t i = 0; i < words_per_row; i++)
+            words[y * words_per_row + i] = (uint32_t)(y / cell_height + 1);
+    }
+
+    /* Forward scroll: rows move up, the exposed bottom rows stay untouched for
+     * the normal frame to repaint. Padding inside stride moves with the row. */
+    CHECK(headless_scroll_surface_rows(
+        ht, pixels, width, height, stride, 0, 3, 1, false));
+    CHECK(words[0 * row_words] == 2);
+    CHECK(words[1 * row_words] == 3);
+    CHECK(words[2 * row_words] == 3);
+    CHECK(words[0 * row_words + row_words - 1] == 2);
+
+    for (int y = 0; y < height; y++) {
+        for (size_t i = 0; i < words_per_row; i++)
+            words[y * words_per_row + i] = (uint32_t)(y / cell_height + 1);
+    }
+
+    /* Reverse scroll moves content down; the exposed top rows stay untouched. */
+    CHECK(headless_scroll_surface_rows(
+        ht, pixels, width, height, stride, 0, 3, 1, true));
+    CHECK(words[0 * row_words] == 1);
+    CHECK(words[1 * row_words] == 1);
+    CHECK(words[2 * row_words] == 2);
+
+    for (int y = 0; y < height; y++) {
+        for (size_t i = 0; i < words_per_row; i++)
+            words[y * words_per_row + i] = (uint32_t)(y / cell_height + 1);
+    }
+
+    /* A partial scroll region leaves rows outside the region alone. */
+    CHECK(headless_scroll_surface_rows(
+        ht, pixels, width, height, stride, 1, 3, 1, false));
+    CHECK(words[0 * row_words] == 1);
+    CHECK(words[1 * row_words] == 3);
+    CHECK(words[2 * row_words] == 3);
+
+    for (int y = 0; y < height; y++) {
+        for (size_t i = 0; i < words_per_row; i++)
+            words[y * words_per_row + i] = (uint32_t)(y / cell_height + 1);
+    }
+
+    /* A fully replaced region is a no-op pixel move; upstream returns early. */
+    CHECK(headless_scroll_surface_rows(
+        ht, pixels, width, height, stride, 0, 3, 3, false));
+    CHECK(words[0 * row_words] == 1);
+    CHECK(words[1 * row_words] == 2);
+    CHECK(words[2 * row_words] == 3);
+
+    /* Invalid geometry must fail so Java can fall back to a full repaint. */
+    CHECK(!headless_scroll_surface_rows(
+        ht, pixels, width, height, stride, 0, 4, 1, false));
+    CHECK(!headless_scroll_surface_rows(
+        ht, pixels, width, height, stride, 2, 2, 1, false));
+
+    free(pixels);
+    headless_destroy(ht);
+}
+
+static void
+overlay_damage_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "A", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    headless_commit_all_rows(ht);
+
+    /* Moving the cursor does not touch row content, but the overlay must be
+     * repainted: the model has to dirty the new cursor row itself. */
+    dirty = append_dirty(ht, "\x1b[3;5H", &dirty_count);
+    CHECK(dirty_count == 0);
+    commit_dirty(ht, dirty, dirty_count);
+
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && commands[8] == 0);
+
+    /* Moving a visible cursor dirties both the old and the new row. */
+    dirty = append_dirty(ht, "\x1b[1;1H", &dirty_count);
+    CHECK(dirty_count == 0);
+    commit_dirty(ht, dirty, dirty_count);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    CHECK(frame_row_damaged(commands, command_count, 0));
+    CHECK(frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    dirty = append_dirty(ht, "\x1b[3;5H", &dirty_count);
+    CHECK(dirty_count == 0);
+    commit_dirty(ht, dirty, dirty_count);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    CHECK(frame_row_damaged(commands, command_count, 0));
+    CHECK(frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    /* Hiding the cursor dirties the row it occupied. */
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    /* Showing it again dirties the row it now occupies. */
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    /* A shape change repaints the same row even though its position did not
+     * move. */
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, true, 1, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    /* An unchanged cursor in a partial band must not re-dirty its row: dirty
+     * is cleared only after Java commits, and Android renders bands. */
+    commands = headless_render(
+        ht, 4, -1, -1, -1, -1, true, 1, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && commands[8] == 0);
+    headless_commit_all_rows(ht);
+
+    /* A selection change dirties the affected rows even though no cells
+     * changed. Clearing it dirties them again. */
+    commands = headless_render(
+        ht, 0, 1, 2, 0, 3, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    CHECK(frame_row_damaged(commands, command_count, 1));
+    CHECK(frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    commands = headless_render(
+        ht, 0, 1, 2, 0, 3, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && commands[8] == 0);
+
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    CHECK(frame_row_damaged(commands, command_count, 1));
+    CHECK(frame_row_damaged(commands, command_count, 2));
+    headless_commit_all_rows(ht);
+
+    /* Android overlays (scrollbar band) can request native damage directly. */
+    int overlay_row = 3;
+    headless_damage_rows(ht, &overlay_row, 1);
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && frame_row_damaged(commands, command_count, 3));
+    headless_commit_all_rows(ht);
+
+    /* A palette change is full damage, not just Java-side invalidation. */
+    int32_t changed[259];
+    memcpy(changed, palette, sizeof(changed));
+    changed[1] ^= 0x0000ff;
+    CHECK(headless_set_palette(ht, changed, palette));
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && commands[3] == 1);
+
+    headless_destroy(ht);
+}
+
+static void
+selection_history_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(
+        ht,
+        "one\r\ntwo\r\nthree\r\nfour\r\nfive\r\nsix\r\nseven\r\neight\r\n",
+        &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+    headless_commit_all_rows(ht);
+
+    const int history = headless_history_size(ht);
+    CHECK(history >= 2);
+    headless_set_view(ht, -2);
+    CHECK(headless_view_top(ht) == -2);
+
+    /* The initial viewport change is full damage. */
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, -2, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL && commands[3] == 1);
+    headless_commit_all_rows(ht);
+
+    /* Selection rows may be negative transcript addresses. Both visible
+     * selected rows must be dirtied through the upstream region converter. */
+    commands = headless_render(
+        ht, -2, -2, -1, 0, 1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(frame_row_damaged(commands, command_count, -2));
+    CHECK(frame_row_damaged(commands, command_count, -1));
+    headless_commit_all_rows(ht);
+
+    commands = headless_render(
+        ht, -2, -2, -1, 0, 1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL && commands[8] == 0);
+
+    /* Clearing the history selection dirties the same rows again. */
+    commands = headless_render(
+        ht, -2, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(frame_row_damaged(commands, command_count, -2));
+    CHECK(frame_row_damaged(commands, command_count, -1));
+
+    headless_destroy(ht);
+}
+
 static void
 frame_header_tests(void)
 {
@@ -333,7 +818,7 @@ frame_header_tests(void)
 
     int command_count = 0;
     int32_t *commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL && command_count > 9);
     if (commands != NULL) {
         CHECK(commands[0] == 6); /* OP_FRAME_BEGIN */
@@ -350,7 +835,7 @@ frame_header_tests(void)
 
     dirty = append_dirty(ht, "\x1b[3;1HB", &dirty_count);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL);
     if (commands != NULL) {
         CHECK(commands[1] == first_frame_id + 1);
@@ -362,7 +847,7 @@ frame_header_tests(void)
 
     /* The damage list is scoped to the requested render band. */
     commands = headless_render(
-        ht, 1, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
+        ht, 1, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
     CHECK(commands != NULL);
     if (commands != NULL) {
         CHECK(commands[6] == 1 && commands[7] == 1);
@@ -370,7 +855,7 @@ frame_header_tests(void)
         CHECK(!frame_row_damaged(commands, command_count, 2));
     }
     commands = headless_render(
-        ht, 2, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
+        ht, 2, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
     CHECK(commands != NULL);
     if (commands != NULL) {
         CHECK(commands[6] == 2 && commands[7] == 1);
@@ -381,7 +866,7 @@ frame_header_tests(void)
     int row = 2;
     headless_commit_rows(ht, &row, 1);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL && commands[8] == 0);
 
     /* A viewport change is full damage, and the header carries the moved view. */
@@ -389,7 +874,7 @@ frame_header_tests(void)
     commit_dirty(ht, dirty, dirty_count);
     headless_set_view(ht, -2);
     commands = headless_render(
-        ht, -2, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, -2, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL);
     if (commands != NULL) {
         CHECK(commands[2] == -2);
@@ -401,7 +886,7 @@ frame_header_tests(void)
 
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, -2, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, -2, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL && commands[2] == -2 && commands[3] == 0 && commands[8] == 0);
 
     headless_destroy(ht);
@@ -546,7 +1031,7 @@ scrolled_cursor_tests(void)
 
     int command_count = 0;
     int32_t *commands = headless_render(
-        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
 
@@ -575,6 +1060,7 @@ scrolled_cursor_tests(void)
         } else if (op == OP_GLYPH) cursor += 7;
         else if (op == OP_FILL_TRAPEZOID) cursor += 9;
         else if (op == OP_IMAGE) cursor += 8;
+        else if (op == OP_SCROLL) cursor += 4;
         else break;
     }
     CHECK(cursor_fills == 1);
@@ -597,7 +1083,7 @@ sixel_render_tests(void)
 
     int command_count = 0;
     int32_t *commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
         &command_count);
     CHECK(commands != NULL);
 
@@ -626,6 +1112,8 @@ sixel_render_tests(void)
             cursor += 8 + commands[cursor + 7] * 3;
         } else if (op == OP_DAMAGE) {
             cursor += 2;
+        } else if (op == OP_SCROLL) {
+            cursor += 4;
         } else if (op == OP_IMAGE) {
             if (cursor + 8 > command_count) break;
             image_x = commands[cursor++];
@@ -664,7 +1152,7 @@ sixel_render_tests(void)
     /* Clean frames do not need to resend an unchanged image. */
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
         &command_count);
     CHECK(commands != NULL);
     bool saw_image = false;
@@ -692,6 +1180,8 @@ sixel_render_tests(void)
             cursor += 8 + commands[cursor + 7] * 3;
         } else if (op == OP_DAMAGE) {
             cursor += 2;
+        } else if (op == OP_SCROLL) {
+            cursor += 4;
         } else {
             break;
         }
@@ -706,7 +1196,7 @@ sixel_render_tests(void)
          "\x1bPq#0;2;100;0;0#0~~~~~~~~~~~~~~~~~~~~\x1b\\X");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
         &command_count);
     CHECK(commands != NULL);
     CHECK(payload_has_frame_end(commands, command_count));
@@ -726,7 +1216,7 @@ canvas_render_tests(void)
     headless_commit_all_rows(ht);
     int command_count = 0;
     int32_t *commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     /* The command buffer grows while render_cell() emits glyphs. Make sure the
@@ -787,7 +1277,7 @@ canvas_render_tests(void)
     feed(ht, "\x1b[1;1H");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     bool saw_cursor_fill = false;
@@ -868,11 +1358,65 @@ canvas_render_tests(void)
     CHECK(saw_selection_fill);
     CHECK(saw_selection_glyph);
 
+    /* The upstream selection region marks blank cells too; Termux selection
+     * has always highlighted the full span between its endpoints. */
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, 0, 0, 0, 2, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    /* Adjacent selected cells coalesce into one full-row-span fill. */
+    CHECK(has_fill(commands, command_count, 0, 0, 24, 16, palette[256]));
+    headless_commit_all_rows(ht);
+
+    /* terminal core clears attrs.selected when a cell is written. Re-rendering
+     * a damaged row while the selection is unchanged must restore the bits
+     * through the per-row MARK_FOR_RENDER policy. */
+    feed(ht, "\x1b[1;1HX");
+    commands = headless_render(
+        ht, 0, 0, 0, 0, 2, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(has_fill(commands, command_count, 0, 0, 24, 16, palette[256]));
+    headless_commit_all_rows(ht);
+
+    /* Clearing the selection unmarks those cells before the row is redrawn. */
+    commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(!has_fill(commands, command_count, 0, 0, 24, 16, palette[256]));
+    headless_commit_all_rows(ht);
+
+    /* Upstream only highlights selected empty cells when they are followed by
+     * a non-empty cell in the same selection. Trailing blanks stay unmarked,
+     * matching foot's selection_dirty_cells() policy. */
+    feed(ht, "\x1b[2J\x1b[HA   B");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, 0, 0, 0, 9, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(has_fill(commands, command_count, 0, 0, 40, 16, palette[256]));
+    CHECK(!has_fill(commands, command_count, 40, 0, 40, 16, palette[256]));
+    headless_commit_all_rows(ht);
+
+    /* A wide-character selection endpoint is expanded to the base/spacer
+     * pair before upstream marks the row. */
+    feed(ht, "\x1b[2J\x1b[H\xe7\x95\x8c" "B");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, 0, 0, 1, 1, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    CHECK(has_fill(commands, command_count, 0, 0, 16, 16, palette[256]));
+    headless_commit_all_rows(ht);
+
     /* Wide glyphs keep upstream cell advances: B starts at column 2. */
     feed(ht, "\x1b[2J\x1b[H\xe7\x95\x8c" "B");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     int render_text_length = 0;
@@ -920,7 +1464,7 @@ canvas_render_tests(void)
     feed(ht, "\x1b[2J\x1b[H\x1b]8;;https://example.com\x1b\\X\x1b]8;;\x1b\\");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     bool saw_url_underline = false;
@@ -957,7 +1501,7 @@ canvas_render_tests(void)
     feed(ht, "\x1b[2J\x1b[H\x1b[41mabc");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     int merged_fill_count = 0;
@@ -1004,7 +1548,7 @@ canvas_render_tests(void)
     feed(ht, "\x1b[2J\x1b[H\x1b[38;2;138;138;138m\xe2\x96\x88 \xe2\x96\x88");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     int block_start = -1;
@@ -1052,7 +1596,7 @@ canvas_render_tests(void)
     feed(ht, "\x1b[2J\x1b[H\x1b[38;2;138;138;138mA\xe2\x96\x88" "B");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 128, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 128, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     int mixed_glyph_runs = 0;
@@ -1089,7 +1633,7 @@ canvas_render_tests(void)
     feed(ht, "\x1b[2J\x1b[H\x1b[41mX");
     headless_commit_all_rows(ht);
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 128, 8.0f, 16, 12, 10, 3,
+        ht, 0, -1, -1, -1, -1, false, 0, 128, 8.0f, 16, 12, 10, 3,
         &command_count);
     CHECK(commands != NULL);
     bool saw_translucent_fill = false;
@@ -1134,6 +1678,9 @@ main(void)
     scrolled_cursor_tests();
     dirty_tracking_tests();
     frame_header_tests();
+    overlay_damage_tests();
+    scroll_replay_tests();
+    scroll_surface_tests();
     render_state_tests();
     scrolled_view_scroll_tests();
     struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
@@ -1190,7 +1737,7 @@ main(void)
     feed(ht, "\r\n\x1b[31mR\x1b[0m");
     int command_count = 0;
     int32_t *commands = headless_render(
-        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL);
     CHECK(has_text_fg(commands, command_count, palette[1]));
     encoded = row(ht, 3, &count);
@@ -1204,7 +1751,7 @@ main(void)
 
     feed(ht, " \x1b[1;31mB\x1b[0m");
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+        ht, 0, -1, -1, -1, -1, true, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
     CHECK(commands != NULL);
     CHECK(has_text_fg(commands, command_count, palette[9]));
     encoded = row(ht, 3, &count);
@@ -1323,11 +1870,34 @@ main(void)
     CHECK(selected != NULL && strcmp(selected, "A\xe7\x95\x8c") == 0);
     free(selected);
 
+    /* Upstream extract.c text, with Termux's hard-line trailing-space trim:
+     * printed trailing spaces disappear, interior spaces stay, and hard
+     * linebreaks survive. */
+    struct headless_terminal *spaces_ht =
+        headless_create(10, 3, 6, 20, 8, palette);
+    CHECK(spaces_ht != NULL);
+    if (spaces_ht != NULL) {
+        feed(spaces_ht, "AB   \r\nCD  EF");
+        selected = headless_selected_text(spaces_ht, 0, 0, 9, 0, true, false);
+        CHECK(selected != NULL && strcmp(selected, "AB") == 0);
+        free(selected);
+        selected = headless_selected_text(spaces_ht, 0, 1, 6, 1, true, false);
+        CHECK(selected != NULL && strcmp(selected, "CD  EF") == 0);
+        free(selected);
+        selected = headless_selected_text(spaces_ht, 0, 0, 6, 1, true, false);
+        CHECK(selected != NULL && strcmp(selected, "AB\nCD  EF") == 0);
+        free(selected);
+        selected = headless_selected_text(spaces_ht, 5, 0, 9, 0, true, false);
+        CHECK(selected != NULL && strcmp(selected, "") == 0);
+        free(selected);
+        headless_destroy(spaces_ht);
+    }
+
     /* Bold brightening applies to palette indexes 0..7 only, not to arbitrary
      * 256-colour indexes that happen to have the same low nibble. */
     feed(ht, "\r\n\x1b[1;38;5;16mX");
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
     CHECK(commands != NULL);
     CHECK(has_text_fg(commands, command_count, palette[16]));
     CHECK(!has_text_fg(commands, command_count, palette[24]));
@@ -1345,7 +1915,7 @@ main(void)
 
     /* The display list references the UTF-16 payload within bounds. */
     commands = headless_render(
-        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
     CHECK(commands != NULL);
     int render_text_length = 0;
     int32_t *render_text = headless_render_text(ht, &render_text_length);
@@ -1420,7 +1990,7 @@ main(void)
     /* The packed payload after OP_END mirrors headless_render_text(), and a
      * partial render keeps absolute row numbers while starting text at zero. */
     commands = headless_render(
-        ht, 1, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
+        ht, 1, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
     CHECK(commands != NULL);
     render_text_length = 0;
     render_text = headless_render_text(ht, &render_text_length);
@@ -1727,7 +2297,7 @@ main(void)
             CHECK(encoded != NULL);
             free(encoded);
             commands = headless_render(
-                ht, -headless_history_size(ht), -1, -1, 0, 0, false, 0, 255,
+                ht, -headless_history_size(ht), -1, -1, -1, -1, false, 0, 255,
                 8.0f, 16, 12, columns, rows, &command_count);
             CHECK(commands != NULL);
             char *events = headless_drain_events(ht);

@@ -35,6 +35,7 @@ public final class TerminalRenderer {
     private static final int OP_GLYPH = 10;
     private static final int OP_FILL_TRAPEZOID = 11;
     private static final int OP_IMAGE = 12;
+    private static final int OP_SCROLL = 13;
 
     private static final int EFFECT_BOLD = 1;
     private static final int EFFECT_ITALIC = 1 << 1;
@@ -56,9 +57,28 @@ public final class TerminalRenderer {
     private final Paint mBaseFillPaint = new Paint();
     private final Paint mBaseFillSrcPaint = new Paint();
     private final Paint mImagePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Paint mSurfacePaint = new Paint();
     private final Path mPath = new Path();
     private final Rect mImageSrcRect = new Rect();
     private final RectF mImageDstRect = new RectF();
+    private final Rect mSurfaceSrcRect = new Rect();
+    private final Rect mSurfaceDstRect = new Rect();
+
+    /**
+     * Retained view-sized surface. Scroll damage is replayed as a pixel blit on
+     * this bitmap, so moved rows never have to be redrawn through Canvas.
+     */
+    private Bitmap mSurfaceBitmap;
+    private Canvas mSurfaceCanvas;
+    private int mSurfaceWidth;
+    private int mSurfaceHeight;
+    private int mSurfaceTopRow;
+    private int mSurfaceBgColor;
+    private float mSurfaceXOffset;
+    private float mSurfaceYOffset;
+    private boolean mSurfaceNeedsFull = true;
+    private boolean mSurfaceDisabled;
+    private boolean mScrollReplayFailed;
 
     private static final int MAX_CACHED_SIXEL_IMAGES = 24;
 
@@ -137,6 +157,9 @@ public final class TerminalRenderer {
         mBaseFillPaint.setStyle(Paint.Style.FILL);
         mBaseFillSrcPaint.setStyle(Paint.Style.FILL);
         mBaseFillSrcPaint.setXfermode(SRC_XFERMODE);
+        mSurfacePaint.setXfermode(SRC_XFERMODE);
+        mSurfacePaint.setFilterBitmap(false);
+        mSurfacePaint.setAntiAlias(false);
 
         mFontLineSpacing = (int) Math.ceil(mTextPaint.getFontSpacing());
         mFontAscent = (int) Math.ceil(mTextPaint.ascent());
@@ -154,11 +177,12 @@ public final class TerminalRenderer {
         if (percent < 0) percent = 0;
         if (percent > 100) percent = 100;
         mBackgroundAlpha = Math.round(255f * (100 - percent) / 100f);
+        mSurfaceNeedsFull = true;
     }
 
     public final void render(TerminalEmulator emulator, Canvas canvas, int topRow,
                              int selectionY1, int selectionY2, int selectionX1, int selectionX2,
-                             float xOffset, float yOffset, int viewWidth,
+                             float xOffset, float yOffset, int viewWidth, int viewHeight,
                              Rect dirtyRect, boolean pixelsValid) {
         resetPaintState();
         mPaintedRowCount = 0;
@@ -181,16 +205,35 @@ public final class TerminalRenderer {
             : palette[TextStyle.COLOR_INDEX_BACKGROUND];
         final int bgColor = withBackgroundAlpha(rawBgColor);
 
-        if (dirtyRect == null) {
-            canvas.drawColor(bgColor, PorterDuff.Mode.SRC);
+        final boolean retained = ensureSurface(viewWidth, viewHeight);
+        final Canvas surface = retained ? mSurfaceCanvas : canvas;
+        if (retained) {
+            if (topRow != mSurfaceTopRow || bgColor != mSurfaceBgColor
+                || xOffset != mSurfaceXOffset || yOffset != mSurfaceYOffset) {
+                mSurfaceNeedsFull = true;
+            }
         }
 
-        canvas.save();
-        canvas.translate(xOffset, yOffset);
+        final boolean resetSurface = retained
+            ? (dirtyRect == null || !pixelsValid || mSurfaceNeedsFull)
+            : (dirtyRect == null || !pixelsValid);
+        if (resetSurface) {
+            surface.drawColor(bgColor, PorterDuff.Mode.SRC);
+            if (retained) {
+                mSurfaceNeedsFull = false;
+                mSurfaceTopRow = topRow;
+                mSurfaceBgColor = bgColor;
+                mSurfaceXOffset = xOffset;
+                mSurfaceYOffset = yOffset;
+            }
+        }
+
+        surface.save();
+        surface.translate(xOffset, yOffset);
 
         int renderStartRow = topRow;
         int renderEndRow = endRow;
-        if (dirtyRect != null) {
+        if (dirtyRect != null && !resetSurface) {
             final float base = yOffset + mFontLineSpacingAndAscent;
             int r0 = topRow + (int) Math.floor((dirtyRect.top - base) / (float) mFontLineSpacing);
             int r1 = topRow + (int) Math.floor((dirtyRect.bottom - 1 - base) / (float) mFontLineSpacing);
@@ -202,8 +245,8 @@ public final class TerminalRenderer {
         final float viewRight = viewWidth - xOffset;
         final float gridRight = columns * mFontWidth;
 
-        boolean forceDraw = false;
-        if (dirtyRect != null && pixelsValid) {
+        boolean forceDraw = resetSurface;
+        if (!forceDraw && dirtyRect != null && pixelsValid) {
             boolean anyDirty = false;
             for (int row = renderStartRow; row < renderEndRow; row++) {
                 if (screen.isRowDirty(row)) {
@@ -212,6 +255,14 @@ public final class TerminalRenderer {
                 }
             }
             forceDraw = !anyDirty;
+        }
+        if (!retained) {
+            /* No retained surface exists, so no scroll op can move pixels.
+             * Generate commands for the whole viewport and paint every row;
+             * a partial frame would otherwise leave the moved rows stale. */
+            forceDraw = true;
+            renderStartRow = topRow;
+            renderEndRow = endRow;
         }
 
         final Paint baseFillPaint = (mBackgroundAlpha >= 255) ? mBaseFillPaint : mBaseFillSrcPaint;
@@ -230,7 +281,10 @@ public final class TerminalRenderer {
             mRenderCommands = new int[-commandCount];
         }
         if (commandCount == 0) {
-            canvas.restore();
+            surface.restore();
+            if (retained && resetSurface) {
+                blitSurface(canvas, true, topRow, endRow, topRow);
+            }
             return;
         }
         final int[] commands = mRenderCommands;
@@ -247,6 +301,8 @@ public final class TerminalRenderer {
         boolean rowInWindow = false;
         boolean rowDrawn = false;
         float baseline = 0f;
+        int imageBlitTop = Integer.MAX_VALUE;
+        int imageBlitBottom = -1;
 
         while (cursor < commandCount) {
             final int op = commands[cursor++];
@@ -282,6 +338,32 @@ public final class TerminalRenderer {
                 cursor += 2; /* stray range outside a frame header */
                 continue;
             }
+            if (op == OP_SCROLL) {
+                if (cursor + 4 > commandCount) break;
+                final int start = commands[cursor++];
+                final int end = commands[cursor++];
+                final int lines = commands[cursor++];
+                final boolean reverse = commands[cursor++] != 0;
+                if (retained && !resetSurface && mFrameViewTop == topRow) {
+                    if (!applyScroll(emulator, start, end, lines, reverse)) {
+                        /* The native bitmap bridge is unavailable. Repaint the
+                         * requested band now and make the view schedule a full
+                         * frame, because commands outside the band were never
+                         * generated. */
+                        mScrollReplayFailed = true;
+                        mSurfaceNeedsFull = true;
+                        forceDraw = true;
+                    }
+                } else if (retained && !resetSurface) {
+                    /* The frame addresses a different viewport than the one
+                     * this surface holds. Do not move pixels across address
+                     * spaces; repaint everything on the next frame. */
+                    mScrollReplayFailed = true;
+                    mSurfaceNeedsFull = true;
+                    forceDraw = true;
+                }
+                continue;
+            }
             if (op == OP_IMAGE) {
                 if (cursor + 8 > commandCount) break;
                 final int x = commands[cursor++];
@@ -294,8 +376,13 @@ public final class TerminalRenderer {
                     | (imageIdLo & 0xFFFFFFFFL);
                 final int revision = commands[cursor++];
                 cursor++; /* opaque flag; Android always blends ARGB */
-                drawSixel(canvas, emulator, imageId, revision, x, y, width, height,
+                drawSixel(surface, emulator, imageId, revision, x, y, width, height,
                     mFontLineSpacingAndAscent);
+                final int imageTop = Math.round(
+                    yOffset + mFontLineSpacingAndAscent + y);
+                final int imageBottom = imageTop + height;
+                if (imageTop < imageBlitTop) imageBlitTop = imageTop;
+                if (imageBottom > imageBlitBottom) imageBlitBottom = imageBottom;
                 continue;
             }
 
@@ -305,15 +392,16 @@ public final class TerminalRenderer {
                 baseline = rowTop - mFontAscent;
                 rowInWindow = currentRow >= renderStartRow && currentRow < renderEndRow;
                 rowDrawn = rowInWindow && (dirtyRect == null || !pixelsValid || forceDraw
-                    || isFrameRowDamaged(currentRow) || screen.isRowDirty(currentRow));
+                    || isFrameRowDamaged(currentRow)
+                    || (!mFrameSeen && screen.isRowDirty(currentRow)));
 
                 if (rowDrawn) {
                     if (dirtyRect != null) {
-                        canvas.drawRect(viewLeft, rowTop, viewRight, rowTop + mFontLineSpacing,
+                        surface.drawRect(viewLeft, rowTop, viewRight, rowTop + mFontLineSpacing,
                             baseFillPaint);
                     }
-                    canvas.save();
-                    canvas.clipRect(0f, gridTop, gridRight, gridBottom);
+                    surface.save();
+                    surface.clipRect(0f, gridTop, gridRight, gridBottom);
                     rowPushed = true;
                 }
                 continue;
@@ -321,7 +409,7 @@ public final class TerminalRenderer {
 
             if (op == OP_ROW_END) {
                 if (rowPushed) {
-                    canvas.restore();
+                    surface.restore();
                     rowPushed = false;
                 }
                 if (dirtyRect != null && rowInWindow) screen.clearRowDirty(currentRow);
@@ -340,7 +428,7 @@ public final class TerminalRenderer {
                     int color = commands[cursor++];
                     float left = x * mCanvasScaleX;
                     float right = (x + width) * mCanvasScaleX;
-                    canvas.drawRect(left, rowTop + y, right, rowTop + y + height,
+                    surface.drawRect(left, rowTop + y, right, rowTop + y + height,
                         backgroundPaint(color));
                     break;
                 }
@@ -352,7 +440,7 @@ public final class TerminalRenderer {
                     int widthColumns = commands[cursor++];
                     int foreground = commands[cursor++];
                     int effects = commands[cursor++];
-                    drawGlyph(canvas, startChar, charCount, x * mCanvasScaleX,
+                    drawGlyph(surface, startChar, charCount, x * mCanvasScaleX,
                         rowTop + glyphBaseline, widthColumns, foreground, effects);
                     break;
                 }
@@ -372,7 +460,7 @@ public final class TerminalRenderer {
                     mPath.lineTo(x3 * mCanvasScaleX, rowTop + y3);
                     mPath.lineTo(x4 * mCanvasScaleX, rowTop + y4);
                     mPath.close();
-                    canvas.drawPath(mPath, backgroundPaint(color));
+                    surface.drawPath(mPath, backgroundPaint(color));
                     break;
                 }
                 default:
@@ -382,9 +470,108 @@ public final class TerminalRenderer {
             }
         }
 
-        if (rowPushed) canvas.restore();
+        if (rowPushed) surface.restore();
+        surface.restore();
+        blitSurface(canvas, resetSurface, renderStartRow, renderEndRow, topRow,
+            imageBlitTop, imageBlitBottom);
         emulator.commitRenderRows(mPaintedRows, mPaintedRowCount);
-        canvas.restore();
+    }
+
+    /**
+     * Prepare the retained view-sized surface. Returns false when a Bitmap
+     * cannot be allocated; the caller then falls back to drawing directly on
+     * the View canvas and forcing every visible row.
+     */
+    private boolean ensureSurface(int width, int height) {
+        if (mSurfaceDisabled || width <= 0 || height <= 0)
+            return false;
+        if (mSurfaceBitmap != null && width == mSurfaceWidth && height == mSurfaceHeight)
+            return true;
+
+        if (mSurfaceBitmap != null) {
+            mSurfaceBitmap.recycle();
+            mSurfaceBitmap = null;
+            mSurfaceCanvas = null;
+        }
+        try {
+            mSurfaceBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            mSurfaceCanvas = new Canvas(mSurfaceBitmap);
+        } catch (RuntimeException | OutOfMemoryError e) {
+            mSurfaceBitmap = null;
+            mSurfaceCanvas = null;
+            mSurfaceDisabled = true;
+            return false;
+        }
+        mSurfaceWidth = width;
+        mSurfaceHeight = height;
+        mSurfaceNeedsFull = true;
+        return true;
+    }
+
+    /**
+     * True when the last frame asked for a bitmap scroll that the native bridge
+     * could not perform. The caller must schedule a full repaint: a partial frame
+     * only generated row commands for its clip, so the moved rows outside it
+     * still need to be repainted from terminal state.
+     */
+    boolean consumeScrollReplayFailure() {
+        final boolean failed = mScrollReplayFailed;
+        mScrollReplayFailed = false;
+        return failed;
+    }
+
+    /**
+     * Replay one native scroll op on the retained bitmap. The native core owns
+     * the pixel geometry: it applies foot's scroll-damage mover using the
+     * terminal's cell height, so this method only rejects a surface translated
+     * away from its normal row origin.
+     */
+    private boolean applyScroll(TerminalEmulator emulator, int start, int end,
+                                int lines, boolean reverse) {
+        if (mSurfaceBitmap == null || lines <= 0 || start >= end) return true;
+        /* The retained bitmap is addressed by terminal rows only when the grid
+         * starts at y=0. During elastic over-drag the surface is translated;
+         * repaint instead of moving a partially visible band. */
+        final float base = mSurfaceYOffset + mFontLineSpacingAndAscent;
+        if (base != 0f) return false;
+        return emulator.scrollSurfaceRows(mSurfaceBitmap, start, end, lines, reverse);
+    }
+
+    /**
+     * Blit the retained surface back to the View canvas. Full resets replace
+     * the whole view; partial frames only copy the row band that was asked for.
+     */
+    private void blitSurface(Canvas canvas, boolean full, int startRow, int endRow, int topRow) {
+        blitSurface(canvas, full, startRow, endRow, topRow,
+            Integer.MAX_VALUE, -1);
+    }
+
+    private void blitSurface(Canvas canvas, boolean full, int startRow, int endRow, int topRow,
+                             int extraTop, int extraBottom) {
+        if (mSurfaceBitmap == null || mSurfaceWidth <= 0 || mSurfaceHeight <= 0) return;
+
+        int top;
+        int bottom;
+        if (full) {
+            top = 0;
+            bottom = mSurfaceHeight;
+        } else {
+            final float base = mSurfaceYOffset + mFontLineSpacingAndAscent;
+            top = Math.round(base + (startRow - topRow) * (float) mFontLineSpacing);
+            bottom = Math.round(base + (endRow - topRow) * (float) mFontLineSpacing);
+            /* Sixels are drawn as viewport-anchored rectangles and can extend
+             * past the dirty row band. Include their updated pixels in the
+             * blit so they are not stranded in the retained bitmap. */
+            if (extraTop < top) top = extraTop;
+            if (extraBottom > bottom) bottom = extraBottom;
+            if (top < 0) top = 0;
+            if (bottom > mSurfaceHeight) bottom = mSurfaceHeight;
+        }
+        if (top >= bottom) return;
+
+        mSurfaceSrcRect.set(0, top, mSurfaceWidth, bottom);
+        mSurfaceDstRect.set(0, top, mSurfaceWidth, bottom);
+        canvas.drawBitmap(mSurfaceBitmap, mSurfaceSrcRect, mSurfaceDstRect, mSurfacePaint);
     }
 
     private void addFrameDamageRange(int first, int last) {
@@ -456,6 +643,9 @@ public final class TerminalRenderer {
                         break;
                     case OP_IMAGE:
                         i += 8;
+                        break;
+                    case OP_SCROLL:
+                        i += 4;
                         break;
                     case OP_FRAME_BEGIN: {
                         if (i + 7 >= limit) { i = limit; break; }

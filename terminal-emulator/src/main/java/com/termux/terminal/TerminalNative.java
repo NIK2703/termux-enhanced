@@ -1,5 +1,7 @@
 package com.termux.terminal;
 
+import android.graphics.Bitmap;
+
 /**
  * Thin JNI bridge to the foot terminal core in terminal-emulator/src/main/foot.
  *
@@ -70,6 +72,22 @@ final class TerminalNative {
 
     /** Retire native dirty bits for visible rows that were actually painted. */
     static native void nativeCommitRows(long handle, int[] rows, int count);
+
+    /** Mark rows dirty for Android overlays (for example the scrollbar band). */
+    static native void nativeDamageRows(long handle, int[] rows, int count);
+
+    /**
+     * Move a terminal scroll region on an ARGB_8888 retained surface. The
+     * native core derives the pixel band from the terminal's cell height and
+     * replays foot's grid_render_scroll()/grid_render_scroll_reverse().
+     * {@code start}/{@code end} are viewport-relative rows and {@code lines}
+     * is the number of whole rows to move. Returns false when the bitmap bridge
+     * is unavailable or the geometry is invalid, so the caller can fall back to
+     * a full row repaint.
+     */
+    static native boolean nativeScrollSurfaceRows(long handle, Bitmap bitmap,
+                                                  int start, int end, int lines,
+                                                  boolean reverse);
 
     /** Retire every native dirty bit after a full-clip frame. */
     static native void nativeCommitAllRows(long handle);

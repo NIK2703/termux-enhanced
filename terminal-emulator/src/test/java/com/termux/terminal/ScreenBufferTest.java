@@ -20,6 +20,12 @@ public class ScreenBufferTest extends TerminalTestCase {
 		assertEquals("ABCDE\nFG", mTerminal.getSelectedText(0, 0, 1, 1));
 	}
 
+	public void testGetSelectedTextUnicode() {
+		withTerminalSized(5, 3).enterString("A界B");
+		assertEquals("界", mTerminal.getSelectedText(1, 0, 2, 0));
+		assertEquals("A界", mTerminal.getSelectedText(0, 0, 2, 0));
+	}
+
 	public void testGetSelectedTextJoinFullLines() {
 		withTerminalSized(5, 3).enterString("ABCDE\r\nFG");
 		assertEquals("ABCDEFG", mTerminal.getScreen().getSelectedText(0, 0, 1, 1, true, true));

@@ -47,10 +47,9 @@ struct foot_canvas_metrics {
 bool foot_canvas_prepare_frame(
     struct terminal *term, const struct foot_canvas_metrics *metrics);
 
-/* Mark the selection and clear attrs.clean before calling render_row(). */
-void foot_canvas_prepare_row(
-    struct terminal *term, struct row *row,
-    int selection_start, int selection_end);
+/* Clear attrs.clean before calling render_row(). Selection is marked by the
+ * render model through the extracted upstream region policy. */
+void foot_canvas_prepare_row(struct terminal *term, struct row *row);
 
 /* Run upstream render_row() verbatim for one row with the Canvas sink. */
 void foot_canvas_render_row(

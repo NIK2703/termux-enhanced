@@ -206,6 +206,12 @@ void wayl_win_destroy(struct wl_window *win) { (void)win; }
 void wayl_win_alpha_changed(struct wl_window *win) { (void)win; }
 bool wayl_win_set_urgent(struct wl_window *win) { (void)win; return true; }
 void wl_surface_commit(struct wl_surface *surface) { (void)surface; }
+void wl_surface_damage_buffer(
+    struct wl_surface *surface, int32_t x, int32_t y,
+    int32_t width, int32_t height)
+{
+    (void)surface; (void)x; (void)y; (void)width; (void)height;
+}
 void xdg_toplevel_set_maximized(struct xdg_toplevel *toplevel) { (void)toplevel; }
 void xdg_toplevel_set_fullscreen(struct xdg_toplevel *toplevel, void *output)
 {
@@ -327,7 +333,6 @@ void selection_scroll_up(struct terminal *term, int rows) { (void)term; (void)ro
 void selection_scroll_down(struct terminal *term, int rows) { (void)term; (void)rows; }
 void selection_view_up(struct terminal *term, int new_view) { (void)term; (void)new_view; }
 void selection_view_down(struct terminal *term, int new_view) { (void)term; (void)new_view; }
-char *selection_to_text(const struct terminal *term) { (void)term; return strdup(""); }
 void selection_clipboard_unset(struct seat *seat) { (void)seat; }
 void selection_primary_unset(struct seat *seat) { (void)seat; }
 bool selection_clipboard_has_data(const struct seat *seat) { (void)seat; return false; }
@@ -489,32 +494,6 @@ void urls_reset(struct terminal *term)
     term->url.show_uri_on_jump_label = false;
     memset(term->url.keys, 0, sizeof(term->url.keys));
     term->url.ime_reenable_after_url_mode = false;
-}
-struct extraction_context *extract_begin(enum selection_kind kind, bool strip_trailing_empty)
-{
-    (void)kind; (void)strip_trailing_empty;
-    return NULL;
-}
-bool extract_one(
-    const struct terminal *term, const struct row *row, const struct cell *cell,
-    int col, void *context)
-{
-    (void)term; (void)row; (void)cell; (void)col; (void)context;
-    return false;
-}
-bool extract_finish(struct extraction_context *context, char **text, size_t *len)
-{
-    (void)context;
-    if (text != NULL) *text = NULL;
-    if (len != NULL) *len = 0;
-    return false;
-}
-bool extract_finish_wide(struct extraction_context *context, char32_t **text, size_t *len)
-{
-    (void)context;
-    if (text != NULL) *text = NULL;
-    if (len != NULL) *len = 0;
-    return false;
 }
 void cmd_scrollback_up(struct terminal *term, int rows) { (void)term; (void)rows; }
 void cmd_scrollback_down(struct terminal *term, int rows) { (void)term; (void)rows; }

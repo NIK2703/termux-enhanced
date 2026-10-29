@@ -13,6 +13,7 @@
 #include "ht_internal.h"
 #include "render_model.h"
 #include "foot_canvas_backend.h"
+#include "foot_grid_scroll.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -751,6 +752,133 @@ selected_text(
     return utf8 != NULL ? utf8 : strdup("");
 }
 
+static int
+selection_text_start_col(
+    const struct headless_terminal *ht, int external_row, int col)
+{
+    const int columns = ht->term.cols;
+    if (col < 0)
+        col = 0;
+    if (col >= columns)
+        col = columns - 1;
+
+    const struct row *row = row_at(ht, external_row);
+    if (row == NULL)
+        return col;
+
+    /* A selection endpoint on the spacer half of a wide character starts at
+     * the base cell. This mirrors upstream selection_modify()'s endpoint
+     * adjustment and keeps copy text identical for either half. */
+    while (col > 0 && row->cells[col].wc >= CELL_SPACER)
+        col--;
+    return col;
+}
+
+static int
+selection_text_end_col(
+    const struct headless_terminal *ht, int external_row, int col)
+{
+    const int columns = ht->term.cols;
+    if (col < 0)
+        col = 0;
+    if (col >= columns)
+        col = columns - 1;
+
+    const struct row *row = row_at(ht, external_row);
+    if (row == NULL)
+        return col;
+
+    while (col + 1 < columns && row->cells[col + 1].wc >= CELL_SPACER)
+        col++;
+    return col;
+}
+
+static void
+trim_selection_trailing_spaces(char *text)
+{
+    if (text == NULL)
+        return;
+
+    char *read = text;
+    char *write = text;
+
+    while (*read != '\0') {
+        if (*read == '\n') {
+            while (write > text && write[-1] == ' ')
+                write--;
+            *write++ = '\n';
+            read++;
+        } else {
+            *write++ = *read++;
+        }
+    }
+
+    while (write > text && write[-1] == ' ')
+        write--;
+    *write = '\0';
+}
+
+static char *
+selected_text_upstream(
+    struct headless_terminal *ht, int x1, int y1, int x2, int y2)
+{
+    const int columns = ht->term.cols;
+    const int screen_rows = ht->term.rows;
+    const int active_history = history_size(ht);
+
+    if (y1 < -active_history)
+        y1 = -active_history;
+    if (y2 > screen_rows - 1)
+        y2 = screen_rows - 1;
+    if (y1 > y2)
+        return strdup("");
+
+    if (x1 < 0)
+        x1 = 0;
+    if (x2 < 0)
+        x2 = 0;
+    if (x1 >= columns)
+        x1 = columns - 1;
+    if (x2 >= columns)
+        x2 = columns - 1;
+    if (y1 == y2 && x2 < x1) {
+        const int tmp = x1;
+        x1 = x2;
+        x2 = tmp;
+    }
+
+    x1 = selection_text_start_col(ht, y1, x1);
+    x2 = selection_text_end_col(ht, y2, x2);
+
+    struct terminal *term = &ht->term;
+    const struct range saved_coords = term->selection.coords;
+    const enum selection_kind saved_kind = term->selection.kind;
+
+    term->selection.kind = SELECTION_CHAR_WISE;
+    term->selection.coords.start = (struct coord){
+        .col = x1,
+        .row = (term->grid->offset + y1) & (term->grid->num_rows - 1),
+    };
+    term->selection.coords.end = (struct coord){
+        .col = x2,
+        .row = (term->grid->offset + y2) & (term->grid->num_rows - 1),
+    };
+
+    char *text = selection_to_text(term);
+
+    term->selection.coords = saved_coords;
+    term->selection.kind = saved_kind;
+
+    if (text == NULL)
+        return strdup("");
+
+    /* Termux has always trimmed printed spaces at a hard line end; upstream
+     * extract.c only strips never-written cells. Keep the Android copy
+     * contract without changing the extracted selection walker. */
+    trim_selection_trailing_spaces(text);
+    return text;
+}
+
 int
 headless_history_size(const struct headless_terminal *ht)
 {
@@ -923,6 +1051,13 @@ headless_selected_text(
     struct headless_terminal *ht, int x1, int y1, int x2, int y2,
     bool join_back_lines, bool join_full_lines)
 {
+    /* Normal selection copy matches upstream extract.c exactly: wrapped rows
+     * are joined, hard linebreaks are preserved, and trailing empty cells are
+     * stripped. The legacy walker remains for Termux's transcript modes,
+     * which also support joining full (hard-broken) lines. */
+    if (join_back_lines && !join_full_lines)
+        return selected_text_upstream(ht, x1, y1, x2, y2);
+
     return selected_text(ht, x1, y1, x2, y2, join_back_lines, join_full_lines);
 }
 
@@ -1057,51 +1192,28 @@ headless_word_at_location(struct headless_terminal *ht, int x, int y)
     return result != NULL ? result : strdup("");
 }
 
-static void
-mark_scroll_damage_rows(struct grid *grid, int rows)
+static bool
+scroll_damage_applies(const struct grid *grid, const struct damage *damage)
 {
-    if (tll_length(grid->scroll_damage) == 0)
-        return;
-
-    tll_foreach(grid->scroll_damage, it) {
-        const struct damage *damage = &it->item;
-        switch (damage->type) {
-        case DAMAGE_SCROLL:
-        case DAMAGE_SCROLL_REVERSE: {
-            int start = damage->region.start;
-            int end = damage->region.end;
-            if (start < 0)
-                start = 0;
-            if (end > rows)
-                end = rows;
-            for (int r = start; r < end; r++) {
-                struct row *row = grid_row(grid, r);
-                if (row != NULL)
-                    row->dirty = true;
-            }
-            break;
-        }
-
-        case DAMAGE_SCROLL_IN_VIEW:
-        case DAMAGE_SCROLL_REVERSE_IN_VIEW: {
-            /* Region coordinates are relative to the current viewport, not to
-             * grid->offset. Rows outside the region do not move. */
-            int start = damage->region.start;
-            int end = damage->region.end;
-            if (start < 0)
-                start = 0;
-            if (end > rows)
-                end = rows;
-            for (int r = start; r < end; r++) {
-                const int index = (grid->view + r) & (grid->num_rows - 1);
-                struct row *row = grid->rows[index];
-                if (row != NULL)
-                    row->dirty = true;
-            }
-            break;
-        }
-        }
+    switch (damage->type) {
+    case DAMAGE_SCROLL:
+    case DAMAGE_SCROLL_REVERSE:
+        return grid->view == grid->offset;
+    case DAMAGE_SCROLL_IN_VIEW:
+    case DAMAGE_SCROLL_REVERSE_IN_VIEW:
+        return true;
     }
+    return false;
+}
+
+static bool
+has_applicable_scroll_damage(const struct grid *grid)
+{
+    tll_foreach(grid->scroll_damage, it) {
+        if (scroll_damage_applies(grid, &it->item))
+            return true;
+    }
+    return false;
 }
 
 static int
@@ -1223,18 +1335,17 @@ process_scroll_damage(
 {
     struct terminal *term = &ht->term;
 
-    /* Rows moved by a scroll are not necessarily marked dirty by foot's
-     * cell-level damage tracking. Mirror the region recorded in the damage
-     * list before consuming it. Process both grids: input may switch to the
-     * alternate screen and back within one chunk, leaving the normal grid's
-     * damage in a list that is no longer the active one. */
-    mark_scroll_damage_rows(&term->normal, term->rows);
-    mark_scroll_damage_rows(&term->alt, term->rows);
-
+    /* Keep the scroll damage list until the next render: the Android
+     * renderer replays it as a pixel blit on its retained surface. Native row
+     * dirty bits stay reserved for newly exposed/changed content. */
     count_scroll_movement(
         &ht->scroll_count, &term->normal, normal_offset_before);
     count_scroll_movement(
         &ht->scroll_count, &term->alt, alt_offset_before);
+
+    if (has_applicable_scroll_damage(term->grid))
+        foot_render_model_queue_scroll(ht->render_model, term->grid);
+
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 }
@@ -1252,6 +1363,16 @@ reserve_append_dirty(struct headless_terminal *ht, int count)
         ht->append_dirty_cap = (size_t)count;
     }
     return ht->append_dirty;
+}
+
+static bool
+dirty_contains(const int *dirty, int count, int row)
+{
+    for (int i = 0; i < count; i++) {
+        if (dirty[i] == row)
+            return true;
+    }
+    return false;
 }
 
 int *
@@ -1298,7 +1419,8 @@ headless_append(
 
     bool viewport_lost_row = false;
     if (viewport_before != NULL && ht->term.grid == active_before &&
-        ht->term.rows == rows)
+        ht->term.rows == rows &&
+        !foot_render_model_has_pending_scroll(ht->render_model))
     {
         viewport_lost_row = mark_moved_viewport_rows(
             ht->term.grid, viewport_before, rows);
@@ -1351,6 +1473,22 @@ headless_append(
             dirty[count++] = external;
     }
 
+    /* A pixel scroll moves rows without setting their dirty bits. Java still
+     * has to invalidate the moved band, so report the scroll region even though
+     * those rows are deliberately not drawn (the retained surface is blitted
+     * instead). */
+    if (!full_damage) {
+        for (int i = 0; i < rows && count < rows; i++) {
+            const int external = view_top + i;
+            if (foot_render_model_scroll_covers_row(
+                    ht->render_model, &ht->term, external) &&
+                !dirty_contains(dirty, count, external))
+            {
+                dirty[count++] = external;
+            }
+        }
+    }
+
     if (full_damage)
         ht->last_append_flags |= HEADLESS_APPEND_FULL_DAMAGE;
     if (!all_dirty && count < rows && ht->scroll_count > scroll_before)
@@ -1376,6 +1514,31 @@ int
 headless_view_top(const struct headless_terminal *ht)
 {
     return ht != NULL ? foot_render_model_view_top(ht->render_model) : 0;
+}
+
+void
+headless_damage_rows(
+    struct headless_terminal *ht, const int *rows, int count)
+{
+    if (ht == NULL || rows == NULL)
+        return;
+
+    for (int i = 0; i < count; i++) {
+        struct row *row = row_at(ht, rows[i]);
+        if (row != NULL)
+            row->dirty = true;
+    }
+}
+
+bool
+headless_scroll_surface_rows(
+    struct headless_terminal *ht, void *pixels, int width, int height,
+    int stride, int start, int end, int lines, bool reverse)
+{
+    if (ht == NULL)
+        return false;
+    return foot_grid_scroll_apply_rows(
+        &ht->term, pixels, width, height, stride, start, end, lines, reverse);
 }
 
 void
@@ -1458,6 +1621,8 @@ headless_set_palette(
     set_color_theme(&conf->colors_light, defaults);
     memcpy(ht->palette, palette, sizeof(ht->palette));
     memcpy(ht->defaults, defaults, sizeof(ht->defaults));
+    if (changed)
+        foot_render_model_damage_all(ht->render_model);
     return changed;
 }
 

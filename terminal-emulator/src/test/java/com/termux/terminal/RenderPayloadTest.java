@@ -22,6 +22,7 @@ public class RenderPayloadTest extends TerminalTestCase {
     private static final int OP_GLYPH = 10;
     private static final int OP_FILL_TRAPEZOID = 11;
     private static final int OP_IMAGE = 12;
+    private static final int OP_SCROLL = 13;
 
     @Test
     public void testRenderPayloadCarriesUtf16TextAfterEnd() {
@@ -29,7 +30,7 @@ public class RenderPayloadTest extends TerminalTestCase {
             INITIAL_CELL_HEIGHT_PIXELS, 100, null);
         enterString("abc");
 
-        int[] payload = mTerminal.getRenderCommands(0, -1, -1, 0, 0, 255,
+        int[] payload = mTerminal.getRenderCommands(0, -1, -1, -1, -1, 255,
             8f, 16, 12, 10, 5);
         int cursor = 0;
         int frameCount = 0;
@@ -50,6 +51,9 @@ public class RenderPayloadTest extends TerminalTestCase {
                     break;
                 case OP_FILL_TRAPEZOID:
                     cursor += 9;
+                    break;
+                case OP_SCROLL:
+                    cursor += 4;
                     break;
                 case OP_FRAME_BEGIN: {
                     int damageRanges = payload[cursor + 7];
@@ -96,23 +100,23 @@ public class RenderPayloadTest extends TerminalTestCase {
         enterString("abc");
 
         int[] buffer = new int[4096];
-        int count = mTerminal.fillRenderCommands(buffer, 0, -1, -1, 0, 0, 255,
+        int count = mTerminal.fillRenderCommands(buffer, 0, -1, -1, -1, -1, 255,
             8f, 16, 12, 10, 5);
         assertTrue("render payload must be non-empty", count > 0);
         int[] first = Arrays.copyOf(buffer, count);
 
-        int countAgain = mTerminal.fillRenderCommands(buffer, 0, -1, -1, 0, 0, 255,
+        int countAgain = mTerminal.fillRenderCommands(buffer, 0, -1, -1, -1, -1, 255,
             8f, 16, 12, 10, 5);
         assertEquals(count, countAgain);
         assertPayloadEqualsExceptFrameId(first, Arrays.copyOf(buffer, countAgain));
 
-        int required = mTerminal.fillRenderCommands(new int[1], 0, -1, -1, 0, 0, 255,
+        int required = mTerminal.fillRenderCommands(new int[1], 0, -1, -1, -1, -1, 255,
             8f, 16, 12, 10, 5);
         assertTrue("a short buffer must report the required length", required < 0);
         assertEquals(count, -required);
 
         int[] exact = new int[count];
-        assertEquals(count, mTerminal.fillRenderCommands(exact, 0, -1, -1, 0, 0, 255,
+        assertEquals(count, mTerminal.fillRenderCommands(exact, 0, -1, -1, -1, -1, 255,
             8f, 16, 12, 10, 5));
         assertPayloadEqualsExceptFrameId(first, exact);
     }
@@ -123,7 +127,7 @@ public class RenderPayloadTest extends TerminalTestCase {
             INITIAL_CELL_HEIGHT_PIXELS, 100, null);
         enterString("\u001bPq#0;2;100;0;0#0~~~~~~~~~~~~~~~~~~~~\u001b\\");
 
-        int[] payload = mTerminal.getRenderCommands(0, -1, -1, 0, 0, 255,
+        int[] payload = mTerminal.getRenderCommands(0, -1, -1, -1, -1, 255,
             8f, 16, 12, 10, 5);
         int cursor = 0;
         boolean sawImage = false;
@@ -145,6 +149,9 @@ public class RenderPayloadTest extends TerminalTestCase {
                     break;
                 case OP_FILL_TRAPEZOID:
                     cursor += 9;
+                    break;
+                case OP_SCROLL:
+                    cursor += 4;
                     break;
                 case OP_FRAME_BEGIN: {
                     int damageRanges = payload[cursor + 7];

@@ -1,5 +1,7 @@
 package com.termux.terminal;
 
+import android.graphics.Bitmap;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -80,6 +82,8 @@ public final class TerminalEmulator {
     private int mSyncedDefaultVersion = -1;
     /** Reused packed append state; sized for the header plus one entry per visible row. */
     private int[] mAppendState;
+    /** Reused row list for Android overlay damage (scrollbar band). */
+    private int[] mOverlayDamageRows = new int[32];
 
     private static final Pattern PASTE_STRIP_PATTERN = Pattern.compile("(\u001B|[\u0080-\u009F])");
     private static final Pattern PASTE_NEWLINE_PATTERN = Pattern.compile("\r?\n");
@@ -473,6 +477,30 @@ public final class TerminalEmulator {
     public void commitRenderRows(int[] rows, int count) {
         if (rows == null || count <= 0) return;
         TerminalNative.nativeCommitRows(mNativeHandle, rows, count);
+    }
+
+    /**
+     * Mark a contiguous external-row range dirty for an Android overlay (the scrollbar band).
+     * The native dirty bits stay authoritative; Java only mirrors them for invalidation.
+     */
+    public void damageOverlayRows(int first, int last) {
+        if (first > last) return;
+        final int count = last - first + 1;
+        if (mOverlayDamageRows.length < count) mOverlayDamageRows = new int[count];
+        for (int i = 0; i < count; i++) mOverlayDamageRows[i] = first + i;
+        TerminalNative.nativeDamageRows(mNativeHandle, mOverlayDamageRows, count);
+    }
+
+    /**
+     * Replay a native scroll on the renderer's retained ARGB surface before it
+     * draws the newly exposed rows. The native core applies foot's own scroll
+     * damage mover to the pixel band. Returns false when the surface could not
+     * be moved and the caller must repaint every row in the frame.
+     */
+    public boolean scrollSurfaceRows(Bitmap bitmap, int start, int end,
+                                     int lines, boolean reverse) {
+        return TerminalNative.nativeScrollSurfaceRows(
+            mNativeHandle, bitmap, start, end, lines, reverse);
     }
 
     /** Build the packed render command list for one frame. The ABI is documented by

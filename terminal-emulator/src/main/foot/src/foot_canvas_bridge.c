@@ -177,64 +177,16 @@ foot_canvas_prepare_frame(
     return true;
 }
 
-static void
-cell_span(
-    const struct row *row, int columns, int col,
-    int *span_start, int *span_end)
-{
-    const char32_t wc = row->cells[col].wc;
-
-    if (wc >= CELL_SPACER) {
-        /* A spacer cell stores its width minus one in the marker value. */
-        int width_minus_one = (int)(wc - CELL_SPACER);
-        if (width_minus_one < 0)
-            width_minus_one = 0;
-        *span_start = col - width_minus_one;
-        *span_end = col;
-    } else if (col + 1 < columns && row->cells[col + 1].wc >= CELL_SPACER) {
-        int width_minus_one = (int)(row->cells[col + 1].wc - CELL_SPACER);
-        if (width_minus_one < 0)
-            width_minus_one = 0;
-        *span_start = col;
-        *span_end = col + width_minus_one;
-    } else {
-        *span_start = col;
-        *span_end = col;
-    }
-
-    if (*span_start < 0)
-        *span_start = 0;
-    if (*span_end >= columns)
-        *span_end = columns - 1;
-}
-
 void
-foot_canvas_prepare_row(
-    struct terminal *term, struct row *row,
-    int selection_start, int selection_end)
+foot_canvas_prepare_row(struct terminal *term, struct row *row)
 {
     if (term == NULL || row == NULL || row->cells == NULL)
         return;
 
-    for (int col = 0; col < term->cols; col++) {
+    /* The Canvas backend paints whole rows. Selection marking is done by the
+     * render model through upstream's region policy before this runs. */
+    for (int col = 0; col < term->cols; col++)
         row->cells[col].attrs.clean = false;
-        row->cells[col].attrs.selected = false;
-    }
-
-    if (selection_start < 0 || selection_end < selection_start)
-        return;
-
-    /* A selection endpoint may land on either half of a wide character. Mark
-     * the whole grapheme, matching the old planner and foot's cell model. */
-    for (int col = 0; col < term->cols; col++) {
-        int span_start;
-        int span_end;
-        cell_span(row, term->cols, col, &span_start, &span_end);
-        if (span_end < selection_start || span_start > selection_end)
-            continue;
-        for (int selected = span_start; selected <= span_end; selected++)
-            row->cells[selected].attrs.selected = true;
-    }
 }
 
 void

@@ -49,6 +49,8 @@ struct wayland {
     bool shm_have_abgr2101010;
 };
 void wl_surface_commit(struct wl_surface *);
+void wl_surface_damage_buffer(
+    struct wl_surface *, int32_t x, int32_t y, int32_t width, int32_t height);
 void xdg_toplevel_set_maximized(struct xdg_toplevel *);
 void xdg_toplevel_set_fullscreen(struct xdg_toplevel *, void *);
 
