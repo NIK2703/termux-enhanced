@@ -17,13 +17,31 @@ void headless_resize(
     struct headless_terminal *ht, int columns, int rows,
     int cell_width, int cell_height);
 
-/* Returns a borrowed array of dirty visible rows, or NULL on failure. The array
- * may be non-NULL with *dirty_count == 0 when nothing changed. It stays valid
- * until the next headless_append() on the same terminal; the caller must not
- * free it. */
+/* Returns a borrowed array of dirty visible viewport rows, or NULL on failure.
+ * The array may be non-NULL with *dirty_count == 0 when nothing changed. Row
+ * addresses are external coordinates (0 is the live screen top, negative rows
+ * are history) and stay valid until the next headless_append() on the same
+ * terminal; the caller must not free it. Native dirty bits are only cleared by
+ * headless_commit_rows()/headless_commit_all_rows() after the frame is on the
+ * Canvas. */
 int *headless_append(
     struct headless_terminal *ht, const uint8_t *data, size_t length,
     int *dirty_count);
+
+/* Select the visible viewport and synchronize foot's grid->view. Called by the
+ * UI before drawing; not by headless_render(), because a partial render starts
+ * at an arbitrary row inside the viewport. */
+void headless_set_view(struct headless_terminal *ht, int top_row);
+int headless_view_top(const struct headless_terminal *ht);
+
+/* Temporary A/B switch: true selects upstream render_cell() through the Canvas
+ * shim (the Android default); false keeps the pre-bridge planner for tests. */
+void headless_set_use_canvas(struct headless_terminal *ht, bool use_canvas);
+
+/* Retire native damage after rows were painted. */
+void headless_commit_rows(
+    struct headless_terminal *ht, const int *rows, int count);
+void headless_commit_all_rows(struct headless_terminal *ht);
 
 /* Returns a malloc'ed newline-joined event string, or NULL when no events are
  * pending. The caller owns the returned string. */
@@ -44,6 +62,8 @@ int headless_scroll_counter(const struct headless_terminal *ht);
 void headless_clear_scroll_counter(struct headless_terminal *ht);
 enum {
     HEADLESS_APPEND_PARTIAL_SCROLL = 1 << 0,
+    /* The native model still has full-viewport damage pending. */
+    HEADLESS_APPEND_FULL_DAMAGE = 1 << 1,
 };
 int headless_last_append_flags(const struct headless_terminal *ht);
 int headless_anchor_row(const struct headless_terminal *ht, int external_row);

@@ -53,4 +53,58 @@ public class AppendStateBufferTest {
             TerminalNative.nativeDestroy(handle);
         }
     }
+
+    @Test
+    public void testCommitAndViewportOwnership() {
+        final long handle = TerminalNative.nativeCreate(10, 5, 32, 8, 16,
+            new TerminalColorScheme().mDefaultColors);
+        assertTrue("native terminal must be created", handle != 0);
+        try {
+            TerminalNative.nativeDrainEvents(handle);
+            final int[] state = new int[TerminalNative.APPEND_STATE_HEADER_SIZE + 5];
+
+            byte[] text = "a".getBytes(StandardCharsets.UTF_8);
+            int length = TerminalNative.nativeAppendInto(handle, text, text.length, state);
+            assertTrue(length >= TerminalNative.APPEND_STATE_HEADER_SIZE);
+            assertTrue(state[0] > 0);
+            final int[] dirty = new int[state[0]];
+            System.arraycopy(state, TerminalNative.APPEND_STATE_HEADER_SIZE, dirty, 0, state[0]);
+            TerminalNative.nativeCommitRows(handle, dirty, dirty.length);
+
+            /* Dirty damage must survive until the commit, then disappear. */
+            text = "\u001b[2;1H".getBytes(StandardCharsets.UTF_8);
+            length = TerminalNative.nativeAppendInto(handle, text, text.length, state);
+            assertTrue(length >= TerminalNative.APPEND_STATE_HEADER_SIZE);
+            assertEquals(0, state[0]);
+
+            /* Produce enough history for a negative viewport. */
+            StringBuilder lines = new StringBuilder();
+            for (int i = 0; i < 20; i++) lines.append('\n');
+            text = lines.toString().getBytes(StandardCharsets.UTF_8);
+            length = TerminalNative.nativeAppendInto(handle, text, text.length, state);
+            assertTrue(length >= TerminalNative.APPEND_STATE_HEADER_SIZE);
+            TerminalNative.nativeCommitAllRows(handle);
+
+            TerminalNative.nativeSetView(handle, -2);
+            text = "\u001b[0m".getBytes(StandardCharsets.UTF_8);
+            length = TerminalNative.nativeAppendInto(handle, text, text.length, state);
+            assertTrue(length >= TerminalNative.APPEND_STATE_HEADER_SIZE);
+            assertEquals(5, state[0]);
+            assertTrue("viewport change must be reported as pending full damage",
+                (state[7] & TerminalNative.APPEND_FLAG_FULL_DAMAGE) != 0);
+            boolean found = false;
+            for (int i = 0; i < state[0]; i++) {
+                if (state[TerminalNative.APPEND_STATE_HEADER_SIZE + i] == -2) found = true;
+            }
+            assertTrue("full damage must cover the scrolled-up viewport", found);
+
+            TerminalNative.nativeCommitAllRows(handle);
+            length = TerminalNative.nativeAppendInto(handle, text, text.length, state);
+            assertTrue(length >= TerminalNative.APPEND_STATE_HEADER_SIZE);
+            assertEquals(0, state[0]);
+            assertEquals(0, state[7] & TerminalNative.APPEND_FLAG_FULL_DAMAGE);
+        } finally {
+            TerminalNative.nativeDestroy(handle);
+        }
+    }
 }

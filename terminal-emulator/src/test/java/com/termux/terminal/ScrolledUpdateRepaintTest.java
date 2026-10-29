@@ -100,6 +100,7 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         int min = -mTerminal.getScreen().getActiveTranscriptRows();
         mTopRow = Math.max(min, Math.min(0, topRow));
         mAutoScrollDisabled = (mTopRow != 0);
+        mTerminal.setViewport(mTopRow);
         fullRepaintFrame();
     }
 
@@ -192,6 +193,11 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         render();
     }
 
+    /** Mirror of TerminalView.contentRowShift(). */
+    private int contentRowShift() {
+        return mTopRow - mTerminal.getNativeViewTop();
+    }
+
     // ── Mirror of TerminalView.onScreenUpdated(autoScrollDisabled) + repaintAfterUpdate() ────
     private void frame() {
         final TerminalBuffer screen = mTerminal.getScreen();
@@ -210,8 +216,12 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         } else if (mFlingActive) {
             skipScrolling = true;
         } else if (mSelecting || mAutoScrollDisabled) {
-            int rowShift = mTerminal.getScrollCounter();
-            if (-mTopRow + rowShift > rowsInHistory) {
+            int rowShift = contentRowShift();
+            if (rowShift < 0) {
+                if (mSelecting) mSelecting = false; // stopTextSelectionMode()
+                mTopRow = mTerminal.getNativeViewTop();
+                skipScrolling = true;
+            } else if (-mTopRow + rowShift > rowsInHistory) {
                 if (mSelecting) mSelecting = false; // stopTextSelectionMode()
                 if (mAutoScrollDisabled) {
                     mTopRow = -rowsInHistory;
@@ -224,8 +234,9 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         }
         if (!skipScrolling && mTopRow != 0) mTopRow = 0;
         mTerminal.clearScrollCounter();
-        final boolean partialScroll = mTerminal.consumePartialScrollFlag();
-        if (partialScroll && mTopRow != 0) screen.markAllScreenRowsDirty();
+        // Mirror TerminalView.syncNativeViewport(): the append above happened at
+        // the old viewport, and the UI compensation may have moved the address.
+        mTerminal.setViewport(mTopRow);
 
         // ---- repaintAfterUpdate() ----
         int cursorExtRow = mTerminal.getCursorRow();
@@ -503,6 +514,50 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         }
     }
 
+    /**
+     * One PTY chunk can scroll more than half of the ring buffer. The offset delta then
+     * wraps ambiguously, so follow-text must use the native viewport address instead of
+     * the scroll counter or the view jumps back towards the live bottom.
+     */
+    public void testLargeChunkWhileScrolledUpKeepsContentAnchor() {
+        newTerminal();
+        fillLines("row-", 0, 30);
+        frame();
+        scrollTo(-4);
+        frame();
+        assertTrue("transcript must still have room before the burst",
+            mTerminal.getScreen().getActiveTranscriptRows() < MAX_TRANSCRIPT);
+
+        fillLines("burst-", 0, 80);
+        frame();
+
+        assertCanvasMatchesScreen("after a half-ring-wrapping burst");
+        assertEquals("the viewport must stay anchored to the same content",
+            -4 - 80, mTopRow);
+        assertEquals("the transcript must be full", MAX_TRANSCRIPT,
+            mTerminal.getScreen().getActiveTranscriptRows());
+    }
+
+    /**
+     * If one chunk moves the viewport all the way through the ring, foot itself
+     * drops the old address. The UI must follow the native viewport down and
+     * fully repaint instead of leaving slots painted for the previous content.
+     */
+    public void testMultiWrapBurstFollowsNativeViewportDown() {
+        newTerminal();
+        fillLines("row-", 0, 30);
+        frame();
+        scrollTo(-4);
+        frame();
+
+        fillLines("burst-", 0, 200);
+        frame();
+
+        assertEquals("mTopRow must match the native viewport after it moved down",
+            mTerminal.getNativeViewTop(), mTopRow);
+        assertCanvasMatchesScreen("after a multi-wrap burst");
+    }
+
     /** New output must still be there when the user scrolls back down. */
     public void testScrollingBackToBottomShowsTheNewOutput() {
         newTerminal();
@@ -651,7 +706,7 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         assertTrue("the last streamed line must be visible after scrolling back down", found);
     }
 
-    /** A partial scroll region (htop/vi) forces a full repaint — the rows physically move. */
+    /** A partial scroll region (htop/vi) must damage the slots whose content moved. */
     public void testScrollRegionWhileScrolledUpIsRepainted() {
         newTerminal();
         fillLines("row-", 0, 30);

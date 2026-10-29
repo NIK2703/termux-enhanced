@@ -72,6 +72,8 @@ public final class TerminalEmulator {
     private int mNativeScrollCounter;
     /** Value of mNativeScrollCounter at the last clearScrollCounter(). */
     private int mScrollBase;
+    /** Native viewport top after the last append (external row coordinates). */
+    private int mNativeViewTop;
     /** True when the last append scrolled only part of the screen. */
     private boolean mLastAppendPartialScroll;
     private int mSyncedColorVersion = -1;
@@ -100,6 +102,7 @@ public final class TerminalEmulator {
         mCursorCol = TerminalNative.nativeCursorCol(mNativeHandle);
         mNativeScrollCounter = (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
         mScrollBase = mNativeScrollCounter;
+        mNativeViewTop = TerminalNative.nativeViewTop(mNativeHandle);
         setCursorStyle();
         mModeBits = TerminalNative.nativeModeBits(mNativeHandle);
         mCursorBlinkState = true;
@@ -165,6 +168,7 @@ public final class TerminalEmulator {
         }
         syncPalette();
         TerminalNative.nativeResize(mNativeHandle, columns, rows, cellWidthPixels, cellHeightPixels);
+        mNativeViewTop = TerminalNative.nativeViewTop(mNativeHandle);
         if (!gridChanged) return;
         mColumns = columns;
         mRows = rows;
@@ -288,8 +292,16 @@ public final class TerminalEmulator {
                 mScreen.markAllDirty();
                 dirtyCount = available;
             }
-            for (int i = 0; i < dirtyCount; i++) {
-                mScreen.markRowDirty(state[TerminalNative.APPEND_STATE_HEADER_SIZE + i]);
+            final int flags = state[7];
+            if ((flags & TerminalNative.APPEND_FLAG_FULL_DAMAGE) != 0) {
+                // The native model cannot retire this damage until every visible
+                // row has reached a full-clip frame. A partial row set is not
+                // enough, so replace the mirror with the same full-damage state.
+                mScreen.markAllDirty();
+            } else {
+                for (int i = 0; i < dirtyCount; i++) {
+                    mScreen.markRowDirty(state[TerminalNative.APPEND_STATE_HEADER_SIZE + i]);
+                }
             }
 
             mModeBits = state[1];
@@ -297,8 +309,9 @@ public final class TerminalEmulator {
             mCursorRow = state[3];
             mCursorCol = state[4];
             mNativeScrollCounter = state[5];
+            mNativeViewTop = state[8];
             mLastAppendPartialScroll =
-                (state[7] & TerminalNative.APPEND_FLAG_PARTIAL_SCROLL) != 0;
+                (flags & TerminalNative.APPEND_FLAG_PARTIAL_SCROLL) != 0;
         } else {
             // Native append failed (or an older library is installed): the dirty set is
             // unknown, so repaint everything and refresh the caches through the legacy calls.
@@ -310,6 +323,7 @@ public final class TerminalEmulator {
             mCursorRow = TerminalNative.nativeCursorRow(mNativeHandle);
             mCursorCol = TerminalNative.nativeCursorCol(mNativeHandle);
             mNativeScrollCounter = (int) TerminalNative.nativeAbsoluteScrollCount(mNativeHandle);
+            mNativeViewTop = TerminalNative.nativeViewTop(mNativeHandle);
             mLastAppendPartialScroll = false;
         }
 
@@ -445,6 +459,22 @@ public final class TerminalEmulator {
         }
     }
 
+    /**
+     * Synchronize the native viewport with the view's {@code mTopRow}. Called
+     * immediately before drawing and after output compensation; the render call
+     * cannot do this itself because a partial frame starts at an arbitrary row
+     * inside the viewport.
+     */
+    public void setViewport(int topRow) {
+        mNativeViewTop = TerminalNative.nativeSetView(mNativeHandle, topRow);
+    }
+
+    /** Retire native damage for visible rows that reached the Canvas. */
+    public void commitRenderRows(int[] rows, int count) {
+        if (rows == null || count <= 0) return;
+        TerminalNative.nativeCommitRows(mNativeHandle, rows, count);
+    }
+
     /** Build the packed render command list for one frame. The ABI is documented by
      * {@code TerminalRenderer} and implemented in the selected native core. */
     public int[] getRenderCommands(int topRow, int selectionY1, int selectionY2,
@@ -481,6 +511,15 @@ public final class TerminalEmulator {
         return delta > 0 ? delta : 0;
     }
 
+    /**
+     * Native viewport top after the last append. The view uses the difference from its
+     * previous {@code mTopRow} to compensate follow-text exactly, including chunks that
+     * scroll more than half of the ring buffer (where an offset delta is ambiguous).
+     */
+    public int getNativeViewTop() {
+        return mNativeViewTop;
+    }
+
     public void clearScrollCounter() {
         // The absolute counter is carried by the append state, so consuming the delta is
         // a plain Java field update instead of another JNI transition.
@@ -488,9 +527,10 @@ public final class TerminalEmulator {
     }
 
     /**
-     * Consume the "partial scroll" marker for the most recent append. When the view is
-     * scrolled up it must repaint every visible screen row, because following the scroll
-     * counter shifts rows outside the scroll region into different viewport slots.
+     * Legacy "partial scroll" marker from the most recent append. The view no longer
+     * promotes this to a whole-screen repaint: native row damage now also covers slots
+     * moved by a scroll region while the viewport is scrolled up. Kept for compatibility
+     * with existing terminal-emulator callers.
      */
     public boolean consumePartialScrollFlag() {
         final boolean value = mLastAppendPartialScroll;

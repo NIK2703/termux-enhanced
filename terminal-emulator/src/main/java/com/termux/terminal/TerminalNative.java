@@ -25,18 +25,23 @@ final class TerminalNative {
     /**
      * Header size of the packed state array returned by {@link #nativeAppend}.
      * Layout: dirty count, mode bits, cursor style, cursor row, cursor column,
-     * absolute scroll count, history size, flags, followed by the dirty screen rows.
+     * absolute scroll count, history size, flags, viewport top, followed by the
+     * dirty visible rows (external addresses: negative values are transcript rows).
      */
-    static final int APPEND_STATE_HEADER_SIZE = 8;
+    static final int APPEND_STATE_HEADER_SIZE = 9;
 
     /** The append contained a scroll that did not cover the whole screen. */
     static final int APPEND_FLAG_PARTIAL_SCROLL = 1;
 
+    /** Native full-viewport damage is still pending until a full frame commits. */
+    static final int APPEND_FLAG_FULL_DAMAGE = 1 << 1;
+
     /**
      * Feed raw PTY bytes. Returns the packed state described by
-     * {@link #APPEND_STATE_HEADER_SIZE}; dirty rows are screen-relative indices.
-     * The array is returned even when no row is dirty, so the caller can update
-     * its cached mode/cursor/scroll state without extra JNI calls.
+     * {@link #APPEND_STATE_HEADER_SIZE}; dirty rows are external viewport
+     * coordinates (negative values are transcript rows). The array is returned
+     * even when no row is dirty, so the caller can update its cached
+     * mode/cursor/scroll state without extra JNI calls.
      */
     static native int[] nativeAppend(long handle, byte[] data, int length);
 
@@ -51,6 +56,23 @@ final class TerminalNative {
     static native void nativeReset(long handle);
 
     static native void nativeResize(long handle, int columns, int rows, int cellWidth, int cellHeight);
+
+    /**
+     * Synchronize foot's grid viewport with the UI address. {@code topRow} uses
+     * the same external coordinates as the render commands: 0 is the live
+     * screen top, negative values are transcript rows above it.
+     */
+    /** Set the viewport; returns the effective (history-clamped) top row. */
+    static native int nativeSetView(long handle, int topRow);
+
+    /** Current foot viewport top in external coordinates (0 = live screen top). */
+    static native int nativeViewTop(long handle);
+
+    /** Retire native dirty bits for visible rows that were actually painted. */
+    static native void nativeCommitRows(long handle, int[] rows, int count);
+
+    /** Retire every native dirty bit after a full-clip frame. */
+    static native void nativeCommitAllRows(long handle);
 
     /** Newline-joined event records, or null when no events are pending. */
     static native String nativeDrainEvents(long handle);

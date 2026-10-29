@@ -28,6 +28,7 @@ struct wl_window {
     struct xdg_toplevel *xdg_toplevel;
     bool is_configured;
     bool is_suspended;
+    bool is_fullscreen;
     int scale;
     int preferred_buffer_scale;
 };

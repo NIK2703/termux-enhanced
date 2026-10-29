@@ -12,8 +12,41 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uchar.h>
+
+enum {
+    OP_END = 0,
+    OP_ROW_BEGIN = 1,
+    OP_ROW_END = 2,
+    OP_RECT = 3,
+    OP_TEXT = 4,
+    OP_CURSOR = 5,
+    OP_FRAME_BEGIN = 6,
+    OP_DAMAGE = 7,
+    OP_FRAME_END = 8,
+    OP_FILL_RECT = 9,
+    OP_GLYPH = 10,
+    OP_FILL_TRAPEZOID = 11,
+};
 
 static int failures;
+
+/*
+ * The original smoke tests assert the pre-bridge semantic command stream.
+ * Keep them running through the fallback planner; canvas_render_tests()
+ * exercises the upstream render_cell() path explicitly.
+ */
+static struct headless_terminal *
+test_create_legacy(
+    int columns, int rows, int transcript_rows,
+    int cell_width, int cell_height, const int32_t *palette)
+{
+    struct headless_terminal *ht = (headless_create)(
+        columns, rows, transcript_rows, cell_width, cell_height, palette);
+    headless_set_use_canvas(ht, false);
+    return ht;
+}
+#define headless_create(...) test_create_legacy(__VA_ARGS__)
 
 #define CHECK(condition)                                                        \
     do {                                                                        \
@@ -22,6 +55,55 @@ static int failures;
             failures++;                                                         \
         }                                                                       \
     } while (0)
+
+static bool
+payload_has_frame_end(const int32_t *commands, int command_count)
+{
+    int cursor = 0;
+    bool saw_frame_end = false;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END)
+            break;
+        switch (op) {
+        case OP_ROW_BEGIN:
+            cursor += 1;
+            break;
+        case OP_ROW_END:
+            break;
+        case OP_RECT:
+        case OP_CURSOR:
+            cursor += 4;
+            break;
+        case OP_TEXT:
+            cursor += 7;
+            break;
+        case OP_FILL_RECT:
+            cursor += 5;
+            break;
+        case OP_GLYPH:
+            cursor += 7;
+            break;
+        case OP_FILL_TRAPEZOID:
+            cursor += 9;
+            break;
+        case OP_FRAME_BEGIN:
+            if (cursor + 8 > command_count)
+                return saw_frame_end;
+            cursor += 8 + commands[cursor + 7] * 3;
+            break;
+        case OP_DAMAGE:
+            cursor += 2;
+            break;
+        case OP_FRAME_END:
+            saw_frame_end = true;
+            break;
+        default:
+            return saw_frame_end;
+        }
+    }
+    return saw_frame_end;
+}
 
 static int32_t palette[259];
 
@@ -142,11 +224,231 @@ has_text_fg(const int32_t *commands, int count, int wanted)
             cursor += 2; /* background and effects */
             if (fg == wanted)
                 return true;
+        } else if (op == 6) {
+            /* frame header: 8 fields, then OP_DAMAGE triples */
+            if (cursor + 8 > count)
+                break;
+            const int damage_count = commands[cursor + 7];
+            cursor += 8 + damage_count * 3;
+        } else if (op == 7) {
+            cursor += 2;
+        } else if (op == 8) {
         } else {
             break;
         }
     }
     return false;
+}
+
+static int *append_dirty(
+    struct headless_terminal *ht, const char *text, int *dirty_count);
+static void commit_dirty(
+    struct headless_terminal *ht, int *dirty, int count);
+
+struct text_run {
+    int start_char;
+    int char_count;
+    int start_column;
+    int width_columns;
+    int32_t fg;
+    int32_t bg;
+    int effects;
+};
+
+static bool
+find_text_run(
+    const int32_t *commands, int count, int column, struct text_run *out)
+{
+    int cursor = 0;
+    while (cursor < count) {
+        const int op = commands[cursor++];
+        if (op == 0)
+            break;
+        if (op == 1) {
+            cursor++;
+        } else if (op == 2) {
+        } else if (op == 3 || op == 5) {
+            cursor += 4;
+        } else if (op == 4) {
+            struct text_run run;
+            run.start_char = commands[cursor++];
+            run.char_count = commands[cursor++];
+            run.start_column = commands[cursor++];
+            run.width_columns = commands[cursor++];
+            run.fg = commands[cursor++];
+            run.bg = commands[cursor++];
+            run.effects = commands[cursor++];
+            if (column >= run.start_column &&
+                column < run.start_column + run.width_columns)
+            {
+                if (out != NULL)
+                    *out = run;
+                return true;
+            }
+        } else if (op == 6) {
+            if (cursor + 8 > count)
+                break;
+            const int damage_count = commands[cursor + 7];
+            cursor += 8 + damage_count * 3;
+        } else if (op == 7) {
+            cursor += 2;
+        } else if (op == 8) {
+        } else {
+            break;
+        }
+    }
+    return false;
+}
+
+struct cursor_rect {
+    int column;
+    int width_columns;
+    int32_t color;
+    int shape;
+};
+
+static bool
+find_cursor_rect(
+    const int32_t *commands, int count, struct cursor_rect *out)
+{
+    int cursor = 0;
+    while (cursor < count) {
+        const int op = commands[cursor++];
+        if (op == 0)
+            break;
+        if (op == 1) {
+            cursor++;
+        } else if (op == 2) {
+        } else if (op == 3) {
+            cursor += 4;
+        } else if (op == 4) {
+            cursor += 7;
+        } else if (op == 5) {
+            struct cursor_rect rect;
+            rect.column = commands[cursor++];
+            rect.width_columns = commands[cursor++];
+            rect.color = commands[cursor++];
+            rect.shape = commands[cursor++];
+            if (out != NULL)
+                *out = rect;
+            return true;
+        } else if (op == 6) {
+            if (cursor + 8 > count)
+                break;
+            const int damage_count = commands[cursor + 7];
+            cursor += 8 + damage_count * 3;
+        } else if (op == 7) {
+            cursor += 2;
+        } else if (op == 8) {
+        } else {
+            break;
+        }
+    }
+    return false;
+}
+
+static void
+render_planner_policy_tests(void)
+{
+    struct headless_terminal *ht = headless_create(6, 2, 6, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    /* A selection that starts on the spacer of a wide cell still selects the
+     * whole grapheme. The run covers both columns. */
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "A\xe7\x95\x8c" "B", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 6, 2,
+        &command_count);
+    CHECK(commands != NULL);
+
+    struct text_run normal_wide;
+    CHECK(find_text_run(commands, command_count, 1, &normal_wide));
+    CHECK(normal_wide.start_column == 0);
+    CHECK(normal_wide.width_columns >= 3); /* A, wide cell and B merged */
+    CHECK(normal_wide.fg == palette[256]);
+    CHECK(normal_wide.bg == palette[257]);
+
+    commands = headless_render(
+        ht, 0, 0, 0, 2, 2, false, 0, 255, 8.0f, 16, 12, 6, 2,
+        &command_count);
+    CHECK(commands != NULL);
+
+    struct text_run selected_wide;
+    CHECK(find_text_run(commands, command_count, 1, &selected_wide));
+    CHECK(selected_wide.width_columns == 2);
+    CHECK(selected_wide.fg == palette[257]);
+    CHECK(selected_wide.bg == palette[256]);
+    CHECK(selected_wide.start_column == 1);
+
+    headless_destroy(ht);
+
+    /* Selecting text whose explicit foreground equals its background must
+     * still produce a visible selection. */
+    ht = headless_create(6, 2, 6, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+    dirty = append_dirty(
+        ht, "\x1b[38;2;10;20;30m\x1b[48;2;10;20;30mX", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    commands = headless_render(
+        ht, 0, 0, 0, 0, 0, false, 0, 255, 8.0f, 16, 12, 6, 2,
+        &command_count);
+    CHECK(commands != NULL);
+    struct text_run equal_colors;
+    CHECK(find_text_run(commands, command_count, 0, &equal_colors));
+    CHECK(equal_colors.fg == (int32_t)0xff0a141e);
+    CHECK(equal_colors.bg == (int32_t)0xfff5ebe1);
+    CHECK(equal_colors.fg != equal_colors.bg);
+
+    headless_destroy(ht);
+
+    /* Cursor policy: underline keeps cell colours, block inverts them, and a
+     * cursor on a wide cell covers both columns. */
+    ht = headless_create(6, 2, 6, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+    dirty = append_dirty(ht, "\xe7\x95\x8c", &dirty_count);
+    dirty = append_dirty(ht, "\x1b[1;1H", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, true, 1, 255, 8.0f, 16, 12, 6, 2,
+        &command_count);
+    CHECK(commands != NULL);
+    struct text_run underline;
+    CHECK(find_text_run(commands, command_count, 0, &underline));
+    CHECK(underline.width_columns == 2);
+    CHECK(underline.fg == palette[256]);
+    CHECK(underline.bg == palette[257]);
+    struct cursor_rect cursor;
+    CHECK(find_cursor_rect(commands, command_count, &cursor));
+    CHECK(cursor.column == 0 && cursor.width_columns == 2);
+    CHECK(cursor.color == palette[258]);
+    CHECK(cursor.shape == 1);
+
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 6, 2,
+        &command_count);
+    CHECK(commands != NULL);
+    struct text_run block;
+    CHECK(find_text_run(commands, command_count, 0, &block));
+    CHECK(block.width_columns == 2);
+    CHECK(block.fg == palette[257]);
+    CHECK(block.bg == palette[256]);
+    CHECK(find_cursor_rect(commands, command_count, &cursor));
+    CHECK(cursor.column == 0 && cursor.width_columns == 2);
+    CHECK(cursor.shape == 0);
+
+    headless_destroy(ht);
 }
 
 static int *
@@ -166,6 +468,12 @@ dirty_has(const int *dirty, int count, int row)
 }
 
 static void
+commit_dirty(struct headless_terminal *ht, int *dirty, int count)
+{
+    headless_commit_rows(ht, dirty, count);
+}
+
+static void
 dirty_tracking_tests(void)
 {
     struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
@@ -175,14 +483,17 @@ dirty_tracking_tests(void)
 
     int dirty_count = 0;
     int *dirty = append_dirty(ht, "A", &dirty_count); /* drain the initial reset damage */
+    commit_dirty(ht, dirty, dirty_count);
 
     dirty = append_dirty(ht, "B", &dirty_count);
     CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
+    commit_dirty(ht, dirty, dirty_count);
 
     dirty = append_dirty(ht, "\x1b[2;1H", &dirty_count);
     CHECK(dirty_count == 0);
     dirty = append_dirty(ht, "\x1b[2K", &dirty_count);
     CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 1));
+    commit_dirty(ht, dirty, dirty_count);
 
     dirty = append_dirty(ht, "\x1b[5;1H", &dirty_count);
     CHECK(dirty_count == 0);
@@ -190,12 +501,15 @@ dirty_tracking_tests(void)
     CHECK(dirty_count == 5);
     for (int row = 0; row < 5; row++)
         CHECK(dirty_has(dirty, dirty_count, row));
+    commit_dirty(ht, dirty, dirty_count);
 
     /* Switching to the alternate screen changes every visible cell. */
     dirty = append_dirty(ht, "\x1b[?1049h", &dirty_count);
     CHECK(dirty_count == 5);
+    commit_dirty(ht, dirty, dirty_count);
     dirty = append_dirty(ht, "\x1b[?1049l", &dirty_count);
     CHECK(dirty_count == 5);
+    commit_dirty(ht, dirty, dirty_count);
     headless_destroy(ht);
 
     /* OSC 4 only dirties rows that actually use the changed palette entry. */
@@ -204,8 +518,629 @@ dirty_tracking_tests(void)
     if (ht == NULL)
         return;
     dirty = append_dirty(ht, "\x1b[31mA\x1b[0m", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
     dirty = append_dirty(ht, "\x1b]4;1;rgb:11/22/33\x07", &dirty_count);
     CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
+    commit_dirty(ht, dirty, dirty_count);
+    headless_destroy(ht);
+}
+
+static bool
+frame_row_damaged(const int32_t *commands, int count, int row)
+{
+    if (commands == NULL || count < 9 || commands[0] != 6)
+        return false;
+    if (commands[3] != 0)
+        return true;
+    const int ranges = commands[8];
+    int cursor = 9;
+    for (int i = 0; i < ranges; i++) {
+        if (cursor + 2 >= count || commands[cursor] != 7)
+            return false;
+        if (row >= commands[cursor + 1] && row <= commands[cursor + 2])
+            return true;
+        cursor += 3;
+    }
+    return false;
+}
+
+static void
+frame_header_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "A", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && command_count > 9);
+    if (commands != NULL) {
+        CHECK(commands[0] == 6); /* OP_FRAME_BEGIN */
+        CHECK(commands[2] == 0); /* view top */
+        CHECK(commands[3] == 0); /* full damage */
+        CHECK(commands[4] == 10); /* terminal columns */
+        CHECK(commands[5] == 5); /* terminal rows */
+        CHECK(commands[6] == 0); /* render top */
+        CHECK(commands[7] == 5); /* render rows */
+        CHECK(commands[8] == 0); /* no damage ranges after commit */
+        CHECK(!frame_row_damaged(commands, command_count, 0));
+    }
+    const int first_frame_id = commands != NULL ? commands[1] : -1;
+
+    dirty = append_dirty(ht, "\x1b[3;1HB", &dirty_count);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    if (commands != NULL) {
+        CHECK(commands[1] == first_frame_id + 1);
+        CHECK(commands[3] == 0);
+        CHECK(commands[8] == 1);
+        CHECK(frame_row_damaged(commands, command_count, 2));
+        CHECK(!frame_row_damaged(commands, command_count, 1));
+    }
+
+    /* The damage list is scoped to the requested render band. */
+    commands = headless_render(
+        ht, 1, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
+    CHECK(commands != NULL);
+    if (commands != NULL) {
+        CHECK(commands[6] == 1 && commands[7] == 1);
+        CHECK(commands[8] == 0);
+        CHECK(!frame_row_damaged(commands, command_count, 2));
+    }
+    commands = headless_render(
+        ht, 2, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 1, &command_count);
+    CHECK(commands != NULL);
+    if (commands != NULL) {
+        CHECK(commands[6] == 2 && commands[7] == 1);
+        CHECK(commands[8] == 1);
+        CHECK(frame_row_damaged(commands, command_count, 2));
+    }
+
+    int row = 2;
+    headless_commit_rows(ht, &row, 1);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && commands[8] == 0);
+
+    /* A viewport change is full damage, and the header carries the moved view. */
+    dirty = append_dirty(ht, "\x1b[1;1H\n\n\n\n\n\n", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+    headless_set_view(ht, -2);
+    commands = headless_render(
+        ht, -2, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL);
+    if (commands != NULL) {
+        CHECK(commands[2] == -2);
+        CHECK(commands[3] == 1);
+        CHECK(commands[6] == -2 && commands[7] == 5);
+        CHECK(frame_row_damaged(commands, command_count, -2));
+        CHECK(frame_row_damaged(commands, command_count, 2));
+    }
+
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, -2, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 5, &command_count);
+    CHECK(commands != NULL && commands[2] == -2 && commands[3] == 0 && commands[8] == 0);
+
+    headless_destroy(ht);
+}
+
+static void
+render_state_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "A", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+    CHECK(headless_view_top(ht) == 0);
+
+    /* Dirty bits survive appends until the frame commits them. */
+    dirty = append_dirty(ht, "B", &dirty_count);
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
+    dirty = append_dirty(ht, "\x1b[2;1H", &dirty_count);
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 0));
+    commit_dirty(ht, dirty, dirty_count);
+
+    dirty = append_dirty(ht, "\x1b[3;1HC", &dirty_count);
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 2));
+    int only_row = 2;
+    headless_commit_rows(ht, &only_row, 1);
+
+    /* A partial commit must not clear a different row's pending damage. */
+    dirty = append_dirty(ht, "\x1b[4;1HD", &dirty_count);
+    CHECK(dirty_has(dirty, dirty_count, 3));
+
+    headless_commit_all_rows(ht);
+    dirty = append_dirty(ht, "\x1b[0m", &dirty_count);
+    CHECK(dirty_count == 0);
+
+    /* Fill history, then make the UI viewport authoritative. */
+    dirty = append_dirty(ht, "\x1b[1;1H\n\n\n\n\n\n", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+    int history = headless_history_size(ht);
+    CHECK(history > 0);
+    headless_set_view(ht, -2);
+    CHECK(headless_view_top(ht) == -2);
+    dirty = append_dirty(ht, "\x1b[0m", &dirty_count);
+    CHECK(dirty_count == 5);
+    CHECK(dirty_has(dirty, dirty_count, -2));
+    CHECK(dirty_has(dirty, dirty_count, 2));
+
+    /* A partial commit must not retire full viewport damage. */
+    headless_commit_rows(ht, &dirty[0], 1);
+    dirty = append_dirty(ht, "\x1b[0m", &dirty_count);
+    CHECK(dirty_count == 5);
+    commit_dirty(ht, dirty, dirty_count);
+
+    /* Output at the bottom follows the live screen (top stays 0). */
+    headless_set_view(ht, 0);
+    CHECK(headless_view_top(ht) == 0);
+    (void)append_dirty(ht, "\n", &dirty_count);
+    CHECK(headless_view_top(ht) == 0);
+    headless_commit_all_rows(ht);
+
+    /* Output while scrolled up keeps the content anchor, so the external
+     * viewport moves one row deeper into history. */
+    history = headless_history_size(ht);
+    CHECK(history >= 2);
+    headless_set_view(ht, -2);
+    (void)append_dirty(ht, "\n", &dirty_count);
+    CHECK(headless_view_top(ht) == -3);
+    headless_commit_all_rows(ht);
+
+    history = headless_history_size(ht);
+    headless_set_view(ht, -1000000);
+    CHECK(headless_view_top(ht) == -history);
+    headless_set_view(ht, 1000000);
+    CHECK(headless_view_top(ht) == 0);
+
+    headless_destroy(ht);
+}
+
+static void
+scrolled_view_scroll_tests(void)
+{
+    struct headless_terminal *ht =
+        headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    for (int i = 0; i < 12; i++)
+        feed(ht, "line\r\n");
+
+    headless_set_view(ht, -3);
+    headless_commit_all_rows(ht);
+    headless_clear_scroll_counter(ht);
+
+    /* A full-screen scroll while the user is scrolled up changes the grid ring
+     * address, but not the content of any visible slot. It must still advance
+     * the scroll counter so the UI can keep its anchor. */
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "\n\n", &dirty_count);
+    CHECK(headless_view_top(ht) == -5);
+    CHECK(headless_scroll_counter(ht) == 2);
+    CHECK(dirty_count == 0);
+
+    /* A partial scroll region moves only the rows in its region. The pointer
+     * comparison above the cell damage must mark exactly those visible slots,
+     * not the whole viewport. */
+    headless_set_view(ht, -1);
+    headless_commit_all_rows(ht);
+    headless_clear_scroll_counter(ht);
+
+    dirty = append_dirty(ht, "\x1b[1;2r\x1b[2;1H\n", &dirty_count);
+    CHECK(headless_view_top(ht) == -2);
+    CHECK(headless_scroll_counter(ht) == 1);
+    CHECK(dirty_count == 2);
+    CHECK(dirty_has(dirty, dirty_count, 1));
+    CHECK(dirty_has(dirty, dirty_count, 2));
+
+    headless_destroy(ht);
+}
+
+static void
+canvas_render_tests(void)
+{
+    struct headless_terminal *ht =
+        (headless_create)(10, 3, 6, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+    headless_set_use_canvas(ht, true);
+
+    feed(ht, "abc");
+    headless_commit_all_rows(ht);
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    /* The command buffer grows while render_cell() emits glyphs. Make sure the
+     * frame terminator is still present after that reallocation. */
+    CHECK(payload_has_frame_end(commands, command_count));
+    int glyph_start = -1;
+    int glyph_count = 0;
+    int glyph_x = -1;
+    int glyph_width = -1;
+    int glyph_baseline = -1;
+    int32_t glyph_color = 0;
+    int glyph_effects = -1;
+    int cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) {
+            break;
+        } else if (op == OP_ROW_BEGIN || op == OP_ROW_END) {
+            if (op == OP_ROW_BEGIN) cursor++;
+        } else if (op == OP_RECT || op == OP_CURSOR) {
+            cursor += 4;
+        } else if (op == OP_TEXT) {
+            cursor += 7;
+        } else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            const int damage = commands[cursor + 7];
+            cursor += 8 + damage * 3;
+        } else if (op == OP_DAMAGE) {
+            cursor += 2;
+        } else if (op == OP_FILL_RECT) {
+            cursor += 5;
+        } else if (op == OP_GLYPH) {
+            glyph_start = commands[cursor++];
+            glyph_count = commands[cursor++];
+            glyph_x = commands[cursor++];
+            glyph_baseline = commands[cursor++];
+            glyph_width = commands[cursor++];
+            glyph_color = commands[cursor++];
+            glyph_effects = commands[cursor++];
+            break;
+        } else if (op == OP_FILL_TRAPEZOID) {
+            cursor += 9;
+        } else {
+            break;
+        }
+    }
+    int first_text_length = 0;
+    int32_t *first_text = headless_render_text(ht, &first_text_length);
+    CHECK(first_text != NULL && first_text_length > 0 &&
+        first_text[0] == 'a');
+    free(first_text);
+    /* LTR batching must collapse the three adjacent ASCII cells into one run;
+     * otherwise every scroll frame pays three Canvas drawTextRun() calls. */
+    CHECK(glyph_start >= 0 && glyph_count == 3 && glyph_x == 0);
+    CHECK(glyph_width == 3);
+    CHECK(glyph_baseline == 12);
+    CHECK(glyph_color == palette[256]);
+    CHECK(glyph_effects == 0);
+
+    /* The block cursor is an upstream fill rectangle; the glyph is repainted
+     * with the contrast colour selected by cursor_colors_for_cell(). */
+    feed(ht, "\x1b[1;1H");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, true, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    bool saw_cursor_fill = false;
+    bool saw_contrast_glyph = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) {
+            const int x = commands[cursor++];
+            const int y = commands[cursor++];
+            const int w = commands[cursor++];
+            const int h = commands[cursor++];
+            const int32_t color = commands[cursor++];
+            if (x == 0 && y == 0 && w == 8 && h == 16 &&
+                color == palette[258])
+                saw_cursor_fill = true;
+        } else if (op == OP_GLYPH) {
+            cursor += 2; /* text index/count */
+            const int x = commands[cursor++];
+            cursor++; /* baseline */
+            cursor++; /* cell width */
+            const int32_t color = commands[cursor++];
+            cursor++; /* effects */
+            if (x == 0 && color == palette[257])
+                saw_contrast_glyph = true;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(saw_cursor_fill);
+    CHECK(saw_contrast_glyph);
+
+    /* Selection swaps foreground/background through upstream render_cell(). */
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, 0, 0, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    bool saw_selection_fill = false;
+    bool saw_selection_glyph = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) {
+            const int x = commands[cursor++];
+            const int y = commands[cursor++];
+            const int w = commands[cursor++];
+            const int h = commands[cursor++];
+            const int32_t color = commands[cursor++];
+            if (x == 0 && y == 0 && w == 8 && h == 16 &&
+                color == palette[256])
+                saw_selection_fill = true;
+        } else if (op == OP_GLYPH) {
+            cursor += 2;
+            const int x = commands[cursor++];
+            cursor++; /* baseline */
+            cursor++; /* cell width */
+            const int32_t color = commands[cursor++];
+            cursor++; /* effects */
+            if (x == 0 && color == palette[257])
+                saw_selection_glyph = true;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(saw_selection_fill);
+    CHECK(saw_selection_glyph);
+
+    /* Wide glyphs keep upstream cell advances: B starts at column 2. */
+    feed(ht, "\x1b[2J\x1b[H\xe7\x95\x8c" "B");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    int render_text_length = 0;
+    int32_t *render_text = headless_render_text(ht, &render_text_length);
+    CHECK(render_text != NULL);
+    bool saw_wide = false;
+    bool saw_b = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) cursor += 5;
+        else if (op == OP_GLYPH) {
+            char32_t cp = 0;
+            const int start = commands[cursor];
+            const int count = commands[cursor + 1];
+            const int x = commands[cursor + 2];
+            cursor += 7;
+            if (render_text != NULL && start >= 0 && count > 0 &&
+                start + count <= render_text_length)
+            {
+                cp = (char32_t)render_text[start];
+            }
+            if (x == 0 && cp == 0x754c)
+                saw_wide = true;
+            if (x == 16 && cp == 'B')
+                saw_b = true;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(saw_wide);
+    CHECK(saw_b);
+    free(render_text);
+
+    /* Adjacent cells sharing an explicit background must not break the text
+     * run. The fills are coalesced into one rectangle and the glyphs into one
+     * Canvas drawTextRun(), which is important for coloured status lines and
+     * reverse-video screens while scrolling. */
+    feed(ht, "\x1b[2J\x1b[H\x1b[41mabc");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    int merged_fill_count = 0;
+    int merged_glyph_runs = 0;
+    int merged_glyph_width = 0;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) {
+            const int x = commands[cursor++];
+            const int y = commands[cursor++];
+            const int w = commands[cursor++];
+            const int h = commands[cursor++];
+            const int32_t color = commands[cursor++];
+            if (x == 0 && y == 0 && w == 24 && h == 16 &&
+                color == palette[1])
+                merged_fill_count++;
+        } else if (op == OP_GLYPH) {
+            const int count = commands[cursor + 1];
+            const int width = commands[cursor + 4];
+            cursor += 7;
+            merged_glyph_runs++;
+            merged_glyph_width = width;
+            if (count != 3)
+                merged_glyph_runs = -1000;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(merged_fill_count == 1);
+    CHECK(merged_glyph_runs == 1);
+    CHECK(merged_glyph_width == 3);
+
+    /* Block-art rows are batched across skipped blank cells. The run carries
+     * the cell span and the inserted space explicitly, which is the shape the
+     * Canvas renderer must split into per-cell clusters when the font's block
+     * advance differs from the primary space advance. */
+    feed(ht, "\x1b[2J\x1b[H\x1b[38;2;138;138;138m\xe2\x96\x88 \xe2\x96\x88");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    int block_start = -1;
+    int block_count = 0;
+    int block_width = 0;
+    int block_effects = 0;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) cursor += 5;
+        else if (op == OP_GLYPH) {
+            block_start = commands[cursor];
+            block_count = commands[cursor + 1];
+            block_width = commands[cursor + 4];
+            block_effects = commands[cursor + 6];
+            cursor += 7;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    int block_text_length = 0;
+    int32_t *block_text = headless_render_text(ht, &block_text_length);
+    CHECK(block_text != NULL);
+    CHECK(block_start >= 0 && block_count == 3 && block_width == 3);
+    CHECK((block_effects & (1 << 7)) != 0);
+    if (block_text != NULL && block_start >= 0 && block_count == 3 &&
+        block_start + block_count <= block_text_length)
+    {
+        CHECK(block_text[block_start] == 0x2588);
+        CHECK(block_text[block_start + 1] == ' ');
+        CHECK(block_text[block_start + 2] == 0x2588);
+    }
+    free(block_text);
+
+    /* The block-fill effect bit must not spill over into neighbouring text
+     * runs: TerminalRenderer uses SRC_ATOP for those glyphs to preserve the
+     * terminal background alpha, and that transfer mode must never be applied
+     * to ordinary text. */
+    feed(ht, "\x1b[2J\x1b[H\x1b[38;2;138;138;138mA\xe2\x96\x88" "B");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 128, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    int mixed_glyph_runs = 0;
+    bool mixed_block_effect = false;
+    bool mixed_text_effect = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) cursor += 5;
+        else if (op == OP_GLYPH) {
+            const int effects = commands[cursor + 6];
+            mixed_glyph_runs++;
+            if ((effects & (1 << 7)) != 0)
+                mixed_block_effect = true;
+            else
+                mixed_text_effect = true;
+            cursor += 7;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(mixed_glyph_runs == 3);
+    CHECK(mixed_block_effect);
+    CHECK(mixed_text_effect);
+
+    /* Transparency: Termux applies the configured alpha to painted cell
+     * backgrounds too, not just to the default background. */
+    feed(ht, "\x1b[2J\x1b[H\x1b[41mX");
+    headless_commit_all_rows(ht);
+    commands = headless_render(
+        ht, 0, -1, -1, 0, 0, false, 0, 128, 8.0f, 16, 12, 10, 3,
+        &command_count);
+    CHECK(commands != NULL);
+    bool saw_translucent_fill = false;
+    bool saw_opaque_cell_fill = false;
+    cursor = 0;
+    while (commands != NULL && cursor < command_count) {
+        const int op = commands[cursor++];
+        if (op == OP_END) break;
+        if (op == OP_ROW_BEGIN) cursor++;
+        else if (op == OP_ROW_END) {}
+        else if (op == OP_RECT || op == OP_CURSOR) cursor += 4;
+        else if (op == OP_TEXT) cursor += 7;
+        else if (op == OP_FRAME_BEGIN) {
+            if (cursor + 8 > command_count) break;
+            cursor += 8 + commands[cursor + 7] * 3;
+        } else if (op == OP_DAMAGE) cursor += 2;
+        else if (op == OP_FILL_RECT) {
+            cursor++; /* x */
+            cursor++; /* y */
+            const int w = commands[cursor++];
+            const int h = commands[cursor++];
+            const uint32_t color = (uint32_t)commands[cursor++];
+            if (w >= 8 && h >= 16) {
+                if ((color >> 24) == 128) saw_translucent_fill = true;
+                if ((color >> 24) == 255) saw_opaque_cell_fill = true;
+            }
+        } else if (op == OP_GLYPH) {
+            cursor += 7;
+        } else if (op == OP_FILL_TRAPEZOID) cursor += 9;
+        else break;
+    }
+    CHECK(saw_translucent_fill);
+    CHECK(!saw_opaque_cell_fill);
+
     headless_destroy(ht);
 }
 
@@ -213,7 +1148,12 @@ int
 main(void)
 {
     init_palette();
+    canvas_render_tests();
     dirty_tracking_tests();
+    frame_header_tests();
+    render_state_tests();
+    render_planner_policy_tests();
+    scrolled_view_scroll_tests();
     struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
     CHECK(ht != NULL);
     if (ht == NULL)
@@ -432,6 +1372,7 @@ main(void)
         int cursor = 0;
         bool saw_a = false, saw_wide = false, saw_b = false;
         bool structure_ok = true;
+        bool saw_frame_end = false;
         int row_begins = 0;
         while (cursor < command_count) {
             const int op = commands[cursor++];
@@ -445,6 +1386,22 @@ main(void)
                 cursor += 4;
             } else if (op == 5) {
                 cursor += 4;
+            } else if (op == 6) {
+                if (cursor + 8 > command_count) {
+                    structure_ok = false;
+                    break;
+                }
+                CHECK(commands[cursor + 0] >= 0); /* frame id */
+                CHECK(commands[cursor + 2] == 0 || commands[cursor + 2] == 1);
+                CHECK(commands[cursor + 3] == 10); /* terminal columns */
+                CHECK(commands[cursor + 5] == 0); /* render top */
+                CHECK(commands[cursor + 6] == 3); /* render rows */
+                const int damage_ranges = commands[cursor + 7];
+                cursor += 8 + damage_ranges * 3;
+            } else if (op == 7) {
+                cursor += 2;
+            } else if (op == 8) {
+                saw_frame_end = true;
             } else if (op == 4) {
                 const int start_char = commands[cursor++];
                 const int char_count = commands[cursor++];
@@ -468,6 +1425,7 @@ main(void)
             }
         }
         CHECK(structure_ok);
+        CHECK(saw_frame_end);
         CHECK(row_begins == 3);
         CHECK(saw_a && saw_wide && saw_b);
     }
@@ -499,6 +1457,14 @@ main(void)
                 cursor += 4;
             } else if (op == 4) {
                 cursor += 7;
+            } else if (op == 6) {
+                if (cursor + 8 > command_count)
+                    break;
+                const int damage_count = commands[cursor + 7];
+                cursor += 8 + damage_count * 3;
+            } else if (op == 7) {
+                cursor += 2;
+            } else if (op == 8) {
             } else {
                 break;
             }

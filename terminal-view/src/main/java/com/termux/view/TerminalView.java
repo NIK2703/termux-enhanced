@@ -836,6 +836,17 @@ public final class TerminalView extends View {
         return mEmulator == null ? 1 : mEmulator.getScreen().getActiveRows() + mTopRow - mEmulator.mRows;
     }
 
+    /**
+     * Rows the content axis moved during the append. The native viewport top is an
+     * address, so this stays exact when one chunk scrolls more than half of the ring
+     * buffer; the absolute scroll counter's ring-offset delta is ambiguous there.
+     * A negative value means foot itself moved the viewport down (the content under
+     * the old address was evicted).
+     */
+    private int contentRowShift() {
+        return mTopRow - mEmulator.getNativeViewTop();
+    }
+
     public void onScreenUpdated() {
         onScreenUpdated(false);
     }
@@ -864,13 +875,21 @@ public final class TerminalView extends View {
             // BOTH sides at once (anchorFlingToContent), so the fling does not fly over buffer
             // addresses that the output renumbered underneath it and land `rowShift` rows short
             // of the end it was heading for.
-            final int rowShift = mEmulator.getScrollCounter();
+            final int rowShift = contentRowShift();
             if (rowShift != 0 && !mFlingDeltaMode) anchorFlingToContent(rowShift);
             skipScrolling = true;
         } else if (isSelectingText() || mEmulator.isAutoScrollDisabled()) {
 
-            int rowShift = mEmulator.getScrollCounter();
-            if (-mTopRow + rowShift > rowsInHistory) {
+            int rowShift = contentRowShift();
+            if (rowShift < 0) {
+                // foot moved the viewport down because the rows under the old
+                // address were evicted. Follow it instead of leaving mTopRow
+                // pointing at unrelated content; any selection anchor is gone.
+                if (isSelectingText())
+                    stopTextSelectionMode();
+                mTopRow = mEmulator.getNativeViewTop();
+                skipScrolling = true;
+            } else if (-mTopRow + rowShift > rowsInHistory) {
                 // .. unless we're hitting the end of history transcript, in which
                 // case we abort text selection and scroll to end.
                 if (isSelectingText())
@@ -899,14 +918,9 @@ public final class TerminalView extends View {
 
         mEmulator.clearScrollCounter();
 
-        // A partial scroll leaves rows outside the region in place, but following the
-        // scroll counter moves every visible screen row to a different viewport slot.
-        // Repaint the visible screen only in that scrolled-up case; at the live bottom
-        // the native region rows are sufficient.
-        final boolean partialScroll = mEmulator.consumePartialScrollFlag();
-        if (partialScroll && mTopRow != 0) {
-            mEmulator.getScreen().markAllScreenRowsDirty();
-        }
+        // Output compensation can move the address without changing the content under it.
+        // Keep foot's grid->view at the viewport the next frame will actually paint.
+        syncNativeViewport();
 
         // Invariant: the elastic over-drag may only exist while mTopRow sits exactly on a
         // boundary. If the buffer changed under us (transcript cleared, alternate buffer,
@@ -1396,6 +1410,7 @@ public final class TerminalView extends View {
         final int applied = mTopRow - newTop; // rows the viewport really moved (clamped)
         if (applied <= 0) return;
         mTopRow = newTop;
+        syncNativeViewport();
         mFlingAnchorShiftPx -= applied * rowHeight;
     }
 
@@ -1597,6 +1612,7 @@ public final class TerminalView extends View {
                 handleKeyCode(up ? KeyEvent.KEYCODE_DPAD_UP : KeyEvent.KEYCODE_DPAD_DOWN, 0);
             } else {
                 mTopRow = Math.min(0, Math.max(-(mEmulator.getScreen().getActiveTranscriptRows()), mTopRow + (up ? -1 : 1)));
+                syncNativeViewport();
                 // While the user is scrolled up, follow the text instead of the
                 // buffer: onScreenUpdated() compensates mTopRow for the rows
                 // shifted out of the transcript when it grows past the limit.
@@ -2040,6 +2056,7 @@ public final class TerminalView extends View {
                             // recomputes mTopRow the same way for held, stationary drags.
                             mScrollbarDragStartRawY = event.getY();
                             mTopRow = fingerYtoTopRowCentered(mScrollbarDragStartRawY);
+                            syncNativeViewport();
                             // Same rule as scrollUp(): scrolled away from the bottom
                             // disables follow-to-bottom; reaching the bottom again
                             // re-enables it. Without this the emulator still thinks
@@ -2515,6 +2532,7 @@ public final class TerminalView extends View {
 
             int liveRows = mEmulator.getScreen().getActiveTranscriptRows();
             mTopRow = Math.max(-liveRows, Math.min(0, previousTopRow));
+            syncNativeViewport();
             // A pager (re)bind queued a per-session scroll position — it wins over the
             // carry-over above.
             consumePendingScrollRestore();
@@ -2621,6 +2639,7 @@ public final class TerminalView extends View {
             // (IllegalArgumentException from externalToInternalRow).
             final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
             if (mTopRow < minTopRow) mTopRow = minTopRow;
+            syncNativeViewport();
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
                 mGridOffsetX, glyphYOffset(), getWidth(), dirtyRect, mPixelsValid);
             // A full-clip frame really did paint every visible row — the surface now holds the
@@ -2819,6 +2838,12 @@ public final class TerminalView extends View {
 
     public void setTopRow(int mTopRow) {
         this.mTopRow = mTopRow;
+        syncNativeViewport();
+    }
+
+    /** Keep foot's viewport at the address the view will paint next. */
+    private void syncNativeViewport() {
+        if (mEmulator != null) mEmulator.setViewport(mTopRow);
     }
 
     /** @return number of active transcript rows of the attached emulator, or 0. */
@@ -2863,6 +2888,7 @@ public final class TerminalView extends View {
             // Empty transcript (fresh session after a process death degrades here)
             // or the saved position was "follow the bottom": nothing to restore.
             mTopRow = 0;
+            syncNativeViewport();
             mEmulator.setAutoScrollDisabled(false);
             return;
         }
@@ -2877,6 +2903,7 @@ public final class TerminalView extends View {
         }
         target = Math.max(-liveRows, Math.min(0, target));
         mTopRow = target;
+        syncNativeViewport();
         // Same contract as doScroll(): scrolled away from the bottom disables
         // follow-to-bottom so incoming output does not snap the restored position.
         mEmulator.setAutoScrollDisabled(mTopRow != 0);

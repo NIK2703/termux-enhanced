@@ -144,6 +144,7 @@ public final class TerminalBuffer {
     }
 
     public void clearDirtyState() {
+        if (mNativeHandle != 0) TerminalNative.nativeCommitAllRows(mNativeHandle);
         mAllDirty = false;
         mDirtyCount = 0;
     }

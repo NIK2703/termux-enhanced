@@ -11,6 +11,8 @@
 
 #include "headless.h"
 #include "ht_internal.h"
+#include "render_model.h"
+#include "foot_canvas_backend.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -36,11 +38,6 @@
 #include "vt_filter.h"
 #include "xmalloc.h"
 
-#define PALETTE_SIZE 259
-#define COLOR_FOREGROUND 256
-#define COLOR_BACKGROUND 257
-#define COLOR_CURSOR 258
-
 struct event_record {
     char *text;
     struct event_record *next;
@@ -58,8 +55,8 @@ struct headless_terminal {
     int cell_height;
     int transcript_rows;
 
-    int32_t palette[PALETTE_SIZE];
-    int32_t defaults[PALETTE_SIZE];
+    int32_t palette[FOOT_RENDER_PALETTE_SIZE];
+    int32_t defaults[FOOT_RENDER_PALETTE_SIZE];
 
     uint64_t scroll_count;
     uint64_t scroll_base;
@@ -67,20 +64,25 @@ struct headless_terminal {
 
     struct vt_filter *filter;
 
+    /* Viewport and pending-damage policy. Rows themselves are still owned by
+     * foot's grid; the model only decides which visible rows are pending and
+     * clears them after the Canvas frame has committed. */
+    struct foot_render_model *render_model;
+
     struct event_record *events_head;
     struct event_record *events_tail;
 
-    int32_t *render_text;
-    size_t render_text_len;
-    size_t render_text_cap;
-
-    /* Scratch buffers reused across appends and frames. They are borrowed by the
-     * caller until the next call on the same terminal and must not be freed. */
+    /* Scratch buffers reused across appends. They are borrowed by the caller
+     * until the next call on the same terminal and must not be freed. */
     int *append_dirty;
     size_t append_dirty_cap;
 
-    int32_t *render_commands;
-    size_t render_commands_cap;
+    /* Content identity of each visible viewport slot before an append. Foot
+     * moves row *pointers* for scrolls without setting row->dirty (the pixel
+     * renderer moves pixels instead), so the Canvas adapter has to compare the
+     * slots and damage the rows whose content actually moved. */
+    struct row **viewport_before;
+    size_t viewport_before_cap;
 };
 
 static int
@@ -1056,27 +1058,6 @@ headless_word_at_location(struct headless_terminal *ht, int x, int y)
 }
 
 static void
-count_scroll_damage(uint64_t *counter, const struct grid *grid)
-{
-    tll_foreach(grid->scroll_damage, it) {
-        const struct damage *damage = &it->item;
-        if (damage->type != DAMAGE_SCROLL)
-            continue;
-        if (UINT64_MAX - *counter < damage->lines)
-            *counter = UINT64_MAX;
-        else
-            *counter += damage->lines;
-    }
-}
-
-/*
- * Increment the monotonic scroll counter for every scroll_up(), including
- * partial scroll regions and the alternate screen. Reverse scrolls (RI, IL) do
- * not touch it. foot records the same operations as DAMAGE_SCROLL in the active
- * grid's damage list, so mirror that accounting here instead of only counting
- * full-screen scrolls.
- */
-static void
 mark_scroll_damage_rows(struct grid *grid, int rows)
 {
     if (tll_length(grid->scroll_damage) == 0)
@@ -1102,20 +1083,143 @@ mark_scroll_damage_rows(struct grid *grid, int rows)
         }
 
         case DAMAGE_SCROLL_IN_VIEW:
-        case DAMAGE_SCROLL_REVERSE_IN_VIEW:
-            /* A view-relative scroll can affect any visible row; be conservative. */
-            for (int r = 0; r < rows; r++) {
-                struct row *row = grid_row(grid, r);
+        case DAMAGE_SCROLL_REVERSE_IN_VIEW: {
+            /* Region coordinates are relative to the current viewport, not to
+             * grid->offset. Rows outside the region do not move. */
+            int start = damage->region.start;
+            int end = damage->region.end;
+            if (start < 0)
+                start = 0;
+            if (end > rows)
+                end = rows;
+            for (int r = start; r < end; r++) {
+                const int index = (grid->view + r) & (grid->num_rows - 1);
+                struct row *row = grid->rows[index];
                 if (row != NULL)
                     row->dirty = true;
             }
             break;
         }
+        }
     }
 }
 
+static int
+scroll_damage_lines(const struct grid *grid)
+{
+    int lines = 0;
+    tll_foreach(grid->scroll_damage, it) {
+        const struct damage *damage = &it->item;
+        if (damage->type != DAMAGE_SCROLL)
+            continue;
+        if (lines > INT32_MAX - damage->lines)
+            lines = INT32_MAX;
+        else
+            lines += damage->lines;
+    }
+    return lines;
+}
+
+/*
+ * Forward movement of the grid ring during one append. foot only records
+ * DAMAGE_SCROLL when the viewport follows the live screen (the pixel backend
+ * would otherwise not move pixels), but Termux's scroll counter must also see
+ * scrolls that happened while the user is scrolled into history. The ring
+ * offset advances for every line scrolled up, partial scroll regions included,
+ * and moves backwards for reverse scrolls (which the counter ignores).
+ */
+static int
+forward_offset_delta(const struct grid *grid, int offset_before)
+{
+    int delta = grid->offset - offset_before;
+    if (delta < 0)
+        delta += grid->num_rows;
+    if (delta > grid->num_rows / 2)
+        return 0; /* Net reverse movement, or an unrealistic full-ring wrap. */
+    return delta;
+}
+
+/*
+ * Increment the monotonic scroll counter for every scroll_up(), including
+ * partial scroll regions and the alternate screen. Reverse scrolls (RI, IL) do
+ * not touch it.
+ *
+ * DAMAGE_SCROLL is authoritative when it exists (and does not lose wrap counts
+ * during very large appends). The ring-offset delta covers the scrolled-up
+ * case, where foot cannot record scroll damage because the viewport does not
+ * follow the live screen.
+ */
 static void
-process_scroll_damage(struct headless_terminal *ht)
+count_scroll_movement(
+    uint64_t *counter, const struct grid *grid, int offset_before)
+{
+    int lines = scroll_damage_lines(grid);
+    const int offset_lines = forward_offset_delta(grid, offset_before);
+    if (offset_lines > lines)
+        lines = offset_lines;
+
+    if (UINT64_MAX - *counter < (uint64_t)lines)
+        *counter = UINT64_MAX;
+    else
+        *counter += (uint64_t)lines;
+}
+
+static struct row **
+reserve_viewport_before(struct headless_terminal *ht, int rows)
+{
+    if (rows <= 0)
+        return NULL;
+    if ((size_t)rows > ht->viewport_before_cap) {
+        struct row **resized = realloc(
+            ht->viewport_before, (size_t)rows * sizeof(resized[0]));
+        if (resized == NULL)
+            return NULL;
+        ht->viewport_before = resized;
+        ht->viewport_before_cap = (size_t)rows;
+    }
+    return ht->viewport_before;
+}
+
+static void
+snapshot_viewport(
+    const struct grid *grid, struct row **out, int rows)
+{
+    for (int i = 0; i < rows; i++) {
+        const int index = (grid->view + i) & (grid->num_rows - 1);
+        out[i] = grid->rows[index];
+    }
+}
+
+/*
+ * Detect content that moved without a cell-level dirty bit. Foot's scroll
+ * engine swaps row pointers; at the Canvas layer that is a moved row, not a
+ * no-op. Compare the viewport slots by content identity after the append. If a
+ * slot becomes an unallocated row, request a full repaint because there is no
+ * row object on which to set ->dirty.
+ */
+static bool
+mark_moved_viewport_rows(
+    struct grid *grid, struct row *const *before, int rows)
+{
+    bool needs_full = false;
+    for (int i = 0; i < rows; i++) {
+        const int index = (grid->view + i) & (grid->num_rows - 1);
+        struct row *row = grid->rows[index];
+        if (row == before[i])
+            continue;
+        if (row == NULL) {
+            needs_full = true;
+            continue;
+        }
+        row->dirty = true;
+    }
+    return needs_full;
+}
+
+static void
+process_scroll_damage(
+    struct headless_terminal *ht,
+    int normal_offset_before, int alt_offset_before)
 {
     struct terminal *term = &ht->term;
 
@@ -1127,8 +1231,10 @@ process_scroll_damage(struct headless_terminal *ht)
     mark_scroll_damage_rows(&term->normal, term->rows);
     mark_scroll_damage_rows(&term->alt, term->rows);
 
-    count_scroll_damage(&ht->scroll_count, &term->normal);
-    count_scroll_damage(&ht->scroll_count, &term->alt);
+    count_scroll_movement(
+        &ht->scroll_count, &term->normal, normal_offset_before);
+    count_scroll_movement(
+        &ht->scroll_count, &term->alt, alt_offset_before);
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 }
@@ -1163,6 +1269,14 @@ headless_append(
     const int mode_before = headless_mode_bits(ht);
     const bool alternate_before = headless_is_alternate(ht);
     const uint64_t scroll_before = ht->scroll_count;
+    struct grid *active_before = ht->term.grid;
+    const int normal_offset_before = ht->term.normal.offset;
+    const int alt_offset_before = ht->term.alt.offset;
+    struct row **viewport_before = reserve_viewport_before(ht, rows);
+    const bool viewport_snapshot_failed =
+        rows > 0 && viewport_before == NULL;
+    if (viewport_before != NULL)
+        snapshot_viewport(active_before, viewport_before, rows);
 
     uint8_t *filtered = NULL;
     size_t filtered_length = 0;
@@ -1180,15 +1294,27 @@ headless_append(
     if (filtered_owned)
         free(filtered);
     flush_ptmx_buffers(ht);
-    process_scroll_damage(ht);
+    process_scroll_damage(ht, normal_offset_before, alt_offset_before);
+
+    bool viewport_lost_row = false;
+    if (viewport_before != NULL && ht->term.grid == active_before &&
+        ht->term.rows == rows)
+    {
+        viewport_lost_row = mark_moved_viewport_rows(
+            ht->term.grid, viewport_before, rows);
+    }
 
     const int history_after = history_size(ht);
     const int mode_after = headless_mode_bits(ht);
     const bool alternate_after = headless_is_alternate(ht);
 
+    /* The UI viewport is an address; following output can move the screen
+     * under it. Re-read foot's grid->view after the ring has advanced. */
+    foot_render_model_sync_view(ht->render_model, &ht->term, history_after);
+
     /* A chunk that produced no output cannot have changed the terminal palette. */
     if (filtered_length > 0) {
-        int32_t current_palette[PALETTE_SIZE];
+        int32_t current_palette[FOOT_RENDER_PALETTE_SIZE];
         headless_palette(ht, current_palette);
         bool palette_changed = memcmp(current_palette, ht->palette, sizeof(current_palette)) != 0;
         if (palette_changed) {
@@ -1198,26 +1324,35 @@ headless_append(
     }
 
     const bool all_dirty =
+        viewport_snapshot_failed ||
+        viewport_lost_row ||
         alternate_before != alternate_after ||
         history_after < history_before ||
         mode_before != mode_after;
+    if (all_dirty)
+        foot_render_model_damage_all(ht->render_model);
 
     int *dirty = reserve_append_dirty(ht, rows);
     if (dirty == NULL)
         return NULL;
     int count = 0;
 
-    /* The buffer is sized for the whole screen, so collect and clear in one
-     * pass instead of scanning every row twice. */
+    /* Report the visible viewport, not just the live screen rows. When the
+     * user is scrolled into history, output can damage transcript rows through
+     * OSC 4 or reflow; those rows must reach the Java dirty set too. Native
+     * row->dirty bits stay set until the Canvas frame commits them. */
+    const int view_top = foot_render_model_view_top(ht->render_model);
+    const bool full_damage =
+        foot_render_model_is_full_damage(ht->render_model);
     for (int i = 0; i < rows; i++) {
-        struct row *row = row_at(ht, i);
-        if (all_dirty || (row != NULL && row->dirty)) {
-            dirty[count++] = i;
-            if (row != NULL)
-                row->dirty = false;
-        }
+        const int external = view_top + i;
+        struct row *row = row_at(ht, external);
+        if (full_damage || (row != NULL && row->dirty))
+            dirty[count++] = external;
     }
 
+    if (full_damage)
+        ht->last_append_flags |= HEADLESS_APPEND_FULL_DAMAGE;
     if (!all_dirty && count < rows && ht->scroll_count > scroll_before)
         ht->last_append_flags |= HEADLESS_APPEND_PARTIAL_SCROLL;
 
@@ -1228,51 +1363,92 @@ headless_append(
     return dirty;
 }
 
+void
+headless_set_view(struct headless_terminal *ht, int top_row)
+{
+    if (ht == NULL)
+        return;
+    foot_render_model_set_view(
+        ht->render_model, &ht->term, top_row, history_size(ht));
+}
+
+int
+headless_view_top(const struct headless_terminal *ht)
+{
+    return ht != NULL ? foot_render_model_view_top(ht->render_model) : 0;
+}
+
+void
+headless_set_use_canvas(struct headless_terminal *ht, bool use_canvas)
+{
+    if (ht != NULL)
+        foot_render_model_set_use_canvas(ht->render_model, use_canvas);
+}
+
+void
+headless_commit_rows(
+    struct headless_terminal *ht, const int *rows, int count)
+{
+    if (ht == NULL)
+        return;
+    foot_render_model_commit_rows(
+        ht->render_model, &ht->term, rows, count, history_size(ht));
+}
+
+void
+headless_commit_all_rows(struct headless_terminal *ht)
+{
+    if (ht == NULL)
+        return;
+    foot_render_model_commit_all(
+        ht->render_model, &ht->term, history_size(ht));
+}
+
 static void
 set_color_theme(
-    struct color_theme *theme, const int32_t palette[PALETTE_SIZE])
+    struct color_theme *theme, const int32_t palette[FOOT_RENDER_PALETTE_SIZE])
 {
     memset(theme, 0, sizeof(*theme));
     theme->alpha = 0xffff;
-    theme->fg = (uint32_t)palette[COLOR_FOREGROUND] & 0xffffff;
-    theme->bg = (uint32_t)palette[COLOR_BACKGROUND] & 0xffffff;
+    theme->fg = (uint32_t)palette[FOOT_RENDER_COLOR_FOREGROUND] & 0xffffff;
+    theme->bg = (uint32_t)palette[FOOT_RENDER_COLOR_BACKGROUND] & 0xffffff;
     theme->selection_fg = theme->fg;
     theme->selection_bg = theme->bg;
     theme->cursor.text = theme->fg;
-    theme->cursor.cursor = (uint32_t)palette[COLOR_CURSOR] & 0xffffff;
+    theme->cursor.cursor = (uint32_t)palette[FOOT_RENDER_COLOR_CURSOR] & 0xffffff;
     theme->use_custom.cursor = true;
     for (int i = 0; i < 256; i++)
         theme->table[i] = (uint32_t)palette[i] & 0xffffff;
 }
 
 int
-headless_palette(struct headless_terminal *ht, int32_t out[PALETTE_SIZE])
+headless_palette(struct headless_terminal *ht, int32_t out[FOOT_RENDER_PALETTE_SIZE])
 {
     const struct colors *colors = &ht->term.colors;
     for (int i = 0; i < 256; i++)
         out[i] = (int32_t)(0xff000000u | (colors->table[i] & 0xffffffu));
-    out[COLOR_FOREGROUND] = (int32_t)(0xff000000u | (colors->fg & 0xffffffu));
-    out[COLOR_BACKGROUND] = (int32_t)(0xff000000u | (colors->bg & 0xffffffu));
-    out[COLOR_CURSOR] = (int32_t)(0xff000000u | (colors->cursor_bg & 0xffffffu));
-    return PALETTE_SIZE;
+    out[FOOT_RENDER_COLOR_FOREGROUND] = (int32_t)(0xff000000u | (colors->fg & 0xffffffu));
+    out[FOOT_RENDER_COLOR_BACKGROUND] = (int32_t)(0xff000000u | (colors->bg & 0xffffffu));
+    out[FOOT_RENDER_COLOR_CURSOR] = (int32_t)(0xff000000u | (colors->cursor_bg & 0xffffffu));
+    return FOOT_RENDER_PALETTE_SIZE;
 }
 
 bool
 headless_set_palette(
     struct headless_terminal *ht,
-    const int32_t palette[PALETTE_SIZE], const int32_t defaults[PALETTE_SIZE])
+    const int32_t palette[FOOT_RENDER_PALETTE_SIZE], const int32_t defaults[FOOT_RENDER_PALETTE_SIZE])
 {
-    int32_t current[PALETTE_SIZE];
+    int32_t current[FOOT_RENDER_PALETTE_SIZE];
     headless_palette(ht, current);
     const bool changed = memcmp(current, palette, sizeof(current)) != 0;
 
     struct colors *colors = &ht->term.colors;
     for (int i = 0; i < 256; i++)
         colors->table[i] = (uint32_t)palette[i] & 0xffffff;
-    colors->fg = (uint32_t)palette[COLOR_FOREGROUND] & 0xffffff;
-    colors->bg = (uint32_t)palette[COLOR_BACKGROUND] & 0xffffff;
+    colors->fg = (uint32_t)palette[FOOT_RENDER_COLOR_FOREGROUND] & 0xffffff;
+    colors->bg = (uint32_t)palette[FOOT_RENDER_COLOR_BACKGROUND] & 0xffffff;
     colors->cursor_fg = colors->fg;
-    colors->cursor_bg = (uint32_t)palette[COLOR_CURSOR] & 0xffffff;
+    colors->cursor_bg = (uint32_t)palette[FOOT_RENDER_COLOR_CURSOR] & 0xffffff;
     colors->alpha = 0xffff;
     colors->active_theme = COLOR_THEME_DARK;
 
@@ -1311,6 +1487,12 @@ headless_create(
     struct headless_terminal *ht = calloc(1, sizeof(*ht));
     if (ht == NULL)
         return NULL;
+
+    ht->render_model = foot_render_model_create();
+    if (ht->render_model == NULL) {
+        free(ht);
+        return NULL;
+    }
 
     ht->cell_width = cell_width;
     ht->cell_height = cell_height;
@@ -1392,7 +1574,7 @@ headless_create(
     conf->hold_at_exit = false;
     conf->render_worker_count = 0;
 
-    int32_t default_palette[PALETTE_SIZE];
+    int32_t default_palette[FOOT_RENDER_PALETTE_SIZE];
     if (palette != NULL)
         memcpy(default_palette, palette, sizeof(default_palette));
     else
@@ -1404,6 +1586,7 @@ headless_create(
     headless_set_palette(ht, default_palette, default_palette);
 
     term_reset(term, true);
+    foot_render_model_reset(ht->render_model, term, history_size(ht));
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
     ht->scroll_count = 0;
@@ -1423,6 +1606,7 @@ headless_reset(struct headless_terminal *ht)
     set_color_theme(&conf->colors_dark, ht->defaults);
     set_color_theme(&conf->colors_light, ht->defaults);
     term_reset(term, true);
+    foot_render_model_reset(ht->render_model, term, history_size(ht));
     headless_palette(ht, ht->palette);
     /* The monotonic counter survives a reset, while the baseline is moved so
      * the next viewport query starts from zero. */
@@ -1617,6 +1801,7 @@ headless_resize(
      * must not shift the viewport anchor. */
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
+    foot_render_model_resize(ht->render_model, term, history_size(ht));
 }
 
 char *
@@ -1658,151 +1843,6 @@ headless_drain_events(struct headless_terminal *ht)
     return result;
 }
 
-static int32_t
-color_argb(
-    const struct headless_terminal *ht, enum color_source source,
-    uint32_t value, int default_index)
-{
-    switch (source) {
-    case COLOR_DEFAULT:
-        return ht->palette[default_index];
-    case COLOR_BASE16:
-    case COLOR_BASE256:
-        return ht->palette[value & 0xff];
-    case COLOR_RGB:
-        return (int32_t)(0xff000000u | (value & 0xffffffu));
-    }
-    return ht->palette[default_index];
-}
-
-static int32_t
-with_alpha(int32_t color, int alpha)
-{
-    if (alpha >= 255)
-        return color;
-    if (alpha < 0) alpha = 0;
-    return (color & 0x00ffffff) | (alpha << 24);
-}
-
-static int
-cell_width(const struct headless_terminal *ht, const struct row *row, int column)
-{
-    if (row == NULL || column + 1 >= ht->term.cols)
-        return 1;
-    const char32_t next = row->cells[column + 1].wc;
-    if (next >= CELL_SPACER)
-        return (int)(next - CELL_SPACER) + 1;
-    return 1;
-}
-
-static int
-effects_for_cell(const struct cell *cell)
-{
-    int effects = 0;
-    if (cell->attrs.bold) effects |= 1;
-    if (cell->attrs.italic) effects |= 2;
-    if (cell->attrs.underline) effects |= 4;
-    if (cell->attrs.blink) effects |= 8;
-    if (cell->attrs.reverse) effects |= 16;
-    if (cell->attrs.conceal) effects |= 32;
-    if (cell->attrs.strikethrough) effects |= 64;
-    if (cell->wc >= 0x2580 && cell->wc <= 0x259f) effects |= 128;
-    if (cell->attrs.dim) effects |= 256;
-    return effects;
-}
-
-static int32_t *
-reserve_commands(int32_t *commands, size_t *capacity, size_t needed)
-{
-    if (needed <= *capacity)
-        return commands;
-    size_t new_capacity = *capacity > 0 ? *capacity : 8;
-    while (new_capacity < needed)
-        new_capacity *= 2;
-    int32_t *resized = realloc(commands, new_capacity * sizeof(resized[0]));
-    if (resized == NULL)
-        return NULL;
-    *capacity = new_capacity;
-    return resized;
-}
-
-/* Keep the reusable command buffer and the terminal's ownership in sync. */
-static bool
-reserve_render_commands(struct headless_terminal *ht, int32_t **commands,
-                        size_t *capacity, size_t needed)
-{
-    int32_t *resized = reserve_commands(*commands, capacity, needed);
-    if (resized == NULL)
-        return false;
-    *commands = resized;
-    ht->render_commands = resized;
-    ht->render_commands_cap = *capacity;
-    return true;
-}
-
-static int32_t *
-render_text_append(struct headless_terminal *ht, char32_t wc)
-{
-    if (wc >= CELL_COMB_CHARS_LO && wc <= CELL_COMB_CHARS_HI) {
-        const struct composed *composed =
-            composed_lookup(ht->term.composed, wc - CELL_COMB_CHARS_LO);
-        if (composed != NULL && composed->chars != NULL) {
-            for (size_t i = 0; i < composed->count; i++) {
-                if (ht->render_text_len + 2 > ht->render_text_cap) {
-                    size_t cap = ht->render_text_cap == 0 ? 256 : ht->render_text_cap * 2;
-                    while (cap < ht->render_text_len + 2) cap *= 2;
-                    int32_t *resized = realloc(ht->render_text, cap * sizeof(resized[0]));
-                    if (resized == NULL) return ht->render_text;
-                    ht->render_text = resized;
-                    ht->render_text_cap = cap;
-                }
-                char32_t cp = composed->chars[i];
-                if (cp <= 0xffff) {
-                    ht->render_text[ht->render_text_len++] = (int32_t)cp;
-                } else {
-                    cp -= 0x10000;
-                    ht->render_text[ht->render_text_len++] = 0xd800 + (cp >> 10);
-                    ht->render_text[ht->render_text_len++] = 0xdc00 + (cp & 0x3ff);
-                }
-            }
-            return ht->render_text;
-        }
-        wc = ' ';
-    }
-
-    if (wc == 0 || wc >= CELL_SPACER)
-        wc = ' ';
-
-    if (ht->render_text_len + 2 > ht->render_text_cap) {
-        size_t cap = ht->render_text_cap == 0 ? 256 : ht->render_text_cap * 2;
-        while (cap < ht->render_text_len + 2) cap *= 2;
-        int32_t *resized = realloc(ht->render_text, cap * sizeof(resized[0]));
-        if (resized == NULL) return ht->render_text;
-        ht->render_text = resized;
-        ht->render_text_cap = cap;
-    }
-
-    if (wc <= 0xffff) {
-        ht->render_text[ht->render_text_len++] = (int32_t)wc;
-    } else {
-        wc -= 0x10000;
-        ht->render_text[ht->render_text_len++] = 0xd800 + (wc >> 10);
-        ht->render_text[ht->render_text_len++] = 0xdc00 + (wc & 0x3ff);
-    }
-    return ht->render_text;
-}
-
-struct run {
-    int start_column;
-    int width_columns;
-    int start_char;
-    int char_count;
-    int32_t fg;
-    int32_t bg;
-    int effects;
-    bool cursor;
-};
-
 int32_t *
 headless_render(
     struct headless_terminal *ht, int top_row,
@@ -1811,287 +1851,36 @@ headless_render(
     float font_width, int font_line_spacing, int font_ascent,
     int columns, int rows, int *out_count)
 {
-    (void)font_width;
-    (void)font_line_spacing;
-    (void)font_ascent;
+    int cell_width = (int)(font_width + 0.5f);
+    if (cell_width < 1)
+        cell_width = ht->cell_width;
+    int cell_height = font_line_spacing > 0
+        ? font_line_spacing : ht->cell_height;
+    int baseline = font_ascent < 0 ? -font_ascent : font_ascent;
+    if (baseline <= 0)
+        baseline = cell_height * 4 / 5;
 
-    const int term_columns = ht->term.cols;
-    const int screen_rows = ht->term.rows;
-    const int history = history_size(ht);
-    if (columns <= 0 || columns > term_columns)
-        columns = term_columns;
-    if (rows < 0)
-        rows = 0;
+    const struct foot_canvas_metrics metrics = {
+        .cell_width = cell_width,
+        .cell_height = cell_height,
+        .font_baseline = baseline,
+        .background_alpha = background_alpha,
+        .cursor_shape = cursor_shape,
+        .cursor_visible = cursor_visible,
+    };
+    foot_canvas_prepare_frame(&ht->term, &metrics);
 
-    int min_top = -history;
-    if (top_row < min_top)
-        top_row = min_top;
-    int end_row = top_row + rows;
-    if (end_row > screen_rows)
-        end_row = screen_rows;
-
-    const int cursor_row = headless_cursor_row(ht);
-    const int cursor_col = headless_cursor_col(ht);
-    const int32_t base_bg = with_alpha(
-        ht->term.reverse ? ht->palette[COLOR_FOREGROUND] : ht->palette[COLOR_BACKGROUND],
-        background_alpha);
-    const int32_t cursor_color = with_alpha(ht->palette[COLOR_CURSOR], background_alpha);
-
-    ht->render_text_len = 0;
-
-    size_t command_capacity = ht->render_commands_cap;
-    int32_t *commands = ht->render_commands;
-    if (!reserve_render_commands(ht, &commands, &command_capacity,
-                                 (size_t)(rows + 1) * 32 + 8))
-    {
-        *out_count = 0;
-        return NULL;
-    }
-    int count = 0;
-
-    /* A phone-sized terminal fits in the stack buffer; only very wide grids pay
-     * for a heap allocation. The run table is scratch space and never escapes. */
-    struct run stack_runs[256];
-    struct run *runs = stack_runs;
-    bool runs_heap = false;
-    if ((size_t)(columns + 1) > sizeof(stack_runs) / sizeof(stack_runs[0])) {
-        runs = malloc((size_t)(columns + 1) * sizeof(runs[0]));
-        if (runs == NULL) {
-            *out_count = 0;
-            return NULL;
-        }
-        runs_heap = true;
-    }
-
-    for (int row = top_row; row < end_row; row++) {
-        if (row < min_top || row >= screen_rows)
-            continue;
-        struct row *native_row = row_at(ht, row);
-        const bool is_cursor_row = cursor_visible && row == cursor_row;
-        if (native_row == NULL) {
-            /* Still emit a row frame: TerminalRenderer fills the row with the
-             * base colour and clears its dirty flag on OP_ROW_END. Skipping a
-             * blank row here would leave stale pixels in partial frames. */
-            if (!reserve_render_commands(ht, &commands, &command_capacity,
-                                         (size_t)count + 16))
-            {
-                if (runs_heap) free(runs);
-                *out_count = 0;
-                return NULL;
-            }
-            const bool in_selection = row >= selection_y1 && row <= selection_y2;
-            const int selection_start = row == selection_y1 ? selection_x1 : 0;
-            const int selection_end = row == selection_y2 ? selection_x2 : columns - 1;
-            commands[count++] = 1; /* OP_ROW_BEGIN */
-            commands[count++] = row;
-            if (in_selection && selection_end >= selection_start) {
-                int start = selection_start;
-                int end = selection_end;
-                if (start < 0) start = 0;
-                if (end > columns - 1) end = columns - 1;
-                if (end >= start) {
-                    const int32_t selection_bg = with_alpha(
-                        ht->term.reverse ? ht->palette[COLOR_BACKGROUND]
-                                         : ht->palette[COLOR_FOREGROUND],
-                        background_alpha);
-                    if (selection_bg != base_bg) {
-                        commands[count++] = 3; /* OP_RECT */
-                        commands[count++] = start;
-                        commands[count++] = end + 1;
-                        commands[count++] = selection_bg;
-                        commands[count++] = 1; /* RECT_SPAN_VIEW */
-                    }
-                }
-            }
-            if (is_cursor_row && row >= 0 && row < screen_rows && cursor_col < columns) {
-                commands[count++] = 5; /* OP_CURSOR */
-                commands[count++] = cursor_col;
-                commands[count++] = 1;
-                commands[count++] = cursor_color;
-                commands[count++] = cursor_shape;
-            }
-            commands[count++] = 2; /* OP_ROW_END */
-            continue;
-        }
-        const bool in_selection = row >= selection_y1 && row <= selection_y2;
-        const int selection_start = row == selection_y1 ? selection_x1 : 0;
-        const int selection_end = row == selection_y2 ? selection_x2 : columns - 1;
-
-        int run_count = 0;
-        int cursor_run = -1;
-        int column = 0;
-
-        while (column < columns) {
-            const struct cell *cell = &native_row->cells[column];
-            if (cell->wc >= CELL_SPACER) {
-                column++;
-                continue;
-            }
-
-            int width = cell_width(ht, native_row, column);
-            if (width > columns - column)
-                width = columns - column;
-
-            const bool inside_cursor = is_cursor_row &&
-                (cursor_col >= column && cursor_col < column + width);
-            const bool inside_selection = in_selection &&
-                column >= selection_start && column <= selection_end;
-            const bool cursor_block = inside_cursor && cursor_shape == 0;
-
-            int32_t fg = color_argb(ht, cell->attrs.fg_src, cell->attrs.fg, COLOR_FOREGROUND);
-            int32_t bg = color_argb(ht, cell->attrs.bg_src, cell->attrs.bg, COLOR_BACKGROUND);
-            if (cell->attrs.bold &&
-                (cell->attrs.fg_src == COLOR_BASE16 || cell->attrs.fg_src == COLOR_BASE256) &&
-                cell->attrs.fg < 8)
-            {
-                fg = ht->palette[cell->attrs.fg + 8];
-            }
-
-            bool reverse_here = ht->term.reverse || inside_selection || cursor_block;
-            if (reverse_here ^ cell->attrs.reverse) {
-                int32_t swap = fg;
-                fg = bg;
-                bg = swap;
-            }
-            bg = with_alpha(bg, background_alpha);
-
-            const int start_char = (int)ht->render_text_len;
-            render_text_append(ht, cell->wc);
-            const int char_count = (int)ht->render_text_len - start_char;
-            const int effects = effects_for_cell(cell);
-
-            struct run run = {
-                .start_column = column,
-                .width_columns = width,
-                .start_char = start_char,
-                .char_count = char_count,
-                .fg = fg,
-                .bg = bg,
-                .effects = effects,
-                .cursor = inside_cursor,
-            };
-
-            bool merged = false;
-            if (run_count > 0) {
-                struct run *last = &runs[run_count - 1];
-                if (last->fg == run.fg && last->bg == run.bg &&
-                    last->effects == run.effects && last->cursor == run.cursor &&
-                    last->start_column + last->width_columns == run.start_column)
-                {
-                    last->width_columns += run.width_columns;
-                    last->char_count = run.start_char + run.char_count - last->start_char;
-                    merged = true;
-                }
-            }
-            if (!merged)
-                runs[run_count++] = run;
-            if (inside_cursor)
-                cursor_run = run_count - 1;
-            column += width;
-        }
-
-        const size_t needed = (size_t)count + 8 + (size_t)run_count * 16;
-        if (!reserve_render_commands(ht, &commands, &command_capacity, needed)) {
-            if (runs_heap) free(runs);
-            *out_count = 0;
-            return NULL;
-        }
-
-        commands[count++] = 1; /* OP_ROW_BEGIN */
-        commands[count++] = row;
-
-        for (int i = 0; i < run_count; i++) {
-            const struct run *run = &runs[i];
-            if (run->bg == base_bg)
-                continue;
-            commands[count++] = 3; /* OP_RECT */
-            commands[count++] = run->start_column;
-            commands[count++] = run->start_column + run->width_columns;
-            commands[count++] = run->bg;
-            commands[count++] = 1; /* RECT_SPAN_VIEW */
-        }
-
-        if (cursor_run >= 0) {
-            const struct run *run = &runs[cursor_run];
-            commands[count++] = 5; /* OP_CURSOR */
-            commands[count++] = run->start_column;
-            commands[count++] = run->width_columns;
-            commands[count++] = cursor_color;
-            commands[count++] = cursor_shape;
-        }
-
-        for (int i = 0; i < run_count; i++) {
-            const struct run *run = &runs[i];
-            if (run->effects & 32)
-                continue;
-
-            bool has_content = false;
-            for (int c = 0; c < run->char_count; c++) {
-                if (run->start_char + c < (int)ht->render_text_len &&
-                    ht->render_text[run->start_char + c] != ' ')
-                {
-                    has_content = true;
-                    break;
-                }
-            }
-            const bool decorated = (run->effects & (4 | 64)) != 0;
-            if (!has_content && !decorated)
-                continue;
-
-            int char_count = run->char_count;
-            if (!decorated) {
-                while (char_count > 0 &&
-                       run->start_char + char_count - 1 < (int)ht->render_text_len &&
-                       ht->render_text[run->start_char + char_count - 1] == ' ')
-                {
-                    char_count--;
-                }
-            }
-            if (char_count == 0)
-                continue;
-
-            commands[count++] = 4; /* OP_TEXT */
-            commands[count++] = run->start_char;
-            commands[count++] = char_count;
-            commands[count++] = run->start_column;
-            commands[count++] = run->width_columns;
-            commands[count++] = run->fg;
-            commands[count++] = run->bg;
-            commands[count++] = run->effects;
-        }
-
-        commands[count++] = 2; /* OP_ROW_END */
-    }
-
-    const size_t text_length = ht->render_text_len;
-    if (!reserve_render_commands(ht, &commands, &command_capacity,
-                                 (size_t)count + 2 + text_length))
-    {
-        if (runs_heap) free(runs);
-        *out_count = 0;
-        return NULL;
-    }
-    commands[count++] = 0; /* OP_END */
-    /* The UTF-16 payload travels in the same array as the commands, saving a
-     * second JNI transition and a second array allocation per frame. */
-    commands[count++] = (int32_t)text_length;
-    for (size_t i = 0; i < text_length; i++)
-        commands[count++] = ht->render_text[i];
-    if (runs_heap) free(runs);
-    *out_count = count;
-    return commands;
+    return foot_render_model_render_frame(
+        ht->render_model, &ht->term, ht->palette, history_size(ht), top_row,
+        selection_y1, selection_y2, selection_x1, selection_x2,
+        cursor_visible, cursor_shape, background_alpha,
+        columns, rows, out_count);
 }
 
 int32_t *
 headless_render_text(struct headless_terminal *ht, int *out_count)
 {
-    *out_count = (int)ht->render_text_len;
-    if (ht->render_text_len == 0)
-        return NULL;
-    int32_t *copy = malloc(ht->render_text_len * sizeof(copy[0]));
-    if (copy != NULL)
-        memcpy(copy, ht->render_text, ht->render_text_len * sizeof(copy[0]));
-    return copy;
+    return foot_render_model_render_text(ht->render_model, out_count);
 }
 
 void
@@ -2154,9 +1943,10 @@ headless_destroy(struct headless_terminal *ht)
         ht->events_head = next;
     }
 
-    free(ht->render_text);
     free(ht->append_dirty);
-    free(ht->render_commands);
+    free(ht->viewport_before);
+    foot_render_model_destroy(ht->render_model);
+    foot_canvas_cleanup_term(term);
     vt_filter_destroy(ht->filter);
     free(ht);
 }

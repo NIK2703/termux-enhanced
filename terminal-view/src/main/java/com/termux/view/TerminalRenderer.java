@@ -2,6 +2,7 @@ package com.termux.view;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
@@ -27,6 +28,12 @@ public final class TerminalRenderer {
     private static final int OP_RECT = 3;
     private static final int OP_TEXT = 4;
     private static final int OP_CURSOR = 5;
+    private static final int OP_FRAME_BEGIN = 6;
+    private static final int OP_DAMAGE = 7;
+    private static final int OP_FRAME_END = 8;
+    private static final int OP_FILL_RECT = 9;
+    private static final int OP_GLYPH = 10;
+    private static final int OP_FILL_TRAPEZOID = 11;
 
     private static final int EFFECT_BOLD = 1;
     private static final int EFFECT_ITALIC = 1 << 1;
@@ -57,9 +64,17 @@ public final class TerminalRenderer {
     private final Paint mBgSrcPaint = new Paint();
     private final Paint mBaseFillPaint = new Paint();
     private final Paint mBaseFillSrcPaint = new Paint();
+    private final Path mPath = new Path();
 
     /** Width of a single monospaced character, measured on 'X'. */
     final float mFontWidth;
+    /**
+     * Scale from the native canvas renderer's integer cell grid to this renderer's
+     * measured (possibly fractional) grid. The upstream foot renderer works in whole
+     * pixels, while Java lays the view out with {@link #mFontWidth}; without this
+     * correction pixel positions drift by up to half a cell per column.
+     */
+    private final float mCanvasScaleX;
     /** The Paint font spacing, rounded up. */
     final int mFontLineSpacing;
     /** The Paint ascent (negative), rounded up. */
@@ -75,6 +90,22 @@ public final class TerminalRenderer {
 
     /** Reused packed render payload; grows only when the native payload outgrows it. */
     private int[] mRenderCommands = new int[1024];
+
+    /**
+     * Visible rows that reached the Canvas in this frame. Native dirty bits are
+     * retired only for these rows, so a clipped or partial frame cannot lose
+     * damage for rows it did not paint.
+     */
+    private int[] mPaintedRows = new int[64];
+    private int mPaintedRowCount;
+
+    /** Native frame damage, as [firstRow,lastRow] pairs for this render range. */
+    private int[] mFrameDamageRanges = new int[64];
+    private int mFrameDamageRangeCount;
+    private boolean mFrameSeen;
+    private boolean mFrameFullDamage;
+    private int mFrameViewTop;
+    private int mFrameRenderTop;
 
     private long mLastPaintForeColorKey = -1L;
     private boolean mLastPaintBold;
@@ -102,6 +133,7 @@ public final class TerminalRenderer {
         mFontAscent = (int) Math.ceil(mTextPaint.ascent());
         mFontLineSpacingAndAscent = mFontLineSpacing + mFontAscent;
         mFontWidth = mTextPaint.measureText("X");
+        mCanvasScaleX = canvasScaleX(mFontWidth);
     }
 
     /**
@@ -120,6 +152,10 @@ public final class TerminalRenderer {
                              float xOffset, float yOffset, int viewWidth,
                              Rect dirtyRect, boolean pixelsValid) {
         resetPaintState();
+        mPaintedRowCount = 0;
+        mFrameDamageRangeCount = 0;
+        mFrameSeen = false;
+        mFrameFullDamage = false;
 
         final int minTopRow = -emulator.getScreen().getActiveTranscriptRows();
         if (topRow < minTopRow) topRow = minTopRow;
@@ -207,13 +243,44 @@ public final class TerminalRenderer {
             final int op = commands[cursor++];
             if (op == OP_END) break;
 
+            if (op == OP_FRAME_BEGIN) {
+                /* frame id, view top, full damage, columns, rows, render top,
+                 * render rows, damage range count; then OP_DAMAGE ranges. */
+                if (cursor + 8 > commandCount) break;
+                cursor++; /* frame id */
+                mFrameViewTop = commands[cursor++];
+                mFrameFullDamage = commands[cursor++] != 0;
+                cursor += 2; /* terminal columns, rows */
+                mFrameRenderTop = commands[cursor++];
+                cursor++; /* render rows */
+                final int damageCount = commands[cursor++];
+                mFrameSeen = true;
+                mFrameDamageRangeCount = 0;
+                for (int i = 0; i < damageCount && cursor + 2 < commandCount; i++) {
+                    final int damageOp = commands[cursor++];
+                    final int first = commands[cursor++];
+                    final int last = commands[cursor++];
+                    if (damageOp == OP_DAMAGE) addFrameDamageRange(first, last);
+                }
+                /* A clamped/mismatched header means the native address space is
+                 * not the one this frame is positioning rows in: draw the range
+                 * instead of trusting a partial skip. */
+                if (mFrameViewTop != topRow || mFrameRenderTop != renderStartRow) forceDraw = true;
+                continue;
+            }
+            if (op == OP_FRAME_END) continue;
+            if (op == OP_DAMAGE) {
+                cursor += 2; /* stray range outside a frame header */
+                continue;
+            }
+
             if (op == OP_ROW_BEGIN) {
                 currentRow = commands[cursor++];
                 rowTop = mFontLineSpacingAndAscent + (currentRow - topRow) * mFontLineSpacing;
                 baseline = rowTop - mFontAscent;
                 rowInWindow = currentRow >= renderStartRow && currentRow < renderEndRow;
                 rowDrawn = rowInWindow && (dirtyRect == null || !pixelsValid || forceDraw
-                    || screen.isRowDirty(currentRow));
+                    || isFrameRowDamaged(currentRow) || screen.isRowDirty(currentRow));
 
                 if (rowDrawn) {
                     if (dirtyRect != null) {
@@ -233,6 +300,7 @@ public final class TerminalRenderer {
                     rowPushed = false;
                 }
                 if (dirtyRect != null && rowInWindow) screen.clearRowDirty(currentRow);
+                if (rowDrawn) recordPaintedRow(currentRow);
                 continue;
             }
 
@@ -270,6 +338,49 @@ public final class TerminalRenderer {
                         foreground, effects, baseline);
                     break;
                 }
+                case OP_FILL_RECT: {
+                    int x = commands[cursor++];
+                    int y = commands[cursor++];
+                    int width = commands[cursor++];
+                    int height = commands[cursor++];
+                    int color = commands[cursor++];
+                    float left = x * mCanvasScaleX;
+                    float right = (x + width) * mCanvasScaleX;
+                    canvas.drawRect(left, rowTop + y, right, rowTop + y + height,
+                        backgroundPaint(color));
+                    break;
+                }
+                case OP_GLYPH: {
+                    int startChar = commands[cursor++];
+                    int charCount = commands[cursor++];
+                    int x = commands[cursor++];
+                    int glyphBaseline = commands[cursor++];
+                    int widthColumns = commands[cursor++];
+                    int foreground = commands[cursor++];
+                    int effects = commands[cursor++];
+                    drawGlyph(canvas, startChar, charCount, x * mCanvasScaleX,
+                        rowTop + glyphBaseline, widthColumns, foreground, effects);
+                    break;
+                }
+                case OP_FILL_TRAPEZOID: {
+                    int x1 = commands[cursor++];
+                    int y1 = commands[cursor++];
+                    int x2 = commands[cursor++];
+                    int y2 = commands[cursor++];
+                    int x3 = commands[cursor++];
+                    int y3 = commands[cursor++];
+                    int x4 = commands[cursor++];
+                    int y4 = commands[cursor++];
+                    int color = commands[cursor++];
+                    mPath.reset();
+                    mPath.moveTo(x1 * mCanvasScaleX, rowTop + y1);
+                    mPath.lineTo(x2 * mCanvasScaleX, rowTop + y2);
+                    mPath.lineTo(x3 * mCanvasScaleX, rowTop + y3);
+                    mPath.lineTo(x4 * mCanvasScaleX, rowTop + y4);
+                    mPath.close();
+                    canvas.drawPath(mPath, backgroundPaint(color));
+                    break;
+                }
                 default:
                     // Unknown opcode: stop rather than misinterpreting the rest of the stream.
                     cursor = commandCount;
@@ -278,7 +389,41 @@ public final class TerminalRenderer {
         }
 
         if (rowPushed) canvas.restore();
+        emulator.commitRenderRows(mPaintedRows, mPaintedRowCount);
         canvas.restore();
+    }
+
+    private void addFrameDamageRange(int first, int last) {
+        if (last < first) return;
+        final int needed = (mFrameDamageRangeCount + 1) * 2;
+        if (needed > mFrameDamageRanges.length) {
+            int[] grown = new int[Math.max(needed, mFrameDamageRanges.length * 2)];
+            System.arraycopy(mFrameDamageRanges, 0, grown, 0, mFrameDamageRangeCount * 2);
+            mFrameDamageRanges = grown;
+        }
+        mFrameDamageRanges[mFrameDamageRangeCount * 2] = first;
+        mFrameDamageRanges[mFrameDamageRangeCount * 2 + 1] = last;
+        mFrameDamageRangeCount++;
+    }
+
+    private boolean isFrameRowDamaged(int row) {
+        if (!mFrameSeen) return false;
+        if (mFrameFullDamage) return true;
+        for (int i = 0; i < mFrameDamageRangeCount; i++) {
+            if (row >= mFrameDamageRanges[i * 2] && row <= mFrameDamageRanges[i * 2 + 1]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void recordPaintedRow(int row) {
+        if (mPaintedRowCount == mPaintedRows.length) {
+            int[] grown = new int[mPaintedRows.length * 2];
+            System.arraycopy(mPaintedRows, 0, grown, 0, mPaintedRowCount);
+            mPaintedRows = grown;
+        }
+        mPaintedRows[mPaintedRowCount++] = row;
     }
 
     /**
@@ -312,6 +457,27 @@ public final class TerminalRenderer {
                         break;
                     case OP_TEXT:
                         i += 7;
+                        break;
+                    case OP_FILL_RECT:
+                        i += 5;
+                        break;
+                    case OP_GLYPH:
+                        i += 7;
+                        break;
+                    case OP_FILL_TRAPEZOID:
+                        i += 9;
+                        break;
+                    case OP_FRAME_BEGIN: {
+                        if (i + 7 >= limit) { i = limit; break; }
+                        final int damageCount = commands[i + 7];
+                        i += 8;
+                        for (int d = 0; d < damageCount && i + 2 < limit; d++) i += 3;
+                        break;
+                    }
+                    case OP_DAMAGE:
+                        i += 2;
+                        break;
+                    case OP_FRAME_END:
                         break;
                     default:
                         i = limit;
@@ -366,6 +532,28 @@ public final class TerminalRenderer {
         canvas.drawRect(left, top, right, bottom, backgroundPaint(color));
     }
 
+    private void drawGlyph(Canvas canvas, int startChar, int charCount, float x,
+                           float baseline, int widthColumns, int foreground, int effects) {
+        if (charCount <= 0 || startChar < 0 || startChar + charCount > mTextUnitCount) return;
+        final boolean bold = (effects & EFFECT_BOLD) != 0;
+        final boolean italic = (effects & EFFECT_ITALIC) != 0;
+
+        /* The native side coalesces adjacent upstream glyphs into one run and
+         * carries the upstream cell span explicitly. That span is not always
+         * the sum of codepoint widths (combining marks, ZWJ emoji, forced
+         * grapheme widths), so do not guess it here. */
+        if (widthColumns <= 0) widthColumns = 1;
+        final float expectedWidth = widthColumns * mFontWidth;
+        final float measured = (asciiFastPathAllowed(bold, italic, charCount, widthColumns)
+            && isAsciiNarrow(startChar, charCount))
+            ? expectedWidth
+            : measureNeutral(startChar, charCount);
+
+        applyTextStyle(foreground, bold, false, italic, false);
+        drawRun(canvas, startChar, charCount, widthColumns, x, expectedWidth, measured,
+            baseline, effects);
+    }
+
     private void drawTextRun(Canvas canvas, int startChar, int charCount, int startColumn,
                              int widthColumns, int foreground, int effects, float baseline) {
         if (charCount <= 0 || startChar < 0 || startChar + charCount > mTextUnitCount) return;
@@ -396,13 +584,46 @@ public final class TerminalRenderer {
             ? expectedWidth
             : measureNeutral(startChar, charCount);
 
-        if (expectedWidth > 0f && mismatch(measured, expectedWidth)
-            && isMismatchScaleUsable(widthColumns, measured / mFontWidth)) {
+        drawRun(canvas, startChar, charCount, widthColumns, left, expectedWidth, measured,
+            baseline, effects);
+    }
+
+    /**
+     * Draw one run of cells, picking the per-cluster fallback whenever the run's measured
+     * advance does not match its cell span.
+     *
+     * <p>Stage-5 glyph batching collapsed many upstream cells into one {@code OP_GLYPH} run.
+     * Block-art wordmarks are exactly such a run: full blocks, half blocks and the spaces
+     * between letters do not necessarily share the font's advance. Scaling the whole run to
+     * its cell span squeezes the blocks away from their background fills and leaves a seam at
+     * every cell boundary. Splitting into code-point clusters, as the legacy {@code OP_TEXT}
+     * path already did, fits each cell independently and keeps the art seamless.</p>
+     */
+    private void drawRun(Canvas canvas, int startChar, int charCount, int widthColumns,
+                         float left, float expectedWidth, float measured, float baseline,
+                         int effects) {
+        if (runNeedsClusterFallback(widthColumns, expectedWidth, measured, mFontWidth)) {
             drawTextClusters(canvas, startChar, charCount, left, baseline, effects);
         } else {
             drawGlyphs(canvas, startChar, charCount, widthColumns, left, expectedWidth, measured,
                 baseline, effects);
         }
+    }
+
+    /**
+     * Whether a run must be split into per-code-point clusters before cell fitting.
+     *
+     * <p>Whole-run scaling is only safe when every glyph has the same advance. A mismatch can
+     * otherwise mean the mixed run contains spaces or fallback glyphs with a different advance,
+     * and squeezing the whole run shifts those glyphs relative to their cells. The common case
+     * is a block-element wordmark with spaces between letters.</p>
+     */
+    static boolean runNeedsClusterFallback(int widthColumns, float expectedWidth, float measured,
+                                           float fontWidth) {
+        if (!(expectedWidth > 0f) || !(fontWidth > 0f)) return false;
+        final float tolerance = Math.max(0.01f * fontWidth, 0.01f);
+        if (Math.abs(measured - expectedWidth) <= tolerance) return false;
+        return isMismatchScaleUsable(widthColumns, measured / fontWidth);
     }
 
     private void applyTextStyle(int foreground, boolean bold, boolean underline, boolean italic,
@@ -510,6 +731,19 @@ public final class TerminalRenderer {
 
     private boolean mismatch(float measured, float expected) {
         return Math.abs(measured - expected) > Math.max(0.01f * mFontWidth, 0.01f);
+    }
+
+    /**
+     * Scale from the upstream renderer's integer cell grid to the measured font grid.
+     * Native code receives {@code font_width} and rounds it to a whole pixel per cell,
+     * while Java positions columns at the exact fractional advance. Scaling the
+     * pixel-space canvas commands keeps backgrounds, cursor shapes and glyph origins
+     * aligned with {@link #mFontWidth} instead of accumulating a subpixel offset on
+     * every column.
+     */
+    static float canvasScaleX(float fontWidth) {
+        final int cellWidth = Math.max(1, Math.round(fontWidth));
+        return fontWidth / cellWidth;
     }
 
     /**

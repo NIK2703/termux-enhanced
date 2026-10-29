@@ -599,8 +599,10 @@ void sixel_geometry_set(struct terminal *term, unsigned width, unsigned height)
 void sixel_geometry_report_max(struct terminal *term) { (void)term; }
 
 /* -------------------------------------------------------------------------
- * pixman (only used by sixel/glyph paths, which are disabled)
+ * pixman (implemented by foot_canvas_shim.c)
  * ---------------------------------------------------------------------- */
+
+#if 0
 
 void *pixman_image_get_data(pixman_image_t *image) { (void)image; return NULL; }
 pixman_format_code_t pixman_image_get_format(pixman_image_t *image)
@@ -711,6 +713,7 @@ char32_t fcft_precompose(
     if (pre_from_primary != NULL) *pre_from_primary = false;
     return base;
 }
+#endif /* pixman/fcft Canvas shim */
 
 enum cursor_shape xcursor_for_csd_border(struct terminal *term, int x, int y)
 {
