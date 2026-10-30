@@ -34,6 +34,9 @@ int *headless_append(
 void headless_set_view(struct headless_terminal *ht, int top_row);
 int headless_view_top(const struct headless_terminal *ht);
 
+/* Consume the pending retained-surface viewport shift (in terminal rows). */
+int headless_consume_viewport_shift(struct headless_terminal *ht);
+
 /* Mark visible rows dirty for Android overlays that are not part of terminal
  * content (for example the scrollbar band). The rows are repainted and retired
  * through the normal commit path. */
@@ -104,6 +107,15 @@ int32_t *headless_render(
     bool cursor_visible, int cursor_shape, int background_alpha,
     float font_width, int font_line_spacing, int font_ascent,
     int columns, int rows, int *out_count);
+
+/* Same as headless_render(), but lets the caller force every row of the band
+ * when its retained surface was reset. With false, clean rows are omitted. */
+int32_t *headless_render_filtered(
+    struct headless_terminal *ht, int top_row,
+    int selection_y1, int selection_y2, int selection_x1, int selection_x2,
+    bool cursor_visible, int cursor_shape, int background_alpha,
+    float font_width, int font_line_spacing, int font_ascent,
+    int columns, int rows, bool force_all_rows, int *out_count);
 
 int32_t *headless_render_text(
     struct headless_terminal *ht, int *out_count);

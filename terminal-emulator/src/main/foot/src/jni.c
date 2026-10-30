@@ -391,6 +391,21 @@ Java_com_termux_terminal_TerminalNative_nativeSetView(
 }
 
 JNIEXPORT jint JNICALL
+Java_com_termux_terminal_TerminalNative_nativeConsumeViewportShift(
+    JNIEnv *env, jclass clazz, jlong handle_value)
+{
+    (void)env;
+    (void)clazz;
+    struct jni_handle *handle = handle_from(handle_value);
+    if (handle == NULL)
+        return 0;
+    pthread_mutex_lock(&handle->lock);
+    jint result = (jint)headless_consume_viewport_shift(handle->terminal);
+    pthread_mutex_unlock(&handle->lock);
+    return result;
+}
+
+JNIEXPORT jint JNICALL
 Java_com_termux_terminal_TerminalNative_nativeViewTop(
     JNIEnv *env, jclass clazz, jlong handle_value)
 {
@@ -855,7 +870,7 @@ Java_com_termux_terminal_TerminalNative_nativeRenderInto(
     jint selection_x1, jint selection_x2, jboolean cursor_visible,
     jint cursor_shape, jint background_alpha, jfloat font_width,
     jint font_line_spacing, jint font_ascent, jint columns, jint rows,
-    jintArray out)
+    jboolean force_all_rows, jintArray out)
 {
     (void)clazz;
     struct jni_handle *handle = handle_from(handle_value);
@@ -865,11 +880,11 @@ Java_com_termux_terminal_TerminalNative_nativeRenderInto(
     const jsize capacity = out != NULL ? (*env)->GetArrayLength(env, out) : 0;
     int count = 0;
     pthread_mutex_lock(&handle->lock);
-    int32_t *commands = headless_render(
+    int32_t *commands = headless_render_filtered(
         handle->terminal, top_row, selection_y1, selection_y2,
         selection_x1, selection_x2, cursor_visible != JNI_FALSE,
         cursor_shape, background_alpha, font_width, font_line_spacing,
-        font_ascent, columns, rows, &count);
+        font_ascent, columns, rows, force_all_rows != JNI_FALSE, &count);
     if (commands == NULL) {
         pthread_mutex_unlock(&handle->lock);
         return 0;

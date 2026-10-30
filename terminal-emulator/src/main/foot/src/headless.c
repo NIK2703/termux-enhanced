@@ -1365,16 +1365,6 @@ reserve_append_dirty(struct headless_terminal *ht, int count)
     return ht->append_dirty;
 }
 
-static bool
-dirty_contains(const int *dirty, int count, int row)
-{
-    for (int i = 0; i < count; i++) {
-        if (dirty[i] == row)
-            return true;
-    }
-    return false;
-}
-
 int *
 headless_append(
     struct headless_terminal *ht, const uint8_t *data, size_t length,
@@ -1473,21 +1463,11 @@ headless_append(
             dirty[count++] = external;
     }
 
-    /* A pixel scroll moves rows without setting their dirty bits. Java still
-     * has to invalidate the moved band, so report the scroll region even though
-     * those rows are deliberately not drawn (the retained surface is blitted
-     * instead). */
-    if (!full_damage) {
-        for (int i = 0; i < rows && count < rows; i++) {
-            const int external = view_top + i;
-            if (foot_render_model_scroll_covers_row(
-                    ht->render_model, &ht->term, external) &&
-                !dirty_contains(dirty, count, external))
-            {
-                dirty[count++] = external;
-            }
-        }
-    }
+    /* Scroll-damaged rows are not dirty: the retained surface is moved by
+     * OP_SCROLL instead of being redrawn. The view still invalidates the whole
+     * scroll band through APPEND_FLAG_PARTIAL_SCROLL so the moved pixels reach
+     * the screen, but keeping them out of the dirty set is what lets the
+     * renderer skip their row commands. */
 
     if (full_damage)
         ht->last_append_flags |= HEADLESS_APPEND_FULL_DAMAGE;
@@ -1514,6 +1494,13 @@ int
 headless_view_top(const struct headless_terminal *ht)
 {
     return ht != NULL ? foot_render_model_view_top(ht->render_model) : 0;
+}
+
+int
+headless_consume_viewport_shift(struct headless_terminal *ht)
+{
+    return ht != NULL
+        ? foot_render_model_consume_viewport_shift(ht->render_model) : 0;
 }
 
 void
@@ -2019,13 +2006,14 @@ headless_drain_events(struct headless_terminal *ht)
     return result;
 }
 
-int32_t *
-headless_render(
+static int32_t *
+headless_render_impl(
     struct headless_terminal *ht, int top_row,
     int selection_y1, int selection_y2, int selection_x1, int selection_x2,
     bool cursor_visible, int cursor_shape, int background_alpha,
     float font_width, int font_line_spacing, int font_ascent,
-    int columns, int rows, int *out_count)
+    int columns, int rows, bool force_all_rows, bool force_all_sixels,
+    int *out_count)
 {
     int cell_width = (int)(font_width + 0.5f);
     if (cell_width < 1)
@@ -2050,7 +2038,38 @@ headless_render(
         ht->render_model, &ht->term, ht->palette, history_size(ht), top_row,
         selection_y1, selection_y2, selection_x1, selection_x2,
         cursor_visible, cursor_shape, background_alpha,
-        columns, rows, out_count);
+        columns, rows, force_all_rows, force_all_sixels, out_count);
+}
+
+int32_t *
+headless_render_filtered(
+    struct headless_terminal *ht, int top_row,
+    int selection_y1, int selection_y2, int selection_x1, int selection_x2,
+    bool cursor_visible, int cursor_shape, int background_alpha,
+    float font_width, int font_line_spacing, int font_ascent,
+    int columns, int rows, bool force_all_rows, int *out_count)
+{
+    return headless_render_impl(
+        ht, top_row, selection_y1, selection_y2, selection_x1, selection_x2,
+        cursor_visible, cursor_shape, background_alpha, font_width,
+        font_line_spacing, font_ascent, columns, rows, force_all_rows,
+        force_all_rows, out_count);
+}
+
+int32_t *
+headless_render(
+    struct headless_terminal *ht, int top_row,
+    int selection_y1, int selection_y2, int selection_x1, int selection_x2,
+    bool cursor_visible, int cursor_shape, int background_alpha,
+    float font_width, int font_line_spacing, int font_ascent,
+    int columns, int rows, int *out_count)
+{
+    /* Legacy ABI: every row is emitted, but damage ranges and sixel visibility
+     * keep their historical meaning. New callers use headless_render_filtered(). */
+    return headless_render_impl(
+        ht, top_row, selection_y1, selection_y2, selection_x1, selection_x2,
+        cursor_visible, cursor_shape, background_alpha, font_width,
+        font_line_spacing, font_ascent, columns, rows, true, false, out_count);
 }
 
 int32_t *

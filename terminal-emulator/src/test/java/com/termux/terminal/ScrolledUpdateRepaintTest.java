@@ -198,6 +198,23 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         return mTopRow - mTerminal.getNativeViewTop();
     }
 
+    /**
+     * Model the retained-bitmap scroll replay that {@code TerminalRenderer} performs before
+     * drawing the rows of a live-bottom frame. Existing scenarios that do not exercise
+     * {@code OP_SCROLL} keep using {@link #frame()} without a shift.
+     */
+    private void frameWithScrollBlit(int rows) {
+        if (mPixelsValid && rows > 0) {
+            if (rows >= ROWS) {
+                java.util.Arrays.fill(mCanvas, null);
+            } else {
+                System.arraycopy(mCanvas, rows, mCanvas, 0, ROWS - rows);
+                java.util.Arrays.fill(mCanvas, ROWS - rows, ROWS, null);
+            }
+        }
+        frame();
+    }
+
     // ── Mirror of TerminalView.onScreenUpdated(autoScrollDisabled) + repaintAfterUpdate() ────
     private void frame() {
         final TerminalBuffer screen = mTerminal.getScreen();
@@ -256,7 +273,8 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
             mLastAnchorRow = anchor;
         }
 
-        if (anchorChanged || mSelecting || mScrollbarDragging || screen.isAllDirty()) {
+        if ((anchorChanged && mTopRow != 0)
+                || mSelecting || mScrollbarDragging || screen.isAllDirty()) {
             mDamageFull = true;
             render();
             return;
@@ -323,16 +341,12 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         } else {
             int renderStart = Math.max(mDamageRowTop, visTop);
             int renderEnd = Math.min(mDamageRowBottom, visBottom);
-            boolean anyDirty = false;
+            // Native frame damage is authoritative; a clean band emits no rows. The old
+            // Java-mirror fallback forced every row when the mirror was empty, which is the
+            // extra work this stage removes. This shadow test uses the Java dirty set as its
+            // native-damage stand-in, so it draws exactly the dirty rows in the clip.
             for (int row = renderStart; row <= renderEnd; row++) {
                 if (screen.isRowDirty(row)) {
-                    anyDirty = true;
-                    break;
-                }
-            }
-            boolean forceDraw = !anyDirty;
-            for (int row = renderStart; row <= renderEnd; row++) {
-                if (forceDraw || screen.isRowDirty(row)) {
                     drawRow(row);
                     screen.clearRowDirty(row);
                 }
@@ -404,6 +418,30 @@ public class ScrolledUpdateRepaintTest extends TerminalTestCase {
         assertTrue("row 0 must show the new status line, was '" + visibleText()[0] + "'",
             visibleText()[0].startsWith("STATUS-1"));
         assertEquals("mTopRow must not move", 0, mTopRow);
+    }
+
+    /**
+     * At the live bottom an output newline changes the content anchor by construction. The
+     * native scroll op already moved the retained surface, so this must stay a partial frame
+     * instead of falling back to a full repaint.
+     */
+    public void testLiveBottomOutputScrollDoesNotForceFullRepaint() {
+        newTerminal();
+        fillLines("row-", 0, ROWS + 2);
+        frame();
+        assertCanvasMatchesScreen("baseline");
+
+        final int fullBefore = mFullFrames;
+        final int partialBefore = mPartialFrames;
+        output("next\r\n");
+        frameWithScrollBlit(1);
+
+        assertEquals("live-bottom output must not force a full frame", fullBefore, mFullFrames);
+        assertTrue("the frame must still repaint the damaged rows", mPartialFrames > partialBefore);
+        assertTrue("the whole viewport must not be regenerated, drew [" + mDrawnRows
+            + "] [" + mDiag + "]", mDrawnRows.size() < ROWS);
+        assertCanvasMatchesScreen("after live-bottom scroll");
+        assertEquals("mTopRow must stay on the live bottom", 0, mTopRow);
     }
 
     // ═════════════════════════════════════════════════════════════════════════════════════════

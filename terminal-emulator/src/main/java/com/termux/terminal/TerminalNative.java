@@ -67,6 +67,9 @@ final class TerminalNative {
     /** Set the viewport; returns the effective (history-clamped) top row. */
     static native int nativeSetView(long handle, int topRow);
 
+    /** Consume the retained-surface viewport shift accumulated by the last setView. */
+    static native int nativeConsumeViewportShift(long handle);
+
     /** Current foot viewport top in external coordinates (0 = live screen top). */
     static native int nativeViewTop(long handle);
 
@@ -166,7 +169,7 @@ final class TerminalNative {
                                        int selectionX1, int selectionX2, boolean cursorVisible,
                                        int cursorShape, int backgroundAlpha, float fontWidth,
                                        int fontLineSpacing, int fontAscent, int columns, int rows,
-                                       int[] out);
+                                       boolean forceAllRows, int[] out);
 
     /** Legacy separate UTF-16 payload; kept for the fixed JNI ABI. */
     static native int[] nativeRenderText(long handle);

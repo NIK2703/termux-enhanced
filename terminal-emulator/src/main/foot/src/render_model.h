@@ -56,6 +56,11 @@ void foot_render_model_sync_view(
 
 int foot_render_model_view_top(const struct foot_render_model *model);
 
+/* Consume the accumulated external-row viewport shift. Positive moves the
+ * retained surface up (toward the live bottom), negative moves it down into
+ * history. Returns 0 when the next frame must take the full path. */
+int foot_render_model_consume_viewport_shift(struct foot_render_model *model);
+
 /* Move scroll damage from an input grid into the render model's pending queue.
  * The next frame replays it as a retained-surface blit. */
 void foot_render_model_queue_scroll(
@@ -102,13 +107,20 @@ void foot_render_model_commit_all(
  * The returned buffer is borrowed until the next render_frame() call on the
  * same model. `top_row` is the first row of the requested band, not the
  * viewport top; partial frames start at an arbitrary row inside the viewport.
+ *
+ * `force_all_rows` is set when the Java surface was reset and every row of the
+ * band must be regenerated. When false, only rows that foot marks damaged are
+ * emitted; the frame header still carries the same damage ranges.
+ * `force_all_sixels` is the matching overlay flag: a reset surface also has to
+ * repaint visible images even when their anchor rows are clean.
  */
 int32_t *foot_render_model_render_frame(
     struct foot_render_model *model, struct terminal *term,
     const int32_t *palette, int history, int top_row,
     int selection_y1, int selection_y2, int selection_x1, int selection_x2,
     bool cursor_visible, int cursor_shape, int background_alpha,
-    int columns, int rows, int *out_count);
+    int columns, int rows, bool force_all_rows, bool force_all_sixels,
+    int *out_count);
 
 /* Copy of the UTF-16 payload referenced by the most recent frame. Caller owns
  * the returned array. */

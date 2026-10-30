@@ -142,6 +142,11 @@ struct foot_render_model {
     /* Scroll damage queued by headless_append(). Kept until the next render so
      * the Android retained surface can replay it as a pixel blit. */
     tll(struct damage) pending_scroll;
+
+    /* External-row delta accumulated by optimized viewport changes. Android
+     * shifts the retained surface by this many rows instead of repainting the
+     * whole viewport; consumed by the next successful frame. */
+    int viewport_shift;
 };
 
 static int
@@ -221,6 +226,30 @@ mark_external_row_dirty(struct terminal *term, int external_row)
     struct row *row = row_for_external(term, external_row);
     if (row != NULL)
         row->dirty = true;
+}
+
+static bool
+row_is_actually_damaged(
+    const struct foot_render_model *model, struct terminal *term,
+    int external_row)
+{
+    if (foot_render_model_row_is_damaged(model, term, external_row))
+        return true;
+
+    /* A missing row is painted as the base colour. There is no dirty bit to
+     * consult, so keep emitting it rather than risk leaving stale pixels from
+     * a previous buffer at that address. */
+    return row_is_visible(model, external_row) &&
+           row_for_external(term, external_row) == NULL;
+}
+
+static bool
+row_needs_emit(
+    const struct foot_render_model *model, struct terminal *term,
+    int external_row, bool force_all_rows)
+{
+    return force_all_rows ||
+           row_is_actually_damaged(model, term, external_row);
 }
 
 static bool
@@ -636,6 +665,7 @@ foot_render_model_reset(
     model->view_top = 0;
     term->grid->view = term->grid->offset;
     model->full_damage = true;
+    model->viewport_shift = 0;
     reset_overlay_tracking(model, term);
     discard_scroll_damage(model, term);
     (void)history;
@@ -652,6 +682,7 @@ foot_render_model_resize(
 
     model->rows = term->rows;
     model->full_damage = true;
+    model->viewport_shift = 0;
     reset_overlay_tracking(model, term);
     discard_scroll_damage(model, term);
     if (ensure_committed(model))
@@ -684,12 +715,52 @@ foot_render_model_set_view(
         return;
     }
 
+    const int old_top = model->view_top;
+    const int rows = term->rows;
+    const int delta = top - old_top;
+
+    /*
+     * A neighboring viewport shares rows with the retained Android surface.
+     * Move those pixels on the Java side and regenerate only the rows that
+     * were outside the old viewport. Overlays (cursor, selection) are row
+     * content in foot's renderer, so they move with the pixels; the newly
+     * exposed rows are marked dirty and therefore painted with current state.
+     *
+     * Any pending output scroll means the surface has not yet replayed the
+     * last movement, so refuse the optimization and take the full path.
+     */
+    const bool can_blit =
+        delta != 0 && abs(delta) < rows &&
+        !model->full_damage &&
+        !foot_render_model_has_pending_scroll(model);
+
+    if (can_blit) {
+        term->grid->view = view;
+        model->view_top = top;
+        model->rows = rows;
+
+        if (delta < 0) {
+            for (int external = top; external < old_top; external++)
+                mark_external_row_dirty(term, external);
+        } else {
+            for (int external = old_top + rows;
+                 external < top + rows; external++)
+                mark_external_row_dirty(term, external);
+        }
+
+        model->viewport_shift += delta;
+        if (ensure_committed(model))
+            reset_committed(model);
+        return;
+    }
+
     term->grid->view = view;
     model->view_top = top;
-    model->rows = term->rows;
+    model->rows = rows;
 
     /* The same addresses now show different content. */
     model->full_damage = true;
+    model->viewport_shift = 0;
     reset_overlay_tracking(model, term);
     discard_scroll_damage(model, term);
     if (ensure_committed(model))
@@ -713,10 +784,12 @@ foot_render_model_sync_view(
      * ring). Every visible slot may now show different content, so commit
      * bookkeeping from the old address is meaningless. */
     const bool moved_down = top > model->view_top;
+    const bool pending_shift = model->viewport_shift != 0;
 
     /* Following output shifted the address but kept the content under the
      * viewport. This is not a user scroll and must not request a full frame
-     * unless the address actually moved down. */
+     * unless the address actually moved down, or a not-yet-rendered viewport
+     * shift would now be applied to a different address space. */
     model->view_top = top;
     if (grid_view_top(term) != top) {
         term->grid->view =
@@ -729,8 +802,9 @@ foot_render_model_sync_view(
     if (model->selection_tracking_valid)
         model->selection_tracking_valid = false;
 
-    if (moved_down) {
+    if (moved_down || pending_shift) {
         model->full_damage = true;
+        model->viewport_shift = 0;
         reset_overlay_tracking(model, term);
         discard_scroll_damage(model, term);
     }
@@ -747,12 +821,23 @@ foot_render_model_view_top(const struct foot_render_model *model)
     return model != NULL ? model->view_top : 0;
 }
 
+int
+foot_render_model_consume_viewport_shift(struct foot_render_model *model)
+{
+    if (model == NULL)
+        return 0;
+    const int shift = model->viewport_shift;
+    model->viewport_shift = 0;
+    return shift;
+}
+
 void
 foot_render_model_damage_all(struct foot_render_model *model)
 {
     if (model == NULL)
         return;
     model->full_damage = true;
+    model->viewport_shift = 0;
     if (ensure_committed(model))
         reset_committed(model);
 }
@@ -842,6 +927,7 @@ foot_render_model_commit_all(
     }
 
     model->full_damage = false;
+    model->viewport_shift = 0;
     discard_pending_scroll(model);
     reset_committed(model);
 }
@@ -1411,7 +1497,8 @@ render_canvas_row(
 static bool
 render_canvas_sixel_images(
     struct foot_render_model *model, struct terminal *term,
-    int top_row, int visible_rows, bool full_damage, int *count)
+    int top_row, int visible_rows, bool full_damage, bool force_all_sixels,
+    int *count)
 {
     struct grid *grid = term->grid;
     if (tll_length(grid->sixel_images) == 0)
@@ -1451,7 +1538,7 @@ render_canvas_sixel_images(
         if (first_external > last_external)
             continue;
 
-        if (!full_damage) {
+        if (!full_damage && !force_all_sixels) {
             bool visible_damage = false;
             for (int row = first_external; row <= last_external; row++) {
                 if (foot_render_model_row_is_damaged(model, term, row)) {
@@ -1490,7 +1577,8 @@ foot_render_model_render_frame(
     const int32_t *palette, int history, int top_row,
     int selection_y1, int selection_y2, int selection_x1, int selection_x2,
     bool cursor_visible, int cursor_shape, int background_alpha,
-    int columns, int rows, int *out_count)
+    int columns, int rows, bool force_all_rows, bool force_all_sixels,
+    int *out_count)
 {
     if (model == NULL || term == NULL || palette == NULL || out_count == NULL) {
         if (out_count != NULL)
@@ -1551,8 +1639,7 @@ foot_render_model_render_frame(
     int damage_ranges = 0;
     bool in_damage = false;
     for (int row = top_row; row < end_row; row++) {
-        const bool damaged = foot_render_model_row_is_damaged(
-            model, term, row);
+        const bool damaged = row_is_actually_damaged(model, term, row);
         if (damaged && !in_damage) {
             damage_ranges++;
             in_damage = true;
@@ -1586,8 +1673,7 @@ foot_render_model_render_frame(
     int range_first = 0;
     in_damage = false;
     for (int row = top_row; row < end_row; row++) {
-        const bool damaged = foot_render_model_row_is_damaged(
-            model, term, row);
+        const bool damaged = row_is_actually_damaged(model, term, row);
         if (damaged && !in_damage) {
             range_first = row;
             in_damage = true;
@@ -1630,6 +1716,8 @@ foot_render_model_render_frame(
     for (int row = top_row; row < end_row; row++) {
         if (row < min_top || row >= screen_rows)
             continue;
+        if (!row_needs_emit(model, term, row, force_all_rows))
+            continue;
 
         struct row *native_row = row_for_external(term, row);
         /* cursor.point.row is a ring index, while row is an external viewport
@@ -1656,7 +1744,7 @@ foot_render_model_render_frame(
          * base colour and commits it on OP_ROW_END. Selection and cursor
          * policy live exclusively in upstream render_row(), which needs a
          * native row and prepared fonts; there is no parallel fallback. */
-        if (!reserve_commands(model, (size_t)count + 2))
+        if (!reserve_commands(model, (size_t)count + 3))
             goto fail;
         commands = model->commands;
         commands[count++] = OP_ROW_BEGIN;
@@ -1668,21 +1756,22 @@ foot_render_model_render_frame(
      * Emit them after the row commands so a partial-row background repaint
      * cannot cover an image that is still valid. */
     if (!render_canvas_sixel_images(
-            model, term, top_row, end_row - top_row, frame_full_damage, &count))
+            model, term, top_row, end_row - top_row, frame_full_damage,
+            force_all_sixels, &count))
     {
         goto fail;
     }
 
     /* The Canvas path appends commands from render_cell() through the sink,
-     * which may have grown the command buffer while the rows were rendered. */
-    commands = model->commands;
-    commands[count++] = OP_FRAME_END;
-
+     * which may have grown the command buffer while the rows were rendered.
+     * Reserve the whole tail before touching it: frame end, payload end, text
+     * length and the UTF-16 units. */
     const size_t text_length = model->text_len;
-    if (!reserve_commands(model, (size_t)count + 2 + text_length))
+    if (!reserve_commands(model, (size_t)count + 3 + text_length))
         goto fail;
     commands = model->commands;
 
+    commands[count++] = OP_FRAME_END;
     commands[count++] = OP_END;
     /* The UTF-16 payload travels in the same array as the commands, saving a
      * second JNI transition and a second array allocation per frame. */

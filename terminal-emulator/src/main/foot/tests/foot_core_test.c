@@ -333,9 +333,10 @@ dirty_tracking_tests(void)
     dirty = append_dirty(ht, "\x1b[5;1H", &dirty_count);
     CHECK(dirty_count == 0);
     dirty = append_dirty(ht, "\n", &dirty_count);
-    CHECK(dirty_count == 5);
-    for (int row = 0; row < 5; row++)
-        CHECK(dirty_has(dirty, dirty_count, row));
+    /* A full-screen scroll moves the old rows as a pixel band; only the newly
+     * exposed bottom row is regenerated. The moved band is reported separately
+     * through the partial-scroll flag. */
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 4));
     commit_dirty(ht, dirty, dirty_count);
 
     /* Switching to the alternate screen changes every visible cell. */
@@ -377,6 +378,60 @@ frame_row_damaged(const int32_t *commands, int count, int row)
         cursor += 3;
     }
     return false;
+}
+
+static int
+count_row_commands(const int32_t *commands, int count)
+{
+    if (commands == NULL || count <= 0)
+        return -1;
+
+    int cursor = 0;
+    int rows = 0;
+    while (cursor < count) {
+        const int op = commands[cursor++];
+        if (op == OP_END)
+            return rows;
+        switch (op) {
+        case OP_ROW_BEGIN:
+            if (cursor + 1 > count)
+                return -1;
+            rows++;
+            cursor += 1;
+            break;
+        case OP_ROW_END:
+        case OP_FRAME_END:
+            break;
+        case OP_FRAME_BEGIN:
+            if (cursor + 8 > count)
+                return -1;
+            cursor += 8 + commands[cursor + 7] * 3;
+            break;
+        case OP_DAMAGE:
+            cursor += 2;
+            break;
+        case OP_FILL_RECT:
+            cursor += 5;
+            break;
+        case OP_GLYPH:
+            cursor += 7;
+            break;
+        case OP_FILL_TRAPEZOID:
+            cursor += 9;
+            break;
+        case OP_IMAGE:
+            cursor += 8;
+            break;
+        case OP_SCROLL:
+            cursor += 4;
+            break;
+        default:
+            return -1;
+        }
+        if (cursor > count)
+            return -1;
+    }
+    return -1;
 }
 
 static bool
@@ -460,9 +515,10 @@ scroll_replay_tests(void)
      * region as scroll damage; the face of the frame must carry it so Java can
      * memmove the retained surface instead of redrawing the moved rows. */
     dirty = append_dirty(ht, "\r\nfour", &dirty_count);
-    CHECK(dirty_has(dirty, dirty_count, 0));
-    CHECK(dirty_has(dirty, dirty_count, 1));
-    CHECK(dirty_has(dirty, dirty_count, 2));
+    /* The moved rows are carried by OP_SCROLL, not by per-row dirty bits. */
+    CHECK(dirty_count == 1 && dirty_has(dirty, dirty_count, 2));
+    CHECK(!dirty_has(dirty, dirty_count, 0));
+    CHECK(!dirty_has(dirty, dirty_count, 1));
 
     commands = headless_render(
         ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
@@ -545,6 +601,52 @@ scroll_replay_tests(void)
         commands, command_count, &start, &end, &lines, &reverse));
     CHECK(start == 0 && end == 3 && lines == 1 && reverse);
     CHECK(frame_row_damaged(commands, command_count, 0));
+
+    headless_destroy(ht);
+}
+
+static void
+filtered_render_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 3, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    int dirty_count = 0;
+    int *dirty = append_dirty(ht, "one\r\ntwo\r\nthree", &dirty_count);
+    commit_dirty(ht, dirty, dirty_count);
+
+    int command_count = 0;
+    int32_t *commands = headless_render(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3, &command_count);
+    CHECK(commands != NULL);
+    headless_commit_all_rows(ht);
+
+    /* Only the rewritten row is emitted in the ordinary partial path. */
+    dirty = append_dirty(ht, "\x1b[2;1HX", &dirty_count);
+    commands = headless_render_filtered(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        false, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 1);
+    CHECK(frame_row_damaged(commands, command_count, 1));
+    CHECK(!frame_row_damaged(commands, command_count, 0));
+    headless_commit_all_rows(ht);
+
+    /* A clean frame emits no row commands at all... */
+    commands = headless_render_filtered(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        false, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 0);
+
+    /* ...but a reset surface asks for every row and every visible sixel. */
+    commands = headless_render_filtered(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 3,
+        true, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 3);
 
     headless_destroy(ht);
 }
@@ -1006,6 +1108,85 @@ scrolled_view_scroll_tests(void)
     CHECK(dirty_count == 2);
     CHECK(dirty_has(dirty, dirty_count, 1));
     CHECK(dirty_has(dirty, dirty_count, 2));
+
+    headless_destroy(ht);
+}
+
+static void
+viewport_shift_tests(void)
+{
+    struct headless_terminal *ht = headless_create(10, 5, 25, 8, 16, palette);
+    CHECK(ht != NULL);
+    if (ht == NULL)
+        return;
+
+    for (int i = 0; i < 12; i++)
+        feed(ht, "line\r\n");
+    headless_commit_all_rows(ht);
+
+    int command_count = 0;
+    int32_t *commands;
+
+    /* Moving into history exposes rows at the top. The retained surface only
+     * needs those new rows; the old viewport moves as a pixel band. */
+    headless_set_view(ht, -3);
+    CHECK(headless_view_top(ht) == -3);
+    CHECK(headless_consume_viewport_shift(ht) == -3);
+    commands = headless_render_filtered(
+        ht, -3, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        false, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 3);
+    CHECK(frame_row_damaged(commands, command_count, -3));
+    CHECK(frame_row_damaged(commands, command_count, -1));
+    CHECK(!frame_row_damaged(commands, command_count, 0));
+    headless_commit_all_rows(ht);
+
+    /* Moving toward the live bottom exposes rows at the bottom. */
+    headless_set_view(ht, -1);
+    CHECK(headless_consume_viewport_shift(ht) == 2);
+    commands = headless_render_filtered(
+        ht, -1, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        false, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 2);
+    CHECK(frame_row_damaged(commands, command_count, 2));
+    CHECK(frame_row_damaged(commands, command_count, 3));
+    CHECK(!frame_row_damaged(commands, command_count, -1));
+    headless_commit_all_rows(ht);
+
+    /* A jump at least as large as the viewport cannot share pixels: it falls
+     * back to full damage and reports no shift. */
+    headless_set_view(ht, -5);
+    CHECK(headless_consume_viewport_shift(ht) == -4);
+    headless_commit_all_rows(ht);
+    headless_set_view(ht, 0);
+    CHECK(headless_consume_viewport_shift(ht) == 0);
+    commands = headless_render_filtered(
+        ht, 0, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        false, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 5);
+    headless_commit_all_rows(ht);
+
+    /* A not-yet-rendered output scroll means the retained surface is not at
+     * the address this viewport move assumes. Refuse the blit. */
+    int dirty_count = 0;
+    (void)append_dirty(ht, "\n", &dirty_count);
+    headless_set_view(ht, -1);
+    CHECK(headless_consume_viewport_shift(ht) == 0);
+    commands = headless_render_filtered(
+        ht, -1, -1, -1, -1, -1, false, 0, 255, 8.0f, 16, 12, 10, 5,
+        false, &command_count);
+    CHECK(commands != NULL);
+    CHECK(count_row_commands(commands, command_count) == 5);
+
+    /* reset() starts a new surface epoch. */
+    headless_commit_all_rows(ht);
+    headless_set_view(ht, -2);
+    CHECK(headless_consume_viewport_shift(ht) == -1);
+    headless_reset(ht);
+    CHECK(headless_consume_viewport_shift(ht) == 0);
 
     headless_destroy(ht);
 }
@@ -1680,6 +1861,8 @@ main(void)
     frame_header_tests();
     overlay_damage_tests();
     scroll_replay_tests();
+    filtered_render_tests();
+    viewport_shift_tests();
     scroll_surface_tests();
     render_state_tests();
     scrolled_view_scroll_tests();

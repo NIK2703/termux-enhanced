@@ -1079,8 +1079,8 @@ repaint не мог «потерять» полное повреждение.
 | Риск | Митигация |
 |---|---|
 | Java и native dirty расходятся | commit только painted rows; тест на пропущенную строку |
-| Смена viewport без full repaint | `set_view` выставляет full damage, UI делает `invalidate()` |
-| Частичный clip теряет dirty | full damage не снимается до commit всех строк |
+| Смена viewport без full repaint | `set_view` оптимизирует только соседний переход без pending scroll/full damage; Java проверяет retained surface и иначе делает полный кадр; native `viewport_shift_tests` |
+| Частичный clip теряет dirty | full damage не снимается до commit всех строк; scroll-blit carrier при частичном clip откатывается к full row repaint |
 | `grid->view` уезжает при append | `sync_view()` перечитывает foot после каждого append |
 | Один chunk прокручивает больше половины ring | follow-text использует точный `view_top`, а не дельту offset; сдвиг вниз → full damage |
 | Full damage вызывает лишние кадры | full снимается только после полного commit; на scrolled-up output full не ставится |
@@ -1778,3 +1778,173 @@ upper half block) шириной 14 px и высотой 14 px каждая, ц�
 - Устройство не перезапускалось: установка APK и визуальная проверка selection
   (обычное, history, wide/CJK, пустые клетки, снятие) остаются за
   пользователем.
+
+---
+
+## 24. Фактическая проверка этапа 15.4 (29.10.2026)
+
+- Native `foot_render_model_set_view()` получил безопасный соседний путь:
+  двигает `grid->view`, помечает dirty только строки, открывшиеся сверху или
+  снизу, и накапливает `viewport_shift`. Полный damage остаётся при pending
+  output scroll, уже выставленном full damage, `abs(delta) >= rows` и смене
+  адресного пространства.
+- Добавлены `headless_consume_viewport_shift()`,
+  `nativeConsumeViewportShift()` и
+  `TerminalEmulator.consumeViewportShift()`; reset/resize сбрасывают сдвиг.
+- `TerminalRenderer` перед кадром сдвигает retained Bitmap через upstream
+  `grid_render_scroll()`/`grid_render_scroll_reverse()` и затем просит native
+  только открывшиеся строки. Для пользовательской прокрутки Java dirty-mirror
+  пуст, поэтому `forceDraw` не превращает такой кадр в полный.
+- `TerminalView.doScroll()` синхронизирует viewport один раз на жест и
+  использует `invalidateForScrollBlit()`; selection, overdrag, отсутствующий
+  renderer и частичный clip оставляют обычный полный путь. (Запрет для
+  scrollbar drag снят в 15.5.2.) `mPartialScrollFrame` сбрасывается обычным
+  `invalidate()`, а частично клипованный carrier не применяет blit и требует
+  полного repaint.
+- `foot_core_test`: `foot core smoke test: ok`. Добавлены
+  `viewport_shift_tests`: движение в историю и к live bottom, переход на
+  размер экрана, отказ при pending scroll, reset; проверяется точный набор
+  emitted rows через filtered frame.
+- JVM: `RenderPayloadTest` 4/4 (добавлен JNI consume-тест),
+  `ScrolledUpdateRepaintTest` 15/15, `terminal-view` 42/42 — зелёные.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning.
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `c57fce3764786e9cf6b340c379ee1ac4683b0398b15830bbc6505a044090a635`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage15.4-viewport-blit.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `fca28e88c0bc6952a7c4e67ac625aefe2761108e634c3cb3882c1f41220c21cc`);
+  `DT_NEEDED` содержит только `liblog`, `libm`, `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка wheel,
+  fling, краёв истории, selection/scrollbar/overdrag и sixel остаются за
+  пользователем. До этой проверки этап 15.4 считается реализованным, но не
+  подтверждённым на экране.
+
+---
+
+## 25. Фактическая проверка этапа 15.5 (30.10.2026)
+
+- `invalidateScrollbarBand(true)` теперь включается только когда видимые
+  строки не dirty, retained Bitmap валиден, нет selection, scrollbar drag,
+  overdrag и pending viewport shift.
+- Damage rect сохраняется в `mScrollbarBlitOnlyRect`; `onDraw()` применяет
+  shortcut только при точном совпадении framework clip. Любая дополнительная
+  invalidation (cursor blink, content damage, full invalidate) расширяет clip
+  или сбрасывает флаг и возвращает обычный row path.
+- `TerminalRenderer` получил флаг `scrollbarBlitOnly`: при валидном surface он
+  копирует strip из Bitmap и не вызывает `fillRenderCommands()`; thumb
+  по-прежнему рисуется только на View canvas, поэтому в Bitmap остаётся
+  чистый текст под старым и новым положением.
+- Если surface/top/offset/background не совпали, renderer сам откатывается к
+  обычной отрисовке строк в этом clip; если bitmap вообще недоступен, остаётся
+  прямой Canvas-путь.
+- Общий fallback для `commandCount == 0`: если native не сгенерировал ни одной
+  строки, но retained surface валиден, renderer копирует запрошенную полосу из
+  Bitmap. Это закрывает любые overlay-only partial invalidation, не только
+  scrollbar fast path.
+- Partial frame с pending viewport shift теперь повышается до полного
+  repaint: сдвинутые пиксели вне clip иначе не дошли бы до экрана. Это
+  закрывает гонку «пользовательский scroll + scrollbar/output invalidation
+  до следующего кадра».
+- `TerminalEmulator.setViewport()` получил fast path: если `mTopRow` уже равен
+  `mNativeViewTop`, JNI `nativeSetView` не вызывается. `onDraw()` вызывает
+  sync каждый кадр, поэтому это убирает лишний JNI round-trip в устойчивом
+  состоянии.
+- JVM: `RenderPayloadTest` 4/4, `ScrolledUpdateRepaintTest` 15/15,
+  `terminal-view` 48/48 (включая новый `TerminalViewScrollbarBlitTest`).
+  Native `foot_core_test`: `foot core smoke test: ok`.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning.
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `0597c39fe749e77e7aa4978a49ea74540cd463eea78587728c9779fca9a09e65`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage15.5-scrollbar-blit.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` (SHA-256
+  `fca28e88c0bc6952a7c4e67ac625aefe2761108e634c3cb3882c1f41220c21cc`);
+  `DT_NEEDED` содержит только `liblog`, `libm`, `libdl`, `libc`.
+- Устройство не перезапускалось: установка APK и визуальная проверка thumb,
+  wheel/fling, cursor/selection, overdrag и sixel остаются за пользователем.
+
+---
+
+## 26. Фактическая проверка этапа 15.5.1 (30.10.2026)
+
+- `TerminalRenderer` больше не сканирует Java dirty-mirror перед native-вызовом
+  и не включает `forceAllRows` из-за пустой полосы. Для частичного кадра
+  решение о строках принимается по frame header/native damage; чистый band
+  копируется из retained Bitmap.
+- Legacy native без frame header распознаётся по первому opcode: команды один
+  раз перезапрашиваются с `forceAllRows=true`. Современный native этот
+  дополнительный вызов не делает.
+- На full-clip кадре `TerminalView` вызывает
+  `TerminalBuffer.clearJavaDirtyState()`: Java-зеркало очищается, но
+  `nativeCommitAllRows()` не повторяется, потому что renderer уже закоммитил
+  все нарисованные строки через `commitRenderRows()`. Это также не маскирует
+  damage, если кадр завершился ошибкой до полной отрисовки.
+- `TerminalRenderer` не вызывает `commitRenderRows()` при
+  `mPaintedRowCount == 0`, убирая пустой JNI round-trip.
+- `ScrolledUpdateRepaintTest` переведён на native-authoritative модель;
+  `RenderPayloadTest` проверяет, что чистый кадр содержит заголовок, но не
+  содержит `OP_ROW_BEGIN`, а `forceAllRows` снова выдаёт все строки.
+- JVM: `RenderPayloadTest` 5/5, `ScrolledUpdateRepaintTest` 15/15,
+  `DirtyStateTest` 3/3; `terminal-view` 48/48 — зелёные.
+- Native `foot_core_test`: `foot core smoke test: ok`; native-код не менялся,
+  SHA-256 `libtermux_terminal.so` остался
+  `fca28e88c0bc6952a7c4e67ac625aefe2761108e634c3cb3882c1f41220c21cc`.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning.
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `56111b708d328b9b024c16cf9439e0636c0d8f9de16806de9aa5fb3c198583d5`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage15.5.1-native-damage.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` с прежним SHA-256;
+  `DT_NEEDED` не менялся (только `liblog`, `libm`, `libdl`, `libc`).
+- Устройство не перезапускалось: установка APK и визуальная проверка
+  streaming/TUI, cursor blink, selection, wheel/fling, scrollbar и sixel
+  остаются за пользователем. До этой проверки этап считается реализованным,
+  но не подтверждённым на экране.
+
+---
+
+## 27. Фактическая проверка этапа 15.5.2 (30.10.2026)
+
+- Исправлено главное условие viewport blit: full-view `mPartialScrollFrame`
+  carrier намеренно выставляет `isFullClip=false`, из-за чего общая защита
+  «pending viewport shift на partial frame» понижала его до полного row
+  repaint. Теперь `onDraw()` различает настоящий partial clip и full-view
+  carrier: только первый требует полного кадра, carrier покрывает всю полосу
+  сдвига retained Bitmap и может потребить shift.
+- `invalidateForScrollBlit()` проверяет `mPixelsValid`, selection, overdrag и
+  наличие renderer. Если retained pixels невалидны, вызов уходит в обычный
+  `invalidate()`: иначе partial carrier оставлял бы `mPixelsValid=false`
+  навсегда и каждый следующий scroll снова рисовал бы все строки.
+- Scrollbar drag снова использует viewport blit. Thumb рисуется только на
+  View canvas после полного копирования retained Bitmap, поэтому старый thumb
+  стирается, а новый рисуется в `drawScrollbar()`. Selection и overdrag
+  по-прежнему требуют полного пути.
+- `doScroll()` для обычного transcript применяет весь wheel/PageUp batch одной
+  операцией `clampScrollTop()` вместо цикла по строкам; mouse tracking и
+  alternate buffer сохраняют событие на строку. Это убирает O(amount) проверок
+  режима и повторных clamp'ов на больших wheel-событиях.
+- Policy-тесты: `TerminalViewScrollbarBlitTest` расширен проверками
+  carrier/pending-shift и допустимости viewport reuse; добавлен
+  `TerminalViewScrollTest` на batch-clamp и края истории.
+- JVM: `terminal-view` 61/61, targeted
+  `RenderPayloadTest` 5/5, `ScrolledUpdateRepaintTest` 15/15,
+  `DirtyStateTest` 3/3 — зелёные.
+- Native `foot_core_test`: `foot core smoke test: ok`; native-код не менялся,
+  SHA-256 `libtermux_terminal.so` остался
+  `fca28e88c0bc6952a7c4e67ac625aefe2761108e634c3cb3882c1f41220c21cc`.
+- `:app:assembleRelease`: успешно, 0 errors, 3 известных PendingIntent warning.
+- APK: `versionCode=118022`, `versionName=0.118.0+enhanced.22`, подпись
+  `CN=Winlator`, SHA-256
+  `4fada09b469583f2e13e52cc5185e9c2e2ec808b5e54c9f2b4a362056f908e55`.
+- Готовый файл:
+  `/storage/emulated/0/Download/Termux-Enhanced-0.118.0+enhanced.22-stage15.5.2-scroll-carrier.apk`.
+- В APK входит `lib/arm64-v8a/libtermux_terminal.so` с прежним SHA-256;
+  `DT_NEEDED` не менялся (только `liblog`, `libm`, `libdl`, `libc`).
+- Устройство не перезапускалось: установка APK и визуальная проверка
+  wheel/finger scroll, fling, scrollbar drag, краёв истории, selection и
+  alternate buffer остаются за пользователем. До этой проверки этап считается
+  реализованным, но не подтверждённым на экране.

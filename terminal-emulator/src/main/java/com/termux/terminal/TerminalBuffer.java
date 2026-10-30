@@ -143,8 +143,19 @@ public final class TerminalBuffer {
         return mAllDirty;
     }
 
+    /** Clear both the Java dirty mirror and native damage. Used by tests and full resets. */
     public void clearDirtyState() {
         if (mNativeHandle != 0) TerminalNative.nativeCommitAllRows(mNativeHandle);
+        clearJavaDirtyState();
+    }
+
+    /**
+     * Drop only the Java dirty mirror. The renderer calls this after a full-clip frame because
+     * it has already retired every painted row through {@code commitRenderRows()}; calling
+     * {@link #clearDirtyState()} there would repeat that native work through JNI and could
+     * discard damage for rows a failed frame never painted.
+     */
+    public void clearJavaDirtyState() {
         mAllDirty = false;
         mDirtyCount = 0;
     }

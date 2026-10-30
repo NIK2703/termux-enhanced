@@ -76,6 +76,8 @@ public final class TerminalEmulator {
     private int mScrollBase;
     /** Native viewport top after the last append (external row coordinates). */
     private int mNativeViewTop;
+    /** Rows the retained surface should move for a not-yet-rendered viewport change. */
+    private int mViewportShift;
     /** True when the last append scrolled only part of the screen. */
     private boolean mLastAppendPartialScroll;
     private int mSyncedColorVersion = -1;
@@ -173,6 +175,9 @@ public final class TerminalEmulator {
         syncPalette();
         TerminalNative.nativeResize(mNativeHandle, columns, rows, cellWidthPixels, cellHeightPixels);
         mNativeViewTop = TerminalNative.nativeViewTop(mNativeHandle);
+        // nativeResize() starts a new damage epoch; any retained-surface shift
+        // accumulated for the old geometry is no longer valid.
+        mViewportShift = 0;
         if (!gridChanged) return;
         mColumns = columns;
         mRows = rows;
@@ -302,6 +307,9 @@ public final class TerminalEmulator {
                 // row has reached a full-clip frame. A partial row set is not
                 // enough, so replace the mirror with the same full-damage state.
                 mScreen.markAllDirty();
+                // Output invalidated the retained-surface address space (for
+                // example, sync_view() discarded a pending user-scroll shift).
+                mViewportShift = 0;
             } else {
                 for (int i = 0; i < dirtyCount; i++) {
                     mScreen.markRowDirty(state[TerminalNative.APPEND_STATE_HEADER_SIZE + i]);
@@ -314,7 +322,10 @@ public final class TerminalEmulator {
             mCursorCol = state[4];
             mNativeScrollCounter = state[5];
             mNativeViewTop = state[8];
-            mLastAppendPartialScroll =
+            // Keep the marker sticky across coalesced appends: a scroll in the
+            // first chunk still needs the view to invalidate its moved band even
+            // if the next chunk produced no scroll damage of its own.
+            mLastAppendPartialScroll |=
                 (flags & TerminalNative.APPEND_FLAG_PARTIAL_SCROLL) != 0;
         } else {
             // Native append failed (or an older library is installed): the dirty set is
@@ -470,7 +481,33 @@ public final class TerminalEmulator {
      * inside the viewport.
      */
     public void setViewport(int topRow) {
+        // onDraw() calls this every frame. Avoid a JNI round-trip when the
+        // native model is already at the requested address; mNativeViewTop is
+        // updated by append/reset/resize as well as by this method.
+        if (topRow == mNativeViewTop) return;
+        final int previousTop = mNativeViewTop;
         mNativeViewTop = TerminalNative.nativeSetView(mNativeHandle, topRow);
+        if (mNativeViewTop != previousTop) {
+            // Native may have optimized this viewport change into a retained-
+            // surface row shift. Accumulate it until the renderer consumes it.
+            mViewportShift += TerminalNative.nativeConsumeViewportShift(mNativeHandle);
+        }
+    }
+
+    /**
+     * Rows the retained surface must move before the next frame. Positive means
+     * the viewport moved toward the live bottom (pixels move up); negative means
+     * it moved into history. Zero requests the ordinary full/partial path.
+     */
+    public int consumeViewportShift() {
+        final int shift = mViewportShift;
+        mViewportShift = 0;
+        return shift;
+    }
+
+    /** True while a retained-surface viewport move is waiting for the next frame. */
+    public boolean hasPendingViewportShift() {
+        return mViewportShift != 0;
     }
 
     /** Retire native damage for visible rows that reached the Canvas. */
@@ -522,11 +559,11 @@ public final class TerminalEmulator {
     public int fillRenderCommands(int[] out, int topRow, int selectionY1, int selectionY2,
                                   int selectionX1, int selectionX2, int backgroundAlpha,
                                   float fontWidth, int fontLineSpacing, int fontAscent,
-                                  int columns, int rows) {
+                                  int columns, int rows, boolean forceAllRows) {
         syncPalette();
         return TerminalNative.nativeRenderInto(mNativeHandle, topRow, selectionY1, selectionY2,
             selectionX1, selectionX2, shouldCursorBeVisible(), mCursorStyle, backgroundAlpha,
-            fontWidth, fontLineSpacing, fontAscent, columns, rows, out);
+            fontWidth, fontLineSpacing, fontAscent, columns, rows, forceAllRows, out);
     }
 
     /** UTF-16 payload referenced by TEXT commands of the most recent render. */
@@ -560,10 +597,9 @@ public final class TerminalEmulator {
     }
 
     /**
-     * Legacy "partial scroll" marker from the most recent append. The view no longer
-     * promotes this to a whole-screen repaint: native row damage now also covers slots
-     * moved by a scroll region while the viewport is scrolled up. Kept for compatibility
-     * with existing terminal-emulator callers.
+     * Sticky "a partial scroll happened since the last consume" marker. The view uses it
+     * to invalidate the whole moved band without marking those rows dirty: the native
+     * OP_SCROLL blits the retained surface, while only newly exposed rows are regenerated.
      */
     public boolean consumePartialScrollFlag() {
         final boolean value = mLastAppendPartialScroll;
@@ -599,6 +635,7 @@ public final class TerminalEmulator {
         // headless_reset() moves the native baseline to the current absolute count.
         mScrollBase = mNativeScrollCounter;
         mLastAppendPartialScroll = false;
+        mViewportShift = 0;
         mCursorBlinkState = true;
         drainEvents();
         mSession.onColorsChanged();

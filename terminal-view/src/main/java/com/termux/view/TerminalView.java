@@ -142,6 +142,22 @@ public final class TerminalView extends View {
     /** Reusable clip-bounds probe used in {@link #onDraw} to detect the dirty region. */
     private final Rect mClipBounds = new Rect();
 
+    /**
+     * A full-view invalidate was issued only to carry a native scroll blit, not to
+     * regenerate every row. {@link #onDraw} must treat it as a partial frame so the
+     * renderer still skips clean rows and only paints the newly exposed damage.
+     */
+    private boolean mPartialScrollFrame;
+
+    /**
+     * A partial invalidate that only needs the retained surface copied back, because
+     * the only changed pixels are the scrollbar thumb overlay. The exact damage rect
+     * is stored so any additional invalidation before onDraw falls back to the normal
+     * row path instead of hiding a real dirty row behind the blit.
+     */
+    private boolean mScrollbarBlitOnlyFrame;
+    private final Rect mScrollbarBlitOnlyRect = new Rect();
+
     /** Last rendered cursor position (external row / column) for cursor-move dirty expansion. */
     private int mLastCursorRow = Integer.MIN_VALUE;
     private int mLastCursorCol = -1;
@@ -206,6 +222,8 @@ public final class TerminalView extends View {
         // previous-frame content is no longer trustworthy. (Partial invalidates leave the rest
         // of the surface intact and do not affect this flag.)
         mPixelsValid = false;
+        mPartialScrollFrame = false;
+        mScrollbarBlitOnlyFrame = false;
         mPendingFullWidthDamage = false;
         // A full invalidate supersedes any outstanding request for the uncovered part: it already
         // covers it, so the recovery bookkeeping starts over (and the next partial frame must ask
@@ -955,6 +973,7 @@ public final class TerminalView extends View {
      */
     private void repaintAfterUpdate() {
         TerminalBuffer screen = mEmulator.getScreen();
+        final boolean partialScroll = mEmulator.consumePartialScrollFlag();
 
         // Thread-safety note: the dirty-state writer (mEmulator.append(), invoked only from
         // TerminalSession.MainThreadHandler.handleMessage()) and the reader (this method plus
@@ -989,7 +1008,13 @@ public final class TerminalView extends View {
             mLastAnchorRow = anchor;
         }
 
-        if (anchorChanged || isSelectingText() || mScrollbarDragging || screen.isAllDirty()) {
+        // On the live bottom the content anchor necessarily changes when output scrolls
+        // the screen: externalToInternalRow(0) advances with the ring. That is not a reason
+        // to discard the native scroll damage and repaint every row. mTopRow != 0 still
+        // means the user is looking at history, where an anchor change can expose entirely
+        // different content; keep the conservative full-frame path there.
+        if ((anchorChanged && mTopRow != 0)
+                || isSelectingText() || mScrollbarDragging || screen.isAllDirty()) {
             // Full repaint. render() drops the dirty state itself (including mAllDirty) once the
             // frame is on the canvas.
             invalidate();
@@ -1029,29 +1054,48 @@ public final class TerminalView extends View {
             // screen that did, and no row invalidation would reach it, so damage its strip
             // explicitly. render() draws no rows here and returns that strip to the background
             // colour; drawScrollbar() then repaints the thumb on top.
-            invalidateScrollbarBand();
+            if (partialScroll) {
+                // The native scroll op moves the whole band; let the full-view scroll
+                // carrier handle both the moved pixels and the thumb.
+                invalidateScrollbarBand(false);
+                invalidateForScrollBlit();
+            } else {
+                // No visible row changed: the thumb is the only overlay that moved.
+                // Copy the valid retained pixels back instead of regenerating text.
+                invalidateScrollbarBand(true);
+            }
             return;
         }
         // F2: a moved thumb has to mark its own rows (it is an overlay, and a row the renderer
         // skips as "clean" keeps the thumb's *previous* pixels on top of it).
         // invalidateScrollbarBand() is self-guarding: when the thumb has not moved it
         // returns without touching anything, so this costs one rect comparison per frame.
-        invalidateScrollbarBand();
-        invalidateRowRange(first, last, false);
+        invalidateScrollbarBand(false);
+        if (partialScroll) {
+            // The native OP_SCROLL moves pixels across the whole scroll band. Android clips
+            // onDraw() to the invalidated region, so that band must reach the screen even though
+            // its rows are clean and the renderer will not regenerate them.
+            invalidateForScrollBlit();
+        } else {
+            invalidateRowRange(first, last, false);
+        }
     }
 
     /**
-     * E3: invalidate only the rows the scrollbar thumb actually occupies, when the visible rows
-     * are all unchanged but the scroll position or the transcript length moved the thumb.
+     * E3: invalidate only the scrollbar strip when the visible rows are unchanged but the
+     * scroll position or transcript length moved the thumb.
      *
-     * <p>The damaged rect is the union of the thumb's previous and its new position, and the rows
-     * it covers are marked dirty so {@code render()} redraws them. That marking is what makes the
-     * repaint safe: the thumb is an <em>overlay</em> — the glyph grid spans the full view width
-     * ({@code columns = width / fontWidth}), so the rightmost characters sit underneath it. A
-     * "clear the strip and repaint the thumb" shortcut would therefore shave those characters off
-     * every row; only re-rendering the rows puts them back.</p>
+     * <p>The damaged rect is the union of the thumb's previous and new position. The thumb is
+     * drawn on the View canvas, not into the retained bitmap, so when the bitmap is valid the
+     * old thumb can be erased by copying that strip back from the bitmap. The row text under it
+     * is already correct there; re-rendering rows would only repeat work.</p>
+     *
+     * <p>{@code allowBlitOnly} is false whenever a real row is dirty or an unsafe overlay is
+     * active. In that case the rows intersecting the strip are marked dirty and redrawn, as
+     * before. A first thumb (no previous extent) still uses the whole track, because the bitmap
+     * blit is exactly what restores the strip it lands on.</p>
      */
-    private void invalidateScrollbarBand() {
+    private void invalidateScrollbarBand(boolean allowBlitOnly) {
         // No history → drawScrollbar() draws nothing, so there is no thumb to keep alive.
         if (mEmulator == null || getWidth() <= 0 || getScrollbarRange() <= 0) { return; }
         final int left = Math.max(0, getWidth() - mScrollbarWidth);
@@ -1081,8 +1125,73 @@ public final class TerminalView extends View {
         bottom = Math.max(0, Math.min(bottom, getHeight()));
         if (top >= bottom) return;
 
+        if (allowBlitOnly && canBlitScrollbarBand()) {
+            mScrollbarBlitOnlyFrame = true;
+            mScrollbarBlitOnlyRect.set(left, top, getWidth(), bottom);
+            invalidate(left, top, getWidth(), bottom);
+            return;
+        }
+
+        mScrollbarBlitOnlyFrame = false;
         markRowsIntersectingDirty(top, bottom);
         invalidate(left, top, getWidth(), bottom);
+    }
+
+    /**
+     * The retained surface can erase the old thumb without row work only when it still
+     * represents exactly this viewport and no overlay that must be regenerated is active.
+     * The renderer re-checks its own bitmap state; if that check fails it falls back to the
+     * normal row path for the strip.
+     */
+    private boolean canBlitScrollbarBand() {
+        return mRenderer != null
+            && mEmulator != null
+            && canBlitScrollbarBand(mPixelsValid, isSelectingText(),
+                mScrollbarDragging, mOverdragPx,
+                mEmulator.hasPendingViewportShift());
+    }
+
+    /**
+     * Pure policy for reusing the retained surface during a viewport scroll. A
+     * scrollbar drag is allowed: the thumb is painted on the View canvas after
+     * the full-surface blit, so the blit only has to restore the text below it.
+     * Selection and elastic over-drag still need the ordinary full frame.
+     */
+    static boolean canReuseViewportSurface(boolean pixelsValid, boolean selecting,
+                                           int overdragPx, boolean rendererAvailable) {
+        return pixelsValid && !selecting && overdragPx == 0 && rendererAvailable;
+    }
+
+    /**
+     * A pending viewport shift can only be consumed by a frame that covers the
+     * whole view. A real partial clip must be promoted to a full repaint; the
+     * full-view scroll carrier is exactly the frame that can apply the shift,
+     * so it must not be demoted by the same guard.
+     */
+    static boolean pendingViewportShiftRequiresFullRepaint(boolean fullClip,
+                                                            boolean fullViewportCarrier,
+                                                            boolean pendingShift) {
+        return pendingShift && !fullClip && !fullViewportCarrier;
+    }
+
+    /** Clamp a transcript viewport top after applying one whole scroll batch. */
+    static int clampScrollTop(int topRow, int history, int delta) {
+        final int minTop = -Math.max(0, history);
+        return Math.max(minTop, Math.min(0, topRow + delta));
+    }
+
+    /**
+     * Pure policy for the scrollbar-only blit, kept separate so the unsafe
+     * combinations can be tested without an Android view instance.
+     */
+    static boolean canBlitScrollbarBand(boolean pixelsValid, boolean selecting,
+                                        boolean scrollbarDragging, int overdragPx,
+                                        boolean pendingViewportShift) {
+        return pixelsValid
+            && !selecting
+            && !scrollbarDragging
+            && overdragPx == 0
+            && !pendingViewportShift;
     }
 
     /**
@@ -1145,6 +1254,30 @@ public final class TerminalView extends View {
     }
 
     /**
+     * Invalidate the whole view because a native scroll moved the retained surface. The
+     * matching {@link #onDraw} frame is still treated as partial, so clean rows are not
+     * regenerated; the full clip only lets the moved pixels reach the screen.
+     */
+    private void invalidateForScrollBlit() {
+        if (mEmulator == null
+                || !canReuseViewportSurface(mPixelsValid, isSelectingText(), mOverdragPx,
+                    mRenderer != null)) {
+            // No trustworthy retained pixels: a partial carrier would keep
+            // mPixelsValid false forever. Take the ordinary full-frame path.
+            invalidate();
+            return;
+        }
+        mPartialScrollFrame = true;
+        mScrollbarBlitOnlyFrame = false;
+        // Bypass invalidate(): this is a full-view damage carrier, but the
+        // retained surface is still valid and rows outside the new damage may
+        // be skipped. mPixelsValid must stay true.
+        mPendingFullWidthDamage = false;
+        mUncoveredRecoveryClip.setEmpty();
+        super.invalidate();
+    }
+
+    /**
      * Invalidate the full-width pixel band covering external rows [first, last], clamped to
      * visible rows.
      *
@@ -1155,8 +1288,8 @@ public final class TerminalView extends View {
      *                 ({@link #repaintAfterUpdate()}) passes false: it only needs the band as a
      *                 damage rectangle and has already established which rows are dirty. Whatever
      *                 genuinely needs rows repainted marks them itself or forces a full repaint;
-     *                 the renderer's {@code forceDraw} fallback covers the residual case of a clip
-     *                 in which no row is dirty at all.
+     *                 native frame damage remains the source of truth for the rows that are
+     *                 emitted, and a clean band simply copies the retained pixels.
      */
     private void invalidateRowRange(int first, int last, boolean markRows) {
         if (mEmulator == null || mRenderer == null) { invalidate(); return; }
@@ -1602,32 +1735,58 @@ public final class TerminalView extends View {
 
     /** Perform a scroll, either from dragging the screen or by scrolling a mouse wheel. */
     void doScroll(MotionEvent event, int rowsDown) {
-        boolean up = rowsDown < 0;
-        int amount = Math.abs(rowsDown);
-        boolean scrolled = false;
-        for (int i = 0; i < amount; i++) {
-            if (mEmulator.isMouseTrackingActive()) {
-                sendMouseEventCode(event, up ? TerminalEmulator.MOUSE_WHEELUP_BUTTON : TerminalEmulator.MOUSE_WHEELDOWN_BUTTON, true);
-            } else if (mEmulator.isAlternateBufferActive()) {
-                // Send up and down key events for scrolling, which is what some terminals do to make scroll work in
-                // e.g. less, which shifts to the alt screen without mouse handling.
-                handleKeyCode(up ? KeyEvent.KEYCODE_DPAD_UP : KeyEvent.KEYCODE_DPAD_DOWN, 0);
-            } else {
-                mTopRow = Math.min(0, Math.max(-(mEmulator.getScreen().getActiveTranscriptRows()), mTopRow + (up ? -1 : 1)));
-                syncNativeViewport();
-                // While the user is scrolled up, follow the text instead of the
-                // buffer: onScreenUpdated() compensates mTopRow for the rows
-                // shifted out of the transcript when it grows past the limit.
-                // Re-enable auto-scrolling once the user reaches the bottom.
-                mEmulator.setAutoScrollDisabled(mTopRow != 0);
-                scrolled = true;
+        final boolean up = rowsDown < 0;
+        final int amount = Math.abs(rowsDown);
+        final int topRowBefore = mTopRow;
+
+        // Only mouse-tracking and the alternate buffer need one event per row.
+        // The ordinary transcript viewport is a pure clamp: applying the whole
+        // wheel/PageUp batch arithmetically avoids an O(amount) Java loop and
+        // repeated mode checks on every scroll event.
+        final boolean appScrolled = mEmulator.isMouseTrackingActive()
+            || mEmulator.isAlternateBufferActive();
+        if (appScrolled) {
+            for (int i = 0; i < amount; i++) {
+                if (mEmulator.isMouseTrackingActive()) {
+                    sendMouseEventCode(event, up ? TerminalEmulator.MOUSE_WHEELUP_BUTTON : TerminalEmulator.MOUSE_WHEELDOWN_BUTTON, true);
+                } else if (mEmulator.isAlternateBufferActive()) {
+                    // Send up and down key events for scrolling, which is what some terminals do to make scroll work in
+                    // e.g. less, which shifts to the alt screen without mouse handling.
+                    handleKeyCode(up ? KeyEvent.KEYCODE_DPAD_UP : KeyEvent.KEYCODE_DPAD_DOWN, 0);
+                } else {
+                    // The application left mouse tracking / the alternate buffer
+                    // while this batch was being delivered.
+                    mTopRow = clampScrollTop(mTopRow,
+                        mEmulator.getScreen().getActiveTranscriptRows(),
+                        up ? -1 : 1);
+                }
             }
+        } else {
+            final int history = mEmulator.getScreen().getActiveTranscriptRows();
+            mTopRow = clampScrollTop(mTopRow, history, up ? -amount : amount);
         }
+
         // B6: a single invalidate (and a single awakenScrollBars) for the whole batch — previously
         // each of the ~mRows iterations (PageUp/PageDown, wheel macro) called invalidate() separately.
+        final boolean scrolled = mTopRow != topRowBefore;
         if (scrolled) {
+            // The viewport is a function of the final mTopRow: syncing inside the loop did
+            // O(amount) JNI calls and made the native model mark full damage for every
+            // intermediate position. While the user is scrolled up, follow the text instead
+            // of the buffer: onScreenUpdated() compensates mTopRow for rows shifted out of
+            // the transcript when it grows past the limit.
+            syncNativeViewport();
+            mEmulator.setAutoScrollDisabled(mTopRow != 0);
             awakenScrollBars();
-            invalidate();
+            // A scrollbar drag is allowed to reuse the surface: its thumb is
+            // painted on the View canvas after the full-surface blit. Selection
+            // and elastic over-drag still need the ordinary full frame.
+            if (canReuseViewportSurface(mPixelsValid, isSelectingText(), mOverdragPx,
+                    mRenderer != null)) {
+                invalidateForScrollBlit();
+            } else {
+                invalidate();
+            }
         }
     }
 
@@ -2065,7 +2224,10 @@ public final class TerminalView extends View {
                             // auto-scroll is on and new lines snap the view back to
                             // the bottom mid-drag.
                             mEmulator.setAutoScrollDisabled(mTopRow != 0);
-                            invalidate();
+                            // The thumb is a View-canvas overlay: the full-surface
+                            // blit restores the text under it and drawScrollbar()
+                            // repaints the new position afterwards.
+                            invalidateForScrollBlit();
                         }
                         return true;
                     }
@@ -2613,6 +2775,38 @@ public final class TerminalView extends View {
             // full-clip draw that validates the rest.
             boolean hasClip = canvas.getClipBounds(mClipBounds);
             boolean isFullClip = !hasClip || isFullRepaint(mClipBounds);
+            // The scrollbar shortcut is valid only for the exact strip that was
+            // invalidated. Any extra invalidation before this draw widens the clip
+            // and falls back to the normal row path.
+            boolean scrollbarBlitOnly = !isFullClip
+                && mScrollbarBlitOnlyFrame
+                && mClipBounds.equals(mScrollbarBlitOnlyRect);
+            mScrollbarBlitOnlyFrame = false;
+            boolean fullViewportScrollCarrier = false;
+            if (mPartialScrollFrame) {
+                // The full-view invalidate was only a carrier for the native scroll blit.
+                // Keep partial-frame semantics so clean rows stay skipped, but only when
+                // the framework actually gave us the whole view: a clipped carrier cannot
+                // copy the moved band everywhere, so fall back to a full row repaint.
+                mPartialScrollFrame = false;
+                scrollbarBlitOnly = false;
+                if (isFullClip) {
+                    fullViewportScrollCarrier = true;
+                    isFullClip = false;
+                    if (!hasClip) mClipBounds.set(0, 0, getWidth(), getHeight());
+                } else {
+                    mPixelsValid = false;
+                }
+            }
+            // A pending user-scroll surface shift cannot be applied to a partial
+            // frame: the moved pixels outside the clip would never reach the screen.
+            // The full-view carrier is the exception: it covers exactly the band
+            // the retained-surface shift moves, so the renderer can consume it.
+            if (pendingViewportShiftRequiresFullRepaint(isFullClip,
+                    fullViewportScrollCarrier, mEmulator.hasPendingViewportShift())) {
+                mPixelsValid = false;
+                scrollbarBlitOnly = false;
+            }
             // A requested full-width row band that arrives horizontally clipped means an ancestor
             // cut part of every dirty row out of this frame. Treat the surface as unknown: draw
             // all visible rows inside the clip (the renderer then leaves the dirty set alone) and
@@ -2643,16 +2837,19 @@ public final class TerminalView extends View {
             if (mTopRow < minTopRow) mTopRow = minTopRow;
             syncNativeViewport();
             mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3],
-                mGridOffsetX, glyphYOffset(), getWidth(), getHeight(), dirtyRect, mPixelsValid);
+                mGridOffsetX, glyphYOffset(), getWidth(), getHeight(), dirtyRect, mPixelsValid,
+                scrollbarBlitOnly);
             // A full-clip frame really did paint every visible row — the surface now holds the
             // correct pixels for them, so the next partial repaint can safely skip non-dirty rows.
             // It is also the only moment it's safe to drop the dirty set wholesale: rows outside a
             // partial clip keep their bits so they get redrawn on the next full reveal. The
-            // renderer already cleared per-row bits as each row was drawn.
+            // renderer already committed every painted row and retired native damage, so only the
+            // Java mirror remains to be cleared; calling nativeCommitAllRows() here would repeat
+            // the whole native commit on every full frame.
             if (isFullClip) {
                 mPixelsValid = true;
                 mUncoveredRecoveryClip.setEmpty();
-                mEmulator.getScreen().clearDirtyState();
+                mEmulator.getScreen().clearJavaDirtyState();
             }
             // A scroll replay that could not touch the retained bitmap leaves the
             // moved rows in the clip wrong, and the partial command set never

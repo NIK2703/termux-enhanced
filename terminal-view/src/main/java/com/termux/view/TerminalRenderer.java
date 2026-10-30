@@ -183,7 +183,7 @@ public final class TerminalRenderer {
     public final void render(TerminalEmulator emulator, Canvas canvas, int topRow,
                              int selectionY1, int selectionY2, int selectionX1, int selectionX2,
                              float xOffset, float yOffset, int viewWidth, int viewHeight,
-                             Rect dirtyRect, boolean pixelsValid) {
+                             Rect dirtyRect, boolean pixelsValid, boolean scrollbarBlitOnly) {
         resetPaintState();
         mPaintedRowCount = 0;
         mFrameDamageRangeCount = 0;
@@ -207,9 +207,33 @@ public final class TerminalRenderer {
 
         final boolean retained = ensureSurface(viewWidth, viewHeight);
         final Canvas surface = retained ? mSurfaceCanvas : canvas;
+        final int viewportShift = emulator.consumeViewportShift();
+        final boolean fullViewportDirty = dirtyRect == null
+            || (dirtyRect.left <= 0 && dirtyRect.top <= 0
+                && dirtyRect.right >= viewWidth && dirtyRect.bottom >= viewHeight);
         if (retained) {
-            if (topRow != mSurfaceTopRow || bgColor != mSurfaceBgColor
+            if (bgColor != mSurfaceBgColor
                 || xOffset != mSurfaceXOffset || yOffset != mSurfaceYOffset) {
+                mSurfaceNeedsFull = true;
+            }
+            if (viewportShift != 0 && fullViewportDirty && !mSurfaceNeedsFull
+                && dirtyRect != null && pixelsValid
+                && mSurfaceYOffset == 0f
+                && topRow - mSurfaceTopRow == viewportShift
+                && Math.abs(viewportShift) < rows
+                && shiftSurface(emulator, viewportShift, rows)) {
+                mSurfaceTopRow = topRow;
+            } else if (viewportShift != 0 || topRow != mSurfaceTopRow) {
+                // A viewport change that was not a safe neighboring-row move
+                // needs a full surface rebuild.
+                mSurfaceNeedsFull = true;
+            }
+            // A partial frame cannot carry a viewport move: rows outside its
+            // clip would keep pixels from the old address. Schedule a full
+            // repaint; this frame still paints its clip from a rebuilt surface.
+            if (dirtyRect != null && !fullViewportDirty
+                && (viewportShift != 0 || topRow != mSurfaceTopRow)) {
+                mScrollReplayFailed = true;
                 mSurfaceNeedsFull = true;
             }
         }
@@ -217,6 +241,17 @@ public final class TerminalRenderer {
         final boolean resetSurface = retained
             ? (dirtyRect == null || !pixelsValid || mSurfaceNeedsFull)
             : (dirtyRect == null || !pixelsValid);
+        // A scrollbar-only frame needs no native command at all: the retained
+        // surface already holds the text under the old and new thumb. The canvas
+        // clip restricts this full-width copy to the damaged strip.
+        if (scrollbarBlitOnly && retained && !resetSurface && viewportShift == 0
+            && dirtyRect != null && pixelsValid && !mSurfaceNeedsFull
+            && topRow == mSurfaceTopRow
+            && xOffset == mSurfaceXOffset && yOffset == mSurfaceYOffset
+            && bgColor == mSurfaceBgColor) {
+            blitSurface(canvas, true, topRow, endRow, topRow);
+            return;
+        }
         if (resetSurface) {
             surface.drawColor(bgColor, PorterDuff.Mode.SRC);
             if (retained) {
@@ -245,17 +280,20 @@ public final class TerminalRenderer {
         final float viewRight = viewWidth - xOffset;
         final float gridRight = columns * mFontWidth;
 
+        /*
+         * The native frame header is the source of truth for a partial frame.
+         * Do not turn an empty Java dirty mirror into "redraw the whole band":
+         * the mirror can be empty while native still carries cursor, selection,
+         * or overlay damage. Native already skips clean rows, and the loop
+         * below draws exactly the damage ranges it reports. A legacy native
+         * library without the frame header is handled by re-requesting all rows
+         * once after the first call.
+         */
         boolean forceDraw = resetSurface;
-        if (!forceDraw && dirtyRect != null && pixelsValid) {
-            boolean anyDirty = false;
-            for (int row = renderStartRow; row < renderEndRow; row++) {
-                if (screen.isRowDirty(row)) {
-                    anyDirty = true;
-                    break;
-                }
-            }
-            forceDraw = !anyDirty;
-        }
+        // A native viewport shift already marked the newly exposed rows dirty.
+        // The Java mirror is intentionally not updated for a user scroll (no
+        // append happened), so do not turn the empty mirror into a full draw.
+        if (!resetSurface && viewportShift != 0) forceDraw = false;
         if (!retained) {
             /* No retained surface exists, so no scroll op can move pixels.
              * Generate commands for the whole viewport and paint every row;
@@ -272,18 +310,33 @@ public final class TerminalRenderer {
         // intersect the clip. Native row indices stay absolute (relative to topRow); the
         // renderer still positions them with currentRow - topRow.
         final int renderRows = renderEndRow - renderStartRow;
-        int commandCount;
-        while (true) {
-            commandCount = emulator.fillRenderCommands(mRenderCommands, renderStartRow,
-                selectionY1, selectionY2, selectionX1, selectionX2, mBackgroundAlpha,
-                mFontWidth, mFontLineSpacing, mFontAscent, columns, renderRows);
-            if (commandCount >= 0) break;
-            mRenderCommands = new int[-commandCount];
+        int commandCount = fillCommands(emulator, renderStartRow,
+            selectionY1, selectionY2, selectionX1, selectionX2, columns, renderRows, forceDraw);
+        if (commandCount > 0 && mRenderCommands[0] != OP_FRAME_BEGIN) {
+            /*
+             * Legacy native ABI: no frame header, so the renderer cannot use
+             * native damage ranges to decide rows. Ask for the whole band once;
+             * this preserves the old fallback without paying for it on every
+             * frame produced by the current library.
+             */
+            forceDraw = true;
+            commandCount = fillCommands(emulator, renderStartRow,
+                selectionY1, selectionY2, selectionX1, selectionX2, columns, renderRows, true);
         }
         if (commandCount == 0) {
             surface.restore();
-            if (retained && resetSurface) {
+            if (retained && (resetSurface || viewportShift != 0)) {
+                // A viewport shift moves the bitmap even when native has no row
+                // command to emit; copy the moved surface to the screen.
                 blitSurface(canvas, true, topRow, endRow, topRow);
+            } else if (retained && dirtyRect != null && pixelsValid
+                && !mSurfaceNeedsFull && topRow == mSurfaceTopRow
+                && xOffset == mSurfaceXOffset && yOffset == mSurfaceYOffset
+                && bgColor == mSurfaceBgColor) {
+                // No row changed: this is overlay-only damage (for example a
+                // thumb moving outside the fast path). Copy the valid pixels
+                // back for the requested band instead of leaving stale ones.
+                blitSurface(canvas, false, renderStartRow, renderEndRow, topRow);
             }
             return;
         }
@@ -474,7 +527,9 @@ public final class TerminalRenderer {
         surface.restore();
         blitSurface(canvas, resetSurface, renderStartRow, renderEndRow, topRow,
             imageBlitTop, imageBlitBottom);
-        emulator.commitRenderRows(mPaintedRows, mPaintedRowCount);
+        if (mPaintedRowCount > 0) {
+            emulator.commitRenderRows(mPaintedRows, mPaintedRowCount);
+        }
     }
 
     /**
@@ -518,6 +573,18 @@ public final class TerminalRenderer {
         final boolean failed = mScrollReplayFailed;
         mScrollReplayFailed = false;
         return failed;
+    }
+
+    /**
+     * Move the retained surface by a user-viewport delta. Positive shift means
+     * the viewport moved toward the live bottom (pixels move up); negative
+     * means it moved into history (pixels move down). The newly exposed rows
+     * are already marked damaged by native setView.
+     */
+    private boolean shiftSurface(TerminalEmulator emulator, int shift, int rows) {
+        if (mSurfaceBitmap == null || shift == 0 || Math.abs(shift) >= rows) return false;
+        return emulator.scrollSurfaceRows(
+            mSurfaceBitmap, 0, rows, Math.abs(shift), shift < 0);
     }
 
     /**
@@ -605,6 +672,19 @@ public final class TerminalRenderer {
             mPaintedRows = grown;
         }
         mPaintedRows[mPaintedRowCount++] = row;
+    }
+
+    /** Fill the reusable command buffer, growing it once when native reports the required size. */
+    private int fillCommands(TerminalEmulator emulator, int topRow,
+                             int selectionY1, int selectionY2, int selectionX1, int selectionX2,
+                             int columns, int rows, boolean forceAllRows) {
+        while (true) {
+            final int count = emulator.fillRenderCommands(mRenderCommands, topRow,
+                selectionY1, selectionY2, selectionX1, selectionX2, mBackgroundAlpha,
+                mFontWidth, mFontLineSpacing, mFontAscent, columns, rows, forceAllRows);
+            if (count >= 0) return count;
+            mRenderCommands = new int[-count];
+        }
     }
 
     /**
