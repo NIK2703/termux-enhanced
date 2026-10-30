@@ -1308,7 +1308,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // Same reasoning as the typeface above: the scrollbar belongs to THIS view, so a page
             // bound here would otherwise keep the hardcoded fallback tint, which — unlike the
             // input-panel toggle button — ignores the element-opacity sliders.
-            applyScrollbarColorsTo(terminalView);
+            applyScrollbarStyleTo(terminalView, mActivity.isCachedSchemeLight());
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Error in checkForFontAndColorsForView()", e);
         }
@@ -1629,7 +1629,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
         // Every bound page, not just the active one: a neighbour bound while it was off screen
         // would otherwise keep whatever colours it last saw.
-        forEachBoundTerminalView(this::applyScrollbarColorsTo);
+        forEachBoundTerminalView(view -> applyScrollbarStyleTo(view, isSchemeLight));
     }
 
     /** Black on light schemes, white on dark ones: a black shadow vanishes on a dark terminal. */
@@ -1672,10 +1672,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             mActivity.getResources().getDimension(R.dimen.terminal_text_input_stroke)), stroke);
     }
 
-    /** Push the current floating-control colours onto one page's scrollbar thumb. */
-    private void applyScrollbarColorsTo(@NonNull TerminalView terminalView) {
+    /** Applies the floating-control colours and shadow to one page's thumb View. */
+    private void applyScrollbarStyleTo(@NonNull TerminalView terminalView, boolean isSchemeLight) {
         terminalView.setScrollbarColors(mActivity.getFloatingButtonFill(),
                 mActivity.getFloatingButtonStroke());
+        applyFloatingShadow(terminalView.getScrollbarThumbView(),
+                mActivity.getResources().getDimensionPixelSize(R.dimen.floating_shadow_elevation),
+                floatingShadowColor(isSchemeLight));
     }
 
     /** A plain oval fill (no stroke). */

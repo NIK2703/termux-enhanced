@@ -878,6 +878,10 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         TerminalPageViewHolder(@NonNull View itemView) {
             super(itemView);
             mTerminalView = itemView.findViewById(R.id.terminal_view_page);
+            final View scrollbarThumb = itemView.findViewById(R.id.terminal_scrollbar_thumb);
+            if (mTerminalView != null) {
+                mTerminalView.setScrollbarThumbView(scrollbarThumb);
+            }
             mHintContainer = itemView.findViewById(R.id.terminal_placeholder_hint_container);
             mHintPlus = itemView.findViewById(R.id.terminal_placeholder_hint_plus);
             mHintText = itemView.findViewById(R.id.terminal_placeholder_hint_text);

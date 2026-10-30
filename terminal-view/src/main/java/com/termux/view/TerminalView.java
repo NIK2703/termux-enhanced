@@ -15,6 +15,7 @@ import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -32,6 +33,7 @@ import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityManager;
 import android.view.autofill.AutofillManager;
@@ -432,6 +434,11 @@ public final class TerminalView extends View {
     private int mScrollbarActiveColor   = 0x1F000000;
     /** True once {@link #setScrollbarColors(int, int)} has been called. */
     private boolean mScrollbarColorsSet;
+    /** Optional thumb View for platform elevation; null keeps the canvas thumb. */
+    @Nullable private View mScrollbarThumbView;
+    private final GradientDrawable mScrollbarThumbDrawable = new GradientDrawable();
+    private int mScrollbarThumbDrawableWidth = -1;
+    private boolean mScrollbarThumbDrawableDragging;
 
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     int mCombiningAccent;
@@ -672,6 +679,7 @@ public final class TerminalView extends View {
 
         // System scrollbar is disabled — we draw our own interactive thumb.
         setVerticalScrollBarEnabled(false);
+        updateScrollbarThumbView();
 
         return true;
     }
@@ -918,6 +926,7 @@ public final class TerminalView extends View {
      * invalidated.</p>
      */
     private void repaintAfterUpdate() {
+        updateScrollbarThumbView();
         TerminalBuffer screen = mEmulator.getScreen();
 
         // Thread-safety note: the dirty-state writer (mEmulator.append(), invoked only from
@@ -1016,6 +1025,8 @@ public final class TerminalView extends View {
      * every row; only re-rendering the rows puts them back.</p>
      */
     private void invalidateScrollbarBand() {
+        // The thumb View handles its own invalidation.
+        if (mScrollbarThumbView != null) return;
         // No history → drawScrollbar() draws nothing, so there is no thumb to keep alive.
         if (mEmulator == null || getWidth() <= 0 || getScrollbarRange() <= 0) { return; }
         final int left = Math.max(0, getWidth() - mScrollbarWidth);
@@ -1586,6 +1597,7 @@ public final class TerminalView extends View {
         // each of the ~mRows iterations (PageUp/PageDown, wheel macro) called invalidate() separately.
         if (scrolled) {
             awakenScrollBars();
+            updateScrollbarThumbView();
             invalidate();
         }
     }
@@ -2023,6 +2035,7 @@ public final class TerminalView extends View {
                             // auto-scroll is on and new lines snap the view back to
                             // the bottom mid-drag.
                             mEmulator.setAutoScrollDisabled(mTopRow != 0);
+                            updateScrollbarThumbView();
                             invalidate();
                         }
                         return true;
@@ -2031,6 +2044,7 @@ public final class TerminalView extends View {
                     case MotionEvent.ACTION_CANCEL:
                         mScrollbarDragging = false;
                         requestParentDisallowIntercept(false);
+                        updateScrollbarThumbView();
                         invalidate();
                         return true;
                 }
@@ -2041,6 +2055,7 @@ public final class TerminalView extends View {
                 // Don't jump the thumb: grab the centre and map it straight to mTopRow,
                 // so the thumb stays under the finger and new output doesn't slide it.
                 mScrollbarDragStartRawY = event.getY();
+                updateScrollbarThumbView();
                 invalidate();
                 return true;
             }
@@ -2414,6 +2429,7 @@ public final class TerminalView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         updateSize();
+        updateScrollbarThumbView();
     }
 
     /**
@@ -2440,6 +2456,8 @@ public final class TerminalView extends View {
         if (getWidth() == 0 || getHeight() == 0) return;
         if (mRenderer == null || mRenderer.mFontWidth <= 0 || mRenderer.mFontLineSpacing <= 0) return;
         updateSize();
+        // updateSize() can clamp mTopRow here, outside onSizeChanged()/attachSession().
+        updateScrollbarThumbView();
     }
 
     /** Check if the terminal size in rows and columns should be updated. */
@@ -2663,7 +2681,85 @@ public final class TerminalView extends View {
         mScrollbarInactiveColor = inactiveColor;
         mScrollbarActiveColor = activeColor;
         mScrollbarColorsSet = true;
+        mScrollbarThumbDrawableWidth = -1;
+        updateScrollbarThumbView();
+        // The thumb View invalidates itself; only the fallback canvas needs a full repaint.
+        if (mScrollbarThumbView == null) invalidate();
+    }
+
+    /** Sets the sibling View that carries the thumb shadow; null restores the canvas thumb. */
+    public void setScrollbarThumbView(@Nullable View scrollbarThumbView) {
+        if (mScrollbarThumbView == scrollbarThumbView) return;
+        if (mScrollbarThumbView != null) mScrollbarThumbView.setVisibility(View.INVISIBLE);
+        mScrollbarThumbView = scrollbarThumbView;
+        if (scrollbarThumbView != null) {
+            scrollbarThumbView.setBackground(mScrollbarThumbDrawable);
+            scrollbarThumbView.setClickable(false);
+            scrollbarThumbView.setFocusable(false);
+            scrollbarThumbView.setImportantForAccessibility(
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        clearThumbExtent();
+        updateScrollbarThumbView();
         invalidate();
+    }
+
+    /** Returns the thumb View, or null when the thumb is canvas-drawn. */
+    @Nullable
+    public View getScrollbarThumbView() {
+        return mScrollbarThumbView;
+    }
+
+    /** Positions the thumb View to match the canvas thumb's rect. */
+    private void updateScrollbarThumbView() {
+        final View thumb = mScrollbarThumbView;
+        if (thumb == null) return;
+        if (mEmulator == null || getWidth() <= 0 || getHeight() <= 0
+                || getScrollbarRange() <= 0 || thumb.getParent() != getParent()) {
+            if (thumb.getVisibility() != View.INVISIBLE) thumb.setVisibility(View.INVISIBLE);
+            return;
+        }
+
+        final RectF thumbRect = computeThumbRect();
+        final int width = Math.round(thumbRect.width());
+        final int height = Math.round(thumbRect.height());
+        if (width <= 0 || height <= 0) {
+            if (thumb.getVisibility() != View.INVISIBLE) thumb.setVisibility(View.INVISIBLE);
+            return;
+        }
+
+        final ViewGroup.LayoutParams params = thumb.getLayoutParams();
+        if (params == null) {
+            thumb.setLayoutParams(new ViewGroup.LayoutParams(width, height));
+        } else if (params.width != width || params.height != height) {
+            params.width = width;
+            params.height = height;
+            thumb.setLayoutParams(params);
+        }
+        updateScrollbarThumbDrawable(thumb, width);
+
+        final float left = getX() + thumbRect.left;
+        final float top = getY() + thumbRect.top;
+        if (thumb.getX() != left) thumb.setX(left);
+        if (thumb.getY() != top) thumb.setY(top);
+        if (thumb.getVisibility() != View.VISIBLE) thumb.setVisibility(View.VISIBLE);
+    }
+
+    /** Mirrors the canvas thumb's fill/stroke and rebuilds the shadow outline. */
+    private void updateScrollbarThumbDrawable(View thumb, int width) {
+        if (mScrollbarThumbDrawableWidth == width
+                && mScrollbarThumbDrawableDragging == mScrollbarDragging) {
+            return;
+        }
+        mScrollbarThumbDrawable.setColor(scrollbarThumbFillColor());
+        mScrollbarThumbDrawable.setCornerRadius(width / 2f);
+        mScrollbarThumbDrawable.setStroke(mScrollbarDragging ? 0
+            : Math.max(1, Math.round(mScrollbarThumbStrokePaint.getStrokeWidth())),
+            scrollbarThumbStrokeColor());
+        mScrollbarThumbDrawableWidth = width;
+        mScrollbarThumbDrawableDragging = mScrollbarDragging;
+        // setCornerRadius() does not rebuild the View outline used for the shadow.
+        thumb.invalidateOutline();
     }
 
     /** Whether the finger is on the thumb; cleared by our own ACTION_UP, so read it before that. */
@@ -2677,6 +2773,11 @@ public final class TerminalView extends View {
      * setter has not been called yet (e.g. before the activity fully wires up).
      */
     private void drawScrollbar(Canvas canvas) {
+        // The real thumb View owns drawing in this mode.
+        if (mScrollbarThumbView != null) {
+            clearThumbExtent();
+            return;
+        }
         int range = getScrollbarRange();
         if (range <= 0) {
             // E3: no thumb was painted, so a later thumb-only repaint has no old position to
@@ -2705,12 +2806,7 @@ public final class TerminalView extends View {
         mLastThumbTop = (int) Math.floor(thumbRect.top);
         mLastThumbBottom = (int) Math.ceil(thumbRect.bottom);
 
-        int color;
-        if (mScrollbarColorsSet) {
-            color = mScrollbarDragging ? mScrollbarActiveColor : mScrollbarInactiveColor;
-        } else {
-            color = fallbackScrollbarColor(mScrollbarDragging ? 0x1F : 0x0D);
-        }
+        int color = scrollbarThumbFillColor();
 
         Paint paint = mScrollbarDragging ? mScrollbarThumbActivePaint : mScrollbarThumbPaint;
         paint.setColor(color);
@@ -2718,15 +2814,20 @@ public final class TerminalView extends View {
         canvas.drawRoundRect(thumbRect, radius, radius, paint);
 
         if (!mScrollbarDragging) {
-            int strokeColor;
-            if (mScrollbarColorsSet) {
-                strokeColor = mScrollbarActiveColor;
-            } else {
-                strokeColor = fallbackScrollbarColor(0x1F);
-            }
-            mScrollbarThumbStrokePaint.setColor(strokeColor);
+            mScrollbarThumbStrokePaint.setColor(scrollbarThumbStrokeColor());
             canvas.drawRoundRect(thumbRect, radius, radius, mScrollbarThumbStrokePaint);
         }
+    }
+
+    private int scrollbarThumbFillColor() {
+        if (mScrollbarColorsSet) {
+            return mScrollbarDragging ? mScrollbarActiveColor : mScrollbarInactiveColor;
+        }
+        return fallbackScrollbarColor(mScrollbarDragging ? 0x1F : 0x0D);
+    }
+
+    private int scrollbarThumbStrokeColor() {
+        return mScrollbarColorsSet ? mScrollbarActiveColor : fallbackScrollbarColor(0x1F);
     }
 
     /** Fallback: derive a scrollbar colour from the terminal scheme background on-the-fly (old behaviour). */
@@ -2786,6 +2887,7 @@ public final class TerminalView extends View {
 
     public void setTopRow(int mTopRow) {
         this.mTopRow = mTopRow;
+        updateScrollbarThumbView();
     }
 
     /** @return number of active transcript rows of the attached emulator, or 0. */
@@ -2831,6 +2933,7 @@ public final class TerminalView extends View {
             // or the saved position was "follow the bottom": nothing to restore.
             mTopRow = 0;
             mEmulator.setAutoScrollDisabled(false);
+            updateScrollbarThumbView();
             return;
         }
         int target;
@@ -2847,6 +2950,7 @@ public final class TerminalView extends View {
         // Same contract as doScroll(): scrolled away from the bottom disables
         // follow-to-bottom so incoming output does not snap the restored position.
         mEmulator.setAutoScrollDisabled(mTopRow != 0);
+        updateScrollbarThumbView();
         invalidate();
     }
 

@@ -22,6 +22,19 @@
         android:scrollbarThumbVertical="@drawable/terminal_scroll_shape"
         android:scrollbars="vertical" />
 
+    <!-- Real View for the thumb, for the same elevation shadow as the floating buttons.
+         INVISIBLE (not GONE) so showing it during scrolling does not trigger a layout pass. -->
+    <View
+        android:id="@+id/terminal_scrollbar_thumb"
+        android:layout_width="20dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|start"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no"
+        android:outlineProvider="background"
+        android:visibility="invisible" />
+
     <!-- Placeholder overlay, only visible on the trailing placeholder page (hidden by default).
          Holds two independent layers:
            - terminal_directory_picker: the directory list of the right-swipe picker, drawn onto
