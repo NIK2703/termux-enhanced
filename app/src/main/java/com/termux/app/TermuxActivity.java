@@ -3121,8 +3121,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Resolve off the UI thread: content from providers without a local path is copied into
-     * Termux's attachment directory first.
+     * Resolve off the UI thread; provider lookups can block.
      */
     private void handleAttachmentPickerResult(@NonNull Intent data, boolean directory) {
         final Context appContext = getApplicationContext();
@@ -3138,6 +3137,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     }
                     insertPathsIntoTextInput(paths);
                 });
+            } catch (AttachmentPicker.FileNotLocalException e) {
+                showAttachmentPickerError(R.string.attachment_picker_file_not_local, e);
             } catch (AttachmentPicker.DirectoryNotLocalException e) {
                 showAttachmentPickerError(R.string.attachment_picker_directory_not_local, e);
             } catch (Exception e) {

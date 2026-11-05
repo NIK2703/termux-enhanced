@@ -51,6 +51,7 @@
     <string name="action_input_attach">Attach file</string>
     <string name="attachment_picker_error">Could not attach the selected item</string>
     <string name="attachment_picker_empty">No readable items selected</string>
+    <string name="attachment_picker_file_not_local">This file is not available as a local path</string>
     <string name="attachment_picker_directory_not_local">This directory is not available as a local path</string>
 
     <string name="msg_terminal_panel_enabling">Enabling terminal panel</string>

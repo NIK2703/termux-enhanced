@@ -10,18 +10,11 @@ import android.net.Uri;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
-import android.provider.OpenableColumns;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.termux.shared.termux.TermuxConstants;
-
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -29,9 +22,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Resolves SAF picker results to local paths for the terminal input. Picked files without a
- * local path are copied to {@code $HOME/.termux/tmp/attachments}; directories that are not
- * local are rejected with {@link DirectoryNotLocalException}.
+ * Resolves SAF picker results to local paths for the terminal input. Items without a readable
+ * local path are rejected with {@link FileNotLocalException} or {@link DirectoryNotLocalException}.
  */
 public final class AttachmentPicker {
 
@@ -42,10 +34,6 @@ public final class AttachmentPicker {
     private static final String AUTHORITY_DOWNLOADS = "com.android.providers.downloads.documents";
     private static final String AUTHORITY_MEDIA = "com.android.providers.media.documents";
     private static final String DOWNLOADS_PUBLIC_URI = "content://downloads/public_downloads";
-    private static final String ATTACHMENTS_DIR =
-        TermuxConstants.TERMUX_HOME_DIR_PATH + "/.termux/tmp/attachments";
-    private static final String DEFAULT_FILE_NAME = "attachment";
-    private static final int MAX_FILE_NAME_LENGTH = 128;
 
     private AttachmentPicker() {
     }
@@ -66,7 +54,12 @@ public final class AttachmentPicker {
         return new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
     }
 
-    /** Returns local paths for the picker result, preserving order and dropping duplicates. */
+    /**
+     * Returns local paths for the picker result, preserving order and dropping duplicates.
+     *
+     * @throws FileNotLocalException if a selected file has no readable local path.
+     * @throws DirectoryNotLocalException if the selected directory has no local path.
+     */
     @NonNull
     public static List<String> resolve(@NonNull Context context, @NonNull Intent data,
                                        boolean directory) throws IOException {
@@ -82,7 +75,7 @@ public final class AttachmentPicker {
         Set<String> paths = new LinkedHashSet<>();
         for (Uri uri : getSelectedUris(data)) {
             String path = resolveFilePath(context, uri);
-            if (path == null) path = copyToAttachments(context, uri);
+            if (path == null) throw new FileNotLocalException(uri);
             paths.add(path);
         }
         return new ArrayList<>(paths);
@@ -153,12 +146,15 @@ public final class AttachmentPicker {
             return readablePath(uri.getPath());
         }
 
-        if (!DocumentsContract.isDocumentUri(context, uri)) return null;
+        if (!DocumentsContract.isDocumentUri(context, uri)) {
+            return readablePath(queryDataColumn(context, uri));
+        }
 
         String documentId = getDocumentId(uri);
         if (documentId == null) return null;
-        String path = resolveDocumentId(context, authority, documentId, uri);
-        return readablePath(path);
+        String path = readablePath(resolveDocumentId(context, authority, documentId));
+        if (path == null) path = readablePath(queryDataColumn(context, uri));
+        return path;
     }
 
     @Nullable
@@ -180,12 +176,14 @@ public final class AttachmentPicker {
         } else if (AUTHORITY_EXTERNAL_STORAGE.equals(authority)) {
             path = resolveExternalStorageDocumentId(documentId);
         } else if (AUTHORITY_DOWNLOADS.equals(authority)) {
-            path = resolveDownloadsDocumentId(context, documentId, treeUri);
+            path = resolveDownloadsDocumentId(context, documentId);
         } else if (documentId.startsWith("/")) {
             path = documentId;
         } else {
             path = null;
         }
+
+        if (path == null) path = queryDataColumn(context, treeUri);
 
         if (path == null) return null;
         File directory = new File(path);
@@ -195,22 +193,21 @@ public final class AttachmentPicker {
 
     @Nullable
     private static String resolveDocumentId(@NonNull Context context, @NonNull String authority,
-                                             @NonNull String documentId, @NonNull Uri uri) {
+                                             @NonNull String documentId) {
         if (AUTHORITY_EXTERNAL_STORAGE.equals(authority)) {
             return resolveExternalStorageDocumentId(documentId);
         }
         if (AUTHORITY_DOWNLOADS.equals(authority)) {
-            return resolveDownloadsDocumentId(context, documentId, uri);
+            return resolveDownloadsDocumentId(context, documentId);
         }
         if (AUTHORITY_MEDIA.equals(authority)) {
-            return resolveMediaDocumentId(context, documentId, uri);
+            return resolveMediaDocumentId(context, documentId);
         }
 
         // Some third-party providers use absolute paths as document ids.
         if (documentId.startsWith("/")) return documentId;
 
-        // Legacy _data column is a best-effort fallback; callers copy the stream if it is absent.
-        return queryDataColumn(context, uri);
+        return null;
     }
 
     @Nullable
@@ -236,7 +233,7 @@ public final class AttachmentPicker {
     }
 
     @Nullable
-    private static String buildPathUnderRoot(@NonNull File root, @NonNull String relativePath) {
+    static String buildPathUnderRoot(@NonNull File root, @NonNull String relativePath) {
         try {
             File canonicalRoot = root.getCanonicalFile();
             File candidate = relativePath.isEmpty()
@@ -255,33 +252,26 @@ public final class AttachmentPicker {
 
     @Nullable
     private static String resolveDownloadsDocumentId(@NonNull Context context,
-                                                      @NonNull String documentId,
-                                                      @NonNull Uri uri) {
+                                                      @NonNull String documentId) {
         if (documentId.startsWith("raw:")) return documentId.substring(4);
-
-        String data = queryDataColumn(context, uri);
-        if (data != null) return data;
 
         if (documentId.startsWith("msf:")) {
             Long id = parseLong(documentId.substring(4));
-            if (id == null) return null;
-            return queryDataColumn(context,
-                ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id));
+            return id == null ? null : queryMediaStoreDataColumn(context, id);
         }
 
         Long id = parseLong(documentId);
         if (id == null) return null;
+
+        // Legacy DownloadManager ids are not MediaStore ids; only the old provider URI maps
+        // them safely. It is gone on recent Android versions.
         return queryDataColumn(context,
             ContentUris.withAppendedId(Uri.parse(DOWNLOADS_PUBLIC_URI), id));
     }
 
     @Nullable
     private static String resolveMediaDocumentId(@NonNull Context context,
-                                                 @NonNull String documentId,
-                                                 @NonNull Uri uri) {
-        String data = queryDataColumn(context, uri);
-        if (data != null) return data;
-
+                                                 @NonNull String documentId) {
         int separator = documentId.indexOf(':');
         if (separator < 0) return null;
 
@@ -317,6 +307,12 @@ public final class AttachmentPicker {
     }
 
     @Nullable
+    private static String queryMediaStoreDataColumn(@NonNull Context context, long id) {
+        return queryDataColumn(context,
+            ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id));
+    }
+
+    @Nullable
     private static String queryDataColumn(@NonNull Context context, @NonNull Uri uri) {
         try (Cursor cursor = context.getContentResolver().query(
             uri, new String[]{"_data"}, null, null, null)) {
@@ -328,106 +324,16 @@ public final class AttachmentPicker {
                 }
             }
         } catch (Exception ignored) {
-            // Providers may not expose _data; the caller copies the stream instead.
+            // _data is optional and may be unavailable.
         }
         return null;
     }
 
-    @NonNull
-    private static String copyToAttachments(@NonNull Context context, @NonNull Uri uri)
-        throws IOException {
-        File directory = new File(ATTACHMENTS_DIR);
-        if (!directory.isDirectory() && !directory.mkdirs()) {
-            throw new IOException("Cannot create attachment directory: " + directory);
-        }
-
-        File target = uniqueFile(directory, sanitizeFileName(queryDisplayName(context, uri)));
-        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
-            if (input == null) throw new FileNotFoundException("Cannot open " + uri);
-            try (OutputStream output = new FileOutputStream(target)) {
-                byte[] buffer = new byte[8192];
-                int read;
-                while ((read = input.read(buffer)) != -1) {
-                    output.write(buffer, 0, read);
-                }
-            }
-        } catch (IOException | RuntimeException e) {
-            // Do not leave a truncated file behind if the copy fails.
-            //noinspection ResultOfMethodCallIgnored
-            target.delete();
-            throw e;
-        }
-        return target.getAbsolutePath();
-    }
-
-    @NonNull
-    private static String queryDisplayName(@NonNull Context context, @NonNull Uri uri) {
-        try (Cursor cursor = context.getContentResolver().query(
-            uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (column >= 0) {
-                    String name = cursor.getString(column);
-                    if (name != null && !name.isEmpty()) return name;
-                }
-            }
-        } catch (Exception ignored) {
-        }
-
-        String fallback = uri.getLastPathSegment();
-        return fallback == null || fallback.isEmpty() ? DEFAULT_FILE_NAME : fallback;
-    }
-
-    /** Sanitizes a provider display name so it cannot escape the attachments directory. */
-    @NonNull
-    static String sanitizeFileName(@Nullable String name) {
-        if (name == null || name.isEmpty()) return DEFAULT_FILE_NAME;
-
-        String cleaned = name.replace('/', '_')
-            .replace('\\', '_')
-            .replace('\0', '_')
-            .replace('\n', '_')
-            .replace('\r', '_')
-            .replace('\t', '_')
-            .trim();
-        if (cleaned.isEmpty() || ".".equals(cleaned) || "..".equals(cleaned)) {
-            return DEFAULT_FILE_NAME;
-        }
-
-        if (cleaned.length() > MAX_FILE_NAME_LENGTH) {
-            int dot = cleaned.lastIndexOf('.');
-            String extension = dot > 0 && cleaned.length() - dot <= 16
-                ? cleaned.substring(dot) : "";
-            int baseLength = Math.max(1, MAX_FILE_NAME_LENGTH - extension.length());
-            cleaned = cleaned.substring(0, baseLength) + extension;
-        }
-        return cleaned;
-    }
-
-    @NonNull
-    private static File uniqueFile(@NonNull File directory, @NonNull String name) {
-        File candidate = new File(directory, name);
-        if (!candidate.exists()) return candidate;
-
-        String base = name;
-        String extension = "";
-        int dot = name.lastIndexOf('.');
-        if (dot > 0) {
-            base = name.substring(0, dot);
-            extension = name.substring(dot);
-        }
-        for (int i = 2; i < 10000; i++) {
-            candidate = new File(directory, base + " (" + i + ")" + extension);
-            if (!candidate.exists()) return candidate;
-        }
-        return new File(directory, System.currentTimeMillis() + "-" + name);
-    }
-
     @Nullable
-    private static String readablePath(@Nullable String path) {
+    static String readablePath(@Nullable String path) {
         if (path == null || path.isEmpty()) return null;
         File file = new File(path);
-        return file.canRead() ? file.getAbsolutePath() : null;
+        return file.isFile() && file.canRead() ? file.getAbsolutePath() : null;
     }
 
     @Nullable
@@ -442,6 +348,13 @@ public final class AttachmentPicker {
     private static boolean isTermuxDocumentsAuthority(@NonNull Context context,
                                                        @NonNull String authority) {
         return (context.getPackageName() + ".documents").equals(authority);
+    }
+
+    /** Thrown when a picked file has no readable local filesystem path. */
+    public static final class FileNotLocalException extends IOException {
+        public FileNotLocalException(@NonNull Uri uri) {
+            super("The selected file is not available as a local path: " + uri);
+        }
     }
 
     /** Thrown when a picked directory has no local filesystem path. */
