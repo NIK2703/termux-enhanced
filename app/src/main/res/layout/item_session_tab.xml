@@ -7,7 +7,7 @@
     android:gravity="center_vertical"
     android:background="@drawable/session_tab_background"
     android:paddingStart="12dp"
-    android:paddingEnd="4dp">
+    android:paddingEnd="@dimen/terminal_tab_padding_end">
 
     <TextView
         android:id="@+id/session_tab_title"

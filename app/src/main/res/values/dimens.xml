@@ -6,6 +6,7 @@
     <dimen name="terminal_tab_corner_radius">18dp</dimen>
     <dimen name="terminal_tab_padding_start_single">8dp</dimen>
     <dimen name="terminal_tab_padding_start_double">12dp</dimen>
+    <dimen name="terminal_tab_padding_end">4dp</dimen>
     <!-- Long titles keep a fixed tab width: title cap + close gap + close size. The
          close footprint moves to the title when the close button is hidden. -->
     <dimen name="terminal_tab_title_max_width">100dp</dimen>

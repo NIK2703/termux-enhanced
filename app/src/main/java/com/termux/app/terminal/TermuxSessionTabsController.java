@@ -64,15 +64,16 @@ public class TermuxSessionTabsController {
 
     /**
      * Cached, resolved metrics + preference values. Read through {@link #ensureDimens()} so a
-     * title refresh no longer hits SharedPreferences twice (and {@code getDimension()} four
-     * times) per tab per frame — with 8 tabs at 10-30 Hz that was ~500 synchronized SP reads
-     * and ~1000 resource lookups per second for values that essentially never change.
+     * title refresh no longer hits SharedPreferences repeatedly (and {@code getDimension()} a
+     * handful of times) per tab per frame — with 8 tabs at 10-30 Hz that was ~500 synchronized
+     * SP reads and ~1000 resource lookups per second for values that essentially never change.
      * Invalidated by {@link #invalidateDimens()} (tab-height mode change / styling reload).
      */
     private boolean mDimensCached = false;
     private boolean mSingleLineMode = true;
     private int mTabHeightPx = 0;
     private int mPadStartPx = 0;
+    private int mPadEndPx = 0;
     private int mCloseGapPx = 0;
     private int mCloseWidthPx = 0;
     private int mTitleMaxWidthPx = 0;
@@ -96,6 +97,7 @@ public class TermuxSessionTabsController {
         String title;              // full source title, before truncation/fade
         int maxLines = -1;
         int padStart = -1;
+        int padEnd = -1;
         int maxWidthApplied = -1;  // last title maxWidth applied
         int closeMarginApplied = -1; // last close-button marginStart applied
         int bgColor;               // last background colour applied
@@ -136,6 +138,7 @@ public class TermuxSessionTabsController {
         mPadStartPx = Math.round(r.getDimension(mSingleLineMode
                 ? R.dimen.terminal_tab_padding_start_single
                 : R.dimen.terminal_tab_padding_start_double));
+        mPadEndPx = Math.round(r.getDimension(R.dimen.terminal_tab_padding_end));
         mCloseGapPx = Math.round(r.getDimension(R.dimen.terminal_tab_close_gap));
         mCloseWidthPx = Math.round(r.getDimension(R.dimen.terminal_tab_close_size));
         mTitleMaxWidthPx = Math.round(r.getDimension(R.dimen.terminal_tab_title_max_width));
@@ -216,7 +219,7 @@ public class TermuxSessionTabsController {
         return mTabsContainer.getChildAt(index);
     }
 
-    /** Re-apply height, max-lines and start padding to all existing tab views. */
+    /** Re-apply height, max-lines, side padding and title layout to existing tabs. */
     public void applyTabHeightMode() {
         if (mTabsContainer == null) return;
         // The tab-height preference just changed — the cached metrics are stale.
@@ -224,7 +227,6 @@ public class TermuxSessionTabsController {
         ensureDimens();
         final int heightPx = mTabHeightPx;
         final boolean singleLine = mSingleLineMode;
-        final int padStartPx = mPadStartPx;
         for (int i = 0, n = getTabCount(); i < n; i++) {
             View tabView = getTabAt(i);
             if (tabView == null) continue;
@@ -232,16 +234,30 @@ public class TermuxSessionTabsController {
             if (lp == null) continue;
             lp.height = heightPx;
             tabView.setLayoutParams(lp);
-            tabView.setPadding(padStartPx,
-                    tabView.getPaddingTop(),
-                    tabView.getPaddingRight(),
-                    tabView.getPaddingBottom());
             TabRenderState state = getRenderState(tabView);
-            if (state.titleView != null) state.titleView.setMaxLines(singleLine ? 1 : 2);
+            boolean closeVisible = state.closeButton != null
+                    && state.closeButton.getVisibility() == View.VISIBLE;
+            applyTabSidePadding(tabView, state, closeVisible);
+            if (state.titleView != null) {
+                state.titleView.setMaxLines(singleLine ? 1 : 2);
+                applyTitleLayout(state, closeVisible);
+            }
         }
         // The populateTabView diff cache holds values applied under the previous height/mode;
         // drop it so the next refresh re-applies every attribute with the new settings.
         invalidateRenderStateCache();
+    }
+
+    /** Apply start/end insets; inactive tabs mirror the start inset on the end. */
+    private void applyTabSidePadding(View tabView, TabRenderState state, boolean closeVisible) {
+        ensureDimens();
+        final int desiredPadStart = mPadStartPx;
+        final int desiredPadEnd = closeVisible ? mPadEndPx : desiredPadStart;
+        if (state.padStart == desiredPadStart && state.padEnd == desiredPadEnd) return;
+        state.padStart = desiredPadStart;
+        state.padEnd = desiredPadEnd;
+        tabView.setPaddingRelative(desiredPadStart, tabView.getPaddingTop(),
+                desiredPadEnd, tabView.getPaddingBottom());
     }
 
     public void updateTabs(List<TermuxSession> sessions) {
@@ -464,16 +480,6 @@ public class TermuxSessionTabsController {
             linesChanged = true;
         }
 
-        // Start padding: apply only on change — View.setPadding() requests a relayout
-        // unconditionally. Tighter for single-line (compact) tabs; the XML default (12dp)
-        // applies to double-line tabs so the title has room for two lines.
-        int desiredPadStart = mPadStartPx;
-        if (state.padStart != desiredPadStart) {
-            state.padStart = desiredPadStart;
-            tabView.setPadding(desiredPadStart, tabView.getPaddingTop(),
-                    tabView.getPaddingRight(), tabView.getPaddingBottom());
-        }
-
         final boolean selectionChanged = state.selected != isSelected;
         // GONE lets the title use the close button's footprint.
         boolean closeVisibilityChanged = false;
@@ -482,6 +488,8 @@ public class TermuxSessionTabsController {
             closeVisibilityChanged = closeButton.getVisibility() != desiredVisibility;
             if (closeVisibilityChanged) closeButton.setVisibility(desiredVisibility);
         }
+
+        applyTabSidePadding(tabView, state, isSelected && closeButton != null);
 
         if (terminalSession != null) {
             String name = terminalSession.mSessionName;
@@ -733,9 +741,10 @@ public class TermuxSessionTabsController {
         final int baseMaxWidth = mTitleMaxWidthPx;
         final int gap = mCloseGapPx;
         final int closeWidth = mCloseWidthPx;
-        // Active uses the gap; inactive also gets the close footprint for a fixed width.
+        // The extra end inset on inactive tabs comes out of the reclaimed close footprint.
         final int activeTitleWidth = baseMaxWidth + gap;
-        final int truncatedTabWidth = activeTitleWidth + closeWidth;
+        final int inactiveTitleWidth = activeTitleWidth + closeWidth
+                - Math.max(0, mPadStartPx - mPadEndPx);
 
         // The base cap keeps this decision stable while the close button toggles.
         final TitleRender atBase = renderTitle(titleView, state.title, baseMaxWidth);
@@ -748,12 +757,12 @@ public class TermuxSessionTabsController {
         final TitleRender render;
 
         if (titleTruncated) {
-            maxWidth = closeVisible ? activeTitleWidth : truncatedTabWidth;
+            maxWidth = closeVisible ? activeTitleWidth : inactiveTitleWidth;
             closeMargin = 0;
             if (multiLine) {
                 // Share the first-line break; each state's second line fills its own edge.
                 render = renderTwoLineTitle(titleView, state.title,
-                        activeTitleWidth, truncatedTabWidth, maxWidth);
+                        activeTitleWidth, inactiveTitleWidth, maxWidth);
             } else {
                 render = maxWidth == baseMaxWidth
                         ? atBase
@@ -1250,6 +1259,7 @@ public class TermuxSessionTabsController {
                     state.closeButton.setVisibility(desiredVisibility);
                 }
             }
+            applyTabSidePadding(child, state, isSelected && state.closeButton != null);
             if ((selectionChanged || closeVisibilityChanged) && state.title != null) {
                 applyTitleLayout(state, isSelected && state.closeButton != null);
             }
@@ -1367,6 +1377,7 @@ public class TermuxSessionTabsController {
         if (closeButton.getVisibility() == desiredVisibility) return;
         closeButton.setVisibility(desiredVisibility);
         TabRenderState state = getRenderState(tabView);
+        applyTabSidePadding(tabView, state, visible);
         if (state.title != null) applyTitleLayout(state, visible);
     }
 
