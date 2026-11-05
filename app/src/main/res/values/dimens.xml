@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Tab dimensions -->
-    <dimen name="terminal_tab_height_double">36dp</dimen>
+    <dimen name="terminal_tab_height_double">34dp</dimen>
     <dimen name="terminal_tab_height_single">24dp</dimen>
     <dimen name="terminal_tab_corner_radius">18dp</dimen>
     <dimen name="terminal_tab_padding_start_single">8dp</dimen>

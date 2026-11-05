@@ -15,6 +15,7 @@
         android:layout_height="wrap_content"
         android:maxWidth="@dimen/terminal_tab_title_max_width"
         android:maxLines="2"
+        android:lineSpacingExtra="-2dp"
         android:textSize="13sp"
         android:textColor="?attr/colorOnSurface" />
 

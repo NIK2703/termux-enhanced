@@ -609,12 +609,19 @@ public class TermuxSessionTabsController {
             return buildFadedTitle(text, visibleEnd);
         }
 
-        final StaticLayout layout;
+        final StaticLayout layout = buildStaticLayout(tv, text, maxWidthPx, maxLines);
+        if (layout.getLineCount() <= maxLines) return new TitleRender(text, false);
+        return buildFadedTitle(text, layout.getLineEnd(maxLines - 1));
+    }
+
+    @androidx.annotation.NonNull
+    private static StaticLayout buildStaticLayout(TextView tv, CharSequence text,
+                                                   int maxWidthPx, int maxLines) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // maxLines + 1 keeps overflow detectable after setMaxLines().
+            // One extra line makes overflow detectable after maxLines.
             final int layoutMaxLines = maxLines == Integer.MAX_VALUE
                     ? Integer.MAX_VALUE : maxLines + 1;
-            layout = StaticLayout.Builder.obtain(text, 0, text.length(), tv.getPaint(), maxWidthPx)
+            return StaticLayout.Builder.obtain(text, 0, text.length(), tv.getPaint(), maxWidthPx)
                     .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                     .setLineSpacing(tv.getLineSpacingExtra(), tv.getLineSpacingMultiplier())
                     .setIncludePad(tv.getIncludeFontPadding())
@@ -623,15 +630,68 @@ public class TermuxSessionTabsController {
                     .setEllipsize(null)
                     .setMaxLines(layoutMaxLines)
                     .build();
-        } else {
-            // Builder is unavailable before API 23; this constructor lays out every line.
-            layout = new StaticLayout(text, tv.getPaint(), maxWidthPx,
-                    Layout.Alignment.ALIGN_NORMAL, tv.getLineSpacingMultiplier(),
-                    tv.getLineSpacingExtra(), tv.getIncludeFontPadding());
         }
+        return new StaticLayout(text, tv.getPaint(), maxWidthPx,
+                Layout.Alignment.ALIGN_NORMAL, tv.getLineSpacingMultiplier(),
+                tv.getLineSpacingExtra(), tv.getIncludeFontPadding());
+    }
 
-        if (layout.getLineCount() <= maxLines) return new TitleRender(text, false);
-        return buildFadedTitle(text, layout.getLineEnd(maxLines - 1));
+    /**
+     * Returns the first-line break shared by both widths, or -1 for a single-line title.
+     * Prefers the wide layout's balanced break; falls back to the narrow layout's break
+     * when that prefix does not fit.
+     */
+    private int sharedFirstLineEnd(TextView tv, String source, int narrowWidth, int wideWidth) {
+        if (source.isEmpty()) return -1;
+        int maxLines = tv.getMaxLines();
+        if (maxLines <= 0) maxLines = Integer.MAX_VALUE;
+
+        final StaticLayout wide = buildStaticLayout(tv, source, wideWidth, maxLines);
+        if (wide.getLineCount() >= 2 && wide.getLineMax(0) <= narrowWidth) {
+            return wide.getLineEnd(0);
+        }
+        final StaticLayout narrow = buildStaticLayout(tv, source, narrowWidth, maxLines);
+        if (narrow.getLineCount() < 2) return -1;
+        return narrow.getLineEnd(0);
+    }
+
+    /** Renders two lines with a shared break and fills line two to the current edge. */
+    @androidx.annotation.NonNull
+    private TitleRender renderTwoLineTitle(TextView tv, String source,
+                                           int narrowWidth, int wideWidth, int maxWidthPx) {
+        final int firstLineEnd = sharedFirstLineEnd(tv, source, narrowWidth, wideWidth);
+        if (firstLineEnd < 0) return renderTitle(tv, source, maxWidthPx);
+
+        int line1End = firstLineEnd;
+        while (line1End > 0 && Character.isWhitespace(source.charAt(line1End - 1))) {
+            line1End--;
+        }
+        if (line1End <= 0) return renderTitle(tv, source, maxWidthPx);
+        final String line1 = source.substring(0, line1End);
+
+        int line2Start = firstLineEnd;
+        // getLineEnd() usually includes the hard newline; tolerate platforms where it
+        // stops just before it.
+        if (line2Start < source.length() && source.charAt(line2Start) == '\r') line2Start++;
+        if (line2Start < source.length() && source.charAt(line2Start) == '\n') line2Start++;
+        if (line2Start >= source.length()) return new TitleRender(line1, false);
+
+        int line2Limit = line2Start;
+        while (line2Limit < source.length()
+                && source.charAt(line2Limit) != '\n'
+                && source.charAt(line2Limit) != '\r') {
+            line2Limit++;
+        }
+        final int line2Length = line2Limit - line2Start;
+        final int line2Chars = tv.getPaint().breakText(
+                source, line2Start, line2Limit, true, maxWidthPx, null);
+        if (line2Chars <= 0) return renderTitle(tv, source, maxWidthPx);
+
+        final String visible = line1 + "\n"
+                + source.substring(line2Start, line2Start + line2Chars);
+        final boolean moreText = line2Chars < line2Length || line2Limit < source.length();
+        if (!moreText) return new TitleRender(visible, false);
+        return buildFadedTitle(visible, visible.length());
     }
 
     /** Builds the visible prefix with the final three code points progressively faded. */
@@ -673,24 +733,35 @@ public class TermuxSessionTabsController {
         final int baseMaxWidth = mTitleMaxWidthPx;
         final int gap = mCloseGapPx;
         final int closeWidth = mCloseWidthPx;
-        final int truncatedTabWidth = baseMaxWidth + gap + closeWidth;
+        // Active uses the gap; inactive also gets the close footprint for a fixed width.
+        final int activeTitleWidth = baseMaxWidth + gap;
+        final int truncatedTabWidth = activeTitleWidth + closeWidth;
 
         // The base cap keeps this decision stable while the close button toggles.
         final TitleRender atBase = renderTitle(titleView, state.title, baseMaxWidth);
         final boolean titleTruncated = atBase.truncated;
+        final int titleMaxLines = titleView.getMaxLines();
+        final boolean multiLine = titleMaxLines <= 0 || titleMaxLines > 1;
 
         final int maxWidth;
         final int closeMargin;
         final TitleRender render;
 
         if (titleTruncated) {
-            maxWidth = closeVisible ? baseMaxWidth + gap : truncatedTabWidth;
+            maxWidth = closeVisible ? activeTitleWidth : truncatedTabWidth;
             closeMargin = 0;
-            render = maxWidth == baseMaxWidth
-                    ? atBase
-                    : renderTitle(titleView, state.title, maxWidth);
+            if (multiLine) {
+                // Share the first-line break; each state's second line fills its own edge.
+                render = renderTwoLineTitle(titleView, state.title,
+                        activeTitleWidth, truncatedTabWidth, maxWidth);
+            } else {
+                render = maxWidth == baseMaxWidth
+                        ? atBase
+                        : renderTitle(titleView, state.title, maxWidth);
+            }
         } else {
-            maxWidth = closeVisible ? baseMaxWidth : truncatedTabWidth;
+            // Same cap in both states keeps natural breaks identical.
+            maxWidth = baseMaxWidth;
             closeMargin = closeVisible ? gap : 0;
             render = atBase;
         }
