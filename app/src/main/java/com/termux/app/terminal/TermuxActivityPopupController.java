@@ -11,11 +11,15 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.ContextMenu;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.ScrollView;
@@ -100,6 +104,13 @@ public final class TermuxActivityPopupController {
     private float mHistoryFingerY = 0f;
     /** Timestamp of the last auto-scroll tick, for frame-rate-independent velocity. */
     private long mHistoryLastScrollTimeMs = 0;
+    @Nullable private View mHistoryAnchor = null;
+    private boolean mHistoryInteractive = false;
+    private int mHistoryPopupWidthPx = 0;
+    private int mHistoryPopupMaxHeightPx = 0;
+    private int mHistoryPopupGapPx = 0;
+    /** Invalidates delayed rebuild callbacks from an older popup. */
+    private int mHistoryPopupGeneration = 0;
 
     // Context menu item ids (mirrors TermuxActivity definitions).
     private static final int CONTEXT_MENU_SELECT_URL_ID = 0;
@@ -122,6 +133,10 @@ public final class TermuxActivityPopupController {
     private static final int MESSAGE_HISTORY_SAVE_TAG = -4;
     private static final int MESSAGE_HISTORY_CLEAR_ONLY_TAG = -5;
 
+    private static final int HISTORY_DELETE_BG = 0xFFB3261E;
+    private static final int HISTORY_DELETE_ANIM_MS = 140;
+    private static final int HISTORY_DELETE_RESTORE_MS = 160;
+
     public TermuxActivityPopupController(@NonNull Context context, @NonNull Host host,
                                           @NonNull TermuxColorSchemeManager colorSchemeManager) {
         mContext = context;
@@ -134,6 +149,13 @@ public final class TermuxActivityPopupController {
         mMessageHistoryCtrl = controller;
     }
 
+    @NonNull
+    private String getInputFieldText() {
+        EditText inputField = ((Activity) mContext).findViewById(R.id.terminal_toolbar_text_input);
+        return inputField != null && inputField.getText() != null
+                ? inputField.getText().toString() : "";
+    }
+
     public void showMessageHistoryPopup(@NonNull View anchor) {
         showMessageHistoryPopup(anchor, false);
     }
@@ -144,6 +166,7 @@ public final class TermuxActivityPopupController {
      */
     public void showMessageHistoryPopup(@NonNull View anchor, boolean interactive) {
         dismissMessageHistoryPopup();
+        mHistoryPopupGeneration++;
         mHistoryItemViews.clear();
         mHistoryHighlightIndex = -1;
 
@@ -162,9 +185,7 @@ public final class TermuxActivityPopupController {
 
         // Empty state detection: no history and no typed text.
         boolean hasHistory = mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty();
-        final EditText inputField = ((Activity) mContext).findViewById(R.id.terminal_toolbar_text_input);
-        final String inputText = inputField != null && inputField.getText() != null
-                ? inputField.getText().toString() : "";
+        final String inputText = getInputFieldText();
         boolean emptyState = !hasHistory && TextUtils.isEmpty(inputText);
         LinearLayout content = new LinearLayout(mContext);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -220,7 +241,7 @@ public final class TermuxActivityPopupController {
                 tv.setClickable(true);
                 // Tag with the real history index so highlight/selection maps back.
                 tv.setTag(i);
-                addFullWidthRow(content, tv);
+                addFullWidthRow(content, interactive ? createSwipeableHistoryRow(tv) : tv);
                 mHistoryItemViews.add(tv);
             }
         }
@@ -244,8 +265,18 @@ public final class TermuxActivityPopupController {
 
         if (interactive) {
             for (View row : mHistoryItemViews) {
-                if (row == mHistoryActionRow) bindInteractiveInputHistoryActionRow();
-                else bindInteractiveHistoryRow(row);
+                if (row == mHistoryActionRow) {
+                    bindInteractiveInputHistoryActionRow();
+                } else if (row.getTag() instanceof Integer && (Integer) row.getTag() >= 0) {
+                    int index = (Integer) row.getTag();
+                    if (mMessageHistoryCtrl != null
+                            && index < mMessageHistoryCtrl.getHistoryList().size()) {
+                        bindInteractiveMessageRow(row,
+                                mMessageHistoryCtrl.getHistoryList().get(index));
+                    }
+                } else {
+                    bindInteractiveHistoryRow(row);
+                }
             }
         }
 
@@ -345,6 +376,11 @@ public final class TermuxActivityPopupController {
         int popupHeight = Math.min(contentHeight, maxHeight);
         mHistoryPopup.setHeight(popupHeight);
         mHistoryPopup.showAsDropDown(anchor, 0, -(anchor.getHeight() + popupHeight + popupGap), Gravity.START);
+        mHistoryAnchor = anchor;
+        mHistoryInteractive = interactive;
+        mHistoryPopupWidthPx = popupWidth;
+        mHistoryPopupMaxHeightPx = maxHeight;
+        mHistoryPopupGapPx = popupGap;
 
         // Open at the END of the list: newest is at the bottom, so start scrolled
         // fully down so the newest messages (nearest the button) are visible.
@@ -384,6 +420,30 @@ public final class TermuxActivityPopupController {
         content.addView(child, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    /** Wrap a tappable row in the red delete underlay revealed by a left swipe. */
+    @NonNull
+    private View createSwipeableHistoryRow(@NonNull TextView row) {
+        FrameLayout holder = new FrameLayout(mContext);
+        holder.setBackgroundColor(HISTORY_DELETE_BG);
+        // Keep the row opaque so the red underlay shows only where it slid away.
+        row.setBackgroundColor(mColorSchemeManager.getHistoryPopupBg());
+
+        ImageView icon = new ImageView(mContext);
+        icon.setImageResource(R.drawable.ic_delete);
+        icon.setColorFilter(Color.WHITE);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        int iconSize = TermuxActivityUtils.dpToPx(mContext, 24);
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                iconSize, iconSize, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        iconParams.rightMargin = TermuxActivityUtils.dpToPx(mContext, 20);
+        holder.addView(icon, iconParams);
+
+        holder.addView(row, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        return holder;
     }
 
     /** Centred all-caps bold synthetic action row ("CLEAR HISTORY…" / "Clear"). */
@@ -521,14 +581,94 @@ public final class TermuxActivityPopupController {
                 && rawX <= rowLeft + segment.getRight();
     }
 
-    /** Tapping a row runs the same action as the pencil release and closes the popup. */
+    /** Tap to pick, swipe left to delete; vertical drags stay with the ScrollView. */
+    private void bindInteractiveMessageRow(@NonNull View row, @NonNull String message) {
+        final int normal = mColorSchemeManager.getHistoryPopupBg();
+        final int highlight = TermuxColorSchemeManager.compositeColors(
+                normal, mColorSchemeManager.getHistoryHighlightFill());
+        final int touchSlop = ViewConfiguration.get(mContext).getScaledTouchSlop();
+        final float[] down = new float[2];
+        final boolean[] engaged = { false };
+        final boolean[] rejected = { false };
+        final boolean[] armed = { false };
+
+        row.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    v.animate().cancel();
+                    v.setTranslationX(0f);
+                    v.setPressed(true);
+                    v.setBackgroundColor(highlight);
+                    down[0] = event.getRawX();
+                    down[1] = event.getRawY();
+                    engaged[0] = false;
+                    rejected[0] = false;
+                    armed[0] = false;
+                    return false;
+                case MotionEvent.ACTION_MOVE: {
+                    if (rejected[0]) return false;
+                    float dx = event.getRawX() - down[0];
+                    float dy = event.getRawY() - down[1];
+                    if (!engaged[0]) {
+                        if (Math.abs(dy) > touchSlop && Math.abs(dy) >= Math.abs(dx)) {
+                            rejected[0] = true;
+                            return false;
+                        }
+                        if (dx >= -touchSlop || Math.abs(dx) <= Math.abs(dy)) return false;
+                        engaged[0] = true;
+                        if (v.getParent() != null) {
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                    float translation = Math.max(-v.getWidth(), Math.min(0f, dx));
+                    v.setTranslationX(translation);
+                    boolean nowArmed = -translation >= historyDeleteThreshold(v.getWidth());
+                    if (nowArmed != armed[0]) {
+                        armed[0] = nowArmed;
+                        if (nowArmed) {
+                            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                        }
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    if (v.getParent() != null) {
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    v.setPressed(false);
+                    v.setBackgroundColor(normal);
+                    if (!engaged[0]) return false;
+                    boolean remove = event.getActionMasked() == MotionEvent.ACTION_UP
+                            && -v.getTranslationX() >= historyDeleteThreshold(v.getWidth());
+                    if (remove) {
+                        v.setOnTouchListener(null);
+                        v.setOnClickListener(null);
+                        v.setClickable(false);
+                        animateHistoryRowAway(v, message);
+                    } else {
+                        v.animate().translationX(0f)
+                                .setDuration(HISTORY_DELETE_RESTORE_MS).start();
+                    }
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        row.setOnClickListener(v -> {
+            dismissMessageHistoryPopup();
+            mHost.onHistoryMessagePicked(message);
+        });
+    }
+
+    /** Tapping a synthetic action row runs the same action as the pencil release. */
     private void bindInteractiveHistoryRow(@NonNull View row) {
         final Object tag = row.getTag();
         if (!(tag instanceof Integer)) return;
         final int selected = (Integer) tag;
         final int highlight = mColorSchemeManager.getHistoryHighlightFill();
-        // The swipe variant paints the row under the finger; a tap has no drag, so paint on
-        // ACTION_DOWN. Returning false keeps the normal click handling.
+        // Returning false keeps the normal click handling; a tap has no drag, so paint on DOWN.
         row.setOnTouchListener((v, event) -> {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -544,6 +684,79 @@ public final class TermuxActivityPopupController {
         row.setOnClickListener(v -> {
             dismissMessageHistoryPopup();
             activateHistorySelection(selected);
+        });
+    }
+
+    private int historyDeleteThreshold(int rowWidth) {
+        return Math.max(TermuxActivityUtils.dpToPx(mContext, 56),
+                Math.round(rowWidth * 0.30f));
+    }
+
+    private void animateHistoryRowAway(@NonNull View row, @NonNull String message) {
+        if (mMessageHistoryCtrl != null) mMessageHistoryCtrl.removeMessage(message);
+        final int generation = mHistoryPopupGeneration;
+        row.animate().translationX(-row.getWidth())
+                .setDuration(HISTORY_DELETE_ANIM_MS)
+                .withEndAction(() -> finishHistoryRowRemoval(row, message, generation))
+                .start();
+    }
+
+    private void finishHistoryRowRemoval(@NonNull View row, @NonNull String message, int generation) {
+        mHistoryItemViews.remove(row);
+        if (row.getParent() instanceof FrameLayout) {
+            FrameLayout holder = (FrameLayout) row.getParent();
+            if (holder.getParent() instanceof ViewGroup) {
+                ((ViewGroup) holder.getParent()).removeView(holder);
+            }
+        }
+        if (generation != mHistoryPopupGeneration || !isHistoryPopupShowing()) return;
+
+        if (mMessageHistoryCtrl == null || mMessageHistoryCtrl.getHistoryList().isEmpty()) {
+            rebuildHistoryPopup();
+            return;
+        }
+        final String inputText = getInputFieldText();
+        if (!TextUtils.isEmpty(inputText)
+                && MessageHistoryController.messagesEqual(inputText, message)) {
+            // The typed text is no longer saved, so its Clear row must become Save + Clear.
+            rebuildHistoryPopup();
+            return;
+        }
+        resizeHistoryPopupAfterDeletion();
+    }
+
+    /** Keep the popup's bottom edge above the anchor after its content gets shorter. */
+    private void resizeHistoryPopupAfterDeletion() {
+        if (mHistoryPopup == null || !mHistoryPopup.isShowing()
+                || mHistoryScroll == null || mHistoryAnchor == null
+                || !mHistoryAnchor.isAttachedToWindow()
+                || mHistoryPopupWidthPx <= 0) {
+            return;
+        }
+        View content = mHistoryScroll.getChildAt(0);
+        if (content == null) return;
+        content.measure(
+                View.MeasureSpec.makeMeasureSpec(mHistoryPopupWidthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int height = Math.min(content.getMeasuredHeight(), mHistoryPopupMaxHeightPx);
+        if (height == mHistoryPopup.getHeight()) return;
+        int yOff = -(mHistoryAnchor.getHeight() + height + mHistoryPopupGapPx);
+        mHistoryPopup.update(mHistoryAnchor, 0, yOff, mHistoryPopupWidthPx, height);
+    }
+
+    /** Rebuild after a deletion so the list, empty hint and action row are recomputed. */
+    private void rebuildHistoryPopup() {
+        final View anchor = mHistoryAnchor;
+        final boolean interactive = mHistoryInteractive;
+        final int generation = mHistoryPopupGeneration;
+        if (anchor == null || !isHistoryPopupShowing()) return;
+        anchor.post(() -> {
+            if (anchor.isAttachedToWindow()
+                    && generation == mHistoryPopupGeneration
+                    && isHistoryPopupShowing()
+                    && mHistoryAnchor == anchor) {
+                showMessageHistoryPopup(anchor, interactive);
+            }
         });
     }
 
@@ -726,6 +939,11 @@ public final class TermuxActivityPopupController {
         mHistoryLastScrollTimeMs = 0;
         mHistoryHighlightIndex = -1;
         mActiveHighlightView = null;
+        mHistoryAnchor = null;
+        mHistoryInteractive = false;
+        mHistoryPopupWidthPx = 0;
+        mHistoryPopupMaxHeightPx = 0;
+        mHistoryPopupGapPx = 0;
     }
 
     /**

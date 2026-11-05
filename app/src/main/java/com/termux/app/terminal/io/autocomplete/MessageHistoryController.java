@@ -519,6 +519,25 @@ public final class MessageHistoryController {
     }
 
     /**
+     * Remove one entry from the current (global or current-directory) history. Edge whitespace is
+     * ignored, matching the add path.
+     *
+     * @return whether an entry was removed.
+     */
+    public boolean removeMessage(@Nullable String message) {
+        String normalized = trimMessage(message);
+        if (normalized.isEmpty()) return false;
+
+        int index = mMessageHistory.indexOf(normalized);
+        if (index < 0) return false;
+
+        mMessageHistory.remove(index);
+        mHistoryVersion++;
+        schedulePersist();
+        return true;
+    }
+
+    /**
      * Make sure the in-memory state mirrors disk before it is mutated. A no-op once {@link #load}
      * has run, so a caller outside the activity — a notification reply writing into a background
      * session — merges into the stored history instead of replacing it. {@code cwd} is the caller's

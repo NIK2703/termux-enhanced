@@ -398,6 +398,78 @@ public class MessageHistoryControllerTest {
             String.valueOf(stored(LOG_DIR)).contains("yes"));
     }
 
+    // Removing one entry (swipe-left in the popup)
+
+    @Test
+    public void removeMessageDropsOnlyThatEntryAndPersists() {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.addToMessageHistory("pwd", HOME);
+        ctrl.save();
+
+        int version = ctrl.getHistoryVersion();
+        assertTrue(ctrl.removeMessage("  git status  "));
+
+        assertEquals("[pwd, ls -la]", String.valueOf(ctrl.getHistoryList()));
+        assertTrue(ctrl.getHistoryVersion() > version);
+
+        ctrl.save();
+        assertEquals("[\"pwd\",\"ls -la\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void removeMessageLeavesOtherDirectoriesAlone() {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.addToMessageHistoryInDirectory("yes", LOG_DIR);
+        ctrl.save();
+
+        assertTrue(ctrl.removeMessage("ls -la"));
+        ctrl.save();
+
+        assertEquals("[\"git status\"]", String.valueOf(stored(HOME)));
+        assertEquals("[\"yes\"]", String.valueOf(stored(LOG_DIR)));
+    }
+
+    @Test
+    public void removeMessageCanEmptyTheCurrentDirectory() {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.save();
+
+        assertTrue(ctrl.removeMessage("ls -la"));
+        assertEquals("[]", String.valueOf(ctrl.getHistoryList()));
+
+        ctrl.save();
+        assertEquals("[]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void removeUnknownOrBlankMessageIsANoOp() {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        int version = ctrl.getHistoryVersion();
+
+        assertFalse(ctrl.removeMessage("pwd"));
+        assertFalse(ctrl.removeMessage("   "));
+        assertFalse(ctrl.removeMessage(null));
+
+        assertEquals("[ls -la]", String.valueOf(ctrl.getHistoryList()));
+        assertEquals(version, ctrl.getHistoryVersion());
+    }
+
+    @Test
+    public void removeMessagePersistsInGlobalMode() {
+        ctrl.setPerDirectoryEnabled(false);
+        ctrl.load(HOME);
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.save();
+
+        assertTrue(ctrl.removeMessage("ls -la"));
+        ctrl.save();
+
+        assertEquals("[\"git status\"]", String.valueOf(globalStore()));
+    }
+
     // Clearing against a queued persist
 
     /**
