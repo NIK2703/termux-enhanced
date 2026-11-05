@@ -6,11 +6,11 @@
     <dimen name="terminal_tab_corner_radius">18dp</dimen>
     <dimen name="terminal_tab_padding_start_single">8dp</dimen>
     <dimen name="terminal_tab_padding_start_double">12dp</dimen>
-    <!-- Title cap and the gap between the title and the close (x) button. When the
-         title is truncated we reclaim this gap and add it to the title max width, so
-         the tab's total width is unchanged but more of the clipped label shows. -->
+    <!-- Long titles keep a fixed tab width: title cap + close gap + close size. The
+         close footprint moves to the title when the close button is hidden. -->
     <dimen name="terminal_tab_title_max_width">100dp</dimen>
     <dimen name="terminal_tab_close_gap">4dp</dimen>
+    <dimen name="terminal_tab_close_size">20dp</dimen>
 
     <!-- Text input panel (matches vertical scrollbar thumb) -->
     <dimen name="terminal_text_input_corner_radius">11dp</dimen>

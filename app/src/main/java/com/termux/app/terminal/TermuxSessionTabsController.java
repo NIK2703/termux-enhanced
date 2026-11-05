@@ -7,6 +7,14 @@ import android.animation.ObjectAnimator;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.Build;
+import android.text.Layout;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.StaticLayout;
+import android.text.TextPaint;
+import android.text.TextUtils;
+import android.text.style.CharacterStyle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -66,6 +74,7 @@ public class TermuxSessionTabsController {
     private int mTabHeightPx = 0;
     private int mPadStartPx = 0;
     private int mCloseGapPx = 0;
+    private int mCloseWidthPx = 0;
     private int mTitleMaxWidthPx = 0;
     private float mTabCornerRadiusPx = 0f;
 
@@ -84,10 +93,9 @@ public class TermuxSessionTabsController {
         final TextView titleView;           // resolved once — never findViewById again
         final ImageButton closeButton;      // resolved once — never findViewById again
         TerminalSession session;   // session the click listeners are currently bound to
-        CharSequence title;        // last title applied to the TextView
+        String title;              // full source title, before truncation/fade
         int maxLines = -1;
         int padStart = -1;
-        boolean truncated;         // last StaticLayout truncation decision
         int maxWidthApplied = -1;  // last title maxWidth applied
         int closeMarginApplied = -1; // last close-button marginStart applied
         int bgColor;               // last background colour applied
@@ -129,6 +137,7 @@ public class TermuxSessionTabsController {
                 ? R.dimen.terminal_tab_padding_start_single
                 : R.dimen.terminal_tab_padding_start_double));
         mCloseGapPx = Math.round(r.getDimension(R.dimen.terminal_tab_close_gap));
+        mCloseWidthPx = Math.round(r.getDimension(R.dimen.terminal_tab_close_size));
         mTitleMaxWidthPx = Math.round(r.getDimension(R.dimen.terminal_tab_title_max_width));
         mTabCornerRadiusPx = r.getDimension(R.dimen.terminal_tab_corner_radius);
     }
@@ -465,42 +474,28 @@ public class TermuxSessionTabsController {
                     tabView.getPaddingRight(), tabView.getPaddingBottom());
         }
 
+        final boolean selectionChanged = state.selected != isSelected;
+        // GONE lets the title use the close button's footprint.
+        boolean closeVisibilityChanged = false;
+        if (closeButton != null) {
+            int desiredVisibility = isSelected ? View.VISIBLE : View.GONE;
+            closeVisibilityChanged = closeButton.getVisibility() != desiredVisibility;
+            if (closeVisibilityChanged) closeButton.setVisibility(desiredVisibility);
+        }
+
         if (terminalSession != null) {
             String name = terminalSession.mSessionName;
             String title = terminalSession.getTitle();
 
             String displayTitle = SessionTitleUtils.resolveDisplayName(mActivity, name, title);
 
-            // Title text: the only attribute expected to change on every animation frame.
-            boolean titleChanged = !android.text.TextUtils.equals(state.title, displayTitle);
-            if (titleChanged) {
-                state.title = displayTitle;
-                titleView.setText(displayTitle);
-            }
+            // The state keeps the full title; applyTitleLayout() builds the visible prefix.
+            boolean titleChanged = !TextUtils.equals(state.title, displayTitle);
+            if (titleChanged) state.title = displayTitle;
 
-            // When the title is truncated, reclaim the close-button gap for the title (raise its
-            // max width by the same amount); when it fits, restore the default gap and cap. The
-            // expensive StaticLayout measurement runs only when text/line mode changed, and
-            // maxWidth/margin apply only when the truncation DECISION flips.
-            if (closeButton != null) {
-                final int gapPx = mCloseGapPx;
-                final int baseMaxWidthPx = mTitleMaxWidthPx;
-                if (titleChanged || linesChanged || state.maxWidthApplied < 0) {
-                    state.truncated = isTitleTruncated(titleView, displayTitle, baseMaxWidthPx);
-                }
-                int desiredMaxWidth = state.truncated ? baseMaxWidthPx + gapPx : baseMaxWidthPx;
-                int desiredCloseMargin = state.truncated ? 0 : gapPx;
-                if (state.maxWidthApplied != desiredMaxWidth) {
-                    state.maxWidthApplied = desiredMaxWidth;
-                    titleView.setMaxWidth(desiredMaxWidth);
-                }
-                if (state.closeMarginApplied != desiredCloseMargin) {
-                    state.closeMarginApplied = desiredCloseMargin;
-                    ViewGroup.MarginLayoutParams closeLp =
-                            (ViewGroup.MarginLayoutParams) closeButton.getLayoutParams();
-                    closeLp.setMarginStart(desiredCloseMargin);
-                    closeButton.setLayoutParams(closeLp);
-                }
+            if (titleChanged || linesChanged || selectionChanged || closeVisibilityChanged
+                    || state.maxWidthApplied < 0) {
+                applyTitleLayout(state, isSelected && closeButton != null);
             }
 
             // Text colour, close tint and strike-through derive solely from (running, exit).
@@ -539,16 +534,9 @@ public class TermuxSessionTabsController {
         }
 
         // Selection state: apply only on change (setSelected invalidates + re-renders).
-        if (state.selected != isSelected) {
+        if (selectionChanged) {
             state.selected = isSelected;
             tabView.setSelected(isSelected);
-        }
-        // Close button visibility: the diff reads the VIEW state (not the cache), so it
-        // self-corrects against the mid-swipe toggling done by onPageScrolled().
-        if (closeButton != null) {
-            int desiredVisibility = isSelected ? View.VISIBLE : View.INVISIBLE;
-            if (closeButton.getVisibility() != desiredVisibility)
-                closeButton.setVisibility(desiredVisibility);
         }
 
         // Translucent background matching the signal panel: apply only when the target colour
@@ -565,30 +553,172 @@ public class TermuxSessionTabsController {
         }
     }
 
-    /**
-     * Whether {@code text} would be ellipsized inside {@code tv} given its current max width and
-     * max lines. Measured synchronously with a {@link android.text.StaticLayout} so the result is
-     * available immediately (the tab view is not yet laid out when this is called).
-     */
-    private boolean isTitleTruncated(TextView tv, String text, int maxWidthPx) {
-        if (text == null || text.isEmpty()) return false;
-        if (maxWidthPx <= 0) return false;
-        // Fast reject: if the whole string already fits on a single line within maxWidth it can
-        // neither wrap nor be ellipsized, so skip the comparatively expensive StaticLayout
-        // measurement. Short titles ("bash", "vim", "~") — the overwhelming majority — take
-        // this path, which is what keeps a 10-30 Hz OSC title animation off the layout path.
-        if (tv.getPaint().measureText(text) <= maxWidthPx) return false;
+    /** Result of measuring how much of a tab title fits at a given width. */
+    private static final class TitleRender {
+        final CharSequence text;
+        final boolean truncated;
+
+        TitleRender(CharSequence text, boolean truncated) {
+            this.text = text;
+            this.truncated = truncated;
+        }
+    }
+
+    /** Multiplies paint alpha so the title's colour and strike-through remain intact. */
+    private static final class AlphaSpan extends CharacterStyle {
+        private final int mAlpha;
+
+        AlphaSpan(int alpha) {
+            mAlpha = alpha;
+        }
+
+        @Override
+        public void updateDrawState(TextPaint tp) {
+            tp.setAlpha(tp.getAlpha() * mAlpha / 255);
+        }
+    }
+
+    /** Alpha for the last characters of a truncated title, counted from the end. */
+    static int fadeAlphaForPosition(int charsFromEnd) {
+        switch (charsFromEnd) {
+            case 1: return 64;   // 25%
+            case 2: return 128;  // 50%
+            case 3: return 191;  // 75%
+            default: return 255;
+        }
+    }
+
+    /** Returns the visible title prefix, with its last three code points faded if truncated. */
+    @androidx.annotation.NonNull
+    private TitleRender renderTitle(TextView tv, String text, int maxWidthPx) {
+        if (text == null || text.isEmpty() || maxWidthPx <= 0) {
+            return new TitleRender(text == null ? "" : text, false);
+        }
+        // Short single-line titles are the common case; avoid a StaticLayout.
+        if (text.indexOf('\n') < 0 && tv.getPaint().measureText(text) <= maxWidthPx) {
+            return new TitleRender(text, false);
+        }
+
         int maxLines = tv.getMaxLines();
         if (maxLines <= 0) maxLines = Integer.MAX_VALUE;
-        android.text.StaticLayout layout = new android.text.StaticLayout(
-                text, 0, text.length(), tv.getPaint(), maxWidthPx,
-                android.text.Layout.Alignment.ALIGN_NORMAL,
-                tv.getLineSpacingMultiplier(), tv.getLineSpacingExtra(),
-                tv.getIncludeFontPadding(),
-                android.text.TextUtils.TruncateAt.END, maxWidthPx);
-        if (layout.getLineCount() > maxLines) return true;
-        int lastLine = layout.getLineCount() - 1;
-        return lastLine >= 0 && layout.getEllipsisCount(lastLine) > 0;
+
+        // Fill the line character-by-character so the fade lands at the tab edge.
+        if (maxLines == 1 && text.indexOf('\n') < 0) {
+            int visibleEnd = tv.getPaint().breakText(text, true, maxWidthPx, null);
+            if (visibleEnd >= text.length()) return new TitleRender(text, false);
+            return buildFadedTitle(text, visibleEnd);
+        }
+
+        final StaticLayout layout;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // maxLines + 1 keeps overflow detectable after setMaxLines().
+            final int layoutMaxLines = maxLines == Integer.MAX_VALUE
+                    ? Integer.MAX_VALUE : maxLines + 1;
+            layout = StaticLayout.Builder.obtain(text, 0, text.length(), tv.getPaint(), maxWidthPx)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setLineSpacing(tv.getLineSpacingExtra(), tv.getLineSpacingMultiplier())
+                    .setIncludePad(tv.getIncludeFontPadding())
+                    .setBreakStrategy(tv.getBreakStrategy())
+                    .setHyphenationFrequency(tv.getHyphenationFrequency())
+                    .setEllipsize(null)
+                    .setMaxLines(layoutMaxLines)
+                    .build();
+        } else {
+            // Builder is unavailable before API 23; this constructor lays out every line.
+            layout = new StaticLayout(text, tv.getPaint(), maxWidthPx,
+                    Layout.Alignment.ALIGN_NORMAL, tv.getLineSpacingMultiplier(),
+                    tv.getLineSpacingExtra(), tv.getIncludeFontPadding());
+        }
+
+        if (layout.getLineCount() <= maxLines) return new TitleRender(text, false);
+        return buildFadedTitle(text, layout.getLineEnd(maxLines - 1));
+    }
+
+    /** Builds the visible prefix with the final three code points progressively faded. */
+    @androidx.annotation.NonNull
+    private static TitleRender buildFadedTitle(String text, int visibleEnd) {
+        // Do not split a surrogate pair.
+        if (visibleEnd > 0 && visibleEnd < text.length()
+                && Character.isHighSurrogate(text.charAt(visibleEnd - 1))
+                && Character.isLowSurrogate(text.charAt(visibleEnd))) {
+            visibleEnd--;
+        }
+        // Fade the last actual character, not trailing whitespace.
+        while (visibleEnd > 0 && Character.isWhitespace(text.charAt(visibleEnd - 1))) {
+            visibleEnd--;
+        }
+        if (visibleEnd <= 0) return new TitleRender("", true);
+
+        SpannableString visible = new SpannableString(text.substring(0, visibleEnd));
+        // Use code points so an emoji fades as one glyph.
+        int spanEnd = visibleEnd;
+        for (int remaining = 1; remaining <= 3 && spanEnd > 0; remaining++) {
+            int spanStart = Character.offsetByCodePoints(text, spanEnd, -1);
+            visible.setSpan(new AlphaSpan(fadeAlphaForPosition(remaining)),
+                    spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            spanEnd = spanStart;
+        }
+        return new TitleRender(visible, true);
+    }
+
+    /**
+     * Lays out the title and close button. Truncated titles keep the same total width whether
+     * the close button is visible or hidden.
+     */
+    private void applyTitleLayout(TabRenderState state, boolean closeVisible) {
+        final TextView titleView = state.titleView;
+        if (titleView == null || state.title == null) return;
+        ensureDimens();
+
+        final int baseMaxWidth = mTitleMaxWidthPx;
+        final int gap = mCloseGapPx;
+        final int closeWidth = mCloseWidthPx;
+        final int truncatedTabWidth = baseMaxWidth + gap + closeWidth;
+
+        // The base cap keeps this decision stable while the close button toggles.
+        final TitleRender atBase = renderTitle(titleView, state.title, baseMaxWidth);
+        final boolean titleTruncated = atBase.truncated;
+
+        final int maxWidth;
+        final int closeMargin;
+        final TitleRender render;
+
+        if (titleTruncated) {
+            maxWidth = closeVisible ? baseMaxWidth + gap : truncatedTabWidth;
+            closeMargin = 0;
+            render = maxWidth == baseMaxWidth
+                    ? atBase
+                    : renderTitle(titleView, state.title, maxWidth);
+        } else {
+            maxWidth = closeVisible ? baseMaxWidth : truncatedTabWidth;
+            closeMargin = closeVisible ? gap : 0;
+            render = atBase;
+        }
+
+        if (state.maxWidthApplied != maxWidth) {
+            state.maxWidthApplied = maxWidth;
+            titleView.setMaxWidth(maxWidth);
+        }
+        if (state.closeMarginApplied != closeMargin && state.closeButton != null) {
+            state.closeMarginApplied = closeMargin;
+            ViewGroup.MarginLayoutParams closeLp =
+                    (ViewGroup.MarginLayoutParams) state.closeButton.getLayoutParams();
+            closeLp.setMarginStart(closeMargin);
+            state.closeButton.setLayoutParams(closeLp);
+        }
+        // Exact width prevents a truncated tab from shrinking when its prefix fits early.
+        final int desiredTitleWidth = titleTruncated
+                ? maxWidth : ViewGroup.LayoutParams.WRAP_CONTENT;
+        ViewGroup.LayoutParams titleLp = titleView.getLayoutParams();
+        if (titleLp != null && titleLp.width != desiredTitleWidth) {
+            titleLp.width = desiredTitleWidth;
+            titleView.setLayoutParams(titleLp);
+        }
+        titleView.setText(render.text, TextView.BufferType.SPANNABLE);
+        // Keep the full title available to screen readers.
+        if (!TextUtils.equals(titleView.getContentDescription(), state.title)) {
+            titleView.setContentDescription(state.title);
+        }
     }
 
     /**
@@ -1033,6 +1163,7 @@ public class TermuxSessionTabsController {
             if (child == null) continue;
             TabRenderState state = getRenderState(child);
             boolean isSelected = (i == index);
+            final boolean selectionChanged = state.selected != isSelected;
             child.setSelected(isSelected);
             if (mSchemeApplied) {
                 int desiredBg = isSelected ? mSchemeBgActive : mSchemeBg;
@@ -1040,10 +1171,18 @@ public class TermuxSessionTabsController {
                 state.bgColor = desiredBg;
                 state.bgValid = true;
             }
-            state.selected = isSelected;
+            boolean closeVisibilityChanged = false;
             if (state.closeButton != null) {
-                state.closeButton.setVisibility(isSelected ? View.VISIBLE : View.INVISIBLE);
+                int desiredVisibility = isSelected ? View.VISIBLE : View.GONE;
+                closeVisibilityChanged = state.closeButton.getVisibility() != desiredVisibility;
+                if (closeVisibilityChanged) {
+                    state.closeButton.setVisibility(desiredVisibility);
+                }
             }
+            if ((selectionChanged || closeVisibilityChanged) && state.title != null) {
+                applyTitleLayout(state, isSelected && state.closeButton != null);
+            }
+            state.selected = isSelected;
         }
         applyAddButtonSchemeBackground();
     }
@@ -1145,12 +1284,19 @@ public class TermuxSessionTabsController {
         setTabBackground(leftTab, blendedLeft);
         setTabBackground(rightTab, blendedRight);
 
-        // 3. Show the close button on whichever tab the user is closer to.
-        ImageButton leftClose = getRenderState(leftTab).closeButton;
-        ImageButton rightClose = getRenderState(rightTab).closeButton;
+        // 3. Show the close button on the tab closer to the finger.
         boolean closerToLeft = positionOffset < 0.5f;
-        if (leftClose != null) leftClose.setVisibility(closerToLeft ? View.VISIBLE : View.INVISIBLE);
-        if (rightClose != null) rightClose.setVisibility(closerToLeft ? View.INVISIBLE : View.VISIBLE);
+        applySwipeCloseVisibility(leftTab, getRenderState(leftTab).closeButton, closerToLeft);
+        applySwipeCloseVisibility(rightTab, getRenderState(rightTab).closeButton, !closerToLeft);
+    }
+
+    private void applySwipeCloseVisibility(View tabView, ImageButton closeButton, boolean visible) {
+        if (closeButton == null) return;
+        int desiredVisibility = visible ? View.VISIBLE : View.GONE;
+        if (closeButton.getVisibility() == desiredVisibility) return;
+        closeButton.setVisibility(desiredVisibility);
+        TabRenderState state = getRenderState(tabView);
+        if (state.title != null) applyTitleLayout(state, visible);
     }
 
     /**

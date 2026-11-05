@@ -14,15 +14,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:maxWidth="@dimen/terminal_tab_title_max_width"
-        android:ellipsize="end"
         android:maxLines="2"
         android:textSize="13sp"
         android:textColor="?attr/colorOnSurface" />
 
     <ImageButton
         android:id="@+id/session_tab_close"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
+        android:layout_width="@dimen/terminal_tab_close_size"
+        android:layout_height="@dimen/terminal_tab_close_size"
         android:layout_marginStart="@dimen/terminal_tab_close_gap"
         android:src="@drawable/ic_close"
         android:background="@null"
@@ -30,7 +29,7 @@
         android:scaleType="centerInside"
         android:tint="?attr/colorOnSurface"
         android:alpha="0.7"
-        android:visibility="invisible"
+        android:visibility="gone"
         android:clickable="true"
         android:focusable="true" />
 
