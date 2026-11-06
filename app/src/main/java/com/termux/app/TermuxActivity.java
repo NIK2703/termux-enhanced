@@ -3704,6 +3704,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         editText.post(() -> showSoftKeyboardImplicit(editText));
     }
 
+    @Override
+    public boolean onHistoryRowWordSwipe(@NonNull View row, @NonNull MotionEvent event,
+            @NonNull String message, @NonNull Runnable onWordsRestored) {
+        return mAutoCompleteCtrl != null
+                && mAutoCompleteCtrl.onHistoryRowSwipe(row, event, message, onWordsRestored);
+    }
+
+    @Override
+    public void cancelHistoryRowWordSwipe() {
+        if (mAutoCompleteCtrl != null) mAutoCompleteCtrl.cancelHistoryRowSwipe();
+    }
+
     // ============================================================================
     //  Recent directories history (for the "new tab" button popup)
     // ============================================================================

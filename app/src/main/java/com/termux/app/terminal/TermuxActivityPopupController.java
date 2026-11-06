@@ -55,6 +55,11 @@ public final class TermuxActivityPopupController {
 
         void onHistoryMessagePicked(@NonNull String message);
 
+        boolean onHistoryRowWordSwipe(@NonNull View row, @NonNull MotionEvent event,
+                @NonNull String message, @NonNull Runnable onWordsRestored);
+
+        void cancelHistoryRowWordSwipe();
+
         void onInputHistoryAction(boolean saveToHistory, boolean clearInput);
 
         // Keep-screen-on preference bridge
@@ -581,7 +586,7 @@ public final class TermuxActivityPopupController {
                 && rawX <= rowLeft + segment.getRight();
     }
 
-    /** Tap to pick, swipe left to delete; vertical drags stay with the ScrollView. */
+    /** Tap picks, right swipe restores words, left swipe deletes; vertical drags scroll the list. */
     private void bindInteractiveMessageRow(@NonNull View row, @NonNull String message) {
         final int normal = mColorSchemeManager.getHistoryPopupBg();
         final int highlight = TermuxColorSchemeManager.compositeColors(
@@ -591,19 +596,37 @@ public final class TermuxActivityPopupController {
         final boolean[] engaged = { false };
         final boolean[] rejected = { false };
         final boolean[] armed = { false };
+        final Runnable onWordsRestored = this::dismissMessageHistoryPopup;
 
         row.setOnTouchListener((v, event) -> {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    v.animate().cancel();
+            final int action = event.getActionMasked();
+            final boolean gestureEnd = action == MotionEvent.ACTION_UP
+                    || action == MotionEvent.ACTION_CANCEL;
+
+            if (action == MotionEvent.ACTION_DOWN) {
+                v.animate().cancel();
+                v.setTranslationX(0f);
+                v.setPressed(true);
+                v.setBackgroundColor(highlight);
+                down[0] = event.getRawX();
+                down[1] = event.getRawY();
+                engaged[0] = false;
+                rejected[0] = false;
+                armed[0] = false;
+            }
+
+            if (!engaged[0] && (!rejected[0] || gestureEnd)
+                    && mHost.onHistoryRowWordSwipe(v, event, message, onWordsRestored)) {
+                if (gestureEnd) {
+                    v.setPressed(false);
+                    v.setBackgroundColor(normal);
                     v.setTranslationX(0f);
-                    v.setPressed(true);
-                    v.setBackgroundColor(highlight);
-                    down[0] = event.getRawX();
-                    down[1] = event.getRawY();
-                    engaged[0] = false;
-                    rejected[0] = false;
-                    armed[0] = false;
+                }
+                return true;
+            }
+
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
                     return false;
                 case MotionEvent.ACTION_MOVE: {
                     if (rejected[0]) return false;
@@ -616,6 +639,7 @@ public final class TermuxActivityPopupController {
                         }
                         if (dx >= -touchSlop || Math.abs(dx) <= Math.abs(dy)) return false;
                         engaged[0] = true;
+                        mHost.cancelHistoryRowWordSwipe();
                         if (v.getParent() != null) {
                             v.getParent().requestDisallowInterceptTouchEvent(true);
                         }
@@ -639,7 +663,7 @@ public final class TermuxActivityPopupController {
                     v.setPressed(false);
                     v.setBackgroundColor(normal);
                     if (!engaged[0]) return false;
-                    boolean remove = event.getActionMasked() == MotionEvent.ACTION_UP
+                    boolean remove = action == MotionEvent.ACTION_UP
                             && -v.getTranslationX() >= historyDeleteThreshold(v.getWidth());
                     if (remove) {
                         v.setOnTouchListener(null);
@@ -924,6 +948,9 @@ public final class TermuxActivityPopupController {
         mHistoryScroll.postOnAnimation(this::autoScrollHistoryNearEdge);
     }
     public void dismissMessageHistoryPopup() {
+        if (mHistoryInteractive) {
+            mHost.cancelHistoryRowWordSwipe();
+        }
         if (mHistoryPopup != null) {
             try { mHistoryPopup.dismiss(); } catch (Exception ignored) {}
             mHistoryPopup = null;

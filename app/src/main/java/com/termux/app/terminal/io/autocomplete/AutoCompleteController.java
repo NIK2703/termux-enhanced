@@ -13,6 +13,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -213,6 +214,17 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     }
     @Override public void onSuggestionDismissed() {
         mCurrentSuggestions.clear();
+    }
+
+    /** Reuses the suggestion word-restore swipe for an input-history row; only rightward motion engages. */
+    public boolean onHistoryRowSwipe(@NonNull View row, @NonNull MotionEvent event,
+            @NonNull String message, @Nullable Runnable onWordsRestored) {
+        return mSwipeHandler.onTouch(row, event, message, true, onWordsRestored);
+    }
+
+    /** Aborts an in-flight history-row restore. */
+    public void cancelHistoryRowSwipe() {
+        mSwipeHandler.resetSwipeState();
     }
 
     /**

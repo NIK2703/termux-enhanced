@@ -23,6 +23,9 @@ import java.util.function.Supplier;
  * falls through to the row's {@code OnClickListener} (tap-to-insert), because
  * {@link #onTouch} returns {@code false} until the slop is crossed.
  *
+ * <p>The input-history popup reuses it for right-only word restores, leaving its
+ * left-swipe delete untouched.
+ *
  * <p>All per-gesture state lives here so {@code AutoCompleteController} doesn't
  * carry it; the handler is handed the input field (lazily, since it may be
  * swapped) and a callback to refresh suggestions after a committed swipe.
@@ -42,6 +45,8 @@ final class AutoCompleteSwipeHandler {
     private int mSwipeUnitWidthPx;
     /** Suggestion string the current gesture started on (matched by tag, not index). */
     @Nullable private String mSwipeSuggestion;
+    private boolean mSwipeRightOnly;
+    @Nullable private Runnable mSwipeWordCommitCallback;
     /** Parent whose touch-interception we disabled while engaged, so we can restore it. */
     @Nullable private android.view.ViewParent mSwipeDisallowParent;
     /** Suggestion row held in the pressed state during the swipe, cleared on end. */
@@ -94,6 +99,17 @@ final class AutoCompleteSwipeHandler {
     }
 
     boolean onTouch(@NonNull View v, @NonNull MotionEvent event) {
+        Object tag = v.getTag();
+        return onTouch(v, event, (tag instanceof String) ? (String) tag : null, false, null);
+    }
+
+    /**
+     * Swipe variant for a row whose text is not stored in the view tag. {@code rightOnly}
+     * leaves leftward motion to the caller; {@code onWordsRestored} runs after a swipe
+     * commits at least one word.
+     */
+    boolean onTouch(@NonNull View v, @NonNull MotionEvent event, @Nullable String suggestion,
+                    boolean rightOnly, @Nullable Runnable onWordsRestored) {
         final EditText inputField = field();
         if (inputField == null) return false;
 
@@ -117,8 +133,9 @@ final class AutoCompleteSwipeHandler {
                 float density = mContext.getResources().getDisplayMetrics().density;
                 mSwipeUnitWidthPx = Math.max(1, (int) (24 * density));
 
-                Object tag = v.getTag();
-                mSwipeSuggestion = (tag instanceof String) ? (String) tag : null;
+                mSwipeSuggestion = suggestion;
+                mSwipeRightOnly = rightOnly;
+                mSwipeWordCommitCallback = onWordsRestored;
                 if (mSwipeSuggestion == null) return false;
 
                 // The words to insert are the suggestion's remainder past the
@@ -155,6 +172,7 @@ final class AutoCompleteSwipeHandler {
                     // Ignore vertical-dominant drags so the popup can still scroll
                     // (and diagonal scroll gestures aren't hijacked as word swipes).
                     if (Math.abs(dy) > Math.abs(dx)) return false;
+                    if (mSwipeRightOnly && dx <= 0) return false;
                     // Engage swipe mode and stop the popup ScrollView from stealing
                     // the gesture. Keep the row in the pressed state so it shows the
                     // exact same highlight as a tap for the whole duration of the swipe.
@@ -186,14 +204,14 @@ final class AutoCompleteSwipeHandler {
 
             case MotionEvent.ACTION_UP: {
                 boolean wasEngaged = mSwipeEngaged;
+                final int wordsAdded = mSwipeWordsAdded;
+                final Runnable wordCommitCallback = mSwipeWordCommitCallback;
                 if (wasEngaged) {
                     // Finger lifted intentionally: collapse the selection to its
                     // end = commit the appended words.
                     int end = inputField.getSelectionEnd();
                     if (end < 0) end = inputField.length();
                     inputField.setSelection(end, end);
-                }
-                if (wasEngaged) {
                     // Do NOT run the heavy refresh synchronously from onTouch: rebuilding
                     // the popup (showAtLocation/rebuild/views) re-entrantly from the
                     // touch handler crashes. Clear the suppression guard and update the
@@ -202,6 +220,9 @@ final class AutoCompleteSwipeHandler {
                     final EditText f = inputField;
                     f.post(() -> {
                         mClearSuppress.run();
+                        if (wordsAdded > 0 && wordCommitCallback != null) {
+                            wordCommitCallback.run();
+                        }
                         mRefreshCallback.run();
                     });
                 }
@@ -348,11 +369,14 @@ final class AutoCompleteSwipeHandler {
             // threw — otherwise auto-complete would be permanently disabled.
             mClearSuppress.run();
             mSwipeEngaged = false;
+            mSwipePointerDown = false;
             mSwipeWords = null;
             mSwipeBaseText = null;
             mSwipeSuggestion = null;
             mSwipeWordsAdded = 0;
             mSwipeNeedsLeadingSpace = false;
+            mSwipeRightOnly = false;
+            mSwipeWordCommitCallback = null;
         }
     }
 }
