@@ -228,17 +228,8 @@ public final class TermuxTerminalNotificationDispatcher {
         Logger.logDebug(LOG_TAG, "Posted notification " + id + " (" + notification.getId()
             + ") for session " + session.mHandle);
 
-        // Raised, never refreshed: re-posting re-asserts auto-expand and un-collapses a bubble the
-        // user collapsed on purpose. Termux's own bubble is posted under a fixed id, so one at most.
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                    && !TermuxBubbleManager.isBubblePosted(context)
-                    && TermuxBubbleManager.areBubblesAvailable(context)) {
-                TermuxBubbleManager.showBubble(context, summary);
-            }
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to raise the bubble", e);
-        }
+        // This card opens full-screen. A bubble is a separate request, so only record its session.
+        TermuxBubbleManager.noteSessionAskedForAttention(session.mHandle);
         return id;
     }
 

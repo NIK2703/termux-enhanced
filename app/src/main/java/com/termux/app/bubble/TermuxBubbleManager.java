@@ -303,10 +303,8 @@ public final class TermuxBubbleManager {
     }
 
     /**
-     * Log the first stack frame outside this class, so "who opened the bubble" is answerable from
-     * logcat. Three entry points (notification button, activity lifecycle, debug adb hook) all end
-     * in the same {@code notify()} and are otherwise indistinguishable; posting is rare, so the
-     * stack walk is free in practice.
+     * Log the first stack frame outside this class, so logcat shows which entry point opened the
+     * bubble. Posting is rare, so the stack walk is free in practice.
      */
     private static void logCaller() {
         for (StackTraceElement frame : new Throwable().getStackTrace()) {
