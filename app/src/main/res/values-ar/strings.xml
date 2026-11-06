@@ -72,6 +72,9 @@
     <string name="backup_service_notification_failed">فشل النسخ الاحتياطي</string>
     <string name="backup_service_notification_restore_failed">فشلت الاستعادة</string>
     <string name="backup_service_notification_restore_success">تمت استعادة البيانات بنجاح</string>
+    <string name="backup_service_notification_success_with_warnings">تم إنشاء النسخة الاحتياطية مع تحذيرات</string>
+    <string name="backup_service_notification_restore_success_with_warnings">تمت استعادة البيانات مع تحذيرات</string>
+    <string name="backup_warning_some_files_changed">تغيّرت بعض الملفات أو اختفت أثناء النسخ الاحتياطي</string>
     <string name="backup_service_notification_restore_title">استعادة بيانات Termux</string>
     <string name="backup_service_notification_success">تم إنشاء النسخة الاحتياطية بنجاح</string>
     <string name="backup_service_notification_title">نسخ احتياطي لبيانات Termux</string>

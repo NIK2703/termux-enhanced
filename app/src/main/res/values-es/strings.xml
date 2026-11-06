@@ -141,6 +141,9 @@
     <string name="backup_service_notification_restore_title">Restauración de datos de Termux</string>
     <string name="backup_service_notification_success">Copia de seguridad creada correctamente</string>
     <string name="backup_service_notification_restore_success">Datos restaurados correctamente</string>
+    <string name="backup_service_notification_success_with_warnings">Copia de seguridad creada con advertencias</string>
+    <string name="backup_service_notification_restore_success_with_warnings">Datos restaurados con advertencias</string>
+    <string name="backup_warning_some_files_changed">Algunos archivos cambiaron o desaparecieron durante la copia de seguridad</string>
     <string name="backup_service_notification_failed">Error en la copia de seguridad</string>
     <string name="backup_service_notification_restore_failed">Error en la restauración</string>
     <string name="backup_dialog_run_in_background">En segundo plano</string>

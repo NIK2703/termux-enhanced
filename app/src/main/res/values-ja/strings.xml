@@ -133,6 +133,9 @@
 <string name="backup_service_notification_restore_title">Termux データ復元</string>
 <string name="backup_service_notification_success">バックアップが正常に作成されました</string>
 <string name="backup_service_notification_restore_success">データが正常に復元されました</string>
+<string name="backup_service_notification_success_with_warnings">警告付きでバックアップを作成しました</string>
+<string name="backup_service_notification_restore_success_with_warnings">警告付きでデータを復元しました</string>
+<string name="backup_warning_some_files_changed">バックアップ中に一部のファイルが変更または消失しました</string>
 <string name="backup_service_notification_failed">バックアップに失敗しました</string>
 <string name="backup_service_notification_restore_failed">復元に失敗しました</string>
 <string name="backup_dialog_run_in_background">バックグラウンド</string>

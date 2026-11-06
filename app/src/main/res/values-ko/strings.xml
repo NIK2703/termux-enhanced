@@ -75,6 +75,9 @@
     <string name="backup_service_notification_failed">백업 실패</string>
     <string name="backup_service_notification_restore_failed">복원 실패</string>
     <string name="backup_service_notification_restore_success">데이터 복원 완료</string>
+    <string name="backup_service_notification_success_with_warnings">경고와 함께 백업 생성 완료</string>
+    <string name="backup_service_notification_restore_success_with_warnings">경고와 함께 데이터 복원 완료</string>
+    <string name="backup_warning_some_files_changed">백업 중 일부 파일이 변경되거나 사라졌습니다</string>
     <string name="backup_service_notification_restore_title">Termux 데이터 복원</string>
     <string name="backup_service_notification_success">백업 생성 완료</string>
     <string name="backup_service_notification_title">Termux 데이터 백업</string>

@@ -70,6 +70,9 @@
 <string name="backup_service_notification_failed">Pencadangan gagal</string>
 <string name="backup_service_notification_restore_failed">Pemulihan gagal</string>
 <string name="backup_service_notification_restore_success">Data berhasil dipulihkan</string>
+<string name="backup_service_notification_success_with_warnings">Cadangan dibuat dengan peringatan</string>
+<string name="backup_service_notification_restore_success_with_warnings">Data dipulihkan dengan peringatan</string>
+<string name="backup_warning_some_files_changed">Beberapa file berubah atau hilang selama pencadangan</string>
 <string name="backup_service_notification_restore_title">Pemulihan data Termux</string>
 <string name="backup_service_notification_success">Cadangan berhasil dibuat</string>
 <string name="backup_service_notification_title">Pencadangan data Termux</string>

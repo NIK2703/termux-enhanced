@@ -69,6 +69,9 @@
     <string name="backup_service_notification_failed">Sicherung fehlgeschlagen</string>
     <string name="backup_service_notification_restore_failed">Wiederherstellung fehlgeschlagen</string>
     <string name="backup_service_notification_restore_success">Daten erfolgreich wiederhergestellt</string>
+    <string name="backup_service_notification_success_with_warnings">Sicherung mit Warnungen erstellt</string>
+    <string name="backup_service_notification_restore_success_with_warnings">Daten mit Warnungen wiederhergestellt</string>
+    <string name="backup_warning_some_files_changed">Einige Dateien wurden während der Sicherung geändert oder sind verschwunden</string>
     <string name="backup_service_notification_restore_title">Wiederherstellung der Termux-Daten</string>
     <string name="backup_service_notification_success">Sicherung erfolgreich erstellt</string>
     <string name="backup_service_notification_title">Sicherung der Termux-Daten</string>

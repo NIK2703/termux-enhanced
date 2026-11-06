@@ -74,7 +74,7 @@ public final class TermuxBackupService extends Service {
      * successful-looking poll (svc == null) would force a false "success" when the operation
      * actually failed.
      */
-    private static volatile Error sLastResult;
+    private static volatile TermuxBackupUtils.Result sLastResult;
 
     private volatile boolean mFinished = false;
     private volatile boolean mInForeground = false;
@@ -92,7 +92,7 @@ public final class TermuxBackupService extends Service {
      * re-post (the app-icon flicker on MIUI/HyperOS) to visible state changes only.
      */
     private volatile int mLastPostedProgressKey = PROGRESS_KEY_NONE;
-    private final AtomicReference<Error> mResult = new AtomicReference<>();
+    private final AtomicReference<TermuxBackupUtils.Result> mResult = new AtomicReference<>();
     /** Ensures showResult() runs exactly once across worker / enterBackground races. */
     private final AtomicBoolean mResultShown = new AtomicBoolean(false);
     /** Set when the user cancels; the worker checks it and kills the tar process. */
@@ -141,7 +141,7 @@ public final class TermuxBackupService extends Service {
 
     /** @return the result of the most recently finished operation (survives onDestroy). */
     @Nullable
-    public static Error getLastResult() {
+    public static TermuxBackupUtils.Result getLastResult() {
         return sLastResult;
     }
 
@@ -319,7 +319,7 @@ public final class TermuxBackupService extends Service {
         final Uri uri = intent.getData();
         final long estimatedSize = intent.getLongExtra(EXTRA_ESTIMATED_SIZE, 0);
         final boolean excludeTmp = !isRestore && intent.getBooleanExtra(EXTRA_EXCLUDE_TMP, false);
-        final AtomicReference<Error> result = new AtomicReference<>();
+        final AtomicReference<TermuxBackupUtils.Result> result = new AtomicReference<>();
 
         sInstance = this;
         sLastResult = null;
@@ -335,15 +335,17 @@ public final class TermuxBackupService extends Service {
             } finally {
                 // Publish the result BEFORE flipping the finished flag so any reader that sees
                 // mFinished == true also sees the correctly published result (safe-publication).
-                mResult.set(result.get());
-                sLastResult = result.get();
+                TermuxBackupUtils.Result finalResult = result.get();
+                if (finalResult == null) finalResult = TermuxBackupUtils.Result.success();
+                mResult.set(finalResult);
+                sLastResult = finalResult;
                 mFinished = true;
                 releaseWakeLock();
                 // Background mode: heads-up result notification (auto-dismiss + stopSelf
                 // after 8s). Dialog mode: no stopSelf here — the fragment stops the
                 // service, which also avoids racing enterBackground()'s auto-dismiss timer.
                 if (mInForeground) {
-                    showResult(isRestore, result.get());
+                    showResult(isRestore, finalResult);
                 } else if (mCancelled.get()) {
                     // Dialog mode + cancelled: the controller already dismissed the dialog and
                     // showed a toast, but nobody will call finish() / stopService for us after
@@ -392,12 +394,14 @@ public final class TermuxBackupService extends Service {
 
     // ---- Core operations ----
 
-    private void runBackup(Uri uri, long estimatedSize, boolean excludeTmp, AtomicReference<Error> out) {
+    private void runBackup(Uri uri, long estimatedSize, boolean excludeTmp,
+                           AtomicReference<TermuxBackupUtils.Result> out) {
         OutputStream os = null;
         try {
             os = getContentResolver().openOutputStream(uri);
             if (os == null) {
-                out.set(new Error(getString(R.string.backup_error_open_output)));
+                out.set(TermuxBackupUtils.Result.failure(
+                    new Error(getString(R.string.backup_error_open_output))));
                 return;
             }
             // Run du -sb in a SEPARATE thread so it does not delay the start of the
@@ -418,8 +422,8 @@ public final class TermuxBackupService extends Service {
                 }
             }, "BackupDuEstimate");
             duThread.start();
-            final Error[] holder = new Error[1];
-            TermuxBackupUtils.backup(this, os, error -> holder[0] = error,
+            final TermuxBackupUtils.Result[] holder = new TermuxBackupUtils.Result[1];
+            TermuxBackupUtils.backup(this, os, result -> holder[0] = result,
                 (copied, total) -> {
                     long est = estimateRef.get();
                     // Pass the pump-provided total through when the du estimate is not
@@ -432,20 +436,20 @@ public final class TermuxBackupService extends Service {
             // The data pump inside TermuxBackupUtils.backup() -> runTar() already closed 'os'.
             // Prevent the finally block from closing it again.
             os = null;
-            if (holder[0] != null) {
+            TermuxBackupUtils.Result result = holder[0];
+            if (result == null) result = TermuxBackupUtils.Result.success();
+            if (!result.isSuccess()) {
                 // A cancelled or failed backup must not leave a partial destination file behind.
-                // Benign tar exit-1 warnings are mapped to null by TermuxBackupUtils, so a
-                // valid archive is never deleted here just because files changed during backup.
                 try { getContentResolver().delete(uri, null, null); } catch (Exception ignored) { }
-                out.set(holder[0]);
             }
+            out.set(result);
         } catch (IOException | RuntimeException e) {
             try { getContentResolver().delete(uri, null, null); } catch (Exception ignored) { }
             // Don't overwrite a successful backup result with a close error:
             // the data pump may have already closed 'os', and an IOException on
             // double-close must not be reported as a backup failure.
             if (out.get() == null) {
-                out.set(new Error(e.getMessage(), e));
+                out.set(TermuxBackupUtils.Result.failure(new Error(e.getMessage(), e)));
             }
         } finally {
             // Close if backup() never started the data pump (e.g. checkTarHealth failed),
@@ -456,19 +460,21 @@ public final class TermuxBackupService extends Service {
         }
     }
 
-    private void runRestore(Uri uri, long estimatedSize, AtomicReference<Error> out) {
+    private void runRestore(Uri uri, long estimatedSize,
+                            AtomicReference<TermuxBackupUtils.Result> out) {
         try (InputStream is = getContentResolver().openInputStream(uri)) {
             if (is == null) {
-                out.set(new Error("Failed to open input file"));
+                out.set(TermuxBackupUtils.Result.failure(
+                    new Error("Failed to open input file")));
                 return;
             }
-            final Error[] holder = new Error[1];
-            TermuxBackupUtils.restore(this, is, error -> holder[0] = error,
+            final TermuxBackupUtils.Result[] holder = new TermuxBackupUtils.Result[1];
+            TermuxBackupUtils.restore(this, is, result -> holder[0] = result,
                 (copied, total) -> publishProgress(true, copied, total > 0 ? total : estimatedSize),
                 mCancelled);
-            out.set(holder[0]);
+            out.set(holder[0] != null ? holder[0] : TermuxBackupUtils.Result.success());
         } catch (IOException | RuntimeException e) {
-            out.set(new Error(e.getMessage(), e));
+            out.set(TermuxBackupUtils.Result.failure(new Error(e.getMessage(), e)));
         }
     }
 
@@ -585,18 +591,34 @@ public final class TermuxBackupService extends Service {
         mLastPostedProgressKey = key;
     }
 
-    /** Build the final (success / failed / cancelled) heads-up notification, without posting it. */
-    private Notification buildResultNotification(boolean isRestore, @Nullable Error error) {
-        boolean cancelled = error == TermuxBackupUtils.CANCELLED_ERROR;
+    /** Build the final (success / warning / failed / cancelled) heads-up notification. */
+    private Notification buildResultNotification(boolean isRestore,
+                                                 @Nullable TermuxBackupUtils.Result result) {
+        boolean cancelled = result != null && result.isCancelled();
+        Error error = result != null ? result.getError() : null;
         boolean success = error == null;
-        CharSequence title = cancelled
-            ? getString(R.string.backup_restore_cancelled)
-            : success
-                ? getString(isRestore ? R.string.backup_service_notification_restore_success
-                                      : R.string.backup_service_notification_success)
-                : getString(isRestore ? R.string.backup_service_notification_restore_failed
-                                      : R.string.backup_service_notification_failed);
-        CharSequence text = (success || cancelled) ? null : Error.getMinimalErrorString(error);
+        String warning = result != null ? result.getWarning() : null;
+        boolean warned = success && warning != null;
+
+        CharSequence title;
+        if (cancelled) {
+            title = getString(R.string.backup_restore_cancelled);
+        } else if (warned) {
+            title = getString(isRestore
+                ? R.string.backup_service_notification_restore_success_with_warnings
+                : R.string.backup_service_notification_success_with_warnings);
+        } else if (success) {
+            title = getString(isRestore ? R.string.backup_service_notification_restore_success
+                                        : R.string.backup_service_notification_success);
+        } else {
+            title = getString(isRestore ? R.string.backup_service_notification_restore_failed
+                                        : R.string.backup_service_notification_failed);
+        }
+        CharSequence text = null;
+        if (!cancelled) {
+            if (warned) text = warning;
+            else if (!success) text = Error.getMinimalErrorString(error);
+        }
 
         // Result notification: HIGH priority + sound so it pops heads-up. Progress bar cleared.
         Notification.Builder builder = NotificationUtils.geNotificationBuilder(this,
@@ -616,7 +638,7 @@ public final class TermuxBackupService extends Service {
             .build();
     }
 
-    private void showResult(boolean isRestore, @Nullable Error error) {
+    private void showResult(boolean isRestore, @Nullable TermuxBackupUtils.Result result) {
         // Run at most once (worker and enterBackground() can both race to call this).
         if (!mResultShown.compareAndSet(false, true)) return;
 
@@ -634,7 +656,7 @@ public final class TermuxBackupService extends Service {
             // notification and actually pops the heads-up — updating an in-place notification
             // often suppresses it.
             nm.notify(TermuxConstants.TERMUX_BACKUP_NOTIFICATION_ID,
-                buildResultNotification(isRestore, error));
+                buildResultNotification(isRestore, result));
         }
 
         // Leave foreground only if we actually entered it (else stopForeground() would throw).
@@ -666,7 +688,7 @@ public final class TermuxBackupService extends Service {
         // Also surface the result as a bottom Toast on the service's main looper, so it
         // shows even when no activity is visible. On API 26+ a background Toast may be
         // throttled — the heads-up notification above is the guaranteed fallback.
-        final CharSequence toastText = buildResultToastText(getApplicationContext(), isRestore, error);
+        final CharSequence toastText = buildResultToastText(getApplicationContext(), isRestore, result);
         if (toastText != null && mMainHandler != null) {
             mMainHandler.post(() -> showBottomToast(toastText, Toast.LENGTH_LONG));
         }
@@ -674,19 +696,27 @@ public final class TermuxBackupService extends Service {
 
     /** Build the bottom-Toast text for a finished operation, or null if there is nothing to say. */
     @Nullable
-    static CharSequence buildResultToastText(@NonNull Context context, boolean isRestore, @Nullable Error error) {
-        if (error == TermuxBackupUtils.CANCELLED_ERROR) {
+    static CharSequence buildResultToastText(@NonNull Context context, boolean isRestore,
+                                             @Nullable TermuxBackupUtils.Result result) {
+        if (result != null && result.isCancelled()) {
             return context.getString(R.string.backup_restore_cancelled);
-        } else if (error == null) {
+        }
+        if (result == null || result.isSuccess()) {
+            String warning = result != null ? result.getWarning() : null;
+            if (warning != null) {
+                return context.getString(isRestore
+                        ? R.string.backup_service_notification_restore_success_with_warnings
+                        : R.string.backup_service_notification_success_with_warnings)
+                    + ": " + warning;
+            }
             return context.getString(isRestore
                 ? R.string.backup_service_notification_restore_success
                 : R.string.backup_service_notification_success);
-        } else {
-            return context.getString(isRestore
-                    ? R.string.backup_service_notification_restore_failed
-                    : R.string.backup_service_notification_failed)
-                + ": " + Error.getMinimalErrorString(error);
         }
+        return context.getString(isRestore
+                ? R.string.backup_service_notification_restore_failed
+                : R.string.backup_service_notification_failed)
+            + ": " + Error.getMinimalErrorString(result.getError());
     }
 
     // ---- Wake lock ----

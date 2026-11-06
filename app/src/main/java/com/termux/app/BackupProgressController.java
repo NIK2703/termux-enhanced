@@ -12,7 +12,6 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentActivity;
 
 import com.termux.R;
-import com.termux.shared.errors.Error;
 
 import java.lang.ref.WeakReference;
 
@@ -247,7 +246,7 @@ public final class BackupProgressController {
         dismiss();
         // Read the PERSISTED result (survives the service's onDestroy), so a finished operation is
         // never misreported as success just because svc became null first.
-        Error error = TermuxBackupService.getLastResult();
+        TermuxBackupUtils.Result result = TermuxBackupService.getLastResult();
         FragmentActivity activity = mActivityRef.get();
         if (activity == null || activity.isFinishing()) {
             // Activity going away: if the service is still alive, hand it the result so it surfaces
@@ -257,11 +256,11 @@ public final class BackupProgressController {
             notifyClosed();
             return;
         }
-        CharSequence toastText = TermuxBackupService.buildResultToastText(activity, mBackupIsRestore, error);
+        CharSequence toastText = TermuxBackupService.buildResultToastText(activity, mBackupIsRestore, result);
         if (toastText != null) {
             Toast.makeText(activity, toastText, Toast.LENGTH_LONG).show();
         }
-        if (error == null && mBackupLaunchTermuxOnSuccess) {
+        if ((result == null || result.isSuccess()) && mBackupLaunchTermuxOnSuccess) {
             TermuxActivity.startTermuxActivityWithSessionReset(activity);
         }
         // Stop the (now idle) service — the bottom Toast already reported the result, matching the

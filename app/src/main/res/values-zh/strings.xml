@@ -157,6 +157,9 @@
     <string name="backup_service_notification_restore_title">Termux 数据恢复</string>
     <string name="backup_service_notification_success">备份创建成功</string>
     <string name="backup_service_notification_restore_success">数据恢复成功</string>
+    <string name="backup_service_notification_success_with_warnings">备份已创建，但有警告</string>
+    <string name="backup_service_notification_restore_success_with_warnings">数据已恢复，但有警告</string>
+    <string name="backup_warning_some_files_changed">备份期间部分文件发生更改或消失</string>
     <string name="backup_service_notification_failed">备份失败</string>
     <string name="backup_service_notification_restore_failed">恢复失败</string>
     <string name="backup_dialog_run_in_background">后台运行</string>

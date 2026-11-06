@@ -72,6 +72,9 @@
     <string name="backup_service_notification_failed">Falha no backup</string>
     <string name="backup_service_notification_restore_failed">Falha na restauração</string>
     <string name="backup_service_notification_restore_success">Dados restaurados com sucesso</string>
+    <string name="backup_service_notification_success_with_warnings">Backup criado com avisos</string>
+    <string name="backup_service_notification_restore_success_with_warnings">Dados restaurados com avisos</string>
+    <string name="backup_warning_some_files_changed">Alguns arquivos mudaram ou desapareceram durante o backup</string>
     <string name="backup_service_notification_restore_title">Restauração de dados do Termux</string>
     <string name="backup_service_notification_success">Backup criado com sucesso</string>
     <string name="backup_service_notification_title">Backup de dados do Termux</string>

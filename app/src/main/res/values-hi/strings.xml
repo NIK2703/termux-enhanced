@@ -72,6 +72,9 @@
     <string name="backup_service_notification_failed">बैकअप विफल</string>
     <string name="backup_service_notification_restore_failed">पुनर्स्थापना विफल</string>
     <string name="backup_service_notification_restore_success">डेटा सफलतापूर्वक पुनर्स्थापित हो गया</string>
+    <string name="backup_service_notification_success_with_warnings">चेतावनियों के साथ बैकअप बनाया गया</string>
+    <string name="backup_service_notification_restore_success_with_warnings">चेतावनियों के साथ डेटा पुनर्स्थापित हो गया</string>
+    <string name="backup_warning_some_files_changed">बैकअप के दौरान कुछ फ़ाइलें बदल गईं या गायब हो गईं</string>
     <string name="backup_service_notification_restore_title">Termux डेटा पुनर्स्थापना</string>
     <string name="backup_service_notification_success">बैकअप सफलतापूर्वक बनाया गया</string>
     <string name="backup_service_notification_title">Termux डेटा बैकअप</string>

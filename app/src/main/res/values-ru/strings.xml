@@ -260,6 +260,9 @@
     <string name="backup_service_notification_restore_title">Восстановление данных Termux</string>
     <string name="backup_service_notification_success">Резервная копия успешно создана</string>
     <string name="backup_service_notification_restore_success">Данные успешно восстановлены</string>
+    <string name="backup_service_notification_success_with_warnings">Резервная копия создана с предупреждениями</string>
+    <string name="backup_service_notification_restore_success_with_warnings">Данные восстановлены с предупреждениями</string>
+    <string name="backup_warning_some_files_changed">Некоторые файлы изменились или исчезли во время резервного копирования</string>
     <string name="backup_service_notification_failed">Резервное копирование не удалось</string>
     <string name="backup_service_notification_restore_failed">Восстановление не удалось</string>
     <string name="backup_dialog_run_in_background">Фон</string>

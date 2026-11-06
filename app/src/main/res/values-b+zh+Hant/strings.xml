@@ -157,6 +157,9 @@
     <string name="backup_service_notification_restore_title">Termux 資料還原</string>
     <string name="backup_service_notification_success">備份建立成功</string>
     <string name="backup_service_notification_restore_success">資料還原成功</string>
+    <string name="backup_service_notification_success_with_warnings">備份已建立，但有警告</string>
+    <string name="backup_service_notification_restore_success_with_warnings">資料已還原，但有警告</string>
+    <string name="backup_warning_some_files_changed">備份期間有些檔案變更或消失</string>
     <string name="backup_service_notification_failed">備份失敗</string>
     <string name="backup_service_notification_restore_failed">還原失敗</string>
     <string name="backup_dialog_run_in_background">背景執行</string>

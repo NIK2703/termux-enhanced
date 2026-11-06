@@ -146,6 +146,9 @@
 <string name="backup_service_notification_restore_title">Termux veri geri yükleme</string>
 <string name="backup_service_notification_success">Yedekleme başarıyla oluşturuldu</string>
 <string name="backup_service_notification_restore_success">Veriler başarıyla geri yüklendi</string>
+<string name="backup_service_notification_success_with_warnings">Yedekleme uyarılarla tamamlandı</string>
+<string name="backup_service_notification_restore_success_with_warnings">Veriler uyarılarla geri yüklendi</string>
+<string name="backup_warning_some_files_changed">Yedekleme sırasında bazı dosyalar değişti veya kayboldu</string>
 <string name="backup_service_notification_failed">Yedekleme başarısız oldu</string>
 <string name="backup_service_notification_restore_failed">Geri yükleme başarısız oldu</string>
 <string name="backup_dialog_run_in_background">Arka plan</string>
