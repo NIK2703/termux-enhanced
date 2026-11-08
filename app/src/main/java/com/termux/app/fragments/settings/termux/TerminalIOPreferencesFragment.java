@@ -97,17 +97,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             });
         }
 
-        // Hand-rolled AlertDialog (not a ListPreference), so useSimpleSummaryProvider cannot
-        // reach it; the selected option's name is written onto the row here instead.
         final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
-        Preference historyRestorePref = findPreference("text_input_insert_at_cursor");
-        if (historyRestorePref != null && appPrefs != null) {
-            historyRestorePref.setSummary(historyRestoreSummaryRes(appPrefs));
-            historyRestorePref.setOnPreferenceClickListener(pref -> {
-                showHistoryRestoreDialog(pref, appPrefs);
-                return true;
-            });
-        }
 
         configureHistorySlider("message_history_max", 10, 100);
 
@@ -213,35 +203,6 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             }
             return true;
         });
-    }
-
-    /** The resource of whichever {@code text_input_insert_at_cursor} option is currently selected. */
-    private static int historyRestoreSummaryRes(@NonNull TermuxAppSharedPreferences prefs) {
-        return prefs.shouldInsertAtCursorOnHistoryPick()
-                ? R.string.text_input_restore_mode_option_insert
-                : R.string.text_input_restore_mode_option_replace;
-    }
-
-    private void showHistoryRestoreDialog(@NonNull Preference pref,
-                                          @NonNull TermuxAppSharedPreferences prefs) {
-        Context context = getContext();
-        if (context == null) return;
-
-        String[] items = {
-                context.getString(R.string.text_input_restore_mode_option_replace),
-                context.getString(R.string.text_input_restore_mode_option_insert)
-        };
-        int checkedItem = prefs.shouldInsertAtCursorOnHistoryPick() ? 1 : 0;
-
-        new androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle(R.string.text_input_restore_mode_dialog_title)
-                .setSingleChoiceItems(items, checkedItem, (dialog, which) -> {
-                    prefs.setInsertAtCursorOnHistoryPick(which == 1);
-                    pref.setSummary(historyRestoreSummaryRes(prefs));
-                    dialog.dismiss();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
     }
 
 }

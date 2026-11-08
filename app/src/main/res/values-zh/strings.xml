@@ -201,10 +201,6 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">从历史恢复文本的行为</string>
-    <string name="text_input_restore_mode_dialog_title">从历史恢复模式</string>
-    <string name="text_input_restore_mode_option_insert">在光标处插入</string>
-    <string name="text_input_restore_mode_option_replace">替换整个输入框</string>
     <string name="input_history_empty">没有输入历史</string>
     <string name="input_history_clear_all">清除历史…</string>
     <string name="input_history_clear">清除</string>

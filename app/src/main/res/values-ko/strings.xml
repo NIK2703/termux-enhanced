@@ -220,10 +220,6 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">입력 텍스트 복원 동작</string>
-    <string name="text_input_restore_mode_dialog_title">입력 텍스트 복원 모드</string>
-    <string name="text_input_restore_mode_option_insert">커서 위치에 삽입</string>
-    <string name="text_input_restore_mode_option_replace">전체 입력 필드 교체</string>
     <string name="theme_mode_title">앱 테마</string>
     <string name="title_activity_termux_settings">Termux 설정</string>
     <string name="title_confirm_kill_process">이 세션을 정말 종료할까요?</string>

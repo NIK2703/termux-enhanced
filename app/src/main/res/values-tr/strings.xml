@@ -198,10 +198,6 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">Geçmişten giriş geri yükleme davranışı</string>
-    <string name="text_input_restore_mode_dialog_title">Geçmiş geri yükleme modu</string>
-    <string name="text_input_restore_mode_option_insert">İmlece ekle</string>
-    <string name="text_input_restore_mode_option_replace">Tüm giriş alanını değiştir</string>
 <string name="input_history_empty">Giriş geçmişi yok</string>
 <string name="input_history_clear_all">GEÇMİŞİ TEMİZLE…</string>
 <string name="input_history_clear">TEMİZLE</string>

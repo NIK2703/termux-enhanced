@@ -152,16 +152,6 @@ public final class TermuxPreferenceConstants {
         public static final String TEXT_INPUT_ACTION_ON_SEND_HIDE_KEYBOARD = "hide_keyboard";
 
         /**
-         * Defines the key for whether picking a message from the history popup should
-         * insert the message at the cursor position in the input field (true), or
-         * replace the entire field content (false, legacy behaviour).
-         * When insertion mode is active, the inserted text is also automatically
-         * selected (highlighted) so the user sees exactly what was placed.
-         */
-        public static final String KEY_TEXT_INPUT_INSERT_AT_CURSOR = "text_input_insert_at_cursor";
-        public static final boolean DEFAULT_VALUE_TEXT_INPUT_INSERT_AT_CURSOR = false;
-
-        /**
          * Defines the key for whether the soft keyboard will be enabled, for cases where users want
          * to use a hardware keyboard instead.
          */

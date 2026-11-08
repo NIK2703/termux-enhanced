@@ -106,12 +106,6 @@
             app:entryValues="@array/text_input_action_on_send_values"
             app:iconSpaceReserved="false" />
 
-        <Preference
-            app:key="text_input_insert_at_cursor"
-            app:dependency="text_input_enabled"
-            app:title="@string/text_input_restore_mode_title"
-            app:iconSpaceReserved="false" />
-
         <SwitchPreferenceCompat
             app:key="per_directory_message_history"
             app:dependency="text_input_enabled"

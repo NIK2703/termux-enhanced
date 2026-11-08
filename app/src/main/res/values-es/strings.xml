@@ -194,10 +194,6 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">Comportamiento al restaurar texto del historial</string>
-    <string name="text_input_restore_mode_dialog_title">Modo de restauración del historial</string>
-    <string name="text_input_restore_mode_option_insert">Insertar en la posición del cursor</string>
-    <string name="text_input_restore_mode_option_replace">Reemplazar todo el campo de entrada</string>
     <string name="input_history_empty">El historial de entrada está vacío</string>
     <string name="input_history_clear_all">BORRAR HISTORIAL…</string>
     <string name="input_history_clear">LIMPIAR</string>

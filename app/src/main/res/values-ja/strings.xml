@@ -187,10 +187,6 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">履歴からのテキスト復元動作</string>
-    <string name="text_input_restore_mode_dialog_title">履歴復元モード</string>
-    <string name="text_input_restore_mode_option_insert">カーソル位置に挿入</string>
-    <string name="text_input_restore_mode_option_replace">入力フィールド全体を置き換え</string>
 <string name="input_history_empty">入力履歴はありません</string>
 <string name="input_history_clear_all">履歴をクリア…</string>
 <string name="input_history_clear">クリア</string>

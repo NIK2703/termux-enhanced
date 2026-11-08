@@ -3649,13 +3649,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         editText.requestFocus();
     }
 
-    /**
-     * A history item was chosen (finger released over it). Opens the input panel
-     * and inserts the picked message. If the panel already held some text, that
-     * text is first pushed into the history (dedup) so it is not lost.
-     */
+    /** A history item was chosen: opens the input panel and replaces its whole content. */
     @Override
     public void onHistoryMessagePicked(@NonNull String message) {
+        insertHistoryMessage(message, false);
+    }
+
+    /** Long-press: insert at the caret instead of replacing the whole field. */
+    @Override
+    public void onHistoryMessagePickedAtCursor(@NonNull String message) {
+        insertHistoryMessage(message, true);
+    }
+
+    /** Opens the input panel and inserts the message at the caret or replaces the whole field. */
+    private void insertHistoryMessage(@NonNull String message, boolean insertAtCursor) {
         final EditText editText = getTerminalToolbarTextInput();
         if (editText == null) return;
 
@@ -3665,9 +3672,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         mAutoCompleteCtrl.invalidateHistoryVersion();
 
-        if (mPreferences.shouldInsertAtCursorOnHistoryPick()) {
-            // NEW behaviour: insert at cursor / replace selection, auto-select inserted text.
-            // Does NOT save existing text to history — that only happens on send and clear.
+        if (insertAtCursor) {
+            // Insert mode does not save the existing text to history; only send and clear do.
             Editable editable = editText.getText();
             if (editable == null) {
                 editText.setText(message);
@@ -3688,7 +3694,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 editText.setSelection(selStart, selStart + message.length());
             }
         } else {
-            // LEGACY behaviour: replace the entire field, saving existing text to history.
+            // Replacing the field first saves the existing text to history.
             String existing = editText.getText().toString();
             if (!MessageHistoryController.isBlankMessage(existing)
                     && !MessageHistoryController.messagesEqual(existing, message)) {

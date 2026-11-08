@@ -187,14 +187,6 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericString(TERMUX_APP.KEY_TEXT_INPUT_ACTION_ON_SEND, value);
     }
 
-    public boolean shouldInsertAtCursorOnHistoryPick() {
-        return getBooleanByKey(TERMUX_APP.KEY_TEXT_INPUT_INSERT_AT_CURSOR, TERMUX_APP.DEFAULT_VALUE_TEXT_INPUT_INSERT_AT_CURSOR);
-    }
-
-    public void setInsertAtCursorOnHistoryPick(boolean value) {
-        setGenericBoolean(TERMUX_APP.KEY_TEXT_INPUT_INSERT_AT_CURSOR, value);
-    }
-
     public boolean isSoftKeyboardEnabled() {
         return getBooleanByKey(TERMUX_APP.KEY_SOFT_KEYBOARD_ENABLED, TERMUX_APP.DEFAULT_VALUE_KEY_SOFT_KEYBOARD_ENABLED);
     }

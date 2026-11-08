@@ -55,6 +55,9 @@ public final class TermuxActivityPopupController {
 
         void onHistoryMessagePicked(@NonNull String message);
 
+        /** Inserts a picked message at the caret instead of replacing the field. */
+        void onHistoryMessagePickedAtCursor(@NonNull String message);
+
         boolean onHistoryRowWordSwipe(@NonNull View row, @NonNull MotionEvent event,
                 @NonNull String message, @NonNull Runnable onWordsRestored);
 
@@ -586,7 +589,8 @@ public final class TermuxActivityPopupController {
                 && rawX <= rowLeft + segment.getRight();
     }
 
-    /** Tap picks, right swipe restores words, left swipe deletes; vertical drags scroll the list. */
+    /** Tap picks, long-press inserts at the caret, right swipe restores words, left swipe deletes;
+     *  vertical drags scroll the list. */
     private void bindInteractiveMessageRow(@NonNull View row, @NonNull String message) {
         final int normal = mColorSchemeManager.getHistoryPopupBg();
         final int highlight = TermuxColorSchemeManager.compositeColors(
@@ -635,10 +639,12 @@ public final class TermuxActivityPopupController {
                     if (!engaged[0]) {
                         if (Math.abs(dy) > touchSlop && Math.abs(dy) >= Math.abs(dx)) {
                             rejected[0] = true;
+                            v.cancelLongPress();
                             return false;
                         }
                         if (dx >= -touchSlop || Math.abs(dx) <= Math.abs(dy)) return false;
                         engaged[0] = true;
+                        v.cancelLongPress();
                         mHost.cancelHistoryRowWordSwipe();
                         if (v.getParent() != null) {
                             v.getParent().requestDisallowInterceptTouchEvent(true);
@@ -683,6 +689,11 @@ public final class TermuxActivityPopupController {
         row.setOnClickListener(v -> {
             dismissMessageHistoryPopup();
             mHost.onHistoryMessagePicked(message);
+        });
+        row.setOnLongClickListener(v -> {
+            dismissMessageHistoryPopup();
+            mHost.onHistoryMessagePickedAtCursor(message);
+            return true;
         });
     }
 

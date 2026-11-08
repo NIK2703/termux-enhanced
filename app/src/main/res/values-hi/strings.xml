@@ -211,10 +211,6 @@
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">इतिहास से टेक्स्ट पुनर्स्थापना व्यवहार</string>
-    <string name="text_input_restore_mode_dialog_title">इनपुट इतिहास पुनर्स्थापना मोड</string>
-    <string name="text_input_restore_mode_option_insert">कर्सर की स्थिति में सम्मिलित करें</string>
-    <string name="text_input_restore_mode_option_replace">पूरा इनपुट फ़ील्ड बदलें</string>
     <string name="theme_mode_title">ऐप थीम</string>
     <string name="title_activity_termux_settings">Termux सेटिंग्स</string>
     <string name="title_confirm_kill_process">क्या वाकई यह सत्र समाप्त करें?</string>

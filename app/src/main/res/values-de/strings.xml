@@ -203,10 +203,6 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
         <item>hide_panel</item>
         <item>hide_keyboard</item>
     </string-array>
-    <string name="text_input_restore_mode_title">Verhalten beim Wiederherstellen von Text aus dem Verlauf</string>
-    <string name="text_input_restore_mode_dialog_title">Modus der Verlaufswiederherstellung</string>
-    <string name="text_input_restore_mode_option_insert">An der Cursorposition einfügen</string>
-    <string name="text_input_restore_mode_option_replace">Gesamtes Eingabefeld ersetzen</string>
     <string name="title_activity_termux_settings">Termux-Einstellungen</string>
     <string name="title_confirm_kill_process">Diese Sitzung wirklich beenden?</string>
     <string name="title_create_named_session">Neue benannte Sitzung</string>
