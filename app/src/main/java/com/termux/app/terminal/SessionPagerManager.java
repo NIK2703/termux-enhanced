@@ -543,8 +543,8 @@ public final class SessionPagerManager {
                 // the placeholder apart from a programmatic scroll that lands on its index.
                 if (state == ViewPager2.SCROLL_STATE_DRAGGING) {
                     mUserScrollInProgress = true;
-                    // A user swipe is taking over: release the reserved end-scroll so
-                    // onPageScrolled()'s finger-follow instant scroll is re-enabled.
+                    // A user swipe releases the reserved right-edge pin. This re-enables
+                    // onPageScrolled()'s finger-follow instant scroll.
                     withTabsController(tabs -> tabs.setEndScrollReserved(false));
                 } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
                     mUserScrollInProgress = false;
@@ -842,11 +842,10 @@ public final class SessionPagerManager {
         mTerminalPagerAdapter.commitPlaceholder(service.getTermuxSessions(), placeholderIndex);
         withTabsController(tabs -> {
             tabs.setPlaceholderActive(false);
-            // Reserve the end-scroll NOW (before the deferred post() bookkeeping) so every
-            // onPageScrolled() instant scrollTo() during the settle is suppressed by the
-            // mEndScrollActive guard — only the single END smooth scroll drives the strip.
-            // Also arm the label-triggered scroll: the right-end scroll fires only once the
-            // new session's title is actually set (onTitleChanged), with a 250ms fallback.
+            // Reserve the right edge before the deferred post() bookkeeping. The guard in
+            // onPageScrolled() then leaves the strip to the layout-driven pin during the settle.
+            // Arm the label-triggered re-pin too; it fires when the new title arrives, with a
+            // 250ms fallback.
             tabs.setEndScrollReserved(true);
         });
         if (newSession.getTerminalSession() != null) {

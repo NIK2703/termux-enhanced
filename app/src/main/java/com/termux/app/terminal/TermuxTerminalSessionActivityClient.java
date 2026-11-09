@@ -66,13 +66,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     };
 
     /**
-     * The session that was just created by a right-swipe-to-add gesture. The tab-strip's
-     * right-end scroll must be deferred until this session's label is actually set (the shell
-     * emits an OSC window title), so the scroll reveals the (+) button only once the new tab
-     * shows its real title — never while it still reads the default placeholder.
+     * The session just created by a right-swipe-to-add gesture. The tab strip's right-edge
+     * reveal waits until this session's label is set (the shell emits an OSC window title), so
+     * the (+) button is revealed only once the new tab shows its real title, never while it
+     * still reads the default placeholder.
      */
     private TerminalSession mPendingEndScrollSession = null;
-    /** Fallback runnable that scrolls to the end even if the shell never sets a title. */
+    /** Fallback runnable that pins the strip to the end if the shell never sets a title. */
     private java.lang.Runnable mEndScrollFallback;
 
     /**
@@ -325,9 +325,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Arm the right-end scroll for the session just created by a right-swipe-to-add gesture.
-     * The scroll itself fires from {@link #onTitleChanged} once the shell sets the tab's real
-     * title, with a 250 ms fallback in case it never emits one.
+     * Arms the right-edge reveal for the session just created by a right-swipe-to-add gesture.
+     * The pin is applied from {@link #onTitleChanged} once the shell sets the tab's real title,
+     * with a 250 ms fallback in case it never emits one.
      */
     public void markPendingEndScrollSession(@NonNull TerminalSession session) {
         mPendingEndScrollSession = session;
@@ -787,7 +787,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      * Single entry point for creating a new terminal-session tab, shared by every add-tab path:
      * the "+" button, the directory-history popup, keyboard shortcuts and the right-swipe-to-add
      * gesture. Centralises the MAX_SESSIONS limit, working-directory resolution, session creation
-     * and (for selectable tabs) the end-scroll reveal — removing the duplicated logic that used to
+     * and (for selectable tabs) the right-edge reveal, removing the duplicated logic that used to
      * live in {@code addNewSession} / {@code addNewSessionInDirectory} / {@code createSessionForPlaceholder}.
      *
      * @param isFailSafe     start a failsafe session.
@@ -874,17 +874,16 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // that correction reads the live IME, which reports "hidden" while the pager has the
         // served view detached, and closed the inherited open keyboard on every new tab.
         mActivity.setKbStateInheritedFromCreate(newTerminalSession);
-        // CALLER_MANAGED (right-swipe gesture): the caller handles selection / pager bookkeeping /
-        // its own end-scroll, so just hand back the session.
+        // CALLER_MANAGED (right-swipe gesture): the caller handles selection, pager bookkeeping,
+        // and its own right-edge reveal, so just hand back the session.
         if (selectMode == NewSessionSelectMode.CALLER_MANAGED) {
             return newTermuxSession;
         }
 
-        // Reveal the newly-added tab AND the trailing (+) button by scrolling the tab strip to its
-        // right end — identical to the right-swipe-to-add gesture. Reserve the end-scroll now (so
-        // competing CENTRE scrolls are suppressed) and arm the label-triggered scroll;
-        // scrollStripToEnd() fires from onTitleChanged once the shell sets the tab's real title,
-        // with a 250ms fallback.
+        // Reveal the new tab and the trailing (+) button by pinning the strip to its right end,
+        // same as the right-swipe-to-add gesture. Reserve the right edge now so competing centre
+        // scrolls are suppressed, then re-pin from onTitleChanged once the shell sets the real
+        // title, with a 250ms fallback.
         armEndScrollForNewSession(newTerminalSession);
 
         // Cold-start detection: the pager has never been populated (adapter has 0 items)
@@ -908,7 +907,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
-     * Reserve the tab-strip end-scroll for a freshly-added session and arm its label-triggered fire.
+     * Reserves the tab strip's right edge for a newly added session and arms the label-triggered
+     * re-pin.
      */
     private void armEndScrollForNewSession(@NonNull TerminalSession session) {
         TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();

@@ -117,6 +117,13 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
     /** Deferred {@link #settleNow()} — see {@link #ensureSettled()} for why it is posted. */
     private final Runnable mSettleRunnable = this::settleNow;
 
+    /**
+     * Fired on ACTION_DOWN before the strip handles the gesture. The tabs controller uses it to
+     * release the right-edge pin as soon as the user grabs the strip.
+     */
+    @Nullable
+    private Runnable mOnUserInteraction;
+
     /** {@link #mFlingArmed}'s expiry — see {@link #armFlingLifetime()}. */
     private final Runnable mFlingDisarm = () -> mFlingArmed = false;
 
@@ -141,6 +148,10 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
         // [0, scrollRange] (maxOverScrollX is zeroed in this mode), which is what makes the
         // unconsumed-delta arithmetic in overScrollBy() exact.
         setOverScrollMode(View.OVER_SCROLL_NEVER);
+    }
+
+    public void setOnUserInteractionListener(@Nullable Runnable listener) {
+        mOnUserInteraction = listener;
     }
 
     // ── gesture input ──────────────────────────────────────────────────────────────────────
@@ -265,16 +276,21 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      *
      * <p>Handled here rather than in {@link #onTouchEvent} because this is the only place that
      * sees the whole gesture: a tap on a child never reaches {@code onTouchEvent}, so a release
-     * hooked there would leave the previous pull hanging. Runs <em>after</em> {@code super}, so
-     * the fling launched on ACTION_UP is registered before the spring is armed and the held pull
-     * is recorded before {@link #onEdgeRelease} consumes it. The first scrolling fling frame
-     * cancels the spring via {@link #bleedIntoScroll}, so pull-then-flick is one motion; a fling
-     * with nowhere to go produces no scroll frames and the spring runs alone.
+     * hooked there would leave the previous pull hanging. The user-interaction callback runs
+     * before {@code super} so a touch releases the right-edge pin before the strip moves. The
+     * rest runs <em>after</em> {@code super}, so the fling launched on ACTION_UP is registered
+     * before the spring is armed and the held pull is recorded before {@link #onEdgeRelease}
+     * consumes it. The first scrolling fling frame cancels the spring via
+     * {@link #bleedIntoScroll}, so pull-then-flick is one motion; a fling with nowhere to go
+     * produces no scroll frames and the spring runs alone.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        final boolean handled = super.dispatchTouchEvent(ev);
         final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN && mOnUserInteraction != null) {
+            mOnUserInteraction.run();
+        }
+        final boolean handled = super.dispatchTouchEvent(ev);
         if (action == MotionEvent.ACTION_DOWN) {
             mDragPullAbsorbed = false;
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
