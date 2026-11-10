@@ -157,7 +157,7 @@
         </FrameLayout>
 
         <!-- Quick actions for the open input panel; the end margin clears the pencil button.
-             TermuxActivity anchors the row above the panel. -->
+             TermuxActivity anchors the row above the topmost bottom strip. -->
         <LinearLayout
             android:id="@+id/input_panel_actions"
             android:layout_width="wrap_content"
@@ -210,11 +210,8 @@
         <!-- Floating toggle text input visibility button (pencil).
              Floats over the terminal, bottom-right, vertically centered with the
              TerminalView scrollbar thumb when scrolled to the bottom.
-             Always above the toolbar (which is always at the bottom) — and above the tab
-             panel when the tabs are at the bottom, like the input panel it opens.
-             GONE while the input panel is open: the panel is sized and placed to take this
-             button's place, so showing it again would just cover the panel. Its resting size
-             is where the panel's resting height comes from. -->
+             TermuxActivity anchors it above the topmost bottom strip. Hidden while the
+             panel floats over the terminal, since the panel occupies this button's spot. -->
         <ImageButton
             android:id="@+id/toggle_text_input_button"
             android:layout_width="46dp"

@@ -2645,12 +2645,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final View strip = bottomStripView();
         if (tabsContainer == null || pager == null || panel == null || strip == null) return;
         final int stripId = strip.getId();
+        final boolean tabsAtBottom = isTabPanelAtBottom();
+        final boolean panelVisible = panel.getVisibility() == View.VISIBLE;
 
         // The terminal fills what is left above the bottom strip — EXCEPT when the tab strip is at
         // the bottom, where the tabs are the lowest full-width strip and the terminal has to stop
         // at them. Two different edges, decided together.
         final int[] bottomAnchors = BottomStripAnchors.pagerAndTabs(
-            isTabPanelAtBottom(), R.id.session_tabs_container, stripId);
+            tabsAtBottom, R.id.session_tabs_container, stripId);
 
         RelativeLayout.LayoutParams pagerLp = (RelativeLayout.LayoutParams) pager.getLayoutParams();
         pagerLp.removeRule(RelativeLayout.ABOVE);
@@ -2664,37 +2666,26 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             tabsContainer.setLayoutParams(tabsLp);
         }
 
-        // Over the terminal the panel floats above the bottom strip — and above the tab strip as
-        // well when the tabs are at the bottom, since that strip is then the lowest thing under it.
-        // In the extra keys' place it simply IS the bottom strip itself, so it belongs to the strip
-        // of extra keys whatever the tab panel is doing.
-        final int panelAnchorId = (!isTextInputPanelOverTerminal() || !isTabPanelAtBottom())
+        // The panel floats above the tabs when they are at the bottom; otherwise it sits above the
+        // toolbar, which it replaces when it takes the extra keys' place.
+        final int panelAnchorId = (!isTextInputPanelOverTerminal() || !tabsAtBottom)
                 ? R.id.terminal_toolbar_container : R.id.session_tabs_container;
         final ViewGroup root = (ViewGroup) tabsContainer.getParent();
         anchorAboveStrip(root, R.id.terminal_toolbar_text_input_container, panelAnchorId);
 
-        // The button has to clear whatever the panel is sitting in. The first case is the one the
-        // old layout took care of by itself: the panel used to be a CHILD of the toolbar
-        // container, so "above the container" put the button above the panel. The panel is now a
-        // sibling of that container, so the same anchor lands the button underneath it — which
-        // looks exactly like the button being painted over the panel. With an overlaid panel the
-        // button is hidden outright, so there its anchor only has to keep it out of the way until
-        // it is shown again.
-        final int buttonAnchorId;
-        if (panel.getVisibility() == View.VISIBLE && !isTextInputPanelOverTerminal()) {
-            buttonAnchorId = panel.getId();
-        } else if (isTabPanelAtBottom()) {
-            buttonAnchorId = R.id.session_tabs_container;
+        // Float above the topmost bottom strip: the tabs, unless the panel floats above them;
+        // otherwise the panel when open or the toolbar when closed.
+        final int floatingAnchorId;
+        if (!panelVisible) {
+            floatingAnchorId = tabsAtBottom
+                    ? R.id.session_tabs_container : R.id.terminal_toolbar_container;
+        } else if (tabsAtBottom && !isTextInputPanelOverTerminal()) {
+            floatingAnchorId = R.id.session_tabs_container;
         } else {
-            buttonAnchorId = R.id.terminal_toolbar_container;
+            floatingAnchorId = panel.getId();
         }
-        anchorAboveStrip(root, R.id.toggle_text_input_button, buttonAnchorId);
-
-        // Like the pencil, the row must clear the panel: anchored to the toolbar it would sit
-        // inside the panel's bounds, behind its elevation or at its bottom edge.
-        final int actionAnchorId = panel.getVisibility() == View.VISIBLE
-                ? panel.getId() : panelAnchorId;
-        anchorAboveStrip(root, R.id.input_panel_actions, actionAnchorId);
+        anchorAboveStrip(root, R.id.toggle_text_input_button, floatingAnchorId);
+        anchorAboveStrip(root, R.id.input_panel_actions, floatingAnchorId);
     }
 
     /**
