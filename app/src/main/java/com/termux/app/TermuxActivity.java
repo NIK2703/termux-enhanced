@@ -72,6 +72,7 @@ import com.termux.app.terminal.TermuxActivityViewHelper;
 import com.termux.app.terminal.TermuxActivityBroadcastManager;
 import com.termux.app.terminal.TermuxDialogs;
 import com.termux.app.terminal.TermuxActivityPopupController;
+import com.termux.app.terminal.ExtraKeysVisibilityPolicy;
 import com.termux.app.terminal.io.TextInputPanelController;
 import com.termux.app.terminal.io.autocomplete.AutoCompleteController;
 import com.termux.app.terminal.io.autocomplete.DirectoryHistoryController;
@@ -1042,6 +1043,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         updateExtraKeysCompaction(newConfig);
+        // Rotation and split-screen resize arrive without a recreate, so the strip is re-decided.
+        applyExtraKeysToKeyboardVisibility();
     }
 
     @Override
@@ -1071,14 +1074,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // later, on an unrelated stop.
         mUserLeaveHintSeen = false;
 
-        // Reset both IME-visibility latches on (re)start. They may be left stale as
-        // true from before the app was backgrounded, when the soft keyboard was
-        // dismissed by the system. Without this reset, the first insets after
-        // resume (with IME still hidden) would falsely read as "IME just hidden
-        // while panel open" and close the text input panel.
+        // Reset the IME latches on (re)start: they may be stale from before backgrounding.
+        // Seed the state so a recreate does not start with "keyboard hidden" and wait for a
+        // change event that may never come.
         mSoftKeyboardVisible = false;
         mImeVisibleFromInsets = false;
-        if (mImeDetector != null) mImeDetector.refresh();
+        mImeInsetsSeen = false;
+        if (mImeDetector != null) {
+            mImeDetector.refresh();
+            mSoftKeyboardVisible = mImeDetector.isImeVisible();
+        }
+        applyExtraKeysToKeyboardVisibility();
 
         // Open the "just resumed" window: suppress the IME-hidden auto-close of
         // the panel until the transient post-return insets frames have settled.
@@ -1139,6 +1145,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // the panel ends up being drawn in. Focus is when that shape is settled, and the call
             // costs one comparison unless the panel really is mismatched.
             updateExtraKeysCompaction();
+            applyExtraKeysToKeyboardVisibility();
         }
     }
 
@@ -1262,6 +1269,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Wallpaper / options may have changed while we were backgrounded.
         refreshMonetOnResume();
+
+        // The panel restore above may have changed which view owns the strip.
+        applyExtraKeysToKeyboardVisibility();
     }
 
     @Override
@@ -1673,18 +1683,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /**
      * Whether the toolbar and whichever child owns the shared slot already have real sizes.
-     * A zero-sized (but VISIBLE) toolbar is the degenerate state {@link #reassertPanelLayout()}
-     * exists to fix; anything else is already fine.
+     * A zero-height toolbar is valid when no strip child is visible: that is the collapsed
+     * state of the keyboard-only mode.
      */
     private boolean isPanelLayoutSane(@NonNull LinearLayout toolbar) {
-        if (toolbar.getHeight() <= 0 || toolbar.getMeasuredHeight() <= 0) return false;
+        if (toolbar.getVisibility() != View.VISIBLE) return true;
+
         final View slot = findViewById(R.id.terminal_toolbar_text_input_container);
-        if (slot != null && slot.getVisibility() == View.VISIBLE && slot.getHeight() <= 0)
-            return false;
         final ExtraKeysView ekv = getExtraKeysView();
-        if (ekv != null && ekv.getVisibility() == View.VISIBLE && ekv.getHeight() <= 0)
-            return false;
-        return true;
+        final boolean slotVisible = slot != null && slot.getVisibility() == View.VISIBLE;
+        final boolean keysVisible = ekv != null && ekv.getVisibility() == View.VISIBLE;
+        if (!slotVisible && !keysVisible) return true;
+
+        if (toolbar.getHeight() <= 0 || toolbar.getMeasuredHeight() <= 0) return false;
+        if (slotVisible && slot.getHeight() <= 0) return false;
+        return !keysVisible || ekv.getHeight() > 0;
     }
 
     /**
@@ -1716,8 +1729,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             container.setVisibility(View.GONE);
             container.setVisibility(View.VISIBLE);
         } else if (ekv != null) {
+            // Cycle both ways so the policy call below is not a no-op when it wants GONE.
             ekv.setVisibility(View.GONE);
-            ekv.setVisibility(shouldShowExtraKeys() ? View.VISIBLE : View.GONE);
+            ekv.setVisibility(View.VISIBLE);
+            applyExtraKeysToKeyboardVisibility();
         } else {
             return;
         }
@@ -2155,9 +2170,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mTermuxTerminalExtraKeys = new TermuxTerminalExtraKeys(this, getTerminalView(),
             mTermuxTerminalViewClient, mTermuxTerminalSessionActivityClient);
 
-        final LinearLayout terminalToolbarContainer = getTerminalToolbarContainer();
-        if (mPreferences.shouldShowTerminalToolbar()) terminalToolbarContainer.setVisibility(View.VISIBLE);
-
         // Set default height for toolbar items (37.5dp as in original layout)
         mTerminalToolbarDefaultHeight = (int) (37.5f * getResources().getDisplayMetrics().density);
 
@@ -2168,6 +2180,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         extraKeysView.setDynamicFontSize(getPreferences().isExtraKeysDynamicFontSizeEnabled(this));
         extraKeysView.setRuntimeEdgeIndicatorsEnabled(getPreferences().isExtraKeysEdgeIndicatorsEnabled());
         setExtraKeysView(extraKeysView);
+
+        // Recreated views have no IME memory, so decide the strip immediately after inflation.
+        applyExtraKeysToKeyboardVisibility();
 
         // Decide whether this panel folds before it is sized and built, so the height below and the
         // reload at the end of this method already work on the folded row count. The result is
@@ -2417,11 +2432,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         final boolean showNow = mPreferences.toogleShowTerminalToolbar();
         Logger.showToast(this, (showNow ? getString(R.string.msg_terminal_panel_enabling) : getString(R.string.msg_terminal_panel_disabling)), true);
-        terminalToolbarContainer.setVisibility(showNow ? View.VISIBLE : View.GONE);
 
-        // The input panel is a sibling of the toolbar container now, so hiding the container
-        // leaves the panel open rather than closing it for the two to stay consistent.
-        applyBottomStripAnchors();
+        // The policy decides the container and its child together, so a stale extra-keys panel
+        // cannot come back when the toolbar is enabled while the keyboard is down.
+        applyExtraKeysToKeyboardVisibility();
     }
 
     /**
@@ -4846,11 +4860,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mSessionSnapshotManager.saveSessionSnapshot();
     }
 
-    /** True if the extra keys panel should currently be shown (honours preference). */
-    private boolean shouldShowExtraKeys() {
-        return !(mPreferences.shouldHideExtraKeysWithKeyboard() && !mSoftKeyboardVisible);
-    }
-
     /**
      * Called by the insets-based detection ({@link WindowInsetsCompat.Type#ime()}).
      * Stores the insets signal and re-evaluates combined visibility.
@@ -4935,11 +4944,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 dismissAutoCompleteSuggestions();
                 setTextInputVisible(false);
             }
-
-            // Extra keys mirror the REAL IME visibility — deliberately outside the transition guard.
-            applyExtraKeysToKeyboardVisibility();
-
         }
+
+        // Runs even without a value change: a repeated signal is the only way to repair a view
+        // left stale by a recreate or another writer.
+        applyExtraKeysToKeyboardVisibility();
     }
 
     /**
@@ -5021,27 +5030,47 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Whether the extra-keys panel is free to follow the soft keyboard right now. It is not while
-     * the input panel stands in its place — one strip, two panels — but it is when the panel floats
-     * over the terminal instead, where the two no longer share anything.
+     * Applies the preferences, the real IME state and the input panel state to the toolbar and the
+     * extra-keys view. Every path that changes one of those inputs calls this method.
+     *
+     * <p>Takes the panel state explicitly for callers that have not written it to the per-session
+     * store yet (see {@link #setTextInputVisible(boolean)}).
      */
-    private boolean extraKeysFollowsKeyboard() {
-        return isTextInputPanelOverTerminal() || !isTextInputVisible();
+    private void applyExtraKeysToKeyboardVisibility(boolean inputPanelVisible) {
+        final LinearLayout container = getTerminalToolbarContainer();
+        if (container == null || mPreferences == null) return;
+
+        final boolean toolbarEnabled = mPreferences.shouldShowTerminalToolbar();
+        final int containerVisibility = toolbarEnabled ? View.VISIBLE : View.GONE;
+        final boolean containerChanged = container.getVisibility() != containerVisibility;
+        if (containerChanged) container.setVisibility(containerVisibility);
+
+        final ExtraKeysView extraKeys = getExtraKeysView();
+        if (extraKeys != null) {
+            final boolean overTerminal = isTextInputPanelOverTerminal();
+            final boolean visible = ExtraKeysVisibilityPolicy.isExtraKeysVisible(
+                toolbarEnabled, mPreferences.shouldHideExtraKeysWithKeyboard(),
+                mSoftKeyboardVisible, inputPanelVisible, overTerminal);
+            final int extraKeysVisibility = visible ? View.VISIBLE : View.GONE;
+            if (extraKeys.getVisibility() != extraKeysVisibility) {
+                Logger.logDebug(LOG_TAG, "Extra keys " + (visible ? "shown" : "hidden")
+                    + ": toolbar=" + toolbarEnabled
+                    + ", keyboard=" + mSoftKeyboardVisible
+                    + ", inputPanel=" + inputPanelVisible
+                    + ", overTerminal=" + overTerminal);
+                extraKeys.setVisibility(extraKeysVisibility);
+            }
+        }
+
+        if (containerChanged) applyBottomStripAnchors();
     }
 
     /**
-     * Show or hide the extra keys with the keyboard, when that is the configured mode. Also called
-     * from a bubble's cold start: no keyboard follows there, so no IME transition would ever bring
-     * the keys down.
+     * Applies the policy with the panel's current per-session visibility. Bubble cold starts call
+     * this directly because no IME transition follows there.
      */
     public void applyExtraKeysToKeyboardVisibility() {
-        if (mExtraKeysView == null) return;
-        if (getTerminalToolbarContainer().getVisibility() != View.VISIBLE) return;
-        if (!extraKeysFollowsKeyboard() || !mPreferences.shouldHideExtraKeysWithKeyboard()) return;
-        final int wanted = mSoftKeyboardVisible ? View.VISIBLE : View.GONE;
-        if (mExtraKeysView.getVisibility() == wanted) return;
-        Logger.logDebug(LOG_TAG, "Auto-" + (mSoftKeyboardVisible ? "showing" : "hiding") + " extra keys with keyboard");
-        mExtraKeysView.setVisibility(wanted);
+        applyExtraKeysToKeyboardVisibility(isTextInputVisible());
     }
 
     /**
@@ -5061,13 +5090,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             if (visible && mTextInputPanel != null) mTextInputPanel.updatePanelHeight();
             applyTextInputPanelBottomMargin(dpToPx(6));
         } else {
-            final ExtraKeysView extraKeys = getExtraKeysView();
-            if (extraKeys != null) {
-                extraKeys.setVisibility(visible ? View.GONE
-                        : (shouldShowExtraKeys() ? View.VISIBLE : View.GONE));
-            }
             applyTextInputPanelBottomMargin(dpToPx(4));
         }
+
+        applyExtraKeysToKeyboardVisibility(visible);
 
         applyBottomStripAnchors();
         // The panel has just appeared or vanished, so its clearance from the scrollbar has to be
@@ -5549,6 +5575,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setMargins();
         setTerminalToolbarHeight();
         setFullScreenFlags();
+
+        // A settings change can arrive without a recreate.
+        applyExtraKeysToKeyboardVisibility();
 
         // Wallpaper behind the terminal: window flags + per-page renderer alpha. Both are
         // cheap and safe to re-apply on every styling reload.

@@ -92,7 +92,8 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="bottom"
                     android:background="@android:color/transparent"
-                    android:orientation="horizontal" />
+                    android:orientation="horizontal"
+                    android:visibility="gone" />
 
             </FrameLayout>
 
