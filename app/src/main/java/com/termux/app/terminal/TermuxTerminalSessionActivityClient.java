@@ -1587,14 +1587,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // they always carry the shadow that lifts them off it.
         final int shadowElevationPx = mActivity.getResources()
             .getDimensionPixelSize(R.dimen.floating_shadow_elevation);
-        final int shadowColor = floatingShadowColor(isSchemeLight);
+        final int controlShadowColor = floatingShadowColor(isSchemeLight,
+            R.fraction.floating_shadow_alpha);
 
         final int textColor = mActivity.getButtonText();
 
         ImageButton toggleBtn = mActivity.findViewById(R.id.toggle_text_input_button);
         if (toggleBtn != null) {
             applyFloatingButtonStyle(toggleBtn, fill, stroke, strokePx, textColor,
-                shadowElevationPx, shadowColor);
+                shadowElevationPx, controlShadowColor);
         }
 
         // Quick actions must match the pencil's fill, stroke, icon tint and shadow, not the
@@ -1603,18 +1604,21 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             ImageButton actionButton = mActivity.findViewById(actionId);
             if (actionButton != null) {
                 applyFloatingButtonStyle(actionButton, fill, stroke, strokePx, textColor,
-                    shadowElevationPx, shadowColor);
+                    shadowElevationPx, controlShadowColor);
             }
         }
 
         // The floating panel follows the live terminal background too, with its own opacity pair;
         // otherwise it is an ordinary panel painted by applyPanelColors().
+        final View panel = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
         if (mActivity.isTextInputPanelOverTerminal()) {
             // The panel's own pair, not the toggle's — see FLOATING_PANEL_CONTRAST_OPACITY.
             applyTextInputPanelContainerColors(mActivity.getFloatingPanelFill(),
                 mActivity.getFloatingPanelStroke());
-            applyFloatingShadow(mActivity.findViewById(R.id.terminal_toolbar_text_input_container),
-                shadowElevationPx, shadowColor);
+            applyFloatingShadow(panel, shadowElevationPx,
+                floatingShadowColor(isSchemeLight, R.fraction.floating_panel_shadow_alpha));
+        } else {
+            applyFloatingShadow(panel, 0, Color.TRANSPARENT);
         }
 
         // The action row sits directly above the floating panel; raise it just above the panel's
@@ -1622,7 +1626,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // The row has no background, so this only changes draw order.
         final View actionRow = mActivity.findViewById(R.id.input_panel_actions);
         if (actionRow != null) {
-            final View panel = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
             final float panelElevation = panel != null ? panel.getElevation() : 0f;
             actionRow.setTranslationZ(panelElevation > 0f ? panelElevation + 1f : 0f);
         }
@@ -1633,11 +1636,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /** Black on light schemes, white on dark ones: a black shadow vanishes on a dark terminal. */
-    private int floatingShadowColor(boolean isSchemeLight) {
-        final float alpha = mActivity.getResources()
-            .getFraction(R.fraction.floating_shadow_alpha, 1, 1);
+    private int floatingShadowColor(boolean isSchemeLight, int alphaFractionResId) {
+        final float alpha = mActivity.getResources().getFraction(alphaFractionResId, 1, 1);
         final int channel = isSchemeLight ? 0 : 255;
-        return android.graphics.Color.argb(Math.round(alpha * 255), channel, channel, channel);
+        return Color.argb(Math.round(alpha * 255), channel, channel, channel);
     }
 
     /**
@@ -1678,7 +1680,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                 mActivity.getFloatingButtonStroke());
         applyFloatingShadow(terminalView.getScrollbarThumbView(),
                 mActivity.getResources().getDimensionPixelSize(R.dimen.floating_shadow_elevation),
-                floatingShadowColor(isSchemeLight));
+                floatingShadowColor(isSchemeLight, R.fraction.floating_shadow_alpha));
     }
 
     /** A plain oval fill (no stroke). */

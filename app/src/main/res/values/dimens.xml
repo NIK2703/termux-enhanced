@@ -32,9 +32,10 @@
     <item name="autocomplete_popup_content_alpha" type="fraction">90%</item>
     <item name="autocomplete_popup_shadow_alpha" type="fraction">65%</item>
 
-    <!-- Shadow for the floating input-panel controls. -->
+    <!-- 60% × 50/80: matches the controls' shadow despite the panel's higher fill opacity. -->
     <dimen name="floating_shadow_elevation">4dp</dimen>
     <item name="floating_shadow_alpha" type="fraction">60%</item>
+    <item name="floating_panel_shadow_alpha" type="fraction">37.5%</item>
 
     <!-- Message history popup dimensions -->
     <dimen name="message_history_popup_max_height">520dp</dimen>
