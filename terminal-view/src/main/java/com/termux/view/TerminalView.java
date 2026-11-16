@@ -436,9 +436,11 @@ public final class TerminalView extends View {
     private boolean mScrollbarColorsSet;
     /** Optional thumb View for platform elevation; null keeps the canvas thumb. */
     @Nullable private View mScrollbarThumbView;
-    private final GradientDrawable mScrollbarThumbDrawable = new GradientDrawable();
-    private int mScrollbarThumbDrawableWidth = -1;
-    private boolean mScrollbarThumbDrawableDragging;
+    /**
+     * Background of the thumb View. The View keeps the rest height and the drawable paints the
+     * squashed capsule inside it, so a pull repaints the thumb without relayouting the pager.
+     */
+    private final ScrollbarThumbDrawable mScrollbarThumbDrawable = new ScrollbarThumbDrawable();
 
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     int mCombiningAccent;
@@ -1667,6 +1669,9 @@ public final class TerminalView extends View {
         final int px = Math.round(dampedOverdrag(rawPx));
         if (px == mOverdragPx) return;
         mOverdragPx = px;
+        // The thumb's height is a function of this displacement, so it follows the spring for
+        // free.
+        updateScrollbarThumbView();
         // The offset moves every row AND vacates a strip at the edge, so a partial repaint is
         // not applicable here — a full frame is what doScroll() pays for an ordinary scroll too.
         invalidate();
@@ -1956,17 +1961,20 @@ public final class TerminalView extends View {
             return mThumbRect;
         }
 
-        float viewW = getWidth();
-        float viewH = getHeight();
-        float trackLeft = viewW - mScrollbarWidth;
-        float thumbW = mScrollbarWidth - 4; // 2px inset on each side
+        final float viewW = getWidth();
+        final float viewH = getHeight();
+        final float trackLeft = viewW - mScrollbarWidth;
+        final float thumbW = mScrollbarWidth - 4; // 2px inset on each side
 
-        // Thumb height: fixed size (not proportional)
-        float thumbH = Math.min(mScrollbarThumbSizePx, viewH);
+        // Fixed handle at rest; an over-drag squashes it toward a circle. The squash follows
+        // the visible displacement, so it shares the band's cap and spring.
+        final float restH = ScrollbarThumbGeometry.restHeight(mScrollbarThumbSizePx, viewH);
+        final float diameter = ScrollbarThumbGeometry.circleDiameter(thumbW, restH);
+        final float squash = ScrollbarThumbGeometry.squashFraction(mOverdragPx, maxOverdragPx());
+        final float thumbH = ScrollbarThumbGeometry.height(restH, diameter, squash);
 
         float scrollFraction = (range + mTopRow) / (float) range; // 1 at bottom, 0 at top
-        float maxOffset = viewH - thumbH;
-        float thumbTop = scrollFraction * maxOffset;
+        float thumbTop = ScrollbarThumbGeometry.top(scrollFraction, viewH, thumbH);
 
         mThumbRect.set(trackLeft + 2, thumbTop, trackLeft + 2 + thumbW, thumbTop + thumbH);
         return mThumbRect;
@@ -1983,7 +1991,8 @@ public final class TerminalView extends View {
         if (range <= 0) return 0;
 
         float viewH = getHeight();
-        float thumbH = Math.min(mScrollbarThumbSizePx, viewH);
+        // A grab resets the over-drag, so the mapping always starts from the rest height.
+        float thumbH = ScrollbarThumbGeometry.restHeight(mScrollbarThumbSizePx, viewH);
         float maxOffset = Math.max(viewH - thumbH, 1f);
         float center = fingerY - thumbH / 2f;
         float scrollFraction = clamp01(center / maxOffset);
@@ -2050,6 +2059,9 @@ public final class TerminalView extends View {
                 }
             } else if (action == MotionEvent.ACTION_DOWN && isOnThumb(event.getX(), event.getY())) {
                 stopFlingAndClear();
+                // The handle maps the drag through its rest height, so drop a held pull first.
+                // The content is already at the boundary, so it does not jump.
+                resetOverdrag();
                 requestParentDisallowIntercept(true);
                 mScrollbarDragging = true;
                 // Don't jump the thumb: grab the centre and map it straight to mTopRow,
@@ -2681,7 +2693,8 @@ public final class TerminalView extends View {
         mScrollbarInactiveColor = inactiveColor;
         mScrollbarActiveColor = activeColor;
         mScrollbarColorsSet = true;
-        mScrollbarThumbDrawableWidth = -1;
+        // The fill alpha also drives the shadow outline, so the capsule and shadow both change.
+        mScrollbarThumbDrawable.coloursChanged();
         updateScrollbarThumbView();
         // The thumb View invalidates itself; only the fallback canvas needs a full repaint.
         if (mScrollbarThumbView == null) invalidate();
@@ -2693,6 +2706,7 @@ public final class TerminalView extends View {
         if (mScrollbarThumbView != null) mScrollbarThumbView.setVisibility(View.INVISIBLE);
         mScrollbarThumbView = scrollbarThumbView;
         if (scrollbarThumbView != null) {
+            mScrollbarThumbDrawable.coloursChanged();
             scrollbarThumbView.setBackground(mScrollbarThumbDrawable);
             scrollbarThumbView.setClickable(false);
             scrollbarThumbView.setFocusable(false);
@@ -2721,45 +2735,109 @@ public final class TerminalView extends View {
         }
 
         final RectF thumbRect = computeThumbRect();
+        final float viewHeight = getHeight();
+        // The box stays at the rest height; only the capsule and its outline shrink, so a pull
+        // never triggers a pager layout.
+        final float restHeight = ScrollbarThumbGeometry.restHeight(
+            mScrollbarThumbSizePx, viewHeight);
         final int width = Math.round(thumbRect.width());
-        final int height = Math.round(thumbRect.height());
-        if (width <= 0 || height <= 0) {
+        final int boxHeight = Math.round(restHeight);
+        if (width <= 0 || boxHeight <= 0 || thumbRect.height() <= 0f) {
             if (thumb.getVisibility() != View.INVISIBLE) thumb.setVisibility(View.INVISIBLE);
             return;
         }
 
         final ViewGroup.LayoutParams params = thumb.getLayoutParams();
         if (params == null) {
-            thumb.setLayoutParams(new ViewGroup.LayoutParams(width, height));
-        } else if (params.width != width || params.height != height) {
+            thumb.setLayoutParams(new ViewGroup.LayoutParams(width, boxHeight));
+        } else if (params.width != width || params.height != boxHeight) {
             params.width = width;
-            params.height = height;
+            params.height = boxHeight;
             thumb.setLayoutParams(params);
         }
-        updateScrollbarThumbDrawable(thumb, width);
+
+        // Glue the box to the end the pull came from: the top box already starts at 0, and the
+        // bottom box must stay at the bottom edge while the capsule shrinks inside it.
+        final boolean anchoredToBottom = mOverdragPx < 0;
+        final float boxTop = anchoredToBottom ? viewHeight - restHeight : thumbRect.top;
+        mScrollbarThumbDrawable.setDragging(mScrollbarDragging);
+        mScrollbarThumbDrawable.setShape(Math.round(thumbRect.height()), anchoredToBottom);
 
         final float left = getX() + thumbRect.left;
-        final float top = getY() + thumbRect.top;
+        final float top = getY() + boxTop;
         if (thumb.getX() != left) thumb.setX(left);
         if (thumb.getY() != top) thumb.setY(top);
         if (thumb.getVisibility() != View.VISIBLE) thumb.setVisibility(View.VISIBLE);
     }
 
-    /** Mirrors the canvas thumb's fill/stroke and rebuilds the shadow outline. */
-    private void updateScrollbarThumbDrawable(View thumb, int width) {
-        if (mScrollbarThumbDrawableWidth == width
-                && mScrollbarThumbDrawableDragging == mScrollbarDragging) {
-            return;
+    /**
+     * Background of {@link #mScrollbarThumbView}. The View keeps its rest height; this drawable
+     * reports only the capsule as its bounds, so the shadow follows the squash without a layout.
+     * GradientDrawable's fill/stroke inset and outline alpha are kept, matching the old thumb.
+     */
+    private final class ScrollbarThumbDrawable extends GradientDrawable {
+        private final Rect mFullBounds = new Rect();
+        /** Current capsule height in px; one pixel above the circle diameter at full squash. */
+        private int mShapeHeight;
+        /** True while the capsule is pressed against the bottom end of the track. */
+        private boolean mAnchoredToBottom;
+        /** Mirrors the enclosing drag state; the fill/stroke colours change with it. */
+        private boolean mDragging;
+
+        /** Switch between the resting and the active colour set. */
+        void setDragging(boolean dragging) {
+            if (dragging == mDragging) return;
+            mDragging = dragging;
+            coloursChanged();
         }
-        mScrollbarThumbDrawable.setColor(scrollbarThumbFillColor());
-        mScrollbarThumbDrawable.setCornerRadius(width / 2f);
-        mScrollbarThumbDrawable.setStroke(mScrollbarDragging ? 0
-            : Math.max(1, Math.round(mScrollbarThumbStrokePaint.getStrokeWidth())),
-            scrollbarThumbStrokeColor());
-        mScrollbarThumbDrawableWidth = width;
-        mScrollbarThumbDrawableDragging = mScrollbarDragging;
-        // setCornerRadius() does not rebuild the View outline used for the shadow.
-        thumb.invalidateOutline();
+
+        /** Repaint the capsule and rebuild the shadow, whose alpha follows the fill. */
+        void coloursChanged() {
+            setColor(scrollbarThumbFillColor());
+            setStroke(mDragging ? 0
+                : Math.max(1, Math.round(mScrollbarThumbStrokePaint.getStrokeWidth())),
+                scrollbarThumbStrokeColor());
+            invalidateOutline();
+        }
+
+        /**
+         * Set the capsule geometry. Deliberately a no-op when nothing changed: the drag updates
+         * the shape on every whole-pixel step, and an unchanged shape must not invalidate.
+         */
+        void setShape(int heightPx, boolean anchoredToBottom) {
+            if (heightPx == mShapeHeight && anchoredToBottom == mAnchoredToBottom) return;
+            mShapeHeight = heightPx;
+            mAnchoredToBottom = anchoredToBottom;
+            applyShapeBounds();
+            invalidateSelf();
+            invalidateOutline();
+        }
+
+        @Override
+        public void setBounds(int left, int top, int right, int bottom) {
+            final int width = right - left;
+            final boolean widthChanged = mFullBounds.width() != width;
+            mFullBounds.set(left, top, right, bottom);
+            // The radius follows the View width, as it did when the whole View was the capsule.
+            if (widthChanged) setCornerRadius(Math.max(0, width) / 2f);
+            applyShapeBounds();
+            invalidateOutline();
+        }
+
+        /** Replaces the framework's full-View bounds with the capsule's current rectangle. */
+        private void applyShapeBounds() {
+            final int height = Math.min(mShapeHeight, mFullBounds.height());
+            if (height <= 0) {
+                super.setBounds(0, 0, 0, 0);
+                return;
+            }
+            final int top = mAnchoredToBottom ? mFullBounds.bottom - height : mFullBounds.top;
+            super.setBounds(mFullBounds.left, top, mFullBounds.right, top + height);
+        }
+
+        private void invalidateOutline() {
+            if (getCallback() instanceof View) ((View) getCallback()).invalidateOutline();
+        }
     }
 
     /** Whether the finger is on the thumb; cleared by our own ACTION_UP, so read it before that. */
@@ -2810,7 +2888,10 @@ public final class TerminalView extends View {
 
         Paint paint = mScrollbarDragging ? mScrollbarThumbActivePaint : mScrollbarThumbPaint;
         paint.setColor(color);
-        float radius = thumbRect.width() / 2f;
+        // Follow the smaller side so the handle stays a capsule; at full squash the straight
+        // side is one pixel.
+        float radius = ScrollbarThumbGeometry.cornerRadius(
+            thumbRect.width(), thumbRect.height());
         canvas.drawRoundRect(thumbRect, radius, radius, paint);
 
         if (!mScrollbarDragging) {
