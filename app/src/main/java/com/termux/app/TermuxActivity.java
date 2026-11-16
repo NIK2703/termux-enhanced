@@ -4032,20 +4032,23 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @SuppressLint("RtlHardcoded")
     @Override
     public void onBackPressed() {
-        // If the message-history popup is showing, dismiss it and hide the
-        // text-input panel first — don't finish the activity.
+        final boolean panelOnScreen = isTextInputPanelOnScreen();
+
         if (mPopupCtrl.isHistoryPopupShowing()) {
             mPopupCtrl.dismissMessageHistoryPopup();
-            if (isTextInputVisible()) {
+            if (isTextInputVisible() || panelOnScreen) {
                 setTextInputVisible(false);
             }
-        } else if (isTextInputVisible()) {
-            // Panel is open: "Back" closes the panel instead of exiting the app
-            // (regardless of the "hide panel after send" setting).
+        } else if (isTextInputVisible() || panelOnScreen) {
             setTextInputVisible(false);
         } else {
             TermuxActivityUtils.finishActivityIfNotFinishing(this);
         }
+    }
+
+    private boolean isTextInputPanelOnScreen() {
+        final View container = getTextInputPanelContainer();
+        return container != null && container.getVisibility() == View.VISIBLE;
     }
 
     public void finishActivityIfNotFinishing() {
@@ -4937,10 +4940,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 mTextInputState.setSoftKeyboardIntent(getCurrentSession(), imeVisible);
             }
 
-            // Auto-close text input panel when keyboard hides
             if (!inTransition
-                    && wasVisible && !imeVisible && isTextInputVisible()
-                    && !mButtonTouchInProgress && !mPopupCtrl.isHistoryPopupShowing()) {
+                    && wasVisible && !imeVisible
+                    && (isTextInputVisible() || isTextInputPanelOnScreen())
+                    && !mButtonTouchInProgress) {
                 dismissAutoCompleteSuggestions();
                 setTextInputVisible(false);
             }
