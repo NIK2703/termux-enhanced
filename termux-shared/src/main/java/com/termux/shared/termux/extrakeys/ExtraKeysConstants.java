@@ -87,6 +87,7 @@ public class ExtraKeysConstants {
             put("DRAWER", "☰"); // U+2630 ☰ TRIGRAM FOR HEAVEN not well known but easy to understand
             put("KEYBOARD", "⌨"); // U+2328 ⌨ KEYBOARD not well known but easy to understand
             put("PASTE", "⎘"); // U+2398
+            put("SEND_INPUT", "➤"); // U+27A4 BLACK RIGHTWARDS ARROWHEAD, send without Enter
             put("SCROLL", "⇳"); // U+21F3
             // Autofill labels speak the panel's own language: every other action key here is a
             // single symbol from the ISO 9995 / Unicode keyboard set (↲ ↹ ⌫ ⌦ ☰ ⌨ ⎘ ⇳ ⎈ ⎇ ⎋). A

@@ -162,6 +162,8 @@ public class TermuxTerminalExtraKeys extends TerminalExtraKeys {
         } else if ("PASTE".equals(key)) {
             if(mTermuxTerminalSessionActivityClient != null)
                 mTermuxTerminalSessionActivityClient.onPasteTextFromClipboard(null);
+        } else if ("SEND_INPUT".equals(key)) {
+            mActivity.sendTextInputPanelWithoutEnter();
         }  else if ("SCROLL".equals(key)) {
             TerminalView terminalView = mTermuxTerminalViewClient.getActivity().getActiveTerminalView();
             if (terminalView != null && terminalView.mEmulator != null)

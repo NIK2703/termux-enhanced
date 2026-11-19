@@ -331,6 +331,7 @@
 
     <string name="extra_keys_editor_signal_keyboard">Alternar teclado</string>
     <string name="extra_keys_editor_signal_paste">Pegar</string>
+    <string name="extra_keys_editor_signal_send_input">Enviar contenido del panel de entrada</string>
     <string name="extra_keys_editor_signal_scroll_lock">Bloqueo de desplazamiento</string>
     <string name="allow_external_apps_summary">Permitir que otras aplicaciones inicien comandos de Termux mediante RUN_COMMAND.</string>
     <string name="allow_external_apps_title">Permitir aplicaciones externas</string>

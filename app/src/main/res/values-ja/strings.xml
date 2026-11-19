@@ -329,6 +329,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">キーボード切替</string>
     <string name="extra_keys_editor_signal_paste">ペースト</string>
+    <string name="extra_keys_editor_signal_send_input">入力パネルの内容を送信</string>
     <string name="extra_keys_editor_signal_scroll_lock">スクロールロック</string>
     <string name="termux_api_debugging_title">Termux:API デバッグ</string>
     <string name="termux_float_debugging_title">Termux:Float デバッグ</string>

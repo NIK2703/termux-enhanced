@@ -326,6 +326,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Bascule du clavier</string>
     <string name="extra_keys_editor_signal_paste">Coller</string>
+    <string name="extra_keys_editor_signal_send_input">Envoyer le contenu du panneau de saisie</string>
     <string name="extra_keys_editor_signal_scroll_lock">Verrouillage du défilement</string>
     <string name="extra_keys_editor_signal_custom">Symbole/texte…</string>
 

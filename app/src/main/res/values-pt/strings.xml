@@ -337,6 +337,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Alternar teclado</string>
     <string name="extra_keys_editor_signal_paste">Colar</string>
+    <string name="extra_keys_editor_signal_send_input">Enviar conteúdo do painel de entrada</string>
     <string name="extra_keys_editor_signal_scroll_lock">Bloqueio de rolagem</string>
     <string name="extra_keys_editor_signal_custom">Símbolo/texto…</string>
     <string name="extra_keys_editor_signal_ctrl">CTRL</string>

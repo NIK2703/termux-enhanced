@@ -2224,75 +2224,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Auto-complete + caret-reposition handled by AutoCompleteController in constructor.
         editText.setOnEditorActionListener((v, actionId, event) -> {
-            TerminalSession session = getCurrentSession();
-            if (session != null) {
-                if (session.isRunning()) {
-                    String textToSend = editText.getText().toString();
-                    boolean hasText = textToSend.length() > 0;
-                    // Remember non-empty sent messages in the history (dedup, newest first).
-                    // NOTE: the history stores the raw text WITHOUT the trailing newline.
-                    if (hasText) {
-                        addToMessageHistory(textToSend);
-                        // By default append a carriage return so the line is SUBMITTED (Enter).
-                        // If the user disabled "Append Enter on send" in settings, write raw text
-                        // only (no trailing newline) — this is what some users want when sending
-                        // partial input that should not execute a command yet.
-                        if (mPreferences.shouldTextInputAppendEnter()) {
-                            session.write(textToSend + "\r");
-                        } else {
-                            session.write(textToSend);
-                        }
-                    } else {
-                        // Empty field: just send a lone Enter (newline) to the session.
-                        session.write("\r");
-                    }
-
-                    // Clear the field and the per-session saved text/caret BEFORE
-                    // hiding the panel. Otherwise setTextInputVisible(false) ->
-                    // saveTextInputForCurrentSession() re-persists the just-sent
-                    // text (the field is still non-empty at that point) and it
-                    // reappears when the panel is opened again.
-                    // Use getText().clear() instead of setText("") so we mutate the
-                    // Editable in place and don't trigger InputMethodManager.restartInput
-                    // (which would drop the first key the user types afterwards).
-                    // clearInput() drops only the text/caret/focus, preserving the
-                    // per-session VISIBILITY flag so isTextInputVisible() and Back
-                    // keep working when the panel stays open.
-                    editText.getText().clear();
-                    mTextInputState.clearInput(session.mHandle);
-                    // The store no longer holds the text we memoised — drop the memo so the next
-                    // save re-reads the (now empty) field instead of trusting a stale copy.
-                    mLastSavedInputText = null;
-                    mLastSavedInputSession = null;
-
-                    // What to do after sending depends on the single "Action on send"
-                    // preference: do nothing, hide the input panel, or hide the keyboard
-                    // (which also hides the input panel).
-                    boolean hidePanel = mPreferences.shouldTextInputHideOnSend();
-                    boolean hideKeyboard = mPreferences.shouldTextInputHideKeyboardOnSend();
-
-                    if (hidePanel) {
-                        setTextInputVisible(false);
-                        // When the keyboard is also being hidden and the extra keys panel
-                        // is tied to the keyboard ("hide extra keys when keyboard hidden"),
-                        // collapse the extra keys panel directly so we don't briefly flash
-                        // them on screen before the IME-visibility signal catches up. The
-                        // panel and keyboard are dismissed in one go.
-                        if (hideKeyboard && mPreferences.shouldHideExtraKeysWithKeyboard()
-                                && mExtraKeysView != null) {
-                            mExtraKeysView.setVisibility(View.GONE);
-                        }
-                        updateToggleTextInputButtonIcon();
-                    }
-
-                    if (hideKeyboard) {
-                        mTermuxTerminalViewClient.hideSoftKeyboardAfterSend();
-                    }
-                } else {
-                    mTermuxTerminalSessionActivityClient.removeFinishedSession(session);
-                }
-                editText.getText().clear();
-            }
+            sendTextInputPanel(mPreferences.shouldTextInputAppendEnter(), true);
             return true;
         });
 
@@ -2302,6 +2234,91 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Pass applyFocus=false so we don't pop the keyboard at startup (respects
         // setSoftKeyboardState's startup-hidden preference).
         applyTextInputVisibilityForSession(getCurrentSession(), false);
+    }
+
+    /**
+     * Send the text input panel contents without appending Enter.
+     *
+     * <p>Used by the SEND_INPUT extra key. History, clearing and the "Action on send"
+     * preference behave the same as the keyboard send button; an empty panel sends nothing.</p>
+     */
+    public void sendTextInputPanelWithoutEnter() {
+        sendTextInputPanel(false, false);
+    }
+
+    /**
+     * Shared send path for the keyboard send button and the SEND_INPUT extra key.
+     *
+     * @param appendEnter whether to append a carriage return to non-empty text
+     * @param sendEnterIfEmpty whether an empty panel should send a lone carriage return
+     */
+    private void sendTextInputPanel(boolean appendEnter, boolean sendEnterIfEmpty) {
+        TerminalSession session = getCurrentSession();
+        if (session == null) return;
+
+        final EditText editText = getTerminalToolbarTextInput();
+        if (editText == null) return;
+
+        if (session.isRunning()) {
+            String textToSend = editText.getText().toString();
+            boolean hasText = textToSend.length() > 0;
+            // Remember non-empty sent messages in the history (dedup, newest first).
+            // NOTE: the history stores the raw text WITHOUT the trailing newline.
+            if (hasText) {
+                addToMessageHistory(textToSend);
+                // The keyboard send button appends a carriage return so the line is submitted.
+                // SEND_INPUT passes false and writes the text exactly as typed.
+                session.write(appendEnter ? textToSend + "\r" : textToSend);
+            } else if (sendEnterIfEmpty) {
+                // Empty field from the keyboard send button: send a lone Enter.
+                session.write("\r");
+            }
+
+            // Clear the field and the per-session saved text/caret BEFORE
+            // hiding the panel. Otherwise setTextInputVisible(false) ->
+            // saveTextInputForCurrentSession() re-persists the just-sent
+            // text (the field is still non-empty at that point) and it
+            // reappears when the panel is opened again.
+            // Use getText().clear() instead of setText("") so we mutate the
+            // Editable in place and don't trigger InputMethodManager.restartInput
+            // (which would drop the first key the user types afterwards).
+            // clearInput() drops only the text/caret/focus, preserving the
+            // per-session VISIBILITY flag so isTextInputVisible() and Back
+            // keep working when the panel stays open.
+            editText.getText().clear();
+            mTextInputState.clearInput(session.mHandle);
+            // The store no longer holds the text we memoised — drop the memo so the next
+            // save re-reads the (now empty) field instead of trusting a stale copy.
+            mLastSavedInputText = null;
+            mLastSavedInputSession = null;
+
+            // What to do after sending depends on the single "Action on send"
+            // preference: do nothing, hide the input panel, or hide the keyboard
+            // (which also hides the input panel).
+            boolean hidePanel = mPreferences.shouldTextInputHideOnSend();
+            boolean hideKeyboard = mPreferences.shouldTextInputHideKeyboardOnSend();
+
+            if (hidePanel) {
+                setTextInputVisible(false);
+                // When the keyboard is also being hidden and the extra keys panel
+                // is tied to the keyboard ("hide extra keys when keyboard hidden"),
+                // collapse the extra keys panel directly so we don't briefly flash
+                // them on screen before the IME-visibility signal catches up. The
+                // panel and keyboard are dismissed in one go.
+                if (hideKeyboard && mPreferences.shouldHideExtraKeysWithKeyboard()
+                        && mExtraKeysView != null) {
+                    mExtraKeysView.setVisibility(View.GONE);
+                }
+                updateToggleTextInputButtonIcon();
+            }
+
+            if (hideKeyboard) {
+                mTermuxTerminalViewClient.hideSoftKeyboardAfterSend();
+            }
+        } else {
+            mTermuxTerminalSessionActivityClient.removeFinishedSession(session);
+            editText.getText().clear();
+        }
     }
 
     public void setTerminalToolbarHeight() {

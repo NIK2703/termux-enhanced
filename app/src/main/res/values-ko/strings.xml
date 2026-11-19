@@ -328,6 +328,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">키보드 전환</string>
     <string name="extra_keys_editor_signal_paste">붙여넣기</string>
+    <string name="extra_keys_editor_signal_send_input">입력 패널 내용 보내기</string>
     <string name="extra_keys_editor_signal_scroll_lock">스크롤 잠금</string>
     <string name="extra_keys_editor_signal_custom">기호/텍스트…</string>
     

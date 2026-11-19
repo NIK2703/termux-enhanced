@@ -561,6 +561,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Переключатель клавиатуры</string>
     <string name="extra_keys_editor_signal_paste">Вставить</string>
+    <string name="extra_keys_editor_signal_send_input">Отправить содержимое панели ввода</string>
     <string name="extra_keys_editor_signal_scroll_lock">Блокировка прокрутки</string>
     <string name="extra_keys_editor_signal_up">Вверх</string>
     <string name="extra_keys_editor_signal_left">Влево</string>

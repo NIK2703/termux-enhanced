@@ -619,6 +619,7 @@
 <string name="extra_keys_editor_signal_fn">FN</string>
 <string name="extra_keys_editor_signal_keyboard">Pengalih keyboard</string>
 <string name="extra_keys_editor_signal_paste">Tempel</string>
+<string name="extra_keys_editor_signal_send_input">Kirim isi panel input</string>
 <string name="extra_keys_editor_signal_scroll_lock">Kunci gulir</string>
 <string name="extra_keys_editor_signal_esc">Esc</string>
 <string name="extra_keys_editor_signal_tab">Tab</string>

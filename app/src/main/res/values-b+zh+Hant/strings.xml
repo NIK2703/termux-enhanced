@@ -346,6 +346,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">鍵盤切換</string>
     <string name="extra_keys_editor_signal_paste">貼上</string>
+    <string name="extra_keys_editor_signal_send_input">傳送輸入面板內容</string>
     <string name="extra_keys_editor_signal_scroll_lock">捲動鎖定</string>
     <string name="extra_keys_editor_signal_up">向上</string>
     <string name="extra_keys_editor_signal_left">向左</string>

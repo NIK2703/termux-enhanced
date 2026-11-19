@@ -147,6 +147,7 @@
         <item>@string/extra_keys_editor_signal_fn</item>
         <item>@string/extra_keys_editor_signal_keyboard</item>
         <item>@string/extra_keys_editor_signal_paste</item>
+        <item>@string/extra_keys_editor_signal_send_input</item>
         <item>@string/extra_keys_editor_signal_scroll_lock</item>
         <item>@string/action_autofill_username</item>
         <item>@string/action_autofill_password</item>
@@ -187,6 +188,7 @@
         <item>FN</item>
         <item>KEYBOARD</item>
         <item>PASTE</item>
+        <item>SEND_INPUT</item>
         <item>SCROLL</item>
         <item>AUTOFILL_USERNAME</item>
         <item>AUTOFILL_PASSWORD</item>

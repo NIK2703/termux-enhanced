@@ -338,6 +338,7 @@
     
     <string name="extra_keys_editor_signal_keyboard">Klavye aç/kapat</string>
     <string name="extra_keys_editor_signal_paste">Yapıştır</string>
+    <string name="extra_keys_editor_signal_send_input">Giriş paneli içeriğini gönder</string>
     <string name="extra_keys_editor_signal_scroll_lock">Kaydırma kilidi</string>
     <string name="extra_keys_editor_signal_custom">Simge/metin…</string>
 
