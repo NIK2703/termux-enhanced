@@ -698,4 +698,18 @@
     <string name="termux_notification_deduplication_title">알림 중복 제거</string>
     <string name="termux_notification_deduplication_summary">마지막 알림을 보낸 지 %1$d밀리초 이내에 도착한 알림은 무시합니다.</string>
 
+    <!-- Prefix filters for terminal notifications. -->
+    <string name="termux_notification_prefix_filters_title">접두사로 시작하는 알림 제외...</string>
+    <string name="termux_notification_filters_dialog_title">알림을 제외할 접두사</string>
+    <string name="termux_notification_filters_close">닫기</string>
+    <string name="termux_notification_filters_empty">필터 없음</string>
+    <string name="termux_notification_filter_dialog_title">필터</string>
+    <string name="termux_notification_filter_mode_title">제목</string>
+    <string name="termux_notification_filter_mode_body">본문</string>
+    <string name="termux_notification_filter_prefix">접두사</string>
+    <string name="termux_notification_filter_prefix_required">접두사를 입력하세요</string>
+    <string name="termux_notification_filter_duplicate">이 필터는 이미 존재합니다</string>
+    <string name="termux_notification_filter_add">추가</string>
+    <string name="termux_notification_filter_save">저장</string>
+    <string name="termux_notification_filter_delete">필터 삭제</string>
 </resources>

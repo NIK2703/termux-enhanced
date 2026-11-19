@@ -158,6 +158,17 @@ public final class TermuxTerminalNotificationDispatcher {
         // One object for this post: building it opens both preference files, on the terminal's input
         // thread.
         TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(context);
+        CharSequence title = notification.getTitle();
+        CharSequence body = notification.getBody();
+
+        // Check before an id is allocated or the duplicate window is extended: a filtered
+        // notification must affect neither.
+        if (prefs != null && NotificationPrefixFilter.matchesAny(
+            prefs.getNotificationPrefixFilters(true), title, body)) {
+            Logger.logDebug(LOG_TAG, "Filtered notification " + notification.getId()
+                + " for " + session.mHandle + ": prefix filter");
+            return -1;
+        }
 
         boolean deduplicate = prefs != null && prefs.isNotificationDeduplicationEnabled(true);
         if (deduplicate && insideDuplicateWindow()) {
@@ -173,8 +184,6 @@ public final class TermuxTerminalNotificationDispatcher {
         int id = acquireId(context, manager, session.mHandle, notification.getId());
         if (id < 0) return -1;
 
-        CharSequence title = notification.getTitle();
-        CharSequence body = notification.getBody();
         // bigText is the body only when a title exists, so a one-field notification is not printed
         // twice.
         CharSequence summary = title == null ? body : title;

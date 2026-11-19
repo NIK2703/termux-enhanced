@@ -464,6 +464,18 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_NOTIFICATION_DEDUPLICATION_ENABLED, value);
     }
 
+    /** The JSON-encoded prefix filters for terminal notifications. */
+    public String getNotificationPrefixFilters(boolean readFromFile) {
+        if (readFromFile)
+            return SharedPreferenceUtils.getString(mMultiProcessSharedPreferences, TERMUX_APP.KEY_NOTIFICATION_PREFIX_FILTERS, TERMUX_APP.DEFAULT_VALUE_NOTIFICATION_PREFIX_FILTERS, false);
+        else
+            return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_NOTIFICATION_PREFIX_FILTERS, TERMUX_APP.DEFAULT_VALUE_NOTIFICATION_PREFIX_FILTERS, false);
+    }
+
+    public void setNotificationPrefixFilters(String value) {
+        setGenericString(TERMUX_APP.KEY_NOTIFICATION_PREFIX_FILTERS, value);
+    }
+
     /* Settings migrated from ~/.termux/termux.properties — keys intentionally match the old
      * termux.properties keys so that values can be migrated on first launch. */
 

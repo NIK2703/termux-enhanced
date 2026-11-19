@@ -711,4 +711,18 @@
     <string name="termux_notification_deduplication_title">Déduplication des notifications</string>
     <string name="termux_notification_deduplication_summary">Ignorer les notifications reçues dans les %1$d millisecondes suivant l\'envoi de la précédente</string>
 
+    <!-- Prefix filters for terminal notifications. -->
+    <string name="termux_notification_prefix_filters_title">Exclure les notifications par préfixe...</string>
+    <string name="termux_notification_filters_dialog_title">Préfixes des notifications exclues</string>
+    <string name="termux_notification_filters_close">Fermer</string>
+    <string name="termux_notification_filters_empty">Aucun filtre</string>
+    <string name="termux_notification_filter_dialog_title">Filtre</string>
+    <string name="termux_notification_filter_mode_title">Titre</string>
+    <string name="termux_notification_filter_mode_body">Contenu</string>
+    <string name="termux_notification_filter_prefix">Préfixe</string>
+    <string name="termux_notification_filter_prefix_required">Saisir un préfixe</string>
+    <string name="termux_notification_filter_duplicate">Ce filtre existe déjà</string>
+    <string name="termux_notification_filter_add">Ajouter</string>
+    <string name="termux_notification_filter_save">Enregistrer</string>
+    <string name="termux_notification_filter_delete">Supprimer le filtre</string>
 </resources>

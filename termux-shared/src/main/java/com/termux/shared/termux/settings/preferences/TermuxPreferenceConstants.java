@@ -272,6 +272,10 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_NOTIFICATION_DEDUPLICATION_ENABLED = "notification_deduplication_enabled";
         public static final boolean DEFAULT_VALUE_NOTIFICATION_DEDUPLICATION_ENABLED = false;
 
+        /** JSON list of title/body prefix rules that suppress terminal notifications. */
+        public static final String KEY_NOTIFICATION_PREFIX_FILTERS = "notification_prefix_filters";
+        public static final String DEFAULT_VALUE_NOTIFICATION_PREFIX_FILTERS = "[]";
+
         /**
          * Defines the key for the background transparency (alpha) of inactive panel elements
          * (bottom buttons, scrollbar thumb). Stored as an integer percentage 0–10, where 5 means

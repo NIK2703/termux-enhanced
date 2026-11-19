@@ -681,4 +681,18 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_notification_deduplication_title">Doppelte Benachrichtigungen verwerfen</string>
     <string name="termux_notification_deduplication_summary">Benachrichtigungen verwerfen, die innerhalb von %1$d Millisekunden nach der zuletzt gesendeten Benachrichtigung eintreffen</string>
 
+    <!-- Prefix filters for terminal notifications. -->
+    <string name="termux_notification_prefix_filters_title">Benachrichtigungen anhand von Präfixen ausschließen...</string>
+    <string name="termux_notification_filters_dialog_title">Präfixe ausgeschlossener Benachrichtigungen</string>
+    <string name="termux_notification_filters_close">Schließen</string>
+    <string name="termux_notification_filters_empty">Keine Filter</string>
+    <string name="termux_notification_filter_dialog_title">Filter</string>
+    <string name="termux_notification_filter_mode_title">Titel</string>
+    <string name="termux_notification_filter_mode_body">Inhalt</string>
+    <string name="termux_notification_filter_prefix">Präfix</string>
+    <string name="termux_notification_filter_prefix_required">Präfix eingeben</string>
+    <string name="termux_notification_filter_duplicate">Dieser Filter existiert bereits</string>
+    <string name="termux_notification_filter_add">Hinzufügen</string>
+    <string name="termux_notification_filter_save">Speichern</string>
+    <string name="termux_notification_filter_delete">Filter löschen</string>
 </resources>

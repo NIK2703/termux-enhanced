@@ -91,6 +91,16 @@ public class TerminalPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSwitch("notification_deduplication_enabled", prefs.isNotificationDeduplicationEnabled(false),
             value -> prefs.setNotificationDeduplicationEnabled(value), false);
 
+        Preference prefixFiltersPref = findPreference("notification_prefix_filters");
+        if (prefixFiltersPref != null) {
+            prefixFiltersPref.setPersistent(false);
+            prefixFiltersPref.setOnPreferenceClickListener(preference -> {
+                new NotificationFiltersDialogFragment()
+                    .show(getParentFragmentManager(), NotificationFiltersDialogFragment.TAG);
+                return true;
+            });
+        }
+
         ListPreference logLevelPref = findPreference("log_level");
         if (logLevelPref != null) {
             setLogLevelListPreferenceData(logLevelPref, context, prefs.getLogLevel());

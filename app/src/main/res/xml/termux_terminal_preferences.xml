@@ -55,6 +55,12 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
+        <Preference
+            app:key="notification_prefix_filters"
+            app:title="@string/termux_notification_prefix_filters_title"
+            android:persistent="false"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory
