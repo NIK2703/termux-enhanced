@@ -658,6 +658,22 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         return index;
     }
 
+    /**
+     * Move a session in the backing list. The caller sends the pager and tab-strip updates.
+     *
+     * @return true when the order actually changed.
+     */
+    public synchronized boolean moveTermuxSession(int fromIndex, int toIndex) {
+        int size = mShellManager.mTermuxSessions.size();
+        if (fromIndex < 0 || fromIndex >= size || toIndex < 0 || toIndex >= size
+                || fromIndex == toIndex) {
+            return false;
+        }
+        TermuxSession session = mShellManager.mTermuxSessions.remove(fromIndex);
+        mShellManager.mTermuxSessions.add(toIndex, session);
+        return true;
+    }
+
     /** Remove all TermuxSessions (used after a data restore to drop stale sessions
      * whose binaries/config no longer match the restored container). */
     public synchronized void removeAllTermuxSessions() {

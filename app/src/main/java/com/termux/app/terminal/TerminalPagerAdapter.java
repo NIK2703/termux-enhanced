@@ -532,6 +532,25 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         return true;
     }
 
+    /**
+     * Reorder one session page after the service list has already moved. The pager is parked and
+     * the placeholder dropped, so item positions equal session indices. Views are keyed by session
+     * in {@link #mSessionViews}, so the page travels with its terminal.
+     */
+    public void moveSession(int fromIndex, int toIndex,
+                            @NonNull List<TermuxSession> serviceSessions) {
+        if (fromIndex == toIndex) return;
+        final int size = serviceSessions.size();
+        if (fromIndex < 0 || fromIndex >= size || toIndex < 0 || toIndex >= size) return;
+
+        if (mPlaceholderActive) {
+            mPlaceholderActive = false;
+            notifyItemRemoved(mSessions.size());
+        }
+        mSessions = new java.util.ArrayList<>(serviceSessions);
+        notifyItemMoved(fromIndex, toIndex);
+    }
+
     @Override
     public void onViewRecycled(@NonNull TerminalPageViewHolder holder) {
         super.onViewRecycled(holder);

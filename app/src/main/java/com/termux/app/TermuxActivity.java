@@ -1303,6 +1303,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // on pause. The panel must stay open and reappear on resume.
         mIsPaused = true;
 
+        // A tab drag cannot survive losing the window: release the pager and the lifted view.
+        if (mTermuxSessionTabsController != null) mTermuxSessionTabsController.cancelDrag();
+
         // Step out of the front. A pty write is global, so a relayout of a window the user is no
         // longer looking at would resize the terminal they are looking at elsewhere. Released here
         // rather than onStop(), which is the point the window actually leaves the front.
@@ -3187,10 +3190,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Paste clipboard text into the text input field at the cursor position, replacing any
-     * active selection. If the text input panel is currently hidden, it is shown first.
-     * Called from a swipe-down gesture on the toggle button. A clipboard that is unset or
-     * contains no text is a silent no-op (mirrors terminal paste behaviour).
+     * Paste clipboard text into the text input field, replacing any active selection. The pasted
+     * range stays selected. If the panel is hidden, it is shown first. An unset or textless
+     * clipboard is a silent no-op, matching terminal paste.
      */
     private void pasteClipboardIntoTextInput() {
         String text = ShareUtils.getTextStringFromClipboardIfSet(this, true);
@@ -3200,8 +3202,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /**
      * Insert {@code text} into the text input field at the cursor, replacing any active selection.
-     * Shows the panel first when it is hidden. Shared by the clipboard-paste gesture, the
-     * attachment picker and anything else that types into the field on the user's behalf.
+     * Shows the panel first when it is hidden. The inserted range stays selected so it can be
+     * replaced or formatted immediately. Shared by the clipboard paste and the attachment picker.
      */
     private void insertTextIntoTextInput(@NonNull String text) {
         final EditText editText = getTerminalToolbarTextInput();
@@ -3214,6 +3216,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         Editable editable = editText.getText();
         int selStart = editText.getSelectionStart();
         int selEnd   = editText.getSelectionEnd();
+        final int insertedStart;
+        final int insertedEnd;
         if (editable != null) {
             if (selStart < 0) selStart = editable.length();
             if (selEnd   < 0) selEnd   = selStart;
@@ -3223,15 +3227,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 selEnd = tmp;
             }
             editable.replace(selStart, selEnd, text);
-            editText.setSelection(selStart + text.length());
+            insertedStart = selStart;
+            insertedEnd = selStart + text.length();
         } else {
             editText.setText(text);
-            editText.setSelection(text.length());
+            insertedStart = 0;
+            insertedEnd = text.length();
         }
 
         setFocusOnInputForCurrentSession(true);
-        saveTextInputForCurrentSession();
         editText.requestFocus();
+        editText.setSelection(insertedStart, insertedEnd);
+        saveTextInputForCurrentSession();
     }
 
     /**

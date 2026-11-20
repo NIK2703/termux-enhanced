@@ -25,9 +25,12 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
+import com.termux.app.TermuxService;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.terminal.TerminalSession;
 
@@ -76,6 +79,15 @@ public class TermuxSessionTabsController {
 
     /** Whether the trailing placeholder page is currently present (for tab-strip blending). */
     private boolean mPlaceholderActive = false;
+
+    /** Long-press lift -> horizontal drag-reorder state machine for the tab strip. */
+    private final TabStripDragController mDragController;
+
+    /** Single touch listener installed on every tab; delegates to {@link #mDragController}. */
+    private final View.OnTouchListener mTabTouchListener;
+
+    /** A title refresh arrived mid-drag; replay it once the gesture releases the strip. */
+    private boolean mTitleRefreshDeferred;
 
     /** Backing preference store for the tab-strip settings (tab height mode). */
     private final android.content.SharedPreferences mPrefs;
@@ -222,6 +234,78 @@ public class TermuxSessionTabsController {
             ((ElasticHorizontalScrollView) mTabsScroll).setOnUserInteractionListener(
                     () -> setEndScrollReserved(false));
         }
+
+        mDragController = new TabStripDragController(mTabsContainer, mTabsScroll,
+                new TabStripDragController.Host() {
+                    @Override
+                    public int getTabCount() {
+                        return TermuxSessionTabsController.this.getTabCount();
+                    }
+
+                    @Override
+                    @Nullable
+                    public View getTabAt(int index) {
+                        return TermuxSessionTabsController.this.getTabAt(index);
+                    }
+
+                    @Override
+                    public boolean canStartDrag(@Nullable View tab) {
+                        if (tab == null || tab.getParent() != mTabsContainer) return false;
+                        // One tab cannot be reordered, but long-press rename still must work.
+                        if (mOpenAnimationsRunning > 0) return false;
+                        if (mActivity.isTerminalPageSwitchInProgress()) return false;
+                        if (Boolean.TRUE.equals(tab.getTag(R.id.session_tab_closing_tag))) return false;
+                        Object sessionTag = tab.getTag(R.id.session_tab_session_tag);
+                        if (!(sessionTag instanceof TerminalSession)) return false;
+                        TermuxService service = mActivity.getTermuxService();
+                        return service != null
+                                && service.getIndexOfSession((TerminalSession) sessionTag) >= 0;
+                    }
+
+                    @Override
+                    public void onDragStarted() {
+                        mEndScrollActive = false;
+                        mPinRightEdge = false;
+                        mPinnedTabIndex = -1;
+                        mScrollSeqPending = -1;
+                        cancelCentreScroll();
+                        cancelScrollAnim();
+                        mTabsContainer.removeCallbacks(mReleaseInactivePin);
+                        mTabsScroll.removeCallbacks(mScrollRunnable);
+                        SessionPagerManager pager = mActivity.getSessionPagerManager();
+                        if (pager != null) pager.prepareTabReorder();
+                    }
+
+                    @Override
+                    public void onDragEnded() {
+                        SessionPagerManager pager = mActivity.getSessionPagerManager();
+                        if (pager != null) pager.finishTabReorder();
+                        // Runs before the controller clears its state, so post the title diff.
+                        if (mTitleRefreshDeferred) {
+                            mTabsContainer.post(TermuxSessionTabsController.this::flushDeferredTitleRefresh);
+                        }
+                    }
+
+                    @Override
+                    public void onRenameTab(@Nullable View tab) {
+                        if (tab == null) return;
+                        Object sessionTag = tab.getTag(R.id.session_tab_session_tag);
+                        if (sessionTag instanceof TerminalSession) {
+                            mActivity.getTermuxTerminalSessionClient()
+                                    .renameSession((TerminalSession) sessionTag);
+                        }
+                    }
+
+                    @Override
+                    public void onTabReordered(int fromIndex, int toIndex) {
+                        TermuxService service = mActivity.getTermuxService();
+                        SessionPagerManager pager = mActivity.getSessionPagerManager();
+                        if (pager != null) pager.moveSession(fromIndex, toIndex);
+                        if (service != null) updateTabs(service.getTermuxSessions());
+                        mActivity.saveSessionSnapshot();
+                    }
+                });
+        mTabTouchListener = (v, event) -> mDragController.onTouch(v, event);
     }
 
     private int getTabCount() {
@@ -246,6 +330,25 @@ public class TermuxSessionTabsController {
         return -1;
     }
 
+    /** True when the current tab views are bound to exactly this session sequence. */
+    private boolean tabsMatchSessions(List<TermuxSession> sessions) {
+        if (sessions.size() != getTabCount()) return false;
+        for (int i = 0; i < sessions.size(); i++) {
+            View tabView = getTabAt(i);
+            if (tabView == null || sessions.get(i) == null) return false;
+            if (tabView.getTag(R.id.session_tab_session_tag)
+                    != sessions.get(i).getTerminalSession()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Abort a tab drag on lifecycle pause or a settings change. */
+    public void cancelDrag() {
+        mDragController.cancel();
+    }
+
     @Nullable
     private View getTabAt(int index) {
         if (mTabsContainer == null) return null;
@@ -255,6 +358,8 @@ public class TermuxSessionTabsController {
     /** Re-apply height, max-lines, side padding and title layout to existing tabs. */
     public void applyTabHeightMode() {
         if (mTabsContainer == null) return;
+        // A geometry change under a drag would invalidate the slots the finger is using.
+        mDragController.cancel();
         // The tab-height preference just changed — the cached metrics are stale.
         invalidateDimens();
         ensureDimens();
@@ -295,6 +400,14 @@ public class TermuxSessionTabsController {
 
     public void updateTabs(List<TermuxSession> sessions) {
         if (mTabsContainer == null) return;
+
+        // Defer cosmetic updates for the same session order. A structural change aborts the drag;
+        // the pager sync that follows owns re-enabling it.
+        if (mDragController.isActive()) {
+            if (tabsMatchSessions(sessions)) return;
+            mDragController.cancelForModelChange();
+        }
+        mTitleRefreshDeferred = false;
 
         TerminalSession currentSession = mActivity.getCurrentSession();
         int currentSessionIndex = indexOfCurrentSession(sessions, currentSession);
@@ -380,12 +493,26 @@ public class TermuxSessionTabsController {
      */
     public void refreshTabAppearance(List<TermuxSession> sessions) {
         if (mTabsContainer == null) return;
+        // A title change can resize a tab; defer it until the drag releases the strip.
+        if (mDragController.isActive()) {
+            mTitleRefreshDeferred = true;
+            return;
+        }
         if (sessions.size() != getTabCount()) return;
+        mTitleRefreshDeferred = false;
         TerminalSession currentSession = mActivity.getCurrentSession();
         int currentSessionIndex = indexOfCurrentSession(sessions, currentSession);
         if (currentSessionIndex >= 0) mCurrentSessionIndex = currentSessionIndex;
         populateAllTabs(sessions, currentSessionIndex);
         clampActiveTabVisible();
+    }
+
+    /** Replay a title refresh that arrived while a drag owned the strip. */
+    private void flushDeferredTitleRefresh() {
+        if (!mTitleRefreshDeferred || mDragController.isActive()) return;
+        mTitleRefreshDeferred = false;
+        TermuxService service = mActivity.getTermuxService();
+        if (service != null) refreshTabAppearance(service.getTermuxSessions());
     }
 
     /** Populate/refresh every existing tab in place (skips the add button and closing tabs). */
@@ -614,11 +741,17 @@ public class TermuxSessionTabsController {
                 if (terminalSession != null)
                     mActivity.getTermuxTerminalSessionClient().setCurrentSession(terminalSession, false, false);
             });
-            tabView.setOnLongClickListener(v -> {
-                if (terminalSession != null)
-                    mActivity.getTermuxTerminalSessionClient().renameSession(terminalSession);
-                return true;
-            });
+            // The drag controller owns long-press. Keep rename available to accessibility services.
+            tabView.setOnLongClickListener(null);
+            tabView.setOnTouchListener(mTabTouchListener);
+            ViewCompat.replaceAccessibilityAction(tabView,
+                    AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
+                    mActivity.getString(R.string.title_rename_session),
+                    (view, arguments) -> {
+                        if (terminalSession != null)
+                            mActivity.getTermuxTerminalSessionClient().renameSession(terminalSession);
+                        return true;
+                    });
             if (closeButton != null) {
                 closeButton.setOnClickListener(v -> {
                     if (terminalSession != null)

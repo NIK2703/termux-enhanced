@@ -121,6 +121,65 @@ public final class SessionPagerManager {
         return service != null && service.getIndexOfSession(session) >= 0;
     }
 
+    /** Park the pager for a tab drag: drop the placeholder and close it to finger input. */
+    public void prepareTabReorder() {
+        if (mTerminalPager == null) return;
+        cancelPlaceholder();
+        mTerminalPager.setUserInputEnabled(false);
+        RecyclerView pagerRv = getPagerRecyclerView();
+        if (pagerRv != null) pagerRv.stopScroll();
+        if (mOverscroll != null) mOverscroll.reset();
+    }
+
+    /** Re-arm the placeholder and pager input after a drop or cancel. */
+    public void finishTabReorder() {
+        if (mTerminalPager == null) return;
+        final int activeIndex = getActiveIndex();
+        if (activeIndex >= 0) managePlaceholderForPosition(activeIndex);
+        updatePagerUserInputEnabled();
+    }
+
+    /**
+     * Move a session in the live model and its page in the adapter, keeping the same session
+     * active. The adapter uses {@code notifyItemMoved}: a full sync sees equal session counts
+     * and skips the reorder (see {@code syncWithServiceList}).
+     */
+    public void moveSession(int fromIndex, int toIndex) {
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null || mTerminalPager == null || mTerminalPagerAdapter == null) return;
+
+        final int size = service.getTermuxSessionsSize();
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= size || toIndex >= size
+                || fromIndex == toIndex) {
+            return;
+        }
+
+        TerminalSession active = getActiveSession();
+        if (active == null) active = terminalSessionAt(service, mTerminalPager.getCurrentItem());
+
+        if (!service.moveTermuxSession(fromIndex, toIndex)) return;
+        mTerminalPagerAdapter.moveSession(fromIndex, toIndex, service.getTermuxSessions());
+
+        int activeIndex;
+        if (active != null) {
+            activeIndex = service.getIndexOfSession(active);
+        } else {
+            activeIndex = mTerminalPager.getCurrentItem();
+        }
+        if (activeIndex < 0 || activeIndex >= size) {
+            activeIndex = Math.max(0, Math.min(mTerminalPager.getCurrentItem(), size - 1));
+        }
+        final int landingIndex = activeIndex;
+        mActiveIndex = landingIndex;
+
+        // Keep the visible page on the same session. setCurrentItem may not dispatch when the
+        // index is unchanged, so update the tab selection explicitly as well.
+        if (mTerminalPager.getCurrentItem() != landingIndex) {
+            mTerminalPager.setCurrentItem(landingIndex, false);
+        }
+        withTabsController(tabs -> tabs.setCurrentSession(landingIndex));
+    }
+
     /**
      * @return the session the user is on, or null when there is none.
      * Always a <b>live</b> session: resolved from {@link #getActiveIndex()} against the
