@@ -69,14 +69,14 @@
             app:title="@string/text_input_toggle_button_title"
             app:iconSpaceReserved="false" />
 
-        <!-- How the panel is placed. On: a strip of its own drawn over the terminal, above the
-             extra-keys panel, sized to the button that opens it and growing with the text. Off (the
-             default): the panel takes the extra keys' place in their strip and the terminal is
-             resized for it. No summary on purpose: the title says it in one word. -->
+        <!-- How the panel is placed. On (the default): a strip of its own drawn over the
+             terminal, above the extra-keys panel, sized to the button that opens it and growing
+             with the text. Off: the panel takes the extra keys' place in their strip and the
+             terminal is resized for it. No summary on purpose: the title says it in one word. -->
         <SwitchPreferenceCompat
             app:key="text-input-over-terminal"
             app:dependency="text_input_enabled"
-            app:defaultValue="false"
+            app:defaultValue="true"
             app:title="@string/text_input_over_terminal_title"
             app:iconSpaceReserved="false" />
 

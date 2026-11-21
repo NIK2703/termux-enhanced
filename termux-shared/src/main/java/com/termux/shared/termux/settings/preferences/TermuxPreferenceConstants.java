@@ -118,11 +118,11 @@ public final class TermuxPreferenceConstants {
          * terminal, as a strip of its own drawn on top of the terminal's bottom rows and above the
          * extra-keys panel, at the resting size of the button that opens it and growing upwards
          * with the text; <b>false</b> — it takes the extra keys' place in their strip, and the
-         * terminal is resized to make room for it. Off by default: the extra-keys arrangement is
-         * the one the app has always had, and the overlay is something to switch on deliberately.
+         * terminal is resized to make room for it. On by default: the overlay keeps the terminal
+         * from resizing when the panel opens.
          */
         public static final String KEY_TEXT_INPUT_OVER_TERMINAL = "text-input-over-terminal";
-        public static final boolean DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL = false;
+        public static final boolean DEFAULT_VALUE_TEXT_INPUT_OVER_TERMINAL = true;
 
         /**
          * Defines the key for whether the open input panel shows extra paste, attach and history
