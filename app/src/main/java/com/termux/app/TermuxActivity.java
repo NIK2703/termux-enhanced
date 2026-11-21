@@ -1571,16 +1571,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     mPreferences.isSoftKeyboardEnabled(),
                     mPreferences.isSoftKeyboardEnabledOnlyIfNoHardware());
 
-            // The picker's inserted text can focus the input panel while this restore waits
-            // for layout. Keep that focus: an unfocused EditText does not paint its selection.
-            final EditText input = getTerminalToolbarTextInput();
-            final View focusTarget = input != null && input.hasFocus() ? input : target;
-
             if (kbIntent && !kbDisabled) {
                 // SHOW_IMPLICIT (used by the retry) is ignored while ALWAYS_HIDDEN is set;
                 // a show request is an explicit intent — make the window showable first.
                 KeyboardUtils.setSoftInputModeAdjustResize(this);
-                focusTarget.requestFocus();
+                target.requestFocus();
                 // Probe must use the SAME authoritative signal as the intent capture: a
                 // visible-frame false positive here would make showWithRetry believe the
                 // IME is already up and skip the show entirely.
@@ -1590,17 +1585,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 // onImeVisibilityChanged() treats every IME change as "in transition" and refuses
                 // to record the user's own keyboard intent, so hiding the keyboard right after a
                 // restore would not be remembered and it would pop back up on the next resume.
-                focusTarget.removeCallbacks(mEndKeyboardRestoreRunnable);
-                com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(focusTarget,
+                target.removeCallbacks(mEndKeyboardRestoreRunnable);
+                com.termux.app.terminal.io.SoftKeyboardRestore.showWithRetry(target,
                         this::computeImeVisibility, mEndKeyboardRestoreRunnable);
-                focusTarget.postDelayed(mEndKeyboardRestoreRunnable, 800);   // safety net
+                target.postDelayed(mEndKeyboardRestoreRunnable, 800);   // safety net
             } else {
                 // The user hid the keyboard before backgrounding (or it is disabled): keep it
                 // hidden. Nothing schedules an IME show any more, so the hide below simply sticks.
-                focusTarget.requestFocus();
-                KeyboardUtils.hideSoftKeyboard(this, focusTarget);
-                focusTarget.removeCallbacks(mEndKeyboardRestoreRunnable);
-                focusTarget.postDelayed(mEndKeyboardRestoreRunnable, 300);
+                target.requestFocus();
+                KeyboardUtils.hideSoftKeyboard(this, target);
+                target.removeCallbacks(mEndKeyboardRestoreRunnable);
+                target.postDelayed(mEndKeyboardRestoreRunnable, 300);
             }
             // NOTE: attempts intentionally left at 6. They only cost anything while the view is
             // still unattached/zero-sized, i.e. exactly the slow-layout case where extra patience
@@ -3243,16 +3238,6 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setFocusOnInputForCurrentSession(true);
         editText.requestFocus();
         editText.setSelection(insertedStart, insertedEnd);
-
-        // The resume that follows the picker can move focus to the terminal after this returns.
-        // Re-assert the range once the field is laid out, if the text still has room for it.
-        final int selectionStart = insertedStart;
-        final int selectionEnd = insertedEnd;
-        editText.post(() -> {
-            if (selectionEnd > editText.length()) return;
-            if (!editText.hasFocus()) editText.requestFocus();
-            editText.setSelection(selectionStart, selectionEnd);
-        });
         saveTextInputForCurrentSession();
     }
 
