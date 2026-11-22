@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/session_overview"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/session_overview_scrim"
+    android:visibility="gone"
+    android:clickable="true"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:importantForAccessibility="no">
+
+    <!-- Two columns and two visible rows. Extra rows live below the viewport and are reached by
+         scrolling; the grid tells this scroll view how tall the viewport is during measurement. -->
+    <com.termux.app.terminal.SessionOverviewScrollView
+        android:id="@+id/session_overview_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <com.termux.app.terminal.SessionOverviewGridView
+            android:id="@+id/session_overview_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false" />
+    </com.termux.app.terminal.SessionOverviewScrollView>
+
+    <!-- Flying snapshots of the terminal and visible tabs. Last child so it paints above the
+         grid; it never consumes touches, so Back and card taps keep working during the flight. -->
+    <FrameLayout
+        android:id="@+id/session_overview_ghost_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+</FrameLayout>

@@ -1319,6 +1319,10 @@ public final class SessionPagerManager {
         // A keyboard restore may have been deferred until an active page exists
         // (cold start: onResume ran before the service connected and bound page 0).
         mActivity.consumePendingKeyboardRestoreIfReady();
+
+        // Keep the overview's selected card in sync if it is open (e.g. a hardware shortcut
+        // switches pages underneath it).
+        mActivity.onSessionOverviewSelectionChanged();
     }
 
     /**

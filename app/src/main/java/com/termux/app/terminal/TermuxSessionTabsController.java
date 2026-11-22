@@ -18,6 +18,7 @@ import android.text.style.CharacterStyle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
@@ -851,8 +852,11 @@ public class TermuxSessionTabsController {
         }
     }
 
-    /** Result of measuring how much of a tab title fits at a given width. */
-    private static final class TitleRender {
+    /**
+     * Result of measuring how much of a tab title fits at a given width. Package-private so the
+     * overview card can reuse the strip's exact truncation and fade.
+     */
+    static final class TitleRender {
         final CharSequence text;
         final boolean truncated;
 
@@ -992,9 +996,12 @@ public class TermuxSessionTabsController {
         return buildFadedTitle(visible, visible.length());
     }
 
-    /** Builds the visible prefix with the final three code points progressively faded. */
+    /**
+     * Builds the visible prefix with the final three code points progressively faded.
+     * Package-private so the overview card title renders exactly like a strip title.
+     */
     @androidx.annotation.NonNull
-    private static TitleRender buildFadedTitle(String text, int visibleEnd) {
+    static TitleRender buildFadedTitle(String text, int visibleEnd) {
         // Do not split a surrogate pair.
         if (visibleEnd > 0 && visibleEnd < text.length()
                 && Character.isHighSurrogate(text.charAt(visibleEnd - 1))
@@ -1366,6 +1373,120 @@ public class TermuxSessionTabsController {
     }
 
     /**
+     * Put the strip at the tab's centred position immediately, with no settle animation.
+     *
+     * <p>Used when the all-sessions overview hands a session over: the overview keeps its opaque
+     * overlay up while the terminal expands, so the strip can be moved underneath it. Starting the
+     * normal delayed centre animation afterwards would make the strip visibly finish the move
+     * only after the terminal had already expanded.</p>
+     */
+    public void scrollToTabIndexImmediately(int index) {
+        if (!isStripReady()) return;
+        mEndScrollActive = false;
+        mPinRightEdge = false;
+        mPinnedTabIndex = -1;
+        mScrollSeqPending = -1;
+        cancelCentreScroll();
+        cancelScrollAnim();
+        if (mTabsScroll != null) mTabsScroll.removeCallbacks(mScrollRunnable);
+        applyImmediateCentreScroll(index);
+    }
+
+    /** Non-animated counterpart of the body of {@link #runCentreScroll(long)}. */
+    private void applyImmediateCentreScroll(int index) {
+        applyImmediateCentreScroll(index, false);
+    }
+
+    private void applyImmediateCentreScroll(int index, boolean retried) {
+        if (!isStripReady()) return;
+        if (index < 0 || index >= mTabsContainer.getChildCount() - 1) return;
+        final View tabView = mTabsContainer.getChildAt(index);
+        if (tabView == null) return;
+        final int scrollW = mTabsScroll.getWidth();
+        if (scrollW <= 0 || mTabsContainer.getMeasuredWidth() <= 0) {
+            // Geometry is not ready yet. One non-animated pass after the pending layout is
+            // enough; re-posting forever would keep a dead strip alive after a detach.
+            if (!retried) {
+                mTabsScroll.post(() -> applyImmediateCentreScroll(index, true));
+            }
+            return;
+        }
+        final int maxScroll = Math.max(0, mTabsContainer.getMeasuredWidth() - scrollW);
+        int scrollX = tabView.getLeft() - scrollW / 2 + tabView.getWidth() / 2;
+        if (scrollX < 0) scrollX = 0;
+        if (scrollX > maxScroll) scrollX = maxScroll;
+        if (mTabsScroll.getScrollX() != scrollX) mTabsScroll.scrollTo(scrollX, 0);
+    }
+
+    /**
+     * Apply a selection while an opaque overlay still covers the strip, wait for the selected
+     * tab's width to settle, put the strip at the final position without animation, then run
+     * {@code done}.
+     *
+     * <p>The all-sessions overview uses this for its closing hand-off. Selecting a tab can change
+     * its width (the close button and its padding appear), so scrolling before the selection is
+     * applied would centre the old geometry. Scrolling in the ordinary delayed way after the
+     * overlay is gone would be the visible "settle" the hand-off must avoid.</p>
+     */
+    public void prepareSelectionForOverview(int index,
+                                            @androidx.annotation.NonNull Runnable done) {
+        if (mTabsContainer == null) {
+            done.run();
+            return;
+        }
+        // The selection is ours, not an add: drop the pin and any queued/running centre scroll.
+        mEndScrollActive = false;
+        mPinRightEdge = false;
+        mPinnedTabIndex = -1;
+        mScrollSeqPending = -1;
+        cancelCentreScroll();
+        cancelScrollAnim();
+        if (mTabsScroll != null) mTabsScroll.removeCallbacks(mScrollRunnable);
+
+        // Apply the highlight and width change behind the overlay. The pager is still on the old
+        // page; the caller hides the overlay and moves the pager only after this layout pass.
+        setCurrentSession(index);
+
+        runAfterNextLayout(() -> {
+            applyImmediateCentreScroll(index, true);
+            done.run();
+        });
+    }
+
+    /** Run once after the next layout pass, with a short fallback if no layout is scheduled. */
+    private void runAfterNextLayout(@androidx.annotation.NonNull Runnable action) {
+        if (mTabsContainer == null) {
+            action.run();
+            return;
+        }
+        final ViewTreeObserver observer = mTabsContainer.getViewTreeObserver();
+        if (!observer.isAlive()) {
+            action.run();
+            return;
+        }
+        final boolean[] ran = {false};
+        final ViewTreeObserver.OnGlobalLayoutListener listener =
+                new ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override
+                    public void onGlobalLayout() {
+                        if (ran[0]) return;
+                        ran[0] = true;
+                        if (observer.isAlive()) {
+                            observer.removeOnGlobalLayoutListener(this);
+                        }
+                        action.run();
+                    }
+                };
+        observer.addOnGlobalLayoutListener(listener);
+        mTabsContainer.postDelayed(() -> {
+            if (ran[0]) return;
+            ran[0] = true;
+            if (observer.isAlive()) observer.removeOnGlobalLayoutListener(listener);
+            action.run();
+        }, 32L);
+    }
+
+    /**
      * Force the tab strip to reveal (centre) a specific tab, waiting until the strip layout has
      * fully settled before measuring. Used for normal tab switches (not tab addition).
      */
@@ -1521,6 +1642,39 @@ public class TermuxSessionTabsController {
         if (child == null) return null;
         Object tag = child.getTag(R.id.session_tab_session_tag);
         return tag instanceof TerminalSession ? (TerminalSession) tag : null;
+    }
+
+    /** Find the strip view currently bound to {@code session}, or null when it has none. */
+    @Nullable
+    public View findTabForSession(@Nullable TerminalSession session) {
+        if (session == null || mTabsContainer == null) return null;
+        for (int i = 0, n = getTabCount(); i < n; i++) {
+            View child = getTabAt(i);
+            if (child != null && child.getTag(R.id.session_tab_session_tag) == session) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    /** Current strip tab height, including the single/double-line preference. */
+    public int getTabHeightPx() {
+        ensureDimens();
+        return mTabHeightPx;
+    }
+
+    /** Corner radius currently used by the real tab backgrounds. */
+    public int getTabCornerRadiusPx() {
+        ensureDimens();
+        return Math.round(mTabCornerRadiusPx);
+    }
+
+    /** Background colour currently painted on a tab view, including the selection tint. */
+    public int getTabBackgroundColor(@Nullable View tabView) {
+        if (tabView == null) return Color.TRANSPARENT;
+        TabRenderState state = (TabRenderState) tabView.getTag(R.id.session_tab_render_state_tag);
+        if (state != null && state.bgValid) return state.bgColor;
+        return tabView.isSelected() ? mSchemeBgActive : mSchemeBg;
     }
 
     /** Drop the highlight from every tab. Used when there is no active session to highlight. */

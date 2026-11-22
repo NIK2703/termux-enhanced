@@ -51,6 +51,7 @@ import com.termux.app.terminal.TermuxSessionSnapshotManager;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
 import com.termux.app.terminal.BottomStripAnchors;
 import com.termux.app.terminal.SessionPagerManager;
+import com.termux.app.terminal.SessionOverviewController;
 import com.termux.app.terminal.io.TermuxTerminalExtraKeys;
 import com.termux.shared.activities.ReportActivity;
 import com.termux.shared.activity.ActivityUtils;
@@ -148,6 +149,10 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
      */
     SessionPagerManager mSessionPagerManager;
 
+    /** All-sessions overview overlay; null only before the activity content is inflated. */
+    @Nullable
+    SessionOverviewController mSessionOverviewController;
+
     public void setPendingInitialSession(@Nullable TerminalSession session) {
         if (mSessionPagerManager != null) mSessionPagerManager.setPendingInitialSession(session);
     }
@@ -164,6 +169,26 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     @Nullable
     public SessionPagerManager getSessionPagerManager() {
         return mSessionPagerManager;
+    }
+
+    /** The all-sessions overview controller, or null before the activity content exists. */
+    @Nullable
+    public SessionOverviewController getSessionOverviewController() {
+        return mSessionOverviewController;
+    }
+
+    public boolean isSessionOverviewShowing() {
+        return mSessionOverviewController != null && mSessionOverviewController.isShowing();
+    }
+
+    /** Refresh card titles without rebuilding views (OSC titles can update at 10-30 Hz). */
+    public void onSessionOverviewTitlesChanged() {
+        if (mSessionOverviewController != null) mSessionOverviewController.refreshTitles();
+    }
+
+    /** Refresh the selected-card highlight after the active pager page changed. */
+    public void onSessionOverviewSelectionChanged() {
+        if (mSessionOverviewController != null) mSessionOverviewController.refreshSelection();
     }
 
     /**
@@ -481,6 +506,21 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
     public boolean isTerminalPageSwitchInProgress() {
         return mTerminalPageSwitchInProgress;
+    }
+
+    /**
+     * True while the overview hands focus back to the terminal or input panel. The terminal focus
+     * listener is suppressed during that hand-off so closing the overview cannot be mistaken for
+     * a user focusing the terminal and close an input panel that was already open underneath.
+     */
+    private boolean mSessionOverviewRestoringFocus;
+
+    public void setSessionOverviewRestoringFocus(boolean restoring) {
+        mSessionOverviewRestoringFocus = restoring;
+    }
+
+    public boolean isSessionOverviewRestoringFocus() {
+        return mSessionOverviewRestoringFocus;
     }
 
     /**
@@ -920,6 +960,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         setTermuxTerminalViewAndClients();
 
+        // Owns the all-sessions overview overlay and the tab-strip swipe. Created here, before
+        // the service binds, so the gesture is live as soon as the first session appears.
+        mSessionOverviewController = new SessionOverviewController(this);
+
         setTerminalToolbarView(savedInstanceState);
 
         mAutoCompleteCtrl = new AutoCompleteController(this,
@@ -1048,6 +1092,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         updateExtraKeysCompaction(newConfig);
         // Rotation and split-screen resize arrive without a recreate, so the strip is re-decided.
         applyExtraKeysToKeyboardVisibility();
+        // A font-scale or density change can leave the card size unchanged while the preview
+        // font changes; the grid listener only sees geometry, so ask for a fresh snapshot too.
+        if (mSessionOverviewController != null)
+            mSessionOverviewController.onConfigurationChanged(newConfig);
     }
 
     @Override
@@ -1328,6 +1376,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Override
     protected void onStop() {
         super.onStop();
+
+        // The overview is a snapshot of live sessions; it has no meaning once the window is in
+        // the background. Do not restore focus here — the activity is leaving the foreground.
+        if (mSessionOverviewController != null) mSessionOverviewController.onStop();
 
         Logger.logDebug(LOG_TAG, "onStop");
 
@@ -3248,6 +3300,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * is open, back and showing the open glyph once it is closed.
      */
     public void updateToggleTextInputButtonIcon() {
+        final boolean overviewShowing = isSessionOverviewShowing();
+        // A session switch can happen while the overview is open (for example when its active
+        // card is closed). That switch may re-apply a visible panel state; the panel must not
+        // punch through the opaque overview, so keep it hidden without changing its stored
+        // state. Hiding it here also lets the quick actions below see the real container.
+        if (overviewShowing && isTextInputPanelOnScreen()) {
+            setTextInputPanelVisible(false);
+        }
         updateInputPanelActionButtonsVisibility();
         ImageButton toggleTextInputButton = findViewById(R.id.toggle_text_input_button);
         if (toggleTextInputButton == null) return;
@@ -3256,8 +3316,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // a visible button would sit on top of the panel and reopen what is already open. In the
         // extra keys' place the panel is elsewhere and the button keeps toggling as it always did.
         final boolean panelOwnsTheButtonSpot = isVisible && isTextInputPanelOverTerminal();
+        // The overview owns the whole content area. Its floating controls must not punch through
+        // the opaque scrim through their elevation, so the pencil is gone while it is showing.
         toggleTextInputButton.setVisibility(
-                panelOwnsTheButtonSpot || !isTextInputEnabled() ? View.GONE : View.VISIBLE);
+                overviewShowing || panelOwnsTheButtonSpot || !isTextInputEnabled()
+                        ? View.GONE : View.VISIBLE);
         toggleTextInputButton.setImageResource(isVisible
                 ? R.drawable.ic_keyboard_hide
                 : R.drawable.ic_keyboard_show);
@@ -3301,7 +3364,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mInputPanelActions = findViewById(R.id.input_panel_actions);
         }
         if (mInputPanelActions == null) return;
-        final int wanted = isTextInputVisible() && isTextInputEnabled()
+        final int wanted = !isSessionOverviewShowing()
+                && isTextInputVisible() && isTextInputPanelOnScreen() && isTextInputEnabled()
                 && areInputPanelQuickActionsEnabled() ? View.VISIBLE : View.GONE;
         if (mInputPanelActions.getVisibility() != wanted) {
             mInputPanelActions.setVisibility(wanted);
@@ -4063,6 +4127,13 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @SuppressLint("RtlHardcoded")
     @Override
     public void onBackPressed() {
+        // The overview is the innermost surface while it is open: Back closes it before closing
+        // the input panel or leaving the activity.
+        if (mSessionOverviewController != null && mSessionOverviewController.isShowing()) {
+            mSessionOverviewController.hide();
+            return;
+        }
+
         final boolean panelOnScreen = isTextInputPanelOnScreen();
 
         if (mPopupCtrl.isHistoryPopupShowing()) {
@@ -4631,6 +4702,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mSessionPagerManager != null)
             mSessionPagerManager.termuxSessionListNotifyUpdated(target);
 
+        if (mSessionOverviewController != null)
+            mSessionOverviewController.onSessionsChanged();
+
         // Keep the open-tabs snapshot fresh while sessions are alive, so a later
         // exit (e.g. the notification's Exit action, which kills sessions before
         // onStop runs) still leaves a snapshot to restore on next launch.
@@ -4962,6 +5036,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                     || mPendingKeyboardRestore
                     || isTerminalPageSwitchInProgress()
                     || mSessionUiChurn
+                    || isSessionOverviewShowing()
+                    || isSessionOverviewRestoringFocus()
                     || systemDrop;
 
             // Record keyboard INTENT only in honest foreground states — global fallback plus
@@ -5016,7 +5092,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         mPressKeepsPanel = isTouchInside(getTextInputPanelContainer(), x, y)
             || isTouchInside(getFloatingButton(), x, y)
             || isTouchInside(mInputPanelActions, x, y)
-            || isTouchInside(getSessionTabsContainer(), x, y);
+            || isTouchInside(getSessionTabsContainer(), x, y)
+            // The overview covers the whole content area while open; a tap on it must not be
+            // mistaken for a tap outside the input panel.
+            || isTouchInside(mSessionOverviewController != null
+                ? mSessionOverviewController.getView() : null, x, y);
         mPressOnTerminal = isTouchInside(getTerminalPager(), x, y);
     }
 
@@ -5217,6 +5297,49 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 }
             }
         }
+    }
+
+    /**
+     * Hide the input panel while the all-sessions overview is open, preserving its text and
+     * caret. The per-session visibility and focus memory are deliberately left untouched: this
+     * is a temporary hide, not a user close and not a session switch. Restoring the panel or
+     * switching to another session decides the next state from that unchanged memory.
+     *
+     * @return true if the panel was visible and has been hidden.
+     */
+    public boolean hideTextInputPanelForOverview() {
+        final boolean wasVisible = isTextInputVisible();
+        if (wasVisible) {
+            if (mAutoCompleteCtrl != null) mAutoCompleteCtrl.dismiss();
+            else dismissAutoCompleteSuggestions();
+            dismissMessageHistoryPopup();
+            saveTextInputForCurrentSession();
+            setTextInputPanelVisible(false);
+        }
+        // Applies the overview's suppression to the pencil even when the panel was already
+        // closed, and hides the quick-action row along with its container.
+        updateToggleTextInputButtonIcon();
+        return wasVisible;
+    }
+
+    /**
+     * Bring back a panel that was open before the overview, with its saved text and caret.
+     *
+     * <p>Does not move focus and does not show the IME: the overview's normal focus restore (or
+     * the session switch that follows) remains the single owner of both, so a panel that was open
+     * with the keyboard down does not pop the keyboard merely because the overview was opened.</p>
+     */
+    public void restoreTextInputPanelAfterOverview() {
+        final View container = findViewById(R.id.terminal_toolbar_text_input_container);
+        if (container == null || !isTextInputEnabled()) return;
+        // The current session owns the answer: it may have changed while the overview was open.
+        // Do nothing when its panel is closed, or when the panel is already on screen.
+        if (!isTextInputVisible() || isTextInputPanelOnScreen()) return;
+        final TerminalSession session = getCurrentSession();
+        if (session != null) mTextInputState.setVisible(session.mHandle, true);
+        setTextInputPanelVisible(true);
+        restoreTextInputForSession(session);
+        updateToggleTextInputButtonIcon();
     }
 
     /**

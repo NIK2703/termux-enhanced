@@ -6,6 +6,8 @@
     <color name="bootstrap_selector_background">#FFFFFF</color>
     <color name="grey_200">#eeeeee</color>
     <color name="signal_picker_underlay_fill">#0D000000</color>
+    <!-- Full-screen scrim behind the all-sessions overview. -->
+    <color name="session_overview_scrim">#FF000000</color>
 
     <!-- Disabled preference text (light theme): neutral grey, clearly set apart from the
          active near-black title so an inactive item reads as disabled. -->

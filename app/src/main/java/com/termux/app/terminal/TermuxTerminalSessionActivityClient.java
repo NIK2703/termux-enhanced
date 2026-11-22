@@ -276,6 +276,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             if (mActivity.getCurrentSession() == changedSession) {
                 withTerminalView(TerminalView::onScreenUpdated);
             }
+            // The overview cards are live previews: repaint the matching card while the overlay
+            // is open instead of leaving the bitmap frozen at the moment the overview opened.
+            if (mActivity.getSessionOverviewController() != null) {
+                mActivity.getSessionOverviewController().onSessionTextChanged(changedSession);
+            }
         });
     }
 
@@ -318,6 +323,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (service == null) return;
         TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         if (tabs != null) tabs.refreshTabAppearance(service.getTermuxSessions());
+        mActivity.onSessionOverviewTitlesChanged();
         // For unnamed sessions the (animated) title doubles as the session name for the
         // extra-keys profile match; the reloadMap=false variant never touches disk.
         TerminalSession current = mActivity.getCurrentSession();
@@ -344,6 +350,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             mActivity.finishActivityIfNotFinishing();
             return;
         }
+
+        // A finished session that stays in the list (non-zero exit) must leave its overview
+        // tab in the finished/error state even though the session list itself did not change.
+        mActivity.onSessionOverviewTitlesChanged();
 
         int index = service.getIndexOfSession(finishedSession);
 
@@ -498,6 +508,17 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      *                no in-between tab gets highlighted.
      */
     public void setCurrentSession(TerminalSession session, boolean showToast, boolean animate) {
+        setCurrentSession(session, showToast, animate, false);
+    }
+
+    /**
+     * As {@link #setCurrentSession(TerminalSession, boolean, boolean)}, but lets the caller put
+     * the tab strip in its final position without the usual centre animation. The all-sessions
+     * overview uses this because it has already positioned the strip behind its opaque overlay;
+     * animating it again would be a second, visible transition after the terminal expansion.
+     */
+    public void setCurrentSession(TerminalSession session, boolean showToast, boolean animate,
+                                  boolean immediateTabScroll) {
         if (session == null) return;
 
         // Switching sessions invalidates any in-flight shell-completion context
@@ -543,7 +564,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // highlight stays solely with onTerminalPageSelected().
             if (!animate) {
                 TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
-                if (tabs != null) tabs.scrollToTabIndex(index);
+                if (tabs != null) {
+                    if (immediateTabScroll) tabs.scrollToTabIndexImmediately(index);
+                    else tabs.scrollToTabIndex(index);
+                }
             }
         }
     }
@@ -1188,6 +1212,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     /**
+     * Typeface used by the live terminal views, for off-screen preview rendering. Cached by
+     * {@link #resolveTerminalTypeface()}, so calling it while building the overview is cheap.
+     */
+    @NonNull
+    public Typeface getTerminalTypeface() {
+        return resolveTerminalTypeface();
+    }
+
+    /**
      * Resolve the terminal typeface, parsing the font file only when it actually changed
      * (mtime + size). {@code Typeface.createFromFile()} is a full TTF/OTF parse and used to run on
      * every page bind.
@@ -1585,10 +1618,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
         // The toggle and quick actions are always composited with the terminal background, so
         // they always carry the shadow that lifts them off it.
-        final int shadowElevationPx = mActivity.getResources()
-            .getDimensionPixelSize(R.dimen.floating_shadow_elevation);
-        final int controlShadowColor = floatingShadowColor(isSchemeLight,
-            R.fraction.floating_shadow_alpha);
+        final int shadowElevationPx = FloatingShadow.elevationPx(mActivity.getResources());
+        final int controlShadowColor = FloatingShadow.color(mActivity.getResources(),
+            isSchemeLight, R.fraction.floating_shadow_alpha);
 
         final int textColor = mActivity.getButtonText();
 
@@ -1615,10 +1647,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             // The panel's own pair, not the toggle's — see FLOATING_PANEL_CONTRAST_OPACITY.
             applyTextInputPanelContainerColors(mActivity.getFloatingPanelFill(),
                 mActivity.getFloatingPanelStroke());
-            applyFloatingShadow(panel, shadowElevationPx,
-                floatingShadowColor(isSchemeLight, R.fraction.floating_panel_shadow_alpha));
+            FloatingShadow.apply(panel, shadowElevationPx,
+                FloatingShadow.color(mActivity.getResources(), isSchemeLight,
+                    R.fraction.floating_panel_shadow_alpha));
         } else {
-            applyFloatingShadow(panel, 0, Color.TRANSPARENT);
+            FloatingShadow.apply(panel, 0, Color.TRANSPARENT);
         }
 
         // The action row sits directly above the floating panel; raise it just above the panel's
@@ -1633,26 +1666,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         // Every bound page, not just the active one: a neighbour bound while it was off screen
         // would otherwise keep whatever colours it last saw.
         forEachBoundTerminalView(view -> applyScrollbarStyleTo(view, isSchemeLight));
-    }
-
-    /** Black on light schemes, white on dark ones: a black shadow vanishes on a dark terminal. */
-    private int floatingShadowColor(boolean isSchemeLight, int alphaFractionResId) {
-        final float alpha = mActivity.getResources().getFraction(alphaFractionResId, 1, 1);
-        final int channel = isSchemeLight ? 0 : 255;
-        return Color.argb(Math.round(alpha * 255), channel, channel, channel);
-    }
-
-    /**
-     * Both shadow colours are set because a view gets an ambient and a spot shadow separately. The
-     * per-view colours are API 28+; below that the shadow keeps the theme's colour for its elevation.
-     */
-    private static void applyFloatingShadow(View view, int elevationPx, int shadowColor) {
-        if (view == null) return;
-        view.setElevation(elevationPx);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            view.setOutlineAmbientShadowColor(shadowColor);
-            view.setOutlineSpotShadowColor(shadowColor);
-        }
     }
 
     /**
@@ -1678,9 +1691,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     private void applyScrollbarStyleTo(@NonNull TerminalView terminalView, boolean isSchemeLight) {
         terminalView.setScrollbarColors(mActivity.getFloatingButtonFill(),
                 mActivity.getFloatingButtonStroke());
-        applyFloatingShadow(terminalView.getScrollbarThumbView(),
-                mActivity.getResources().getDimensionPixelSize(R.dimen.floating_shadow_elevation),
-                floatingShadowColor(isSchemeLight, R.fraction.floating_shadow_alpha));
+        FloatingShadow.apply(terminalView.getScrollbarThumbView(),
+                FloatingShadow.elevationPx(mActivity.getResources()),
+                FloatingShadow.color(mActivity.getResources(), isSchemeLight,
+                        R.fraction.floating_shadow_alpha));
     }
 
     /** A plain oval fill (no stroke). */
@@ -1724,7 +1738,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         states.addState(new int[]{ android.R.attr.state_focused }, active);
         states.addState(new int[]{}, createOvalDrawable(fill, strokePx, stroke));
         applyCircleButtonStyle(button, states, textColor);
-        applyFloatingShadow(button, elevationPx, shadowColor);
+        FloatingShadow.apply(button, elevationPx, shadowColor);
     }
 
     /** Install {@code states} on a circle button and tint its icon with the scheme foreground. */

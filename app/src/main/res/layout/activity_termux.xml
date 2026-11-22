@@ -17,7 +17,7 @@
 
         <!-- Session tabs container (default: top). The applyTabPanelPosition()
              method moves this between ALIGN_PARENT_TOP and ABOVE the toolbar. -->
-        <LinearLayout
+        <com.termux.app.terminal.TabPanelLayout
             android:id="@+id/session_tabs_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -66,7 +66,7 @@
 
             </com.termux.app.terminal.ElasticHorizontalScrollView>
 
-        </LinearLayout>
+        </com.termux.app.terminal.TabPanelLayout>
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/terminal_view_pager"
@@ -234,6 +234,12 @@
             android:tint="?attr/colorOnSurface"
             android:scaleType="centerInside"
             android:padding="12dp" />
+
+        <!-- All-sessions overview. Last child so it covers the toolbar and every floating
+             control. It normally lives inside the content area; while open, the controller
+             stretches its top edge into the status-bar padding so grid rows can scroll behind
+             the transparent system bar (the root view stops clipping its padding for that). -->
+        <include layout="@layout/view_session_overview" />
 
     </RelativeLayout>
 

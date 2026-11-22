@@ -13,6 +13,20 @@
     <dimen name="terminal_tab_close_gap">4dp</dimen>
     <dimen name="terminal_tab_close_size">20dp</dimen>
 
+    <!-- Session overview grid -->
+    <dimen name="session_overview_gap">8dp</dimen>
+    <dimen name="session_overview_tab_margin">6dp</dimen>
+    <dimen name="session_overview_tab_height">28dp</dimen>
+    <dimen name="session_overview_tab_padding_horizontal">8dp</dimen>
+    <!-- Horizontal padding + the strip's close button + its gap, so the title fades before
+         the close button exactly like a selected strip tab. -->
+    <dimen name="session_overview_tab_padding_end">32dp</dimen>
+    <dimen name="session_overview_tab_padding_vertical">3dp</dimen>
+    <dimen name="session_overview_tab_corner_radius">12dp</dimen>
+    <dimen name="session_overview_tab_text_size">12sp</dimen>
+    <!-- Tab margin + the tab's horizontal padding: the close icon sits 8dp inside the pill. -->
+    <dimen name="session_overview_tab_close_inset">14dp</dimen>
+
     <!-- Text input panel (matches vertical scrollbar thumb) -->
     <dimen name="terminal_text_input_corner_radius">11dp</dimen>
     <dimen name="terminal_text_input_stroke">0.5dp</dimen>

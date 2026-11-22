@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.termux.app.terminal.SessionOverviewCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/session_overview_preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+
+    <!-- A compact clone of a tab-strip tab. It sits over the preview, inset from the card's
+         top, start and end edges by the same amount, and never changes the card's measured
+         size. The end padding leaves room for the close button. -->
+    <com.termux.app.terminal.SessionOverviewTabTitleView
+        android:id="@+id/session_overview_tab"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/session_overview_tab_height"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="@dimen/session_overview_tab_margin"
+        android:layout_marginBottom="@dimen/session_overview_tab_margin"
+        android:layout_marginStart="@dimen/session_overview_tab_margin"
+        android:layout_marginEnd="@dimen/session_overview_tab_margin"
+        android:paddingStart="@dimen/session_overview_tab_padding_horizontal"
+        android:paddingEnd="@dimen/session_overview_tab_padding_end"
+        android:paddingTop="@dimen/session_overview_tab_padding_vertical"
+        android:paddingBottom="@dimen/session_overview_tab_padding_vertical"
+        android:gravity="center_vertical|start"
+        android:singleLine="true"
+        android:maxLines="1"
+        android:textSize="@dimen/session_overview_tab_text_size"
+        android:includeFontPadding="true"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
+    <!-- The same close affordance as a selected strip tab. It is a sibling of the title so the
+         title's background can stay under the close button while the icon gets a real click
+         target. It is inset by the tab's own horizontal padding, not the card edge. -->
+    <ImageButton
+        android:id="@+id/session_overview_close"
+        android:layout_width="@dimen/terminal_tab_close_size"
+        android:layout_height="@dimen/session_overview_tab_height"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="@dimen/session_overview_tab_margin"
+        android:layout_marginEnd="@dimen/session_overview_tab_close_inset"
+        android:src="@drawable/ic_close"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/tab_close_description"
+        android:scaleType="centerInside"
+        android:padding="0dp"
+        android:alpha="0.7"
+        android:tint="?attr/colorOnSurface"
+        android:clickable="true"
+        android:focusable="true" />
+
+</com.termux.app.terminal.SessionOverviewCardView>

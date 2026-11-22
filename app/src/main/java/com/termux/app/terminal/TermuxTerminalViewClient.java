@@ -1079,7 +1079,9 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
                 // the restore's requestFocus(), must not pop the keyboard, close the panel, or
                 // clobber the per-session focus flag — kills the +500ms show leak and the
                 // panel/focus clobber on resume. (Fixes #InputPanel6, keeps #InputPanel5 intact.)
-                if (mActivity.isTerminalPageSwitchInProgress() || mActivity.isRestoringKeyboard()) {
+                if (mActivity.isTerminalPageSwitchInProgress() || mActivity.isRestoringKeyboard()
+                        || mActivity.isSessionOverviewRestoringFocus()
+                        || mActivity.isSessionOverviewShowing()) {
                     Logger.logVerbose(LOG_TAG, "Suppressing soft keyboard churn: switch/restore in progress");
                     return;
                 }
