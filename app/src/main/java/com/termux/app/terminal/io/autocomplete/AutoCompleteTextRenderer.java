@@ -3,6 +3,7 @@ package com.termux.app.terminal.io.autocomplete;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.StaticLayout;
 import android.text.Layout;
 import android.text.TextPaint;
@@ -10,6 +11,7 @@ import android.text.style.StyleSpan;
 import android.util.LruCache;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * Pure text-rendering helpers for auto-complete suggestion rows: drawing only
@@ -21,16 +23,12 @@ final class AutoCompleteTextRenderer {
 
     private static final StyleSpan BOLD_SPAN = new StyleSpan(Typeface.BOLD);
 
-    /**
-     * StaticLayout cache, kept small (64): the display-text memoization below already
-     * skips most per-keystroke truncation, and each entry holds a copy of the text.
-     * sizeOf is charged by text length (the real memory cost), not line count.
-     */
+    /** Small cache of laid-out rows; each entry costs one slot. */
     private static final int LAYOUT_CACHE_MAX = 64;
     private static final LruCache<String, StaticLayout> sLayoutCache =
             new LruCache<String, StaticLayout>(LAYOUT_CACHE_MAX) {
                 @Override protected int sizeOf(String key, StaticLayout value) {
-                    return key.length();
+                    return 1;
                 }
             };
     private static String layoutKey(@NonNull String text, int w, int maxLines) {
@@ -73,6 +71,21 @@ final class AutoCompleteTextRenderer {
     private static final LruCache<DisplayKey, String> sDisplayCache =
             new LruCache<DisplayKey, String>(DISPLAY_CACHE_MAX);
 
+    /** Cache of newline-normalized suggestions, reused across keystrokes. */
+    private static final int NORMALIZED_CACHE_MAX = 64;
+    private static final LruCache<String, String> sNormalizedCache =
+            new LruCache<String, String>(NORMALIZED_CACHE_MAX);
+
+    @NonNull
+    private static String normalizedSuggestion(@NonNull String suggestion) {
+        String cached = sNormalizedCache.get(suggestion);
+        if (cached != null) return cached;
+        String normalized = suggestion.indexOf('\n') >= 0
+                ? suggestion.replace('\n', ' ') : suggestion;
+        sNormalizedCache.put(suggestion, normalized);
+        return normalized;
+    }
+
     /**
      * Index of the start of the last whitespace/slash-delimited word in {@code s}, treating a
      * trailing separator as "still finishing word 0".
@@ -109,8 +122,20 @@ final class AutoCompleteTextRenderer {
     @NonNull
     static SpannableString buildSuggestionSpannable(@NonNull String suggestion,
             @NonNull String input, int availWidth, @NonNull TextPaint paint) {
+        return buildSuggestionSpannable(suggestion, input, wordStartOffset(input),
+                availWidth, paint);
+    }
+
+    /** Variant that reuses a word start computed once for the update. */
+    @NonNull
+    static SpannableString buildSuggestionSpannable(@NonNull String suggestion,
+            @NonNull String input, int inputWordStart, int availWidth,
+            @NonNull TextPaint paint) {
         String matchStr = input;
-        int wordStart = Math.min(wordStartOffset(matchStr), suggestion.length());
+        // A full-entry candidate can be multi-line; render it as one logical line
+        // so the popup row does not grow to the height of the whole entry.
+        String displaySuggestion = normalizedSuggestion(suggestion);
+        int wordStart = Math.min(inputWordStart, displaySuggestion.length());
         int boldLen = matchStr.length() - wordStart;
         boolean hasLastWord = boldLen > 0;
         String prefix = (wordStart > 0) ? "... " : "";
@@ -118,27 +143,41 @@ final class AutoCompleteTextRenderer {
 
         String displayText;
         if (availWidth > 0) {
-            DisplayKey key = new DisplayKey(suggestion, wordStart, availWidth, 2);
+            DisplayKey key = new DisplayKey(displaySuggestion, wordStart, availWidth, 2);
             String cached = sDisplayCache.get(key);
             if (cached != null) {
                 displayText = cached;
             } else {
-                String raw = (prefixLen > 0) ? prefix + suggestion.substring(wordStart) : suggestion;
+                String raw = (prefixLen > 0)
+                        ? prefix + displaySuggestion.substring(wordStart) : displaySuggestion;
                 displayText = truncateToLines(raw, availWidth, paint, 2);
                 sDisplayCache.put(key, displayText);
             }
         } else {
-            displayText = (prefixLen > 0) ? prefix + suggestion.substring(wordStart) : suggestion;
+            displayText = (prefixLen > 0)
+                    ? prefix + displaySuggestion.substring(wordStart) : displaySuggestion;
         }
 
         SpannableString ss = new SpannableString(displayText);
         int spanEnd = Math.min(prefixLen + boldLen, displayText.length());
         if (hasLastWord && spanEnd > prefixLen
-                && suggestion.regionMatches(true, 0, matchStr, 0, matchStr.length())) {
+                && displaySuggestion.regionMatches(true, 0, matchStr, 0, matchStr.length())) {
             ss.setSpan(BOLD_SPAN,
                     prefixLen, spanEnd, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return ss;
+    }
+
+    /** True when {@code old} already has {@code next}'s characters and bold range. */
+    static boolean sameRendering(@Nullable CharSequence old, @NonNull SpannableString next) {
+        if (old == null || old.length() != next.length()) return false;
+        for (int i = 0; i < next.length(); i++) {
+            if (old.charAt(i) != next.charAt(i)) return false;
+        }
+        if (!(old instanceof Spanned)) return false;
+        Spanned spanned = (Spanned) old;
+        return spanned.getSpanStart(BOLD_SPAN) == next.getSpanStart(BOLD_SPAN)
+                && spanned.getSpanEnd(BOLD_SPAN) == next.getSpanEnd(BOLD_SPAN);
     }
 
     /**

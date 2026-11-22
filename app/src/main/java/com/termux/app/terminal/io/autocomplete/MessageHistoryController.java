@@ -48,6 +48,10 @@ public final class MessageHistoryController {
 
     /** Default when the pref is unset; the activity reads it too. */
     public static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
+    /** Upper bound of the history retention setting. */
+    public static final int MESSAGE_HISTORY_MAX_LIMIT = 1000;
+    /** Entries rendered in the context history popup; older ones remain available to autocomplete. */
+    public static final int MESSAGE_HISTORY_POPUP_LIMIT = 100;
 
     // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
     // windows must see the same history. A per-instance controller gave each window its
@@ -69,6 +73,10 @@ public final class MessageHistoryController {
 
     /** In-memory message history, newest first. */
     private final ArrayList<String> mMessageHistory = new ArrayList<>();
+
+    /** Parsed line/sentence offsets keyed by entry text, reused across snapshots. */
+    @NonNull
+    private final HashMap<String, HistorySnapshot.Spans> mSpansCache = new HashMap<>();
 
     /**
      * Whether {@link #load} has populated the in-memory state from disk. Guards the mutators, not
@@ -131,11 +139,11 @@ public final class MessageHistoryController {
      *
      * <p>Done at construction because a notification reply can be the first thing in a process: the
      * broadcast starts the app with no activity, so nothing has applied the user's settings yet. A
-     * write under the built-in defaults would then trim a store the user sized at 500 down to 100,
+     * write under the built-in defaults would then trim a store the user sized at 500 down to 20,
      * or land in the global store while the user is on the per-directory one.
      */
     private void applyStoredSettings() {
-        mMessageHistoryMax = mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT);
+        mMessageHistoryMax = clampMaxSize(mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT));
         mPerDirectoryMessageHistory = mPrefs.getBoolean(PREF_PER_DIR, false);
     }
 
@@ -251,9 +259,17 @@ public final class MessageHistoryController {
         return mPerDirectoryMessageHistory;
     }
 
-
+    /** Set the retention limit; lowering it trims the current list immediately. */
     public void setMaxSize(int max) {
-        mMessageHistoryMax = max;
+        mMessageHistoryMax = clampMaxSize(max);
+        if (mLoaded && trimToMaxSize()) {
+            schedulePersist();
+            mHistoryVersion++;
+        }
+    }
+
+    private static int clampMaxSize(int max) {
+        return Math.max(0, Math.min(MESSAGE_HISTORY_MAX_LIMIT, max));
     }
 
     // ── Observers ──
@@ -302,6 +318,27 @@ public final class MessageHistoryController {
         return mHistoryVersion;
     }
 
+    /** Parsed offsets cache consumed by {@link HistorySnapshot}. */
+    @NonNull
+    Map<String, HistorySnapshot.Spans> getSpansCache() {
+        return mSpansCache;
+    }
+
+    /** Parse and cache one entry's offsets. */
+    private void cacheSpans(@NonNull String entry) {
+        if (!mSpansCache.containsKey(entry)) {
+            mSpansCache.put(entry, HistorySnapshot.parseSpans(entry));
+        }
+    }
+
+    /** Re-parse the current list after a load or directory switch. */
+    private void rebuildSpansCache() {
+        mSpansCache.clear();
+        for (int i = 0; i < mMessageHistory.size(); i++) {
+            cacheSpans(mMessageHistory.get(i));
+        }
+    }
+
     @Nullable
     public String getHistoryCurrentDirectory() {
         return mHistoryCurrentDirectory;
@@ -333,10 +370,12 @@ public final class MessageHistoryController {
                 mHistoryCurrentDirectory = null;
             }
             mMessageHistory.clear();
+            mSpansCache.clear();
             mHistoryVersion++;
             savePerDirectory();
         } else {
             mMessageHistory.clear();
+            mSpansCache.clear();
             mHistoryVersion++;
             mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
         }
@@ -346,6 +385,7 @@ public final class MessageHistoryController {
     public void clearAllPerDirectory() {
         mMessageHistoryPerDirectory.clear();
         mMessageHistory.clear();
+        mSpansCache.clear();
         mHistoryCurrentDirectory = null;
         mHistoryVersion++;
         mPrefs.edit().remove(PREF_MESSAGE_HISTORY_PER_DIR).apply();
@@ -387,6 +427,7 @@ public final class MessageHistoryController {
         if (dirHistory != null) {
             mMessageHistory.addAll(dirHistory);
         }
+        rebuildSpansCache();
     }
 
     /** Migrate global history to per-directory under the given CWD. */
@@ -395,6 +436,7 @@ public final class MessageHistoryController {
         if (migrated == null) return;
         mMessageHistoryPerDirectory.put(cwd, migrated);
         mMessageHistory.addAll(migrated);
+        rebuildSpansCache();
         // Persist the migration synchronously: this is a one-time
         // destructive move (the global store is dropped below).
         savePerDirectory();
@@ -454,6 +496,7 @@ public final class MessageHistoryController {
         snapshotCurrentDirectoryIfChanged(cwd);
 
         boolean changed = promoteToTop(mMessageHistory, normalized);
+        cacheSpans(normalized);
         // A lowered limit still needs trimming even when the order is unchanged.
         if (!changed && mMessageHistory.size() <= mMessageHistoryMax) return;
 
@@ -489,6 +532,7 @@ public final class MessageHistoryController {
             mMessageHistoryPerDirectory.put(cwd, dirHistory);
         }
         boolean changed = promoteToTop(dirHistory, normalized);
+        cacheSpans(normalized);
         if (!changed && dirHistory.size() <= mMessageHistoryMax) return;
 
         while (dirHistory.size() > mMessageHistoryMax) {
@@ -513,6 +557,7 @@ public final class MessageHistoryController {
         if (mMessageHistory.indexOf(normalized) >= 0) return;
 
         mMessageHistory.add(0, normalized);
+        cacheSpans(normalized);
         trimToMaxSize();
         schedulePersist();
         mHistoryVersion++;
@@ -532,6 +577,7 @@ public final class MessageHistoryController {
         if (index < 0) return false;
 
         mMessageHistory.remove(index);
+        mSpansCache.remove(normalized);
         mHistoryVersion++;
         schedulePersist();
         return true;
@@ -564,26 +610,21 @@ public final class MessageHistoryController {
     private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {
         if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) return;
 
-        if (mHistoryCurrentDirectory == null) {
-            mHistoryCurrentDirectory = cwd;
-            ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
-            if (dirHistory != null) mMessageHistory.addAll(dirHistory);
-            mHistoryVersion++;
-            return;
+        if (mHistoryCurrentDirectory != null) {
+            mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
+            mMessageHistory.clear();
         }
-
-        mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
-        mMessageHistory.clear();
         mHistoryCurrentDirectory = cwd;
         ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
         if (dirHistory != null) mMessageHistory.addAll(dirHistory);
         mHistoryVersion++;
+        rebuildSpansCache();
     }
 
     private boolean trimToMaxSize() {
         boolean trimmed = false;
         while (mMessageHistory.size() > mMessageHistoryMax) {
-            mMessageHistory.remove(mMessageHistory.size() - 1);
+            mSpansCache.remove(mMessageHistory.remove(mMessageHistory.size() - 1));
             trimmed = true;
         }
         return trimmed;
@@ -599,6 +640,7 @@ public final class MessageHistoryController {
         } else {
             loadGlobal();
         }
+        rebuildSpansCache();
         mLoaded = true;
     }
 

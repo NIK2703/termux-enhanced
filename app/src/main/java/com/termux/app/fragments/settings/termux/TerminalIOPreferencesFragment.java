@@ -18,6 +18,8 @@ import androidx.preference.SwitchPreferenceCompat;
 import com.termux.R;
 import com.termux.app.TermuxActivity;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
+import com.termux.app.terminal.TermuxActivityBroadcastManager;
+import com.termux.app.terminal.io.autocomplete.MessageHistoryController;
 import com.termux.shared.termux.extrakeys.KeyCombination;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
@@ -40,6 +42,9 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         "shortcut.previous-session",
         "shortcut.rename-session"
     };
+
+    private static final int HISTORY_MAX_MIN = 0;
+    private static final int HISTORY_MAX_STEP = 10;
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -99,7 +104,8 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
 
         final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
 
-        configureHistorySlider("message_history_max", 10, 100);
+        configureHistorySlider("message_history_max", HISTORY_MAX_MIN,
+            MessageHistoryController.MESSAGE_HISTORY_MAX_LIMIT, HISTORY_MAX_STEP);
 
         // Session shortcuts are combinations, not free text, so they are picked with the same
         // dialog the extra-keys editor uses (minus the delay entry) instead of being typed.
@@ -192,17 +198,40 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         }
     }
 
-    private void configureHistorySlider(String key, int min, int max) {
+    private void configureHistorySlider(String key, int min, int max, int step) {
         SeekBarPreference slider = findPreference(key);
         if (slider == null) return;
+
+        slider.setMin(min);
+        slider.setMax(max);
+        slider.setSeekBarIncrement(step);
+
+        int initial = snapToStep(slider.getValue(), min, max, step);
+        if (initial != slider.getValue()) slider.setValue(initial);
+        updateHistorySliderSummary(slider, initial);
+
         slider.setOnPreferenceChangeListener((preference, newValue) -> {
-            int value = (Integer) newValue;
-            if (value < min) {
-                value = min;
+            int requested = (Integer) newValue;
+            int value = snapToStep(requested, min, max, step);
+            updateHistorySliderSummary(slider, value);
+            if (value != requested) {
                 slider.setValue(value);
+                return false;
             }
             return true;
         });
+    }
+
+    private static int snapToStep(int value, int min, int max, int step) {
+        int snapped = Math.round((float) value / step) * step;
+        return Math.max(min, Math.min(max, snapped));
+    }
+
+    private void updateHistorySliderSummary(@NonNull SeekBarPreference slider, int value) {
+        slider.setSummary(value > MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT
+            ? getString(R.string.input_history_max_popup_limit_summary,
+                MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT)
+            : null);
     }
 
 }
@@ -221,6 +250,10 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
         return mContext.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
     }
 
+    private void notifyAutoCompleteSettingsChanged() {
+        TermuxActivityBroadcastManager.notifyAutoCompleteSettingsChanged(mContext);
+    }
+
     @Override
     public void putBoolean(String key, boolean value) {
         if (mPreferences == null) return;
@@ -228,7 +261,7 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
 
         switch (key) {
             case "soft_keyboard_enabled":
-                    mPreferences.setSoftKeyboardEnabled(value);
+                mPreferences.setSoftKeyboardEnabled(value);
                 break;
             case "soft_keyboard_enabled_only_if_no_hardware":
                 mPreferences.setSoftKeyboardEnabledOnlyIfNoHardware(value);
@@ -279,6 +312,10 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "per_directory_message_history":
                 getTermuxPrefs().edit().putBoolean("per_directory_message_history", value).apply();
                 break;
+            case "autocomplete_sentences_enabled":
+                getTermuxPrefs().edit().putBoolean("autocomplete_sentences_enabled", value).apply();
+                notifyAutoCompleteSettingsChanged();
+                break;
             default:
                 break;
         }
@@ -290,6 +327,7 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
         switch (key) {
             case "suggestions_max_count":
                 getTermuxPrefs().edit().putInt("suggestions_max_count", value).apply();
+                notifyAutoCompleteSettingsChanged();
                 break;
             case "message_history_max":
                 getTermuxPrefs().edit().putInt("message_history_max", value).apply();
@@ -336,6 +374,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
             case "per_directory_message_history":
                 return getTermuxPrefs().getBoolean("per_directory_message_history", false);
+            case "autocomplete_sentences_enabled":
+                return getTermuxPrefs().getBoolean("autocomplete_sentences_enabled", true);
             default:
                 return false;
         }
@@ -348,7 +388,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "suggestions_max_count":
                 return getTermuxPrefs().getInt("suggestions_max_count", 4);
             case "message_history_max":
-                return getTermuxPrefs().getInt("message_history_max", 20);
+                return getTermuxPrefs().getInt("message_history_max",
+                    MessageHistoryController.MESSAGE_HISTORY_MAX_DEFAULT);
             default:
                 return defValue;
         }

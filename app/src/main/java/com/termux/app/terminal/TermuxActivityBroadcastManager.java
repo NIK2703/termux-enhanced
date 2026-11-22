@@ -32,6 +32,8 @@ public class TermuxActivityBroadcastManager {
      * the toggle button's swipes.
      */
     private static final String ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED = "com.termux.INPUT_PANEL_QUICK_ACTIONS_CHANGED";
+    /** Input-panel auto-complete settings changed; re-read them without recreating the activity. */
+    private static final String ACTION_AUTOCOMPLETE_SETTINGS_CHANGED = "com.termux.AUTOCOMPLETE_SETTINGS_CHANGED";
     /**
      * The terminal font size was changed outside the activity (the Display settings slider).
      *
@@ -71,6 +73,12 @@ public class TermuxActivityBroadcastManager {
         context.sendBroadcast(intent);
     }
 
+    public static void notifyAutoCompleteSettingsChanged(@NonNull Context context) {
+        Intent intent = new Intent(ACTION_AUTOCOMPLETE_SETTINGS_CHANGED);
+        intent.setPackage(context.getPackageName());
+        context.sendBroadcast(intent);
+    }
+
     public IntentFilter createIntentFilter() {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TERMUX_ACTIVITY.ACTION_NOTIFY_APP_CRASH);
@@ -80,6 +88,7 @@ public class TermuxActivityBroadcastManager {
         intentFilter.addAction(ACTION_TEXT_INPUT_ENABLED_CHANGED);
         intentFilter.addAction(ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED);
         intentFilter.addAction(ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED);
+        intentFilter.addAction(ACTION_AUTOCOMPLETE_SETTINGS_CHANGED);
         intentFilter.addAction(ACTION_TAB_PANEL_POSITION_CHANGED);
         intentFilter.addAction(ACTION_TAB_HEIGHT_MODE_CHANGED);
         intentFilter.addAction(ACTION_FONT_SIZE_CHANGED);
@@ -132,6 +141,11 @@ public class TermuxActivityBroadcastManager {
 
             if (ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED.equals(action)) {
                 termuxActivity.applyInputPanelQuickActionsPreference();
+                return;
+            }
+
+            if (ACTION_AUTOCOMPLETE_SETTINGS_CHANGED.equals(action)) {
+                termuxActivity.reloadAutoCompletePreferences();
                 return;
             }
 

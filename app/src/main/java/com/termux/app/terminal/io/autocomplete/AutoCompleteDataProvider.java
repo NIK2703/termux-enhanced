@@ -9,21 +9,12 @@ import androidx.annotation.Nullable;
 import java.util.ArrayList;
 
 /**
- * Narrow read-only data + callback surface that {@link AutoCompletePopupManager}
- * uses to build and position the suggestion windows. Keeping this an explicit
- * interface (rather than handing the manager the whole {@code AutoCompleteController})
- * enforces the responsibility split:
- *
- * <ul>
- *   <li>{@code AutoCompleteController} — owns the suggestion data, input handling
- *       and candidate insertion;</li>
- *   <li>{@code AutoCompletePopupManager} — owns the history popup window (build,
- *       show, position, dismiss, content rebuild & bold-span refresh);</li>
- * </ul>
+ * Data and callbacks the popup manager needs from the controller. Keeping this narrow
+ * separates candidate data and input handling from the popup window.
  */
 interface AutoCompleteDataProvider {
 
-    /** Current suggestion strings (message-history candidates, newest first). */
+    /** Suggestion strings: full entries first, then sentences; newest first per tier. */
     @NonNull ArrayList<String> getSuggestions();
 
     /** Max number of suggestions to RENDER (user setting). */
@@ -32,14 +23,28 @@ interface AutoCompleteDataProvider {
     /** The EditText the popups are anchored to. */
     @Nullable EditText getInputField();
 
-    /** Build a single suggestion row TextView (wires the tap/swipe handlers). */
+    /** Create a suggestion row and wire its tap/swipe handlers. */
     @NonNull TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input);
 
-    /**
-     * Rebind an existing suggestion row to new data without re-allocating the view.
-     * Must restore the same visual state a fresh {@link #buildSuggestionTextView} would.
-     */
+    /** Same as above, reusing the caller's candidate metadata. */
+    @NonNull TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input,
+            @Nullable SuggestionEngine.Candidate candidate);
+
+    /** Rebind an existing row without allocating a new view. */
     void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion, @NonNull String input);
+
+    /** {@link #rebindSuggestionTextView} with the caller's candidate metadata. */
+    void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion,
+            @NonNull String input, @Nullable SuggestionEngine.Candidate candidate);
+
+    /** Candidate metadata for the suggestion at {@code index}, or null when stale. */
+    @Nullable SuggestionEngine.Candidate getCandidate(int index);
+
+    /** Bumped whenever the suggestion list changes (O(1) popup diff). */
+    int getSuggestionsVersion();
+
+    /** Bumped whenever the typed line/sentence bases change (O(1) popup diff). */
+    int getPrefixVersion();
 
     /** Callback run when the popup is dismissed by a suggestion tap. */
     void onSuggestionDismissed();

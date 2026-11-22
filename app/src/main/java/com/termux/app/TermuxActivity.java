@@ -719,7 +719,7 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     }
 
     /** Listens for message-history settings changes from the Settings activity. */
-    private final SharedPreferences.OnSharedPreferenceChangeListener mPerDirPrefListener =
+    private final SharedPreferences.OnSharedPreferenceChangeListener mHistoryPrefListener =
             (prefs, key) -> {
                 if ("per_directory_message_history".equals(key)) {
                     boolean newValue = prefs.getBoolean("per_directory_message_history", false);
@@ -729,6 +729,9 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
                     mMessageHistoryCtrl.save();
                     mMessageHistoryCtrl.setPerDirectoryEnabled(newValue);
                     loadMessageHistory();
+                } else if ("message_history_max".equals(key)) {
+                    mMessageHistoryCtrl.setMaxSize(
+                        prefs.getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
                 }
             };
 
@@ -1404,7 +1407,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mIsInvalidState) return;
 
         termuxPrefs()
-                .unregisterOnSharedPreferenceChangeListener(mPerDirPrefListener);
+                .unregisterOnSharedPreferenceChangeListener(mHistoryPrefListener);
 
         unregisterTermuxActivityBroadcastReceiver();
 
@@ -2803,9 +2806,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean("per_directory_message_history", false));
             loadMessageHistory();
 
-            // Hot-reload: when the user toggles per-directory history in Settings,
-            // the mode switches immediately.
-            prefs.registerOnSharedPreferenceChangeListener(mPerDirPrefListener);
+            // Apply history mode and retention changes without recreating the activity.
+            prefs.registerOnSharedPreferenceChangeListener(mHistoryPrefListener);
 
             // Load the persisted recent-directories history once. The default working directory is
             // filtered out (and purged from anything persisted before this filter existed) — set the
@@ -4017,6 +4019,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mPopupCtrl.dismissMessageHistoryPopup();
         }
         updateToggleTextInputButtonIcon();
+    }
+
+    /** Re-read the input-panel auto-complete settings and apply them live. */
+    public void reloadAutoCompletePreferences() {
+        if (mAutoCompleteCtrl != null) mAutoCompleteCtrl.reloadPreferences();
     }
 
     /**

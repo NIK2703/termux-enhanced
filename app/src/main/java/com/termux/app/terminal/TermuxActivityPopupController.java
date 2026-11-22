@@ -224,17 +224,18 @@ public final class TermuxActivityPopupController {
             content.addView(createHistorySeparator(), new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
         }
-        // Displayed order (spec): newest at the BOTTOM (nearest the pencil, first reached by a
-        // swipe-up), oldest at the top. A re-sent message moves to index 0 (front) of
-        // mMessageHistoryCtrl.getHistoryList(), so iterate REVERSE (end → 0) to fill the layout
-        // top-to-bottom with the newest last (bottom).
+        // Newest at the bottom (first reached by a swipe-up), oldest at the top. Render only
+        // the newest MESSAGE_HISTORY_POPUP_LIMIT entries; older ones stay available to
+        // autocomplete. Iterate the slice in reverse so the newest is added last.
         if (mMessageHistoryCtrl != null) {
-            for (int i = mMessageHistoryCtrl.getHistoryList().size() - 1; i >= 0; i--) {
-                final String message = mMessageHistoryCtrl.getHistoryList().get(i);
+            final java.util.ArrayList<String> history = mMessageHistoryCtrl.getHistoryList();
+            final int visibleCount = Math.min(history.size(),
+                    MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT);
+            for (int i = visibleCount - 1; i >= 0; i--) {
+                final String message = history.get(i);
                 TextView tv = new TextView(mContext);
                 // Preview: collapse newlines to spaces, wrap to at most 2 lines with an ellipsis.
-        // P2: only allocate replacement strings when the message actually has a newline or
-        // leading/trailing whitespace (the common case — a single-line command — needs no allocation).
+                // Only allocate when the message actually has a newline or outer whitespace.
                 String display = message;
                 if (message.indexOf('\n') >= 0) display = message.replace("\n", " ");
                 if (display.length() == 0
@@ -728,15 +729,18 @@ public final class TermuxActivityPopupController {
     }
 
     private void animateHistoryRowAway(@NonNull View row, @NonNull String message) {
+        final int removedIndex = mMessageHistoryCtrl == null ? -1
+                : mMessageHistoryCtrl.getHistoryList().indexOf(message);
         if (mMessageHistoryCtrl != null) mMessageHistoryCtrl.removeMessage(message);
         final int generation = mHistoryPopupGeneration;
         row.animate().translationX(-row.getWidth())
                 .setDuration(HISTORY_DELETE_ANIM_MS)
-                .withEndAction(() -> finishHistoryRowRemoval(row, message, generation))
+                .withEndAction(() -> finishHistoryRowRemoval(row, message, removedIndex, generation))
                 .start();
     }
 
-    private void finishHistoryRowRemoval(@NonNull View row, @NonNull String message, int generation) {
+    private void finishHistoryRowRemoval(@NonNull View row, @NonNull String message,
+                                         int removedIndex, int generation) {
         mHistoryItemViews.remove(row);
         if (row.getParent() instanceof FrameLayout) {
             FrameLayout holder = (FrameLayout) row.getParent();
@@ -746,10 +750,26 @@ public final class TermuxActivityPopupController {
         }
         if (generation != mHistoryPopupGeneration || !isHistoryPopupShowing()) return;
 
-        if (mMessageHistoryCtrl == null || mMessageHistoryCtrl.getHistoryList().isEmpty()) {
+        final int historySize = mMessageHistoryCtrl == null
+                ? 0 : mMessageHistoryCtrl.getHistoryList().size();
+        final int expectedRows = Math.min(historySize,
+                MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT);
+        if (historySize == 0 || visibleHistoryRowCount() < expectedRows) {
+            // A deletion left the capped slice short; refill it from the older entries.
             rebuildHistoryPopup();
             return;
         }
+
+        // Tags are list indices, so every later row shifts down by one.
+        if (removedIndex >= 0) {
+            for (View view : mHistoryItemViews) {
+                Object tag = view.getTag();
+                if (tag instanceof Integer && (Integer) tag > removedIndex) {
+                    view.setTag((Integer) tag - 1);
+                }
+            }
+        }
+
         final String inputText = getInputFieldText();
         if (!TextUtils.isEmpty(inputText)
                 && MessageHistoryController.messagesEqual(inputText, message)) {
@@ -758,6 +778,15 @@ public final class TermuxActivityPopupController {
             return;
         }
         resizeHistoryPopupAfterDeletion();
+    }
+
+    private int visibleHistoryRowCount() {
+        int count = 0;
+        for (View view : mHistoryItemViews) {
+            Object tag = view.getTag();
+            if (tag instanceof Integer && (Integer) tag >= 0) count++;
+        }
+        return count;
     }
 
     /** Keep the popup's bottom edge above the anchor after its content gets shorter. */

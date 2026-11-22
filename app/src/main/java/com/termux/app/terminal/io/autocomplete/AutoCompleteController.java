@@ -22,21 +22,18 @@ import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 
 import com.termux.R;
 import com.termux.app.terminal.TermuxColorSchemeManager;
 
 /**
- * Self-contained controller that owns the message-history auto-complete suggestion popup
- * (formerly in TermuxActivity): the 3-way dispatch (full rescan / additive filter /
- * reposition), history-version optimization, popup views, and history-add-on-submit.
- * The Activity only wires it up and may call the public entry points
- * ({@link #dismiss()}, {@link #isShowing()}, {@link #onCaretMoved()}, …).
+ * Drives message-history suggestions: matching, ranking, insertion, and the text/caret
+ * listeners. {@link AutoCompletePopupManager} renders the popup, {@link SuggestionEngine}
+ * matches and ranks, and {@link HistorySnapshot} caches offsets per history version.
  *
- * <p>Candidate filtering is a single linear {@code regionMatches} scan over the capped live
- * history — the old prefix trie was removed because {@code message_history_max} can never
- * exceed 100 via the UI, so the trie could never be built and linear was already the path taken.
+ * <p>A full entry matches the text after the last newline. A sentence matches the active
+ * sentence after the last sentence terminator. Full entries fill the first slots;
+ * sentences fill the rest.
  */
 public final class AutoCompleteController implements AutoCompleteDataProvider {
 
@@ -46,61 +43,83 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private final TermuxColorSchemeManager mColorSchemeManager;
     private final SharedPreferences mPrefs;
 
-    // ── Auto-complete suggestions popup ──
-    // The message-history suggestion candidates are shown in a single popup window
-    // floating above the input field.
-    //
-    // Ownership split: this controller owns the SUGGESTION DATA and the
-    // fetch/merge/input pipeline; {@link AutoCompletePopupManager} owns the
-    // popup window and all of its rendering/positioning.
+    // Suggestion data lives here; AutoCompletePopupManager owns the popup window.
     /** Current list of suggestion strings being displayed (message history). */
     private final java.util.ArrayList<String> mCurrentSuggestions = new java.util.ArrayList<>();
+    /** Bumped whenever {@link #mCurrentSuggestions} changes (O(1) popup diff). */
+    private int mSuggestionsVersion;
+    /** Bumped whenever the typed line/sentence bases change (O(1) popup diff). */
+    private int mPrefixVersion;
+    /** Cached row prefixes, computed once per update (no per-row substring allocation). */
+    @NonNull private String mRowLinePrefix = "";
+    @NonNull private String mRowTail = "";
+    /** Word starts of the cached prefixes, computed once per update. */
+    private int mRowLineWordStart;
+    private int mRowTailWordStart;
 
-    /**
-     * Maximum number of suggestions to RENDER in the popup (the user setting
-     * "suggestions_max_count").
-     */
+    /** Maximum suggestions to render ("suggestions_max_count"). */
     private int mDisplayMax = 4;
-    /** Suppress auto-complete popup during programmatic text changes (suggestion tap, etc.). */
+    /** Minimum typed sentence length before scanning ("autocomplete_min_prefix"). */
+    private int mMinPrefix = 1;
+    /** Offer individual sentences as well as full entries ("autocomplete_sentences_enabled"). */
+    private boolean mSentenceSuggestionsEnabled = true;
+    /** Suppress auto-complete during programmatic text changes (suggestion tap, etc.). */
     private boolean mSuppressAutoComplete;
-    /** True while a session's saved input is being restored into the field (tab switch,
-     *  panel re-show). Mutes every afterTextChanged event for that restore so the popup is
-     *  not triggered by the programmatic setText(). Distinct from mSuppressAutoComplete so
-     *  it does not interact with the swipe/compose guards or the live typing path. */
+    /** True while a session's saved input is being restored; mutes text-change handling. */
     private boolean mRestoringInput;
-    /** Suppress auto-complete popup during an active swipe-to-select gesture. */
+    /** Suppress auto-complete during an active swipe-to-select gesture. */
     private boolean mSwipeSuppressed;
-    /** Force a full rescan (Path A) on the next update — set after a swipe commits
-     *  arbitrary text, which the incremental additive filter cannot handle. */
+    /** Force a full rescan on the next update, e.g. after a swipe replaces text. */
     private boolean mForceFullRescan;
 
-    /** Forced rescan flag set by {@link #onCaretMoved()} when the caret returns
-     *  to the end of the text. Overrides the "text unchanged" early-skip guard
-     *  in {@link #updateAutoCompleteSuggestions()}, which would otherwise prevent
-     *  the popup from re-appearing after it was dismissed by a prior caret move. */
+    /** Set when the caret returns to the end, to bypass the unchanged-text early skip. */
     private boolean mForceRescanOnNextUpdate;
 
-    /** Last known caret position, used to detect actual caret movement
-     *  (tap/reposition without text change) without relying on
-     *  setOnSelectionChangedListener (API 29+). Updated from
-     *  {@link #onCaretMoved()} and {@link #afterTextChanged(Editable)}. */
+    /** Last known caret position, used to detect real movement without a selection listener. */
     private int mLastCaretPosition = -1;
 
-    /** Reusable scratch set to avoid per-keystroke HashSet allocations in the hot path. */
+    /** Reusable scratch set for case-folded candidate dedup across a scan/top-up. */
     private final HashSet<String> mSeenSet = new HashSet<>();
+
+    /** Candidate metadata aligned by index with {@link #mCurrentSuggestions}. */
+    private final ArrayList<SuggestionEngine.Candidate> mCandidates = new ArrayList<>();
+    /** History snapshot for {@link #mSnapshotVersion}; rebuilt only when the version changes. */
+    @Nullable private HistorySnapshot mSnapshot;
+    /** History version of {@link #mSnapshot}. */
+    private int mSnapshotVersion = -1;
+    /** Resumable scan cursor for tier-2 top-ups. */
+    @NonNull private final SuggestionEngine.ScanPos mScanPos = new SuggestionEngine.ScanPos();
+    /** True when the last scan examined the whole history; no top-up is possible. */
+    private boolean mScannedAll;
+    /** Start and length of the typed active sentence in the input field. */
+    private int mTypedTailStart;
+    private int mTypedTailLen;
+    /** Start and length of the typed line prefix (the full-entry match base). */
+    private int mTypedLineStart;
+    private int mTypedLineLen;
     /**
-     * P2: availWidth (popup width minus horizontal padding) is constant within a
-     * single popup rebuild, so cache it across the per-row rebinds instead of
-     * recomputing {@code computePopupWidth} (which reads display metrics) on every
-     * one of up to {@code displayMax} rows. Invalidated when the input field width
-     * changes.
+     * Incremental active-sentence state for the append-only hot path.
+     * {@code mPendingTerminator} is the index of a terminator that would become a
+     * sentence boundary if followed by whitespace/end; {@code mTailCandidateStart}
+     * is the last confirmed sentence start to revert to if it is followed by a
+     * non-whitespace character.
      */
+    private int mPendingTerminator = -1;
+    private int mTailCandidateStart = -1;
+    /** True while skipping the whitespace run after a confirmed sentence boundary. */
+    private boolean mBoundaryRun;
+    /** True when the four {@code mTyped*} base fields describe the current text. */
+    private boolean mBasesValid;
+    /** Available popup width, cached for one rebuild; invalidated when the field width changes. */
     private int mCachedFieldWidth = -1;
     private int mCachedAvailWidth = -1;
 
-    // ── Incremental auto-complete optimization fields ──
-    /** Previous text (CharSequence reference, no copy) before a change, for additive detection. */
-    private CharSequence mAutoCompletePrevText = "";
+    /** Pre-edit length, or -1 when the change was suppressed (restore, tap, swipe). */
+    private int mAutoCompletePrevLen = -1;
+    /** Start offset of the pending text change (from {@code onTextChanged}). */
+    private int mAutoCompleteChangeStart;
+    /** True when the pending change actually altered the text ({@code before != 0 || count != 0}). */
+    private boolean mAutoCompleteTextChanged;
     /** Cheap up-front signal: the pending change is an IME composition (after != before). */
     private boolean mComposingChangePending = false;
     /** Count of characters being replaced (from onTextChanged). */
@@ -108,32 +127,20 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Count of new characters being inserted (from onTextChanged). */
     private int mAutoCompleteChangeCount;
 
-    /**
-     * History version captured the last time the suggestion set was rebuilt.
-     * Maintained by the rebuild paths ({@link #fullRescanSuggestions}, the
-     * backspace path) so the early-skip guard and the additive-filter dispatch
-     * (Path B) can detect that the in-memory set matches the live history.
-     */
+    /** History version of the last rebuilt suggestion set. */
     private int mLastBuiltHistoryVersion = -1;
 
-    /** Owns and renders the suggestion popup window. */
     @NonNull private final AutoCompletePopupManager mPopupManager;
 
-    // ── IME composing coalescing (no delay on committed input) ──
     private final android.os.Handler mImeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable mComposingCoalesce = null;
 
-    // ── Swipe-to-select gesture on suggestion items ──
     /**
-     * Horizontal swipe on a suggestion row progressively appends the next
-     * word(s) of that suggestion into a live text selection in the input field.
-     * Swipe right adds words, swipe left removes them; the selection is dropped
-     * (committed) when the finger is lifted. All per-gesture state lives in the
-     * handler.
+     * Swipe on a suggestion row appends its next words to the input selection;
+     * lifting the finger commits them. Per-gesture state lives in the handler.
      */
     @NonNull private final AutoCompleteSwipeHandler mSwipeHandler;
 
-    // ── Auto-complete popup dimensions (read once from resources) ──
     private final int mPopupCornerRadiusPx;
     private final int mPopupElevationPx;
     private final int mPopupItemPadHPx;
@@ -162,10 +169,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mMessageHistoryCtrl = messageHistoryCtrl;
         mColorSchemeManager = colorSchemeManager;
         mPrefs = context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
-        int maxCount = mPrefs.getInt("suggestions_max_count", 4);
-        if (maxCount < 0) maxCount = 0;
-        if (maxCount > 10) maxCount = 10;
-        mDisplayMax = maxCount;
+        readPreferences();
         Resources res = context.getResources();
         mPopupCornerRadiusPx = res.getDimensionPixelSize(R.dimen.autocomplete_popup_corner_radius);
         mPopupElevationPx = res.getDimensionPixelSize(R.dimen.autocomplete_popup_elevation);
@@ -200,20 +204,46 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         attachInputListeners();
     }
 
-    // ── AutoCompleteDataProvider: expose suggestion data + callbacks to the popup manager ──
+    private void readPreferences() {
+        int maxCount = mPrefs.getInt("suggestions_max_count", 4);
+        if (maxCount < 0) maxCount = 0;
+        if (maxCount > 10) maxCount = 10;
+        mDisplayMax = maxCount;
+        int minPrefix = mPrefs.getInt("autocomplete_min_prefix", 1);
+        if (minPrefix < 1) minPrefix = 1;
+        if (minPrefix > 3) minPrefix = 3;
+        mMinPrefix = minPrefix;
+        mSentenceSuggestionsEnabled = mPrefs.getBoolean("autocomplete_sentences_enabled", true);
+    }
 
     @Override @NonNull public ArrayList<String> getSuggestions() { return mCurrentSuggestions; }
     @Override public int getDisplayMax() { return mDisplayMax; }
     @Override public boolean isSwipeActive() { return mSwipeHandler.isEngaged(); }
     @Override @Nullable public EditText getInputField() { return mInputField; }
     @Override @NonNull public TextView buildSuggestionTextView(@NonNull String suggestion, @NonNull String input) {
-        return buildSuggestionTextViewInternal(suggestion, input);
+        return buildSuggestionTextViewInternal(suggestion, input, findCandidate(suggestion), false);
+    }
+    @Override @NonNull public TextView buildSuggestionTextView(@NonNull String suggestion,
+            @NonNull String input, @Nullable SuggestionEngine.Candidate candidate) {
+        return buildSuggestionTextViewInternal(suggestion, input, candidate, true);
     }
     @Override public void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion, @NonNull String input) {
-        rebindSuggestionTextViewInternal(tv, suggestion, input);
+        rebindSuggestionTextViewInternal(tv, suggestion, input, findCandidate(suggestion), false);
     }
+    @Override public void rebindSuggestionTextView(@NonNull TextView tv, @NonNull String suggestion,
+            @NonNull String input, @Nullable SuggestionEngine.Candidate candidate) {
+        rebindSuggestionTextViewInternal(tv, suggestion, input, candidate, true);
+    }
+    @Override @Nullable public SuggestionEngine.Candidate getCandidate(int index) {
+        if (index < 0 || index >= mCandidates.size()) return null;
+        return mCandidates.get(index);
+    }
+    @Override public int getSuggestionsVersion() { return mSuggestionsVersion; }
+    @Override public int getPrefixVersion() { return mPrefixVersion; }
     @Override public void onSuggestionDismissed() {
         mCurrentSuggestions.clear();
+        mCandidates.clear();
+        mSuggestionsVersion++;
     }
 
     /** Reuses the suggestion word-restore swipe for an input-history row; only rightward motion engages. */
@@ -237,16 +267,23 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (mComposingCoalesce != null) { mImeHandler.removeCallbacks(mComposingCoalesce); mComposingCoalesce = null; }
     }
 
-/**
- * Mute all text-change handling while a session's saved input is restored via a programmatic
- * setText(). Set true before setText(), false after. While true, afterTextChanged returns
- * immediately so no recompute is queued for the restore. Crucially this must NOT cancel a
- * pending recompute from real user input: the restore's setText() never reaches the
- * coalesce/post path (it is muted first), so there is nothing of ours to drop — dropping a
- * user's pending recompute would make the popup appear frozen.
- */
+    /**
+     * Mute text handling while restored input is written; drop pending IME work and
+     * cached bases.
+     */
     public void setRestoringInput(boolean restoring) {
         mRestoringInput = restoring;
+        if (restoring && mComposingCoalesce != null) {
+            mImeHandler.removeCallbacks(mComposingCoalesce);
+            mComposingCoalesce = null;
+        }
+        mAutoCompletePrevLen = -1;
+        mAutoCompleteTextChanged = false;
+        mForceRescanOnNextUpdate = true;
+        mForceFullRescan = true;
+        mLastBuiltHistoryVersion = -1;
+        resetScanState();
+        dismissAutoCompleteSuggestions();
     }
 
     /** Set/clear the swipe-gesture auto-complete suppression guard (distinct from the tap guard). */
@@ -257,22 +294,36 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Force a history-version mismatch so the next update takes Path A (full rescan). */
     public void invalidateHistoryVersion() {
         mLastBuiltHistoryVersion = -1;
+        mSnapshotVersion = -1;
     }
 
-    // ── Public entry points ───────────────────────────
+    /** Re-read the auto-complete settings and discard the current popup state. */
+    public void reloadPreferences() {
+        readPreferences();
+        mLastBuiltHistoryVersion = -1;
+        mForceRescanOnNextUpdate = true;
+        mForceFullRescan = true;
+        mAutoCompletePrevLen = -1;
+        mAutoCompleteTextChanged = false;
+        dismiss();
+        resetScanState();
+    }
 
-    /** Called when the caret position changes without a text change
-     *  (e.g. tapping a different position or using arrow keys).
-     *  Delegates to {@link #updateAutoCompleteSuggestions()} which
-     *  checks the caret position and either shows or dismisses the
-     *  popup accordingly. When the caret is at the end and the popup
-     *  was previously dismissed, sets {@link #mForceRescanOnNextUpdate}
-     *  to bypass the "text unchanged" early-skip guard. */
+    /** Handle a caret move without a text change (tap or arrow key). */
     public void onCaretMoved() {
         if (mInputField == null) return;
         int newCaret = mInputField.getSelectionStart();
         int textLen = mInputField.getText().length();
         mLastCaretPosition = newCaret;
+        if (newCaret >= 0) {
+            mTypedLineStart = SuggestionEngine.activeLineStart(mInputField.getText(), newCaret);
+            mTypedLineLen = newCaret - mTypedLineStart;
+            mTypedTailStart = SuggestionEngine.activeSentenceStart(mInputField.getText(), newCaret);
+            mTypedTailLen = newCaret - mTypedTailStart;
+            mPendingTerminator = -1;
+            mTailCandidateStart = -1;
+            mBasesValid = true;
+        }
         if (newCaret >= 0 && newCaret == textLen && !isShowing()) {
             mForceRescanOnNextUpdate = true;
         }
@@ -291,106 +342,60 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         return mPopupManager.isShowing();
     }
 
-    // ── Internal: listeners ───────────────────────────
-
     private void attachInputListeners() {
         mInputField.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                // Snapshot the pre-edit text as an immutable String — but ONLY when the change
-                // can reach a recompute. The EditText's text is a live Editable shared with
-                // {@code s}; a toString() freezes the pre-edit value so length-delta / prefix
-                // regionMatches stay correct.
-                //
-                // P0: when the popup is suppressed / input restoring / swipe-guard latched, the
-                // matching afterTextChanged branch bails WITHOUT recomputing, so the snapshot
-                // would be a full copy of the input on every keystroke for nothing — mark
-                // prevText invalid (null) instead; updateAutoCompleteSuggestions then forces a
-                // full Path A rescan (same safe fallback as an empty suggestion list). The
-                // composing signal below is always captured regardless, since it gates the
-                // deferred-compose path independently.
+                // The pre-edit length and change offsets identify append/delete/replace
+                // without copying the input.
                 if (mRestoringInput || mSuppressAutoComplete || mSwipeSuppressed) {
-                    mAutoCompletePrevText = null;
+                    mAutoCompletePrevLen = -1;
+                    mAutoCompleteTextChanged = false;
                 } else {
-                    mAutoCompletePrevText = s == null ? "" : s.toString();
+                    mAutoCompletePrevLen = s == null ? 0 : s.length();
+                    mAutoCompleteTextChanged = false;
                 }
-                // Cheap composing signal, captured in advance. after!=count means a range
-                // replace/insert/delete — NOT a clean committed character (after==count==1).
-                // Committed input is synchronous; composing events collapse via
-                // mImeHandler.post (NO timer), so the hasComposingSpan span-scan is never
-                // called on the hot path of a committed character.
+                // after != count means a range edit, not one committed character.
                 mComposingChangePending = (after - count) != 0;
             }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                mAutoCompleteChangeStart = start;
                 mAutoCompleteChangeBefore = before;
                 mAutoCompleteChangeCount = count;
+                mAutoCompleteTextChanged = (before != 0 || count != 0);
             }
             @Override
             public void afterTextChanged(android.text.Editable s) {
-                // A session's saved input is being restored into the field (tab switch /
-                // panel re-show). Mute the whole event so the popup stays dismissed for the
-                // restored line and no recompute is deferred.
+                // The restore's setText() must not trigger a popup.
                 if (mRestoringInput) return;
-                // Safety net against a "stuck" swipe suppression: if the gesture's UP/CANCEL
-                // was never delivered (e.g. app backgrounded mid-swipe) the suppress guard
-                // would stay latched and auto-complete would stay silent. Clear whenever a
-                // swipe is no longer genuinely in progress (engaged=false AND pointerDown=false
-                // covers a dead gesture whose UP/CANCEL was lost). The isPointerDown() check
-                // stops a live mid-gesture swipe from being force-cleared by an unrelated
-                // text change.
+                // Clear swipe suppression left behind by a missed UP/CANCEL.
                 if (mSwipeSuppressed && !mSwipeHandler.isEngaged() && !mSwipeHandler.isPointerDown()) {
                     mSwipeHandler.resetIfEngaged();
                 }
                 final EditText f = mInputField;
-                // P2: scan the composing span set ONCE for this input event and reuse
-                // it below (and inside the deferred compose runnable) instead of
-                // allocating a fresh Object[] on every branch. hasComposingSpan()
-                // walks all spans of the editable.
-                final boolean composingAtEvent = f != null && hasComposingSpan(f);
-                // A "composing" change (after != count) is ambiguous: real IME composition
-                // AND plain delete/insert/paste of a range both satisfy it.
-                //
-                // CRITICAL: any DELETION must recompute SYNCHRONOUSLY, never deferred. During
-                // IME composition the composing span stays attached to the (now shorter) word,
-                // so hasComposingSpan() returns true for a backspace — and deferring hits the
-                // caret/composition bounce and dismisses or freezes the popup (the reported
-                // "popup stops updating on backspace" bug). Only take the deferred compose
-                // path for genuine additive composition (after > before AND composing span
-                // present); a pure deletion is always a committed edit.
-                boolean isDeletion = mComposingChangePending && (mAutoCompleteChangeBefore > mAutoCompleteChangeCount);
-                boolean realCompose = f != null && mComposingChangePending && !isDeletion && composingAtEvent;
-                if (realCompose) {
+                final boolean isDeletion = mComposingChangePending
+                        && (mAutoCompleteChangeBefore > mAutoCompleteChangeCount);
+                // Only a length-changing edit can carry a composing span.
+                final boolean composingAtEvent = f != null && mComposingChangePending
+                        && !isDeletion && hasComposingSpan(f);
+                if (composingAtEvent) {
                     if (mComposingCoalesce != null) mImeHandler.removeCallbacks(mComposingCoalesce);
-                    final CharSequence snapshotPrev = mAutoCompletePrevText;
                     mComposingCoalesce = () -> {
                         mComposingCoalesce = null;
                         if (mSuppressAutoComplete || mSwipeSuppressed) return;
-                        // Guard against stale deferred update: the user may have moved the
-                        // caret away from end during the deferred window; without this, a
-                        // delayed composing update could re-show the popup after
-                        // onCaretMoved() already dismissed it (Bug #1).
-                        if (mInputField != null && !composingAtEvent) {
-                            int c = mInputField.getSelectionStart();
-                            if (c >= 0 && c != mInputField.getText().length()) return;
-                        }
                         updateAutoCompleteSuggestions();
                     };
-                    mImeHandler.post(mComposingCoalesce); // collapses the compose chain into 1 recompute, NO timer
+                    mImeHandler.post(mComposingCoalesce);
                     return;
                 }
                 if (mComposingCoalesce != null) { mImeHandler.removeCallbacks(mComposingCoalesce); mComposingCoalesce = null; }
-                updateAutoCompleteSuggestions(); // a committed character (or a backspace) is computed instantly
-                // Sync last known caret after any text change — the caret
-                // typically moves to the end of the new text.
+                updateAutoCompleteSuggestions(); // committed input is synchronous
                 if (mInputField != null) {
                     mLastCaretPosition = mInputField.getSelectionStart();
                 }
             }
         });
 
-        // Detect caret-move taps on the EditText. We use ACTION_UP on the
-        // EditText because setOnSelectionChangedListener is API 29+ and the
-        // project targets API 21. We guard by comparing against the last known
-        // caret position so that tapping in the same spot is a no-op.
+        // ACTION_UP catches taps; setOnSelectionChangedListener needs API 29.
         mInputField.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_UP) {
                 v.post(() -> {
@@ -401,14 +406,10 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                     onCaretMoved();
                 });
             }
-            return false; // don't consume the event, let the EditText handle it
+            return false;
         });
 
-        // Arrow-key navigation also moves the caret without text changes.
-        // OnKeyListener fires once per key-up; we call onCaretMoved() which
-        // checks the current caret position against the text length.
-        // DPAD_UP/DPAD_DOWN are included because in multi-line fields the caret
-        // can move to a non-end position without a text change (Bug #4 fix).
+        // Arrow keys move the caret without changing the text.
         mInputField.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_UP
                     && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT
@@ -417,18 +418,11 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                         || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
                 onCaretMoved();
             }
-            return false; // don't consume, let the EditText handle navigation
+            return false;
         });
     }
 
-    /**
-     * True when the input field's text currently carries an IME composing span.
-     * Detected via the public {@link android.text.Spanned#SPAN_COMPOSING} flag
-     * (the hidden {@code android.text.style.ComposingSpan} class is not part of
-     * the public SDK, so we inspect span flags instead). During composition the
-     * reported caret may transiently drift off the text end, so callers use this
-     * to avoid a spurious dismiss while the user is still additively typing.
-     */
+    /** True when the text carries an IME composing span (checked via public span flags). */
     static boolean hasComposingSpan(@Nullable EditText inputField) {
         if (inputField == null) return false;
         CharSequence cs = inputField.getText();
@@ -443,31 +437,15 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         return false;
     }
 
-    /**
-     * Called after a swipe-to-select gesture commits arbitrary text into the input
-     * field. The incremental additive filter cannot handle the resulting text (it is
-     * not a pure prefix extension of the pre-swipe line), so we force a full rescan
-     * on the next dispatch and run it off the touch path (the caller posts this).
-     */
+    /** A swipe can replace arbitrary text, so force a full rescan. */
     private void refreshAfterSwipe() {
         mForceFullRescan = true;
         updateAutoCompleteSuggestions();
     }
 
     /**
-     * Three-way dispatcher for the auto-complete popup:
-     *
-     * Path A (full rebuild) — delete, replace, paste, or external history change. Re-scans
-     * the full history list and (re)shows the popup, reusing a live PopupWindow.
-     *
-     * Path B (additive filter) — user only types more characters. Filters
-     * {@code mCurrentSuggestions} in place (O(maxCount) instead of O(history)), removes
-     * non-matching views, top-ups from history, recalculates bold spans, resizes/repositions
-     * (one IPC instead of two).
-     *
-     * Path C (reposition only) — not truly separate here: unchanged-text calls already go
-     * through repositionAutoCompletePopup() from the layout/touch listeners; this dispatcher
-     * always receives a text-change event.
+     * Rebuild (Path A) or filter (Path B) the candidate list for the current text.
+     * Path C, repositioning, belongs to the popup manager.
      */
     private void updateAutoCompleteSuggestions() {
         // Safety net: force-clear stuck swipe suppression if the gesture ended
@@ -484,319 +462,373 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             return;
         }
 
-        // P2: scan the composing span set ONCE per update and reuse it below
-        // (caret-bounce guard + full-rescan) instead of re-scanning on every
-        // branch. hasComposingSpan allocates an Object[] each call.
-        final boolean composing = hasComposingSpan(inputField);
-
-        final String text = inputField.getText().toString();
-
-        if (TextUtils.isEmpty(text)) {
-            dismissAutoCompleteSuggestions();
+        // A deferred IME update can outlive the restore's afterTextChanged mute.
+        if (mRestoringInput) {
             return;
         }
 
-        // A deletion is detected against the pre-edit snapshot. During IME composition the
-        // caret can transiently sit INSIDE the still-attached composing span even right after
-        // a backspace, which would otherwise hit the caret bounce below and dismiss/freeze the
-        // popup. For a deletion we must NOT bounce — shorten the filter and refresh. Accept
-        // the deletion when the caret (or selection end) is at the end of the shortened text
-        // (the normal end-of-line backspace case).
-        final CharSequence prevSnapshot = mAutoCompletePrevText;
-        final boolean deletion = prevSnapshot != null && prevSnapshot.length() > text.length()
-                && TextUtils.regionMatches(prevSnapshot, 0, text, 0, text.length());
+        final int prevLen = mAutoCompletePrevLen;
+        final int changeStart = mAutoCompleteChangeStart;
+        final int changeBefore = mAutoCompleteChangeBefore;
+        final int changeCount = mAutoCompleteChangeCount;
+        final boolean textChanged = mAutoCompleteTextChanged;
+        mAutoCompleteTextChanged = false;
 
-        // Only show auto-complete when the caret sits at the end of the input field.
-        // When the caret is anywhere else the popup must stay hidden — UNLESS a
-        // swipe-to-select gesture is in progress (it deliberately holds a selection
-        // mid-text; dismissing mid-swipe would defeat it).
-        int caret = inputField.getSelectionStart();
-        boolean caretAtEnd = (caret == text.length())
-                || (deletion && inputField.getSelectionEnd() == text.length());
+        final Editable editable = inputField.getText();
+        if (editable == null || editable.length() == 0) {
+            mAutoCompletePrevLen = 0;
+            dismissAutoCompleteSuggestions();
+            resetScanState();
+            return;
+        }
+        final CharSequence text = editable;
+        final int textLen = text.length();
+        mAutoCompletePrevLen = textLen;
+
+        // A deletion can leave the caret inside the composing span; do not dismiss it.
+        final boolean deletion = textChanged && prevLen >= 0 && changeCount == 0
+                && changeBefore > 0 && changeStart + changeBefore == prevLen;
+
+        // Suggestions only show at the end of the field, except during a swipe that
+        // deliberately holds a selection mid-text.
+        final int caret = inputField.getSelectionStart();
+        final boolean caretAtEnd = (caret == textLen)
+                || (deletion && inputField.getSelectionEnd() == textLen);
         if (caret < 0 || !caretAtEnd) {
-            // Do NOT dismiss while an IME composition is in progress: during compose the
-            // reported selection can transiently sit inside the composing span even though
-            // the user is still additively typing. Treat it like an active swipe.
             if (isSwipeActive()) {
                 return;
             }
-            if (composing) {
-                if (deletion) {
-                    // A backspace during composition: do NOT bounce to bold-only and do
-                    // NOT dismiss. Fall through so the deletion handler shortens the
-                    // filter — dismissing here is the "popup stops updating on backspace" bug.
-                } else {
-                    // Keep the popup (bold-only refresh) only when the shown suggestions
-                    // still match the composing text: a glide/swipe-typed word matching no
-                    // suggestion can leave the composing span attached; a stale mismatched
-                    // popup must NOT be kept — fall through so the recompute dismisses it
-                    // (fullRescanSuggestions also refuses to keep a non-matching empty result).
-                    if (isShowing() && suggestionsMatchText(text)) {
-                        return; // popup shows correct suggestions, no bold update needed
-                    }
-                    // Not a matching composition: let the code below re-scan and dismiss.
-                }
+            if (!deletion && isShowing() && inputField != null && hasComposingSpan(inputField)
+                    && suggestionsMatchTail(text, caret)) {
+                return;
             }
             dismissAutoCompleteSuggestions();
+            resetScanState();
             return;
         }
 
-        int maxCount = mDisplayMax;
+        final int maxCount = mDisplayMax;
         if (maxCount == 0) {
             dismissAutoCompleteSuggestions();
+            resetCandidates();
             return;
         }
 
-        // ── Early skip for IME re-compose of same text ──
-        // Gboard (and likely other IMEs) re-composes an unchanged composing span on certain
-        // interactions (e.g. after tapping a suggestion in the IME's own bar). The text is
-        // identical to prevText, so additive detection correctly says false, but Path A would
-        // re-scan and rebuild unnecessarily. Skip when text is unchanged, history version is
-        // current, popup is showing, AND shown suggestions still match typed text — the last
-        // clause is essential: a glide/swipe-typed commit can replace the line with a word
-        // matching no suggestion while prevText was rewritten to the same committed text;
-        // without the match check the stale popup would be kept until the next edit.
-        CharSequence prevText = mAutoCompletePrevText;
-        boolean unchanged = text.equals(prevText) && mAutoCompleteChangeCount == mAutoCompleteChangeBefore;
+        // IME re-compose of the same text.
+        final boolean unchanged = !textChanged && prevLen == textLen;
         if (unchanged && !mForceRescanOnNextUpdate) {
             if (mMessageHistoryCtrl.getHistoryVersion() == mLastBuiltHistoryVersion
                     && isShowing()
-                    && !mCurrentSuggestions.isEmpty()
-                    && suggestionsMatchText(text)) {
+                    && !mCandidates.isEmpty()
+                    && suggestionsMatchTail(text, caret)) {
                 return;
             }
         }
         mForceRescanOnNextUpdate = false;
 
-        // ── Detect whether this is an additive (append-only) change ──
-        // Language/IME-agnostic: new text must extend prevText by appending. prevText is null
-        // when the pre-edit snapshot was skipped (suppressed / restoring / swipe-guarded);
-        // treat that as non-additive so the safe Path A full rescan runs. We do NOT require
-        // before == 0, because IME composition (e.g. Gboard Cyrillic) replaces the composing
-        // span on every keystroke (before > 0), which made the old check take Path A on each
-        // Cyrillic char. The non-empty list guard forces Path A to bootstrap on the first
-        // keystroke (Path B on an empty list would wrongly dismiss).
-        boolean additive = false;
-        if (prevText != null && text.length() > prevText.length()
-                && TextUtils.regionMatches(text, 0, prevText, 0, prevText.length())
-                && !mCurrentSuggestions.isEmpty()) {
-            additive = true; // clean append of characters at the end
+        // Full entries match after the last newline; sentences match after the last
+        // sentence boundary. The single-character append path updates both in O(1).
+        final boolean endAppendOne = textChanged && prevLen >= 0 && changeBefore == 0
+                && changeCount == 1 && changeStart == prevLen;
+        final int prevLineStart = mTypedLineStart;
+        final int prevLineLen = mTypedLineLen;
+        final int prevTailStart = mTypedTailStart;
+        final int prevTailLen = mTypedTailLen;
+        final int lineStart;
+        final int lineLen;
+        final int tailStart;
+        final int tailLen;
+        if (!textChanged && mBasesValid) {
+            lineStart = prevLineStart;
+            lineLen = prevLineLen;
+            tailStart = prevTailStart;
+            tailLen = prevTailLen;
+        } else if (endAppendOne && mBasesValid) {
+            final char c = text.charAt(caret - 1);
+            if (c == '\n') {
+                lineStart = caret;
+                lineLen = 0;
+                tailStart = caret;
+                tailLen = 0;
+                mPendingTerminator = -1;
+                mTailCandidateStart = -1;
+                mBoundaryRun = false;
+            } else {
+                lineStart = prevLineStart;
+                lineLen = prevLineLen + 1;
+                if (HistorySnapshot.isSentenceEnd(c)) {
+                    mTailCandidateStart = (mPendingTerminator >= 0)
+                            ? mTailCandidateStart : prevTailStart;
+                    mPendingTerminator = caret - 1;
+                    mBoundaryRun = false;
+                    tailStart = caret;
+                    tailLen = 0;
+                } else if (HistorySnapshot.isBoundaryWhitespace(c)) {
+                    if (mPendingTerminator >= 0) {
+                        mPendingTerminator = -1;
+                        mBoundaryRun = true;
+                        tailStart = caret;
+                        tailLen = 0;
+                    } else if (mBoundaryRun) {
+                        tailStart = caret;
+                        tailLen = 0;
+                    } else {
+                        tailStart = prevTailStart;
+                        tailLen = prevTailLen + 1;
+                    }
+                } else if (mPendingTerminator >= 0) {
+                    tailStart = mTailCandidateStart;
+                    tailLen = caret - tailStart;
+                    mPendingTerminator = -1;
+                    mTailCandidateStart = -1;
+                    mBoundaryRun = false;
+                } else {
+                    tailStart = prevTailStart;
+                    tailLen = prevTailLen + 1;
+                    mBoundaryRun = false;
+                }
+            }
+        } else {
+            lineStart = SuggestionEngine.activeLineStart(text, caret);
+            lineLen = caret - lineStart;
+            tailStart = SuggestionEngine.activeSentenceStart(text, caret);
+            tailLen = caret - tailStart;
+            mPendingTerminator = -1;
+            mTailCandidateStart = -1;
+            mBoundaryRun = false;
         }
-        // After a swipe the text changes arbitrarily (not a clean prefix append),
-        // so the incremental filter is inapplicable — force a full rescan.
+        mTypedLineStart = lineStart;
+        mTypedLineLen = lineLen;
+        mTypedTailStart = tailStart;
+        mTypedTailLen = tailLen;
+        mBasesValid = true;
+        // The popup rebinds up to displayMax rows, so compute both prefixes and their
+        // word starts once per update.
+        mRowLinePrefix = text.subSequence(lineStart, textLen).toString();
+        mRowTail = text.subSequence(tailStart, textLen).toString();
+        mRowLineWordStart = AutoCompleteTextRenderer.wordStartOffset(mRowLinePrefix);
+        mRowTailWordStart = AutoCompleteTextRenderer.wordStartOffset(mRowTail);
+        if (textChanged || lineStart != prevLineStart || lineLen != prevLineLen
+                || tailStart != prevTailStart || tailLen != prevTailLen) {
+            mPrefixVersion++;
+        }
+        if (tailLen < mMinPrefix) {
+            dismissAutoCompleteSuggestions();
+            resetCandidates();
+            return;
+        }
+
+        // A new line or sentence boundary invalidates the old candidate set.
+        final boolean structural =
+                (lineStart != prevLineStart || tailStart != prevTailStart);
+        if (structural) {
+            resetCandidates();
+            dismissAutoCompleteSuggestions();
+        }
+
+        // Additive append within the same sentence.
+        boolean additive = false;
+        if (!structural && endAppendOne
+                && !mCandidates.isEmpty()
+                && mSnapshot != null
+                && lineStart == prevLineStart && lineLen == prevLineLen + 1
+                && tailStart == prevTailStart && tailLen == prevTailLen + 1) {
+            additive = true;
+        }
+        // A swipe changes text arbitrarily, so the filter does not apply.
         if (mForceFullRescan) {
             additive = false;
             mForceFullRescan = false;
         }
 
-        // ── Backspace: lightweight path without a full rescan ──
-        // If the text is a prefix of prevText (chars deleted from the end), re-derive
-        // candidates with a linear regionMatches scan instead of Path A.
-        //
-        // CRITICAL: do NOT just filter mCurrentSuggestions by the new shorter prefix — that
-        // list is a top-N cache for the LONGER previous prefix (Path B already narrowed and
-        // capped it), so filtering can only shrink it further and the popup would never
-        // expand back to the full candidate set after a backspace. Re-deriving from the full
-        // history costs one scan of at most ~100 short lines.
-        if (!additive && mCurrentSuggestions != null && !mCurrentSuggestions.isEmpty()
-                && prevText != null && prevText.length() > text.length()
-                && TextUtils.regionMatches(prevText, 0, text, 0, text.length())) {
-            mCurrentSuggestions.clear();
-            mSeenSet.clear(); // full re-derive: no pre-existing entries to skip
-            collectPrefixCandidates(text, maxCount, mCurrentSuggestions);
-            if (mCurrentSuggestions.isEmpty()) {
-                // dropped to 0 — full rescan
+        // Backspace: rebuild from history; filtering the top-N cache cannot expand it.
+        if (!additive && !structural && !mCandidates.isEmpty()
+                && deletion
+                && lineStart == prevLineStart && lineLen < prevLineLen
+                && tailStart == prevTailStart && tailLen < prevTailLen) {
+            rebuildCandidates(text, lineStart, lineLen, tailStart, tailLen, maxCount);
+            mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
+            if (mCandidates.isEmpty()) {
+                dismissAutoCompleteSuggestions();
             } else {
-                mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
-                updatePopupContent(text, inputField);
-                return;
+                updatePopupContent(mRowTail, inputField);
             }
+            return;
         }
 
-        // ── Path A (full rebuild): not additive OR history changed externally ──
         if (!additive || mMessageHistoryCtrl.getHistoryVersion() != mLastBuiltHistoryVersion) {
-            fullRescanSuggestions(text, maxCount, composing);
+            rebuildCandidates(text, lineStart, lineLen, tailStart, tailLen, maxCount);
+            mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
+            if (mCandidates.isEmpty()) {
+                dismissAutoCompleteSuggestions();
+            } else {
+                showAutoCompletePopup(inputField, mRowTail);
+            }
             return;
         }
 
-        // ── Path B (additive filter): only appending characters ──
-        // Filter mCurrentSuggestions in-place: drop entries that no longer have
-        // the (grown) typed text as a prefix. The candidates for the new prefix
-        // are a subset of the old ones (same newest-first order), so the local
-        // filter is equivalent to a full rescan — and costs O(maxCount).
-        final int preFilterCount = mCurrentSuggestions.size();
-        filterSuggestionsByPrefix(text, mCurrentSuggestions);
-        int filteredRemoved = preFilterCount - mCurrentSuggestions.size();
+        // Path B: filter the additive change. The longer-prefix candidates are a
+        // subset of the current ones, so this costs O(maxCount) with no allocations.
+        final char newChar = text.charAt(caret - 1);
+        final int beforeFilter = mCandidates.size();
+        SuggestionEngine.filter(mCandidates, mSnapshot, prevLineLen, prevTailLen, newChar);
+        final boolean listChanged = mCandidates.size() != beforeFilter;
+        mTypedLineLen = lineLen;
+        mTypedTailLen = tailLen;
 
-        if (mCurrentSuggestions.isEmpty()) {
-            // The additive filter emptied the list — this happens when there was nothing
-            // to filter to begin with (e.g. first keystroke after the field was cleared).
-            // A plain dismiss here would silently drop a legitimate character; fall back
-            // to a full history rescan: shows suggestions if any match, else dismisses.
-            fullRescanSuggestions(text, maxCount, composing);
-            return;
-        }
-
-        // Top-up from history if the filtered list is smaller than maxCount.
-        if (mCurrentSuggestions.size() < maxCount) {
+        // Top up from the saved scan position if the filter left free slots.
+        final int beforeTopUp = mCandidates.size();
+        if (!mScannedAll && mCandidates.size() < maxCount) {
             mSeenSet.clear();
-            mSeenSet.addAll(mCurrentSuggestions);
-            collectPrefixCandidates(text, maxCount, mCurrentSuggestions);
+            // Keep every surviving candidate's folded key so a later sentence with the
+            // same text is not added twice.
+            for (int i = 0; i < mCandidates.size(); i++) {
+                mSeenSet.add(SuggestionEngine.foldedKey(mCandidates.get(i).text));
+            }
+            SuggestionEngine.scan(mSnapshot, text, lineStart, lineLen, tailStart, tailLen,
+                    mSentenceSuggestionsEnabled, maxCount, mScanPos, mCandidates, mSeenSet);
+            mScannedAll = mScanPos.atEnd;
         }
+        final boolean topUpAdded = mCandidates.size() != beforeTopUp;
 
-        // The set now matches the live history version (Path B never consults
-        // stale data: a version change dispatches to Path A above).
+        // A prefix-only update keeps the candidate set, so only bump the list version
+        // when it actually changed.
+        if (listChanged || topUpAdded) {
+            rebuildSuggestionStrings();
+        }
         mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
 
-        // If neither window is showing yet, build them fresh
-        if (!isShowing()) {
-            showAutoCompletePopup(inputField);
+        if (mCandidates.isEmpty()) {
+            dismissAutoCompleteSuggestions();
             return;
         }
-
-        updatePopupContent(text, inputField);
-    }
-
-    /**
-     * Collect at most {@code maxCount} history candidates matching {@code text}
-     * (case-insensitive whole-line prefix, excluding the exact typed line) into
-     * {@code out}, preserving newest-first order. Serves the backspace re-derive
-     * path and the Path B top-up.
-     *
-     * <p>A single linear {@code regionMatches} scan over the live list (capped at
-     * {@code message_history_max}, default 20 / UI max 100). {@link #mSeenSet} is
-     * consulted (never cleared here) so a top-up caller that preloads it with the
-     * surviving suggestions does not re-add them; the backspace caller must clear it
-     * first (the list was just emptied).
-     */
-    private void collectPrefixCandidates(@NonNull String text, int maxCount,
-            @NonNull ArrayList<String> out) {
-        final int tLen = text.length();
-        final ArrayList<String> historyList = mMessageHistoryCtrl.getHistoryList();
-        for (int i = 0; i < historyList.size(); i++) {
-            String msg = historyList.get(i);
-            if (msg == null || msg.length() <= tLen) continue;
-            if (mSeenSet.add(msg)
-                    && !msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
-                out.add(msg);
-                if (out.size() >= maxCount) break;
-            }
+        if (!isShowing()) {
+            showAutoCompletePopup(inputField, mRowTail);
+            return;
         }
+        updatePopupContent(mRowTail, inputField);
     }
 
-    /**
-     * Path A: full re-scan of the message history. History suggestions are gathered
-     * immediately and the popup is shown (or dismissed if empty).
-     *
-     * @param composing whether an IME composing span is currently active on the
-     *                  input field (computed once by the caller and passed in to
-     *                  avoid re-scanning the span set on every call).
-     */
-    private void fullRescanSuggestions(@NonNull String text, int maxCount, boolean composing) {
-        // The user's max setting governs how many items are RENDERED.
-        mDisplayMax = maxCount;
-
+    /** Rebuild the candidate list from scratch for the line prefix and active sentence. */
+    private void rebuildCandidates(@NonNull CharSequence text, int lineStart, int lineLen,
+            int tailStart, int tailLen, int maxCount) {
+        ensureSnapshot();
+        mCandidates.clear();
         mCurrentSuggestions.clear();
+        mScanPos.reset();
+        mScannedAll = false;
+        mTypedLineStart = lineStart;
+        mTypedLineLen = lineLen;
+        mTypedTailStart = tailStart;
+        mTypedTailLen = tailLen;
+        mSeenSet.clear();
+        SuggestionEngine.scan(mSnapshot, text, lineStart, lineLen, tailStart, tailLen,
+                mSentenceSuggestionsEnabled, maxCount, mScanPos, mCandidates, mSeenSet);
+        mScannedAll = mScanPos.atEnd;
+        rebuildSuggestionStrings();
+    }
 
-        // Linear scan over the live history (capped at message_history_max, default
-        // 20 / UI max 100 — trivially cheap and allocation-free).
-        final ArrayList<String> historyList = mMessageHistoryCtrl.getHistoryList();
-        final int tLen = text.length();
-        for (int i = 0; i < historyList.size(); i++) {
-            String msg = historyList.get(i);
-            if (msg == null || msg.length() <= tLen) continue;
-            if (!msg.equals(text) && msg.regionMatches(true, 0, text, 0, tLen)) {
-                mCurrentSuggestions.add(msg);
-                if (mCurrentSuggestions.size() >= maxCount) break;
-            }
-        }
-
-        // The rebuilt set now reflects the live history version. Without this,
-        // every keystroke would take Path A instead of the incremental filter.
-        mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
-
-        if (mCurrentSuggestions.isEmpty()) {
-            // During an active composition keep the popup only when it is still
-            // showing suggestions that match what the user typed — otherwise a
-            // glide/swipe-typed word matching nothing would leave the stale popup
-            // stuck until the next edit. If composition is active but the typed
-            // text no longer matches the (previously shown) suggestions, dismiss.
-            if (composing && suggestionsMatchText(text)) {
-                return; // genuinely composing a matching prefix — wait for commit
-            }
-            dismissAutoCompleteSuggestions();
-        } else {
-            showAutoCompletePopup(mInputField);
+    /** Keep the history snapshot in sync with the live history version. */
+    private void ensureSnapshot() {
+        final int version = mMessageHistoryCtrl.getHistoryVersion();
+        if (mSnapshot == null || mSnapshotVersion != version) {
+            mSnapshot = HistorySnapshot.build(version, mMessageHistoryCtrl.getHistoryList(),
+                    mMessageHistoryCtrl.getSpansCache());
+            mSnapshotVersion = version;
         }
     }
 
+    /** Rebuild the string view consumed by the popup manager. */
+    private void rebuildSuggestionStrings() {
+        mCurrentSuggestions.clear();
+        for (int i = 0; i < mCandidates.size(); i++) {
+            mCurrentSuggestions.add(mCandidates.get(i).text);
+        }
+        mSuggestionsVersion++;
+    }
+
+    /** Drop candidates and the resumable scan cursor, keeping the current text bases. */
+    private void resetCandidates() {
+        mCandidates.clear();
+        mCurrentSuggestions.clear();
+        mScanPos.reset();
+        mScannedAll = false;
+        mSuggestionsVersion++;
+    }
+
+    /** Drop candidates and invalidate the text bases (empty text / caret jump). */
+    private void resetScanState() {
+        resetCandidates();
+        mTypedLineStart = 0;
+        mTypedLineLen = 0;
+        mTypedTailStart = 0;
+        mTypedTailLen = 0;
+        mPendingTerminator = -1;
+        mTailCandidateStart = -1;
+        mBoundaryRun = false;
+        mBasesValid = false;
+    }
+
     /**
-     * True when every currently shown suggestion still has {@code text} as a case-insensitive
-     * prefix. Used by the early-skip guard and composition dismiss-guard so a popup is kept
-     * across an unchanged-text recompose ONLY when it is actually relevant; a glide/swipe
-     * commit leaving stale suggestions must fail this check and force a re-scan that dismisses.
+     * True when every shown candidate still has the active sentence as a strict
+     * case-insensitive prefix of its matched window. Used by the early-skip and
+     * composition guards so a stale popup is never kept.
      */
-    private boolean suggestionsMatchText(@NonNull String text) {
-        if (mCurrentSuggestions.isEmpty()) return false;
-        final int len = text.length();
-        if (len == 0) return false;
-        for (int i = 0; i < mCurrentSuggestions.size(); i++) {
-            final String s = mCurrentSuggestions.get(i);
-            if (s == null || s.length() < len || !s.regionMatches(true, 0, text, 0, len)) {
-                return false;
+    private boolean suggestionsMatchTail(@NonNull CharSequence text, int caret) {
+        if (mCandidates.isEmpty() || mSnapshot == null) return false;
+        // At the end of unchanged text the incrementally maintained bases are exact;
+        // otherwise (caret inside the text) recompute from the text.
+        final boolean useCachedBases = caret == text.length() && mBasesValid;
+        final int lineStart = useCachedBases
+                ? mTypedLineStart : SuggestionEngine.activeLineStart(text, caret);
+        final int lineLen = caret - lineStart;
+        final int tailStart = useCachedBases
+                ? mTypedTailStart : SuggestionEngine.activeSentenceStart(text, caret);
+        final int tailLen = caret - tailStart;
+        if (tailLen < 1) return false;
+        final char[] foldedLine = SuggestionEngine.fold(text, lineStart, lineLen);
+        // The active sentence is a suffix of the active line: reuse the fold.
+        final int tailOffset = tailStart - lineStart;
+        final char[] foldedTail;
+        final int foldedTailStart;
+        if (tailOffset >= 0 && tailOffset + tailLen <= lineLen) {
+            foldedTail = foldedLine;
+            foldedTailStart = tailOffset;
+        } else {
+            foldedTail = SuggestionEngine.fold(text, tailStart, tailLen);
+            foldedTailStart = 0;
+        }
+        for (int i = 0; i < mCandidates.size(); i++) {
+            final SuggestionEngine.Candidate c = mCandidates.get(i);
+            final boolean matches;
+            if (c.isFirstSentence) {
+                // The rollback is a prefix of the typed line, not of the active sentence.
+                matches = lineLen > c.text.length()
+                        && SuggestionEngine.foldedMatches(mSnapshot.fold(c.entryIndex),
+                                0, foldedLine, 0, c.text.length());
+            } else if (c.kind == SuggestionEngine.Kind.FULL) {
+                matches = SuggestionEngine.matchesFull(mSnapshot, c.entryIndex,
+                        foldedLine, lineLen);
+            } else {
+                matches = c.windowEnd - c.windowStart > tailLen
+                        && SuggestionEngine.foldedMatches(mSnapshot.fold(c.entryIndex),
+                                c.windowStart, foldedTail, foldedTailStart, tailLen);
             }
+            if (!matches) return false;
         }
         return true;
     }
 
-    /**
-     * Unified local filter used by every additive (Path B) update. Mutates
-     * {@code sugg} in place, dropping entries that no longer match the typed
-     * text. History candidates are matched against the WHOLE line. A trailing
-     * slash on the typed prefix also accepts candidates equal to the prefix
-     * minus that slash.
-     */
-    void filterSuggestionsByPrefix(@NonNull String text,
-            @NonNull List<String> sugg) {
-        int tLen = text.length();
-        // P2: the trailing-slash rule is invariant across the whole list — hoist
-        // the endsWith test out of the per-row loop.
-        boolean textEndsWithSlash = text.endsWith("/");
-        for (int i = sugg.size() - 1; i >= 0; i--) {
-            String s = sugg.get(i);
-            int pLen = tLen;
-            boolean matches = (pLen == 0)
-                    || (s.regionMatches(true, 0, text, 0, pLen)
-                        || (textEndsWithSlash
-                            && s.regionMatches(true, 0, text, 0, pLen - 1)));
-            if (s.length() <= pLen || !matches || s.equals(text)) {
-                sugg.remove(i);
-            }
-        }
-    }
-
-    /**
-     * Path B: update the existing popup in-place after an additive text change.
-     *
-     * <p>The controller first top-ups the suggestion list from history (data
-     * concern), then hands off to {@link AutoCompletePopupManager} which rebuilds
-     * the per-window content, refreshes spans and resizes/positions the
-     * popup window.
-     */
     private void updatePopupContent(@NonNull String newText, @NonNull EditText inputField) {
         mPopupManager.update(newText, inputField);
     }
 
     /**
-     * Build a single suggestion TextView (reusable helper).
-     *
-     * <p>Rows are only CREATED here — per-keystroke updates go through
-     * {@link #rebindSuggestionTextViewInternal}, which never touches the background. The
-     * pressed-state selector is therefore allocated once per row (max {@code displayMax} per
-     * popup session) and must stay per-view: a Drawable shared across views would make one
-     * pressed row highlight them all.
+     * Create a suggestion row. The pressed-state drawable stays per-view: a shared
+     * drawable would highlight every row while one is pressed.
      */
-    private TextView buildSuggestionTextViewInternal(@NonNull String suggestion, @NonNull String input) {
+    private TextView buildSuggestionTextViewInternal(@NonNull String suggestion, @NonNull String input,
+            @Nullable SuggestionEngine.Candidate candidate, boolean useCachedPrefix) {
         TextView tv = new TextView(mContext);
         styleSuggestionTextView(tv);
         // Solid press highlight matching the message-history popup (per-theme)
@@ -813,10 +845,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             tv.setBackgroundDrawable(sel);
         }
         tv.setClickable(true);
-        // Read the candidate from the view's TAG at click time, NOT from the captured
-        // `suggestion` argument: this row is REBOUND to different suggestions on every
-        // keystroke (see rebindSuggestionTextViewInternal), so the captured value can be
-        // stale — inserting the wrong history entry.
+        // Rows are rebound, so the captured suggestion can be stale; read the tag instead.
         tv.setOnClickListener(v -> {
             Object tag = v.getTag();
             if (!(tag instanceof String)) return;
@@ -831,8 +860,20 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             invalidateHistoryVersion();
             dismissAutoCompleteSuggestions();
         });
-        tv.setOnTouchListener(mSwipeHandler::onTouch);
-        rebindSuggestionTextViewInternal(tv, suggestion, input);
+        tv.setOnTouchListener((v, event) -> {
+            Object tag = v.getTag();
+            String current = (tag instanceof String) ? (String) tag : null;
+            final SuggestionEngine.Candidate touchCandidate =
+                    current != null ? findCandidate(current) : null;
+            // A rollback row replaces the whole line, so a word swipe has no base.
+            if (touchCandidate != null && touchCandidate.isFirstSentence) return false;
+            final int baseMode =
+                    (touchCandidate != null && touchCandidate.kind == SuggestionEngine.Kind.FULL)
+                            ? AutoCompleteSwipeHandler.BASE_FULL
+                            : AutoCompleteSwipeHandler.BASE_SENTENCE;
+            return mSwipeHandler.onTouch(v, event, current, false, null, baseMode);
+        });
+        rebindSuggestionTextViewInternal(tv, suggestion, input, candidate, useCachedPrefix);
         return tv;
     }
 
@@ -845,19 +886,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         tv.setClickable(true);
     }
 
-    /**
-     * Rebind an existing suggestion row to new data: text, bold prefix,
-     * accessibility description and scheme colours. Restores everything a fresh
-     * {@link #buildSuggestionTextViewInternal} would set except the one-time
-     * listeners and background.
-     */
+    /** Rebind a row's text, bold prefix, description and colours. */
     private void rebindSuggestionTextViewInternal(@NonNull TextView tv,
-            @NonNull String suggestion, @NonNull String input) {
+            @NonNull String suggestion, @NonNull String input,
+            @Nullable SuggestionEngine.Candidate candidate, boolean useCachedPrefix) {
         tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
         int padH = mPopupItemPadHPx;
-        // Available text width = popup width minus horizontal padding. Mirrors the
-        // width the popup is sized to in showAutoCompletePopup (sumWidth). It is
-        // constant across the per-row rebinds of one rebuild, so cache it.
+        // Constant across the row rebinds of one rebuild, so cache the text width.
         int fieldWidth = mInputField != null ? mInputField.getWidth() : 0;
         int availWidth;
         if (fieldWidth == mCachedFieldWidth && mCachedAvailWidth >= 0) {
@@ -869,61 +904,84 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             mCachedAvailWidth = availWidth;
         }
 
-        // Word-based leading truncation + manual trailing '…' (TextView's
-        // setEllipsize(END) is unreliable for maxLines>1 on API 21-28).
+        // TextView's ellipsis is unreliable for maxLines > 1 on API 21-28, so rows
+        // truncate at a word boundary and append their own trailing ellipsis.
+        // The hot path uses the cached bases; the 3-arg overload falls back to live text.
+        final boolean fullRow = candidate != null && candidate.kind == SuggestionEngine.Kind.FULL;
+        final String typed;
+        final int wordStart;
+        if (candidate != null && candidate.isFirstSentence) {
+            typed = candidate.text;
+            wordStart = 0;
+        } else if (useCachedPrefix) {
+            typed = fullRow ? mRowLinePrefix : mRowTail;
+            wordStart = fullRow ? mRowLineWordStart : mRowTailWordStart;
+        } else {
+            final CharSequence text = mInputField != null ? mInputField.getText() : null;
+            typed = text != null
+                    ? typedPrefixFor(candidate, text, mTypedLineStart, mTypedTailStart)
+                    : input;
+            wordStart = AutoCompleteTextRenderer.wordStartOffset(typed);
+        }
         SpannableString ss = AutoCompleteTextRenderer.buildSuggestionSpannable(
-                suggestion, input, availWidth, tv.getPaint());
-        tv.setText(ss, TextView.BufferType.SPANNABLE);
-        // Accessibility: describe the history candidate. Only rewrite it when the
-        // row's suggestion actually changed — the tag already carries the raw
-        // suggestion, so a no-op compare skips the per-keystroke string concat.
+                suggestion, typed, wordStart, availWidth, tv.getPaint());
+        // Skip setText when the row's characters and bold range are unchanged.
+        if (!AutoCompleteTextRenderer.sameRendering(tv.getText(), ss)) {
+            tv.setText(ss, TextView.BufferType.SPANNABLE);
+        }
+        // Avoid rebuilding the description when the row's suggestion did not change.
         if (!suggestion.equals(tv.getTag())) {
             tv.setContentDescription("History: " + suggestion);
         }
         tv.setTag(suggestion);
     }
 
+    /** The candidate metadata for a suggestion string, or null when it is stale. */
+    @Nullable
+    private SuggestionEngine.Candidate findCandidate(@NonNull String suggestion) {
+        for (int i = 0; i < mCandidates.size(); i++) {
+            final SuggestionEngine.Candidate c = mCandidates.get(i);
+            if (suggestion.equals(c.text)) return c;
+        }
+        return null;
+    }
+
+    /** The typed prefix a candidate matches, used by the non-cached render path. */
+    @NonNull
+    private String typedPrefixFor(@Nullable SuggestionEngine.Candidate candidate,
+            @NonNull CharSequence text, int lineStart, int tailStart) {
+        if (candidate != null && candidate.isFirstSentence) return candidate.text;
+        final int start = (candidate != null && candidate.kind == SuggestionEngine.Kind.FULL)
+                ? lineStart : tailStart;
+        return text.subSequence(start, text.length()).toString();
+    }
+
     /**
-     * Insert a chosen suggestion into the input field. The popup only ever shows a
-     * candidate that starts with the typed text (history: whole-line prefix; shell:
-     * last-word prefix), so we replace the maximal trailing substring of the typed
-     * text that is itself a prefix of the candidate. This unifies both cases and
-     * avoids duplicating the already-typed leading part — e.g. typing "git com"
-     * and picking "git commit -m" yields "git commit -m", not "git git commit -m".
+     * Replace the typed base with the chosen candidate. Full entries and rollback rows
+     * replace the line prefix; sentences replace the active sentence.
      */
     private void insertCandidate(@NonNull String candidate) {
         if (mInputField == null) return;
         Editable editable = mInputField.getText();
         if (editable == null) return;
-        String text = editable.toString();
-        int textLen = text.length();
-
         int caret = mInputField.getSelectionStart();
-        if (caret < 0 || caret > textLen) caret = textLen;
-        // When the caret sits inside the line, only the text BEFORE the caret can
-        // be the typed prefix we replace; anything after the caret is kept intact.
-        int caretPos = caret;
-
-        // Longest suffix of text[0..caretPos) that is a prefix of candidate.
-        int matchLen = 0;
-        int maxK = Math.min(caretPos, candidate.length());
-        for (int k = maxK; k >= 1; k--) {
-            if (text.regionMatches(true, caretPos - k, candidate, 0, k)) {
-                matchLen = k;
-                break;
-            }
-        }
-
-        int replaceStart = caretPos - matchLen;
-        int replaceEnd = caretPos;
-
-        String newText = text.substring(0, replaceStart) + candidate + text.substring(replaceEnd);
+        if (caret < 0 || caret > editable.length()) caret = editable.length();
+        final SuggestionEngine.Candidate c = findCandidate(candidate);
+        final boolean lineBase = c != null
+                && (c.isFirstSentence || c.kind == SuggestionEngine.Kind.FULL);
+        final int replaceStart = lineBase
+                ? SuggestionEngine.activeLineStart(editable, caret)
+                : SuggestionEngine.activeSentenceStart(editable, caret);
+        final String newText = editable.subSequence(0, replaceStart).toString()
+                + candidate
+                + editable.subSequence(caret, editable.length());
         mInputField.setText(newText);
         mInputField.setSelection(replaceStart + candidate.length());
+        resetScanState();
     }
 
-    private void showAutoCompletePopup(@NonNull EditText inputField) {
-        mPopupManager.show(inputField);
+    private void showAutoCompletePopup(@NonNull EditText inputField, @NonNull String input) {
+        mPopupManager.show(inputField, input);
     }
 
     private void dismissAutoCompleteSuggestions() {

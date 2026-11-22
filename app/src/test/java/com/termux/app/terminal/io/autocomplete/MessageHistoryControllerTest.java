@@ -2,6 +2,7 @@ package com.termux.app.terminal.io.autocomplete;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -221,6 +222,31 @@ public class MessageHistoryControllerTest {
         ctrl.addToMessageHistory("three", HOME);
 
         assertEquals("[three]", String.valueOf(ctrl.getHistoryList()));
+    }
+
+    @Test
+    public void loweringTheLimitTrimsTheCurrentListImmediately() {
+        ctrl.setMaxSize(3);
+        ctrl.addToMessageHistory("one", HOME);
+        ctrl.addToMessageHistory("two", HOME);
+        ctrl.addToMessageHistory("three", HOME);
+        int version = ctrl.getHistoryVersion();
+
+        ctrl.setMaxSize(1);
+
+        assertEquals("[three]", String.valueOf(ctrl.getHistoryList()));
+        assertTrue(ctrl.getHistoryVersion() > version);
+    }
+
+    @Test
+    public void zeroLimitDisablesHistory() {
+        ctrl.addToMessageHistory("one", HOME);
+
+        ctrl.setMaxSize(0);
+
+        assertTrue(ctrl.getHistoryList().isEmpty());
+        ctrl.addToMessageHistory("two", HOME);
+        assertTrue(ctrl.getHistoryList().isEmpty());
     }
 
     @Test
@@ -545,6 +571,27 @@ public class MessageHistoryControllerTest {
         MessageHistoryController reloaded = newController();
         reloaded.load(HOME);
         assertEquals("[pwd]", String.valueOf(reloaded.getHistoryList()));
+    }
+
+    @Test
+    public void spansAreParsedOnceAndReusedBySnapshots() {
+        ctrl.addToMessageHistory("First sentence. Second one", HOME);
+        assertTrue(ctrl.getSpansCache().containsKey("First sentence. Second one"));
+
+        HistorySnapshot first = HistorySnapshot.build(ctrl.getHistoryVersion(),
+                ctrl.getHistoryList(), ctrl.getSpansCache());
+        HistorySnapshot.Spans spans = first.spans[0];
+        HistorySnapshot second = HistorySnapshot.build(ctrl.getHistoryVersion(),
+                ctrl.getHistoryList(), ctrl.getSpansCache());
+        assertSame(spans, second.spans[0]);
+    }
+
+    @Test
+    public void removingAnEntryDropsItsSpans() {
+        ctrl.addToMessageHistory("a. b", HOME);
+        assertTrue(ctrl.getSpansCache().containsKey("a. b"));
+        ctrl.removeMessage("a. b");
+        assertFalse(ctrl.getSpansCache().containsKey("a. b"));
     }
 
     /** Let the debounce timer fire the way it does on a real looper. */

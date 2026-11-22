@@ -210,6 +210,7 @@
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
     <string name="input_history_max_title">Максимум элементов в истории ввода</string>
+    <string name="input_history_max_popup_limit_summary">В контекстном окне истории ввода будут отображены только первые %1$d элементов, доступ к остальным осуществляется через автодополнение</string>
     <string name="per_directory_input_history_title">История ввода по директориям</string>
     <string name="per_directory_input_history_summary">Вести отдельную историю ввода для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
 
@@ -366,6 +367,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">Автодополнение предложений</string>
+    <string name="autocomplete_sentences_enabled_summary">Предлагать при вводе предложений автодополнение из истории ввода</string>
     <string name="suggestions_max_count_title">Максимум предложений автодополнения</string>
 
     

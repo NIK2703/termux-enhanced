@@ -114,11 +114,23 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            app:key="autocomplete_sentences_enabled"
+            app:dependency="text_input_enabled"
+            app:title="@string/autocomplete_sentences_enabled_title"
+            app:summary="@string/autocomplete_sentences_enabled_summary"
+            app:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
         <SeekBarPreference
             app:key="message_history_max"
             app:dependency="text_input_enabled"
             app:title="@string/input_history_max_title"
             app:defaultValue="20"
+            app:min="0"
+            android:max="1000"
+            app:seekBarIncrement="10"
+            app:updatesContinuously="false"
             app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
 

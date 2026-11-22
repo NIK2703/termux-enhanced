@@ -285,6 +285,7 @@
 
     <!-- Message history preferences -->
     <string name="input_history_max_title">Maximum input history entries</string>
+    <string name="input_history_max_popup_limit_summary">Only the first %1$d entries are shown in the input history popup; the rest are available through autocomplete.</string>
     <string name="per_directory_input_history_title">Per-directory input history</string>
     <string name="per_directory_input_history_summary">Keep a separate input history for each working directory. When off, all sessions share one global history.</string>
 
@@ -472,6 +473,8 @@
     <string name="extra_keys_visibility_title">Show extra buttons panel</string>
 
     <!-- Text input auto-complete -->
+    <string name="autocomplete_sentences_enabled_title">Sentence autocomplete</string>
+    <string name="autocomplete_sentences_enabled_summary">Offer sentence autocomplete from the input history while typing.</string>
     <string name="suggestions_max_count_title">Maximum auto-complete suggestions</string>
 
     <!-- Terminal preferences -->

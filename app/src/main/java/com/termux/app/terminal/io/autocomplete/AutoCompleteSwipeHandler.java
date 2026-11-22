@@ -32,10 +32,17 @@ import java.util.function.Supplier;
  */
 final class AutoCompleteSwipeHandler {
 
+    /** Base for a full input-history suggestion or history row: the whole input field. */
+    static final int BASE_FULL = 0;
+    /** Base for a sentence suggestion: the typed active sentence. */
+    static final int BASE_SENTENCE = 1;
+
     /** Words remaining to be inserted from the swiped suggestion (in order). */
     @Nullable private String[] mSwipeWords;
     /** Text kept before any swipe-added words (the user's already-typed prefix / base). */
     @Nullable private String mSwipeBaseText;
+    /** Text before the active sentence, preserved while the sentence is rebuilt. */
+    @Nullable private String mSwipePrefix;
     private boolean mSwipeNeedsLeadingSpace;
     /** Selection anchor (start) — stays fixed while the selection end grows/shrinks. */
     private int mSwipeAnchorStart;
@@ -100,7 +107,8 @@ final class AutoCompleteSwipeHandler {
 
     boolean onTouch(@NonNull View v, @NonNull MotionEvent event) {
         Object tag = v.getTag();
-        return onTouch(v, event, (tag instanceof String) ? (String) tag : null, false, null);
+        return onTouch(v, event, (tag instanceof String) ? (String) tag : null,
+                false, null, BASE_SENTENCE);
     }
 
     /**
@@ -110,6 +118,16 @@ final class AutoCompleteSwipeHandler {
      */
     boolean onTouch(@NonNull View v, @NonNull MotionEvent event, @Nullable String suggestion,
                     boolean rightOnly, @Nullable Runnable onWordsRestored) {
+        return onTouch(v, event, suggestion, rightOnly, onWordsRestored, BASE_FULL);
+    }
+
+    /**
+     * @param baseMode {@link #BASE_FULL} for the whole field or {@link #BASE_SENTENCE}
+     *                 for the active sentence.
+     */
+    boolean onTouch(@NonNull View v, @NonNull MotionEvent event, @Nullable String suggestion,
+                    boolean rightOnly, @Nullable Runnable onWordsRestored,
+                    int baseMode) {
         final EditText inputField = field();
         if (inputField == null) return false;
 
@@ -139,9 +157,21 @@ final class AutoCompleteSwipeHandler {
                 if (mSwipeSuggestion == null) return false;
 
                 // The words to insert are the suggestion's remainder past the
-                // already-typed prefix, so we never re-append what's already there.
-                String base = inputField.getText() != null ? inputField.getText().toString() : "";
-                mSwipeBaseText = base;
+                // already-typed base, so we never re-append what's already there.
+                String full = inputField.getText() != null ? inputField.getText().toString() : "";
+                int caret = inputField.getSelectionStart();
+                if (caret < 0 || caret > full.length()) caret = full.length();
+                final int baseStart;
+                if (baseMode == BASE_FULL) {
+                    baseStart = 0;
+                    mSwipePrefix = "";
+                    mSwipeBaseText = full;
+                } else {
+                    baseStart = SuggestionEngine.activeSentenceStart(full, caret);
+                    mSwipePrefix = full.substring(0, baseStart);
+                    mSwipeBaseText = full.substring(baseStart, caret);
+                }
+                String base = mSwipeBaseText;
                 boolean isPrefixMatch = !base.isEmpty()
                         && mSwipeSuggestion.length() >= base.length()
                         && mSwipeSuggestion.regionMatches(true, 0, base, 0, base.length());
@@ -155,7 +185,7 @@ final class AutoCompleteSwipeHandler {
                 mSwipeNeedsLeadingSpace = !isPrefixMatch
                         && !base.isEmpty()
                         && !isWordSeparator(base.charAt(base.length() - 1));
-                mSwipeAnchorStart = base.length();
+                mSwipeAnchorStart = mSwipePrefix.length() + mSwipeBaseText.length();
                 // Not consumed yet: allow a tap to become a click.
                 return false;
             }
@@ -335,7 +365,8 @@ final class AutoCompleteSwipeHandler {
     private void applyWordSelection(int n) {
         final EditText inputField = field();
         if (inputField == null || mSwipeWords == null || mSwipeBaseText == null) return;
-        StringBuilder sb = new StringBuilder(mSwipeBaseText);
+        StringBuilder sb = new StringBuilder(mSwipePrefix != null ? mSwipePrefix : "");
+        sb.append(mSwipeBaseText);
         for (int i = 0; i < n; i++) {
             if (i == 0 && mSwipeNeedsLeadingSpace) sb.append(' ');
             sb.append(mSwipeWords[i]);
@@ -372,6 +403,7 @@ final class AutoCompleteSwipeHandler {
             mSwipePointerDown = false;
             mSwipeWords = null;
             mSwipeBaseText = null;
+            mSwipePrefix = null;
             mSwipeSuggestion = null;
             mSwipeWordsAdded = 0;
             mSwipeNeedsLeadingSpace = false;
