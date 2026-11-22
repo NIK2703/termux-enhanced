@@ -31,9 +31,4 @@
         <item name="android:windowExitAnimation">@anim/history_popup_exit</item>
     </style>
 
-    <style name="AutoCompletePopupFadeAnimation" parent="@android:style/Animation">
-        <item name="android:windowEnterAnimation">@anim/autocomplete_popup_fade_in</item>
-        <item name="android:windowExitAnimation">@anim/autocomplete_popup_fade_out</item>
-    </style>
-
 </resources>

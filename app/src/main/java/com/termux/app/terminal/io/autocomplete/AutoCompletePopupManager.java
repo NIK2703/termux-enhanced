@@ -1,8 +1,5 @@
 package com.termux.app.terminal.io.autocomplete;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Outline;
@@ -12,7 +9,6 @@ import android.text.Layout;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewOutlineProvider;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -22,7 +18,6 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.termux.R;
 import com.termux.app.terminal.TermuxColorSchemeManager;
 
 /**
@@ -32,8 +27,6 @@ import com.termux.app.terminal.TermuxColorSchemeManager;
  * resource dimensions, keeping rendering isolated from {@code AutoCompleteController}.
  */
 final class AutoCompletePopupManager {
-
-    private static final long POPUP_MOVE_DURATION_MS = 50;
 
     @NonNull private final Context mContext;
     @NonNull private final AutoCompleteDataProvider mData;
@@ -68,9 +61,6 @@ final class AutoCompletePopupManager {
     private int mLastPopupX = 0;
     private int mLastPopupY = 0;
     private int mLastPopupHeight = 0;
-    private int mTargetPopupX = 0;
-    private int mTargetPopupY = 0;
-    @Nullable private ValueAnimator mPopupMoveAnimator;
 
     // Reused scratch array for getLocationInWindow in the hot positioning path
     // (every keystroke) — avoids a new int[2] allocation per call.
@@ -189,15 +179,11 @@ final class AutoCompletePopupManager {
 
         if (!hasHistory) {
             // Nothing to show: drop any live window and bail out.
-            cancelPopupMove();
             if (mHistoryPopup != null) {
                 try { mHistoryPopup.dismiss(); } catch (Exception ignored) {}
                 mHistoryPopup = null;
                 mHistoryContent = null;
             }
-            mLastPopupX = 0;
-            mLastPopupY = 0;
-            mLastPopupHeight = 0;
             return;
         }
 
@@ -206,7 +192,6 @@ final class AutoCompletePopupManager {
             rebuildHistoryViews(mHistoryContent, input);
             mHistoryContent.setScrollY(savedScroll);
         } else {
-            cancelPopupMove();
             if (mHistoryPopup != null) { try { mHistoryPopup.dismiss(); } catch (Exception ignored) {} mHistoryPopup = null; }
             mHistoryContent = new LinearLayout(mContext);
             mHistoryContent.setOrientation(LinearLayout.VERTICAL);
@@ -247,12 +232,6 @@ final class AutoCompletePopupManager {
             popup.showAtLocation(inputField, Gravity.NO_GRAVITY, x, y);
         } catch (Exception ignored) {
         }
-        mLastPopupWidth = w;
-        mLastPopupHeight = h;
-        mLastPopupX = x;
-        mLastPopupY = y;
-        mTargetPopupX = x;
-        mTargetPopupY = y;
     }
 
     @NonNull
@@ -284,7 +263,6 @@ final class AutoCompletePopupManager {
 
         PopupWindow popup = new PopupWindow(scroll, sumWidth,
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false);
-        popup.setAnimationStyle(R.style.AutoCompletePopupFadeAnimation);
         popup.setElevation(mPopupElevationPx);
         GradientDrawable popupBgDrawable = new GradientDrawable() {
             @Override
@@ -308,14 +286,7 @@ final class AutoCompletePopupManager {
         popup.setTouchable(true);
         popup.setFocusable(false);
         popup.setOnDismissListener(() -> {
-            if (popup == mHistoryPopup) {
-                cancelPopupMove();
-                mHistoryPopup = null;
-                mHistoryContent = null;
-                mLastPopupX = 0;
-                mLastPopupY = 0;
-                mLastPopupHeight = 0;
-            }
+            if (popup == mHistoryPopup) { mHistoryPopup = null; mHistoryContent = null; }
         });
         return popup;
     }
@@ -378,81 +349,20 @@ final class AutoCompletePopupManager {
         int historyX = calcPopupX(inputField, w, loc[0], loc[1]);
         int historyY = calcPopupY(inputField, historyH, w, loc[0], loc[1]);
 
-        if (mHistoryPopup == null || !mHistoryPopup.isShowing()) return;
+        // Skip update() when the position and size did not change; it causes jitter.
+        if (mHistoryPopup != null && mHistoryPopup.isShowing()
+                && historyX == mLastPopupX && historyY == mLastPopupY
+                && w == mLastPopupWidth && historyH == mLastPopupHeight) {
+            return;
+        }
 
-        final boolean sizeChanged = w != mLastPopupWidth || historyH != mLastPopupHeight;
-        final boolean moving = mPopupMoveAnimator != null;
-        final boolean targetUnchanged = moving
-                ? historyX == mTargetPopupX && historyY == mTargetPopupY
-                : historyX == mLastPopupX && historyY == mLastPopupY;
-        if (!sizeChanged && targetUnchanged) return;
-
-        if (sizeChanged) {
-            // Resize at the current position, then slide the new box into place.
-            cancelPopupMove();
-            mHistoryPopup.update(mLastPopupX, mLastPopupY, w, historyH);
+        if (mHistoryPopup != null && mHistoryPopup.isShowing()) {
             mLastPopupWidth = w;
             mLastPopupHeight = historyH;
+            mHistoryPopup.update(historyX, historyY, w, historyH);
+            mLastPopupX = historyX;
+            mLastPopupY = historyY;
         }
-
-        if (historyX == mLastPopupX && historyY == mLastPopupY) {
-            cancelPopupMove();
-            mTargetPopupX = historyX;
-            mTargetPopupY = historyY;
-            return;
-        }
-
-        animatePopupTo(historyX, historyY);
-    }
-
-    /** Move the popup to a new caret position without a visible jump. */
-    private void animatePopupTo(int targetX, int targetY) {
-        cancelPopupMove();
-        final int startX = mLastPopupX;
-        final int startY = mLastPopupY;
-        if (startX == targetX && startY == targetY) {
-            mTargetPopupX = targetX;
-            mTargetPopupY = targetY;
-            return;
-        }
-
-        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
-        animator.setDuration(POPUP_MOVE_DURATION_MS);
-        animator.setInterpolator(new DecelerateInterpolator());
-        animator.addUpdateListener(a -> {
-            if (mHistoryPopup == null || !mHistoryPopup.isShowing()) return;
-            final float fraction = (float) a.getAnimatedValue();
-            final int x = Math.round(startX + (targetX - startX) * fraction);
-            final int y = Math.round(startY + (targetY - startY) * fraction);
-            if (x == mLastPopupX && y == mLastPopupY) return;
-            mLastPopupX = x;
-            mLastPopupY = y;
-            mHistoryPopup.update(x, y, -1, -1);
-        });
-        animator.addListener(new AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                if (mPopupMoveAnimator != animation) return;
-                mPopupMoveAnimator = null;
-                mLastPopupX = targetX;
-                mLastPopupY = targetY;
-                mTargetPopupX = targetX;
-                mTargetPopupY = targetY;
-                if (mHistoryPopup != null && mHistoryPopup.isShowing()) {
-                    mHistoryPopup.update(targetX, targetY, -1, -1);
-                }
-            }
-        });
-        mTargetPopupX = targetX;
-        mTargetPopupY = targetY;
-        mPopupMoveAnimator = animator;
-        animator.start();
-    }
-
-    private void cancelPopupMove() {
-        final ValueAnimator animator = mPopupMoveAnimator;
-        mPopupMoveAnimator = null;
-        if (animator != null) animator.cancel();
     }
 
     // ── Content update (Path B) ──
@@ -536,7 +446,6 @@ final class AutoCompletePopupManager {
     // ── Dismiss ──
 
     private void dismissAutoCompleteSuggestions() {
-        cancelPopupMove();
         if (mHistoryPopup == null) {
             return;
         }
@@ -548,8 +457,6 @@ final class AutoCompletePopupManager {
         mLastPopupX = 0;
         mLastPopupY = 0;
         mLastPopupHeight = 0;
-        mTargetPopupX = 0;
-        mTargetPopupY = 0;
         if (mSuggestionsLayoutListener != null) {
             if (mLayoutListenerTarget != null) {
                 mLayoutListenerTarget.removeOnLayoutChangeListener(mSuggestionsLayoutListener);
