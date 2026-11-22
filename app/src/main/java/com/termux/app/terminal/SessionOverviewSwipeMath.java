@@ -25,10 +25,18 @@ public final class SessionOverviewSwipeMath {
     public static boolean shouldDismiss(float dx, float velocityX, int width,
                                         int minFlingVelocity) {
         if (!isFinite(dx) || !isFinite(velocityX) || width <= 0) return false;
-        if (Math.abs(dx) >= width * DISMISS_FRACTION) return true;
+        if (isPastDismissThreshold(dx, width)) return true;
         if (dx == 0f) return false;
         return Math.abs(velocityX) > minFlingVelocity
                 && Math.signum(velocityX) == Math.signum(dx);
+    }
+
+    /**
+     * Whether the drag has reached the distance that dismisses on release, in either direction.
+     * The card uses this to fire one haptic tick as the finger enters the dismiss zone.
+     */
+    public static boolean isPastDismissThreshold(float dx, int width) {
+        return isFinite(dx) && width > 0 && Math.abs(dx) >= width * DISMISS_FRACTION;
     }
 
     /** Opacity of the card while it is dragged horizontally. */

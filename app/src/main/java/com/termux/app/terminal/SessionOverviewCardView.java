@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.View;
@@ -56,6 +57,10 @@ public class SessionOverviewCardView extends FrameLayout {
     private boolean mTracking;
     private boolean mDragging;
     private boolean mSettling;
+    /** True while the finger is beyond the distance that dismisses on release. */
+    private boolean mDismissThresholdPassed;
+    /** True once this gesture has moved too far to still count as a tap. */
+    private boolean mMovedPastTapSlop;
     private int mActivePointerId = MotionEvent.INVALID_POINTER_ID;
 
     public SessionOverviewCardView(Context context) {
@@ -85,6 +90,8 @@ public class SessionOverviewCardView extends FrameLayout {
         mTracking = false;
         mDragging = false;
         mSettling = false;
+        mDismissThresholdPassed = false;
+        mMovedPastTapSlop = false;
         mActivePointerId = MotionEvent.INVALID_POINTER_ID;
         releaseVelocityTracker();
         setPressed(false);
@@ -106,6 +113,8 @@ public class SessionOverviewCardView extends FrameLayout {
     public void cancelSwipeGesture() {
         mTracking = false;
         mDragging = false;
+        mDismissThresholdPassed = false;
+        mMovedPastTapSlop = false;
         mActivePointerId = MotionEvent.INVALID_POINTER_ID;
         releaseVelocityTracker();
         setPressed(false);
@@ -132,6 +141,8 @@ public class SessionOverviewCardView extends FrameLayout {
                 mActivePointerId = event.getPointerId(0);
                 mTracking = true;
                 mDragging = false;
+                mDismissThresholdPassed = false;
+                mMovedPastTapSlop = false;
                 obtainVelocityTracker();
                 if (mVelocityTracker != null) mVelocityTracker.addMovement(event);
                 // Let the normal click handling arm itself. A drag cancels it below.
@@ -143,9 +154,18 @@ public class SessionOverviewCardView extends FrameLayout {
                 if (index < 0) return true;
                 final float x = event.getX(index) + getTranslationX();
                 final float y = event.getY(index) + getTranslationY();
+                final float dx = x - mDownX;
+                final float dy = y - mDownY;
+                if (!mMovedPastTapSlop && Math.hypot(dx, dy) > mTouchSlop) {
+                    // A tap selects a session; any real drag must not. This matters most when
+                    // the grid fits without scrolling, because then the scroll view never
+                    // intercepts and the card would otherwise receive the matching UP and
+                    // perform its click.
+                    mMovedPastTapSlop = true;
+                    setPressed(false);
+                    cancelLongPress();
+                }
                 if (!mDragging) {
-                    final float dx = x - mDownX;
-                    final float dy = y - mDownY;
                     if (Math.abs(dx) > mTouchSlop && Math.abs(dx) > Math.abs(dy) * 1.2f) {
                         startDrag();
                     } else {
@@ -166,7 +186,11 @@ public class SessionOverviewCardView extends FrameLayout {
                 if (mDragging) {
                     finishDrag();
                 } else {
-                    super.onTouchEvent(event);
+                    if (mMovedPastTapSlop) {
+                        setPressed(false);
+                    } else {
+                        super.onTouchEvent(event);
+                    }
                     resetTracking();
                 }
                 return true;
@@ -198,6 +222,17 @@ public class SessionOverviewCardView extends FrameLayout {
     private void updateDrag(float dx) {
         setTranslationX(dx);
         setAlpha(SessionOverviewSwipeMath.dragAlpha(dx, getWidth()));
+
+        final boolean passed = SessionOverviewSwipeMath.isPastDismissThreshold(dx, getWidth());
+        if (passed != mDismissThresholdPassed) {
+            mDismissThresholdPassed = passed;
+            if (passed) {
+                // One tick as the card enters the dismiss zone, matching the reorder and
+                // tab-strip threshold feedback. Returning under the threshold and crossing
+                // again ticks again.
+                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+            }
+        }
     }
 
     private void finishDrag() {
@@ -290,6 +325,7 @@ public class SessionOverviewCardView extends FrameLayout {
     private void resetTracking() {
         mTracking = false;
         mDragging = false;
+        mMovedPastTapSlop = false;
         mActivePointerId = MotionEvent.INVALID_POINTER_ID;
         releaseVelocityTracker();
     }

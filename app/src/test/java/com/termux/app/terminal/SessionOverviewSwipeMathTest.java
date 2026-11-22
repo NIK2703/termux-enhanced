@@ -28,6 +28,21 @@ public class SessionOverviewSwipeMathTest {
     }
 
     @Test
+    public void dismissDistanceThresholdIsInclusiveAndSymmetric() {
+        final float threshold = WIDTH * SessionOverviewSwipeMath.DISMISS_FRACTION;
+        Assert.assertFalse(SessionOverviewSwipeMath.isPastDismissThreshold(
+                threshold - 1f, WIDTH));
+        Assert.assertTrue(SessionOverviewSwipeMath.isPastDismissThreshold(
+                threshold, WIDTH));
+        Assert.assertTrue(SessionOverviewSwipeMath.isPastDismissThreshold(
+                -threshold, WIDTH));
+        Assert.assertFalse(SessionOverviewSwipeMath.isPastDismissThreshold(
+                threshold, 0));
+        Assert.assertFalse(SessionOverviewSwipeMath.isPastDismissThreshold(
+                Float.NaN, WIDTH));
+    }
+
+    @Test
     public void aFlingDismissesEvenBeforeTheDistanceThreshold() {
         Assert.assertTrue(SessionOverviewSwipeMath.shouldDismiss(
                 40f, 500f, WIDTH, MIN_FLING));
