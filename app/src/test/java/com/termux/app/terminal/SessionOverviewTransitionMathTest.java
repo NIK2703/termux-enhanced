@@ -239,29 +239,52 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
-    public void otherGridCardsFadeWithTheFlight() {
+    public void overviewCardsShareTheTabFadeSchedule() {
+        // Every non-active opening card shares the tab's target fade. This includes cards
+        // whose tab was not visible in the strip: they do not move, but they must not appear
+        // earlier than the cards that fly in with a tab.
         Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.openingGridCardsAlpha(0f), EPS);
+                SessionOverviewTransitionMath.openingCardAlpha(-1f), EPS);
         Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.openingGridCardsAlpha(-1f), EPS);
-        Assert.assertEquals(1f,
-                SessionOverviewTransitionMath.openingGridCardsAlpha(1f), EPS);
-        Assert.assertEquals(1f,
-                SessionOverviewTransitionMath.openingGridCardsAlpha(2f), EPS);
-        Assert.assertEquals(1f,
-                SessionOverviewTransitionMath.closingGridCardsAlpha(0f), EPS);
-        Assert.assertEquals(1f,
-                SessionOverviewTransitionMath.closingGridCardsAlpha(-1f), EPS);
+                SessionOverviewTransitionMath.openingCardAlpha(0f), EPS);
         Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.closingGridCardsAlpha(1f), EPS);
+                SessionOverviewTransitionMath.openingCardAlpha(0.5f), EPS);
         Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.closingGridCardsAlpha(2f), EPS);
+                SessionOverviewTransitionMath.openingCardAlpha(0.75f), EPS);
+        Assert.assertEquals(0.2f,
+                SessionOverviewTransitionMath.openingCardAlpha(0.8f), EPS);
+        Assert.assertEquals(0.5f,
+                SessionOverviewTransitionMath.openingCardAlpha(0.875f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.openingCardAlpha(1f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.openingCardAlpha(2f), EPS);
+
+        // Every unselected closing card shares the tab's source fade. This includes cards
+        // that stay put; their disappearance must coincide with the flying cards.
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingCardAlpha(-1f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingCardAlpha(0f), EPS);
+        Assert.assertEquals(0.5f,
+                SessionOverviewTransitionMath.closingCardAlpha(0.125f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingCardAlpha(0.25f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingCardAlpha(0.75f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingCardAlpha(1f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingCardAlpha(2f), EPS);
+
         for (int step = 0; step <= 100; step++) {
             final float progress = step / 100f;
-            Assert.assertEquals(1f,
-                    SessionOverviewTransitionMath.openingGridCardsAlpha(progress)
-                            + SessionOverviewTransitionMath.closingGridCardsAlpha(progress),
-                    EPS);
+            Assert.assertEquals(
+                    SessionOverviewTransitionMath.tabTargetAlpha(progress),
+                    SessionOverviewTransitionMath.openingCardAlpha(progress), EPS);
+            Assert.assertEquals(
+                    SessionOverviewTransitionMath.tabSourceAlpha(progress),
+                    SessionOverviewTransitionMath.closingCardAlpha(progress), EPS);
         }
     }
 

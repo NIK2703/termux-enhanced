@@ -21,6 +21,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
+import android.view.ViewParent;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.animation.PathInterpolator;
@@ -1378,6 +1379,78 @@ public final class SessionOverviewController {
         view.setTranslationY(centerY - layout.centerY());
     }
 
+    /**
+     * Keep a resting card attached to its flying tab. The card is shifted by the same path
+     * delta that moves the tab's start edge and vertical centre, so its thumbnail travels with
+     * the tab for the whole flight.
+     *
+     * <p>{@code anchorTab} is the tab's resting rect in content coordinates; the card is
+     * translated relative to that rect. Sources and targets must be measured without the card's
+     * own translation, otherwise next frame would feed the movement back into the path.
+     * Terminals that own the terminal snapshot (the active card on opening, the selected card
+     * on closing) are deliberately not moved by this helper.</p>
+     */
+    private static void moveCardWithTab(@NonNull View cardRoot, @NonNull Rect anchorTab,
+                                        @NonNull Rect sourceTab, @NonNull Rect targetTab,
+                                        float fraction) {
+        final float f = SessionOverviewTransitionMath.clamp01(fraction);
+        final boolean rtl = cardRoot.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+        final float sourceStart = rtl ? sourceTab.right : sourceTab.left;
+        final float targetStart = rtl ? targetTab.right : targetTab.left;
+        final float currentStart = SessionOverviewTransitionMath.lerp(
+                sourceStart, targetStart, f);
+        final float currentCenterY = sourceTab.centerY()
+                + (targetTab.centerY() - sourceTab.centerY()) * f;
+        final float anchorStart = rtl ? anchorTab.right : anchorTab.left;
+        cardRoot.setTranslationX(currentStart - anchorStart);
+        cardRoot.setTranslationY(currentCenterY - anchorTab.centerY());
+    }
+
+    /**
+     * Bounds of a direct card child in content coordinates with the card root's temporary
+     * transition translation removed. Targets stay in the resting grid geometry even while the
+     * card itself is following its tab.
+     *
+     * <p>The card's parent is measured instead of un-translating the card's own window rect:
+     * window coordinates are rounded, so subtracting a fractional translation every frame would
+     * make the target wobble by a pixel and feed that wobble back into the path.</p>
+     */
+    @Nullable
+    private Rect cardChildTarget(@NonNull Card card, @NonNull View child,
+                                 @NonNull int[] origin) {
+        final ViewParent parent = card.root.getParent();
+        if (parent instanceof View) {
+            final View parentView = (View) parent;
+            final Rect parentRect = localRect(parentView, origin);
+            if (parentRect != null) {
+                final float left = parentRect.left - parentView.getScrollX()
+                        + card.root.getLeft();
+                final float top = parentRect.top - parentView.getScrollY()
+                        + card.root.getTop();
+                return new Rect(
+                        Math.round(left + child.getLeft()),
+                        Math.round(top + child.getTop()),
+                        Math.round(left + child.getRight()),
+                        Math.round(top + child.getBottom()));
+            }
+        }
+
+        final Rect root = localRect(card.root, origin);
+        if (root == null || root.isEmpty()) return null;
+        final float left = root.left - card.root.getTranslationX();
+        final float top = root.top - card.root.getTranslationY();
+        return new Rect(
+                Math.round(left + child.getLeft()),
+                Math.round(top + child.getTop()),
+                Math.round(left + child.getRight()),
+                Math.round(top + child.getBottom()));
+    }
+
+    @Nullable
+    private Rect cardTabTarget(@NonNull Card card, @NonNull int[] origin) {
+        return cardChildTarget(card, card.tab, origin);
+    }
+
     /** Build the flying views at their captured source positions and hide what they replace. */
     private void installTransitionVisuals(@NonNull Transition transition) {
         if (mGhostLayer == null || mContentArea == null) return;
@@ -1615,7 +1688,11 @@ public final class SessionOverviewController {
         final int[] origin = contentOrigin();
 
         if (transition.terminalGhost != null && transition.activeCard != null && origin != null) {
-            final Rect target = localRect(transition.activeCard.preview, origin);
+            // The active card's preview is the terminal snapshot's destination, not a companion
+            // of the active tab. Read it without the card's temporary translation so the
+            // snapshot always lands in the resting grid slot.
+            final Rect target = cardChildTarget(
+                    transition.activeCard, transition.activeCard.preview, origin);
             if (target != null && transition.terminalSourceLocal != null) {
                 transition.terminalGhost.setLayoutParams(frameParams(lerpRect(
                         transition.terminalSourceLocal, target, p)));
@@ -1660,6 +1737,9 @@ public final class SessionOverviewController {
                 ghost.targetApplied = applyOpeningTabTarget(ghost, origin);
             }
 
+            // The active card belongs to the terminal snapshot, which is already shrinking into
+            // its final slot. Every other card follows its tab so the thumbnail moves with it.
+            final boolean companion = ghost.card != transition.activeCard;
             if (ghost.targetApplied) {
                 ghost.view.setAlpha(targetAlpha);
                 if (ghost.targetBounds != null) {
@@ -1668,6 +1748,10 @@ public final class SessionOverviewController {
                     // re-truncated.
                     moveGhostAlongPath(ghost.view, ghost.targetBounds,
                             ghost.sourceBounds, ghost.targetBounds, targetPath);
+                    if (companion) {
+                        moveCardWithTab(ghost.card.root, ghost.targetBounds,
+                                ghost.sourceBounds, ghost.targetBounds, targetPath);
+                    }
                 }
                 if (ghost.closeGhost != null) {
                     if (ghost.closeTargetApplied) {
@@ -1682,10 +1766,14 @@ public final class SessionOverviewController {
                 }
             } else {
                 ghost.view.setAlpha(sourceAlpha);
-                final Rect liveTarget = localRect(ghost.card.tab, origin);
+                final Rect liveTarget = cardTabTarget(ghost.card, origin);
                 if (liveTarget != null) {
                     moveGhostAlongPath(ghost.view, ghost.sourceBounds,
                             ghost.sourceBounds, liveTarget, sourcePath);
+                    if (companion) {
+                        moveCardWithTab(ghost.card.root, liveTarget,
+                                ghost.sourceBounds, liveTarget, sourcePath);
+                    }
                 }
                 if (ghost.closeGhost != null) {
                     // The source cross, if any, is part of the same rigid tab body. An inactive
@@ -1709,7 +1797,7 @@ public final class SessionOverviewController {
      * the call is retried on the next frame.</p>
      */
     private boolean applyOpeningTabTarget(@NonNull TabGhost ghost, @NonNull int[] origin) {
-        final Rect target = localRect(ghost.card.tab, origin);
+        final Rect target = cardTabTarget(ghost.card, origin);
         if (target == null || target.isEmpty()) return false;
 
         ghost.targetBounds = new Rect(target);
@@ -1728,7 +1816,7 @@ public final class SessionOverviewController {
         ghost.view.refreshTitle();
 
         if (ghost.closeGhost != null) {
-            final Rect closeTarget = localRect(ghost.card.close, origin);
+            final Rect closeTarget = cardChildTarget(ghost.card, ghost.card.close, origin);
             if (closeTarget != null && !closeTarget.isEmpty()) {
                 ghost.closeGhost.setLayoutParams(frameParams(closeTarget));
                 ghost.closeGhost.setImageTintList(ColorStateList.valueOf(ghost.card.textColor));
@@ -1745,12 +1833,14 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Fade the cards that are not represented by the flying terminal. The active card owns the
+     * Fade every card that is not represented by the flying terminal. All of them share the
+     * flying tab's target fade, so a thumbnail emerges at 75% of the motion whether or not its
+     * own tab was visible in the strip and has a ghost to move it. The active card owns the
      * terminal snapshot until the final frame, so it must stay out of this fade.
      */
     private void applyOpeningCardAlpha(@NonNull Transition transition, float progress) {
         if (transition.activeCard == null) return;
-        final float alpha = SessionOverviewTransitionMath.openingGridCardsAlpha(progress);
+        final float alpha = SessionOverviewTransitionMath.openingCardAlpha(progress);
         for (Card card : mCards) {
             if (card != transition.activeCard) card.root.setAlpha(alpha);
         }
@@ -1788,6 +1878,8 @@ public final class SessionOverviewController {
         }
         for (Card card : mCards) {
             card.root.setAlpha(1f);
+            card.root.setTranslationX(0f);
+            card.root.setTranslationY(0f);
         }
         if (transition.activeCard != null) {
             transition.activeCard.preview.setAlpha(1f);
@@ -2161,7 +2253,11 @@ public final class SessionOverviewController {
                     SessionOverviewTransitionMath.closingTabPanelAlpha(p));
         }
 
-        final Rect start = localRect(transition.card.preview, origin);
+        // The selected card's own preview is hidden at progress zero. Read it without the card's
+        // temporary translation (when a cancel restores it) so the expansion always starts in
+        // the resting grid slot.
+        final Rect start = cardChildTarget(
+                transition.card, transition.card.preview, origin);
         final Rect target = closingTerminalTarget(origin, transition.terminalTargetLocal);
         if (transition.terminalGhost != null && target != null) {
             transition.terminalGhost.setLayoutParams(frameParams(lerpRect(
@@ -2192,7 +2288,7 @@ public final class SessionOverviewController {
                 ? View.INVISIBLE : View.VISIBLE);
         boolean selectedTabHasGhost = false;
         for (ClosingTabGhost ghost : transition.tabGhosts) {
-            applyClosingTabProgress(ghost, origin, p);
+            applyClosingTabProgress(transition, ghost, origin, p);
             if (ghost.card == transition.card) selectedTabHasGhost = true;
         }
         if (!selectedTabHasGhost) {
@@ -2202,17 +2298,21 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Fade the rest of the grid out while the selected terminal expands. The selected card is
-     * already owned by the opaque terminal snapshot, so only the neighbours follow this alpha.
+     * Fade the rest of the grid out while the selected terminal expands. All unselected cards
+     * share the flying tab's source fade, so a thumbnail disappears during the first 25% of the
+     * motion whether or not its own tab was visible in the strip and has a ghost to move it.
+     * The selected card is already owned by the opaque terminal snapshot, so only the neighbours
+     * follow this alpha.
      */
     private void applyClosingCardAlpha(@NonNull ClosingTransition transition, float progress) {
-        final float alpha = SessionOverviewTransitionMath.closingGridCardsAlpha(progress);
+        final float alpha = SessionOverviewTransitionMath.closingCardAlpha(progress);
         for (Card card : mCards) {
             if (card != transition.card) card.root.setAlpha(alpha);
         }
     }
 
-    private void applyClosingTabProgress(@NonNull ClosingTabGhost ghost, @NonNull int[] origin,
+    private void applyClosingTabProgress(@NonNull ClosingTransition transition,
+                                         @NonNull ClosingTabGhost ghost, @NonNull int[] origin,
                                          float p) {
         // Transform at the midpoint of the invisible gap, not at the start of the fade-in, so a
         // dropped frame cannot expose the size/style change.
@@ -2257,6 +2357,14 @@ public final class SessionOverviewController {
                 ghost.closeGhost.setTranslationY(ghost.view.getTranslationY());
                 ghost.closeGhost.setAlpha(0.7f * sourceAlpha);
             }
+        }
+
+        // The selected card owns the expanding terminal snapshot, so it stays out of this
+        // coupling. Every other card travels with its returning tab so its thumbnail does not
+        // stay behind while the tab fades out.
+        if (ghost.card != transition.card && ghost.targetBounds != null) {
+            moveCardWithTab(ghost.card.root, ghost.startBounds, ghost.startBounds,
+                    ghost.targetBounds, ghost.targetApplied ? targetPath : sourcePath);
         }
     }
 
@@ -2363,6 +2471,8 @@ public final class SessionOverviewController {
         transition.card.preview.setVisibility(View.VISIBLE);
         for (Card card : mCards) {
             card.root.setAlpha(1f);
+            card.root.setTranslationX(0f);
+            card.root.setTranslationY(0f);
         }
         setCardShadowSuppressed(transition.card, false);
         transition.card.tab.setAlpha(transition.tabBaseAlpha);

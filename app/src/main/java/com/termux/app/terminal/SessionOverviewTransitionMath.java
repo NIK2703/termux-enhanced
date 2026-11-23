@@ -153,17 +153,23 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Opacity of every grid card except the active one while the terminal flies into the grid.
-     * The active card is represented by the terminal snapshot until the final frame; the rest
-     * of the grid fades in around that flight instead of appearing at full strength immediately.
+     * Opacity of every non-active opening card. All cards use the flying tab's target fade:
+     * invisible until 75% of the path, then visible over the last quarter. A card without a
+     * visible tab does not move, but its appearance must still coincide with the cards that do.
+     * The active card is represented by the terminal snapshot and stays out of this fade.
      */
-    public static float openingGridCardsAlpha(float progress) {
-        return clamp01(progress);
+    public static float openingCardAlpha(float progress) {
+        return tabTargetAlpha(progress);
     }
 
-    /** Opacity of the grid cards that stay behind while the selected terminal expands back out. */
-    public static float closingGridCardsAlpha(float progress) {
-        return 1f - clamp01(progress);
+    /**
+     * Opacity of every unselected closing card. All cards use the flying tab's source fade:
+     * visible at the start, gone by 25% of the path. A card without a visible tab does not move,
+     * but its disappearance must still coincide with the cards that do. The selected card is
+     * represented by the expanding terminal snapshot and stays out of this fade.
+     */
+    public static float closingCardAlpha(float progress) {
+        return tabSourceAlpha(progress);
     }
 
     public static int lerp(int start, int end, float progress) {
