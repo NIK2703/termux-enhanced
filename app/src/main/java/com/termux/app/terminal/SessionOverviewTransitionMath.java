@@ -184,11 +184,11 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Translation Z for a flying tab that is travelling above the terminal snapshot. The
-     * snapshot's elevation is animated up to {@code terminalElevation}, and child Z order wins
-     * over insertion order, so a tab with the default Z would disappear under the terminal even
-     * when it is added later. Keeping the tab one pixel above the snapshot's maximum elevation
-     * makes it stay on top for the whole flight.
+     * Translation Z for a flying tab that is travelling above the terminal snapshot. Child Z
+     * order wins over insertion order, so a tab with the default Z could disappear under a
+     * snapshot carrying elevation even when it is added later. Keeping the tab one pixel above
+     * the snapshot's maximum elevation makes it stay on top for the whole flight. Overview
+     * snapshots pass zero because they cast no shadow.
      */
     public static float tabGhostZ(float terminalElevation) {
         final float elevation = Float.isNaN(terminalElevation) ? 0f : terminalElevation;

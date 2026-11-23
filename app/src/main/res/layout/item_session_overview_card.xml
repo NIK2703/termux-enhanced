@@ -3,12 +3,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clickable="true"
-    android:elevation="@dimen/floating_shadow_elevation"
     android:focusable="true"
     android:outlineProvider="bounds">
 
-    <!-- The root carries the same floating shadow as the controls drawn over the terminal.
-         Its preview and compact tab remain chrome-free. -->
+    <!-- The root casts no shadow. SessionOverviewCardView draws a thin outline in the floating
+         controls' stroke colour; its preview and compact tab remain chrome-free. -->
 
     <ImageView
         android:id="@+id/session_overview_preview"
@@ -44,7 +43,9 @@
 
     <!-- The same close affordance as a selected strip tab. It is a sibling of the title so the
          title's background can stay under the close button while the icon gets a real click
-         target. It is inset by the tab's own horizontal padding, not the card edge. -->
+         target. It is inset by the tab's own horizontal padding, not the card edge. The
+         borderless selectable background is deliberately absent: pressing the cross must not
+         pulse a ripple over the tab. The card's own close fade is the feedback. -->
     <ImageButton
         android:id="@+id/session_overview_close"
         android:layout_width="@dimen/terminal_tab_close_size"
@@ -53,7 +54,8 @@
         android:layout_marginTop="@dimen/session_overview_tab_margin"
         android:layout_marginEnd="@dimen/session_overview_tab_close_inset"
         android:src="@drawable/ic_close"
-        android:background="?attr/selectableItemBackgroundBorderless"
+        android:background="@null"
+        android:stateListAnimator="@null"
         android:contentDescription="@string/tab_close_description"
         android:scaleType="centerInside"
         android:padding="0dp"

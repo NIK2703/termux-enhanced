@@ -69,7 +69,7 @@ public final class SessionOverviewController {
     private final FrameLayout mOverlay;
     private final SessionOverviewGridView mGrid;
     private final LayoutInflater mInflater;
-    /** Live terminal background used for the window surface, shadows and status-bar icons. */
+    /** Live terminal background used for the window surface, card outline and status-bar icons. */
     private int mOverlayBackgroundColor = Color.BLACK;
     /** Siblings of the overlay that are transparent while it is open. */
     private final List<View> mHiddenLiveViews = new ArrayList<>();
@@ -112,9 +112,19 @@ public final class SessionOverviewController {
     private ClosingTransition mClosingTransition;
     @Nullable
     private Card mPendingClosingCard;
+    /** Card owned by the close-button fade/scale until its session is actually finished. */
+    @Nullable
+    private Card mClosingCardAnimation;
+    @Nullable
+    private ValueAnimator mCardCloseAnimator;
 
     /** How many frames to wait for the grid to lay out before starting with whatever exists. */
     private static final int MAX_START_ATTEMPTS = 20;
+
+    /** Short fade-and-shrink used when a card is closed from its own X button. */
+    private static final long CARD_CLOSE_DURATION_MS = 160L;
+    /** The card shrinks slightly into its centre while it fades. */
+    private static final float CARD_CLOSE_SCALE = 0.92f;
 
     /** 50% alpha for the compact pill so the terminal stays visible underneath it. */
     private static final int OVERVIEW_TAB_BACKGROUND_ALPHA = 0x80;
@@ -221,7 +231,8 @@ public final class SessionOverviewController {
                     @Override
                     public boolean canStartDrag(@NonNull SessionOverviewCardView card) {
                         if (!mShowing || mTransition != null || mClosingTransition != null
-                                || mPendingClosingCard != null) {
+                                || mPendingClosingCard != null
+                                || mClosingCardAnimation != null) {
                             return false;
                         }
                         if (mGrid == null || mCards.size() < 2
@@ -502,6 +513,7 @@ public final class SessionOverviewController {
     /** Close without restoring focus, used while switching sessions or leaving the activity. */
     public void hide(boolean restoreFocus) {
         if (!mShowing) return;
+        cancelCardCloseAnimation();
 
         // Keep the position the user left. If the opening restore has not run yet, the previous
         // remembered value is more truthful than the stale scroll offset still in the view.
@@ -761,7 +773,8 @@ public final class SessionOverviewController {
     }
 
     private void selectSession(@NonNull TerminalSession session) {
-        if (!mShowing || mClosingTransition != null || mPendingClosingCard != null) return;
+        if (!mShowing || mClosingTransition != null || mPendingClosingCard != null
+                || mClosingCardAnimation != null) return;
 
         // A tap can land while the opening flight is still in the air. Land that flight first:
         // the closing expansion must start from the grid's final card geometry, not from a ghost
@@ -876,8 +889,13 @@ public final class SessionOverviewController {
      * @return true when the close was accepted; false when the card must spring back.
      */
     private boolean closeSession(@NonNull Card card) {
-        if (!mShowing || card.closing || mClosingTransition != null
-                || mPendingClosingCard != null) return false;
+        return closeSession(card, false);
+    }
+
+    private boolean closeSession(@NonNull Card card, boolean closeAnimationFinished) {
+        if (!mShowing || (!closeAnimationFinished && card.closing)
+                || mClosingTransition != null || mPendingClosingCard != null
+                || mClosingCardAnimation != null) return false;
         card.closing = true;
         if (card.session.isRunning()) {
             card.session.finishIfRunning();
@@ -893,13 +911,97 @@ public final class SessionOverviewController {
         return true;
     }
 
-    /** Called after the live session list changed. Rebuilds the grid while it is open. */
+    /**
+     * Close a card from its X button. The whole root, including the compact tab and the cross,
+     * fades and shrinks as one body. The session is finished only after the animation, so the
+     * session-list update cannot remove the card halfway through its fade and reflow the grid
+     * underneath it.
+     */
+    private void closeSessionFromButton(@NonNull Card card) {
+        if (!mShowing || card.closing || mTransition != null
+                || mClosingTransition != null || mPendingClosingCard != null
+                || mClosingCardAnimation != null) {
+            return;
+        }
+        if (mDragController != null) mDragController.cancelForModelChange();
+        card.closing = true;
+        mClosingCardAnimation = card;
+        card.root.animate().cancel();
+        card.root.setPivotX(card.root.getWidth() / 2f);
+        card.root.setPivotY(card.root.getHeight() / 2f);
+
+        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(CARD_CLOSE_DURATION_MS);
+        animator.setInterpolator(new PathInterpolator(0.4f, 0f, 0.2f, 1f));
+        animator.addUpdateListener(animation -> {
+            if (mClosingCardAnimation != card) return;
+            final float progress = (float) animation.getAnimatedValue();
+            card.root.setAlpha(1f - progress);
+            final float scale = SessionOverviewTransitionMath.lerp(
+                    1f, CARD_CLOSE_SCALE, progress);
+            card.root.setScaleX(scale);
+            card.root.setScaleY(scale);
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mCardCloseAnimator != animation || mClosingCardAnimation != card) return;
+                mCardCloseAnimator = null;
+                mClosingCardAnimation = null;
+                finishCardClose(card);
+            }
+        });
+        mCardCloseAnimator = animator;
+        animator.start();
+    }
+
+    /** Finish a close after its card has already faded and shrunk. */
+    private void finishCardClose(@NonNull Card card) {
+        if (!mShowing || findCard(card.session) != card) {
+            restoreCardAfterCloseAnimation(card);
+            return;
+        }
+        // Keep the card at the visual endpoint while the session is being removed. If removal is
+        // refused, put it back instead of leaving an invisible slot in the grid.
+        card.root.setAlpha(0f);
+        card.root.setScaleX(CARD_CLOSE_SCALE);
+        card.root.setScaleY(CARD_CLOSE_SCALE);
+        if (!closeSession(card, true)) {
+            restoreCardAfterCloseAnimation(card);
+        }
+    }
+
+    private void restoreCardAfterCloseAnimation(@NonNull Card card) {
+        card.closing = false;
+        card.root.animate().cancel();
+        card.root.setAlpha(1f);
+        card.root.setScaleX(1f);
+        card.root.setScaleY(1f);
+    }
+
+    /** Stop a close-button animation without touching the session. */
+    private void cancelCardCloseAnimation() {
+        final ValueAnimator animator = mCardCloseAnimator;
+        final Card card = mClosingCardAnimation;
+        mCardCloseAnimator = null;
+        mClosingCardAnimation = null;
+        if (animator != null) {
+            animator.removeAllUpdateListeners();
+            animator.removeAllListeners();
+            animator.cancel();
+        }
+        if (card != null) restoreCardAfterCloseAnimation(card);
+    }
+
+    /** Called after the live session list changed. Keeps the grid in sync while it is open. */
     public void onSessionsChanged() {
         if (!mShowing) return;
         // The closing flight owns the selected card and its tab. A structural update in the
         // middle of the 300 ms expansion would replace those views under the ghost; let the
-        // flight finish, then hide and switch in the usual way.
-        if (mClosingTransition != null || mPendingClosingCard != null) return;
+        // flight finish, then hide and switch in the usual way. The same applies to the short
+        // X-button fade: the card must finish fading before its slot is removed.
+        if (mClosingTransition != null || mPendingClosingCard != null
+                || mClosingCardAnimation != null) return;
         TermuxService service = mActivity.getTermuxService();
         if (service == null || service.getTermuxSessionsSize() == 0) {
             hide(false);
@@ -920,15 +1022,26 @@ public final class SessionOverviewController {
         }
 
         // A pure deletion keeps the surviving cards in their old relative order. Remember where
-        // they were before the rebuild so they can slide into the vacated slot instead of
-        // appearing there instantly.
-        final boolean animateRemoval = isPureRemoval(sessions);
+        // they were so they can slide into the vacated slot instead of appearing there
+        // instantly. The surviving views and their preview bitmaps are kept: rebuilding the
+        // whole grid would clear every thumbnail and force it through an empty frame.
+        final boolean pureRemoval = isPureRemoval(sessions);
+        // An opening flight still owns the cards and the terminal snapshot. Do not mix retained
+        // cards with that transient state; cancel the flight first and fall back to a rebuild.
+        final boolean reuseCards = pureRemoval
+                && mTransition == null
+                && mGrid != null
+                && mGrid.getChildCount() == mCards.size();
         final Map<TerminalSession, float[]> oldCenters =
-                animateRemoval ? captureCardCenters(mCards) : null;
+                pureRemoval ? captureCardCenters(mCards) : null;
 
         cancelTransition();
         if (mDragController != null) mDragController.cancelForModelChange();
-        buildCards(sessions);
+        if (!reuseCards || !retainCards(sessions)) {
+            buildCards(sessions);
+        } else {
+            refreshTitles();
+        }
         if (mCards.isEmpty()) {
             hide(false);
             return;
@@ -975,6 +1088,52 @@ public final class SessionOverviewController {
         return newCount > 0 && newCount < mCards.size();
     }
 
+    /**
+     * Keep the cards for every session that survived a pure removal and detach only the cards
+     * that disappeared.
+     *
+     * <p>A surviving card keeps its {@link ImageView} and preview bitmap. Rebuilding the whole
+     * grid after a swipe would clear every thumbnail and force it through an empty frame before
+     * the posted preview render runs; retaining the cards avoids that flash.</p>
+     *
+     * <p>Nothing is changed until the entire new session list has been matched. If a session is
+     * missing a card or the grid is out of sync, the caller can still fall back to a full
+     * {@link #buildCards(List)}.</p>
+     *
+     * @return true when the removed cards were detached; false when a full rebuild is required
+     */
+    private boolean retainCards(@NonNull List<TermuxSession> sessions) {
+        if (mGrid == null || mGrid.getChildCount() != mCards.size()) return false;
+        for (int i = 0; i < mCards.size(); i++) {
+            if (mGrid.getChildAt(i) != mCards.get(i).root) return false;
+        }
+
+        final Map<TerminalSession, Card> bySession = new IdentityHashMap<>();
+        for (Card card : mCards) bySession.put(card.session, card);
+
+        final List<Card> ordered = new ArrayList<>(mCards.size());
+        for (TermuxSession termuxSession : sessions) {
+            if (termuxSession == null) continue;
+            final TerminalSession session = termuxSession.getTerminalSession();
+            if (session == null) continue;
+            final Card card = bySession.remove(session);
+            if (card == null) return false;
+            ordered.add(card);
+        }
+        // A pure removal leaves only the deleted cards in the map. An empty map means the list
+        // did not actually shrink, which is the full-rebuild path's job.
+        if (bySession.isEmpty() || ordered.isEmpty()) return false;
+
+        for (Card removed : bySession.values()) {
+            removed.preview.setImageDrawable(null);
+            releaseBitmap(removed);
+            mGrid.removeView(removed.root);
+        }
+        mCards.clear();
+        mCards.addAll(ordered);
+        return true;
+    }
+
     /** Visual centres of the cards currently in the grid, keyed by their sessions. */
     @NonNull
     private static Map<TerminalSession, float[]> captureCardCenters(@NonNull List<Card> cards) {
@@ -992,8 +1151,8 @@ public final class SessionOverviewController {
 
     /**
      * Start the surviving cards from their old centres and let the drag controller settle them
-     * into the freshly built grid. The new children are measured on the next layout pass, which
-     * is why the controller waits before it applies the starting translations.
+     * into the reflowed grid. The controller seeds the translations before the next layout and
+     * re-applies them against the actual laid-out bounds before starting the animation.
      */
     private void animateRemovalSettle(@NonNull Map<TerminalSession, float[]> oldCenters) {
         if (mDragController == null || mGrid == null || mCards.isEmpty()) return;
@@ -1117,7 +1276,8 @@ public final class SessionOverviewController {
             // A running card can be waiting for its shell to die after a close gesture. If the
             // process has now exited but the session stays in the list because of its exit
             // status, the card is visible and closable again; the next tap removes it.
-            if (card.closing && !card.session.isRunning()) {
+            if (card.closing && !card.session.isRunning()
+                    && card != mClosingCardAnimation) {
                 card.closing = false;
                 card.root.resetSwipeState();
             }
@@ -1147,6 +1307,7 @@ public final class SessionOverviewController {
         if (!mShowing) return;
         mActivityStopped = true;
 
+        cancelCardCloseAnimation();
         cancelTransition();
         cancelPendingClosingSelection();
         cancelClosingTransition();
@@ -1441,7 +1602,8 @@ public final class SessionOverviewController {
      * <p>While the tab and its card thumbnail are both visible they belong to the grid and pass
      * under the shrinking or expanding terminal window. A tab moving alone — before its
      * thumbnail has started to fade in or after it has faded out — stays above the terminal, as
-     * it did before.</p>
+     * it did before. The terminal snapshot itself has no elevation; the one-pixel lift keeps the
+     * tab above it by insertion order.</p>
      */
     private static void applyTabGhostZ(@NonNull View tabGhost, @Nullable View closeGhost,
                                        boolean thumbnailVisible, float terminalElevation) {
@@ -1508,9 +1670,9 @@ public final class SessionOverviewController {
             final Card active = findCard(mActivity.getCurrentSession());
             if (active != null) {
                 transition.activeCard = active;
-                // The snapshot, not the card sitting in its final slot, owns the shadow for the
+                // The snapshot, not the card sitting in its final slot, owns the visual for the
                 // duration of the flight.
-                setCardShadowSuppressed(active, true);
+                setCardOutlineSuppressed(active, true);
                 active.preview.setAlpha(0f);
                 active.preview.setVisibility(View.INVISIBLE);
 
@@ -1519,13 +1681,10 @@ public final class SessionOverviewController {
                 ghost.setImportantForAccessibility(
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 ghost.setImageBitmap(transition.terminalBitmap);
-                // Start with no shadow and square corners: at progress zero this is the live
-                // terminal, which does not float. Both grow with the flight toward the card.
-                FloatingShadow.apply(ghost, 0, floatingShadowColor());
+                // At progress zero this is the live terminal, which is square and has no
+                // outline. The radius grows with the flight toward the card.
                 ghost.setOutlineProvider(new RoundedOutlineProvider(0f));
                 ghost.setClipToOutline(true);
-                transition.terminalShadowElevation =
-                        FloatingShadow.elevationPx(mActivity.getResources());
 
                 transition.terminalSourceLocal = offsetRect(transition.terminalSource, origin);
                 ghost.setLayoutParams(frameParams(transition.terminalSourceLocal));
@@ -1576,11 +1735,10 @@ public final class SessionOverviewController {
 
             final Rect sourceRect = offsetRect(source.bounds, origin);
             ghost.setLayoutParams(frameParams(sourceRect));
-            // The terminal ghost's elevation grows during the flight. Elevation participates in
-            // child ordering, so lift the tab above that maximum or it would slide under the
-            // shrinking terminal despite being added later.
-            ghost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
-                    transition.terminalShadowElevation));
+            // The terminal ghost has no elevation, but keep the tab one pixel above it so child
+            // ordering cannot slide the tab under the shrinking terminal despite being added
+            // later.
+            ghost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(0f));
             mGhostLayer.addView(ghost);
 
             // Every flying tab owns a close cross. The active strip tab already shows one, so
@@ -1599,8 +1757,7 @@ public final class SessionOverviewController {
                     ? offsetRect(source.closeBounds, origin) : null;
             closeGhost.setLayoutParams(frameParams(
                     closeSourceLocal != null ? closeSourceLocal : sourceRect));
-            closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
-                    transition.terminalShadowElevation));
+            closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(0f));
             mGhostLayer.addView(closeGhost);
 
             transition.tabGhosts.add(new TabGhost(card, ghost, background, sourceRect,
@@ -1742,10 +1899,9 @@ public final class SessionOverviewController {
                 transition.terminalGhost.setLayoutParams(frameParams(lerpRect(
                         transition.terminalSourceLocal, target, p)));
             }
-            // The shadow travels with the snapshot and grows from the square, shadowless live
-            // terminal into the rounded card. The card's own shadow stays suppressed until the
-            // snapshot lands, so there is never a second shadow parked in the grid slot.
-            transition.terminalGhost.setElevation(transition.terminalShadowElevation * p);
+            // The snapshot starts square and grows into the rounded card. The card's own outline
+            // stays suppressed until the snapshot lands, so there is never a second outline
+            // parked in the grid slot.
             transition.terminalGhost.setOutlineProvider(new RoundedOutlineProvider(
                     SessionOverviewTransitionMath.lerp(
                             0f, transition.activeCard.thumbnailCornerRadius, p)));
@@ -1790,8 +1946,7 @@ public final class SessionOverviewController {
             // thumbnail stays above the terminal. The active card's tab is never reparented.
             final boolean thumbnailVisible = companion
                     && SessionOverviewTransitionMath.openingCardAlpha(p) > 0f;
-            applyTabGhostZ(ghost.view, ghost.closeGhost, thumbnailVisible,
-                    transition.terminalShadowElevation);
+            applyTabGhostZ(ghost.view, ghost.closeGhost, thumbnailVisible, 0f);
             if (ghost.targetApplied) {
                 ghost.view.setAlpha(targetAlpha);
                 if (ghost.targetBounds != null) {
@@ -1936,7 +2091,7 @@ public final class SessionOverviewController {
         if (transition.activeCard != null) {
             transition.activeCard.preview.setAlpha(1f);
             transition.activeCard.preview.setVisibility(View.VISIBLE);
-            setCardShadowSuppressed(transition.activeCard, false);
+            setCardOutlineSuppressed(transition.activeCard, false);
         }
         if (transition.backgroundTransition) {
             // The flight may be cancelled before its first frame. The overview backdrop must
@@ -2069,20 +2224,16 @@ public final class SessionOverviewController {
 
         ghost.setImageBitmap(transition.terminalBitmap);
         ghost.setAlpha(0f);
-        // The card's own shadow is suppressed while this snapshot expands; the snapshot starts
-        // with the card's shadow shape and radius so the hand-off at progress zero is invisible.
-        FloatingShadow.apply(ghost, FloatingShadow.elevationPx(mActivity.getResources()),
-                floatingShadowColor());
+        // The card's own outline is suppressed while this snapshot expands; the snapshot starts
+        // with the card's rounded shape so the hand-off at progress zero is invisible.
         ghost.setOutlineProvider(new RoundedOutlineProvider(
                 transition.card.thumbnailCornerRadius));
         ghost.setClipToOutline(true);
-        transition.terminalShadowElevation =
-                FloatingShadow.elevationPx(mActivity.getResources());
         ghost.setLayoutParams(frameParams(transition.cardStartLocal));
 
         mGhostLayer.addView(ghost);
         transition.terminalGhost = ghost;
-        setCardShadowSuppressed(transition.card, true);
+        setCardOutlineSuppressed(transition.card, true);
         transition.tabBaseAlpha = transition.card.tab.getAlpha();
         transition.closeBaseAlpha = transition.card.close.getAlpha();
         return true;
@@ -2193,8 +2344,7 @@ public final class SessionOverviewController {
             ghost.setBackground(background);
             ghost.setLayoutParams(frameParams(startBounds));
             // Keep the returning tab above the expanding terminal for the whole flight.
-            ghost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
-                    transition.terminalShadowElevation));
+            ghost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(0f));
             mGhostLayer.addView(ghost);
 
             final float fallbackTextSize = mActivity.getResources()
@@ -2226,8 +2376,7 @@ public final class SessionOverviewController {
                 closeGhost.setImportantForAccessibility(
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 closeGhost.setLayoutParams(frameParams(startCloseBounds));
-                closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
-                        transition.terminalShadowElevation));
+                closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(0f));
                 mGhostLayer.addView(closeGhost);
             }
 
@@ -2322,11 +2471,9 @@ public final class SessionOverviewController {
         final float ghostAlpha = SessionOverviewTransitionMath.closingGhostAlpha(p);
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setAlpha(ghostAlpha);
-            // Reverse of the opening shadow: the card's floating shadow travels out with the
-            // expanding snapshot and is square and shadowless by the time it reaches the live
-            // terminal. The card's own shadow stays suppressed for the whole flight.
-            transition.terminalGhost.setElevation(
-                    transition.terminalShadowElevation * (1f - p));
+            // Reverse of the opening: the rounded snapshot expands and becomes square by the
+            // time it reaches the live terminal. The card's own outline stays suppressed for the
+            // whole flight.
             transition.terminalGhost.setOutlineProvider(new RoundedOutlineProvider(
                     SessionOverviewTransitionMath.lerp(
                             transition.card.thumbnailCornerRadius, 0f, p)));
@@ -2389,8 +2536,7 @@ public final class SessionOverviewController {
         // selected card's own tab is the terminal snapshot's partner and is left untouched.
         final boolean thumbnailVisible = ghost.card != transition.card
                 && SessionOverviewTransitionMath.closingCardAlpha(p) > 0f;
-        applyTabGhostZ(ghost.view, ghost.closeGhost, thumbnailVisible,
-                transition.terminalShadowElevation);
+        applyTabGhostZ(ghost.view, ghost.closeGhost, thumbnailVisible, 0f);
 
         if (ghost.targetApplied) {
             ghost.view.setAlpha(targetAlpha);
@@ -2541,7 +2687,7 @@ public final class SessionOverviewController {
             card.root.setTranslationX(0f);
             card.root.setTranslationY(0f);
         }
-        setCardShadowSuppressed(transition.card, false);
+        setCardOutlineSuppressed(transition.card, false);
         transition.card.tab.setAlpha(transition.tabBaseAlpha);
         transition.card.close.setAlpha(transition.closeBaseAlpha);
         transition.card.tab.setVisibility(View.VISIBLE);
@@ -2690,7 +2836,7 @@ public final class SessionOverviewController {
                 root.setOnTouchListener((view, event) -> mDragController.onTouch(root, event));
             }
             root.setOnSwipeDismissListener((view, direction) -> closeSession(card));
-            close.setOnClickListener(v -> closeSession(card));
+            close.setOnClickListener(v -> closeSessionFromButton(card));
             applyTabMetrics(card);
             applyCardAppearance(card);
             bindTab(card, session == current);
@@ -2718,6 +2864,7 @@ public final class SessionOverviewController {
      */
     public void onConfigurationChanged(@NonNull Configuration config) {
         reloadDimensions();
+        cancelCardCloseAnimation();
         if (mDragController != null) mDragController.cancelForModelChange();
         if (!mShowing) return;
         applyOverviewBackground();
@@ -2735,7 +2882,7 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Repaint the window background and the card shadows after the live terminal background
+     * Repaint the window background and the card outlines after the live terminal background
      * changes. This runs for OSC palette updates and scheme swaps while the overview is open.
      */
     public void onTerminalBackgroundChanged() {
@@ -2747,11 +2894,10 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Cards carry no chrome of their own: the terminal snapshot is the card, with the compact
-     * tab floating over its top edge. Removing the background, border and press ripple also
-     * keeps the thumbnail from pulsing under the tab when the card is tapped. The shared
-     * floating shadow is the only chrome, so the thumbnail still lifts off the terminal
-     * background exactly like the controls drawn over it.
+     * Cards carry no fill of their own: the terminal snapshot is the card, with the compact tab
+     * floating over its top edge. Removing the background and press ripple keeps the thumbnail
+     * from pulsing under the tab when the card is tapped. A thin outline matching the floating
+     * controls is the only chrome; the thumbnail itself casts no shadow.
      */
     private void applyCardAppearance(@NonNull Card card) {
         card.root.setBackground(null);
@@ -2761,37 +2907,33 @@ public final class SessionOverviewController {
         // Clipping is owned by applyThumbnailCornerRadius(): the root outline is the same
         // rounded rectangle as the preview, so both the snapshot and the tab stay inside the
         // card's corners. Do not reset it to BOUNDS or disable clipping here.
-        // The outline is installed by applyTabMetrics() so the shadow follows the thumbnail's
+        // The outline is installed by applyTabMetrics() so the stroke follows the thumbnail's
         // rounded corners. Do not replace it with BOUNDS here; this method also runs when only
         // the terminal background changes.
-        final Resources res = mActivity.getResources();
-        // While a card's terminal snapshot is flying, the snapshot carries the shadow and the
-        // card's own shadow is suppressed. Otherwise the grid would show a stationary shadow in
-        // the final slot while the thumbnail is still somewhere between the terminal and the card.
-        final int elevation = card.shadowSuppressed ? 0 : FloatingShadow.elevationPx(res);
-        FloatingShadow.apply(card.root, elevation, floatingShadowColor());
+        // The thumbnail has no elevation. Its only chrome is a thin outline using the same
+        // stroke width, colour and opacity as the controls floating over the terminal.
+        card.root.setElevation(0f);
+        final float strokeWidth = mActivity.getResources().getDimension(
+                R.dimen.terminal_text_input_stroke);
+        card.root.setBorder(Math.round(strokeWidth), mActivity.getFloatingButtonStroke(),
+                card.thumbnailCornerRadius);
+        card.root.setBorderSuppressed(card.outlineSuppressed);
         card.preview.setBackground(null);
     }
 
-    /** The shared card/ghost shadow colour for the current terminal scheme. */
-    private int floatingShadowColor() {
-        return FloatingShadow.color(mActivity.getResources(),
-                ColorSchemeUtils.isColorLight(mOverlayBackgroundColor),
-                R.fraction.floating_shadow_alpha);
-    }
-
     /**
-     * Turn the card's own floating shadow off while its terminal snapshot is in flight, and back
-     * on once the snapshot has landed or the transition is cancelled.
+     * Hide the card's outline while its terminal snapshot is in flight, and show it again once
+     * the snapshot has landed or the transition is cancelled. Otherwise the empty grid slot would
+     * keep a stationary outline while the thumbnail is somewhere between the terminal and the card.
      */
-    private void setCardShadowSuppressed(@Nullable Card card, boolean suppressed) {
-        if (card == null || card.shadowSuppressed == suppressed) return;
-        card.shadowSuppressed = suppressed;
+    private void setCardOutlineSuppressed(@Nullable Card card, boolean suppressed) {
+        if (card == null || card.outlineSuppressed == suppressed) return;
+        card.outlineSuppressed = suppressed;
         applyCardAppearance(card);
     }
 
     /**
-     * Round the preview and the shadow with the compact tab's effective radius. The tab height
+     * Round the preview and the outline with the compact tab's effective radius. The tab height
      * changes with the single/double-line mode and Android clamps a background's corner radius to
      * half the tab height, so a fixed 18dp thumbnail would no longer match the tab. The radius
      * below mirrors that clamp exactly.
@@ -2801,7 +2943,7 @@ public final class SessionOverviewController {
         // The preview outline rounds the bitmap itself. The root outline and clip are the
         // second line of defence: some ImageView implementations and hardware layers do not
         // apply a child outline to the bitmap, while a ViewGroup clipToOutline always clips
-        // every child to the rounded card. Both use the same radius, so the shadow, preview
+        // every child to the rounded card. Both use the same radius, so the outline, preview
         // and tab agree.
         final RoundedOutlineProvider outline = new RoundedOutlineProvider(radius);
         card.preview.setOutlineProvider(outline);
@@ -3047,20 +3189,24 @@ public final class SessionOverviewController {
             return;
         }
 
-        if (card.bitmap != null
-                && (card.bitmap.getWidth() != mCardWidth
-                || card.bitmap.getHeight() != mCardHeight)) {
-            card.preview.setImageDrawable(null);
-            releaseBitmap(card);
-        }
-        if (card.bitmap == null) {
+        final Bitmap oldBitmap = card.bitmap;
+        final boolean sizeChanged = oldBitmap != null
+                && (oldBitmap.getWidth() != mCardWidth
+                || oldBitmap.getHeight() != mCardHeight);
+        if (oldBitmap == null || sizeChanged) {
             card.bitmap = Bitmap.createBitmap(mCardWidth, mCardHeight,
                     Bitmap.Config.RGB_565);
         }
 
         TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface,
                 scrollTopRow(card.session));
+        // Keep the old preview visible until the replacement has been fully rendered. Clearing
+        // the ImageView first would expose a blank card for a frame whenever the grid aspect
+        // changes, for example after closing the active session.
         card.preview.setImageBitmap(card.bitmap);
+        if (sizeChanged && oldBitmap != null && oldBitmap != card.bitmap) {
+            recycleBitmap(oldBitmap);
+        }
         // The bitmap object is reused, so an ImageView that already holds it would not know the
         // pixels changed. Explicit invalidation is what makes the card live rather than a still.
         card.preview.invalidate();
@@ -3259,8 +3405,6 @@ public final class SessionOverviewController {
         final Rect cardStartLocal;
         final Rect terminalTargetLocal;
         ImageView terminalGhost;
-        /** Full floating-shadow elevation the expanding snapshot fades out of. */
-        float terminalShadowElevation;
         /** Window surface blend from the overview backdrop back to the app background. */
         int backgroundStart;
         int backgroundEnd;
@@ -3289,8 +3433,6 @@ public final class SessionOverviewController {
         Rect terminalSource;
         Rect terminalSourceLocal;
         ImageView terminalGhost;
-        /** Full floating-shadow elevation the flying terminal snapshot grows into. */
-        float terminalShadowElevation;
         /** Window surface blend from the app background into the overview backdrop. */
         int backgroundStart;
         int backgroundEnd;
@@ -3308,7 +3450,7 @@ public final class SessionOverviewController {
         int startAttempts;
     }
 
-    /** Rounds a view and its shadow to the tab's effective corner radius. */
+    /** Rounds a view to the tab's effective corner radius. */
     private static final class RoundedOutlineProvider extends ViewOutlineProvider {
         private final float mRadius;
 
@@ -3331,10 +3473,10 @@ public final class SessionOverviewController {
         Bitmap bitmap;
         GradientDrawable tabBackground;
         int tabBackgroundColor;
-        /** Effective radius of the compact tab, reused by the thumbnail and its shadow. */
+        /** Effective radius of the compact tab, reused by the thumbnail and its outline. */
         float thumbnailCornerRadius;
-        /** True while the terminal snapshot owns the shadow during an opening/closing flight. */
-        boolean shadowSuppressed;
+        /** True while the terminal snapshot owns the visual during an opening/closing flight. */
+        boolean outlineSuppressed;
         String fullTitle = "";
         boolean selected;
         boolean stateValid;

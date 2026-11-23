@@ -13,11 +13,12 @@ import com.termux.R;
 /**
  * The elevation and colour pair shared by every surface that floats over the terminal.
  *
- * <p>The input-panel controls, the scrollbar thumb and the overview cards all lift off the
- * terminal with the same shadow. The colour follows the terminal scheme: a dark shadow on a light
- * scheme, a light one on a dark scheme. A black shadow would simply disappear on a dark terminal.
- * Below API 28 the platform only exposes the theme's shadow colour, so the elevation is still the
- * same but the colour is whatever the theme supplies.</p>
+ * <p>The input-panel controls and the scrollbar thumb share this shadow. Overview thumbnails
+ * deliberately cast no shadow; they use a thin outline in the floating controls' stroke colour
+ * instead. The colour follows the terminal scheme: a dark shadow on a light scheme, a light one on
+ * a dark scheme. A black shadow would simply disappear on a dark terminal. Below API 28 the
+ * platform only exposes the theme's shadow colour, so the elevation is still the same but the
+ * colour is whatever the theme supplies.</p>
  */
 final class FloatingShadow {
 

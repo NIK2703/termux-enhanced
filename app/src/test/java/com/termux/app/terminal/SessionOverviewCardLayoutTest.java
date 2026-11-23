@@ -1,7 +1,9 @@
 package com.termux.app.terminal;
 
 import android.app.Activity;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.text.Spanned;
 import android.text.style.CharacterStyle;
 import android.util.TypedValue;
@@ -84,6 +86,8 @@ public class SessionOverviewCardLayoutTest {
         Assert.assertTrue((closeParams.gravity & Gravity.END) == Gravity.END);
         Assert.assertTrue(closeParams.getMarginEnd() > tabParams.getMarginEnd());
         Assert.assertNotNull(close.getContentDescription());
+        // No borderless selectable background: tapping the cross must not pulse a ripple.
+        Assert.assertNull(close.getBackground());
         Assert.assertEquals(0f, close.getElevation(), 0f);
         Assert.assertEquals(0f, close.getTranslationZ(), 0f);
 
@@ -115,7 +119,7 @@ public class SessionOverviewCardLayoutTest {
     }
 
     @Test
-    public void cardHasNoBackgroundBorderOrPressRippleButUsesTheSharedShadow() {
+    public void cardHasNoBackgroundOrShadowAndUsesTheFloatingOutline() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         SessionOverviewCardView card = (SessionOverviewCardView) LayoutInflater.from(activity)
                 .inflate(R.layout.item_session_overview_card, null, false);
@@ -125,10 +129,59 @@ public class SessionOverviewCardLayoutTest {
         Assert.assertNull(card.getForeground());
         Assert.assertFalse(card.getClipToOutline());
         Assert.assertNotNull(card.getOutlineProvider());
-        // The thumbnail casts the same 4dp shadow as the controls drawn over the terminal.
-        Assert.assertEquals(FloatingShadow.elevationPx(activity.getResources()),
-                card.getElevation(), 0f);
+        // The thumbnail casts no shadow; the thin outline is its only chrome.
+        Assert.assertEquals(0f, card.getElevation(), 0f);
         Assert.assertNull(preview.getBackground());
+    }
+
+    @Test
+    public void outlineIsInsetInsideTheRoundedCornerWithTheFloatingStroke() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        SessionOverviewCardView card = (SessionOverviewCardView) LayoutInflater.from(activity)
+                .inflate(R.layout.item_session_overview_card, null, false);
+        card.layout(0, 0, 100, 80);
+        final RecordingCanvas canvas = new RecordingCanvas();
+        final int color = 0x80123456;
+
+        card.setBorder(2, color, 12f);
+        card.dispatchDraw(canvas);
+
+        Assert.assertEquals(1, canvas.roundRectDraws);
+        // A 2px stroke is inset by half its width so the outline stays inside the clip.
+        Assert.assertEquals(1f, canvas.left, 0f);
+        Assert.assertEquals(1f, canvas.top, 0f);
+        Assert.assertEquals(99f, canvas.right, 0f);
+        Assert.assertEquals(79f, canvas.bottom, 0f);
+        Assert.assertEquals(11f, canvas.radius, 0f);
+        Assert.assertEquals(color, canvas.paint.getColor());
+        Assert.assertEquals(2f, canvas.paint.getStrokeWidth(), 0f);
+        Assert.assertEquals(Paint.Style.STROKE, canvas.paint.getStyle());
+
+        card.setBorderSuppressed(true);
+        card.dispatchDraw(canvas);
+        Assert.assertEquals(1, canvas.roundRectDraws);
+    }
+
+    private static final class RecordingCanvas extends Canvas {
+        int roundRectDraws;
+        float left;
+        float top;
+        float right;
+        float bottom;
+        float radius;
+        Paint paint;
+
+        @Override
+        public void drawRoundRect(float left, float top, float right, float bottom,
+                                  float rx, float ry, Paint paint) {
+            roundRectDraws++;
+            this.left = left;
+            this.top = top;
+            this.right = right;
+            this.bottom = bottom;
+            this.radius = rx;
+            this.paint = paint;
+        }
     }
 
     @Test

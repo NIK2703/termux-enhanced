@@ -424,6 +424,17 @@ final class SessionOverviewDragController {
 
         beginSettle(orderedCards, fromCenterXs, fromCenterYs,
                 targetCenterXs, targetCenterYs, to);
+        // Re-adding the children clears their transforms. Put every card back at its previous
+        // visual centre before the next layout pass. Without this seed, the grid is painted once
+        // in the new order: the card under the finger appears in the dragged card's old slot,
+        // then jumps back and animates into that slot.
+        seedLayoutChangeTranslations(orderedCards, fromCenterXs, fromCenterYs,
+                targetCenterXs, targetCenterYs);
+        final SessionOverviewCardView draggedCard = orderedCards.get(to);
+        draggedCard.setScaleX(LIFT_SCALE);
+        draggedCard.setScaleY(LIFT_SCALE);
+        draggedCard.setAlpha(LIFT_ALPHA);
+        draggedCard.setTranslationZ(mLiftZ);
 
         resetGesture();
         disallowIntercept(card, false);
@@ -483,6 +494,27 @@ final class SessionOverviewDragController {
         }
         beginSettle(cards, fromCenterXs, fromCenterYs,
                 targetCenterXs, targetCenterYs, -1);
+        // Seed the old visual centres before the next layout. Otherwise the new grid can be
+        // painted once in its destination slots and then jump back when settleWhenLaidOut()
+        // applies the same translation after the layout pass.
+        seedLayoutChangeTranslations(cards, fromCenterXs, fromCenterYs,
+                targetCenterXs, targetCenterYs);
+    }
+
+    /**
+     * Keep every card at its previous visual centre while the grid has not laid out the new
+     * slots yet. Translation is relative to the laid-out bounds, so once layout moves a card to
+     * its target slot the visual centre is again the old one and the settle animation can run
+     * from there without an intermediate flash.
+     */
+    private static void seedLayoutChangeTranslations(
+            @NonNull List<SessionOverviewCardView> cards,
+            @NonNull float[] fromCenterXs, @NonNull float[] fromCenterYs,
+            @NonNull float[] targetCenterXs, @NonNull float[] targetCenterYs) {
+        for (int i = 0; i < cards.size(); i++) {
+            cards.get(i).setTranslationX(fromCenterXs[i] - targetCenterXs[i]);
+            cards.get(i).setTranslationY(fromCenterYs[i] - targetCenterYs[i]);
+        }
     }
 
     /**
@@ -561,6 +593,22 @@ final class SessionOverviewDragController {
 
     private void cancelPendingSettle() {
         mGrid.removeCallbacks(mSettleRunnable);
+        // The settle seeds translations before layout so the new slots cannot be painted for a
+        // frame. If the settle is abandoned (another model change, a detached child or a layout
+        // that never reaches the target), those seeds must not stay behind as a permanent offset.
+        final List<SessionOverviewCardView> cards = mSettleCards;
+        if (cards != null) {
+            for (SessionOverviewCardView card : cards) {
+                if (!card.isAttachedToWindow()) continue;
+                card.animate().cancel();
+                card.setTranslationX(0f);
+                card.setTranslationY(0f);
+                card.setScaleX(1f);
+                card.setScaleY(1f);
+                card.setAlpha(1f);
+                card.setTranslationZ(0f);
+            }
+        }
         clearSettleState();
     }
 

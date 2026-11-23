@@ -16,9 +16,10 @@
     <dimen name="terminal_tab_close_gap">4dp</dimen>
     <dimen name="terminal_tab_close_size">20dp</dimen>
 
-    <!-- Session overview grid -->
+    <!-- Session overview grid. One value drives the gap between cards and the grid's outer
+         gutter reserve. -->
     <dimen name="session_overview_gap">8dp</dimen>
-    <dimen name="session_overview_tab_margin">6dp</dimen>
+    <dimen name="session_overview_tab_margin">2dp</dimen>
     <!-- Fallback only: the controller adopts the strip tab's height, corner radius and line
          count, including the two-line mode, before the cards are shown. -->
     <dimen name="session_overview_tab_height">28dp</dimen>
@@ -30,7 +31,9 @@
          shared 13sp font the full tab height instead of clipping it in single-line mode. -->
     <dimen name="session_overview_tab_padding_vertical">0dp</dimen>
     <!-- Tab margin + the tab's horizontal padding: the close icon sits 8dp inside the pill. -->
-    <dimen name="session_overview_tab_close_inset">14dp</dimen>
+    <dimen name="session_overview_tab_close_inset">10dp</dimen>
+    <!-- The thumbnail has no shadow. Its outline reuses terminal_text_input_stroke and the
+         floating controls' runtime stroke colour. -->
 
     <!-- Text input panel (matches vertical scrollbar thumb) -->
     <dimen name="terminal_text_input_corner_radius">11dp</dimen>

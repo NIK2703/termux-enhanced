@@ -4,6 +4,9 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -44,6 +47,10 @@ public class SessionOverviewCardView extends FrameLayout {
     private final int mTouchSlop;
     private final int mMinFlingVelocity;
     private final float mDragElevationPx;
+    private final Paint mBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private float mBorderWidth;
+    private float mBorderRadius;
+    private boolean mBorderSuppressed;
 
     @Nullable
     private OnSwipeDismissListener mSwipeDismissListener;
@@ -78,6 +85,42 @@ public class SessionOverviewCardView extends FrameLayout {
         mTouchSlop = configuration.getScaledTouchSlop();
         mMinFlingVelocity = configuration.getScaledMinimumFlingVelocity();
         mDragElevationPx = DRAG_ELEVATION_DP * getResources().getDisplayMetrics().density;
+        mBorderPaint.setStyle(Paint.Style.STROKE);
+    }
+
+    /**
+     * Set the thin outline drawn inside the card's rounded corners. The controller supplies the
+     * same stroke width and colour as the controls floating over the terminal.
+     */
+    public void setBorder(int widthPx, int color, float radiusPx) {
+        mBorderWidth = Math.max(0, widthPx);
+        mBorderRadius = Math.max(0f, radiusPx);
+        mBorderPaint.setStrokeWidth(mBorderWidth);
+        mBorderPaint.setColor(color);
+        invalidate();
+    }
+
+    /** Hide the outline while a terminal snapshot owns the card's visual during a flight. */
+    public void setBorderSuppressed(boolean suppressed) {
+        if (mBorderSuppressed == suppressed) return;
+        mBorderSuppressed = suppressed;
+        invalidate();
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+        if (mBorderSuppressed || mBorderWidth <= 0f
+                || Color.alpha(mBorderPaint.getColor()) == 0
+                || getWidth() <= mBorderWidth || getHeight() <= mBorderWidth) {
+            return;
+        }
+        // Keep the stroke fully inside the rounded outline. The root is clipped to that outline,
+        // so a stroke centred on the edge would lose half of its width.
+        final float inset = mBorderWidth / 2f;
+        final float radius = Math.max(0f, mBorderRadius - inset);
+        canvas.drawRoundRect(inset, inset, getWidth() - inset, getHeight() - inset,
+                radius, radius, mBorderPaint);
     }
 
     public void setOnSwipeDismissListener(@Nullable OnSwipeDismissListener listener) {
