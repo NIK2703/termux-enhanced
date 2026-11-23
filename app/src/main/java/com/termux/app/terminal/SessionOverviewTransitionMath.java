@@ -16,17 +16,18 @@ public final class SessionOverviewTransitionMath {
 
     /**
      * Progress by which the copy of a flying tab at its source has fully faded out. The fade
-     * covers the first quarter of the flight, so the tab disappears after travelling 25% of its
-     * path and crosses the remaining quarter of the source half invisibly.
+     * covers the first third of the flight, so the tab disappears after travelling 33% of its
+     * path and crosses the remaining sixth of the line — one third of the source half —
+     * invisibly.
      */
-    public static final float TAB_FADE_OUT_END = 0.25f;
+    public static final float TAB_FADE_OUT_END = 1f / 3f;
 
     /**
      * Progress at which the copy of a flying tab at its target starts fading in. The fade covers
-     * the last quarter of the flight, so the target half is traversed invisibly until 75% of the
+     * the last third of the flight, so the target half is traversed invisibly until 67% of the
      * path and only then reappears.
      */
-    public static final float TAB_FADE_IN_START = 0.75f;
+    public static final float TAB_FADE_IN_START = 2f / 3f;
 
     /** Fraction of the path at which the source copy hands over to the target copy. */
     public static final float TAB_MOTION_SPLIT = 0.5f;
@@ -54,8 +55,8 @@ public final class SessionOverviewTransitionMath {
     /**
      * Opacity of the copy of a flying tab that is still at its source size and title.
      *
-     * <p>The tab leaves immediately: it fades out over the first 25% of the flight while
-     * moving along the first quarter of the source-to-target line at the size and title it had
+     * <p>The tab leaves immediately: it fades out over the first third of the flight while
+     * moving along the first third of the source-to-target line at the size and title it had
      * in the strip or on the card. Only its position is interpolated; no text is re-laid out.</p>
      */
     public static float tabSourceAlpha(float progress) {
@@ -67,8 +68,8 @@ public final class SessionOverviewTransitionMath {
     /**
      * Opacity of the copy of a flying tab that is already at its target size and title.
      *
-     * <p>The target copy stays invisible until 75% of the path, then fades in over the last
-     * quarter while moving the rest of the way. The source and target fades never overlap, so
+     * <p>The target copy stays invisible until 67% of the path, then fades in over the last
+     * third while moving the rest of the way. The source and target fades never overlap, so
      * the tab is never drawn twice.</p>
      */
     public static float tabTargetAlpha(float progress) {
@@ -78,8 +79,8 @@ public final class SessionOverviewTransitionMath {
     /**
      * Fraction of the source-to-target centre line covered by the source copy of a flying tab.
      * It advances linearly from 0 to {@link #TAB_MOTION_SPLIT} over the first half of the flight.
-     * The fade ends at 25% of that line; the remaining quarter of the source half is traversed
-     * invisibly before the hand-off.
+     * The fade ends at one third of that line; the remaining sixth of the path — one third of
+     * the source half — is traversed invisibly before the hand-off.
      */
     public static float tabSourcePathFraction(float progress) {
         final float p = clamp01(progress);
@@ -90,8 +91,8 @@ public final class SessionOverviewTransitionMath {
     /**
      * Fraction of the source-to-target centre line covered by the target copy of a flying tab.
      * It advances linearly from {@link #TAB_MOTION_SPLIT} to 1 over the second half of the
-     * flight. The target stays invisible for the first half of that segment and fades in from
-     * the 75% point of the line.
+     * flight. The target stays invisible for the first third of that segment and fades in from
+     * the 67% point of the line.
      */
     public static float tabTargetPathFraction(float progress) {
         final float p = clamp01(progress);
@@ -154,7 +155,7 @@ public final class SessionOverviewTransitionMath {
 
     /**
      * Opacity of every non-active opening card. All cards use the flying tab's target fade:
-     * invisible until 75% of the path, then visible over the last quarter. A card without a
+     * invisible until 67% of the path, then visible over the last third. A card without a
      * visible tab does not move, but its appearance must still coincide with the cards that do.
      * The active card is represented by the terminal snapshot and stays out of this fade.
      */
@@ -164,7 +165,7 @@ public final class SessionOverviewTransitionMath {
 
     /**
      * Opacity of every unselected closing card. All cards use the flying tab's source fade:
-     * visible at the start, gone by 25% of the path. A card without a visible tab does not move,
+     * visible at the start, gone by 33% of the path. A card without a visible tab does not move,
      * but its disappearance must still coincide with the cards that do. The selected card is
      * represented by the expanding terminal snapshot and stays out of this fade.
      */
@@ -183,15 +184,27 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Translation Z for a flying tab. The terminal snapshot's elevation is animated up to
-     * {@code terminalElevation}, and child Z order wins over insertion order, so a tab with
-     * the default Z would disappear under the terminal even when it is added later. Keeping
-     * every tab one pixel above the snapshot's maximum elevation makes the strip stay on top
-     * for the whole flight.
+     * Translation Z for a flying tab that is travelling above the terminal snapshot. The
+     * snapshot's elevation is animated up to {@code terminalElevation}, and child Z order wins
+     * over insertion order, so a tab with the default Z would disappear under the terminal even
+     * when it is added later. Keeping the tab one pixel above the snapshot's maximum elevation
+     * makes it stay on top for the whole flight.
      */
     public static float tabGhostZ(float terminalElevation) {
         final float elevation = Float.isNaN(terminalElevation) ? 0f : terminalElevation;
         return Math.max(0f, elevation) + 1f;
+    }
+
+    /**
+     * Translation Z for a flying tab whose card thumbnail is visible and moving with it.
+     *
+     * <p>That pair belongs to the grid, not to the terminal that is shrinking or expanding
+     * above it. A zero translation Z puts the tab below every positive terminal elevation, so
+     * the terminal window covers the tab and its thumbnail. A tab moving alone, with no
+     * thumbnail on screen yet or any more, keeps the old "above the terminal" Z.</p>
+     */
+    public static float tabGhostZ(boolean thumbnailVisible, float terminalElevation) {
+        return thumbnailVisible ? 0f : tabGhostZ(terminalElevation);
     }
 
     /** Linear ARGB interpolation, including alpha. */

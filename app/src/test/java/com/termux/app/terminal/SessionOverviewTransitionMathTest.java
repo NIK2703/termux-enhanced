@@ -78,7 +78,8 @@ public class SessionOverviewTransitionMathTest {
         Assert.assertEquals(1f,
                 SessionOverviewTransitionMath.tabSourceAlpha(0f), EPS);
         Assert.assertEquals(0.5f,
-                SessionOverviewTransitionMath.tabSourceAlpha(0.125f), EPS);
+                SessionOverviewTransitionMath.tabSourceAlpha(
+                        SessionOverviewTransitionMath.TAB_FADE_OUT_END / 2f), EPS);
         Assert.assertEquals(0f,
                 SessionOverviewTransitionMath.tabSourceAlpha(
                         SessionOverviewTransitionMath.TAB_FADE_OUT_END), EPS);
@@ -90,7 +91,10 @@ public class SessionOverviewTransitionMathTest {
                 SessionOverviewTransitionMath.tabTargetAlpha(
                         SessionOverviewTransitionMath.TAB_FADE_IN_START), EPS);
         Assert.assertEquals(0.5f,
-                SessionOverviewTransitionMath.tabTargetAlpha(0.875f), EPS);
+                SessionOverviewTransitionMath.tabTargetAlpha(
+                        SessionOverviewTransitionMath.TAB_FADE_IN_START
+                                + (1f - SessionOverviewTransitionMath.TAB_FADE_IN_START) / 2f),
+                EPS);
         Assert.assertEquals(1f,
                 SessionOverviewTransitionMath.tabTargetAlpha(1f), EPS);
 
@@ -121,20 +125,20 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
-    public void tabsFadeAtQuarterAndThreeQuarterPointsOfThePath() {
-        // The tab disappears only after travelling 25% of the line, crosses the middle half
-        // invisibly while its size/style changes, and reappears for the last quarter. The path
-        // itself stays a single continuous run; only the alpha is absent in the middle.
+    public void tabsFadeAtOneThirdAndTwoThirdsPointsOfThePath() {
+        // The tab disappears only after travelling one third of the line, crosses the middle
+        // third invisibly while its size/style changes, and reappears for the last third. The
+        // path itself stays a single continuous run; only the alpha is absent in the middle.
         Assert.assertEquals(0f,
                 SessionOverviewTransitionMath.tabSourcePathFraction(0f), EPS);
-        Assert.assertEquals(0.25f,
+        Assert.assertEquals(SessionOverviewTransitionMath.TAB_FADE_OUT_END,
                 SessionOverviewTransitionMath.tabSourcePathFraction(
                         SessionOverviewTransitionMath.TAB_FADE_OUT_END), EPS);
         Assert.assertEquals(SessionOverviewTransitionMath.TAB_MOTION_SPLIT,
                 SessionOverviewTransitionMath.tabSourcePathFraction(0.5f), EPS);
         Assert.assertEquals(SessionOverviewTransitionMath.TAB_MOTION_SPLIT,
                 SessionOverviewTransitionMath.tabTargetPathFraction(0f), EPS);
-        Assert.assertEquals(0.75f,
+        Assert.assertEquals(SessionOverviewTransitionMath.TAB_FADE_IN_START,
                 SessionOverviewTransitionMath.tabTargetPathFraction(
                         SessionOverviewTransitionMath.TAB_FADE_IN_START), EPS);
         Assert.assertEquals(1f,
@@ -239,6 +243,19 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
+    public void tabsWithVisibleThumbnailsGoBelowTheTerminalSnapshot() {
+        // The pair is drawn at Z 0, below every positive terminal elevation.
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.tabGhostZ(true, 24f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.tabGhostZ(true, 0f), EPS);
+        // A tab moving without its thumbnail keeps the old above-the-terminal order.
+        Assert.assertTrue(SessionOverviewTransitionMath.tabGhostZ(false, 24f) > 24f);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.tabGhostZ(false, Float.NaN), EPS);
+    }
+
+    @Test
     public void overviewCardsShareTheTabFadeSchedule() {
         // Every non-active opening card shares the tab's target fade. This includes cards
         // whose tab was not visible in the strip: they do not move, but they must not appear
@@ -250,11 +267,13 @@ public class SessionOverviewTransitionMathTest {
         Assert.assertEquals(0f,
                 SessionOverviewTransitionMath.openingCardAlpha(0.5f), EPS);
         Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.openingCardAlpha(0.75f), EPS);
-        Assert.assertEquals(0.2f,
-                SessionOverviewTransitionMath.openingCardAlpha(0.8f), EPS);
+                SessionOverviewTransitionMath.openingCardAlpha(
+                        SessionOverviewTransitionMath.TAB_FADE_IN_START), EPS);
         Assert.assertEquals(0.5f,
-                SessionOverviewTransitionMath.openingCardAlpha(0.875f), EPS);
+                SessionOverviewTransitionMath.openingCardAlpha(
+                        SessionOverviewTransitionMath.TAB_FADE_IN_START
+                                + (1f - SessionOverviewTransitionMath.TAB_FADE_IN_START) / 2f),
+                EPS);
         Assert.assertEquals(1f,
                 SessionOverviewTransitionMath.openingCardAlpha(1f), EPS);
         Assert.assertEquals(1f,
@@ -267,9 +286,11 @@ public class SessionOverviewTransitionMathTest {
         Assert.assertEquals(1f,
                 SessionOverviewTransitionMath.closingCardAlpha(0f), EPS);
         Assert.assertEquals(0.5f,
-                SessionOverviewTransitionMath.closingCardAlpha(0.125f), EPS);
+                SessionOverviewTransitionMath.closingCardAlpha(
+                        SessionOverviewTransitionMath.TAB_FADE_OUT_END / 2f), EPS);
         Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.closingCardAlpha(0.25f), EPS);
+                SessionOverviewTransitionMath.closingCardAlpha(
+                        SessionOverviewTransitionMath.TAB_FADE_OUT_END), EPS);
         Assert.assertEquals(0f,
                 SessionOverviewTransitionMath.closingCardAlpha(0.75f), EPS);
         Assert.assertEquals(0f,

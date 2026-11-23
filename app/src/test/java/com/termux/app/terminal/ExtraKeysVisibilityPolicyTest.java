@@ -53,4 +53,12 @@ public class ExtraKeysVisibilityPolicyTest {
         Assert.assertTrue(visible(true, true, true, false, true));
         Assert.assertTrue(visible(true, true, true, false, false));
     }
+
+    @Test
+    public void overviewAnimatesOnlyTheAlwaysOnPanel() {
+        Assert.assertTrue(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, false));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, true));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(false, false));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(false, true));
+    }
 }

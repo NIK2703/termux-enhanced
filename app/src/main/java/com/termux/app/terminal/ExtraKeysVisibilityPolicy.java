@@ -32,4 +32,14 @@ public final class ExtraKeysVisibilityPolicy {
 
         return !hideWithKeyboard || keyboardVisible;
     }
+
+    /**
+     * Whether the extra-keys panel is configured to stay on screen in every keyboard state,
+     * i.e. the "always" mode. This is the only mode whose temporary hide for the all-sessions
+     * overview is animated: in the keyboard-only mode the panel is already gone whenever the
+     * keyboard is down, so there is nothing to slide away.
+     */
+    public static boolean isExtraKeysAlwaysMode(boolean toolbarEnabled, boolean hideWithKeyboard) {
+        return toolbarEnabled && !hideWithKeyboard;
+    }
 }

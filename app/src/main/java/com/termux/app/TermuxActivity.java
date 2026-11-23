@@ -30,6 +30,7 @@ import android.view.ViewParent;
 import android.view.Window;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.animation.PathInterpolator;
 import android.widget.PopupWindow;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -54,6 +55,7 @@ import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
 import com.termux.app.terminal.BottomStripAnchors;
 import com.termux.app.terminal.SessionPagerManager;
 import com.termux.app.terminal.SessionOverviewController;
+import com.termux.app.terminal.SessionOverviewTransitionMath;
 import com.termux.app.terminal.io.TermuxTerminalExtraKeys;
 import com.termux.shared.activities.ReportActivity;
 import com.termux.shared.activity.ActivityUtils;
@@ -465,6 +467,17 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
     private TextInputPanelController mTextInputPanel;
     private AutoCompleteController mAutoCompleteCtrl;
+
+    /**
+     * The always-on extra-keys panel while the overview's temporary hide owns it. The overview
+     * normally makes every live view transparent; this panel instead slides down and fades, so
+     * it must stay out of that all-or-nothing alpha pass until it is put back.
+     */
+    @Nullable private View mOverviewExtraKeysPanel;
+    private float mOverviewExtraKeysPanelBaseAlpha = 1f;
+    private int mOverviewExtraKeysPanelSlidePx;
+    /** Invalidates end actions from a panel animation that has been superseded. */
+    private int mOverviewExtraKeysAnimationGeneration;
     /** The session whose text the shared input field currently displays. Set ONLY by
      * restoreTextInputForSession() — the single authority that re-points the field.
      * Invariant: the field is always the live buffer of the CURRENT session; every
@@ -5522,6 +5535,125 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setTextInputPanelVisible(true);
         restoreTextInputForSession(session);
         updateToggleTextInputButtonIcon();
+    }
+
+    /**
+     * Capture the always-on extra-keys panel before the overview hides the live content.
+     *
+     * <p>Other live views are made transparent in one frame. This panel instead slides down and
+     * fades, so the overview must leave it out of that pass. Only the "always" mode is animated:
+     * in the keyboard-only mode the panel is already hidden whenever the keyboard is down, and
+     * there is nothing to slide away. Returns the panel that the overview now owns, or null when
+     * the normal all-at-once hide should handle it.</p>
+     */
+    @Nullable
+    public View prepareExtraKeysPanelForOverview() {
+        final LinearLayout panel = getTerminalToolbarContainer();
+        final ExtraKeysView extraKeys = getExtraKeysView();
+        final boolean eligible = mPreferences != null
+            && ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(
+                mPreferences.shouldShowTerminalToolbar(),
+                mPreferences.shouldHideExtraKeysWithKeyboard())
+            && panel != null && extraKeys != null
+            && panel.getVisibility() == View.VISIBLE
+            && extraKeys.getVisibility() == View.VISIBLE;
+
+        if (!eligible) {
+            if (mOverviewExtraKeysPanel != null) cancelExtraKeysPanelOverview();
+            return null;
+        }
+
+        if (mOverviewExtraKeysPanel == panel) {
+            // A quick reopening may catch the panel halfway through its return. Keep the
+            // captured base alpha and let the new hide start from wherever it is now.
+            panel.animate().cancel();
+        } else {
+            if (mOverviewExtraKeysPanel != null) cancelExtraKeysPanelOverview();
+            panel.animate().cancel();
+            mOverviewExtraKeysPanelBaseAlpha = panel.getAlpha();
+            panel.setTranslationY(0f);
+            panel.setAlpha(mOverviewExtraKeysPanelBaseAlpha);
+        }
+        mOverviewExtraKeysAnimationGeneration++;
+        mOverviewExtraKeysPanel = panel;
+        mOverviewExtraKeysPanelSlidePx = overviewExtraKeysPanelSlidePx(panel);
+        return panel;
+    }
+
+    /** Start the captured panel's downward slide and fade, once the overlay is on screen. */
+    public void startExtraKeysPanelHideForOverview() {
+        final View panel = mOverviewExtraKeysPanel;
+        if (panel == null) return;
+        mOverviewExtraKeysAnimationGeneration++;
+        panel.animate().cancel();
+        panel.animate()
+            .alpha(0f)
+            .translationY(mOverviewExtraKeysPanelSlidePx)
+            .setDuration(SessionOverviewTransitionMath.DURATION_MS)
+            .setInterpolator(new PathInterpolator(0.4f, 0f, 0.2f, 1f))
+            .start();
+    }
+
+    /**
+     * Pin the panel in its hidden state without animating. Used while the overview survives a
+     * trip to the background and while an interrupted closing flight returns to the grid.
+     */
+    public void keepExtraKeysPanelHiddenForOverview() {
+        final View panel = mOverviewExtraKeysPanel;
+        if (panel == null) return;
+        mOverviewExtraKeysAnimationGeneration++;
+        panel.animate().cancel();
+        panel.setAlpha(0f);
+        panel.setTranslationY(mOverviewExtraKeysPanelSlidePx);
+    }
+
+    /** Slide the captured panel back up and fade it in as the overview leaves. */
+    public void showExtraKeysPanelAfterOverview() {
+        final View panel = mOverviewExtraKeysPanel;
+        if (panel == null) return;
+        final int generation = ++mOverviewExtraKeysAnimationGeneration;
+        panel.animate().cancel();
+        panel.animate()
+            .alpha(mOverviewExtraKeysPanelBaseAlpha)
+            .translationY(0f)
+            .setDuration(SessionOverviewTransitionMath.DURATION_MS)
+            .setInterpolator(new PathInterpolator(0.4f, 0f, 0.2f, 1f))
+            .withEndAction(() -> {
+                if (generation != mOverviewExtraKeysAnimationGeneration
+                        || mOverviewExtraKeysPanel != panel) {
+                    return;
+                }
+                panel.setAlpha(mOverviewExtraKeysPanelBaseAlpha);
+                panel.setTranslationY(0f);
+                mOverviewExtraKeysPanel = null;
+                mOverviewExtraKeysPanelBaseAlpha = 1f;
+                mOverviewExtraKeysPanelSlidePx = 0;
+            })
+            .start();
+    }
+
+    /** Drop the panel state and put the view back at rest without animating. */
+    public void cancelExtraKeysPanelOverview() {
+        final View panel = mOverviewExtraKeysPanel;
+        mOverviewExtraKeysAnimationGeneration++;
+        mOverviewExtraKeysPanel = null;
+        if (panel != null) {
+            panel.animate().cancel();
+            panel.setAlpha(mOverviewExtraKeysPanelBaseAlpha);
+            panel.setTranslationY(0f);
+        }
+        mOverviewExtraKeysPanelBaseAlpha = 1f;
+        mOverviewExtraKeysPanelSlidePx = 0;
+    }
+
+    /**
+     * A light downward travel, not a full panel height. Short panels still move enough to read;
+     * tall ones do not dive off the screen before their alpha has caught up.
+     */
+    private int overviewExtraKeysPanelSlidePx(@NonNull View panel) {
+        final int height = panel.getHeight();
+        final int byHeight = height > 0 ? Math.round(height * 0.3f) : dpToPx(16);
+        return Math.max(dpToPx(8), Math.min(dpToPx(20), byHeight));
     }
 
     /**

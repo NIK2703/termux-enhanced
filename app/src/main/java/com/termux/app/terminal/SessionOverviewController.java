@@ -91,6 +91,12 @@ public final class SessionOverviewController {
     private final View mTabPanel;
     @Nullable
     private final ViewGroup mRootView;
+    /**
+     * Always-on extra-keys panel whose temporary hide is animated by the activity instead of
+     * being made transparent with the rest of the live content.
+     */
+    @Nullable
+    private View mAnimatedExtraKeysPanel;
 
     /** Non-zero while the overlay is drawn behind the status bar, in pixels. */
     private int mStatusBarTopExtension;
@@ -343,13 +349,21 @@ public final class SessionOverviewController {
      * <p>Alpha, not visibility, is used deliberately: the strip must stay {@link View#isShown()}
      * and laid out for the closing tab flight, and the active terminal must still be drawable
      * for the expansion snapshot.</p>
+     *
+     * <p>The always-on extra-keys panel is the one exception: its hide is a slide-and-fade
+     * owned by the activity, so it is left out of this all-at-once pass. Its own animation
+     * ends at alpha zero, and {@link #restoreLiveContentAfterOverview()} must not snap it back
+     * to full strength before the reverse slide has run.</p>
      */
     private void hideLiveContentForOverview() {
         if (!(mContentArea instanceof ViewGroup)) return;
         final ViewGroup content = (ViewGroup) mContentArea;
         for (int i = 0; i < content.getChildCount(); i++) {
             final View child = content.getChildAt(i);
-            if (child == mOverlay || mHiddenLiveViews.contains(child)) continue;
+            if (child == mOverlay || child == mAnimatedExtraKeysPanel
+                    || mHiddenLiveViews.contains(child)) {
+                continue;
+            }
             mHiddenLiveViews.add(child);
             mHiddenLiveViewAlphas.add(child.getAlpha());
             child.setAlpha(0f);
@@ -390,6 +404,10 @@ public final class SessionOverviewController {
         mShowing = true;
         mActivity.dismissAutoCompleteSuggestions();
         mActivity.dismissMessageHistoryPopup();
+        // Capture the always-on extra-keys panel before the input panel hide changes which
+        // bottom strip is visible. It gets a slide-and-fade of its own; every other live view
+        // is still hidden in one frame.
+        mAnimatedExtraKeysPanel = mActivity.prepareExtraKeysPanelForOverview();
         final View focused = mActivity.getCurrentFocus();
         // The input panel floats above the terminal with its own elevation, so it would punch
         // through the overview. Hide it for the duration of the overview, but save its
@@ -419,6 +437,8 @@ public final class SessionOverviewController {
             mShowing = false;
             releaseCards();
             discardTransition(transition);
+            mActivity.cancelExtraKeysPanelOverview();
+            mAnimatedExtraKeysPanel = null;
             mActivity.restoreTextInputPanelAfterOverview();
             mActivity.updateToggleTextInputButtonIcon();
             // applyOverviewBackground() changed the window colour before the card list turned
@@ -446,6 +466,9 @@ public final class SessionOverviewController {
         final boolean statusBarExtended = extendOverlayIntoStatusBar();
         if (statusBarExtended) applyOverviewStatusBarAppearance(mOverlayBackgroundColor);
         mOverlay.setVisibility(View.VISIBLE);
+        // The overlay is on screen, so the panel is no longer the user's live bottom strip.
+        // Let it sink and fade behind the grid instead of vanishing on the first frame.
+        mActivity.startExtraKeysPanelHideForOverview();
         mOverlay.requestFocus();
         mGrid.requestLayout();
         schedulePreviewRender();
@@ -521,6 +544,8 @@ public final class SessionOverviewController {
         // back to the scheme colour after the content is restored, never before: a transparent
         // overview over live content would flash the terminal through the grid.
         restoreLiveContentAfterOverview();
+        mActivity.showExtraKeysPanelAfterOverview();
+        mAnimatedExtraKeysPanel = null;
         mActivity.applySchemeColors();
         releaseCards();
         mActivity.updateToggleTextInputButtonIcon();
@@ -1125,6 +1150,7 @@ public final class SessionOverviewController {
         cancelTransition();
         cancelPendingClosingSelection();
         cancelClosingTransition();
+        mActivity.keepExtraKeysPanelHiddenForOverview();
         if (mDragController != null) mDragController.cancelForModelChange();
 
         if (mGrid != null) {
@@ -1153,6 +1179,7 @@ public final class SessionOverviewController {
         // overlay was in the background. Apply the same temporary suppression that show() uses.
         hideLiveContentForOverview();
         mActivity.hideTextInputPanelForOverview();
+        mActivity.keepExtraKeysPanelHiddenForOverview();
         KeyboardUtils.setSoftKeyboardAlwaysHiddenAndAdjustResize(mActivity);
         mSoftKeyboardHiddenForResume = true;
 
@@ -1187,6 +1214,8 @@ public final class SessionOverviewController {
         mHadIme = false;
         mSoftKeyboardHiddenForResume = false;
         releaseCards();
+        mActivity.cancelExtraKeysPanelOverview();
+        mAnimatedExtraKeysPanel = null;
         mHiddenLiveViews.clear();
         mHiddenLiveViewAlphas.clear();
     }
@@ -1404,6 +1433,22 @@ public final class SessionOverviewController {
         final float anchorStart = rtl ? anchorTab.right : anchorTab.left;
         cardRoot.setTranslationX(currentStart - anchorStart);
         cardRoot.setTranslationY(currentCenterY - anchorTab.centerY());
+    }
+
+    /**
+     * Put a flying tab and its attached close cross at the same height in the ghost layer.
+     *
+     * <p>While the tab and its card thumbnail are both visible they belong to the grid and pass
+     * under the shrinking or expanding terminal window. A tab moving alone — before its
+     * thumbnail has started to fade in or after it has faded out — stays above the terminal, as
+     * it did before.</p>
+     */
+    private static void applyTabGhostZ(@NonNull View tabGhost, @Nullable View closeGhost,
+                                       boolean thumbnailVisible, float terminalElevation) {
+        final float z = SessionOverviewTransitionMath.tabGhostZ(
+                thumbnailVisible, terminalElevation);
+        tabGhost.setTranslationZ(z);
+        if (closeGhost != null) closeGhost.setTranslationZ(z);
     }
 
     /**
@@ -1740,6 +1785,13 @@ public final class SessionOverviewController {
             // The active card belongs to the terminal snapshot, which is already shrinking into
             // its final slot. Every other card follows its tab so the thumbnail moves with it.
             final boolean companion = ghost.card != transition.activeCard;
+            // From the moment the thumbnail starts to appear, the tab and card are one pair.
+            // Let the terminal window cover that pair; a tab still travelling without its
+            // thumbnail stays above the terminal. The active card's tab is never reparented.
+            final boolean thumbnailVisible = companion
+                    && SessionOverviewTransitionMath.openingCardAlpha(p) > 0f;
+            applyTabGhostZ(ghost.view, ghost.closeGhost, thumbnailVisible,
+                    transition.terminalShadowElevation);
             if (ghost.targetApplied) {
                 ghost.view.setAlpha(targetAlpha);
                 if (ghost.targetBounds != null) {
@@ -1834,7 +1886,7 @@ public final class SessionOverviewController {
 
     /**
      * Fade every card that is not represented by the flying terminal. All of them share the
-     * flying tab's target fade, so a thumbnail emerges at 75% of the motion whether or not its
+     * flying tab's target fade, so a thumbnail emerges at 67% of the motion whether or not its
      * own tab was visible in the strip and has a ghost to move it. The active card owns the
      * terminal snapshot until the final frame, so it must stay out of this fade.
      */
@@ -2207,6 +2259,9 @@ public final class SessionOverviewController {
     private void startClosingTransition(@NonNull ClosingTransition transition) {
         if (mClosingTransition != transition || transition.started) return;
         transition.started = true;
+        // Bring the always-on extra-keys panel back with the expanding terminal instead of
+        // leaving an empty bottom strip until the overlay is removed.
+        mActivity.showExtraKeysPanelAfterOverview();
         // The overview backdrop crossfades back to the normal app background while the selected
         // terminal expands, so the live terminal lands on the same colour it had before opening.
         transition.backgroundStart = mActivity.getWindowBackgroundColor();
@@ -2299,7 +2354,7 @@ public final class SessionOverviewController {
 
     /**
      * Fade the rest of the grid out while the selected terminal expands. All unselected cards
-     * share the flying tab's source fade, so a thumbnail disappears during the first 25% of the
+     * share the flying tab's source fade, so a thumbnail disappears during the first 33% of the
      * motion whether or not its own tab was visible in the strip and has a ghost to move it.
      * The selected card is already owned by the opaque terminal snapshot, so only the neighbours
      * follow this alpha.
@@ -2327,6 +2382,15 @@ public final class SessionOverviewController {
                 SessionOverviewTransitionMath.tabSourcePathFraction(p);
         final float targetPath =
                 SessionOverviewTransitionMath.tabTargetPathFraction(p);
+
+        // While the unselected card's thumbnail is still on screen it moves as one body with
+        // its tab, and the expanding terminal window covers both. Once the thumbnail has faded
+        // out the returning tab travels alone and keeps the old above-terminal z-order. The
+        // selected card's own tab is the terminal snapshot's partner and is left untouched.
+        final boolean thumbnailVisible = ghost.card != transition.card
+                && SessionOverviewTransitionMath.closingCardAlpha(p) > 0f;
+        applyTabGhostZ(ghost.view, ghost.closeGhost, thumbnailVisible,
+                transition.terminalShadowElevation);
 
         if (ghost.targetApplied) {
             ghost.view.setAlpha(targetAlpha);
@@ -2450,6 +2514,9 @@ public final class SessionOverviewController {
         // The cancelled flight may have left the decor halfway to the app background. The
         // overview is still open, so put its terminal backdrop back before restoring the strip.
         applyOverviewBackground();
+        // The panel may already be returning with the cancelled expansion. The overview still
+        // owns the screen, so pin it back to its hidden state.
+        mActivity.keepExtraKeysPanelHiddenForOverview();
         // The strip was pre-positioned for the target before the flight. A cancelled flight must
         // leave the highlight on the session that is still current.
         restoreTabSelectionToCurrentSession();
