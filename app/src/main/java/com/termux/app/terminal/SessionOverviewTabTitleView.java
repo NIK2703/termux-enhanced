@@ -11,9 +11,8 @@ import androidx.annotation.Nullable;
  * Tab title that fades the last visible characters instead of drawing an ellipsis.
  *
  * <p>The session overview card is a compact copy of a tab-strip tab. It reuses the strip's
- * wrapping and fade algorithm so a title is truncated the same way in both places, including
- * during the opening flight when the view width changes on every frame. The strip's single-line
- * and two-line modes are both supported.</p>
+ * wrapping and fade algorithm so a title is truncated the same way in both places. The strip's
+ * single-line and two-line modes are both supported.</p>
  */
 public class SessionOverviewTabTitleView extends TextView {
 
@@ -34,6 +33,10 @@ public class SessionOverviewTabTitleView extends TextView {
         // prefix and is exactly the "..." the overview must never show.
         setEllipsize(null);
         setHorizontallyScrolling(false);
+        // The overview uses this title as a flying ghost above the terminal. Its Z offset keeps
+        // it above the terminal snapshot, but the default background outline would make that
+        // offset cast a shadow. A title never needs an outline.
+        setOutlineProvider(null);
     }
 
     /** Sets the full title. The visible faded prefix is derived from the current width. */

@@ -113,6 +113,8 @@ public final class SessionOverviewController {
     private static final int OVERVIEW_TAB_BACKGROUND_ALPHA = 0x80;
 
     private boolean mShowing;
+    /** True between activity stop and resume while the overview stays open in the background. */
+    private boolean mActivityStopped;
     private boolean mRenderPosted;
     private int mCardWidth;
     private int mCardHeight;
@@ -129,6 +131,8 @@ public final class SessionOverviewController {
     @Nullable
     private View mPreviousFocus;
     private boolean mHadIme;
+    /** True while a resume has put the window's IME into the overview's hidden mode. */
+    private boolean mSoftKeyboardHiddenForResume;
 
     private final Runnable mRenderPreviewsRunnable = () -> {
         mRenderPosted = false;
@@ -140,7 +144,7 @@ public final class SessionOverviewController {
     private boolean mTextRenderPosted;
     private final Runnable mTextRenderRunnable = () -> {
         mTextRenderPosted = false;
-        if (!mShowing || mCardWidth <= 0 || mCardHeight <= 0) {
+        if (!mShowing || mActivityStopped || mCardWidth <= 0 || mCardHeight <= 0) {
             mPendingTextSessions.clear();
             return;
         }
@@ -161,7 +165,7 @@ public final class SessionOverviewController {
     private final Runnable mPreviewRefreshRunnable = new Runnable() {
         @Override
         public void run() {
-            if (!mShowing || mGrid == null) return;
+            if (!mShowing || mActivityStopped || mGrid == null) return;
             schedulePreviewRender();
             mGrid.postDelayed(this, 500L);
         }
@@ -367,6 +371,7 @@ public final class SessionOverviewController {
      */
     public boolean show() {
         if (mShowing || mOverlay == null || mGrid == null) return false;
+        mActivityStopped = false;
         TermuxService service = mActivity.getTermuxService();
         if (service == null || service.getTermuxSessionsSize() == 0) return false;
 
@@ -487,6 +492,14 @@ public final class SessionOverviewController {
         cancelTransition();
         cancelPendingClosingSelection();
         cancelClosingTransition();
+
+        // The resume path pre-empted the platform's window-focus IME show. Undo that mode before
+        // the focus hand-off below, or an explicit show after closing the overview is ignored by
+        // the window's ALWAYS_HIDDEN state.
+        if (mSoftKeyboardHiddenForResume) {
+            mSoftKeyboardHiddenForResume = false;
+            KeyboardUtils.setSoftInputModeAdjustResize(mActivity);
+        }
 
         if (!restoreFocus) {
             // Hiding the focused overlay hands focus back to whatever the system chooses. That
@@ -1061,7 +1074,8 @@ public final class SessionOverviewController {
 
     /** Repaint the card preview when a session produces output while the overview is open. */
     public void onSessionTextChanged(@NonNull TerminalSession session) {
-        if (!mShowing || mGrid == null || mCardWidth <= 0 || mCardHeight <= 0) return;
+        if (!mShowing || mActivityStopped || mGrid == null
+                || mCardWidth <= 0 || mCardHeight <= 0) return;
         if (findCard(session) == null || mPendingTextSessions.contains(session)) return;
         mPendingTextSessions.add(session);
         if (mTextRenderPosted) return;
@@ -1094,17 +1108,100 @@ public final class SessionOverviewController {
         scrollToActiveCard();
     }
 
-    /** Close the overview when the window goes to the background. */
-    public void onStop() {
-        hide(false);
+    /**
+     * Stop animation and preview work while the activity is in the background, but keep the
+     * overview itself open. Returning to the app must land on the same grid, not on the terminal
+     * that was hidden behind it.
+     *
+     * <p>Any in-flight opening or expansion is completed or cancelled to a stable frame before
+     * the window stops drawing. The grid keeps its cards and bitmaps so the resume path can
+     * repaint them without rebuilding or replaying the opening flight.</p>
+     */
+    public void onActivityStopped() {
+        if (!mShowing) return;
+        mActivityStopped = true;
+
+        cancelTransition();
+        cancelPendingClosingSelection();
+        cancelClosingTransition();
+        if (mDragController != null) mDragController.cancelForModelChange();
+
+        if (mGrid != null) {
+            mGrid.removeCallbacks(mRenderPreviewsRunnable);
+            mGrid.removeCallbacks(mPreviewRefreshRunnable);
+            mGrid.removeCallbacks(mTextRenderRunnable);
+        }
+        mRenderPosted = false;
+        mTextRenderPosted = false;
+        mPendingTextSessions.clear();
+    }
+
+    /**
+     * Re-assert the overview after the activity returns to the foreground.
+     *
+     * <p>The normal resume path restores the terminal's panel, focus and scheme without knowing
+     * that the overview is still covering them. Rebuild nothing: hide the restored live content
+     * again, take focus back and restart the preview tick, so the user returns to exactly the
+     * grid and scroll position they left.</p>
+     */
+    public void onActivityResumed() {
+        mActivityStopped = false;
+        if (!mShowing || mOverlay == null) return;
+
+        // The activity may have restored the input panel and the terminal focus while the
+        // overlay was in the background. Apply the same temporary suppression that show() uses.
+        hideLiveContentForOverview();
+        mActivity.hideTextInputPanelForOverview();
+        KeyboardUtils.setSoftKeyboardAlwaysHiddenAndAdjustResize(mActivity);
+        mSoftKeyboardHiddenForResume = true;
+
+        applyOverviewBackground();
+        if (extendOverlayIntoStatusBar()) {
+            applyOverviewStatusBarAppearance(mOverlayBackgroundColor);
+        }
+
+        mOverlay.setVisibility(View.VISIBLE);
+        mOverlay.requestFocus();
+        KeyboardUtils.hideSoftKeyboard(mActivity, mOverlay);
+
+        if (mGrid != null) {
+            // The window shape or terminal viewport can have changed while stopped (multi-window,
+            // a rotated device, an external display). Keep the cards matched to the new shape.
+            updateGridAspect();
+            mGrid.requestLayout();
+            mGrid.removeCallbacks(mPreviewRefreshRunnable);
+            mGrid.postDelayed(mPreviewRefreshRunnable, 500L);
+        }
+        schedulePreviewRender();
+    }
+
+    /** Release overlay state when the activity is destroyed and will not be resumed. */
+    public void onActivityDestroyed() {
+        if (!mShowing) return;
+        onActivityStopped();
+        clearScrollRestoreAfterLayout();
+        mShowing = false;
+        mActivityStopped = false;
+        mPreviousFocus = null;
+        mHadIme = false;
+        mSoftKeyboardHiddenForResume = false;
+        releaseCards();
+        mHiddenLiveViews.clear();
+        mHiddenLiveViewAlphas.clear();
     }
 
     // ── Opening transition ─────────────────────────────────────────────────
 
     /**
      * Capture the source pixels and rectangles before the overlay and the keyboard change the
-     * layout. Only the sources are captured here; the targets are read live from the grid while
-     * the animator runs, so a keyboard that finishes hiding mid-flight does not strand a ghost.
+     * layout. Only the sources are captured here. A tab keeps its source size and title while it
+     * moves and fades out, then its target size and title are applied once while it is invisible;
+     * after that only its start edge and vertical centre move, so no title is re-laid out on
+     * every frame.
+     *
+     * <p>Tab rectangles are captured at their full layout size, not their visible intersection:
+     * the overlay clips a partially scrolled tab against the same edge as the strip, while the
+     * full width preserves the title's original truncation.</p>
      */
     @Nullable
     private Transition prepareTransition(@NonNull TermuxService service) {
@@ -1151,8 +1248,14 @@ public final class SessionOverviewController {
                 final View tabView = tabs.findTabForSession(session);
                 if (tabView == null || !tabView.isShown()) continue;
 
-                final Rect bounds = new Rect();
-                if (!tabView.getGlobalVisibleRect(bounds) || bounds.isEmpty()) continue;
+                // A tab partially scrolled out of the strip must still fly with its original
+                // width and title truncation. The overlay clips the overhang exactly where the
+                // strip does, so using getGlobalVisibleRect() here would instead re-render the
+                // title for a narrower rectangle and make it change on the first frame.
+                final Rect visible = new Rect();
+                if (!tabView.getGlobalVisibleRect(visible) || visible.isEmpty()) continue;
+                final Rect bounds = windowRectOf(tabView);
+                if (bounds.isEmpty()) continue;
 
                 final TextView title = tabView.findViewById(R.id.session_tab_title);
                 final View closeButton = tabView.findViewById(R.id.session_tab_close);
@@ -1166,9 +1269,11 @@ public final class SessionOverviewController {
                         closeFootprint += ((ViewGroup.MarginLayoutParams) closeParams)
                                 .getMarginStart();
                     }
-                    final Rect closeRect = new Rect();
-                    if (closeButton.getGlobalVisibleRect(closeRect) && !closeRect.isEmpty()) {
-                        closeBounds = closeRect;
+                    // Keep the full cross bounds too: if the X is partly scrolled off screen,
+                    // the overlay clips it just like the strip instead of shrinking the icon.
+                    final Rect fullCloseBounds = windowRectOf(closeButton);
+                    if (!fullCloseBounds.isEmpty()) {
+                        closeBounds = fullCloseBounds;
                     }
                     if (closeButton instanceof ImageButton) {
                         final ColorStateList tint =
@@ -1248,6 +1353,29 @@ public final class SessionOverviewController {
                 SessionOverviewTransitionMath.lerp(start.top, end.top, progress),
                 SessionOverviewTransitionMath.lerp(start.right, end.right, progress),
                 SessionOverviewTransitionMath.lerp(start.bottom, end.bottom, progress));
+    }
+
+    /**
+     * Move a ghost's start edge along the source-to-target line without changing its laid-out
+     * size; its vertical centre still follows the line.
+     *
+     * <p>{@code layout} is the rect the view is currently laid out at. Translation is used
+     * instead of new layout params so the title is never measured or re-truncated per frame.
+     * Keeping the start edge, rather than the centre, fixed during the invisible width change
+     * means the beginning of the title does not slide when the truncated part grows.</p>
+     */
+    private static void moveGhostAlongPath(@NonNull View view, @NonNull Rect layout,
+                                           @NonNull Rect source, @NonNull Rect target,
+                                           float fraction) {
+        final float f = SessionOverviewTransitionMath.clamp01(fraction);
+        final boolean rtl = view.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+        final float sourceStart = rtl ? source.right : source.left;
+        final float targetStart = rtl ? target.right : target.left;
+        final float start = SessionOverviewTransitionMath.lerp(sourceStart, targetStart, f);
+        final float centerY = source.centerY()
+                + (target.centerY() - source.centerY()) * f;
+        view.setTranslationX(rtl ? start - layout.right : start - layout.left);
+        view.setTranslationY(centerY - layout.centerY());
     }
 
     /** Build the flying views at their captured source positions and hide what they replace. */
@@ -1337,30 +1465,28 @@ public final class SessionOverviewController {
                     transition.terminalShadowElevation));
             mGhostLayer.addView(ghost);
 
-            // The strip's selected tab has a close cross; fly that cross to the card's close
-            // button too, so the active tab does not lose half of its appearance mid-flight.
-            ImageView closeGhost = null;
-            Rect closeSourceLocal = null;
-            if (source.closeBounds != null) {
-                closeGhost = new ImageView(mActivity);
-                closeGhost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-                closeGhost.setImageResource(R.drawable.ic_close);
-                closeGhost.setImageTintList(ColorStateList.valueOf(source.closeTint));
-                closeGhost.setAlpha(0.7f);
-                closeGhost.setImportantForAccessibility(
-                        View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                closeSourceLocal = offsetRect(source.closeBounds, origin);
-                closeGhost.setLayoutParams(frameParams(closeSourceLocal));
-                closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
-                        transition.terminalShadowElevation));
-                mGhostLayer.addView(closeGhost);
-            }
+            // Every flying tab owns a close cross. The active strip tab already shows one, so
+            // its cross follows the pill from the first frame. An inactive strip tab has no
+            // cross; its ghost stays invisible until the card style lands, then fades in at the
+            // end of the target pill instead of popping in when the real card is revealed.
+            final ImageView closeGhost = new ImageView(mActivity);
+            closeGhost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            closeGhost.setImageResource(R.drawable.ic_close);
+            closeGhost.setImageTintList(ColorStateList.valueOf(
+                    source.closeBounds != null ? source.closeTint : card.textColor));
+            closeGhost.setAlpha(source.closeBounds != null ? 0.7f : 0f);
+            closeGhost.setImportantForAccessibility(
+                    View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            final Rect closeSourceLocal = source.closeBounds != null
+                    ? offsetRect(source.closeBounds, origin) : null;
+            closeGhost.setLayoutParams(frameParams(
+                    closeSourceLocal != null ? closeSourceLocal : sourceRect));
+            closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
+                    transition.terminalShadowElevation));
+            mGhostLayer.addView(closeGhost);
 
             transition.tabGhosts.add(new TabGhost(card, ghost, background, sourceRect,
-                    source.textSize, source.textColor, source.backgroundColor,
-                    source.cornerRadius,
-                    source.padStart, source.padTop, source.padEnd, source.padBottom,
-                    closeGhost, closeSourceLocal, source.closeTint));
+                    closeGhost, closeSourceLocal));
 
             // The real tab keeps its slot but stops painting. Hide the card's pill and close
             // cross for every flying tab: an inactive strip tab has no cross of its own, so
@@ -1471,7 +1597,11 @@ public final class SessionOverviewController {
         animator.start();
     }
 
-    /** Read the live targets and move every ghost one frame closer to its card. */
+    /**
+     * Advance the opening flight. The terminal moves continuously; each tab moves and fades out
+     * at source size, is transformed once while invisible, then moves the rest of the way and
+     * fades in at card size.
+     */
     private void applyTransitionProgress(@NonNull Transition transition, float progress) {
         if (mTransition != transition) return;
         final float p = SessionOverviewTransitionMath.clamp01(progress);
@@ -1516,54 +1646,96 @@ public final class SessionOverviewController {
             transition.tabPanelGhost.setAlpha(
                     SessionOverviewTransitionMath.openingTabPanelAlpha(p));
         }
+        final float sourceAlpha = SessionOverviewTransitionMath.tabSourceAlpha(p);
+        final float targetAlpha = SessionOverviewTransitionMath.tabTargetAlpha(p);
+        final float sourcePath =
+                SessionOverviewTransitionMath.tabSourcePathFraction(p);
+        final float targetPath =
+                SessionOverviewTransitionMath.tabTargetPathFraction(p);
         for (TabGhost ghost : transition.tabGhosts) {
-            final Rect target = localRect(ghost.card.tab, origin);
-            if (target != null) {
-                ghost.view.setLayoutParams(frameParams(lerpRect(
-                        ghost.sourceBounds, target, p)));
+            // Transform at the midpoint of the invisible gap, not at the start of the fade-in,
+            // so a dropped frame cannot expose the size/style change.
+            if (!ghost.targetApplied
+                    && p >= SessionOverviewTransitionMath.TAB_MOTION_SPLIT) {
+                ghost.targetApplied = applyOpeningTabTarget(ghost, origin);
             }
 
-            final TextView finalPill = ghost.card.tab;
-            final float textSize = SessionOverviewTransitionMath.lerp(
-                    ghost.startTextSize, finalPill.getTextSize(), p);
-            ghost.view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, textSize);
-            ghost.view.setTextColor(SessionOverviewTransitionMath.blendColor(
-                    ghost.startTextColor, finalPill.getCurrentTextColor(), p));
-            // Strike-through is a Paint flag, not an interpolatable value. Keeping it in sync
-            // with the final pill makes the hand-off invisible when a session finishes mid-flight.
-            ghost.view.setPaintFlags(finalPill.getPaintFlags());
-
-            ghost.background.setColor(SessionOverviewTransitionMath.blendColor(
-                    ghost.startBackgroundColor,
-                    ghost.card.tabBackgroundColor, p));
-            ghost.background.setCornerRadius(SessionOverviewTransitionMath.lerp(
-                    (float) ghost.startCornerRadius, (float) mTabCornerRadius, p));
-
-            final int padStart = SessionOverviewTransitionMath.lerp(
-                    ghost.startPadStart, finalPill.getPaddingStart(), p);
-            final int padTop = SessionOverviewTransitionMath.lerp(
-                    ghost.startPadTop, finalPill.getPaddingTop(), p);
-            final int padEnd = SessionOverviewTransitionMath.lerp(
-                    ghost.startPadEnd, finalPill.getPaddingEnd(), p);
-            final int padBottom = SessionOverviewTransitionMath.lerp(
-                    ghost.startPadBottom, finalPill.getPaddingBottom(), p);
-            ghost.view.setPaddingRelative(padStart, padTop, padEnd, padBottom);
-            // The visible prefix depends on the current width, text size and end padding. The
-            // width change also triggers onSizeChanged after layout; this covers frames where
-            // only the text size or padding changed.
-            ghost.view.refreshTitle();
-
-            if (ghost.closeGhost != null && ghost.closeSourceBounds != null) {
-                final Rect closeTarget = localRect(ghost.card.close, origin);
-                if (closeTarget != null) {
-                    ghost.closeGhost.setLayoutParams(frameParams(lerpRect(
-                            ghost.closeSourceBounds, closeTarget, p)));
+            if (ghost.targetApplied) {
+                ghost.view.setAlpha(targetAlpha);
+                if (ghost.targetBounds != null) {
+                    // The target copy is already at card size and style. Only its start edge and
+                    // vertical centre move for the rest of the flight, so the title is never
+                    // re-truncated.
+                    moveGhostAlongPath(ghost.view, ghost.targetBounds,
+                            ghost.sourceBounds, ghost.targetBounds, targetPath);
                 }
-                ghost.closeGhost.setImageTintList(ColorStateList.valueOf(
-                        SessionOverviewTransitionMath.blendColor(
-                                ghost.startCloseTint, ghost.card.textColor, p)));
+                if (ghost.closeGhost != null) {
+                    if (ghost.closeTargetApplied) {
+                        // Keep the cross rigidly attached to the target pill's end: same
+                        // translation as the title, so it cannot drift on its own.
+                        ghost.closeGhost.setTranslationX(ghost.view.getTranslationX());
+                        ghost.closeGhost.setTranslationY(ghost.view.getTranslationY());
+                        ghost.closeGhost.setAlpha(0.7f * targetAlpha);
+                    } else {
+                        ghost.closeGhost.setAlpha(0f);
+                    }
+                }
+            } else {
+                ghost.view.setAlpha(sourceAlpha);
+                final Rect liveTarget = localRect(ghost.card.tab, origin);
+                if (liveTarget != null) {
+                    moveGhostAlongPath(ghost.view, ghost.sourceBounds,
+                            ghost.sourceBounds, liveTarget, sourcePath);
+                }
+                if (ghost.closeGhost != null) {
+                    // The source cross, if any, is part of the same rigid tab body. An inactive
+                    // strip tab has none, so its target cross stays invisible until the hand-off.
+                    ghost.closeGhost.setTranslationX(ghost.view.getTranslationX());
+                    ghost.closeGhost.setTranslationY(ghost.view.getTranslationY());
+                    ghost.closeGhost.setAlpha(ghost.closeSourceBounds != null
+                            ? 0.7f * sourceAlpha : 0f);
+                }
             }
         }
+    }
+
+    /**
+     * Put one opening tab ghost at its final card position and style.
+     *
+     * <p>This runs at most once per ghost, while the ghost is invisible. The title is rendered
+     * once for the target width instead of being rebuilt for every intermediate width. After
+     * this, the fade-in only changes the ghost's start edge, vertical centre and alpha. Returns
+     * false when the card has not been laid out yet, in which case the ghost stays invisible and
+     * the call is retried on the next frame.</p>
+     */
+    private boolean applyOpeningTabTarget(@NonNull TabGhost ghost, @NonNull int[] origin) {
+        final Rect target = localRect(ghost.card.tab, origin);
+        if (target == null || target.isEmpty()) return false;
+
+        ghost.targetBounds = new Rect(target);
+        final TextView finalPill = ghost.card.tab;
+        ghost.view.setLayoutParams(frameParams(target));
+        ghost.view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,
+                finalPill.getTextSize());
+        ghost.view.setTextColor(finalPill.getCurrentTextColor());
+        ghost.view.setPaintFlags(finalPill.getPaintFlags());
+        ghost.background.setColor(ghost.card.tabBackgroundColor);
+        ghost.background.setCornerRadius(mTabCornerRadius);
+        ghost.view.setPaddingRelative(finalPill.getPaddingStart(), finalPill.getPaddingTop(),
+                finalPill.getPaddingEnd(), finalPill.getPaddingBottom());
+        // The width usually changes too, in which case onSizeChanged renders the title again.
+        // This call covers a target with the same width but a different text size or padding.
+        ghost.view.refreshTitle();
+
+        if (ghost.closeGhost != null) {
+            final Rect closeTarget = localRect(ghost.card.close, origin);
+            if (closeTarget != null && !closeTarget.isEmpty()) {
+                ghost.closeGhost.setLayoutParams(frameParams(closeTarget));
+                ghost.closeGhost.setImageTintList(ColorStateList.valueOf(ghost.card.textColor));
+                ghost.closeTargetApplied = true;
+            }
+        }
+        return true;
     }
 
     private void finishTransition(@NonNull Transition transition) {
@@ -1802,9 +1974,10 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Reverse the opening tab flight for every visible card tab. Each ghost starts on its card
-     * and lands on the matching strip tab. All target tabs are hidden before the panel snapshot
-     * is taken, so the snapshot and the ghosts never draw the same tab at once.
+     * Reverse the opening tab flight for every visible card tab. Each ghost moves and fades out
+     * on its card, is transformed once while invisible, then moves into its strip slot and fades
+     * in. All target tabs are hidden before the panel snapshot is taken, so the snapshot and the
+     * ghosts never draw the same tab at once.
      */
     private void installClosingTabVisuals(@NonNull ClosingTransition transition,
                                           @NonNull int[] origin) {
@@ -1838,7 +2011,10 @@ public final class SessionOverviewController {
                 if (params instanceof ViewGroup.MarginLayoutParams) {
                     closeFootprint += ((ViewGroup.MarginLayoutParams) params).getMarginStart();
                 }
-                targetCloseBounds = visibleLocalRect(targetClose, origin);
+                // Keep the full target bounds. The overlay clips a partially scrolled tab
+                // at the same edge as the strip, so the returning ghost lands on the real
+                // title layout instead of a narrower intersection.
+                targetCloseBounds = localRect(targetClose, origin);
                 if (targetClose instanceof ImageButton) {
                     final ColorStateList tint = ((ImageButton) targetClose).getImageTintList();
                     if (tint != null) targetCloseTint = tint.getDefaultColor();
@@ -1912,15 +2088,11 @@ public final class SessionOverviewController {
             }
 
             final ClosingTabGhost tabGhost = new ClosingTabGhost(card, ghost, background,
-                    startBounds, card.tab.getTextSize(), card.tab.getCurrentTextColor(),
-                    card.tabBackgroundColor, mTabCornerRadius,
-                    card.tab.getPaddingStart(), card.tab.getPaddingTop(),
-                    card.tab.getPaddingEnd(), card.tab.getPaddingBottom(),
-                    targetTextSize, targetTextColor, targetBackgroundColor,
+                    startBounds, targetTextSize, targetTextColor, targetBackgroundColor,
                     targetCornerRadius, targetPadStart, targetPadTop, targetPadEnd,
                     targetPadBottom,
                     targetTitle != null ? targetTitle.getPaintFlags() : card.tab.getPaintFlags(),
-                    targetTab, targetBounds, closeGhost, startCloseBounds, startCloseTint,
+                    targetTab, targetBounds, closeGhost,
                     targetClose, targetCloseBounds, targetCloseTint);
             tabGhost.tabBaseAlpha = card.tab.getAlpha();
             tabGhost.closeBaseAlpha = card.close.getAlpha();
@@ -1966,7 +2138,11 @@ public final class SessionOverviewController {
         animator.start();
     }
 
-    /** Move the expanding terminal snapshot one frame closer to the live terminal surface. */
+    /**
+     * Advance the closing flight. The terminal expands continuously; each tab moves and fades
+     * out at card size, is transformed once while invisible, then moves the rest of the way and
+     * fades in at strip size.
+     */
     private void applyClosingProgress(@NonNull ClosingTransition transition, float progress) {
         if (mClosingTransition != transition) return;
         final float p = SessionOverviewTransitionMath.clamp01(progress);
@@ -2007,8 +2183,9 @@ public final class SessionOverviewController {
 
         // The selected card preview is hidden immediately and the full-size terminal snapshot is
         // opaque from progress zero, so the expansion starts without an unfade. Every visible
-        // card tab has a ghost carrying it back to the strip. If the selected card had no visible
-        // tab to animate, its pill and cross simply disappear under the expanding terminal.
+        // card tab has a ghost that moves and fades out on the card, then moves into its strip
+        // slot and fades in. If the selected card had no visible tab to animate, its pill and
+        // cross simply disappear under the expanding terminal.
         final float previewAlpha = SessionOverviewTransitionMath.closingPreviewAlpha(p);
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
@@ -2037,57 +2214,94 @@ public final class SessionOverviewController {
 
     private void applyClosingTabProgress(@NonNull ClosingTabGhost ghost, @NonNull int[] origin,
                                          float p) {
-        final Rect start = localRect(ghost.card.tab, origin);
-        final Rect liveTarget = visibleLocalRect(ghost.targetTabView, origin);
-        final Rect target = liveTarget != null ? liveTarget : ghost.targetBounds;
-        ghost.view.setLayoutParams(frameParams(lerpRect(
-                start != null ? start : ghost.startBounds, target, p)));
+        // Transform at the midpoint of the invisible gap, not at the start of the fade-in, so a
+        // dropped frame cannot expose the size/style change.
+        if (!ghost.targetApplied
+                && p >= SessionOverviewTransitionMath.TAB_MOTION_SPLIT) {
+            ghost.targetApplied = applyClosingTabTarget(ghost, origin);
+        }
 
+        final float sourceAlpha = SessionOverviewTransitionMath.tabSourceAlpha(p);
+        final float targetAlpha = SessionOverviewTransitionMath.tabTargetAlpha(p);
+        final float sourcePath =
+                SessionOverviewTransitionMath.tabSourcePathFraction(p);
+        final float targetPath =
+                SessionOverviewTransitionMath.tabTargetPathFraction(p);
+
+        if (ghost.targetApplied) {
+            ghost.view.setAlpha(targetAlpha);
+            // The target copy is already at strip size and style. Only its start edge and
+            // vertical centre move for the rest of the expansion, so the title is never
+            // re-truncated.
+            moveGhostAlongPath(ghost.view, ghost.targetBounds, ghost.startBounds,
+                    ghost.targetBounds, targetPath);
+            if (ghost.closeGhost != null) {
+                if (ghost.closeTargetApplied) {
+                    // The target cross is part of the target pill. Copying the title's
+                    // translation keeps it attached instead of letting it fly independently.
+                    ghost.closeGhost.setTranslationX(ghost.view.getTranslationX());
+                    ghost.closeGhost.setTranslationY(ghost.view.getTranslationY());
+                    ghost.closeGhost.setAlpha(0.7f * targetAlpha);
+                } else {
+                    ghost.closeGhost.setAlpha(0f);
+                }
+            }
+        } else {
+            ghost.view.setAlpha(sourceAlpha);
+            moveGhostAlongPath(ghost.view, ghost.startBounds, ghost.startBounds,
+                    ghost.targetBounds, sourcePath);
+            if (ghost.closeGhost != null) {
+                // The card's cross belongs to the source pill; keep it rigid with the title
+                // while the pair fades out.
+                ghost.closeGhost.setTranslationX(ghost.view.getTranslationX());
+                ghost.closeGhost.setTranslationY(ghost.view.getTranslationY());
+                ghost.closeGhost.setAlpha(0.7f * sourceAlpha);
+            }
+        }
+    }
+
+    /**
+     * Put one returning tab ghost at its final strip position and style.
+     *
+     * <p>Like the opening target, this runs once while the ghost is invisible. The strip target
+     * is already captured, so the only per-frame work left is moving the start edge and fading
+     * while the vertical centre follows the line.</p>
+     */
+    private boolean applyClosingTabTarget(@NonNull ClosingTabGhost ghost, @NonNull int[] origin) {
+        // Use the full strip tab, not its visible intersection. The ghost may be partly
+        // scrolled out of the panel at the landing edge; the overlay supplies that clip, while
+        // the full width keeps the title layout identical to the real tab.
+        final Rect liveTarget = localRect(ghost.targetTabView, origin);
+        final Rect target = liveTarget != null ? liveTarget : ghost.targetBounds;
+        if (target == null || target.isEmpty()) return false;
+        ghost.targetBounds = new Rect(target);
+
+        ghost.view.setLayoutParams(frameParams(target));
         ghost.view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,
-                SessionOverviewTransitionMath.lerp(
-                        ghost.startTextSize, ghost.targetTextSize, p));
-        ghost.view.setTextColor(SessionOverviewTransitionMath.blendColor(
-                ghost.startTextColor, ghost.targetTextColor, p));
+                ghost.targetTextSize);
+        ghost.view.setTextColor(ghost.targetTextColor);
         // Paint flags cannot be interpolated; use the target's flags so the hand-off to the
         // strip's finished/running styling has no snap.
         ghost.view.setPaintFlags(ghost.targetPaintFlags);
-
-        ghost.background.setColor(SessionOverviewTransitionMath.blendColor(
-                ghost.startBackgroundColor, ghost.targetBackgroundColor, p));
-        ghost.background.setCornerRadius(SessionOverviewTransitionMath.lerp(
-                (float) ghost.startCornerRadius, (float) ghost.targetCornerRadius, p));
-
-        final int padStart = SessionOverviewTransitionMath.lerp(
-                ghost.startPadStart, ghost.targetPadStart, p);
-        final int padTop = SessionOverviewTransitionMath.lerp(
-                ghost.startPadTop, ghost.targetPadTop, p);
-        final int padEnd = SessionOverviewTransitionMath.lerp(
-                ghost.startPadEnd, ghost.targetPadEnd, p);
-        final int padBottom = SessionOverviewTransitionMath.lerp(
-                ghost.startPadBottom, ghost.targetPadBottom, p);
-        ghost.view.setPaddingRelative(padStart, padTop, padEnd, padBottom);
+        ghost.background.setColor(ghost.targetBackgroundColor);
+        ghost.background.setCornerRadius(ghost.targetCornerRadius);
+        ghost.view.setPaddingRelative(ghost.targetPadStart, ghost.targetPadTop,
+                ghost.targetPadEnd, ghost.targetPadBottom);
         ghost.view.refreshTitle();
 
-        if (ghost.closeGhost != null && ghost.startCloseBounds != null) {
-            final Rect startClose = localRect(ghost.card.close, origin);
+        if (ghost.closeGhost != null) {
             final Rect liveClose = ghost.targetCloseView != null
                     && ghost.targetCloseView.getVisibility() == View.VISIBLE
-                    ? visibleLocalRect(ghost.targetCloseView, origin) : null;
+                    ? localRect(ghost.targetCloseView, origin) : null;
             final Rect targetClose = liveClose != null ? liveClose : ghost.targetCloseBounds;
-            if (targetClose != null) {
-                ghost.closeGhost.setLayoutParams(frameParams(lerpRect(
-                        startClose != null ? startClose : ghost.startCloseBounds,
-                        targetClose, p)));
-                ghost.closeGhost.setAlpha(0.7f);
-            } else {
-                // The target cross disappeared mid-flight (for example, the selection
-                // changed). Fade the orphaned X instead of snapping it out.
-                ghost.closeGhost.setAlpha(0.7f * (1f - p));
+            if (targetClose != null && !targetClose.isEmpty()) {
+                ghost.closeGhost.setLayoutParams(frameParams(targetClose));
+                ghost.closeGhost.setImageTintList(
+                        ColorStateList.valueOf(ghost.targetCloseTint));
+                ghost.closeTargetApplied = true;
             }
-            ghost.closeGhost.setImageTintList(ColorStateList.valueOf(
-                    SessionOverviewTransitionMath.blendColor(
-                            ghost.startCloseTint, ghost.targetCloseTint, p)));
         }
+        return true;
     }
 
     @Nullable
@@ -2581,14 +2795,14 @@ public final class SessionOverviewController {
     }
 
     private void schedulePreviewRender() {
-        if (!mShowing || mRenderPosted || mGrid == null) return;
+        if (!mShowing || mActivityStopped || mRenderPosted || mGrid == null) return;
         if (mCardWidth <= 0 || mCardHeight <= 0) return;
         mRenderPosted = true;
         mGrid.post(mRenderPreviewsRunnable);
     }
 
     private void renderPreviews() {
-        if (!mShowing || mCardWidth <= 0 || mCardHeight <= 0) return;
+        if (!mShowing || mActivityStopped || mCardWidth <= 0 || mCardHeight <= 0) return;
         final int textSize = previewTextSize();
         final Typeface typeface = previewTypeface();
         for (Card card : mCards) {
@@ -2752,69 +2966,56 @@ public final class SessionOverviewController {
         }
     }
 
-    /** The flying copy of one visible tab. */
+    /**
+     * The flying copy of one visible tab. It moves and fades out at its source size, is placed
+     * at its final card size and style while invisible, then moves the rest of the way and fades
+     * in. Size and title are laid out at most twice, never once per animation frame.
+     *
+     * <p>The close-cross ghost shares the title ghost's translation in both phases. It therefore
+     * stays attached to the pill's end instead of interpolating toward the target cross on its
+     * own; the target cross simply fades in with the target pill.</p>
+     */
     private static final class TabGhost {
         final Card card;
         final SessionOverviewTabTitleView view;
         final GradientDrawable background;
         final Rect sourceBounds;
-        final float startTextSize;
-        final int startTextColor;
-        final int startBackgroundColor;
-        final int startCornerRadius;
-        final int startPadStart;
-        final int startPadTop;
-        final int startPadEnd;
-        final int startPadBottom;
         @Nullable
         final ImageView closeGhost;
         @Nullable
         final Rect closeSourceBounds;
-        final int startCloseTint;
+        @Nullable
+        Rect targetBounds;
+        boolean targetApplied;
+        boolean closeTargetApplied;
 
         TabGhost(Card card, SessionOverviewTabTitleView view, GradientDrawable background,
-                 Rect sourceBounds, float startTextSize, int startTextColor,
-                 int startBackgroundColor, int startCornerRadius, int startPadStart,
-                 int startPadTop, int startPadEnd, int startPadBottom,
-                 @Nullable ImageView closeGhost, @Nullable Rect closeSourceBounds,
-                 int startCloseTint) {
+                 Rect sourceBounds, @Nullable ImageView closeGhost,
+                 @Nullable Rect closeSourceBounds) {
             this.card = card;
             this.view = view;
             this.background = background;
             this.sourceBounds = new Rect(sourceBounds);
-            this.startTextSize = startTextSize;
-            this.startTextColor = startTextColor;
-            this.startBackgroundColor = startBackgroundColor;
-            this.startCornerRadius = startCornerRadius;
-            this.startPadStart = startPadStart;
-            this.startPadTop = startPadTop;
-            this.startPadEnd = startPadEnd;
-            this.startPadBottom = startPadBottom;
             this.closeGhost = closeGhost;
             this.closeSourceBounds = closeSourceBounds != null
                     ? new Rect(closeSourceBounds) : null;
-            this.startCloseTint = startCloseTint;
         }
     }
 
     /**
-     * The reverse of one opening tab flight. Every visible card tab owns one of these, and each
-     * lands on its own strip tab. The target rectangle is read live from the strip; the target
-     * style is captured when the expansion starts.
+     * The reverse of one opening tab flight. Every visible card tab owns one of these. It moves
+     * and fades out at card size, is placed at strip size and style while invisible, then moves
+     * the rest of the way and fades in. Size and title are laid out at most twice, never once
+     * per animation frame.
+     *
+     * <p>When the target strip tab has a visible cross, the cross ghost copies the title
+     * ghost's translation and stays attached to the pill end in both phases.</p>
      */
     private static final class ClosingTabGhost {
         final Card card;
         final SessionOverviewTabTitleView view;
         final GradientDrawable background;
         final Rect startBounds;
-        final float startTextSize;
-        final int startTextColor;
-        final int startBackgroundColor;
-        final int startCornerRadius;
-        final int startPadStart;
-        final int startPadTop;
-        final int startPadEnd;
-        final int startPadBottom;
         final float targetTextSize;
         final int targetTextColor;
         final int targetBackgroundColor;
@@ -2825,17 +3026,16 @@ public final class SessionOverviewController {
         final int targetPadBottom;
         final int targetPaintFlags;
         final View targetTabView;
-        final Rect targetBounds;
+        Rect targetBounds;
         @Nullable
         final ImageView closeGhost;
-        @Nullable
-        final Rect startCloseBounds;
-        final int startCloseTint;
         @Nullable
         final View targetCloseView;
         @Nullable
         final Rect targetCloseBounds;
         final int targetCloseTint;
+        boolean targetApplied;
+        boolean closeTargetApplied;
         /** Visibility to put back on the strip tab after the flight. */
         int targetTabVisibility = View.VISIBLE;
         /** Alpha of the real card pill and cross before they were hidden for this ghost. */
@@ -2844,28 +3044,17 @@ public final class SessionOverviewController {
 
         ClosingTabGhost(Card card, SessionOverviewTabTitleView view,
                         GradientDrawable background, Rect startBounds,
-                        float startTextSize, int startTextColor, int startBackgroundColor,
-                        int startCornerRadius, int startPadStart, int startPadTop,
-                        int startPadEnd, int startPadBottom,
                         float targetTextSize, int targetTextColor, int targetBackgroundColor,
                         int targetCornerRadius, int targetPadStart, int targetPadTop,
                         int targetPadEnd, int targetPadBottom, int targetPaintFlags,
                         View targetTabView, Rect targetBounds,
-                        @Nullable ImageView closeGhost, @Nullable Rect startCloseBounds,
-                        int startCloseTint, @Nullable View targetCloseView,
+                        @Nullable ImageView closeGhost,
+                        @Nullable View targetCloseView,
                         @Nullable Rect targetCloseBounds, int targetCloseTint) {
             this.card = card;
             this.view = view;
             this.background = background;
             this.startBounds = new Rect(startBounds);
-            this.startTextSize = startTextSize;
-            this.startTextColor = startTextColor;
-            this.startBackgroundColor = startBackgroundColor;
-            this.startCornerRadius = startCornerRadius;
-            this.startPadStart = startPadStart;
-            this.startPadTop = startPadTop;
-            this.startPadEnd = startPadEnd;
-            this.startPadBottom = startPadBottom;
             this.targetTextSize = targetTextSize;
             this.targetTextColor = targetTextColor;
             this.targetBackgroundColor = targetBackgroundColor;
@@ -2878,8 +3067,6 @@ public final class SessionOverviewController {
             this.targetTabView = targetTabView;
             this.targetBounds = new Rect(targetBounds);
             this.closeGhost = closeGhost;
-            this.startCloseBounds = startCloseBounds != null ? new Rect(startCloseBounds) : null;
-            this.startCloseTint = startCloseTint;
             this.targetCloseView = targetCloseView;
             this.targetCloseBounds = targetCloseBounds != null
                     ? new Rect(targetCloseBounds) : null;

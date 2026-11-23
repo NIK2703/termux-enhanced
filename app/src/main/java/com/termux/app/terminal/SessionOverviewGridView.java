@@ -191,9 +191,9 @@ public class SessionOverviewGridView extends ViewGroup {
             getChildAt(i).measure(childWidthSpec, childHeightSpec);
         }
 
-        // For up to four sessions the grid is exactly as tall as the viewport and the 2x2 block
-        // sits at the top. More sessions make it taller than the viewport, which is the scroll
-        // range.
+        // For up to four sessions the grid fits the viewport and the 2x2 block sits at the top,
+        // with one gap below the last row. More sessions make it taller than the viewport, which
+        // is the scroll range; the same bottom gap is the last thing the user can scroll to.
         final int contentHeight = mLayout.gridHeight + getPaddingTop() + getPaddingBottom();
         final int desiredHeight = Math.max(contentHeight, viewportHeight);
         final int measuredHeight;

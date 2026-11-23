@@ -1256,10 +1256,24 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // honoured on return from the background.
         final boolean resumeFocusWasOnInput = isFocusOnInputForSession(getCurrentSession());
 
+        // The overview stays open across a trip to the background and still owns focus when the
+        // activity resumes. Restoring the terminal's panel and IME underneath it would steal
+        // focus, pop a keyboard over the grid, or overwrite the memory of the state that was
+        // active before the overview opened. The overview's own resume path re-asserts its
+        // focus, backdrop and previews at the end of onResume instead.
+        final boolean overviewShowing = isSessionOverviewShowing();
+        if (overviewShowing) {
+            mPendingKeyboardRestore = false;
+            mRestoringKeyboard = false;
+            final TerminalView activeTerminal = getActiveTerminalView();
+            if (activeTerminal != null) activeTerminal.removeCallbacks(mEndKeyboardRestoreRunnable);
+        }
+
         // Whether this resume runs the keyboard/focus restore (return from background or a
         // recreate). A fresh cold start (first resume after onCreate) keeps the historical
         // "show keyboard on launch" behaviour and skips the restore.
-        final boolean willRestoreKeyboard = !mIsOnResumeAfterOnCreate || mIsActivityRecreated;
+        final boolean willRestoreKeyboard = !overviewShowing
+                && (!mIsOnResumeAfterOnCreate || mIsActivityRecreated);
 
         // Raise the restore latch BEFORE the view client runs setSoftKeyboardState(), so the
         // per-page focus listener suppresses ALL IME / panel churn triggered by its
@@ -1341,6 +1355,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // The panel restore above may have changed which view owns the strip.
         applyExtraKeysToKeyboardVisibility();
+
+        // The overview kept its cards while the activity was backgrounded. Put its temporary
+        // suppression back over the freshly resumed terminal state without rebuilding the grid.
+        if (overviewShowing && mSessionOverviewController != null) {
+            mSessionOverviewController.onActivityResumed();
+        }
     }
 
     @Override
@@ -1395,9 +1415,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     protected void onStop() {
         super.onStop();
 
-        // The overview is a snapshot of live sessions; it has no meaning once the window is in
-        // the background. Do not restore focus here — the activity is leaving the foreground.
-        if (mSessionOverviewController != null) mSessionOverviewController.onStop();
+        // Keep an open overview across a trip to the background: it is part of the activity's
+        // visible state, not a transient dialog, so returning must land on the same grid. Only
+        // release it when this instance is actually going away (finish or configuration change),
+        // where the next instance starts with a fresh hierarchy.
+        if (mSessionOverviewController != null) {
+            if (isFinishing() || isChangingConfigurations()) {
+                mSessionOverviewController.hide(false);
+            } else {
+                mSessionOverviewController.onActivityStopped();
+            }
+        }
 
         Logger.logDebug(LOG_TAG, "onStop");
 
@@ -1418,8 +1446,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // or the terminal, and persist the caret position — exactly as a tab
         // switch does before leaving a tab. This lets onResume() restore the same
         // focus target and caret when the app returns from the background.
-        final EditText toolbarTextInput = getTerminalToolbarTextInput();
-        setFocusOnInputForCurrentSession(toolbarTextInput != null && toolbarTextInput.hasFocus());
+        // While the overview covers the terminal, its overlay owns focus and the panel is hidden
+        // temporarily; neither is the user's per-session focus choice, so keep the memory intact.
+        if (!isSessionOverviewShowing()) {
+            final EditText toolbarTextInput = getTerminalToolbarTextInput();
+            setFocusOnInputForCurrentSession(toolbarTextInput != null && toolbarTextInput.hasFocus());
+        }
         saveTextInputForCurrentSession();
 
         if (mTermuxTerminalSessionActivityClient != null)
@@ -1454,6 +1486,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Override
     public void onDestroy() {
         super.onDestroy();
+
+        // A destroyed instance cannot resume its overlay. Release card bitmaps and transition
+        // views that were kept alive across a background stop; the next instance starts closed.
+        if (mSessionOverviewController != null) mSessionOverviewController.onActivityDestroyed();
 
         Logger.logDebug(LOG_TAG, "onDestroy");
 
@@ -1526,8 +1562,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         TerminalSession session = getCurrentSession();
         if (session == null) return;
 
+        // The overview owns focus and hides both the input panel and the IME for as long as it is
+        // open. Recording that temporary state as the session's focus/keyboard memory would make
+        // a later return restore the terminal without the panel or keyboard the user had before
+        // opening the overview. Text, caret and scroll still belong to the live session and are
+        // captured below.
+        final boolean overviewShowing = isSessionOverviewShowing();
+
         final EditText input = getTerminalToolbarTextInput();
-        if (input != null) {
+        if (!overviewShowing && input != null) {
             mTextInputState.setFocusOnInput(session, input.hasFocus());
         }
         saveTextInputForCurrentSession();   // text + caret
@@ -1536,14 +1579,16 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (view != null) {
             mTextInputState.setScrollState(session, view.getTopRow(), view.getScrollTranscriptRows());
         }
-        // Capture the keyboard intent from the AUTHORITATIVE combined signal, not the raw
-        // mSoftKeyboardVisible latch: the visible-frame detector can transiently report a
-        // false positive at pause time (mid-resize frame / multi-window), which previously
-        // flipped a "hidden" intent to "visible" and popped the keyboard on resume.
-        // Recorded globally AND for the current session (per-session keyboard memory).
-        boolean kbIntentCapture = computeImeVisibility();
-        mTextInputState.setSoftKeyboardVisibleIntent(kbIntentCapture);
-        mTextInputState.setSoftKeyboardIntent(session, kbIntentCapture);
+        if (!overviewShowing) {
+            // Capture the keyboard intent from the AUTHORITATIVE combined signal, not the raw
+            // mSoftKeyboardVisible latch: the visible-frame detector can transiently report a
+            // false positive at pause time (mid-resize frame / multi-window), which previously
+            // flipped a "hidden" intent to "visible" and popped the keyboard on resume.
+            // Recorded globally AND for the current session (per-session keyboard memory).
+            boolean kbIntentCapture = computeImeVisibility();
+            mTextInputState.setSoftKeyboardVisibleIntent(kbIntentCapture);
+            mTextInputState.setSoftKeyboardIntent(session, kbIntentCapture);
+        }
     }
 
     /** Ordered live TerminalSession list (service order == snapshot order). */
@@ -1615,6 +1660,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     private void runKeyboardRestore() {
         if (isFinishing()) return;
+        // While the overview is open it owns focus and deliberately hides the IME. A restore left
+        // over from before the overview opened must not request terminal focus or show a keyboard
+        // over the grid; closing the overview performs its own focus/keyboard hand-off.
+        if (isSessionOverviewShowing()) {
+            mPendingKeyboardRestore = false;
+            mRestoringKeyboard = false;
+            return;
+        }
         if (!hasWindowFocus()) {
             mPendingKeyboardRestore = true;   // consumed by onWindowFocusChanged(true)
             return;

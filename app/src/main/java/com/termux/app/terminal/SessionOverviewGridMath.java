@@ -35,7 +35,10 @@ public final class SessionOverviewGridMath {
         public final int cardWidth;
         public final int cardHeight;
         public final int gridWidth;
-        /** Total content height; may be larger than {@link #availableHeight}. */
+        /**
+         * Total content height, including the gap below the last row; may be larger than
+         * {@link #availableHeight}.
+         */
         public final int gridHeight;
         public final int left;
         public final int top;
@@ -88,7 +91,8 @@ public final class SessionOverviewGridMath {
      * fifth session therefore adds a scrollable row instead of shrinking every card. The block is
      * horizontally centered but pinned to the top of the viewport: a short grid starts at the
      * first available pixel below the status bar instead of floating in the middle of the
-     * window.</p>
+     * window. The last row keeps one gap below it, the same size as the gap between cards, so a
+     * height-limited grid never ends flush with the bottom edge.</p>
      *
      * @param sessionCount number of live sessions; values below 1 produce an empty layout
      * @param availableWidth measured content width, excluding padding
@@ -117,7 +121,10 @@ public final class SessionOverviewGridMath {
         // between two thumbnails; when height caps the cards, the remaining width is split
         // evenly so both gutters stay equal and at least one gap wide.
         final int totalGapX = safeGap * (columns + 1);
-        final int totalGapYVisible = safeGap * (visibleRows - 1);
+        // Reserve the gap between the two visible rows and one gap below the second row. The
+        // bottom gap matches the inter-card gap and keeps the last row off the screen edge when
+        // height limits the cards; the top edge stays pinned below the status bar.
+        final int totalGapYVisible = safeGap * visibleRows;
 
         if (safeWidth <= 0 || safeHeight <= 0
                 || safeWidth <= totalGapX || safeHeight <= totalGapYVisible) {
@@ -149,7 +156,9 @@ public final class SessionOverviewGridMath {
         // gridWidth spans the outer card edges; the two edge gaps are represented by left and
         // the matching right-hand slack, not included in this span.
         final int gridWidth = columns * cardWidth + safeGap * (columns - 1);
-        final int gridHeight = totalRows * cardHeight + safeGap * (totalRows - 1);
+        // Every row is followed by one gap, including the bottom row. The top edge has no outer
+        // gap because the grid is pinned directly below the status bar.
+        final int gridHeight = totalRows * cardHeight + safeGap * totalRows;
         final int left = Math.max(safeGap, (safeWidth - gridWidth) / 2);
         // The grid belongs against the top edge of the app content, below the status bar. Only
         // horizontal slack is distributed; vertical slack stays below the cards.

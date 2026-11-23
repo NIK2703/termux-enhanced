@@ -79,6 +79,33 @@ public class SessionOverviewGridMathTest {
     }
 
     @Test
+    public void bottomEdgeGapMatchesTheInterCardGap() {
+        for (int count = 1; count <= 8; count++) {
+            for (int width : WIDTHS) {
+                for (int height : HEIGHTS) {
+                    SessionOverviewGridMath.Layout layout =
+                            SessionOverviewGridMath.compute(count, width, height, 16, 0.5);
+                    if (!layout.hasCards()) continue;
+
+                    final int lastRow = layout.rows - 1;
+                    final int lastRowBottom = layout.top
+                            + lastRow * (layout.cardHeight + layout.gap)
+                            + layout.cardHeight;
+                    Assert.assertEquals(layout.gap, layout.gridHeight - lastRowBottom);
+
+                    if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
+                        // The bottom gap is part of the visible viewport, not an extra scroll
+                        // range that only appears after the user pulls the grid.
+                        Assert.assertTrue(layout.gridHeight <= layout.availableHeight);
+                        Assert.assertTrue(lastRowBottom
+                                <= layout.availableHeight - layout.gap);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     public void moreThanFourSessionsAddARowWithoutShrinkingCards() {
         SessionOverviewGridMath.Layout four =
                 SessionOverviewGridMath.compute(4, 1080, 1920, 24);

@@ -107,6 +107,27 @@ public class SessionOverviewGridViewTest {
     }
 
     @Test
+    public void bottomGapMatchesTheGapBetweenCards() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        for (int count : new int[]{4, 5}) {
+            SessionOverviewGridView grid = newGrid(activity, count);
+            grid.setViewportHeight(HEIGHT);
+            // A tall terminal grid makes height the limiting axis, which is where the last row
+            // used to touch the bottom edge.
+            grid.setCardAspect(0.5);
+            grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            grid.layout(0, 0, WIDTH, grid.getMeasuredHeight());
+
+            SessionOverviewGridMath.Layout layout = grid.getGridLayout();
+            Assert.assertNotNull(layout);
+            View lastCard = grid.getChildAt(count - 1);
+            Assert.assertEquals(layout.gap,
+                    grid.getMeasuredHeight() - lastCard.getBottom(), 1);
+        }
+    }
+
+    @Test
     public void cardAspectCanMatchTheTerminalGrid() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         SessionOverviewGridView grid = newGrid(activity, 4);

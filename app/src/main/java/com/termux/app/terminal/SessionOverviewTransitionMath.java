@@ -14,6 +14,23 @@ public final class SessionOverviewTransitionMath {
     /** Total flight time. Short enough to feel immediate, long enough to read as motion. */
     public static final long DURATION_MS = 300L;
 
+    /**
+     * Progress by which the copy of a flying tab at its source has fully faded out. The fade
+     * covers the first quarter of the flight, so the tab disappears after travelling 25% of its
+     * path and crosses the remaining quarter of the source half invisibly.
+     */
+    public static final float TAB_FADE_OUT_END = 0.25f;
+
+    /**
+     * Progress at which the copy of a flying tab at its target starts fading in. The fade covers
+     * the last quarter of the flight, so the target half is traversed invisibly until 75% of the
+     * path and only then reappears.
+     */
+    public static final float TAB_FADE_IN_START = 0.75f;
+
+    /** Fraction of the path at which the source copy hands over to the target copy. */
+    public static final float TAB_MOTION_SPLIT = 0.5f;
+
     public static float clamp01(float value) {
         if (Float.isNaN(value)) return 0f;
         if (value <= 0f) return 0f;
@@ -32,6 +49,56 @@ public final class SessionOverviewTransitionMath {
         if (p <= from) return 0f;
         if (from >= 1f) return 0f;
         return clamp01((p - from) / (1f - from));
+    }
+
+    /**
+     * Opacity of the copy of a flying tab that is still at its source size and title.
+     *
+     * <p>The tab leaves immediately: it fades out over the first 25% of the flight while
+     * moving along the first quarter of the source-to-target line at the size and title it had
+     * in the strip or on the card. Only its position is interpolated; no text is re-laid out.</p>
+     */
+    public static float tabSourceAlpha(float progress) {
+        final float p = clamp01(progress);
+        if (p >= TAB_FADE_OUT_END) return 0f;
+        return 1f - p / TAB_FADE_OUT_END;
+    }
+
+    /**
+     * Opacity of the copy of a flying tab that is already at its target size and title.
+     *
+     * <p>The target copy stays invisible until 75% of the path, then fades in over the last
+     * quarter while moving the rest of the way. The source and target fades never overlap, so
+     * the tab is never drawn twice.</p>
+     */
+    public static float tabTargetAlpha(float progress) {
+        return fadeIn(progress, TAB_FADE_IN_START);
+    }
+
+    /**
+     * Fraction of the source-to-target centre line covered by the source copy of a flying tab.
+     * It advances linearly from 0 to {@link #TAB_MOTION_SPLIT} over the first half of the flight.
+     * The fade ends at 25% of that line; the remaining quarter of the source half is traversed
+     * invisibly before the hand-off.
+     */
+    public static float tabSourcePathFraction(float progress) {
+        final float p = clamp01(progress);
+        if (p >= TAB_MOTION_SPLIT || TAB_MOTION_SPLIT <= 0f) return TAB_MOTION_SPLIT;
+        return TAB_MOTION_SPLIT * (p / TAB_MOTION_SPLIT);
+    }
+
+    /**
+     * Fraction of the source-to-target centre line covered by the target copy of a flying tab.
+     * It advances linearly from {@link #TAB_MOTION_SPLIT} to 1 over the second half of the
+     * flight. The target stays invisible for the first half of that segment and fades in from
+     * the 75% point of the line.
+     */
+    public static float tabTargetPathFraction(float progress) {
+        final float p = clamp01(progress);
+        if (p <= TAB_MOTION_SPLIT) return TAB_MOTION_SPLIT;
+        if (TAB_MOTION_SPLIT >= 1f) return 1f;
+        return TAB_MOTION_SPLIT + (1f - TAB_MOTION_SPLIT)
+                * ((p - TAB_MOTION_SPLIT) / (1f - TAB_MOTION_SPLIT));
     }
 
     /**
