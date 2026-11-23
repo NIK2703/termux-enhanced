@@ -1,6 +1,7 @@
 package com.termux.app.terminal.io.autocomplete;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.List;
 import java.util.Set;
@@ -34,6 +35,10 @@ final class SuggestionEngine {
         @NonNull final String text;
         @NonNull final Kind kind;
         final int entryIndex;
+        /** Stable id of the source record; 0 in string-only tests. */
+        final long entryId;
+        /** Full entry = -1, sentence index otherwise. */
+        final int sentenceIndex;
         /** Inclusive start of the matched window in the history entry. */
         final int windowStart;
         /** Exclusive end of the matched window. */
@@ -41,19 +46,21 @@ final class SuggestionEngine {
         /** First sentence of an entry, offered as a rollback while typing a later sentence. */
         final boolean isFirstSentence;
 
-        Candidate(@NonNull String text, @NonNull Kind kind, int entryIndex,
-                int windowStart, int windowEnd) {
-            this(text, kind, entryIndex, windowStart, windowEnd, false);
-        }
-
-        Candidate(@NonNull String text, @NonNull Kind kind, int entryIndex,
-                int windowStart, int windowEnd, boolean isFirstSentence) {
+        Candidate(@NonNull String text, @NonNull Kind kind, int entryIndex, long entryId,
+                int sentenceIndex, int windowStart, int windowEnd, boolean isFirstSentence) {
             this.text = text;
             this.kind = kind;
             this.entryIndex = entryIndex;
+            this.entryId = entryId;
+            this.sentenceIndex = sentenceIndex;
             this.windowStart = windowStart;
             this.windowEnd = windowEnd;
             this.isFirstSentence = isFirstSentence;
+        }
+
+        /** Bit in the record's dismissal set: 0 full, {@code sentence + 1} sentence. */
+        int dismissalBit() {
+            return sentenceIndex < 0 ? 0 : sentenceIndex + 1;
         }
     }
 
@@ -109,10 +116,12 @@ final class SuggestionEngine {
             final String[] entries = snap.entries;
             for (int e = pos.entry; e < entries.length; e++) {
                 final int windowEnd = snap.firstLineEnd(e);
+                if (snap.isFullDismissed(e)) continue;
                 if (matchesFull(snap, e, foldedLine, lineLen)) {
                     // Dedup keys are shared by both tiers.
                     if (!seen.add(new String(snap.fold(e)))) continue;
-                    out.add(new Candidate(entries[e], Kind.FULL, e, 0, windowEnd));
+                    out.add(new Candidate(entries[e], Kind.FULL, e, snap.entryId(e), -1,
+                            0, windowEnd, false));
                     if (out.size() >= maxCount) {
                         pos.entry = e + 1;
                         pos.sentence = 0;
@@ -164,16 +173,22 @@ final class SuggestionEngine {
                     break;
                 }
             }
+            int rollbackStart = -1;
             int rollbackEnd = -1;
-            if (startSentence == 0 && typingLaterSentence && sentenceCount > 1) {
+            if (startSentence == 0 && typingLaterSentence && sentenceCount > 1
+                    && !snap.isSentenceDismissed(e, 0)) {
+                final int firstStart = snap.sentenceStart(e, 0);
                 final int firstEnd = snap.sentenceEnd(e, 0);
-                if (firstEnd > 0 && firstEnd < lineLen
-                        && foldedMatches(snap.fold(e), 0, foldedLine, 0, firstEnd)) {
+                final int firstLen = firstEnd - firstStart;
+                if (firstLen > 0 && firstLen < lineLen
+                        && foldedMatches(snap.fold(e), firstStart, foldedLine, 0, firstLen)) {
+                    rollbackStart = firstStart;
                     rollbackEnd = firstEnd;
                 }
             }
             for (int s = startSentence; s < sentenceCount; s++) {
                 if (s == 0 && (rollbackEnd > 0 || fullShown)) continue;
+                if (snap.isSentenceDismissed(e, s)) continue;
                 final int windowStart = snap.sentenceStart(e, s);
                 final int windowEnd = snap.sentenceEnd(e, s);
                 final int windowLen = windowEnd - windowStart;
@@ -183,11 +198,13 @@ final class SuggestionEngine {
                     continue;
                 }
                 if (rollbackEnd > 0) {
+                    final int firstStart = rollbackStart;
                     final int firstEnd = rollbackEnd;
                     rollbackEnd = -1;
-                    if (seen.add(new String(snap.fold(e), 0, firstEnd))) {
-                        final String first = entries[e].substring(0, firstEnd);
-                        out.add(new Candidate(first, Kind.SENTENCE, e, 0, firstEnd, true));
+                    if (seen.add(new String(snap.fold(e), firstStart, firstEnd - firstStart))) {
+                        final String first = entries[e].substring(firstStart, firstEnd);
+                        out.add(new Candidate(first, Kind.SENTENCE, e, snap.entryId(e), 0,
+                                firstStart, firstEnd, true));
                         if (out.size() >= maxCount) {
                             pos.entry = e;
                             pos.sentence = s;
@@ -200,7 +217,8 @@ final class SuggestionEngine {
                 if (windowLen <= sentenceLen) continue;
                 if (!seen.add(new String(snap.fold(e), windowStart, windowLen))) continue;
                 final String sentence = entries[e].substring(windowStart, windowEnd);
-                out.add(new Candidate(sentence, Kind.SENTENCE, e, windowStart, windowEnd));
+                out.add(new Candidate(sentence, Kind.SENTENCE, e, snap.entryId(e), s,
+                        windowStart, windowEnd, false));
                 if (out.size() >= maxCount) {
                     pos.entry = e;
                     pos.sentence = s + 1;
@@ -277,42 +295,29 @@ final class SuggestionEngine {
         return true;
     }
 
+    /** True when a pre-folded history window equals an already folded string. */
+    static boolean foldedEquals(@NonNull char[] foldedEntry, int start, int len,
+            @NonNull String foldedText) {
+        if (start < 0 || len < 0 || start + len > foldedEntry.length
+                || foldedText.length() != len) {
+            return false;
+        }
+        for (int i = 0; i < len; i++) {
+            if (foldedEntry[start + i] != foldedText.charAt(i)) return false;
+        }
+        return true;
+    }
+
     /** Start of the line containing {@code caret} (the text after the last newline). */
     static int activeLineStart(@NonNull CharSequence text, int caret) {
-        int end = caret;
-        if (end < 0) end = 0;
-        if (end > text.length()) end = text.length();
-        for (int i = end - 1; i >= 0; i--) {
-            if (text.charAt(i) == '\n') return i + 1;
-        }
-        return 0;
+        return HistorySyntax.activeLineStart(text, caret);
     }
 
     /**
-     * Start of the active sentence containing {@code caret}: after the last newline,
-     * then after the last ordinary sentence terminator followed by whitespace. A
-     * terminator followed by a non-whitespace character (for example the dot in
-     * {@code ./}, {@code .git} or {@code 1.2}) is not a boundary.
+     * Start of the active sentence containing {@code caret}, using the same
+     * whitespace and boundary rules as {@link HistorySnapshot#parseSpans}.
      */
     static int activeSentenceStart(@NonNull CharSequence text, int caret) {
-        int end = caret;
-        if (end < 0) end = 0;
-        if (end > text.length()) end = text.length();
-        int lineStart = activeLineStart(text, end);
-        int sentenceStart = lineStart;
-        int i = lineStart;
-        while (i < end) {
-            char c = text.charAt(i);
-            if (HistorySnapshot.isSentenceEnd(c)
-                    && (i + 1 == end || HistorySnapshot.isBoundaryWhitespace(text.charAt(i + 1)))) {
-                int j = i + 1;
-                while (j < end && HistorySnapshot.isBoundaryWhitespace(text.charAt(j))) j++;
-                sentenceStart = j;
-                i = j;
-            } else {
-                i++;
-            }
-        }
-        return sentenceStart;
+        return HistorySyntax.activeSentenceStart(text, caret);
     }
 }

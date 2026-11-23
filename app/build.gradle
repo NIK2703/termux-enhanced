@@ -148,6 +148,17 @@ android {
                 maxParallelForks = 1
                 maxHeapSize = "2048m"
 
+                // Opt-in benchmark switches. Keeping them here makes the documented
+                // `-PautocompleteBench=true` command work without an extra init script.
+                if (project.hasProperty("autocompleteBench")) {
+                    systemProperty "autocomplete.bench",
+                            project.property("autocompleteBench").toString()
+                }
+                if (project.hasProperty("autocompleteBenchOut")) {
+                    systemProperty "autocomplete.bench.out",
+                            project.property("autocompleteBenchOut").toString()
+                }
+
                 // Robolectric 4.10 on JDK 17 needs these modules opened so its
                 // shadows (ActivityThread, etc.) can reflect into JDK internals;
                 // without them the per-test teardown NPEs with

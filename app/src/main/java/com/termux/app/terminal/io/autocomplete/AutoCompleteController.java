@@ -4,16 +4,16 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.StateListDrawable;
-import android.os.Build;
 import android.text.Editable;
 import android.text.SpannableString;
 import android.text.TextUtils;
 import android.util.TypedValue;
+import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 
 import com.termux.R;
+import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.TermuxColorSchemeManager;
 
 /**
@@ -37,11 +38,21 @@ import com.termux.app.terminal.TermuxColorSchemeManager;
  */
 public final class AutoCompleteController implements AutoCompleteDataProvider {
 
+    /** Match the input-history row delete animation/timing exactly. */
+    private static final int SUGGESTION_DELETE_ANIM_MS = 140;
+    private static final int SUGGESTION_DELETE_RESTORE_MS = 160;
+
     private final Context mContext;
     private EditText mInputField;
     private final MessageHistoryController mMessageHistoryCtrl;
     private final TermuxColorSchemeManager mColorSchemeManager;
     private final SharedPreferences mPrefs;
+    /** Opaque row colour used while a swipe reveals the red delete underlay. */
+    private final int mSuggestionNormalBg;
+    /** Opaque pressed colour, composited exactly like an input-history row. */
+    private final int mSuggestionHighlightBg;
+    /** Touch slop of the left-swipe delete gesture. */
+    private final int mSuggestionTouchSlop;
 
     // Suggestion data lives here; AutoCompletePopupManager owns the popup window.
     /** Current list of suggestion strings being displayed (message history). */
@@ -169,6 +180,10 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mMessageHistoryCtrl = messageHistoryCtrl;
         mColorSchemeManager = colorSchemeManager;
         mPrefs = context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        mSuggestionNormalBg = colorSchemeManager.getHistoryPopupBg();
+        mSuggestionHighlightBg = TermuxColorSchemeManager.compositeColors(
+                mSuggestionNormalBg, colorSchemeManager.getHistoryHighlightFill());
+        mSuggestionTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         readPreferences();
         Resources res = context.getResources();
         mPopupCornerRadiusPx = res.getDimensionPixelSize(R.dimen.autocomplete_popup_corner_radius);
@@ -732,8 +747,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private void ensureSnapshot() {
         final int version = mMessageHistoryCtrl.getHistoryVersion();
         if (mSnapshot == null || mSnapshotVersion != version) {
-            mSnapshot = HistorySnapshot.build(version, mMessageHistoryCtrl.getHistoryList(),
-                    mMessageHistoryCtrl.getSpansCache());
+            mSnapshot = HistorySnapshot.build(version, mMessageHistoryCtrl.getHistoryEntries(),
+                    mMessageHistoryCtrl.getSpansCache(), mMessageHistoryCtrl.getDismissals());
             mSnapshotVersion = version;
         }
     }
@@ -805,7 +820,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                 // The rollback is a prefix of the typed line, not of the active sentence.
                 matches = lineLen > c.text.length()
                         && SuggestionEngine.foldedMatches(mSnapshot.fold(c.entryIndex),
-                                0, foldedLine, 0, c.text.length());
+                                c.windowStart, foldedLine, 0, c.text.length());
             } else if (c.kind == SuggestionEngine.Kind.FULL) {
                 matches = SuggestionEngine.matchesFull(mSnapshot, c.entryIndex,
                         foldedLine, lineLen);
@@ -824,26 +839,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     }
 
     /**
-     * Create a suggestion row. The pressed-state drawable stays per-view: a shared
-     * drawable would highlight every row while one is pressed.
+     * Create a suggestion row and wire its tap, right-swipe word restore and
+     * left-swipe delete handlers.
      */
     private TextView buildSuggestionTextViewInternal(@NonNull String suggestion, @NonNull String input,
             @Nullable SuggestionEngine.Candidate candidate, boolean useCachedPrefix) {
         TextView tv = new TextView(mContext);
         styleSuggestionTextView(tv);
-        // Solid press highlight matching the message-history popup (per-theme)
-        StateListDrawable sel = new StateListDrawable();
-        sel.addState(new int[]{android.R.attr.state_pressed},
-                new ColorDrawable(mColorSchemeManager.getHistoryHighlightFill()));
-        sel.addState(new int[]{},
-                new ColorDrawable(Color.TRANSPARENT));
-        sel.setEnterFadeDuration(0);
-        sel.setExitFadeDuration(0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            tv.setBackground(sel);
-        } else {
-            tv.setBackgroundDrawable(sel);
-        }
         tv.setClickable(true);
         // Rows are rebound, so the captured suggestion can be stale; read the tag instead.
         tv.setOnClickListener(v -> {
@@ -860,21 +862,231 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             invalidateHistoryVersion();
             dismissAutoCompleteSuggestions();
         });
+
+        // Per-row gesture state. A right swipe still restores words; a left swipe
+        // deletes the suggestion with the same underlay, icon, threshold, haptics
+        // and timings as a left swipe on an input-history row.
+        final float[] down = new float[2];
+        final boolean[] deleteEngaged = { false };
+        final boolean[] deleteRejected = { false };
+        final boolean[] deleteArmed = { false };
+        // Tag captured on DOWN. A rebuild can reuse this row for different text
+        // between events; a swipe must never delete the new text.
+        final String[] gestureTag = { null };
         tv.setOnTouchListener((v, event) -> {
             Object tag = v.getTag();
-            String current = (tag instanceof String) ? (String) tag : null;
+            final String current = (tag instanceof String) ? (String) tag : null;
             final SuggestionEngine.Candidate touchCandidate =
                     current != null ? findCandidate(current) : null;
-            // A rollback row replaces the whole line, so a word swipe has no base.
-            if (touchCandidate != null && touchCandidate.isFirstSentence) return false;
-            final int baseMode =
-                    (touchCandidate != null && touchCandidate.kind == SuggestionEngine.Kind.FULL)
-                            ? AutoCompleteSwipeHandler.BASE_FULL
-                            : AutoCompleteSwipeHandler.BASE_SENTENCE;
-            return mSwipeHandler.onTouch(v, event, current, false, null, baseMode);
+            // A stale row (already rebuilt) keeps the old word-swipe-only behaviour.
+            if (touchCandidate == null) {
+                return mSwipeHandler.onTouch(v, event, current, false, null,
+                        AutoCompleteSwipeHandler.BASE_SENTENCE);
+            }
+
+            final int action = event.getActionMasked();
+            final boolean gestureEnd = action == MotionEvent.ACTION_UP
+                    || action == MotionEvent.ACTION_CANCEL;
+            final SuggestionRowHolder holder =
+                    v.getParent() instanceof SuggestionRowHolder
+                            ? (SuggestionRowHolder) v.getParent() : null;
+
+            if (action != MotionEvent.ACTION_DOWN
+                    && gestureTag[0] != null && !gestureTag[0].equals(current)) {
+                // The row was rebound during the gesture. Restore the visual state and
+                // let the new row handle its own tap; do not act on the new text.
+                gestureTag[0] = null;
+                if (deleteEngaged[0]) {
+                    v.animate().cancel();
+                    v.setTranslationX(0f);
+                }
+                v.setPressed(false);
+                v.setBackgroundColor(Color.TRANSPARENT);
+                if (holder != null) holder.hideDeleteUnderlay();
+                return false;
+            }
+
+            if (action == MotionEvent.ACTION_DOWN) {
+                v.animate().cancel();
+                v.setTranslationX(0f);
+                v.setPressed(true);
+                // Opaque, so the red underlay is hidden behind the row until it moves.
+                v.setBackgroundColor(mSuggestionHighlightBg);
+                down[0] = event.getRawX();
+                down[1] = event.getRawY();
+                deleteEngaged[0] = false;
+                deleteRejected[0] = false;
+                deleteArmed[0] = false;
+                gestureTag[0] = current;
+                if (holder != null) holder.hideDeleteUnderlay();
+            }
+
+            // Rightward word restore. rightOnly leaves leftward motion to the delete
+            // gesture below; a rollback row has no word-swipe base at all.
+            if (!deleteEngaged[0] && (!deleteRejected[0] || gestureEnd)
+                    && !touchCandidate.isFirstSentence) {
+                final int baseMode =
+                        touchCandidate.kind == SuggestionEngine.Kind.FULL
+                                ? AutoCompleteSwipeHandler.BASE_FULL
+                                : AutoCompleteSwipeHandler.BASE_SENTENCE;
+                if (mSwipeHandler.onTouch(v, event, current, true, null, baseMode)) {
+                    if (gestureEnd) {
+                        v.setPressed(false);
+                        v.setBackgroundColor(Color.TRANSPARENT);
+                        if (holder != null) holder.hideDeleteUnderlay();
+                    }
+                    return true;
+                }
+            }
+
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    return false;
+                case MotionEvent.ACTION_MOVE: {
+                    if (deleteRejected[0]) return false;
+                    final float dx = event.getRawX() - down[0];
+                    final float dy = event.getRawY() - down[1];
+                    if (!deleteEngaged[0]) {
+                        if (Math.abs(dy) > mSuggestionTouchSlop
+                                && Math.abs(dy) >= Math.abs(dx)) {
+                            // Vertical drag: let the popup's ScrollView scroll.
+                            deleteRejected[0] = true;
+                            v.cancelLongPress();
+                            return false;
+                        }
+                        if (dx >= -mSuggestionTouchSlop || Math.abs(dx) <= Math.abs(dy)) {
+                            return false;
+                        }
+                        deleteEngaged[0] = true;
+                        v.cancelLongPress();
+                        // The word handler only saw the down; nothing to undo.
+                        mSwipeHandler.resetSwipeState();
+                        v.setPressed(true);
+                        v.setBackgroundColor(mSuggestionHighlightBg);
+                        if (holder != null) holder.showDeleteUnderlay();
+                        if (v.getParent() != null) {
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                    final float translation = Math.max(-v.getWidth(), Math.min(0f, dx));
+                    v.setTranslationX(translation);
+                    final boolean nowArmed =
+                            -translation >= suggestionDeleteThreshold(v.getWidth());
+                    if (nowArmed != deleteArmed[0]) {
+                        deleteArmed[0] = nowArmed;
+                        if (nowArmed) {
+                            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                        }
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    if (v.getParent() != null) {
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    if (!deleteEngaged[0]) {
+                        // Plain tap or vertical scroll: restore the idle look and let
+                        // the row's OnClickListener run.
+                        v.setPressed(false);
+                        v.setBackgroundColor(Color.TRANSPARENT);
+                        if (holder != null) holder.hideDeleteUnderlay();
+                        return false;
+                    }
+                    v.setPressed(false);
+                    // Opaque normal row while it slides, so the red is revealed only
+                    // to the right of the row (matching the history-row animation).
+                    v.setBackgroundColor(mSuggestionNormalBg);
+                    final boolean remove = action == MotionEvent.ACTION_UP
+                            && gestureTag[0] != null && gestureTag[0].equals(current)
+                            && -v.getTranslationX()
+                            >= suggestionDeleteThreshold(v.getWidth());
+                    if (remove && deleteSuggestion(touchCandidate)) {
+                        // Keep the finishing row out of the next rebuild; otherwise it
+                        // could be rebound to another candidate before its 140 ms
+                        // slide-out ends.
+                        if (holder != null) holder.markDeleting();
+                        v.setOnTouchListener(null);
+                        v.setOnClickListener(null);
+                        v.setClickable(false);
+                        final View rowToRemove = holder != null ? holder : v;
+                        v.animate().translationX(-v.getWidth())
+                                .setDuration(SUGGESTION_DELETE_ANIM_MS)
+                                .withEndAction(() -> finishSuggestionDelete(rowToRemove))
+                                .start();
+                    } else {
+                        // Not far enough (or the source row was already gone): slide
+                        // back, then return to the transparent idle background.
+                        v.animate().translationX(0f)
+                                .setDuration(SUGGESTION_DELETE_RESTORE_MS)
+                                .withEndAction(() -> {
+                                    v.setBackgroundColor(Color.TRANSPARENT);
+                                    if (holder != null) holder.hideDeleteUnderlay();
+                                })
+                                .start();
+                    }
+                    return true;
+                }
+            }
+            return false;
         });
         rebindSuggestionTextViewInternal(tv, suggestion, input, candidate, useCachedPrefix);
         return tv;
+    }
+
+    /** Same threshold as the input-history row: 56 dp or 30% of the row width. */
+    private int suggestionDeleteThreshold(int rowWidth) {
+        return Math.max(TermuxActivityUtils.dpToPx(mContext, 56),
+                Math.round(rowWidth * 0.30f));
+    }
+
+    /** Drop the finished delete row and refresh the popup from the shrunken index. */
+    private void finishSuggestionDelete(@NonNull View rowToRemove) {
+        if (rowToRemove.getParent() instanceof ViewGroup) {
+            ((ViewGroup) rowToRemove.getParent()).removeView(rowToRemove);
+        }
+        if (mCandidates.isEmpty()) {
+            dismissAutoCompleteSuggestions();
+            return;
+        }
+        final EditText inputField = mInputField;
+        if (inputField != null && mPopupManager.isShowing()) {
+            // The suggestion version was bumped by deleteSuggestion(), so this
+            // rebuilds the remaining rows and shrinks the popup height.
+            mPopupManager.update(inputField.getText().toString(), inputField);
+        }
+    }
+
+    /**
+     * Remove one suggestion from the in-memory index and hide every matching window
+     * in the current history snapshot.
+     *
+     * <p>The message history is read-only for autocomplete: a full-entry row and a
+     * sentence row are both just index entries, so neither the history entry nor its
+     * sentence is edited. The dismissal is persisted by record id, so the suggestion
+     * stays hidden across index rebuilds, directory switches and restarts. Deleting
+     * by text hides duplicate windows in other records too; only the current
+     * snapshot is touched, so the same text in another directory is independent.
+     *
+     * <p>Package-private so the swipe gesture and tests exercise the same path.
+     *
+     * @return whether the candidate was still in the index.
+     */
+    boolean deleteSuggestion(@NonNull SuggestionEngine.Candidate candidate) {
+        if (!mCandidates.remove(candidate)) {
+            return false;
+        }
+        // Rebuild the snapshot if the history changed since the gesture began; the
+        // dismissal anchors on the candidate's stable record id, not on its position.
+        ensureSnapshot();
+        if (mSnapshot != null) {
+            mMessageHistoryCtrl.dismissSuggestion(candidate, mSnapshot);
+        }
+        // The snapshot's BitSets are live, so a later scan over the same history sees
+        // the new flags without a rebuild. Keep it: consecutive swipes can still map
+        // their candidate record ids.
+        rebuildSuggestionStrings();
+        return true;
     }
 
     /** One-time static styling of a suggestion row (colours re-applied on rebind). */

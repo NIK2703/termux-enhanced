@@ -228,7 +228,7 @@ public final class TermuxActivityPopupController {
         // the newest MESSAGE_HISTORY_POPUP_LIMIT entries; older ones stay available to
         // autocomplete. Iterate the slice in reverse so the newest is added last.
         if (mMessageHistoryCtrl != null) {
-            final java.util.ArrayList<String> history = mMessageHistoryCtrl.getHistoryList();
+            final java.util.List<String> history = mMessageHistoryCtrl.getHistoryList();
             final int visibleCount = Math.min(history.size(),
                     MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT);
             for (int i = visibleCount - 1; i >= 0; i--) {

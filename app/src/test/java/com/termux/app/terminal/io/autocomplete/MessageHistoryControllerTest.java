@@ -2,6 +2,8 @@ package com.termux.app.terminal.io.autocomplete;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -67,22 +69,42 @@ public class MessageHistoryControllerTest {
         shared.set(null, null);
     }
 
+    /** Texts stored under {@code dir} in the v2 document. */
     private JSONArray stored(String dir) {
+        return textsOf(storedEntries(dir));
+    }
+
+    private JSONArray storedEntries(String dir) {
         try {
-            String json = prefs.getString("message_history_per_directory", null);
+            String json = prefs.getString("message_history_v2", null);
             if (json == null) return new JSONArray();
-            return new JSONObject(json).optJSONArray(dir);
+            JSONObject dirs = new JSONObject(json).optJSONObject("dirs");
+            if (dirs == null) return new JSONArray();
+            JSONArray entries = dirs.optJSONArray(dir);
+            return entries == null ? new JSONArray() : entries;
         } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
 
+    /** Texts stored in the v2 global list. */
     private JSONArray globalStore() {
         try {
-            return new JSONArray(prefs.getString("message_history", "[]"));
+            String json = prefs.getString("message_history_v2", null);
+            if (json == null) return new JSONArray();
+            JSONArray entries = new JSONObject(json).optJSONArray("global");
+            return textsOf(entries == null ? new JSONArray() : entries);
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static JSONArray textsOf(JSONArray entries) {
+        JSONArray texts = new JSONArray();
+        for (int i = 0; i < entries.length(); i++) {
+            texts.put(entries.optJSONObject(i).optString("text", ""));
+        }
+        return texts;
     }
 
     // A reply for a background session
@@ -560,6 +582,24 @@ public class MessageHistoryControllerTest {
     }
 
     @Test
+    public void clearAllAlsoDropsTheGlobalFallback() throws Exception {
+        ctrl.setPerDirectoryEnabled(false);
+        ctrl.addToMessageHistory("global cmd", HOME);
+        ctrl.setPerDirectoryEnabled(true); // current list stays the global one
+        ctrl.addToMessageHistoryInDirectory("dir cmd", LOG_DIR);
+
+        ctrl.clearAllPerDirectory();
+        ctrl.setPerDirectoryEnabled(false);
+        assertTrue("global history is cleared too", ctrl.getHistoryList().isEmpty());
+
+        ctrl.save();
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+        assertTrue("the global fallback cannot resurrect a cleared history",
+                reloaded.getHistoryList().isEmpty());
+    }
+
+    @Test
     public void historyCanBeRecordedAgainAfterClearingTheCurrentDirectory() throws Exception {
         ctrl.addToMessageHistory("ls -la", HOME);
         ctrl.save();
@@ -592,6 +632,196 @@ public class MessageHistoryControllerTest {
         assertTrue(ctrl.getSpansCache().containsKey("a. b"));
         ctrl.removeMessage("a. b");
         assertFalse(ctrl.getSpansCache().containsKey("a. b"));
+    }
+
+    // Record identity
+
+    @Test
+    public void idsAreStableAcrossPromotionAndUniquePerDirectory() {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.addToMessageHistoryInDirectory("ls -la", LOG_DIR);
+
+        long homeLs = idOfCurrent("ls -la");
+        long homeGit = idOfCurrent("git status");
+        assertTrue(homeLs > 0);
+        assertTrue(homeGit > 0);
+        assertNotEquals(homeLs, homeGit);
+
+        ctrl.onHistoryDirectoryChanged(HOME, LOG_DIR);
+        long logLs = idOfCurrent("ls -la");
+        assertTrue(logLs > 0);
+        assertNotEquals("same text in another directory is a separate record",
+                homeLs, logLs);
+
+        ctrl.onHistoryDirectoryChanged(LOG_DIR, HOME);
+        ctrl.addToMessageHistory("ls -la", HOME); // promote
+        assertEquals("promotion keeps the record id", homeLs, idOfCurrent("ls -la"));
+    }
+
+    @Test
+    public void idsSurviveSaveAndReload() throws Exception {
+        ctrl.addToMessageHistory("ls -la", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        long ls = idOfCurrent("ls -la");
+        long git = idOfCurrent("git status");
+        ctrl.save();
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+        assertEquals(ls, idOf(reloaded, "ls -la"));
+        assertEquals(git, idOf(reloaded, "git status"));
+    }
+
+    @Test
+    public void legacyMigrationAssignsPositiveUniqueIds() throws Exception {
+        String store = new JSONObject()
+            .put(HOME, new JSONArray().put("ls").put("git"))
+            .toString();
+        prefs.edit().putString("message_history_per_directory", store).commit();
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+
+        long first = -1;
+        for (HistoryEntry entry : reloaded.getHistoryEntries()) {
+            assertTrue(entry.id > 0);
+            if (first < 0) {
+                first = entry.id;
+            } else {
+                assertNotEquals(first, entry.id);
+            }
+        }
+    }
+
+    @Test
+    public void dismissalFlagsPersistByRecordId() throws Exception {
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.save();
+        long id = idOfCurrent("git status");
+        assertFalse(ctrl.getDismissals().isDismissed(id, 0));
+
+        assertTrue(ctrl.getDismissals().dismiss(id, 0));
+        assertTrue(ctrl.getDismissals().isDismissed(id, 0));
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+        assertTrue(reloaded.getDismissals().isDismissed(id, 0));
+    }
+
+    @Test
+    public void removedRecordDropsItsDismissalFlags() {
+        ctrl.addToMessageHistory("git status", HOME);
+        long id = idOfCurrent("git status");
+        assertTrue(ctrl.getDismissals().dismiss(id, 0));
+
+        assertTrue(ctrl.removeMessage("git status"));
+        assertFalse(ctrl.getDismissals().isDismissed(id, 0));
+    }
+
+    @Test
+    public void sentenceModelMismatchDiscardsStoredFlags() throws Exception {
+        prefs.edit().putString("autocomplete_dismissed_suggestions_v2",
+                "{\"v\":1,\"sentenceModel\":999,\"dismissed\":{\"1\":[0]}}").commit();
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+
+        assertFalse(reloaded.getDismissals().isDismissed(1, 0));
+        assertTrue("stale flags are removed", prefs.getString(
+                "autocomplete_dismissed_suggestions_v2", null) == null);
+    }
+
+    @Test
+    public void pendingWritesDrainIntoTheFirstRealDirectoryWithoutLosingIds() throws Exception {
+        ctrl = newController();
+        ctrl.load(".");
+        assertEquals(".", ctrl.getHistoryCurrentDirectory());
+
+        ctrl.addToMessageHistory("one", ".");
+        long one = idOfCurrent("one");
+        ctrl.addToMessageHistory("two", HOME); // first real cwd drains pending
+        long two = idOfCurrent("two");
+        ctrl.save();
+
+        assertEquals("[two, one]", String.valueOf(ctrl.getHistoryList()));
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+        assertEquals("[two, one]", String.valueOf(reloaded.getHistoryList()));
+        assertEquals(one, idOf(reloaded, "one"));
+        assertEquals(two, idOf(reloaded, "two"));
+    }
+
+    @Test
+    public void switchingPerDirectoryModeMovesGlobalHistoryIntoPendingWithoutLoss() throws Exception {
+        ctrl.setPerDirectoryEnabled(false);
+        ctrl.load(HOME);
+        ctrl.addToMessageHistory("global", HOME);
+        ctrl.save();
+
+        ctrl.setPerDirectoryEnabled(true);
+        assertEquals(".", ctrl.getHistoryCurrentDirectory());
+        assertEquals("[global]", String.valueOf(ctrl.getHistoryList()));
+
+        ctrl.addToMessageHistory("home", HOME);
+        ctrl.save();
+        assertEquals("[home, global]", String.valueOf(ctrl.getHistoryList()));
+        assertEquals("[\"home\",\"global\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void corruptV3DoesNotFallBackToStaleV1() throws Exception {
+        prefs.edit()
+                .putString("message_history", new JSONArray().put("stale").toString())
+                .putString("message_history_v2", "{not-json")
+                .commit();
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+
+        assertTrue("corrupt v3 must start empty", reloaded.getHistoryList().isEmpty());
+        assertEquals("{not-json", prefs.getString("message_history_v3_corrupt", null));
+        assertTrue("the migration marker prevents a later v1 fallback",
+                prefs.getBoolean("message_history_migrated_v3", false));
+        assertNull("v1 is consumed after the v3 barrier",
+                prefs.getString("message_history", null));
+    }
+
+    @Test
+    public void validV2IsUpgradedWithoutReadingStaleV1() throws Exception {
+        String v2 = new JSONObject()
+                .put("v", 2)
+                .put("nextId", 7)
+                .put("global", new JSONArray())
+                .put("dirs", new JSONObject().put(HOME,
+                        new JSONArray().put(new JSONObject().put("id", 3).put("text", "v2"))))
+                .toString();
+        prefs.edit()
+                .putString("message_history", new JSONArray().put("stale").toString())
+                .putString("message_history_v2", v2)
+                .commit();
+
+        MessageHistoryController reloaded = newController();
+        reloaded.load(HOME);
+
+        assertEquals("[v2]", String.valueOf(reloaded.getHistoryList()));
+        assertEquals(3, idOf(reloaded, "v2"));
+        assertTrue("the v3 document has a fresh epoch",
+                new JSONObject(prefs.getString("message_history_v2", null))
+                        .getString("epoch").length() > 0);
+        assertTrue(prefs.getBoolean("message_history_migrated_v3", false));
+        assertNull(prefs.getString("message_history", null));
+    }
+
+    private long idOfCurrent(String text) {
+        return idOf(ctrl, text);
+    }
+
+    private static long idOf(MessageHistoryController controller, String text) {
+        for (HistoryEntry entry : controller.getHistoryEntries()) {
+            if (entry.text.equals(text)) return entry.id;
+        }
+        return -1;
     }
 
     /** Let the debounce timer fire the way it does on a real looper. */

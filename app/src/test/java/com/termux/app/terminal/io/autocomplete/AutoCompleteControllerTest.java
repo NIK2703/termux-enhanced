@@ -7,9 +7,13 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.MotionEvent;
+import android.view.View;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import com.termux.app.terminal.TermuxColorSchemeManager;
@@ -20,6 +24,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.ConscryptMode;
+import org.robolectric.shadows.ShadowLooper;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -34,6 +39,7 @@ import java.util.ArrayList;
 public class AutoCompleteControllerTest {
 
     private static final String HOME = "/home/user";
+    private static final String LOG_DIR = "/var/log";
 
     private SharedPreferences prefs;
     private MessageHistoryController history;
@@ -88,6 +94,30 @@ public class AutoCompleteControllerTest {
         type("echo first\ngit");
         assertEquals(1, suggestions().size());
         assertEquals("git status", suggestions().get(0));
+    }
+
+    @Test
+    public void indentedHistorySentenceIsSuggestedAndInsertedWithoutIndentation() {
+        history.addToMessageHistory("echo first\n    git status", HOME);
+        type("echo first\ngit");
+        assertEquals(1, suggestions().size());
+        assertEquals("git status", suggestions().get(0));
+
+        TextView row = controller.buildSuggestionTextView(suggestions().get(0), "git");
+        assertTrue(row.performClick());
+        assertEquals("echo first\ngit status", input.getText().toString());
+    }
+
+    @Test
+    public void historySentenceTrailingSpacesAreNotSuggestedOrInserted() {
+        history.addToMessageHistory("echo first\ngit status   \necho last", HOME);
+        type("echo first\ngit");
+        assertEquals(1, suggestions().size());
+        assertEquals("git status", suggestions().get(0));
+
+        TextView row = controller.buildSuggestionTextView(suggestions().get(0), "git");
+        assertTrue(row.performClick());
+        assertEquals("echo first\ngit status", input.getText().toString());
     }
 
     @Test
@@ -323,6 +353,272 @@ public class AutoCompleteControllerTest {
         TextView row = controller.buildSuggestionTextView(suggestions().get(1), "Sec");
         assertTrue(row.performClick());
         assertEquals("First sentence.", input.getText().toString());
+    }
+
+    @Test
+    public void deletedSentenceStaysHiddenAcrossAnIndexRebuild() {
+        history.addToMessageHistory("First sentence.\nSecond long sentence.", HOME);
+        type("First sentence.\nSec");
+        assertEquals(1, suggestions().size());
+        assertEquals("Second long sentence.", suggestions().get(0));
+
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+        assertTrue(suggestions().isEmpty());
+        assertEquals("[First sentence.\nSecond long sentence.]",
+                String.valueOf(history.getHistoryList()));
+
+        // The history is read-only for autocomplete, but the dismissal is keyed by
+        // the record id and survives an index rebuild.
+        controller.invalidateHistoryVersion();
+        type("First sentence.\nSec");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void deletedFullEntryStaysHiddenAcrossAnIndexRebuild() {
+        history.addToMessageHistory("git status", HOME);
+        type("git s");
+        assertEquals(1, suggestions().size());
+
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+        assertTrue(suggestions().isEmpty());
+        assertEquals("[git status]", String.valueOf(history.getHistoryList()));
+
+        controller.invalidateHistoryVersion();
+        type("git s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void deletingAWholeEntryAlsoHidesItsOwnSentenceWindows() {
+        history.addToMessageHistory("First sentence. Second long sentence.", HOME);
+        type("First sentence. Sec");
+        assertEquals(3, suggestions().size());
+        SuggestionEngine.Candidate full = controller.getCandidate(0);
+        assertEquals(SuggestionEngine.Kind.FULL, full.kind);
+
+        assertTrue(controller.deleteSuggestion(full));
+
+        controller.invalidateHistoryVersion();
+        type("First sentence. Sec");
+        assertTrue("the rollback and sentence windows of the deleted full entry are hidden",
+                suggestions().isEmpty());
+        assertEquals("[First sentence. Second long sentence.]",
+                String.valueOf(history.getHistoryList()));
+    }
+
+    @Test
+    public void deletedFirstSentenceRollbackStaysHiddenWhileLaterSentenceRemains() {
+        history.addToMessageHistory("First sentence. Second long sentence.", HOME);
+        type("First sentence. Sec");
+        assertEquals(3, suggestions().size());
+        SuggestionEngine.Candidate rollback = controller.getCandidate(1);
+        assertTrue(rollback.isFirstSentence);
+
+        assertTrue(controller.deleteSuggestion(rollback));
+        assertFalse(suggestions().contains("First sentence."));
+        assertTrue(suggestions().contains("Second long sentence."));
+        assertEquals("[First sentence. Second long sentence.]",
+                String.valueOf(history.getHistoryList()));
+
+        controller.invalidateHistoryVersion();
+        type("First sentence. Sec");
+        assertFalse(suggestions().contains("First sentence."));
+        assertTrue(suggestions().contains("Second long sentence."));
+    }
+
+    @Test
+    public void deletedSuggestionStaysHiddenAfterRestart() throws Exception {
+        history.addToMessageHistory("git status", HOME);
+        type("git s");
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        restart();
+
+        type("git s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void deletedSuggestionStaysHiddenAfterRestartInPerDirectoryMode() throws Exception {
+        prefs.edit().putBoolean("per_directory_message_history", true).commit();
+        history.setPerDirectoryEnabled(true);
+        history.load(HOME);
+        history.addToMessageHistory("git status", HOME);
+        type("git s");
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        restart();
+
+        type("git s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void consecutiveDeletesBothPersistWithoutARebuild() {
+        history.addToMessageHistory("git status", HOME);
+        history.addToMessageHistory("git stash", HOME);
+        type("git s");
+        assertEquals(2, suggestions().size());
+
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        type("git s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void deletedSuggestionStaysHiddenWhenTheEntryIsPromoted() {        history.addToMessageHistory("git status", HOME);
+        history.addToMessageHistory("git commit", HOME);
+        type("git s");
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        // Same record, new position: the id and its dismissal survive.
+        history.addToMessageHistory("git status", HOME);
+        type("git s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void removingAndReAddingTheEntryMakesItSuggestableAgain() {
+        history.addToMessageHistory("git status", HOME);
+        type("git s");
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        assertTrue(history.removeMessage("git status"));
+        history.addToMessageHistory("git status", HOME);
+        type("git s");
+        assertEquals(1, suggestions().size());
+        assertEquals("git status", suggestions().get(0));
+    }
+
+    @Test
+    public void deletingASentenceHidesTheSameSentenceInAnotherEntry() {
+        history.addToMessageHistory("a\nshared tail", HOME);
+        history.addToMessageHistory("b\nshared tail", HOME);
+        type("a\nshared");
+        assertEquals(1, suggestions().size());
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        // The duplicate window in the other record is hidden too.
+        type("b\nshared");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void deletingAFullEntryHidesTheSameTextAsASentenceElsewhere() {
+        history.addToMessageHistory("git status", HOME);
+        history.addToMessageHistory("x\ngit status", HOME);
+        type("git s");
+        assertEquals(1, suggestions().size());
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        type("x\ngit s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    @Test
+    public void deletingASentenceDoesNotHideAnotherSentenceOfTheSameEntry() {
+        history.addToMessageHistory("a\nfirst tail\nsecond tail", HOME);
+        type("a\nfirst");
+        assertEquals(1, suggestions().size());
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        type("a\nsecond");
+        assertEquals(1, suggestions().size());
+        assertEquals("second tail", suggestions().get(0));
+    }
+
+    @Test
+    public void deletedSuggestionIsIndependentPerDirectory() {
+        history.setPerDirectoryEnabled(true);
+        history.load(HOME);
+        history.addToMessageHistory("git status", HOME);
+        history.addToMessageHistoryInDirectory("git status", LOG_DIR);
+        type("git s");
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+        assertTrue(suggestions().isEmpty());
+
+        history.onHistoryDirectoryChanged(HOME, LOG_DIR);
+        type("git s");
+        assertEquals(1, suggestions().size());
+        assertEquals("git status", suggestions().get(0));
+
+        history.onHistoryDirectoryChanged(LOG_DIR, HOME);
+        type("git s");
+        assertTrue(suggestions().isEmpty());
+    }
+
+    /** Simulate a process restart: a fresh singleton store and a fresh controller. */
+    private void restart() throws Exception {
+        history.save();
+        resetSingleton();
+        history = MessageHistoryController.shared(prefs);
+        history.load(HOME);
+        input = new EditText(input.getContext());
+        controller = new AutoCompleteController(input.getContext(), input, history,
+                TermuxColorSchemeManager.shared());
+    }
+
+    @Test
+    public void staleSuggestionIsNotRemovedFromARebuiltIndex() {
+        history.addToMessageHistory("First sentence.\nSecond long sentence.", HOME);
+        type("First sentence.\nSec");
+        SuggestionEngine.Candidate stale = controller.getCandidate(0);
+
+        // A rebuild replaces the candidate objects; the old row's index entry is gone.
+        controller.invalidateHistoryVersion();
+        type("First sentence.\nSec");
+
+        assertFalse(controller.deleteSuggestion(stale));
+        assertEquals(1, suggestions().size());
+        assertEquals("[First sentence.\nSecond long sentence.]",
+                String.valueOf(history.getHistoryList()));
+    }
+
+    @Test
+    public void leftSwipeDeletesTheSuggestionFromTheIndexAndRemovesItsRow() {
+        history.addToMessageHistory("First sentence.\nSecond long sentence.", HOME);
+        type("First sentence.\nSec");
+        assertEquals(1, suggestions().size());
+
+        SuggestionRowHolder holder =
+                measuredSuggestionRow(suggestions().get(0), 1000);
+        TextView row = holder.row();
+
+        final long now = SystemClock.uptimeMillis();
+        dispatchTouch(row, MotionEvent.ACTION_DOWN, 900f, now);
+        dispatchTouch(row, MotionEvent.ACTION_MOVE, 300f, now + 10);
+        dispatchTouch(row, MotionEvent.ACTION_UP, 300f, now + 20);
+
+        assertTrue(suggestions().isEmpty());
+        assertEquals("[First sentence.\nSecond long sentence.]",
+                String.valueOf(history.getHistoryList()));
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        assertTrue("the deleted row is removed after its slide-out",
+                holder.getParent() == null);
+    }
+
+    private SuggestionRowHolder measuredSuggestionRow(String suggestion, int width) {
+        TextView row = controller.buildSuggestionTextView(suggestion, "Sec");
+        SuggestionRowHolder holder = new SuggestionRowHolder(input.getContext(), row);
+        FrameLayout parent = new FrameLayout(input.getContext());
+        parent.addView(holder);
+        holder.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        holder.layout(0, 0, width, holder.getMeasuredHeight());
+        assertEquals(width, row.getWidth());
+        return holder;
+    }
+
+    private static void dispatchTouch(TextView row, int action, float x, long time) {
+        MotionEvent event = MotionEvent.obtain(time, time, action, x, 50f, 0);
+        try {
+            row.dispatchTouchEvent(event);
+        } finally {
+            event.recycle();
+        }
     }
 
     @Test

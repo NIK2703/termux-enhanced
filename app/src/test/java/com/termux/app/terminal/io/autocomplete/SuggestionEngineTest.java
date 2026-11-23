@@ -279,6 +279,45 @@ public class SuggestionEngineTest {
     }
 
     @Test
+    public void sentenceWindowDropsIndentationAfterNewline() {
+        List<SuggestionEngine.Candidate> out =
+                scan(snap("first\n    git status"), "git", 4);
+        assertEquals(1, out.size());
+        assertEquals("git status", out.get(0).text);
+        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(0).kind);
+        assertEquals(10, out.get(0).windowStart);
+    }
+
+    @Test
+    public void sentenceWindowDropsSpacesBeforeNewline() {
+        List<SuggestionEngine.Candidate> out =
+                scan(snap("first\ngit status   \nnext"), "git", 4);
+        assertEquals(1, out.size());
+        assertEquals("git status", out.get(0).text);
+        assertEquals("git status".length(), out.get(0).windowEnd - out.get(0).windowStart);
+    }
+
+    @Test
+    public void whitespaceOnlyLineIsNotACandidate() {
+        List<SuggestionEngine.Candidate> out =
+                scan(snap("first\n   \nsecond command"), "sec", 4);
+        assertEquals(1, out.size());
+        assertEquals("second command", out.get(0).text);
+    }
+
+    @Test
+    public void rollbackUsesTheTrimmedFirstSentenceWindow() {
+        List<SuggestionEngine.Candidate> out =
+                scan(snap("  First sentence. Second long sentence."),
+                        "First sentence. Sec", 4);
+        assertEquals(2, out.size());
+        assertEquals("First sentence.", out.get(0).text);
+        assertTrue(out.get(0).isFirstSentence);
+        assertEquals("Second long sentence.", out.get(1).text);
+        assertFalse(out.get(1).isFirstSentence);
+    }
+
+    @Test
     public void activeSentenceStartsAfterTheLastNewline() {
         String text = "one\ntwo\nthree";
         assertEquals(8, SuggestionEngine.activeSentenceStart(text, text.length()));

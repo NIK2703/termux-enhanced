@@ -1,46 +1,43 @@
 package com.termux.app.terminal.io.autocomplete;
 
 import android.content.SharedPreferences;
-import android.os.Handler;
-import android.os.Looper;
-import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 
 /**
  * Pure-data controller for the per-directory / global message (command) history.
- * <p>
- * Owns the in-memory list (in insertion order, newest first) and all per-directory
- * state, plus persistence to {@link SharedPreferences} via JSON. The activity (or
- * any consumer) reads {@link #getHistoryList()} and {@link #getHistoryVersion()}
- * to build popup UI, and calls {@link #addToMessageHistory(String, String)} after
- * a command is executed.
- * <p>
- * Entries are trimmed at the edges; internal spacing is preserved.
- * <p>
- * In per-directory mode ({@link #setPerDirectoryEnabled(boolean)}) the controller
- * fragments the history by {@code CWD}, migrating any previously-global entries
- * into the first real directory automatically.
+ *
+ * <p>Owns a {@link HistoryStore} (records with stable ids, one id space for global,
+ * pending and per-directory lists), the parsed sentence-span cache, and persistence
+ * to {@link SharedPreferences}. The activity (or any consumer) reads
+ * {@link #getHistoryList()} and {@link #getHistoryVersion()} to build popup UI, and
+ * calls {@link #addToMessageHistory(String, String)} after a command is executed.
+ *
+ * <p>Entries are trimmed at the edges; internal spacing is preserved.
+ *
+ * <p>Per-directory writes made while the cwd is unknown go to the attached
+ * {@code pending} list. The first real cwd drains pending (and, once, the legacy
+ * global history) into that directory. {@code perDirInitialized} records that the
+ * one-time migration has happened; it is not inferred from the presence of empty
+ * directory keys.
  */
 public final class MessageHistoryController {
 
+    /** Legacy v1 keys: consumed once, then removed after the v3 document is committed. */
     private static final String PREF_MESSAGE_HISTORY = "message_history";
     private static final String PREF_MESSAGE_HISTORY_PER_DIR = "message_history_per_directory";
+
+    /** Unified document key. v3 now lives here; v2 documents are upgraded on load. */
+    private static final String PREF_MESSAGE_HISTORY_V2 = "message_history_v2";
+    private static final String PREF_MIGRATION_MARKER = "message_history_migrated_v3";
+    private static final String PREF_CORRUPT_BACKUP = "message_history_v3_corrupt";
 
     /** Settings keys, read here so a write from outside the activity is configured the same way. */
     private static final String PREF_MAX = "message_history_max";
@@ -71,28 +68,25 @@ public final class MessageHistoryController {
         return sShared;
     }
 
-    /** In-memory message history, newest first. */
-    private final ArrayList<String> mMessageHistory = new ArrayList<>();
+    /** Records and the selected list. */
+    @NonNull private final HistoryStore mStore = new HistoryStore();
+
+    /** Persistent swipe-left flags, keyed by record id. */
+    @NonNull private final SuggestionDismissals mDismissals;
 
     /** Parsed line/sentence offsets keyed by entry text, reused across snapshots. */
     @NonNull
     private final HashMap<String, HistorySnapshot.Spans> mSpansCache = new HashMap<>();
 
+    /** Single writer for the history document. */
+    @NonNull private final HistoryPersistence mPersistence;
+
     /**
      * Whether {@link #load} has populated the in-memory state from disk. Guards the mutators, not
-     * the constructor, which does no I/O: a mutator reached without loading first persists an empty
-     * store, rewriting the whole per-directory JSON and losing every other directory's history.
+     * the constructor, which does no I/O: a mutator reached without loading first would otherwise
+     * persist an empty store and lose every directory's history.
      */
     private boolean mLoaded;
-
-    /**
-     * Per-directory history store, keyed by absolute path (CWD).
-     * Only populated when {@code mPerDirectoryMessageHistory} is true.
-     */
-    private final HashMap<String, ArrayList<String>> mMessageHistoryPerDirectory = new HashMap<>();
-
-    /** The CWD that {@link #mMessageHistory} currently represents, or null. */
-    @Nullable private String mHistoryCurrentDirectory;
 
     /**
      * Incremented on every modification so consumers (e.g. the auto-complete popup)
@@ -107,54 +101,43 @@ public final class MessageHistoryController {
 
     private final SharedPreferences mPrefs;
 
-    // ── Debounced persistence ──
-    // Bursts of mutations (a message sent, then the field cleared, then a history pick) would each
-    // pay for a whole-store rewrite, even though SharedPreferences.apply() is itself async — the
-    // in-memory mutation is already visible to readers. Coalescing keeps identical persistence
-    // semantics (the last mutation always lands on disk) at a fraction of the CPU/IO cost.
-    private static final long PERSIST_DEBOUNCE_MS = 250;
-    private final Handler mPersistHandler = new Handler(Looper.getMainLooper());
-    @Nullable private Runnable mPersistPending;
-
-    // P2: the (potentially large) JSON serialization + prefs write runs OFF the main thread on a
-    // single-threaded executor. A generation counter lets a newer persist supersede an older one
-    // still queued, so the on-disk state always ends at the latest mutation. flushPersist()/save()
-    // block on a synchronous commit so history is guaranteed on disk before onStop / a mode switch.
-    private final ExecutorService mPersistExecutor =
-            Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "message-history-persist");
-                t.setPriority(Thread.NORM_PRIORITY - 1);
-                return t;
-            });
-    private final AtomicInteger mPersistGeneration = new AtomicInteger();
-
     private MessageHistoryController(@NonNull SharedPreferences prefs) {
         mPrefs = prefs;
+        mDismissals = new SuggestionDismissals(prefs);
+        mPersistence = new HistoryPersistence(
+                (document, sync) -> writeDocument(prefs, document, sync));
         applyStoredSettings();
     }
 
     /**
-     * Read the settings that decide which store a write lands in and how much of it survives, from
+     * Read the settings that decide which list a write lands in and how much of it survives, from
      * the same prefs the activity configures the controller from.
      *
      * <p>Done at construction because a notification reply can be the first thing in a process: the
-     * broadcast starts the app with no activity, so nothing has applied the user's settings yet. A
-     * write under the built-in defaults would then trim a store the user sized at 500 down to 20,
-     * or land in the global store while the user is on the per-directory one.
+     * broadcast starts the app with no activity, so nothing has applied the user's settings yet.
      */
     private void applyStoredSettings() {
         mMessageHistoryMax = clampMaxSize(mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT));
         mPerDirectoryMessageHistory = mPrefs.getBoolean(PREF_PER_DIR, false);
     }
 
-    /** Schedule (or re-schedule) the store-wide persist on the main looper. */
+    // ── Persistence ──
+
+    @NonNull
+    private HistoryDocument snapshotDocument() {
+        return mStore.snapshot();
+    }
+
     private void schedulePersist() {
-        if (mPersistPending != null) mPersistHandler.removeCallbacks(mPersistPending);
-        mPersistPending = () -> {
-            mPersistPending = null;
-            persistAsync(false);
-        };
-        mPersistHandler.postDelayed(mPersistPending, PERSIST_DEBOUNCE_MS);
+        mPersistence.schedule(this::snapshotDocument);
+    }
+
+    /**
+     * Persist the current document now. With {@code sync=true}, wait for the commit;
+     * the single writer guarantees that an older in-flight write cannot land after it.
+     */
+    private void saveNow(boolean syncCommit) {
+        mPersistence.saveNow(this::snapshotDocument, syncCommit);
     }
 
     /**
@@ -163,107 +146,72 @@ public final class MessageHistoryController {
      * so history is always on disk before the process can be stopped.
      */
     public void flushPersist() {
-        if (mPersistPending != null) {
-            mPersistHandler.removeCallbacks(mPersistPending);
-            mPersistPending = null;
-        }
-        persistAsync(true);
-        drainPersist();
+        mPersistence.saveNow(this::snapshotDocument, true);
+        mDismissals.flush();
     }
 
     /** Cancel a pending debounced persist without writing (teardown). */
     public void cancelPersist() {
-        if (mPersistPending != null) {
-            mPersistHandler.removeCallbacks(mPersistPending);
-            mPersistPending = null;
-        }
+        mPersistence.cancel();
     }
 
-    /** Run a pending debounced persist now, synchronously (used by flushPersist). */
-    private void persistAsync(boolean syncCommit) {
-        final int gen = mPersistGeneration.incrementAndGet();
-        if (mPerDirectoryMessageHistory) {
-            final String key = mHistoryCurrentDirectory;
-            final ArrayList<String> current = new ArrayList<>(mMessageHistory);
-            final HashMap<String, ArrayList<String>> snapshot =
-                    new HashMap<>(mMessageHistoryPerDirectory.size());
-            for (Map.Entry<String, ArrayList<String>> e : mMessageHistoryPerDirectory.entrySet()) {
-                snapshot.put(e.getKey(), new ArrayList<>(e.getValue()));
-            }
-            if (key != null) snapshot.put(key, current);
-            mPersistExecutor.execute(() -> {
-                if (gen < mPersistGeneration.get()) return; // a newer persist superseded this
-                writePerDirectory(snapshot, syncCommit);
-            });
-        } else {
-            final ArrayList<String> current = new ArrayList<>(mMessageHistory);
-            mPersistExecutor.execute(() -> {
-                if (gen < mPersistGeneration.get()) return; // a newer persist superseded this
-                writeGlobal(current, syncCommit);
-            });
-        }
+    /** Stop the writer. Used by tests and by process teardown. */
+    public void close() {
+        cancelPersist();
+        mPersistence.close();
     }
 
-    /** Block until every queued persistence task has finished (used by sync flushes). */
-    private void drainPersist() {
-        try {
-            mPersistExecutor.submit(() -> {}).get();
-        } catch (InterruptedException | java.util.concurrent.ExecutionException ignored) {
-            // Best-effort: if the drain is interrupted we still return; the host's
-            // lifecycle pause will have triggered its own flush.
-        }
-    }
-
-    private void writeGlobal(@NonNull ArrayList<String> list, boolean syncCommit) {
-        putPrefsString(PREF_MESSAGE_HISTORY, listToJson(list).toString(), syncCommit);
-    }
-
-    private void writePerDirectory(@NonNull HashMap<String, ArrayList<String>> map, boolean syncCommit) {
-        JSONObject obj = mapToJson(map);
-        if (obj == null) return;
-        putPrefsString(PREF_MESSAGE_HISTORY_PER_DIR, obj.toString(), syncCommit);
-    }
-
-    private void putPrefsString(@NonNull String key, @NonNull String value, boolean syncCommit) {
-        SharedPreferences.Editor ed = mPrefs.edit().putString(key, value);
-        if (syncCommit) ed.commit(); else ed.apply();
-    }
-
-    @NonNull
-    private static JSONArray listToJson(@NonNull Iterable<String> list) {
-        JSONArray arr = new JSONArray();
-        for (String s : list) arr.put(s);
-        return arr;
-    }
-
-    @Nullable
-    private static JSONObject mapToJson(@NonNull HashMap<String, ArrayList<String>> map) {
-        JSONObject obj = new JSONObject();
-        try {
-            for (Map.Entry<String, ArrayList<String>> e : map.entrySet()) {
-                obj.put(e.getKey(), listToJson(e.getValue()));
-            }
-        } catch (JSONException ignored) {
-            return null;
-        }
-        return obj;
+    private static boolean writeDocument(@NonNull SharedPreferences prefs,
+            @NonNull HistoryDocument document, boolean syncCommit) {
+        String json = HistoryJsonCodec.encode(document);
+        if (json == null) return false;
+        SharedPreferences.Editor editor = prefs.edit().putString(PREF_MESSAGE_HISTORY_V2, json);
+        if (syncCommit) return editor.commit();
+        editor.apply();
+        return true;
     }
 
     // ── Feature flags ──
 
     public void setPerDirectoryEnabled(boolean enabled) {
+        if (mPerDirectoryMessageHistory == enabled) return;
         mPerDirectoryMessageHistory = enabled;
+        if (!mLoaded) return;
+        if (!enabled) {
+            mStore.useGlobal();
+            mHistoryVersion++;
+            rebuildSpansCache();
+        } else {
+            boolean changed = false;
+            // Leaving global mode: the entries the user just saw are global history.
+            // Move them into the pending buffer so the first real cwd can adopt them;
+            // otherwise an initialized per-directory store would hide them.
+            if (mStore.isCurrentGlobal() && !mStore.global().isEmpty()) {
+                HistoryStore.MergeResult global = mStore.mergeGlobalIntoPending();
+                mDismissals.remap(global.idRemap);
+                changed = global.changed;
+            }
+            String cwd = mStore.currentCwd();
+            if (cwd != null && !".".equals(cwd)) {
+                changed |= selectDirectory(cwd);
+            } else {
+                changed |= beginPerDirectorySelection(".");
+            }
+            if (changed) schedulePersist();
+            mHistoryVersion++;
+            rebuildSpansCache();
+        }
     }
 
     public boolean isPerDirectoryEnabled() {
         return mPerDirectoryMessageHistory;
     }
 
-    /** Set the retention limit; lowering it trims the current list immediately. */
+    /** Set the retention limit; lowering it trims every stored list immediately. */
     public void setMaxSize(int max) {
         mMessageHistoryMax = clampMaxSize(max);
-        if (mLoaded && trimToMaxSize()) {
-            schedulePersist();
+        if (mLoaded && trimAll()) {
+            saveNow(false);
             mHistoryVersion++;
         }
     }
@@ -274,24 +222,80 @@ public final class MessageHistoryController {
 
     // ── Observers ──
 
+    /**
+     * Live, read-only view of the selected list. Callers keep the old string API;
+     * mutation throws {@link UnsupportedOperationException}.
+     */
     @NonNull
-    public ArrayList<String> getHistoryList() {
-        return mMessageHistory;
+    public List<String> getHistoryList() {
+        return HistoryStore.textView(mStore.current());
+    }
+
+    /** Records backing {@link #getHistoryList()}, for the snapshot builder. */
+    @NonNull
+    List<HistoryEntry> getHistoryEntries() {
+        return mStore.current();
+    }
+
+    /** Persistent dismissal flags consumed by the snapshot/engine. */
+    @NonNull
+    SuggestionDismissals getDismissals() {
+        return mDismissals;
+    }
+
+    /**
+     * Hide the clicked suggestion window and every duplicate window in the current
+     * snapshot. The record id is the primary anchor, because the clicked candidate may
+     * come from a snapshot that was rebuilt since the gesture began; text matching is
+     * the secondary rule that keeps duplicates from reappearing.
+     */
+    boolean dismissSuggestion(@NonNull SuggestionEngine.Candidate candidate,
+            @NonNull HistorySnapshot snapshot) {
+        int marked = 0;
+
+        // Anchor first: this is the window the user actually swiped.
+        if (mDismissals.mark(candidate.entryId, candidate.dismissalBit())) marked++;
+
+        final String folded = SuggestionEngine.foldedKey(candidate.text);
+        for (int e = 0; e < snapshot.entries.length; e++) {
+            final long id = snapshot.entryId(e);
+            if (id <= 0) continue;
+            final char[] fold = snapshot.fold(e);
+            final int entryLen = snapshot.entries[e].length();
+            if (entryLen > 0 && SuggestionEngine.foldedEquals(fold, 0, entryLen, folded)
+                    && mDismissals.mark(id, 0)) {
+                marked++;
+            }
+            final int sentenceCount = snapshot.sentenceCount(e);
+            for (int s = 0; s < sentenceCount; s++) {
+                final int start = snapshot.sentenceStart(e, s);
+                final int end = snapshot.sentenceEnd(e, s);
+                if (end > start
+                        && SuggestionEngine.foldedEquals(fold, start, end - start, folded)
+                        && mDismissals.mark(id, s + 1)) {
+                    marked++;
+                }
+            }
+        }
+        if (marked > 0) mDismissals.persist();
+        return marked > 0;
+    }
+
+    /** Forget every hidden suggestion. The caller must invalidate its snapshot. */
+    public void resetHiddenSuggestions() {
+        mDismissals.clearAll();
+        mHistoryVersion++;
     }
 
     /** Whether {@code message}, ignoring edge whitespace, is already in the history. */
     public boolean containsMessage(@Nullable String message) {
         String normalized = trimMessage(message);
-        return !normalized.isEmpty() && mMessageHistory.contains(normalized);
+        return !normalized.isEmpty() && mStore.currentIndexOf(normalized) >= 0;
     }
 
     /** Whether {@code message} is null or consists only of whitespace. */
     public static boolean isBlankMessage(@Nullable String message) {
-        if (message == null) return true;
-        for (int i = 0; i < message.length(); i++) {
-            if (!isEdgeWhitespace(message.charAt(i))) return false;
-        }
-        return true;
+        return HistoryText.isBlank(message);
     }
 
     /** Compare two history messages, ignoring leading and trailing whitespace. */
@@ -302,16 +306,7 @@ public final class MessageHistoryController {
     /** Strips edge whitespace, preserving internal spacing. */
     @NonNull
     private static String trimMessage(@Nullable String message) {
-        if (message == null) return "";
-        int start = 0;
-        int end = message.length();
-        while (start < end && isEdgeWhitespace(message.charAt(start))) start++;
-        while (end > start && isEdgeWhitespace(message.charAt(end - 1))) end--;
-        return start == 0 && end == message.length() ? message : message.substring(start, end);
-    }
-
-    private static boolean isEdgeWhitespace(char c) {
-        return Character.isWhitespace(c) || Character.isSpaceChar(c);
+        return HistoryText.trim(message);
     }
 
     public int getHistoryVersion() {
@@ -334,14 +329,14 @@ public final class MessageHistoryController {
     /** Re-parse the current list after a load or directory switch. */
     private void rebuildSpansCache() {
         mSpansCache.clear();
-        for (int i = 0; i < mMessageHistory.size(); i++) {
-            cacheSpans(mMessageHistory.get(i));
+        for (HistoryEntry entry : mStore.current()) {
+            cacheSpans(entry.text);
         }
     }
 
     @Nullable
     public String getHistoryCurrentDirectory() {
-        return mHistoryCurrentDirectory;
+        return mStore.currentCwd();
     }
 
     // ── Clearing ──
@@ -349,137 +344,119 @@ public final class MessageHistoryController {
     /**
      * Clear history for the current directory (per-directory mode) or globally.
      *
-     * @param cwd The directory to clear, as the per-directory key. May be null (in which case the
-     *            per-directory map entry is left untouched).
+     * <p>A null cwd clears the visible attached list. It never detaches the current
+     * list, so the clear is persisted instead of being silently discarded.
      */
     public void clearCurrent(@Nullable String cwd) {
+        List<HistoryEntry> removed;
         if (mPerDirectoryMessageHistory) {
-            if (cwd != null) {
-                mMessageHistoryPerDirectory.remove(cwd);
-                // The in-memory list is the CURRENT directory's, and it is what savePerDirectory
-                // writes back under that key. Emptying it for some other directory would replace
-                // the current one's commands with an empty list.
-                if (!cwd.equals(mHistoryCurrentDirectory)) {
-                    mHistoryVersion++;
-                    savePerDirectory();
-                    return;
-                }
+            String current = mStore.currentCwd();
+            if (cwd != null && !cwd.equals(current)) {
+                removed = ".".equals(cwd) ? mStore.clearPending() : mStore.clearDirectory(cwd);
             } else {
-                // D-2: drop the stale current-directory key, or its now-cleared in-memory list is
-                // saved back under the old key by the next directory switch.
-                mHistoryCurrentDirectory = null;
+                removed = mStore.clearCurrent();
             }
-            mMessageHistory.clear();
-            mSpansCache.clear();
-            mHistoryVersion++;
-            savePerDirectory();
         } else {
-            mMessageHistory.clear();
-            mSpansCache.clear();
-            mHistoryVersion++;
-            mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
+            removed = mStore.clearCurrent();
         }
+        mHistoryVersion++;
+        dropSpans(removed);
+        mDismissals.retainIds(mStore.allIds());
+        // A clear is a durability barrier: the caller expects the removed entries to
+        // be gone from disk when this returns.
+        saveNow(true);
     }
 
-    /** Clear the entire per-directory history store (and the in-memory list). */
+    /**
+     * Clear the entire per-directory history store, including the global fallback
+     * and the pending buffer, and leave the store on the attached pending list.
+     */
     public void clearAllPerDirectory() {
-        mMessageHistoryPerDirectory.clear();
-        mMessageHistory.clear();
-        mSpansCache.clear();
-        mHistoryCurrentDirectory = null;
+        List<HistoryEntry> removed = mStore.clearAll();
+        mStore.setPerDirInitialized(false);
         mHistoryVersion++;
-        mPrefs.edit().remove(PREF_MESSAGE_HISTORY_PER_DIR).apply();
+        dropSpans(removed);
+        mDismissals.retainIds(mStore.allIds());
+        // A clear is a durability barrier: the caller expects the removed entries to
+        // be gone from disk when this returns.
+        saveNow(true);
     }
 
     // ── CWD change ──
 
     /**
      * Called when the current session's working directory has changed.
-     * Saves the current list under the old CWD key, clears the in-memory list,
-     * and loads the history for the new directory (or creates it empty).
      */
     public void onHistoryDirectoryChanged(@NonNull String oldCwd, @NonNull String newCwd) {
         if (!mPerDirectoryMessageHistory) return;
+        if (newCwd.equals(mStore.currentCwd())) return;
+        selectDirectoryFromUser(newCwd);
+    }
 
-        // Same directory (the common case: switching tabs inside one project): the
-        // save/clear/reload round trip below would rebuild the identical list.
-        if (newCwd.equals(oldCwd)) return;
-
-        if (mHistoryCurrentDirectory != null) {
-            mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
+    private void selectDirectoryFromUser(@NonNull String cwd) {
+        boolean changed;
+        if (".".equals(cwd)) {
+            changed = beginPerDirectorySelection(".");
+        } else {
+            changed = selectDirectory(cwd);
         }
-
-        mMessageHistory.clear();
-        mHistoryCurrentDirectory = newCwd;
-
-        ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(newCwd);
-
-        // Lazy migration: if this CWD has no per-dir entries but global
-        // history still exists in prefs, migrate it now under this real CWD.
-        if (dirHistory == null) {
-            String globalJson = mPrefs.getString(PREF_MESSAGE_HISTORY, null);
-            if (!TextUtils.isEmpty(globalJson)) {
-                migrateGlobalHistory(newCwd, globalJson);
-                return;
-            }
-        }
-
-        if (dirHistory != null) {
-            mMessageHistory.addAll(dirHistory);
-        }
+        if (changed) schedulePersist();
+        mHistoryVersion++;
         rebuildSpansCache();
     }
 
-    /** Migrate global history to per-directory under the given CWD. */
-    private void migrateGlobalHistory(@NonNull String cwd, @NonNull String globalJson) {
-        ArrayList<String> migrated = parseGlobalJson(globalJson, false);
-        if (migrated == null) return;
-        mMessageHistoryPerDirectory.put(cwd, migrated);
-        mMessageHistory.addAll(migrated);
-        rebuildSpansCache();
-        // Persist the migration synchronously: this is a one-time
-        // destructive move (the global store is dropped below).
-        savePerDirectory();
-        mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
+    /**
+     * Select a real directory, performing the one-time migration and draining the
+     * pending buffer. Returns whether the stored document changed.
+     */
+    private boolean selectDirectory(@NonNull String cwd) {
+        boolean changed = false;
+        if (!mStore.isPerDirInitialized()) {
+            HistoryStore.MergeResult legacy = mStore.mergeGlobalIntoPending();
+            mDismissals.remap(legacy.idRemap);
+            changed |= legacy.changed;
+            mStore.setPerDirInitialized(true);
+            changed = true;
+        }
+        HistoryStore.MergeResult pending = mStore.mergePendingIntoDirectory(cwd);
+        mDismissals.remap(pending.idRemap);
+        changed |= pending.changed;
+
+        mStore.useDirectory(cwd);
+        List<HistoryEntry> removed = mStore.trimCurrent(mMessageHistoryMax);
+        if (!removed.isEmpty()) {
+            dropSpans(removed);
+            mDismissals.retainIds(mStore.allIds());
+            changed = true;
+        }
+        return changed;
     }
 
-    /** Parse a global-history JSON array into a deduped list, or null when unparseable. */
-    @Nullable
-    private ArrayList<String> parseGlobalJson(@NonNull String globalJson, boolean useSeenSet) {
-        try {
-            JSONArray globalArr = new JSONArray(globalJson);
-            return jsonArrayList(globalArr, useSeenSet);
-        } catch (JSONException e) {
-            return null;
-        }
-    }
+    /**
+     * Select the attached pending list for a {@code "."} fallback. On the first
+     * per-directory use, legacy/global history moves into pending but stays pending
+     * until a real cwd is known.
+     */
+    private boolean beginPerDirectorySelection(@NonNull String fallbackCwd) {
+        if (!".".equals(fallbackCwd)) return selectDirectory(fallbackCwd);
 
-    @NonNull
-    private ArrayList<String> jsonArrayList(@NonNull JSONArray arr, boolean useSeenSet) {
-        ArrayList<String> out = new ArrayList<>(arr.length());
-        HashSet<String> seen = useSeenSet ? new HashSet<>(arr.length()) : null;
-        for (int i = 0; i < arr.length(); i++) {
-            String s = trimMessage(arr.optString(i, null));
-            if (s.isEmpty()) continue;
-            if (seen != null) {
-                if (seen.add(s)) out.add(s);
-            } else if (!out.contains(s)) {
-                out.add(s);
-            }
+        boolean changed = false;
+        if (!mStore.isPerDirInitialized()) {
+            HistoryStore.MergeResult legacy = mStore.mergeGlobalIntoPending();
+            mDismissals.remap(legacy.idRemap);
+            changed |= legacy.changed;
         }
-        return out;
+        mStore.usePending();
+        List<HistoryEntry> removed = mStore.trimCurrent(mMessageHistoryMax);
+        if (!removed.isEmpty()) {
+            dropSpans(removed);
+            mDismissals.retainIds(mStore.allIds());
+            changed = true;
+        }
+        return changed;
     }
 
     // ── Mutations ──
-
-    /** Moves {@code value} to the front; returns false if it was already there. */
-    private static boolean promoteToTop(@NonNull ArrayList<String> list, @NonNull String value) {
-        int index = list.indexOf(value);
-        if (index == 0) return false;
-        if (index > 0) list.remove(index);
-        list.add(0, value);
-        return true;
-    }
 
     /**
      * Add a just-sent message to the history.
@@ -495,57 +472,43 @@ public final class MessageHistoryController {
         ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
-        boolean changed = promoteToTop(mMessageHistory, normalized);
+        boolean changed = mStore.addCurrent(normalized);
         cacheSpans(normalized);
-        // A lowered limit still needs trimming even when the order is unchanged.
-        if (!changed && mMessageHistory.size() <= mMessageHistoryMax) return;
+        boolean trimmed = trimCurrent();
+        if (!changed && !trimmed) return;
 
-        trimToMaxSize();
         schedulePersist();
         mHistoryVersion++;
     }
 
     /**
-     * Add a message that belongs to {@code cwd} without assuming {@code cwd} is the directory the
-     * user is looking at.
-     *
-     * <p>For a write from outside the foreground window — a notification reply into a background
-     * session. In per-directory mode {@link #mMessageHistory} is the list of whichever session is in
-     * front, so a plain {@link #addToMessageHistory} for a different directory would repoint the
-     * whole controller at that session and the window would show the wrong session's history until
-     * the next directory sync. This writes the other directory's own entry instead, leaving the
-     * foreground list and the current directory alone.
+     * Add a message that belongs to {@code cwd} without assuming {@code cwd} is the
+     * directory the user is looking at. A background reply must not repoint the
+     * foreground controller or drain its pending buffer.
      */
     public void addToMessageHistoryInDirectory(@NonNull String message, @Nullable String cwd) {
         String normalized = trimMessage(message);
         if (normalized.isEmpty()) return;
 
         ensureLoaded(cwd);
-        if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) {
+        if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mStore.currentCwd())) {
             addToMessageHistory(normalized, cwd);
             return;
         }
 
-        ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
-        if (dirHistory == null) {
-            dirHistory = new ArrayList<>();
-            mMessageHistoryPerDirectory.put(cwd, dirHistory);
-        }
-        boolean changed = promoteToTop(dirHistory, normalized);
+        boolean changed = mStore.addToDirectory(cwd, normalized);
         cacheSpans(normalized);
-        if (!changed && dirHistory.size() <= mMessageHistoryMax) return;
+        boolean trimmed = trimDirectory(cwd);
+        if (!changed && !trimmed) return;
 
-        while (dirHistory.size() > mMessageHistoryMax) {
-            dirHistory.remove(dirHistory.size() - 1);
-        }
         schedulePersist();
         mHistoryVersion++;
     }
 
     /**
      * Record a passively saved message (cleared from the input field, or the text replaced by a
-     * history pick). A brand-new message is inserted at the TOP (newest — the pre-promote-switch
-     * behaviour); a message already in the history keeps its exact position.
+     * history pick). A brand-new message is inserted at the TOP; a message already in the history
+     * keeps its exact position.
      */
     public void addNewOnTop(@NonNull String message, @Nullable String cwd) {
         String normalized = trimMessage(message);
@@ -554,11 +517,10 @@ public final class MessageHistoryController {
         ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
-        if (mMessageHistory.indexOf(normalized) >= 0) return;
+        if (!mStore.addNewOnTopCurrent(normalized)) return;
 
-        mMessageHistory.add(0, normalized);
         cacheSpans(normalized);
-        trimToMaxSize();
+        trimCurrent();
         schedulePersist();
         mHistoryVersion++;
     }
@@ -573,11 +535,11 @@ public final class MessageHistoryController {
         String normalized = trimMessage(message);
         if (normalized.isEmpty()) return false;
 
-        int index = mMessageHistory.indexOf(normalized);
-        if (index < 0) return false;
+        HistoryEntry removed = mStore.removeCurrent(normalized);
+        if (removed == null) return false;
 
-        mMessageHistory.remove(index);
         mSpansCache.remove(normalized);
+        mDismissals.retainIds(mStore.allIds());
         mHistoryVersion++;
         schedulePersist();
         return true;
@@ -586,8 +548,7 @@ public final class MessageHistoryController {
     /**
      * Make sure the in-memory state mirrors disk before it is mutated. A no-op once {@link #load}
      * has run, so a caller outside the activity — a notification reply writing into a background
-     * session — merges into the stored history instead of replacing it. {@code cwd} is the caller's
-     * own directory, not whatever happens to be in front of the user.
+     * session — merges into the stored history instead of replacing it.
      */
     private void ensureLoaded(@Nullable String cwd) {
         if (mLoaded) return;
@@ -595,142 +556,142 @@ public final class MessageHistoryController {
         load(fallback);
     }
 
-    /**
-     * Persist the in-memory list under the old CWD and switch to {@code cwd} when it changed.
-     *
-     * <p>The new directory's own list is loaded back, not left empty: the mutator that follows adds
-     * one entry to {@link #mMessageHistory}, and {@link #persistAsync} then writes the whole list
-     * over that directory's stored entry. Switching without loading therefore replaced every command
-     * of the target directory with that single command.
-     *
-     * <p>A null {@link #mHistoryCurrentDirectory} adopts {@code cwd} rather than doing nothing. It
-     * is null right after a clear, and an unadopted list has no key, so the entry was dropped on
-     * the floor and the first command after "clear all" never survived a restart.
-     */
+    /** Select {@code cwd}'s list when the mutation's directory differs from the current one. */
     private void snapshotCurrentDirectoryIfChanged(@Nullable String cwd) {
-        if (!mPerDirectoryMessageHistory || cwd == null || cwd.equals(mHistoryCurrentDirectory)) return;
-
-        if (mHistoryCurrentDirectory != null) {
-            mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, new ArrayList<>(mMessageHistory));
-            mMessageHistory.clear();
+        if (!mPerDirectoryMessageHistory || cwd == null || cwd.isEmpty()) return;
+        if (cwd.equals(mStore.currentCwd())) return;
+        if (".".equals(cwd)) {
+            if (beginPerDirectorySelection(".")) schedulePersist();
+        } else if (selectDirectory(cwd)) {
+            schedulePersist();
         }
-        mHistoryCurrentDirectory = cwd;
-        ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(cwd);
-        if (dirHistory != null) mMessageHistory.addAll(dirHistory);
         mHistoryVersion++;
         rebuildSpansCache();
     }
 
-    private boolean trimToMaxSize() {
-        boolean trimmed = false;
-        while (mMessageHistory.size() > mMessageHistoryMax) {
-            mSpansCache.remove(mMessageHistory.remove(mMessageHistory.size() - 1));
-            trimmed = true;
-        }
-        return trimmed;
+    private boolean trimCurrent() {
+        List<HistoryEntry> removed = mStore.trimCurrent(mMessageHistoryMax);
+        dropSpans(removed);
+        if (!removed.isEmpty()) mDismissals.retainIds(mStore.allIds());
+        return !removed.isEmpty();
     }
 
-    // ── Load / Persist ──
+    private boolean trimDirectory(@NonNull String cwd) {
+        List<HistoryEntry> removed = mStore.trimDirectory(cwd, mMessageHistoryMax);
+        dropSpans(removed);
+        if (!removed.isEmpty()) mDismissals.retainIds(mStore.allIds());
+        return !removed.isEmpty();
+    }
+
+    /** Apply the retention limit to every list. */
+    private boolean trimAll() {
+        List<HistoryEntry> removed = mStore.trimAll(mMessageHistoryMax);
+        dropSpans(removed);
+        if (!removed.isEmpty()) mDismissals.retainIds(mStore.allIds());
+        return !removed.isEmpty();
+    }
+
+    /** Drop cached spans for records that no longer exist. */
+    private void dropSpans(@NonNull List<HistoryEntry> removed) {
+        for (HistoryEntry entry : removed) mSpansCache.remove(entry.text);
+    }
+
+    // ── Load ──
 
     /** Load persisted history. Uses the per-directory or the global store. */
     public void load(@NonNull String fallbackCwd) {
-        mMessageHistory.clear();
+        if (mLoaded) flushPersist(); else cancelPersist();
+
+        HistoryDocument document = loadDocument();
+        mStore.replaceWith(document);
+        mDismissals.bindEpoch(mStore.epoch());
+
         if (mPerDirectoryMessageHistory) {
-            loadPerDirectory(fallbackCwd);
+            beginPerDirectorySelection(fallbackCwd);
         } else {
-            loadGlobal();
+            mStore.useGlobal();
         }
+
+        if (trimAll()) saveNow(false);
+        mDismissals.retainIds(mStore.allIds());
         rebuildSpansCache();
+        mHistoryVersion++;
         mLoaded = true;
     }
 
-    private void loadGlobal() {
-        String json = mPrefs.getString(PREF_MESSAGE_HISTORY, null);
-        if (json == null) return;
-        // P2: O(N) dedup via a HashSet instead of List.contains (O(N²) on the
-        // already-loaded list). Same order, same result.
-        ArrayList<String> parsed = parseGlobalJson(json, true);
-        if (parsed != null) mMessageHistory.addAll(parsed);
-        if (trimToMaxSize()) saveGlobal();
-        mHistoryVersion++;
+    /**
+     * Read the v3 document. A valid v2 document is upgraded; a corrupt/unsupported v3
+     * document is backed up and replaced by an empty store, never by stale v1 data.
+     * The v1 keys are consumed once, only when no v3 document and no marker exist.
+     */
+    @NonNull
+    private HistoryDocument loadDocument() {
+        String json = mPrefs.getString(PREF_MESSAGE_HISTORY_V2, null);
+        if (json != null) {
+            HistoryDocument decoded = HistoryJsonCodec.decode(json);
+            if (decoded != null) {
+                if (!decoded.epoch.isEmpty()) return decoded;
+                HistoryDocument migrated = withEpoch(decoded, newEpoch(),
+                        decoded.perDirInitialized);
+                if (mPersistence.writeNow(migrated, true)) markMigrated();
+                return migrated;
+            }
+
+            // Preserve the raw document for diagnostics, but never resurrect v1 over it.
+            mPrefs.edit().putString(PREF_CORRUPT_BACKUP, json).apply();
+            HistoryDocument empty = emptyDocument();
+            if (mPersistence.writeNow(empty, true)) markMigrated();
+            return empty;
+        }
+
+        if (mPrefs.getBoolean(PREF_MIGRATION_MARKER, false)) {
+            return emptyDocument();
+        }
+
+        HistoryDocument legacy = HistoryJsonCodec.decodeLegacy(
+                mPrefs.getString(PREF_MESSAGE_HISTORY, null),
+                mPrefs.getString(PREF_MESSAGE_HISTORY_PER_DIR, null));
+        HistoryDocument migrated = withEpoch(legacy, newEpoch(), false);
+        if (!legacy.isEmpty()) {
+            if (mPersistence.writeNow(migrated, true)) {
+                markMigrated();
+                removeLegacyKeys();
+            }
+        }
+        return migrated;
     }
 
-    private void loadPerDirectory(@NonNull String fallbackCwd) {
-        mMessageHistoryPerDirectory.clear();
-        mHistoryCurrentDirectory = null;
+    @NonNull
+    private static HistoryDocument withEpoch(@NonNull HistoryDocument document,
+            @NonNull String epoch, boolean perDirInitialized) {
+        return new HistoryDocument(document.global, document.pending, document.directories,
+                document.nextId, epoch, perDirInitialized);
+    }
 
-        boolean hadPerDirData = false;
-        String json = mPrefs.getString(PREF_MESSAGE_HISTORY_PER_DIR, null);
-        if (json != null) {
-            try {
-                JSONObject obj = new JSONObject(json);
-                for (Iterator<String> it = obj.keys(); it.hasNext(); ) {
-                    String dir = it.next();
-                    JSONArray arr = obj.optJSONArray(dir);
-                    if (arr == null) continue;
-                    hadPerDirData = true;
-                    mMessageHistoryPerDirectory.put(dir, jsonArrayList(arr, true));
-                }
-            } catch (JSONException ignored) {
-            }
-        }
+    @NonNull
+    private static HistoryDocument emptyDocument() {
+        return new HistoryDocument(new ArrayList<>(), new ArrayList<>(),
+                new HashMap<String, ArrayList<HistoryEntry>>(), 1, newEpoch(), false);
+    }
 
-        // Migrate global history to per-directory if first time enabling
-        if (!hadPerDirData) {
-            String globalJson = mPrefs.getString(PREF_MESSAGE_HISTORY, null);
-            if (!TextUtils.isEmpty(globalJson)) {
-                // Defer if no real CWD yet
-                if (".".equals(fallbackCwd)) {
-                    mHistoryCurrentDirectory = ".";
-                    return;
-                }
-                ArrayList<String> migrated = parseGlobalJson(globalJson, true);
-                if (migrated == null) return;
-                mMessageHistoryPerDirectory.put(fallbackCwd, migrated);
-                mHistoryCurrentDirectory = fallbackCwd;
-                mMessageHistory.clear();
-                mMessageHistory.addAll(migrated);
-                // Persist the migration synchronously: this is a one-time
-                // destructive move (the global store is dropped below).
-                savePerDirectory();
-                mPrefs.edit().remove(PREF_MESSAGE_HISTORY).apply();
-                return;
-            }
-        }
+    @NonNull
+    private static String newEpoch() {
+        return UUID.randomUUID().toString();
+    }
 
-        // Load the current CWD's history
-        mHistoryCurrentDirectory = fallbackCwd;
-        ArrayList<String> dirHistory = mMessageHistoryPerDirectory.get(fallbackCwd);
-        if (dirHistory != null) {
-            mMessageHistory.clear();
-            mMessageHistory.addAll(dirHistory);
-        }
+    private void markMigrated() {
+        boolean committed = mPrefs.edit().putBoolean(PREF_MIGRATION_MARKER, true).commit();
+        if (committed) removeLegacyKeys();
+    }
+
+    private void removeLegacyKeys() {
+        mPrefs.edit()
+                .remove(PREF_MESSAGE_HISTORY)
+                .remove(PREF_MESSAGE_HISTORY_PER_DIR)
+                .apply();
     }
 
     public void save() {
-        cancelPersist();
-        persistAsync(true);
-        drainPersist();
-    }
-
-    private void saveGlobal() {
-        // Bump the generation so any in-flight background persist (scheduled by a
-        // prior keystroke) is superseded rather than clobbering this synchronous write.
-        mPersistGeneration.incrementAndGet();
-        mPrefs.edit().putString(PREF_MESSAGE_HISTORY,
-            listToJson(mMessageHistory).toString()).apply();
-    }
-
-    private void savePerDirectory() {
-        // Same generation-supersede guard: a clear/migrate on the main thread must win over a
-        // background write still queued from typing.
-        mPersistGeneration.incrementAndGet();
-        if (mHistoryCurrentDirectory != null) {
-            ArrayList<String> list = new ArrayList<>(mMessageHistory);
-            mMessageHistoryPerDirectory.put(mHistoryCurrentDirectory, list);
-        }
-        JSONObject obj = mapToJson(mMessageHistoryPerDirectory);
-        if (obj == null) return;
-        mPrefs.edit().putString(PREF_MESSAGE_HISTORY_PER_DIR, obj.toString()).apply();
+        flushPersist();
     }
 }

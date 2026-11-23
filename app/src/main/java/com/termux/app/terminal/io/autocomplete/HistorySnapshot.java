@@ -2,21 +2,23 @@ package com.termux.app.terminal.io.autocomplete;
 
 import androidx.annotation.NonNull;
 
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Immutable per-history-version view of the message history: the entries themselves
+ * Read-only per-history-version view of the message history: the entries themselves
  * (no copies) plus the line/sentence offsets needed to address a single sentence
- * without splitting the entry on every keystroke.
+ * without splitting the entry on every keystroke. Entry text and offsets are
+ * immutable; the dismissal bits are live and owned by {@link SuggestionDismissals}.
  *
  * <p>A <b>sentence</b> is a line segment that ends at a newline or at an ordinary
  * sentence terminator ({@code .}, {@code !}, {@code ?}, {@code …}) followed by
- * whitespace. The first sentence of a line keeps the line's leading whitespace;
- * later sentences start at the first non-whitespace character after the terminator.
- * A terminator followed by a non-whitespace character (for example the dot in
- * {@code ./}, {@code .git} or {@code 1.2}) is not a boundary.
+ * whitespace. A sentence window is indexed without leading or trailing whitespace,
+ * so a candidate never carries the indentation of a line or the spaces before a
+ * newline. A terminator followed by a non-whitespace character (for example the dot
+ * in {@code ./}, {@code .git} or {@code 1.2}) is not a boundary.
  *
  * <p>The offsets are parsed once per entry (see {@link #parseSpans}) and cached by
  * {@link MessageHistoryController}; {@link #build(int, List, Map)} only references
@@ -28,6 +30,16 @@ final class HistorySnapshot {
     final int version;
     @NonNull final String[] entries;
     @NonNull final Spans[] spans;
+    /** Stable record ids, aligned with {@link #entries}; 0 for the string-only test builder. */
+    @NonNull final long[] ids;
+    /**
+     * Dismissal bits aligned with {@link #entries}. The objects are owned by
+     * {@link SuggestionDismissals} and shared with it, so a mark made after this
+     * snapshot was built is visible here without a rebuild. Null entries mean the
+     * string-only builder or a record with no flags.
+     */
+    @NonNull final BitSet[] dismissed;
+    final int sentenceModel;
 
     /**
      * Line/sentence offsets of one history entry. The arrays are owned by the
@@ -39,6 +51,8 @@ final class HistorySnapshot {
         @NonNull final int[] sentenceStarts;
         @NonNull final int[] sentenceEnds;
         final int sentenceCount;
+        /** Exclusive end of the first line; cached because the full-tier scan reads it per entry. */
+        final int firstLineEnd;
         /**
          * Case-folded entry ({@code Character.toLowerCase} per char), parsed once.
          * The hot scan compares it with a single {@code ==} instead of per-char
@@ -47,19 +61,25 @@ final class HistorySnapshot {
         @NonNull final char[] fold;
 
         Spans(@NonNull int[] lineStarts, @NonNull int[] sentenceStarts,
-                @NonNull int[] sentenceEnds, int sentenceCount, @NonNull char[] fold) {
+                @NonNull int[] sentenceEnds, int sentenceCount, int firstLineEnd,
+                @NonNull char[] fold) {
             this.lineStarts = lineStarts;
             this.sentenceStarts = sentenceStarts;
             this.sentenceEnds = sentenceEnds;
             this.sentenceCount = sentenceCount;
+            this.firstLineEnd = firstLineEnd;
             this.fold = fold;
         }
     }
 
-    private HistorySnapshot(int version, @NonNull String[] entries, @NonNull Spans[] spans) {
+    private HistorySnapshot(int version, @NonNull String[] entries, @NonNull Spans[] spans,
+            @NonNull long[] ids, @NonNull BitSet[] dismissed, int sentenceModel) {
         this.version = version;
         this.entries = entries;
         this.spans = spans;
+        this.ids = ids;
+        this.dismissed = dismissed;
+        this.sentenceModel = sentenceModel;
     }
 
     /** Build a snapshot, parsing every entry (used by tests and one-off consumers). */
@@ -80,6 +100,8 @@ final class HistorySnapshot {
         final int n = history.size();
         String[] entries = new String[n];
         Spans[] spans = new Spans[n];
+        long[] ids = new long[n];
+        BitSet[] dismissed = new BitSet[n];
         for (int i = 0; i < n; i++) {
             String entry = history.get(i);
             if (entry == null) entry = "";
@@ -91,61 +113,70 @@ final class HistorySnapshot {
             }
             spans[i] = s;
         }
-        return new HistorySnapshot(version, entries, spans);
+        return new HistorySnapshot(version, entries, spans, ids, dismissed,
+                SuggestionDismissals.SENTENCE_MODEL);
+    }
+
+    /**
+     * Build a snapshot over records, attaching their stable ids and live dismissal
+     * bits. The {@link BitSet} instances are the canonical ones from
+     * {@code dismissals}, not copies.
+     */
+    @NonNull
+    static HistorySnapshot build(int version, @NonNull List<HistoryEntry> history,
+            @NonNull Map<String, Spans> cache, @NonNull SuggestionDismissals dismissals) {
+        final int n = history.size();
+        String[] entries = new String[n];
+        Spans[] spans = new Spans[n];
+        long[] ids = new long[n];
+        BitSet[] dismissed = new BitSet[n];
+        for (int i = 0; i < n; i++) {
+            HistoryEntry entry = history.get(i);
+            String text = entry.text;
+            entries[i] = text;
+            ids[i] = entry.id;
+            dismissed[i] = dismissals.bitsFor(entry.id);
+            Spans s = cache.get(text);
+            if (s == null) {
+                s = parseSpans(text);
+                cache.put(text, s);
+            }
+            spans[i] = s;
+        }
+        return new HistorySnapshot(version, entries, spans, ids, dismissed,
+                SuggestionDismissals.SENTENCE_MODEL);
+    }
+
+    /** Whether the full-entry suggestion for {@code entry} is hidden. */
+    boolean isFullDismissed(int entry) {
+        BitSet bits = dismissed[entry];
+        return bits != null && bits.get(0);
+    }
+
+    /**
+     * Whether sentence {@code sentence} of {@code entry} is hidden. A full-entry
+     * dismissal covers every window of that record, so deleting the whole command
+     * cannot leave one of its sentences behind as a separate suggestion.
+     */
+    boolean isSentenceDismissed(int entry, int sentence) {
+        if (sentence < 0) return false;
+        BitSet bits = dismissed[entry];
+        return bits != null && (bits.get(0) || bits.get(sentence + 1));
+    }
+
+    long entryId(int entry) {
+        return ids[entry];
     }
 
     /** Parse one entry's line/sentence offsets. */
     @NonNull
     static Spans parseSpans(@NonNull String entry) {
-        int lines = 1;
-        for (int j = 0; j < entry.length(); j++) {
-            if (entry.charAt(j) == '\n') lines++;
-        }
-        int[] starts = new int[lines];
-        starts[0] = 0;
-        int line = 1;
-        for (int j = 0; j < entry.length(); j++) {
-            if (entry.charAt(j) == '\n') starts[line++] = j + 1;
-        }
-
-        int count = 0;
-        for (int l = 0; l < lines; l++) {
-            count += countSentences(entry, starts[l], lineEnd(entry, starts, l));
-        }
-        int[] sStarts = new int[count];
-        int[] sEnds = new int[count];
-        int si = 0;
-        for (int l = 0; l < lines; l++) {
-            int lineStart = starts[l];
-            int lineEnd = lineEnd(entry, starts, l);
-            int pos = lineStart;
-            while (pos < lineEnd) {
-                int sentEnd = findSentenceEnd(entry, pos, lineEnd);
-                sStarts[si] = pos;
-                sEnds[si] = sentEnd;
-                si++;
-                if (sentEnd >= lineEnd) break;
-                int next = sentEnd;
-                while (next < lineEnd && isBoundaryWhitespace(entry.charAt(next))) next++;
-                pos = next;
-            }
-        }
-        char[] fold = new char[entry.length()];
-        for (int i = 0; i < entry.length(); i++) {
-            fold[i] = Character.toLowerCase(entry.charAt(i));
-        }
-        return new Spans(starts, sStarts, sEnds, count, fold);
+        return HistorySyntax.parseSpans(entry);
     }
 
     /** Exclusive end of the first line, i.e. the window used by a full-entry candidate. */
     int firstLineEnd(int entry) {
-        return lineEnd(entries[entry], spans[entry].lineStarts, 0);
-    }
-
-    /** Exclusive end of {@code line}, without the trailing newline. */
-    private static int lineEnd(String entry, int[] starts, int line) {
-        if (line + 1 < starts.length) return starts[line + 1] - 1;
-        return entry.length();
+        return spans[entry].firstLineEnd;
     }
 
     int sentenceCount(int entry) {
@@ -166,41 +197,12 @@ final class HistorySnapshot {
         return spans[entry].fold;
     }
 
-    private static int countSentences(String entry, int start, int end) {
-        int count = 0;
-        int pos = start;
-        while (pos < end) {
-            int sentEnd = findSentenceEnd(entry, pos, end);
-            count++;
-            if (sentEnd >= end) break;
-            int next = sentEnd;
-            while (next < end && isBoundaryWhitespace(entry.charAt(next))) next++;
-            pos = next;
-        }
-        return count;
-    }
-
-    /**
-     * End of the sentence that starts at {@code start}: the index just after the
-     * terminator, or {@code end} when the sentence has no terminator.
-     */
-    private static int findSentenceEnd(String entry, int start, int end) {
-        for (int i = start; i < end; i++) {
-            char c = entry.charAt(i);
-            if (isSentenceEnd(c)
-                    && (i + 1 == end || isBoundaryWhitespace(entry.charAt(i + 1)))) {
-                return i + 1;
-            }
-        }
-        return end;
-    }
-
     /** Ordinary sentence terminators. */
     static boolean isSentenceEnd(char c) {
-        return c == '.' || c == '!' || c == '?' || c == '…';
+        return HistorySyntax.isSentenceEnd(c);
     }
 
     static boolean isBoundaryWhitespace(char c) {
-        return Character.isWhitespace(c) || Character.isSpaceChar(c);
+        return HistorySyntax.isWhitespace(c);
     }
 }

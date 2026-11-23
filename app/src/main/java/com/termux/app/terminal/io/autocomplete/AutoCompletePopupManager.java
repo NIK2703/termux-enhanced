@@ -393,6 +393,16 @@ final class AutoCompletePopupManager {
     // ── Per-window rebuild + bold spans ──
 
     private void rebuildHistoryViews(@NonNull LinearLayout content, @NonNull String input) {
+        // A row that is sliding out after a swipe must not be rebound to a different
+        // candidate. Remove it before reusing child slots; its pending end action will
+        // see that the holder is already detached.
+        for (int i = content.getChildCount() - 1; i >= 0; i--) {
+            View child = content.getChildAt(i);
+            if (child instanceof SuggestionRowHolder
+                    && ((SuggestionRowHolder) child).isDeleting()) {
+                content.removeViewAt(i);
+            }
+        }
         final int n = displayCount();
         final int existing = content.getChildCount();
         // Reversed rendering: oldest item on top, newest (history index 0) at the
@@ -406,7 +416,9 @@ final class AutoCompletePopupManager {
             TextView tv = null;
             if (viewIdx < existing) {
                 View child = content.getChildAt(viewIdx);
-                if (child instanceof TextView) tv = (TextView) child;
+                if (child instanceof SuggestionRowHolder) {
+                    tv = ((SuggestionRowHolder) child).row();
+                }
             }
             if (tv != null) {
                 // Rebind in place — no view, listener or drawable allocation on
@@ -416,7 +428,10 @@ final class AutoCompletePopupManager {
             } else {
                 if (viewIdx < existing) content.removeViewAt(viewIdx);
                 TextView nv = mData.buildSuggestionTextView(suggestion, input, candidate);
-                content.addView(nv, viewIdx, new LinearLayout.LayoutParams(
+                // The holder supplies the swipe-left delete underlay; it adds no
+                // per-keystroke cost because it is reused with its row.
+                SuggestionRowHolder holder = new SuggestionRowHolder(mContext, nv);
+                content.addView(holder, viewIdx, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
             }
