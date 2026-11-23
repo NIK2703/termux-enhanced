@@ -18,13 +18,24 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
-    public void previewStaysHiddenUntilTheSnapshotIsNearlyHome() {
-        final float start = SessionOverviewTransitionMath.CROSSFADE_START;
+    public void openingPreviewAppearsOnlyOnTheFinalFrame() {
         Assert.assertEquals(0f, SessionOverviewTransitionMath.previewAlpha(0f), EPS);
-        Assert.assertEquals(0f, SessionOverviewTransitionMath.previewAlpha(start - 0.01f), EPS);
-        Assert.assertEquals(0f, SessionOverviewTransitionMath.previewAlpha(start), EPS);
-        Assert.assertEquals(0.5f,
-                SessionOverviewTransitionMath.previewAlpha((start + 1f) * 0.5f), EPS);
+        Assert.assertEquals(0f, SessionOverviewTransitionMath.previewAlpha(0.5f), EPS);
+        Assert.assertEquals(0f, SessionOverviewTransitionMath.previewAlpha(0.78f), EPS);
+        Assert.assertEquals(0f, SessionOverviewTransitionMath.previewAlpha(0.999f), EPS);
+        Assert.assertEquals(1f, SessionOverviewTransitionMath.previewAlpha(1f), EPS);
+    }
+
+    @Test
+    public void openingTerminalDoesNotDissolveBeforeTheEnd() {
+        for (int step = 0; step < 100; step++) {
+            final float progress = step / 100f;
+            Assert.assertEquals(1f,
+                    SessionOverviewTransitionMath.ghostAlpha(progress), EPS);
+            Assert.assertEquals(0f,
+                    SessionOverviewTransitionMath.previewAlpha(progress), EPS);
+        }
+        Assert.assertEquals(0f, SessionOverviewTransitionMath.ghostAlpha(1f), EPS);
         Assert.assertEquals(1f, SessionOverviewTransitionMath.previewAlpha(1f), EPS);
     }
 
@@ -40,19 +51,18 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
-    public void closingFadeIsTheOpeningCrossfadePlayedBackwards() {
-        for (float progress = 0f; progress <= 1f; progress += 0.05f) {
-            Assert.assertEquals(
-                    SessionOverviewTransitionMath.ghostAlpha(1f - progress),
-                    SessionOverviewTransitionMath.closingGhostAlpha(progress), EPS);
+    public void closingSnapshotStartsOpaqueWithoutAnUnfade() {
+        for (int step = 0; step <= 100; step++) {
+            final float progress = step / 100f;
             Assert.assertEquals(1f,
-                    SessionOverviewTransitionMath.closingGhostAlpha(progress)
-                            + SessionOverviewTransitionMath.closingPreviewAlpha(progress), EPS);
+                    SessionOverviewTransitionMath.closingGhostAlpha(progress), EPS);
+            Assert.assertEquals(0f,
+                    SessionOverviewTransitionMath.closingPreviewAlpha(progress), EPS);
         }
-        Assert.assertEquals(0f, SessionOverviewTransitionMath.closingGhostAlpha(0f), EPS);
-        Assert.assertEquals(1f, SessionOverviewTransitionMath.closingGhostAlpha(1f), EPS);
-        Assert.assertEquals(1f, SessionOverviewTransitionMath.closingPreviewAlpha(0f), EPS);
-        Assert.assertEquals(0f, SessionOverviewTransitionMath.closingPreviewAlpha(1f), EPS);
+        Assert.assertEquals(1f, SessionOverviewTransitionMath.closingGhostAlpha(-1f), EPS);
+        Assert.assertEquals(0f, SessionOverviewTransitionMath.closingPreviewAlpha(-1f), EPS);
+        Assert.assertEquals(1f, SessionOverviewTransitionMath.closingGhostAlpha(2f), EPS);
+        Assert.assertEquals(0f, SessionOverviewTransitionMath.closingPreviewAlpha(2f), EPS);
     }
 
     @Test
@@ -91,22 +101,6 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
-    public void appBackgroundFadesInWithTheTabPanel() {
-        for (int step = 0; step <= 100; step++) {
-            final float progress = step / 100f;
-            Assert.assertEquals(progress,
-                    SessionOverviewTransitionMath.closingAppBackgroundAlpha(progress), EPS);
-            Assert.assertEquals(
-                    SessionOverviewTransitionMath.closingTabPanelAlpha(progress),
-                    SessionOverviewTransitionMath.closingAppBackgroundAlpha(progress), EPS);
-        }
-        Assert.assertEquals(0f,
-                SessionOverviewTransitionMath.closingAppBackgroundAlpha(-1f), EPS);
-        Assert.assertEquals(1f,
-                SessionOverviewTransitionMath.closingAppBackgroundAlpha(2f), EPS);
-    }
-
-    @Test
     public void integerInterpolationRoundsAndClamps() {
         Assert.assertEquals(10, SessionOverviewTransitionMath.lerp(10, 20, 0f));
         Assert.assertEquals(20, SessionOverviewTransitionMath.lerp(10, 20, 1f));
@@ -127,6 +121,41 @@ public class SessionOverviewTransitionMathTest {
         Assert.assertEquals(0x5E, (half >>> 16) & 0xFF);
         Assert.assertEquals(0x6F, (half >>> 8) & 0xFF);
         Assert.assertEquals(0x80, half & 0xFF);
+    }
+
+    @Test
+    public void flyingTabsStayAboveTheTerminalSnapshot() {
+        Assert.assertTrue(SessionOverviewTransitionMath.tabGhostZ(0f) > 0f);
+        Assert.assertTrue(SessionOverviewTransitionMath.tabGhostZ(8f) > 8f);
+        Assert.assertTrue(SessionOverviewTransitionMath.tabGhostZ(24f) > 24f);
+        Assert.assertEquals(1f, SessionOverviewTransitionMath.tabGhostZ(Float.NaN), EPS);
+    }
+
+    @Test
+    public void otherGridCardsFadeWithTheFlight() {
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.openingGridCardsAlpha(0f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.openingGridCardsAlpha(-1f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.openingGridCardsAlpha(1f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.openingGridCardsAlpha(2f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingGridCardsAlpha(0f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingGridCardsAlpha(-1f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingGridCardsAlpha(1f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingGridCardsAlpha(2f), EPS);
+        for (int step = 0; step <= 100; step++) {
+            final float progress = step / 100f;
+            Assert.assertEquals(1f,
+                    SessionOverviewTransitionMath.openingGridCardsAlpha(progress)
+                            + SessionOverviewTransitionMath.closingGridCardsAlpha(progress),
+                    EPS);
+        }
     }
 
     @Test

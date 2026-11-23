@@ -3,9 +3,11 @@ package com.termux.app.terminal;
 /**
  * Geometry for the all-sessions overview grid.
  *
- * <p>The viewport always shows two columns and two rows. Cards keep the aspect ratio of the
- * content area they are laid out in. When there are more than four sessions, the additional rows
- * are laid out below the viewport and the surrounding scroll view makes them reachable.</p>
+ * <p>The viewport always shows two columns and two rows. Cards normally use the aspect ratio of
+ * the terminal grid they preview, so the thumbnail has no background bands above or below the
+ * glyphs. Callers without terminal geometry can use the content-area ratio instead. When there
+ * are more than four sessions, the additional rows are laid out below the viewport and the
+ * surrounding scroll view makes them reachable.</p>
  *
  * <p>Everything is in pixels; the caller converts dp gaps before calling. The math is deliberately
  * independent of Android so it can be property-tested for every session count and for arbitrary
@@ -69,17 +71,34 @@ public final class SessionOverviewGridMath {
     }
 
     /**
-     * Compute the card size and the centered grid position.
+     * Compute the card size and the grid position using the content-area aspect ratio.
+     *
+     * <p>Kept for callers that have no terminal geometry yet; the overview passes the terminal
+     * grid's own ratio to {@link #compute(int, int, int, int, double)} so a preview is never
+     * letterboxed inside its card.</p>
+     */
+    public static Layout compute(int sessionCount, int availableWidth, int availableHeight, int gap) {
+        return compute(sessionCount, availableWidth, availableHeight, gap, 0);
+    }
+
+    /**
+     * Compute the card size and the grid position.
      *
      * <p>The card size is based on the two visible rows, not on the total row count. Adding a
-     * fifth session therefore adds a scrollable row instead of shrinking every card.</p>
+     * fifth session therefore adds a scrollable row instead of shrinking every card. The block is
+     * horizontally centered but pinned to the top of the viewport: a short grid starts at the
+     * first available pixel below the status bar instead of floating in the middle of the
+     * window.</p>
      *
      * @param sessionCount number of live sessions; values below 1 produce an empty layout
      * @param availableWidth measured content width, excluding padding
      * @param availableHeight measured viewport height, excluding padding
      * @param gap gap between cards in pixels
+     * @param cardAspect width/height of the terminal grid the card shows; values at or below
+     *                   zero (or non-finite values) fall back to the content-area aspect
      */
-    public static Layout compute(int sessionCount, int availableWidth, int availableHeight, int gap) {
+    public static Layout compute(int sessionCount, int availableWidth, int availableHeight,
+                                 int gap, double cardAspect) {
         final int safeWidth = Math.max(0, availableWidth);
         final int safeHeight = Math.max(0, availableHeight);
         final int safeGap = Math.max(0, gap);
@@ -93,7 +112,11 @@ public final class SessionOverviewGridMath {
         final int visibleRows = VISIBLE_ROWS;
         final int totalRows = Math.max(visibleRows,
                 (sessionCount + columns - 1) / columns);
-        final int totalGapX = safeGap * (columns - 1);
+        // Reserve one gap at each screen edge as well as the gaps between cards. When width is
+        // the limiting axis this makes the outer gutters exactly the same size as the gap
+        // between two thumbnails; when height caps the cards, the remaining width is split
+        // evenly so both gutters stay equal and at least one gap wide.
+        final int totalGapX = safeGap * (columns + 1);
         final int totalGapYVisible = safeGap * (visibleRows - 1);
 
         if (safeWidth <= 0 || safeHeight <= 0
@@ -102,7 +125,10 @@ public final class SessionOverviewGridMath {
                     safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
         }
 
-        final double aspect = (double) safeWidth / safeHeight;
+        final double aspect = (cardAspect > 0
+                && !Double.isNaN(cardAspect) && !Double.isInfinite(cardAspect))
+                ? cardAspect
+                : (double) safeWidth / safeHeight;
         final double maxCardWidthByWidth = (safeWidth - totalGapX) / (double) columns;
         final double maxCardWidthByHeight =
                 ((safeHeight - totalGapYVisible) / (double) visibleRows) * aspect;
@@ -120,10 +146,14 @@ public final class SessionOverviewGridMath {
             cardWidth = Math.min(cardWidth, Math.max(1, (int) Math.floor(aspect)));
         }
 
-        final int gridWidth = columns * cardWidth + totalGapX;
+        // gridWidth spans the outer card edges; the two edge gaps are represented by left and
+        // the matching right-hand slack, not included in this span.
+        final int gridWidth = columns * cardWidth + safeGap * (columns - 1);
         final int gridHeight = totalRows * cardHeight + safeGap * (totalRows - 1);
-        final int left = Math.max(0, (safeWidth - gridWidth) / 2);
-        final int top = Math.max(0, (safeHeight - gridHeight) / 2);
+        final int left = Math.max(safeGap, (safeWidth - gridWidth) / 2);
+        // The grid belongs against the top edge of the app content, below the status bar. Only
+        // horizontal slack is distributed; vertical slack stays below the cards.
+        final int top = 0;
 
         return new Layout(sessionCount, columns, totalRows, safeGap,
                 safeWidth, safeHeight, cardWidth, cardHeight,

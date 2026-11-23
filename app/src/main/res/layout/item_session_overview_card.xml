@@ -3,7 +3,12 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clickable="true"
-    android:focusable="true">
+    android:elevation="@dimen/floating_shadow_elevation"
+    android:focusable="true"
+    android:outlineProvider="bounds">
+
+    <!-- The root carries the same floating shadow as the controls drawn over the terminal.
+         Its preview and compact tab remain chrome-free. -->
 
     <ImageView
         android:id="@+id/session_overview_preview"
@@ -29,9 +34,9 @@
         android:paddingTop="@dimen/session_overview_tab_padding_vertical"
         android:paddingBottom="@dimen/session_overview_tab_padding_vertical"
         android:gravity="center_vertical|start"
-        android:singleLine="true"
         android:maxLines="1"
-        android:textSize="@dimen/session_overview_tab_text_size"
+        android:lineSpacingExtra="-2dp"
+        android:textSize="@dimen/terminal_tab_text_size"
         android:includeFontPadding="true"
         android:clickable="false"
         android:focusable="false"

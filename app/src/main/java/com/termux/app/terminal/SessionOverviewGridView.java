@@ -11,13 +11,14 @@ import androidx.annotation.Nullable;
 import com.termux.R;
 
 /**
- * Lays out all session cards in a centered two-column grid with two visible rows.
+ * Lays out all session cards in a top-aligned two-column grid with two visible rows.
  *
  * <p>The grid is measured from the area it is actually given, never from display metrics. It
  * therefore follows rotation, split-screen resizes, foldables and any density without a separate
- * configuration path. A fifth session adds another row below the viewport; the surrounding
- * {@link SessionOverviewScrollView} makes those rows reachable. Empty slots are left at the end
- * and are not clickable because no view is created for them.</p>
+ * configuration path. The block is horizontally centered and pinned below the status bar, not
+ * vertically centered in the window. A fifth session adds another row below the viewport; the
+ * surrounding {@link SessionOverviewScrollView} makes those rows reachable. Empty slots are left
+ * at the end and are not clickable because no view is created for them.</p>
  */
 public class SessionOverviewGridView extends ViewGroup {
 
@@ -27,6 +28,16 @@ public class SessionOverviewGridView extends ViewGroup {
 
     private int mGapPx;
     private int mViewportHeight;
+    /**
+     * Largest viewport this grid has been measured with at the current width. The keyboard
+     * briefly shrinks the scroll view; cards must not shrink with it. The maximum is the
+     * keyboard-hidden viewport the overview is designed around, and it is reset only when the
+     * width changes (rotation or split-screen), where a new geometry is legitimate.
+     */
+    private int mMaxViewportHeight;
+    private int mLastMeasuredWidth = -1;
+    /** Terminal-grid aspect; 0 falls back to the content-area aspect. */
+    private double mCardAspect;
     private SessionOverviewGridMath.Layout mLayout;
     private OnGridLayoutListener mOnGridLayoutListener;
     private int mLastCardWidth = -1;
@@ -65,7 +76,23 @@ public class SessionOverviewGridView extends ViewGroup {
      * a layout request from inside a measure pass would schedule a redundant traversal.</p>
      */
     public void setViewportHeight(int height) {
-        mViewportHeight = Math.max(0, height);
+        final int safeHeight = Math.max(0, height);
+        mViewportHeight = safeHeight;
+        if (safeHeight > mMaxViewportHeight) mMaxViewportHeight = safeHeight;
+    }
+
+    /**
+     * Set the width/height ratio of the terminal grid a card represents.
+     *
+     * <p>Cards use this instead of the content-area ratio so the preview's glyph grid fills the
+     * whole thumbnail. A value at or below zero restores the content-area fallback.</p>
+     */
+    public void setCardAspect(double aspect) {
+        final double next = (aspect > 0
+                && !Double.isNaN(aspect) && !Double.isInfinite(aspect)) ? aspect : 0;
+        if (mCardAspect == next) return;
+        mCardAspect = next;
+        requestLayout();
     }
 
     @Nullable
@@ -92,13 +119,14 @@ public class SessionOverviewGridView extends ViewGroup {
     @Nullable
     public float[] getSlotCenters(int sessionCount) {
         if (sessionCount <= 0 || getWidth() <= 0) return null;
-        final int viewportHeight = mViewportHeight > 0 ? mViewportHeight : getHeight();
+        final int stableHeight = Math.max(mViewportHeight, mMaxViewportHeight);
+        final int viewportHeight = stableHeight > 0 ? stableHeight : getHeight();
         final int availableWidth = Math.max(0,
                 getWidth() - getPaddingLeft() - getPaddingRight());
         final int availableHeight = Math.max(0,
                 viewportHeight - getPaddingTop() - getPaddingBottom());
         final SessionOverviewGridMath.Layout layout = SessionOverviewGridMath.compute(
-                sessionCount, availableWidth, availableHeight, mGapPx);
+                sessionCount, availableWidth, availableHeight, mGapPx, mCardAspect);
         if (!layout.hasCards()) return null;
 
         final boolean rtl = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
@@ -120,6 +148,12 @@ public class SessionOverviewGridView extends ViewGroup {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         final int measuredWidth = resolveSize(MeasureSpec.getSize(widthMeasureSpec), widthMeasureSpec);
+        if (measuredWidth != mLastMeasuredWidth) {
+            mLastMeasuredWidth = measuredWidth;
+            // A width change is a real geometry change (rotation, split-screen, fold). The
+            // keyboard only changes height, so its maximum survives the IME animation.
+            mMaxViewportHeight = 0;
+        }
         final int heightMode = MeasureSpec.getMode(heightMeasureSpec);
         final int heightSize = MeasureSpec.getSize(heightMeasureSpec);
 
@@ -133,14 +167,19 @@ public class SessionOverviewGridView extends ViewGroup {
             viewportHeight = heightSize;
             mViewportHeight = heightSize;
         }
+        if (viewportHeight > mMaxViewportHeight) mMaxViewportHeight = viewportHeight;
 
         final int availableWidth = Math.max(0,
                 measuredWidth - getPaddingLeft() - getPaddingRight());
+        // Size cards from the keyboard-hidden viewport even while the IME is still shrinking
+        // the scroll view. The grid then scrolls for the few frames before the keyboard is
+        // gone, instead of resizing every thumbnail twice.
+        final int layoutViewportHeight = Math.max(viewportHeight, mMaxViewportHeight);
         final int availableHeight = Math.max(0,
-                viewportHeight - getPaddingTop() - getPaddingBottom());
+                layoutViewportHeight - getPaddingTop() - getPaddingBottom());
 
         mLayout = SessionOverviewGridMath.compute(getChildCount(),
-                availableWidth, availableHeight, mGapPx);
+                availableWidth, availableHeight, mGapPx, mCardAspect);
 
         final int childWidth = mLayout.cardWidth;
         final int childHeight = mLayout.cardHeight;
@@ -153,7 +192,8 @@ public class SessionOverviewGridView extends ViewGroup {
         }
 
         // For up to four sessions the grid is exactly as tall as the viewport and the 2x2 block
-        // is centered. More sessions make it taller than the viewport, which is the scroll range.
+        // sits at the top. More sessions make it taller than the viewport, which is the scroll
+        // range.
         final int contentHeight = mLayout.gridHeight + getPaddingTop() + getPaddingBottom();
         final int desiredHeight = Math.max(contentHeight, viewportHeight);
         final int measuredHeight;

@@ -39,13 +39,40 @@ public class SessionOverviewGridMathTest {
                     if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
                         Assert.assertFalse(layout.isScrollable());
                         Assert.assertTrue(layout.gridHeight <= height);
-                        Assert.assertTrue(layout.top >= 0);
+                        Assert.assertEquals(0, layout.top);
                         Assert.assertTrue(layout.top + layout.gridHeight <= height);
                     } else {
                         Assert.assertTrue(layout.isScrollable());
                         Assert.assertTrue(layout.gridHeight > height);
                         Assert.assertEquals(0, layout.top);
                     }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void sideGuttersMatchTheInterCardGapWhenWidthIsTheLimit() {
+        for (int width : WIDTHS) {
+            for (int height : HEIGHTS) {
+                SessionOverviewGridMath.Layout layout =
+                        SessionOverviewGridMath.compute(4, width, height, 16, 1.0);
+                if (!layout.hasCards()) continue;
+
+                final int innerGap = layout.gridWidth - 2 * layout.cardWidth;
+                final int leftGutter = layout.left;
+                final int rightGutter =
+                        layout.availableWidth - layout.left - layout.gridWidth;
+                Assert.assertEquals(layout.gap, innerGap);
+                Assert.assertTrue(leftGutter >= layout.gap);
+                Assert.assertTrue(rightGutter >= layout.gap);
+                Assert.assertTrue(Math.abs(leftGutter - rightGutter) <= 1);
+
+                final int widthLimitedCardWidth =
+                        (layout.availableWidth - 3 * layout.gap) / 2;
+                if (layout.cardWidth == widthLimitedCardWidth) {
+                    Assert.assertTrue(Math.abs(leftGutter - layout.gap) <= 1);
+                    Assert.assertTrue(Math.abs(rightGutter - layout.gap) <= 1);
                 }
             }
         }
@@ -69,7 +96,7 @@ public class SessionOverviewGridMathTest {
     }
 
     @Test
-    public void cardsKeepTheContentAreaAspectRatio() {
+    public void defaultCardsKeepTheContentAreaAspectRatio() {
         for (int count = 1; count <= 8; count++) {
             for (int width : WIDTHS) {
                 for (int height : HEIGHTS) {
@@ -85,6 +112,46 @@ public class SessionOverviewGridMathTest {
                 }
             }
         }
+    }
+
+    @Test
+    public void cardsCanUseTheTerminalGridAspectRatio() {
+        final double[] aspects = {0.35, 0.5, 0.75, 1.0, 1.5, 2.0};
+        for (int count = 1; count <= 8; count++) {
+            for (int width : WIDTHS) {
+                for (int height : HEIGHTS) {
+                    for (double aspect : aspects) {
+                        SessionOverviewGridMath.Layout layout =
+                                SessionOverviewGridMath.compute(count, width, height, 12, aspect);
+                        Assert.assertTrue("cards must be positive for " + width + "x" + height,
+                                layout.cardWidth > 0 && layout.cardHeight > 0);
+                        Assert.assertTrue(layout.gridWidth <= width);
+                        if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
+                            Assert.assertTrue(layout.gridHeight <= height);
+                        }
+                        // Flooring the height keeps the card at least as wide as the requested
+                        // ratio; the error stays below one aspect unit.
+                        Assert.assertTrue(
+                                "aspect error too large for " + count + " at "
+                                        + width + "x" + height + " ratio " + aspect,
+                                Math.abs(layout.cardWidth - layout.cardHeight * aspect) < aspect);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void invalidCardAspectFallsBackToTheContentArea() {
+        SessionOverviewGridMath.Layout fallback =
+                SessionOverviewGridMath.compute(4, 1080, 1920, 24, 0);
+        SessionOverviewGridMath.Layout content =
+                SessionOverviewGridMath.compute(4, 1080, 1920, 24);
+
+        Assert.assertEquals(content.cardWidth, fallback.cardWidth);
+        Assert.assertEquals(content.cardHeight, fallback.cardHeight);
+        Assert.assertEquals(content.left, fallback.left);
+        Assert.assertEquals(content.top, fallback.top);
     }
 
     @Test
@@ -128,8 +195,8 @@ public class SessionOverviewGridMathTest {
             // same physical size at 3x density.
             Assert.assertTrue(Math.abs(scaled.cardWidth / 3.0 - base.cardWidth) <= 2.0);
             Assert.assertTrue(Math.abs(scaled.cardHeight / 3.0 - base.cardHeight) <= 2.0);
-            // Centering slack can shift by a few pixels after flooring; only the card size is
-            // expected to stay stable in dp.
+            // Horizontal centering slack can shift by a few pixels after flooring; only the card
+            // size is expected to stay stable in dp.
         }
     }
 

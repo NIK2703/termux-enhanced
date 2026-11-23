@@ -66,6 +66,68 @@ public class SessionOverviewGridViewTest {
     }
 
     @Test
+    public void shortGridSticksToTheTopBelowItsPadding() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        SessionOverviewGridView grid = newGrid(activity, 1);
+        final int statusBarInset = 96;
+        grid.setPadding(0, statusBarInset, 0, 0);
+        grid.setViewportHeight(HEIGHT);
+        grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        grid.layout(0, 0, WIDTH, grid.getMeasuredHeight());
+
+        SessionOverviewGridMath.Layout layout = grid.getGridLayout();
+        Assert.assertNotNull(layout);
+        Assert.assertEquals(0, layout.top);
+        // The grid padding is the status-bar strip the overlay extends into; cards start directly
+        // below it instead of being centered in the remaining window.
+        Assert.assertEquals(statusBarInset, grid.getChildAt(0).getTop());
+    }
+
+    @Test
+    public void outerSideGapsMatchTheGapBetweenCards() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        SessionOverviewGridView grid = newGrid(activity, 4);
+        grid.setViewportHeight(HEIGHT);
+        // A square terminal grid is width-limited on this portrait viewport, so the side
+        // gutters must be the same size as the gap between the two columns.
+        grid.setCardAspect(1.0);
+        grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        grid.layout(0, 0, WIDTH, grid.getMeasuredHeight());
+
+        final View leftCard = grid.getChildAt(0);
+        final View rightCard = grid.getChildAt(1);
+        final int innerGap = rightCard.getLeft() - leftCard.getRight();
+        final int leftGap = leftCard.getLeft();
+        final int rightGap = WIDTH - rightCard.getRight();
+        Assert.assertTrue(innerGap > 0);
+        Assert.assertEquals(innerGap, leftGap, 1);
+        Assert.assertEquals(innerGap, rightGap, 1);
+    }
+
+    @Test
+    public void cardAspectCanMatchTheTerminalGrid() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        SessionOverviewGridView grid = newGrid(activity, 4);
+        grid.setViewportHeight(HEIGHT);
+        grid.setCardAspect(0.5);
+        grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        grid.layout(0, 0, WIDTH, grid.getMeasuredHeight());
+
+        SessionOverviewGridMath.Layout layout = grid.getGridLayout();
+        Assert.assertNotNull(layout);
+        Assert.assertEquals(0.5, layout.cardWidth / (double) layout.cardHeight, 0.01);
+        for (int i = 0; i < grid.getChildCount(); i++) {
+            View card = grid.getChildAt(i);
+            Assert.assertEquals(0.5, card.getWidth() / (double) card.getHeight(), 0.01);
+        }
+        Assert.assertTrue(layout.gridHeight <= HEIGHT);
+        Assert.assertEquals(0, layout.top);
+    }
+
+    @Test
     public void rtlMirrorsTheVisualOrderButKeepsSessionOrder() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         // Robolectric's pinned SDK does not resolve an explicit layout direction on a detached
@@ -87,6 +149,36 @@ public class SessionOverviewGridViewTest {
         Assert.assertTrue(grid.getChildAt(0).getLeft() > grid.getChildAt(1).getLeft());
         Assert.assertTrue(grid.getChildAt(0).getRight() > grid.getChildAt(1).getRight());
         Assert.assertEquals(grid.getChildAt(0).getTop(), grid.getChildAt(1).getTop());
+    }
+
+    @Test
+    public void keyboardSizedViewportDoesNotShrinkTheCards() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        SessionOverviewGridView grid = newGrid(activity, 4);
+        grid.setViewportHeight(HEIGHT);
+        grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        grid.layout(0, 0, WIDTH, grid.getMeasuredHeight());
+
+        final int cardWidth = grid.getCardWidth();
+        final int cardHeight = grid.getCardHeight();
+
+        // The keyboard shrinks the scroll viewport without changing the width. Cards must keep
+        // the keyboard-hidden size; the grid may become scrollable until the IME is gone.
+        grid.setViewportHeight(HEIGHT / 2);
+        grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        grid.layout(0, 0, WIDTH, grid.getMeasuredHeight());
+
+        Assert.assertEquals(cardWidth, grid.getCardWidth());
+        Assert.assertEquals(cardHeight, grid.getCardHeight());
+        Assert.assertTrue(grid.getMeasuredHeight() >= HEIGHT);
+
+        // A width change is a new window shape and is allowed to recompute the cards.
+        grid.setViewportHeight(HEIGHT / 2);
+        grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH / 2, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        Assert.assertNotEquals(cardWidth, grid.getCardWidth());
     }
 
     @Test

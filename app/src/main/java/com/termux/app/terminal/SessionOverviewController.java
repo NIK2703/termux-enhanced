@@ -9,6 +9,7 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -19,6 +20,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.animation.PathInterpolator;
@@ -35,10 +37,12 @@ import androidx.core.content.ContextCompat;
 import com.termux.R;
 import com.termux.app.TermuxActivity;
 import com.termux.app.TermuxService;
+import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.view.KeyboardUtils;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
+import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalPreviewRenderer;
 import com.termux.view.TerminalView;
 
@@ -64,6 +68,11 @@ public final class SessionOverviewController {
     private final FrameLayout mOverlay;
     private final SessionOverviewGridView mGrid;
     private final LayoutInflater mInflater;
+    /** Live terminal background used for the window surface, shadows and status-bar icons. */
+    private int mOverlayBackgroundColor = Color.BLACK;
+    /** Siblings of the overlay that are transparent while it is open. */
+    private final List<View> mHiddenLiveViews = new ArrayList<>();
+    private final List<Float> mHiddenLiveViewAlphas = new ArrayList<>();
     private final List<Card> mCards = new ArrayList<>();
     @Nullable
     private final SessionOverviewDragController mDragController;
@@ -226,6 +235,9 @@ public final class SessionOverviewController {
                 : null;
 
         if (mOverlay != null) {
+            // The window/decor background is the backdrop. Keeping the overlay transparent lets
+            // the wallpaper and its system blur stay visible while the live content is hidden.
+            mOverlay.setBackgroundColor(Color.TRANSPARENT);
             mOverlay.setOnClickListener(v -> hide());
             mOverlay.setVisibility(View.GONE);
         }
@@ -284,6 +296,72 @@ public final class SessionOverviewController {
     }
 
     /**
+     * The background the active terminal is actually painting, not the static scheme colour: a
+     * shell can repaint it with OSC 4/11 while the overview is open. The scheme is only a
+     * fallback for the moment before a session is attached.
+     */
+    private int terminalBackgroundColor() {
+        final TerminalSession session = mActivity.getCurrentSession();
+        final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
+        if (emulator != null) {
+            return emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND];
+        }
+        return mActivity.getColorSchemeManager().getSchemeBackground();
+    }
+
+    /**
+     * Paint the window surface behind the overview with the live terminal background. The
+     * window keeps the terminal's transparency alpha, so the wallpaper and its blur remain the
+     * background throughout the overview instead of being replaced by an opaque scrim.
+     */
+    private void applyOverviewBackground() {
+        final int target = terminalBackgroundColor();
+        mOverlayBackgroundColor = target;
+        final Transition opening = mTransition;
+        if (opening != null && opening.backgroundTransition) {
+            // The opening flight owns the decor colour. Update its destination, but let the
+            // animator paint the next frame instead of jumping to it now.
+            opening.backgroundEnd = target;
+        } else if (mClosingTransition == null) {
+            mActivity.applyOverviewWindowBackground(target);
+        }
+        if (mStatusBarExtensionApplied) {
+            applyOverviewStatusBarAppearance(target);
+        }
+    }
+
+    /**
+     * Make every sibling of the overlay transparent while the overview is open. The overlay
+     * itself is transparent, so without this the live terminal, strip and floating controls
+     * would show through the grid and the window background.
+     *
+     * <p>Alpha, not visibility, is used deliberately: the strip must stay {@link View#isShown()}
+     * and laid out for the closing tab flight, and the active terminal must still be drawable
+     * for the expansion snapshot.</p>
+     */
+    private void hideLiveContentForOverview() {
+        if (!(mContentArea instanceof ViewGroup)) return;
+        final ViewGroup content = (ViewGroup) mContentArea;
+        for (int i = 0; i < content.getChildCount(); i++) {
+            final View child = content.getChildAt(i);
+            if (child == mOverlay || mHiddenLiveViews.contains(child)) continue;
+            mHiddenLiveViews.add(child);
+            mHiddenLiveViewAlphas.add(child.getAlpha());
+            child.setAlpha(0f);
+        }
+    }
+
+    /** Restore the live content only after the transparent overlay has been removed. */
+    private void restoreLiveContentAfterOverview() {
+        for (int i = 0; i < mHiddenLiveViews.size(); i++) {
+            final View view = mHiddenLiveViews.get(i);
+            if (view != null) view.setAlpha(mHiddenLiveViewAlphas.get(i));
+        }
+        mHiddenLiveViews.clear();
+        mHiddenLiveViewAlphas.clear();
+    }
+
+    /**
      * Open the overview and take focus. Returns false when there is no session to show or the
      * views are not available (e.g. during an interrupted activity start).
      */
@@ -308,13 +386,28 @@ public final class SessionOverviewController {
         mActivity.dismissMessageHistoryPopup();
         final View focused = mActivity.getCurrentFocus();
         // The input panel floats above the terminal with its own elevation, so it would punch
-        // through the opaque overview. Hide it for the duration of the overview, but save its
+        // through the overview. Hide it for the duration of the overview, but save its
         // text/caret and leave the per-session visibility/focus memory intact: this is the same
         // preserve-and-restore contract a session switch uses.
         mActivity.hideTextInputPanelForOverview();
         KeyboardUtils.hideSoftKeyboard(mActivity,
                 focused != null ? focused : mOverlay);
 
+        // The card is the terminal, not the whole content area. Match the terminal grid before
+        // the first measure so the opening flight already has exact thumbnail targets. The
+        // window surface keeps the terminal's own alpha, so the wallpaper and blur stay behind
+        // the grid instead of being covered by an opaque overview colour.
+        final int backgroundStart = mActivity.getWindowBackgroundColor();
+        applyOverviewBackground();
+        if (transition != null) {
+            // Hold the app background for the first frame. The opening flight crossfades it into
+            // the live terminal backdrop instead of replacing it the moment the overlay appears.
+            mActivity.applyWindowBackgroundColor(backgroundStart);
+            transition.backgroundStart = backgroundStart;
+            transition.backgroundEnd = mOverlayBackgroundColor;
+            transition.backgroundTransition = true;
+        }
+        updateGridAspect();
         buildCards(service.getTermuxSessions());
         if (mCards.isEmpty()) {
             mShowing = false;
@@ -322,10 +415,18 @@ public final class SessionOverviewController {
             discardTransition(transition);
             mActivity.restoreTextInputPanelAfterOverview();
             mActivity.updateToggleTextInputButtonIcon();
+            // applyOverviewBackground() changed the window colour before the card list turned
+            // out to be empty; put the normal scheme background back.
+            mActivity.applySchemeColors();
             // The keyboard was already hidden above; restore the state we interrupted.
             restorePreviousFocus();
             return false;
         }
+
+        // The overlay is transparent, so the live terminal, strip and controls must stop
+        // painting for the duration of the overview. Their alpha is restored only after the
+        // overlay is gone, otherwise they would flash through the grid on close.
+        hideLiveContentForOverview();
 
         // Restore the position the user left last time as soon as the visible grid has a real
         // layout. The one-shot global listener below is the point where card bounds are fresh;
@@ -337,7 +438,7 @@ public final class SessionOverviewController {
         // amount as top padding, so the resting layout is unchanged while scrolled rows can pass
         // under the status bar instead of disappearing behind an opaque strip.
         final boolean statusBarExtended = extendOverlayIntoStatusBar();
-        if (statusBarExtended) applyOverviewStatusBarAppearance();
+        if (statusBarExtended) applyOverviewStatusBarAppearance(mOverlayBackgroundColor);
         mOverlay.setVisibility(View.VISIBLE);
         mOverlay.requestFocus();
         mGrid.requestLayout();
@@ -354,7 +455,7 @@ public final class SessionOverviewController {
             installTransitionVisuals(transition);
             mGrid.post(mStartTransitionRunnable);
             // Hard fallback for a grid that never reports a usable layout (for example a window
-            // that is still being attached): never leave the overlay stuck at scrim alpha zero.
+            // that is still being attached): never leave the flight stuck before its first frame.
             mOverlay.postDelayed(() -> {
                 if (mTransition == transition && mShowing && !transition.started) {
                     startTransition(transition);
@@ -402,6 +503,11 @@ public final class SessionOverviewController {
         mActivity.restoreTextInputPanelAfterOverview();
         if (mOverlay != null) mOverlay.setVisibility(View.GONE);
         restoreOverlayFromStatusBar();
+        // The overlay is gone, so the live content can paint again. The window background goes
+        // back to the scheme colour after the content is restored, never before: a transparent
+        // overview over live content would flash the terminal through the grid.
+        restoreLiveContentAfterOverview();
+        mActivity.applySchemeColors();
         releaseCards();
         mActivity.updateToggleTextInputButtonIcon();
 
@@ -521,11 +627,11 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Keep the system status bar transparent while the overview is visible. The overlay scrim is
-     * black, so the bar needs light icons even in a light terminal scheme; the colour itself
-     * stays fully transparent because the overview paints underneath it.
+     * Keep the system status bar transparent while the overview is visible. The window surface
+     * paints the live terminal background underneath the bar, so the icon appearance follows
+     * that background's lightness instead of the old black scrim assumption.
      */
-    private void applyOverviewStatusBarAppearance() {
+    private void applyOverviewStatusBarAppearance(int background) {
         final Window window = mActivity.getWindow();
         if (window == null) return;
 
@@ -540,7 +646,11 @@ public final class SessionOverviewController {
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (ColorSchemeUtils.isColorLight(background)) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            } else {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            }
         }
         decor.setSystemUiVisibility(flags);
     }
@@ -634,7 +744,7 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Apply the target tab's final selection and scroll while the opaque overlay still hides the
+     * Apply the target tab's final selection and scroll while the overview still hides the
      * strip, then start the expansion. This gives a background card the same tab flight as the
      * active one: the ghost has a selected, on-screen target even when the old tab was inactive
      * or scrolled out of view.
@@ -661,7 +771,7 @@ public final class SessionOverviewController {
         });
     }
 
-    /** Start the expansion after the strip is already in its final state behind the overlay. */
+    /** Start the expansion after the strip is already in its final state behind the overview. */
     private void beginClosingExpansion(@NonNull Card card) {
         if (!mShowing || mClosingTransition != null) return;
         final ClosingTransition closing = prepareClosingTransition(card);
@@ -696,9 +806,9 @@ public final class SessionOverviewController {
 
     private void switchToSession(@NonNull TerminalSession session) {
         if (mActivity.getTermuxTerminalSessionClient() != null) {
-            // The overview already put the strip in place behind its opaque overlay. Do not let
-            // the ordinary instant-switch path start a second, visible centring animation after
-            // the terminal has finished expanding.
+            // The overview already put the strip in place while its live copy was transparent.
+            // Do not let the ordinary instant-switch path start a second, visible centring
+            // animation after the terminal has finished expanding.
             mActivity.getTermuxTerminalSessionClient()
                     .setCurrentSession(session, false, false, true);
         }
@@ -757,6 +867,10 @@ public final class SessionOverviewController {
             return;
         }
 
+        // A session switch can hand us a terminal with different columns, rows or background.
+        // Re-target the cards before the rebuilt previews are measured.
+        applyOverviewBackground();
+        updateGridAspect();
         final List<TermuxSession> sessions = service.getTermuxSessions();
         // Session-list callbacks also fire for non-structural updates (for example when a tab is
         // re-bound). Rebuilding in that case would cancel a flight that is already in the air.
@@ -998,29 +1112,42 @@ public final class SessionOverviewController {
 
         final Transition transition = new Transition();
 
-        final View terminal = mActivity.getActiveTerminalView();
+        final TerminalView terminal = mActivity.getActiveTerminalView();
+        final Rect terminalContent = new Rect();
         if (terminal != null && terminal.isAttachedToWindow() && terminal.isShown()
-                && terminal.getWidth() > 0 && terminal.getHeight() > 0) {
+                && terminal.getWidth() > 0 && terminal.getHeight() > 0
+                && terminal.getTerminalContentBounds(terminalContent)) {
+            Bitmap full = null;
             try {
-                final Bitmap bitmap = Bitmap.createBitmap(terminal.getWidth(),
-                        terminal.getHeight(), Bitmap.Config.RGB_565);
-                terminal.draw(new Canvas(bitmap));
-                transition.terminalBitmap = bitmap;
-                transition.terminalSource = windowRectOf(terminal);
+                // A transparent terminal must keep its alpha: the overview shows the window
+                // background directly, and flattening the snapshot to RGB would turn the
+                // wallpaper visible through the terminal into an opaque sheet during the flight.
+                final Bitmap.Config config = terminal.isOpaque()
+                        ? Bitmap.Config.RGB_565 : Bitmap.Config.ARGB_8888;
+                full = Bitmap.createBitmap(terminal.getWidth(), terminal.getHeight(), config);
+                terminal.draw(new Canvas(full));
+
+                // Fly the glyph grid, not the whole TerminalView. The background bands around
+                // the grid are not part of the card preview; including them makes the terminal
+                // shrink with margins and jump when the preview replaces it at the end.
+                transition.terminalBitmap = cropToGrid(full, terminalContent);
+                full = null;
+                transition.terminalSource = windowRectOf(terminal, terminalContent);
             } catch (RuntimeException ignored) {
                 // A terminal that cannot be drawn (e.g. mid-detach) simply does not fly.
+                recycleBitmap(full);
             }
         }
 
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
-        final TerminalSession current = mActivity.getCurrentSession();
-        if (tabs != null && current != null) {
-            // Only the active tab flies. Every other card tab is already in its final place
-            // when the overlay appears, so there is nothing to animate for those sessions.
+        if (tabs != null) {
+            // Every visible strip tab flies to its card, not just the active one. The panel
+            // snapshot is taken after all of these sources are hidden, so the ghosts are the
+            // only copies of those tabs during the opening flight.
             for (TermuxSession termuxSession : new ArrayList<>(service.getTermuxSessions())) {
                 if (termuxSession == null) continue;
                 final TerminalSession session = termuxSession.getTerminalSession();
-                if (session == null || session != current) continue;
+                if (session == null) continue;
                 final View tabView = tabs.findTabForSession(session);
                 if (tabView == null || !tabView.isShown()) continue;
 
@@ -1049,8 +1176,8 @@ public final class SessionOverviewController {
                         if (tint != null) closeTint = tint.getDefaultColor();
                     }
                 }
-                final float fallbackTextSize = 13f
-                        * mActivity.getResources().getDisplayMetrics().scaledDensity;
+                final float fallbackTextSize = mActivity.getResources()
+                        .getDimensionPixelSize(R.dimen.terminal_tab_text_size);
                 transition.tabSources.add(new SourceTab(
                         session,
                         tabView,
@@ -1068,8 +1195,9 @@ public final class SessionOverviewController {
             }
         }
 
-        // The overlay's background is already opaque, so the live terminal cannot show through
-        // while the captured sources fly over the grid.
+        // The live terminal, strip and controls are transparent while the overview is open. The
+        // captured ghosts are the only copies of the terminal and strip during the flight; the
+        // window background itself stays visible underneath.
         return transition;
     }
 
@@ -1078,6 +1206,27 @@ public final class SessionOverviewController {
         view.getLocationInWindow(location);
         return new Rect(location[0], location[1],
                 location[0] + view.getWidth(), location[1] + view.getHeight());
+    }
+
+    @NonNull
+    private static Rect windowRectOf(@NonNull View view, @NonNull Rect localBounds) {
+        final int[] location = new int[2];
+        view.getLocationInWindow(location);
+        return new Rect(location[0] + localBounds.left, location[1] + localBounds.top,
+                location[0] + localBounds.right, location[1] + localBounds.bottom);
+    }
+
+    /** Crop a full TerminalView snapshot down to the glyph grid the thumbnail represents. */
+    @NonNull
+    private static Bitmap cropToGrid(@NonNull Bitmap full, @NonNull Rect grid) {
+        if (grid.left == 0 && grid.top == 0
+                && grid.width() == full.getWidth() && grid.height() == full.getHeight()) {
+            return full;
+        }
+        final Bitmap cropped = Bitmap.createBitmap(
+                full, grid.left, grid.top, grid.width(), grid.height());
+        if (cropped != full) full.recycle();
+        return cropped;
     }
 
     private static Rect offsetRect(@NonNull Rect source, @NonNull int[] origin) {
@@ -1113,6 +1262,9 @@ public final class SessionOverviewController {
             final Card active = findCard(mActivity.getCurrentSession());
             if (active != null) {
                 transition.activeCard = active;
+                // The snapshot, not the card sitting in its final slot, owns the shadow for the
+                // duration of the flight.
+                setCardShadowSuppressed(active, true);
                 active.preview.setAlpha(0f);
                 active.preview.setVisibility(View.INVISIBLE);
 
@@ -1121,6 +1273,13 @@ public final class SessionOverviewController {
                 ghost.setImportantForAccessibility(
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 ghost.setImageBitmap(transition.terminalBitmap);
+                // Start with no shadow and square corners: at progress zero this is the live
+                // terminal, which does not float. Both grow with the flight toward the card.
+                FloatingShadow.apply(ghost, 0, floatingShadowColor());
+                ghost.setOutlineProvider(new RoundedOutlineProvider(0f));
+                ghost.setClipToOutline(true);
+                transition.terminalShadowElevation =
+                        FloatingShadow.elevationPx(mActivity.getResources());
 
                 transition.terminalSourceLocal = offsetRect(transition.terminalSource, origin);
                 ghost.setLayoutParams(frameParams(transition.terminalSourceLocal));
@@ -1132,8 +1291,8 @@ public final class SessionOverviewController {
             }
         }
 
-        // Hide the flying strip tabs before drawing the panel snapshot. The active tab is
-        // represented by its own ghost; leaving it in the snapshot would draw it twice.
+        // Hide the flying strip tabs before drawing the panel snapshot. Each one is represented
+        // by its own ghost; leaving them in the snapshot would draw every flying tab twice.
         for (SourceTab source : transition.tabSources) {
             source.tabView.setVisibility(View.INVISIBLE);
             transition.hiddenTabs.add(source.tabView);
@@ -1146,13 +1305,14 @@ public final class SessionOverviewController {
 
             final SessionOverviewTabTitleView ghost =
                     new SessionOverviewTabTitleView(mActivity);
-            ghost.setSingleLine(true);
-            ghost.setMaxLines(1);
+            ghost.setMaxLines(card.tab.getMaxLines());
             ghost.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
             // Match the strip title and the card title exactly. A different includeFontPadding
             // shifts the baseline on the first and last frame, which reads as the tab jumping
             // even though its bounds are continuous.
             ghost.setIncludeFontPadding(true);
+            ghost.setLineSpacing(card.tab.getLineSpacingExtra(),
+                    card.tab.getLineSpacingMultiplier());
             ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             ghost.setFullTitle(card.fullTitle);
             ghost.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, source.textSize);
@@ -1170,6 +1330,11 @@ public final class SessionOverviewController {
 
             final Rect sourceRect = offsetRect(source.bounds, origin);
             ghost.setLayoutParams(frameParams(sourceRect));
+            // The terminal ghost's elevation grows during the flight. Elevation participates in
+            // child ordering, so lift the tab above that maximum or it would slide under the
+            // shrinking terminal despite being added later.
+            ghost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
+                    transition.terminalShadowElevation));
             mGhostLayer.addView(ghost);
 
             // The strip's selected tab has a close cross; fly that cross to the card's close
@@ -1186,6 +1351,8 @@ public final class SessionOverviewController {
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 closeSourceLocal = offsetRect(source.closeBounds, origin);
                 closeGhost.setLayoutParams(frameParams(closeSourceLocal));
+                closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
+                        transition.terminalShadowElevation));
                 mGhostLayer.addView(closeGhost);
             }
 
@@ -1195,18 +1362,25 @@ public final class SessionOverviewController {
                     source.padStart, source.padTop, source.padEnd, source.padBottom,
                     closeGhost, closeSourceLocal, source.closeTint));
 
-            // The real tab keeps its slot but stops painting; the card's final pill (and its
-            // close button, when a cross ghost is flying) is hidden until the ghost has landed.
+            // The real tab keeps its slot but stops painting. Hide the card's pill and close
+            // cross for every flying tab: an inactive strip tab has no cross of its own, so
+            // leaving the card cross visible would float an X over the thumbnail for the whole
+            // flight. Cleanup reveals both when the ghost has landed.
             card.tab.setVisibility(View.INVISIBLE);
-            if (closeGhost != null) card.close.setVisibility(View.INVISIBLE);
+            card.close.setVisibility(View.INVISIBLE);
             transition.hiddenPills.add(card);
         }
+
+        // The live terminal, strip and controls are already transparent (see
+        // hideLiveContentForOverview()). The captured terminal and strip snapshots are therefore
+        // the only copies of those surfaces while the window background stays visible.
+        applyOpeningCardAlpha(transition, 0f);
     }
 
     /**
-     * Draw a snapshot of the tab strip over the overview scrim and fade it out with the opening
-     * flight. The real strip is behind the opaque overlay, so without this copy the whole panel
-     * would disappear on the first frame while the tab ghost was still travelling.
+     * Draw a snapshot of the tab strip and fade it out with the opening flight. The live strip
+     * is transparent while the overview is open, so without this copy the panel would disappear
+     * on the first frame while the tab ghosts were still travelling.
      */
     private void installOpeningTabPanelGhost(@NonNull Transition transition,
                                              @NonNull int[] origin) {
@@ -1248,7 +1422,12 @@ public final class SessionOverviewController {
         }
         if (transition.activeCard != null) {
             final View root = transition.activeCard.root;
+            final View preview = transition.activeCard.preview;
             if (!root.isLaidOut() || root.getWidth() <= 0 || root.getHeight() <= 0) return false;
+            if (!preview.isLaidOut()
+                    || preview.getWidth() <= 0 || preview.getHeight() <= 0) {
+                return false;
+            }
         }
         for (TabGhost ghost : transition.tabGhosts) {
             final View root = ghost.card.root;
@@ -1297,14 +1476,27 @@ public final class SessionOverviewController {
         if (mTransition != transition) return;
         final float p = SessionOverviewTransitionMath.clamp01(progress);
 
+        if (transition.backgroundTransition) {
+            mActivity.applyWindowBackgroundColor(SessionOverviewTransitionMath.blendColor(
+                    transition.backgroundStart, transition.backgroundEnd, p));
+        }
+        applyOpeningCardAlpha(transition, p);
+
         final int[] origin = contentOrigin();
 
         if (transition.terminalGhost != null && transition.activeCard != null && origin != null) {
-            final Rect target = localRect(transition.activeCard.root, origin);
+            final Rect target = localRect(transition.activeCard.preview, origin);
             if (target != null && transition.terminalSourceLocal != null) {
                 transition.terminalGhost.setLayoutParams(frameParams(lerpRect(
                         transition.terminalSourceLocal, target, p)));
             }
+            // The shadow travels with the snapshot and grows from the square, shadowless live
+            // terminal into the rounded card. The card's own shadow stays suppressed until the
+            // snapshot lands, so there is never a second shadow parked in the grid slot.
+            transition.terminalGhost.setElevation(transition.terminalShadowElevation * p);
+            transition.terminalGhost.setOutlineProvider(new RoundedOutlineProvider(
+                    SessionOverviewTransitionMath.lerp(
+                            0f, transition.activeCard.thumbnailCornerRadius, p)));
             transition.terminalGhost.setAlpha(
                     SessionOverviewTransitionMath.ghostAlpha(p));
 
@@ -1380,6 +1572,18 @@ public final class SessionOverviewController {
         cleanupTransition(transition);
     }
 
+    /**
+     * Fade the cards that are not represented by the flying terminal. The active card owns the
+     * terminal snapshot until the final frame, so it must stay out of this fade.
+     */
+    private void applyOpeningCardAlpha(@NonNull Transition transition, float progress) {
+        if (transition.activeCard == null) return;
+        final float alpha = SessionOverviewTransitionMath.openingGridCardsAlpha(progress);
+        for (Card card : mCards) {
+            if (card != transition.activeCard) card.root.setAlpha(alpha);
+        }
+    }
+
     /** Abort the flight and put every real view back where it belongs. */
     private void cancelTransition() {
         final Transition transition = mTransition;
@@ -1410,11 +1614,19 @@ public final class SessionOverviewController {
             card.tab.setVisibility(View.VISIBLE);
             card.close.setVisibility(View.VISIBLE);
         }
+        for (Card card : mCards) {
+            card.root.setAlpha(1f);
+        }
         if (transition.activeCard != null) {
             transition.activeCard.preview.setAlpha(1f);
             transition.activeCard.preview.setVisibility(View.VISIBLE);
+            setCardShadowSuppressed(transition.activeCard, false);
         }
-
+        if (transition.backgroundTransition) {
+            // The flight may be cancelled before its first frame. The overview backdrop must
+            // still be the terminal colour, not the app colour captured at the start.
+            mActivity.applyOverviewWindowBackground(transition.backgroundEnd);
+        }
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setImageDrawable(null);
         }
@@ -1445,13 +1657,16 @@ public final class SessionOverviewController {
 
     /**
      * Prepare the exact reverse of the opening terminal flight: the selected card grows back into
-     * the terminal surface while the card preview crossfades out.
+     * the terminal grid, with the terminal snapshot opaque from the first frame.
      *
-     * <p>The terminal bitmap is captured at the terminal's real size. For the session that is
-     * currently visible this is a {@link View#draw(Canvas)} snapshot, so the first and last frames
-     * match the terminal pixels exactly. A background session has no attached terminal view, so
-     * its emulator is rendered through {@link TerminalPreviewRenderer} at the same size instead;
-     * no second TerminalView is created and no PTY is resized.</p>
+     * <p>Both ends of the flight are the glyph grid, not the whole {@link TerminalView}. The
+     * view's background margins are absent from the card, so including them would make the
+     * expansion change aspect ratio and jump when the live terminal takes over. For the session
+     * that is currently visible the grid is cropped from a {@link View#draw(Canvas)} snapshot, so
+     * the first and last frames match the terminal pixels exactly. A background session has no
+     * attached terminal view, so its emulator is rendered through
+     * {@link TerminalPreviewRenderer} at the grid size instead; no second TerminalView is created
+     * and no PTY is resized.</p>
      */
     @Nullable
     private ClosingTransition prepareClosingTransition(@NonNull Card card) {
@@ -1462,37 +1677,48 @@ public final class SessionOverviewController {
 
         final int[] origin = contentOrigin();
         if (origin == null) return null;
-        final Rect cardStart = localRect(card.root, origin);
+        final Rect cardStart = localRect(card.preview, origin);
         if (cardStart == null || cardStart.isEmpty()) return null;
 
         final TerminalView terminal = mActivity.getActiveTerminalView();
-        final Rect targetWindow;
-        if (terminal != null && terminal.isAttachedToWindow()
-                && terminal.getWidth() > 0 && terminal.getHeight() > 0) {
-            targetWindow = windowRectOf(terminal);
-        } else {
-            targetWindow = windowRectOf(mContentArea);
-        }
+        final Rect terminalContent = new Rect();
+        final boolean hasTerminalContent = terminal != null
+                && terminal.isAttachedToWindow()
+                && terminal.getWidth() > 0 && terminal.getHeight() > 0
+                && terminal.getTerminalContentBounds(terminalContent);
+        final Rect targetWindow = hasTerminalContent
+                ? windowRectOf(terminal, terminalContent)
+                : windowRectOf(mContentArea);
         final Rect terminalTarget = offsetRect(targetWindow, origin);
         if (terminalTarget.isEmpty()) return null;
 
         final TerminalEmulator emulator = card.session.getEmulator();
         if (emulator == null) return null;
 
+        // The overview keeps the window background visible, so the expansion snapshot must keep
+        // the terminal's own alpha. An RGB bitmap here would turn the wallpaper and its blur into
+        // an opaque sheet for the duration of the closing flight.
+        final int transparency = mActivity.getEffectiveBackgroundTransparency();
+        final Bitmap.Config bitmapConfig = transparency > 0
+                ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
+
         Bitmap bitmap = null;
+        Bitmap full = null;
         try {
-            if (terminal != null && terminal.getCurrentSession() == card.session
-                    && terminal.getWidth() > 0 && terminal.getHeight() > 0) {
-                bitmap = Bitmap.createBitmap(terminal.getWidth(), terminal.getHeight(),
-                        Bitmap.Config.RGB_565);
-                terminal.draw(new Canvas(bitmap));
+            if (hasTerminalContent && terminal.getCurrentSession() == card.session) {
+                full = Bitmap.createBitmap(terminal.getWidth(), terminal.getHeight(),
+                        bitmapConfig);
+                terminal.draw(new Canvas(full));
+                bitmap = cropToGrid(full, terminalContent);
+                full = null;
             } else {
                 bitmap = Bitmap.createBitmap(terminalTarget.width(), terminalTarget.height(),
-                        Bitmap.Config.RGB_565);
+                        bitmapConfig);
                 TerminalPreviewRenderer.render(emulator, bitmap, previewTextSize(),
-                        previewTypeface(), scrollTopRow(card.session));
+                        previewTypeface(), scrollTopRow(card.session), transparency);
             }
         } catch (RuntimeException ignored) {
+            recycleBitmap(full);
             recycleBitmap(bitmap);
             return null;
         }
@@ -1503,16 +1729,16 @@ public final class SessionOverviewController {
             recycleBitmap(bitmap);
             return null;
         }
-        // Install the flying pill first: it hides the real target tab, so the panel snapshot
-        // taken afterwards has an empty slot for the ghost to land in instead of drawing the
-        // selected tab twice. The ghost is brought back above the panel snapshot below.
+        // Install the flying pills first: each one hides its real target tab, so the panel
+        // snapshot taken afterwards has an empty slot for every ghost to land in instead of
+        // drawing the returning tabs twice. The ghosts are brought back above the snapshot below.
         installClosingTabVisuals(transition, origin);
         installClosingTabPanelGhost(transition, origin);
-        if (transition.tabGhost != null) {
-            transition.tabGhost.view.bringToFront();
-            if (transition.tabGhost.closeGhost != null) {
-                transition.tabGhost.closeGhost.bringToFront();
-            }
+        for (ClosingTabGhost ghost : transition.tabGhosts) {
+            ghost.view.bringToFront();
+        }
+        for (ClosingTabGhost ghost : transition.tabGhosts) {
+            if (ghost.closeGhost != null) ghost.closeGhost.bringToFront();
         }
         return transition;
     }
@@ -1525,38 +1751,35 @@ public final class SessionOverviewController {
         ghost.setScaleType(ImageView.ScaleType.FIT_XY);
         ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
 
-        final TermuxColorSchemeManager colors = mActivity.getColorSchemeManager();
-
-        // The opaque overview scrim hides the window background until the flight ends. Fade a
-        // matching surface in above the scrim, below the terminal, so the app background returns
-        // with the tab panel instead of popping in when the overlay is removed.
-        final View appBackgroundGhost = new View(mActivity);
-        appBackgroundGhost.setBackgroundColor(colors.getSchemeBackground());
-        appBackgroundGhost.setAlpha(0f);
-        appBackgroundGhost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        appBackgroundGhost.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        mGhostLayer.addView(appBackgroundGhost);
-        transition.appBackgroundGhost = appBackgroundGhost;
-
         ghost.setImageBitmap(transition.terminalBitmap);
         ghost.setAlpha(0f);
+        // The card's own shadow is suppressed while this snapshot expands; the snapshot starts
+        // with the card's shadow shape and radius so the hand-off at progress zero is invisible.
+        FloatingShadow.apply(ghost, FloatingShadow.elevationPx(mActivity.getResources()),
+                floatingShadowColor());
+        ghost.setOutlineProvider(new RoundedOutlineProvider(
+                transition.card.thumbnailCornerRadius));
+        ghost.setClipToOutline(true);
+        transition.terminalShadowElevation =
+                FloatingShadow.elevationPx(mActivity.getResources());
         ghost.setLayoutParams(frameParams(transition.cardStartLocal));
 
         mGhostLayer.addView(ghost);
         transition.terminalGhost = ghost;
+        setCardShadowSuppressed(transition.card, true);
         transition.tabBaseAlpha = transition.card.tab.getAlpha();
         transition.closeBaseAlpha = transition.card.close.getAlpha();
         return true;
     }
 
     /**
-     * Draw the final tab strip over the overview scrim so it can fade in during the expansion.
+     * Draw the final tab strip over the overview so it can fade in during the expansion.
      *
      * <p>The strip was already selected and scrolled behind the overlay before this snapshot was
-     * taken, so the first visible frame after the overlay disappears matches it exactly. The
-     * target tab is hidden by {@link #installClosingTabVisuals} before this capture; its slot is
-     * intentionally empty so the flying pill is the only tab drawn there until it lands.</p>
+     * taken, so the first visible frame after the overlay disappears matches it exactly. Every
+     * returning target tab is hidden by {@link #installClosingTabVisuals} before this capture;
+     * those slots are intentionally empty so the flying pills are the only copies drawn there
+     * until they land.</p>
      */
     private void installClosingTabPanelGhost(@NonNull ClosingTransition transition,
                                              @NonNull int[] origin) {
@@ -1578,119 +1801,153 @@ public final class SessionOverviewController {
         transition.tabPanelBitmap = bitmap;
     }
 
+    /**
+     * Reverse the opening tab flight for every visible card tab. Each ghost starts on its card
+     * and lands on the matching strip tab. All target tabs are hidden before the panel snapshot
+     * is taken, so the snapshot and the ghosts never draw the same tab at once.
+     */
     private void installClosingTabVisuals(@NonNull ClosingTransition transition,
                                           @NonNull int[] origin) {
         if (mGhostLayer == null) return;
-        final Card card = transition.card;
-
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         if (tabs == null) return;
-        final View targetTab = tabs.findTabForSession(card.session);
-        if (targetTab == null || !targetTab.isShown()) return;
-        final Rect targetBounds = visibleLocalRect(targetTab, origin);
-        if (targetBounds == null) return;
 
-        final Rect startBounds = localRect(card.tab, origin);
-        if (startBounds == null || startBounds.isEmpty()) return;
+        for (Card card : new ArrayList<>(mCards)) {
+            // Only animate tabs the user can actually see on the grid. Off-screen cards keep
+            // their real pill under the expanding terminal and do not need a ghost.
+            if (visibleLocalRect(card.tab, origin) == null) continue;
+            final Rect startBounds = localRect(card.tab, origin);
+            if (startBounds == null || startBounds.isEmpty()) continue;
 
-        final TextView targetTitle = targetTab.findViewById(R.id.session_tab_title);
-        final View targetClose = targetTab.findViewById(R.id.session_tab_close);
-        int closeFootprint = 0;
-        Rect targetCloseBounds = null;
-        int targetCloseTint = targetTitle != null
-                ? targetTitle.getCurrentTextColor() : card.textColor;
-        if (targetClose != null && targetClose.getVisibility() == View.VISIBLE) {
-            closeFootprint = targetClose.getWidth();
-            final ViewGroup.LayoutParams params = targetClose.getLayoutParams();
-            if (params instanceof ViewGroup.MarginLayoutParams) {
-                closeFootprint += ((ViewGroup.MarginLayoutParams) params).getMarginStart();
+            final View targetTab = tabs.findTabForSession(card.session);
+            if (targetTab == null || !targetTab.isShown()) continue;
+            // Read the full strip bounds, not just the visible intersection: a tab may be
+            // scrolled partly out of view and still be the right landing spot for its ghost.
+            final Rect targetBounds = localRect(targetTab, origin);
+            if (targetBounds == null || targetBounds.isEmpty()) continue;
+
+            final TextView targetTitle = targetTab.findViewById(R.id.session_tab_title);
+            final View targetClose = targetTab.findViewById(R.id.session_tab_close);
+            int closeFootprint = 0;
+            Rect targetCloseBounds = null;
+            int targetCloseTint = targetTitle != null
+                    ? targetTitle.getCurrentTextColor() : card.textColor;
+            if (targetClose != null && targetClose.getVisibility() == View.VISIBLE) {
+                closeFootprint = targetClose.getWidth();
+                final ViewGroup.LayoutParams params = targetClose.getLayoutParams();
+                if (params instanceof ViewGroup.MarginLayoutParams) {
+                    closeFootprint += ((ViewGroup.MarginLayoutParams) params).getMarginStart();
+                }
+                targetCloseBounds = visibleLocalRect(targetClose, origin);
+                if (targetClose instanceof ImageButton) {
+                    final ColorStateList tint = ((ImageButton) targetClose).getImageTintList();
+                    if (tint != null) targetCloseTint = tint.getDefaultColor();
+                }
             }
-            targetCloseBounds = visibleLocalRect(targetClose, origin);
-            if (targetClose instanceof ImageButton) {
-                final ColorStateList tint = ((ImageButton) targetClose).getImageTintList();
-                if (tint != null) targetCloseTint = tint.getDefaultColor();
+
+            final SessionOverviewTabTitleView ghost =
+                    new SessionOverviewTabTitleView(mActivity);
+            ghost.setMaxLines(card.tab.getMaxLines());
+            ghost.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            // The card title and the strip title both include font padding; keeping it here
+            // avoids a baseline jump when the ghost lands.
+            ghost.setIncludeFontPadding(true);
+            ghost.setLineSpacing(card.tab.getLineSpacingExtra(),
+                    card.tab.getLineSpacingMultiplier());
+            ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            ghost.setFullTitle(card.fullTitle);
+            ghost.setTextSize(TypedValue.COMPLEX_UNIT_PX, card.tab.getTextSize());
+            ghost.setTextColor(card.tab.getCurrentTextColor());
+            ghost.setPaintFlags(targetTitle != null
+                    ? targetTitle.getPaintFlags() : card.tab.getPaintFlags());
+            final Typeface targetTypeface = targetTitle != null
+                    ? targetTitle.getTypeface() : card.tab.getTypeface();
+            if (targetTypeface != null) ghost.setTypeface(targetTypeface);
+            ghost.setPaddingRelative(card.tab.getPaddingStart(), card.tab.getPaddingTop(),
+                    card.tab.getPaddingEnd(), card.tab.getPaddingBottom());
+
+            final GradientDrawable background = new GradientDrawable();
+            background.setShape(GradientDrawable.RECTANGLE);
+            background.setColor(card.tabBackgroundColor);
+            background.setCornerRadius(mTabCornerRadius);
+            ghost.setBackground(background);
+            ghost.setLayoutParams(frameParams(startBounds));
+            // Keep the returning tab above the expanding terminal for the whole flight.
+            ghost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
+                    transition.terminalShadowElevation));
+            mGhostLayer.addView(ghost);
+
+            final float fallbackTextSize = mActivity.getResources()
+                    .getDimensionPixelSize(R.dimen.terminal_tab_text_size);
+            final float targetTextSize = targetTitle != null
+                    ? targetTitle.getTextSize() : fallbackTextSize;
+            final int targetTextColor = targetTitle != null
+                    ? targetTitle.getCurrentTextColor() : card.tab.getCurrentTextColor();
+            final int targetBackgroundColor = tabs.getTabBackgroundColor(targetTab);
+            final int targetCornerRadius = tabs.getTabCornerRadiusPx();
+            final int targetPadStart = targetTab.getPaddingStart();
+            final int targetPadTop = targetTab.getPaddingTop();
+            final int targetPadEnd = targetTab.getPaddingEnd() + closeFootprint;
+            final int targetPadBottom = targetTab.getPaddingBottom();
+
+            final Rect startCloseBounds = localRect(card.close, origin);
+            final int startCloseTint = card.textColor;
+            ImageView closeGhost = null;
+            // Only the selected strip tab has a close cross to fly to. A card whose target tab
+            // has no cross would otherwise park its own X over the thumbnail for the whole
+            // expansion; hide it with the card pill instead.
+            if (startCloseBounds != null && !startCloseBounds.isEmpty()
+                    && targetCloseBounds != null) {
+                closeGhost = new ImageView(mActivity);
+                closeGhost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                closeGhost.setImageResource(R.drawable.ic_close);
+                closeGhost.setImageTintList(ColorStateList.valueOf(startCloseTint));
+                closeGhost.setAlpha(0.7f);
+                closeGhost.setImportantForAccessibility(
+                        View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                closeGhost.setLayoutParams(frameParams(startCloseBounds));
+                closeGhost.setTranslationZ(SessionOverviewTransitionMath.tabGhostZ(
+                        transition.terminalShadowElevation));
+                mGhostLayer.addView(closeGhost);
             }
+
+            final ClosingTabGhost tabGhost = new ClosingTabGhost(card, ghost, background,
+                    startBounds, card.tab.getTextSize(), card.tab.getCurrentTextColor(),
+                    card.tabBackgroundColor, mTabCornerRadius,
+                    card.tab.getPaddingStart(), card.tab.getPaddingTop(),
+                    card.tab.getPaddingEnd(), card.tab.getPaddingBottom(),
+                    targetTextSize, targetTextColor, targetBackgroundColor,
+                    targetCornerRadius, targetPadStart, targetPadTop, targetPadEnd,
+                    targetPadBottom,
+                    targetTitle != null ? targetTitle.getPaintFlags() : card.tab.getPaintFlags(),
+                    targetTab, targetBounds, closeGhost, startCloseBounds, startCloseTint,
+                    targetClose, targetCloseBounds, targetCloseTint);
+            tabGhost.tabBaseAlpha = card.tab.getAlpha();
+            tabGhost.closeBaseAlpha = card.close.getAlpha();
+            tabGhost.targetTabVisibility = targetTab.getVisibility();
+            transition.tabGhosts.add(tabGhost);
+
+            // The real compact pill is exactly covered by its ghost at progress zero. The card
+            // cross is hidden for every flying pill: only the selected target tab has a cross
+            // for the ghost to land on, and an un-anchored X must not float over the expansion.
+            card.tab.setVisibility(View.INVISIBLE);
+            card.close.setVisibility(View.INVISIBLE);
+
+            // Keep each strip slot (INVISIBLE, not GONE) but stop painting it. The panel snapshot
+            // taken after this method therefore has a gap at every landing spot, and cleanup
+            // restores all of them before the overlay is removed.
+            targetTab.setVisibility(View.INVISIBLE);
         }
-
-        final SessionOverviewTabTitleView ghost = new SessionOverviewTabTitleView(mActivity);
-        ghost.setSingleLine(true);
-        ghost.setMaxLines(1);
-        ghost.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-        ghost.setIncludeFontPadding(false);
-        ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ghost.setFullTitle(card.fullTitle);
-        ghost.setTextSize(TypedValue.COMPLEX_UNIT_PX, card.tab.getTextSize());
-        ghost.setTextColor(card.tab.getCurrentTextColor());
-        ghost.setPaintFlags(targetTitle != null
-                ? targetTitle.getPaintFlags() : card.tab.getPaintFlags());
-        final Typeface targetTypeface = targetTitle != null
-                ? targetTitle.getTypeface() : card.tab.getTypeface();
-        if (targetTypeface != null) ghost.setTypeface(targetTypeface);
-        ghost.setPaddingRelative(card.tab.getPaddingStart(), card.tab.getPaddingTop(),
-                card.tab.getPaddingEnd(), card.tab.getPaddingBottom());
-
-        final GradientDrawable background = new GradientDrawable();
-        background.setShape(GradientDrawable.RECTANGLE);
-        background.setColor(card.tabBackgroundColor);
-        background.setCornerRadius(mTabCornerRadius);
-        ghost.setBackground(background);
-        ghost.setLayoutParams(frameParams(startBounds));
-        mGhostLayer.addView(ghost);
-
-        final float fallbackTextSize = 13f
-                * mActivity.getResources().getDisplayMetrics().scaledDensity;
-        final float targetTextSize = targetTitle != null
-                ? targetTitle.getTextSize() : fallbackTextSize;
-        final int targetTextColor = targetTitle != null
-                ? targetTitle.getCurrentTextColor() : card.tab.getCurrentTextColor();
-        final int targetBackgroundColor = tabs.getTabBackgroundColor(targetTab);
-        final int targetCornerRadius = tabs.getTabCornerRadiusPx();
-        final int targetPadStart = targetTab.getPaddingStart();
-        final int targetPadTop = targetTab.getPaddingTop();
-        final int targetPadEnd = targetTab.getPaddingEnd() + closeFootprint;
-        final int targetPadBottom = targetTab.getPaddingBottom();
-
-        final Rect startCloseBounds = localRect(card.close, origin);
-        final int startCloseTint = card.textColor;
-        ImageView closeGhost = null;
-        if (startCloseBounds != null && targetCloseBounds != null) {
-            closeGhost = new ImageView(mActivity);
-            closeGhost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            closeGhost.setImageResource(R.drawable.ic_close);
-            closeGhost.setImageTintList(ColorStateList.valueOf(startCloseTint));
-            closeGhost.setAlpha(0.7f);
-            closeGhost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            closeGhost.setLayoutParams(frameParams(startCloseBounds));
-            mGhostLayer.addView(closeGhost);
-        }
-
-        transition.tabGhost = new ClosingTabGhost(card, ghost, background, startBounds,
-                card.tab.getTextSize(), card.tab.getCurrentTextColor(),
-                card.tabBackgroundColor, mTabCornerRadius,
-                card.tab.getPaddingStart(), card.tab.getPaddingTop(),
-                card.tab.getPaddingEnd(), card.tab.getPaddingBottom(),
-                targetTextSize, targetTextColor, targetBackgroundColor,
-                targetCornerRadius, targetPadStart, targetPadTop, targetPadEnd, targetPadBottom,
-                targetTitle != null ? targetTitle.getPaintFlags() : card.tab.getPaintFlags(),
-                targetTab, targetBounds, closeGhost, startCloseBounds, startCloseTint,
-                targetClose, targetCloseBounds, targetCloseTint);
-
-        // The real compact pill and cross are exactly covered by the ghosts at progress zero.
-        card.tab.setVisibility(View.INVISIBLE);
-        card.close.setVisibility(View.INVISIBLE);
-
-        // The strip's target tab is already selected and highlighted behind the overlay. Keep
-        // its slot (INVISIBLE, not GONE) but stop painting it: the flying pill is the only copy
-        // of the tab until it lands. The panel snapshot taken after this call therefore has a
-        // gap exactly at the target bounds. Cleanup restores the tab before the overlay hides.
-        transition.targetTabView = targetTab;
-        transition.targetTabVisibility = targetTab.getVisibility();
-        targetTab.setVisibility(View.INVISIBLE);
     }
 
     private void startClosingTransition(@NonNull ClosingTransition transition) {
         if (mClosingTransition != transition || transition.started) return;
         transition.started = true;
+        // The overview backdrop crossfades back to the normal app background while the selected
+        // terminal expands, so the live terminal lands on the same colour it had before opening.
+        transition.backgroundStart = mActivity.getWindowBackgroundColor();
+        transition.backgroundEnd = mActivity.getSchemeWindowBackgroundColor();
+        transition.backgroundTransition = true;
         applyClosingProgress(transition, 0f);
 
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
@@ -1713,19 +1970,22 @@ public final class SessionOverviewController {
     private void applyClosingProgress(@NonNull ClosingTransition transition, float progress) {
         if (mClosingTransition != transition) return;
         final float p = SessionOverviewTransitionMath.clamp01(progress);
+
+        if (transition.backgroundTransition) {
+            mActivity.applyWindowBackgroundColor(SessionOverviewTransitionMath.blendColor(
+                    transition.backgroundStart, transition.backgroundEnd, p));
+        }
+        applyClosingCardAlpha(transition, p);
+
         final int[] origin = contentOrigin();
         if (origin == null) return;
 
-        if (transition.appBackgroundGhost != null) {
-            transition.appBackgroundGhost.setAlpha(
-                    SessionOverviewTransitionMath.closingAppBackgroundAlpha(p));
-        }
         if (transition.tabPanelGhost != null) {
             transition.tabPanelGhost.setAlpha(
                     SessionOverviewTransitionMath.closingTabPanelAlpha(p));
         }
 
-        final Rect start = localRect(transition.card.root, origin);
+        final Rect start = localRect(transition.card.preview, origin);
         final Rect target = closingTerminalTarget(origin, transition.terminalTargetLocal);
         if (transition.terminalGhost != null && target != null) {
             transition.terminalGhost.setLayoutParams(frameParams(lerpRect(
@@ -1733,21 +1993,45 @@ public final class SessionOverviewController {
         }
 
         final float ghostAlpha = SessionOverviewTransitionMath.closingGhostAlpha(p);
-        if (transition.terminalGhost != null) transition.terminalGhost.setAlpha(ghostAlpha);
+        if (transition.terminalGhost != null) {
+            transition.terminalGhost.setAlpha(ghostAlpha);
+            // Reverse of the opening shadow: the card's floating shadow travels out with the
+            // expanding snapshot and is square and shadowless by the time it reaches the live
+            // terminal. The card's own shadow stays suppressed for the whole flight.
+            transition.terminalGhost.setElevation(
+                    transition.terminalShadowElevation * (1f - p));
+            transition.terminalGhost.setOutlineProvider(new RoundedOutlineProvider(
+                    SessionOverviewTransitionMath.lerp(
+                            transition.card.thumbnailCornerRadius, 0f, p)));
+        }
 
-        // This is the opening crossfade played in reverse: the card preview fades out while the
-        // full-size terminal snapshot fades in. When the active tab is flying back to the strip,
-        // its real compact pill is hidden and the ghost carries it; otherwise the pill simply
-        // fades under the expanding terminal.
+        // The selected card preview is hidden immediately and the full-size terminal snapshot is
+        // opaque from progress zero, so the expansion starts without an unfade. Every visible
+        // card tab has a ghost carrying it back to the strip. If the selected card had no visible
+        // tab to animate, its pill and cross simply disappear under the expanding terminal.
         final float previewAlpha = SessionOverviewTransitionMath.closingPreviewAlpha(p);
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
                 ? View.INVISIBLE : View.VISIBLE);
-        if (transition.tabGhost != null) {
-            applyClosingTabProgress(transition.tabGhost, origin, p);
-        } else {
+        boolean selectedTabHasGhost = false;
+        for (ClosingTabGhost ghost : transition.tabGhosts) {
+            applyClosingTabProgress(ghost, origin, p);
+            if (ghost.card == transition.card) selectedTabHasGhost = true;
+        }
+        if (!selectedTabHasGhost) {
             transition.card.tab.setAlpha(transition.tabBaseAlpha * previewAlpha);
             transition.card.close.setAlpha(transition.closeBaseAlpha * previewAlpha);
+        }
+    }
+
+    /**
+     * Fade the rest of the grid out while the selected terminal expands. The selected card is
+     * already owned by the opaque terminal snapshot, so only the neighbours follow this alpha.
+     */
+    private void applyClosingCardAlpha(@NonNull ClosingTransition transition, float progress) {
+        final float alpha = SessionOverviewTransitionMath.closingGridCardsAlpha(progress);
+        for (Card card : mCards) {
+            if (card != transition.card) card.root.setAlpha(alpha);
         }
     }
 
@@ -1787,12 +2071,18 @@ public final class SessionOverviewController {
         if (ghost.closeGhost != null && ghost.startCloseBounds != null) {
             final Rect startClose = localRect(ghost.card.close, origin);
             final Rect liveClose = ghost.targetCloseView != null
+                    && ghost.targetCloseView.getVisibility() == View.VISIBLE
                     ? visibleLocalRect(ghost.targetCloseView, origin) : null;
             final Rect targetClose = liveClose != null ? liveClose : ghost.targetCloseBounds;
             if (targetClose != null) {
                 ghost.closeGhost.setLayoutParams(frameParams(lerpRect(
                         startClose != null ? startClose : ghost.startCloseBounds,
                         targetClose, p)));
+                ghost.closeGhost.setAlpha(0.7f);
+            } else {
+                // The target cross disappeared mid-flight (for example, the selection
+                // changed). Fade the orphaned X instead of snapping it out.
+                ghost.closeGhost.setAlpha(0.7f * (1f - p));
             }
             ghost.closeGhost.setImageTintList(ColorStateList.valueOf(
                     SessionOverviewTransitionMath.blendColor(
@@ -1802,11 +2092,14 @@ public final class SessionOverviewController {
 
     @Nullable
     private Rect closingTerminalTarget(@NonNull int[] origin, @NonNull Rect fallback) {
-        final View terminal = mActivity.getActiveTerminalView();
+        final TerminalView terminal = mActivity.getActiveTerminalView();
         if (terminal != null && terminal.isAttachedToWindow()
                 && terminal.getWidth() > 0 && terminal.getHeight() > 0) {
-            final Rect live = localRect(terminal, origin);
-            if (live != null && !live.isEmpty()) return live;
+            final Rect content = new Rect();
+            if (terminal.getTerminalContentBounds(content)) {
+                final Rect live = offsetRect(windowRectOf(terminal, content), origin);
+                if (!live.isEmpty()) return live;
+            }
         }
         if (mContentArea != null) {
             final Rect live = localRect(mContentArea, origin);
@@ -1821,7 +2114,7 @@ public final class SessionOverviewController {
         final TerminalSession session = transition.session;
         cleanupClosingTransition(transition);
 
-        // The tab strip was already selected and scrolled behind the opaque overlay before the
+        // The tab strip was already selected and scrolled behind the overview before the
         // expansion started. Only the visible hand-off is left.
         hide(false);
         switchToSession(session);
@@ -1832,6 +2125,9 @@ public final class SessionOverviewController {
         final ClosingTransition transition = mClosingTransition;
         if (transition == null) return;
         cleanupClosingTransition(transition);
+        // The cancelled flight may have left the decor halfway to the app background. The
+        // overview is still open, so put its terminal backdrop back before restoring the strip.
+        applyOverviewBackground();
         // The strip was pre-positioned for the target before the flight. A cancelled flight must
         // leave the highlight on the session that is still current.
         restoreTabSelectionToCurrentSession();
@@ -1851,14 +2147,24 @@ public final class SessionOverviewController {
 
         transition.card.preview.setAlpha(1f);
         transition.card.preview.setVisibility(View.VISIBLE);
+        for (Card card : mCards) {
+            card.root.setAlpha(1f);
+        }
+        setCardShadowSuppressed(transition.card, false);
         transition.card.tab.setAlpha(transition.tabBaseAlpha);
         transition.card.close.setAlpha(transition.closeBaseAlpha);
         transition.card.tab.setVisibility(View.VISIBLE);
         transition.card.close.setVisibility(View.VISIBLE);
-        if (transition.targetTabView != null) {
-            transition.targetTabView.setVisibility(transition.targetTabVisibility);
-            transition.targetTabView = null;
+        for (ClosingTabGhost ghost : transition.tabGhosts) {
+            if (ghost.card != transition.card) {
+                ghost.card.tab.setAlpha(ghost.tabBaseAlpha);
+                ghost.card.close.setAlpha(ghost.closeBaseAlpha);
+                ghost.card.tab.setVisibility(View.VISIBLE);
+                ghost.card.close.setVisibility(View.VISIBLE);
+            }
+            ghost.targetTabView.setVisibility(ghost.targetTabVisibility);
         }
+        transition.tabGhosts.clear();
 
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setImageDrawable(null);
@@ -1869,12 +2175,10 @@ public final class SessionOverviewController {
         if (mGhostLayer != null) mGhostLayer.removeAllViews();
         recycleBitmap(transition.terminalBitmap);
         transition.terminalBitmap = null;
-        transition.appBackgroundGhost = null;
         transition.terminalGhost = null;
         recycleBitmap(transition.tabPanelBitmap);
         transition.tabPanelBitmap = null;
         transition.tabPanelGhost = null;
-        transition.tabGhost = null;
     }
 
     @Nullable
@@ -2005,8 +2309,11 @@ public final class SessionOverviewController {
     }
 
     private void reloadDimensions() {
-        mTabCornerRadius = mActivity.getResources()
-                .getDimensionPixelSize(R.dimen.session_overview_tab_corner_radius);
+        final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
+        mTabCornerRadius = tabs != null
+                ? tabs.getTabCornerRadiusPx()
+                : mActivity.getResources().getDimensionPixelSize(
+                        R.dimen.terminal_tab_corner_radius);
     }
 
     /**
@@ -2022,6 +2329,8 @@ public final class SessionOverviewController {
         reloadDimensions();
         if (mDragController != null) mDragController.cancelForModelChange();
         if (!mShowing) return;
+        applyOverviewBackground();
+        updateGridAspect();
         final TerminalSession current = mActivity.getCurrentSession();
         for (Card card : mCards) {
             applyTabMetrics(card);
@@ -2035,18 +2344,88 @@ public final class SessionOverviewController {
     }
 
     /**
+     * Repaint the window background and the card shadows after the live terminal background
+     * changes. This runs for OSC palette updates and scheme swaps while the overview is open.
+     */
+    public void onTerminalBackgroundChanged() {
+        if (!mShowing) return;
+        applyOverviewBackground();
+        for (Card card : mCards) {
+            applyCardAppearance(card);
+        }
+    }
+
+    /**
      * Cards carry no chrome of their own: the terminal snapshot is the card, with the compact
      * tab floating over its top edge. Removing the background, border and press ripple also
-     * keeps the thumbnail from pulsing under the tab when the card is tapped.
+     * keeps the thumbnail from pulsing under the tab when the card is tapped. The shared
+     * floating shadow is the only chrome, so the thumbnail still lifts off the terminal
+     * background exactly like the controls drawn over it.
      */
     private void applyCardAppearance(@NonNull Card card) {
         card.root.setBackground(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             card.root.setForeground(null);
         }
-        card.root.setClipToOutline(false);
-        card.root.setElevation(0f);
+        // Clipping is owned by applyThumbnailCornerRadius(): the root outline is the same
+        // rounded rectangle as the preview, so both the snapshot and the tab stay inside the
+        // card's corners. Do not reset it to BOUNDS or disable clipping here.
+        // The outline is installed by applyTabMetrics() so the shadow follows the thumbnail's
+        // rounded corners. Do not replace it with BOUNDS here; this method also runs when only
+        // the terminal background changes.
+        final Resources res = mActivity.getResources();
+        // While a card's terminal snapshot is flying, the snapshot carries the shadow and the
+        // card's own shadow is suppressed. Otherwise the grid would show a stationary shadow in
+        // the final slot while the thumbnail is still somewhere between the terminal and the card.
+        final int elevation = card.shadowSuppressed ? 0 : FloatingShadow.elevationPx(res);
+        FloatingShadow.apply(card.root, elevation, floatingShadowColor());
         card.preview.setBackground(null);
+    }
+
+    /** The shared card/ghost shadow colour for the current terminal scheme. */
+    private int floatingShadowColor() {
+        return FloatingShadow.color(mActivity.getResources(),
+                ColorSchemeUtils.isColorLight(mOverlayBackgroundColor),
+                R.fraction.floating_shadow_alpha);
+    }
+
+    /**
+     * Turn the card's own floating shadow off while its terminal snapshot is in flight, and back
+     * on once the snapshot has landed or the transition is cancelled.
+     */
+    private void setCardShadowSuppressed(@Nullable Card card, boolean suppressed) {
+        if (card == null || card.shadowSuppressed == suppressed) return;
+        card.shadowSuppressed = suppressed;
+        applyCardAppearance(card);
+    }
+
+    /**
+     * Round the preview and the shadow with the compact tab's effective radius. The tab height
+     * changes with the single/double-line mode and Android clamps a background's corner radius to
+     * half the tab height, so a fixed 18dp thumbnail would no longer match the tab. The radius
+     * below mirrors that clamp exactly.
+     */
+    private void applyThumbnailCornerRadius(@NonNull Card card) {
+        final float radius = card.thumbnailCornerRadius;
+        // The preview outline rounds the bitmap itself. The root outline and clip are the
+        // second line of defence: some ImageView implementations and hardware layers do not
+        // apply a child outline to the bitmap, while a ViewGroup clipToOutline always clips
+        // every child to the rounded card. Both use the same radius, so the shadow, preview
+        // and tab agree.
+        final RoundedOutlineProvider outline = new RoundedOutlineProvider(radius);
+        card.preview.setOutlineProvider(outline);
+        card.preview.setClipToOutline(true);
+        card.root.setOutlineProvider(outline);
+        card.root.setClipToOutline(true);
+    }
+
+    /**
+     * Visible radius of a tab background after Android clamps its corners to half the tab
+     * height. The strip asks for 18dp in both line modes, but the single-line tab is 24dp high
+     * and the two-line tab is 34dp high, so the visible radii are 12dp and 17dp.
+     */
+    static float effectiveTabCornerRadius(int tabCornerRadiusPx, int tabHeightPx) {
+        return Math.min(tabCornerRadiusPx, tabHeightPx / 2f);
     }
 
     /**
@@ -2056,12 +2435,18 @@ public final class SessionOverviewController {
     private void applyTabMetrics(@NonNull Card card) {
         final Resources res = mActivity.getResources();
         // The card tab is the strip tab's destination, not a differently sized pill. Reuse the
-        // strip's current height so the opening flight never changes the tab's height (and so
-        // the single/double-line preference is respected in the overview too).
+        // strip's current height, corner radius and line count so the opening flight never
+        // changes the tab's shape (and so the single/double-line preference is respected in the
+        // overview too). The overview keeps its own padding: the end inset reserves the separate
+        // close target, which is not a child of the pill.
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         final int height = tabs != null
                 ? tabs.getTabHeightPx()
                 : res.getDimensionPixelSize(R.dimen.session_overview_tab_height);
+        final int cornerRadius = tabs != null
+                ? tabs.getTabCornerRadiusPx()
+                : res.getDimensionPixelSize(R.dimen.terminal_tab_corner_radius);
+        final int maxLines = tabs != null ? tabs.getTabMaxLines() : 1;
         final int margin = res.getDimensionPixelSize(R.dimen.session_overview_tab_margin);
         final int padStart = res.getDimensionPixelSize(
                 R.dimen.session_overview_tab_padding_horizontal);
@@ -2070,7 +2455,10 @@ public final class SessionOverviewController {
                 R.dimen.session_overview_tab_padding_vertical);
         final int closeWidth = res.getDimensionPixelSize(R.dimen.terminal_tab_close_size);
         final int textSize = res.getDimensionPixelSize(
-                R.dimen.session_overview_tab_text_size);
+                R.dimen.terminal_tab_text_size);
+        mTabCornerRadius = cornerRadius;
+        card.thumbnailCornerRadius = effectiveTabCornerRadius(cornerRadius, height);
+        applyThumbnailCornerRadius(card);
 
         final ViewGroup.LayoutParams tabParams = card.tab.getLayoutParams();
         tabParams.height = height;
@@ -2085,6 +2473,11 @@ public final class SessionOverviewController {
         }
         card.tab.setLayoutParams(tabParams);
         card.tab.setPaddingRelative(padStart, padVertical, padEnd, padVertical);
+        card.tab.setHorizontallyScrolling(false);
+        card.tab.setMaxLines(maxLines);
+        // Truncation is always the alpha fade; never let setMaxLines() or a theme bring back
+        // the platform ellipsis in either line-count mode.
+        card.tab.setEllipsize(null);
         card.tab.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
         card.tab.refreshTitle();
 
@@ -2214,6 +2607,45 @@ public final class SessionOverviewController {
         return mActivity.getTermuxTerminalSessionClient() != null
                 ? mActivity.getTermuxTerminalSessionClient().getTerminalTypeface()
                 : Typeface.MONOSPACE;
+    }
+
+    /**
+     * Re-target the cards after the live terminal viewport changed.
+     *
+     * <p>Opening the overview hides the keyboard, so the active terminal view can expand from the
+     * IME-compressed height to its normal height after the grid has already been built. The cards
+     * must follow the normal maximum, not the compressed first frame.</p>
+     */
+    public void onTerminalViewportChanged() {
+        if (!mShowing || mClosingTransition != null || mPendingClosingCard != null) return;
+        updateGridAspect();
+        schedulePreviewRender();
+    }
+
+    /**
+     * Size every card to the largest glyph grid the terminal can display with the keyboard
+     * hidden. The preview renderer preserves the grid's aspect ratio, so matching the card to it
+     * removes the background bands above and below the terminal, and using the maximum viewport
+     * keeps all cards at one constant size when the active terminal happens to be compressed by
+     * the IME. A missing terminal leaves the grid on its content-area fallback.
+     */
+    private void updateGridAspect() {
+        if (mGrid == null) return;
+        final TerminalView terminal = mActivity.getActiveTerminalView();
+        final int viewportHeight = mActivity.getTerminalViewportHeightForOverview();
+        double aspect = terminal != null
+                ? TerminalPreviewRenderer.aspectRatioForViewport(terminal.getWidth(),
+                        viewportHeight, previewTextSize(), previewTypeface())
+                : 0;
+        if (aspect <= 0) {
+            final TerminalSession session = mActivity.getCurrentSession();
+            final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
+            aspect = emulator != null
+                    ? TerminalPreviewRenderer.aspectRatio(emulator,
+                            previewTextSize(), previewTypeface())
+                    : 0;
+        }
+        mGrid.setCardAspect(aspect);
     }
 
     private void renderCard(@NonNull Card card, int textSize, @NonNull Typeface typeface) {
@@ -2366,9 +2798,9 @@ public final class SessionOverviewController {
     }
 
     /**
-     * The reverse of the opening active-tab flight. Only the current session's tab flew into its
-     * card when the overview opened, so only that card's tab flies back out. The target rectangle
-     * is read live from the strip; the target style is captured when the expansion starts.
+     * The reverse of one opening tab flight. Every visible card tab owns one of these, and each
+     * lands on its own strip tab. The target rectangle is read live from the strip; the target
+     * style is captured when the expansion starts.
      */
     private static final class ClosingTabGhost {
         final Card card;
@@ -2404,6 +2836,11 @@ public final class SessionOverviewController {
         @Nullable
         final Rect targetCloseBounds;
         final int targetCloseTint;
+        /** Visibility to put back on the strip tab after the flight. */
+        int targetTabVisibility = View.VISIBLE;
+        /** Alpha of the real card pill and cross before they were hidden for this ghost. */
+        float tabBaseAlpha = 1f;
+        float closeBaseAlpha = 1f;
 
         ClosingTabGhost(Card card, SessionOverviewTabTitleView view,
                         GradientDrawable background, Rect startBounds,
@@ -2457,17 +2894,16 @@ public final class SessionOverviewController {
         Bitmap terminalBitmap;
         final Rect cardStartLocal;
         final Rect terminalTargetLocal;
-        /** Window-coloured surface faded in below the terminal and tab-panel snapshots. */
-        View appBackgroundGhost;
         ImageView terminalGhost;
+        /** Full floating-shadow elevation the expanding snapshot fades out of. */
+        float terminalShadowElevation;
+        /** Window surface blend from the overview backdrop back to the app background. */
+        int backgroundStart;
+        int backgroundEnd;
+        boolean backgroundTransition;
         Bitmap tabPanelBitmap;
         ImageView tabPanelGhost;
-        @Nullable
-        ClosingTabGhost tabGhost;
-        /** Strip tab hidden while its ghost is in flight, and the visibility to put back. */
-        @Nullable
-        View targetTabView;
-        int targetTabVisibility = View.VISIBLE;
+        final List<ClosingTabGhost> tabGhosts = new ArrayList<>();
         ValueAnimator animator;
         boolean started;
         float tabBaseAlpha;
@@ -2489,6 +2925,12 @@ public final class SessionOverviewController {
         Rect terminalSource;
         Rect terminalSourceLocal;
         ImageView terminalGhost;
+        /** Full floating-shadow elevation the flying terminal snapshot grows into. */
+        float terminalShadowElevation;
+        /** Window surface blend from the app background into the overview backdrop. */
+        int backgroundStart;
+        int backgroundEnd;
+        boolean backgroundTransition;
         Bitmap tabPanelBitmap;
         Rect tabPanelSourceLocal;
         ImageView tabPanelGhost;
@@ -2502,6 +2944,20 @@ public final class SessionOverviewController {
         int startAttempts;
     }
 
+    /** Rounds a view and its shadow to the tab's effective corner radius. */
+    private static final class RoundedOutlineProvider extends ViewOutlineProvider {
+        private final float mRadius;
+
+        RoundedOutlineProvider(float radius) {
+            mRadius = Math.max(0f, radius);
+        }
+
+        @Override
+        public void getOutline(@NonNull View view, @NonNull Outline outline) {
+            outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), mRadius);
+        }
+    }
+
     private static final class Card {
         final SessionOverviewCardView root;
         final ImageView preview;
@@ -2511,6 +2967,10 @@ public final class SessionOverviewController {
         Bitmap bitmap;
         GradientDrawable tabBackground;
         int tabBackgroundColor;
+        /** Effective radius of the compact tab, reused by the thumbnail and its shadow. */
+        float thumbnailCornerRadius;
+        /** True while the terminal snapshot owns the shadow during an opening/closing flight. */
+        boolean shadowSuppressed;
         String fullTitle = "";
         boolean selected;
         boolean stateValid;

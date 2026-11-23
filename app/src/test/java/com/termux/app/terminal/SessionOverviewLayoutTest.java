@@ -49,10 +49,11 @@ public class SessionOverviewLayoutTest {
         Assert.assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
                 ghosts.getImportantForAccessibility());
 
-        // The overview is the terminal's replacement, not a translucent sheet over it: the
-        // original terminal must not remain visible as a background.
+        // The overlay itself must stay transparent: the window/decor background carries the
+        // terminal transparency and wallpaper blur, while the controller makes the live content
+        // transparent for the duration of the overview.
         Assert.assertTrue(overlay.getBackground() instanceof ColorDrawable);
-        Assert.assertEquals(255, Color.alpha(((ColorDrawable) overlay.getBackground()).getColor()));
+        Assert.assertEquals(0, Color.alpha(((ColorDrawable) overlay.getBackground()).getColor()));
     }
 
     @Test

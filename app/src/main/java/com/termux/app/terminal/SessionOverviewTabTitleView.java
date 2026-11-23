@@ -8,11 +8,12 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 
 /**
- * Single-line tab title that fades the last visible characters instead of drawing an ellipsis.
+ * Tab title that fades the last visible characters instead of drawing an ellipsis.
  *
- * <p>The session overview card is a compact copy of a tab-strip tab. It reuses the strip's fade
- * algorithm so a title is truncated the same way in both places, including during the opening
- * flight, when the view width changes on every frame.</p>
+ * <p>The session overview card is a compact copy of a tab-strip tab. It reuses the strip's
+ * wrapping and fade algorithm so a title is truncated the same way in both places, including
+ * during the opening flight when the view width changes on every frame. The strip's single-line
+ * and two-line modes are both supported.</p>
  */
 public class SessionOverviewTabTitleView extends TextView {
 
@@ -29,14 +30,17 @@ public class SessionOverviewTabTitleView extends TextView {
     public SessionOverviewTabTitleView(Context context, @Nullable AttributeSet attrs,
                                        int defStyleAttr) {
         super(context, attrs, defStyleAttr);
+        // Truncation is an alpha fade; a platform ellipsis would draw on top of the faded
+        // prefix and is exactly the "..." the overview must never show.
+        setEllipsize(null);
+        setHorizontallyScrolling(false);
     }
 
     /** Sets the full title. The visible faded prefix is derived from the current width. */
     public void setFullTitle(@Nullable String title) {
-        final String singleLine = title == null ? ""
-                : title.replace('\n', ' ').replace('\r', ' ');
-        if (TextUtils.equals(mFullTitle, singleLine)) return;
-        mFullTitle = singleLine;
+        final String fullTitle = title == null ? "" : title;
+        if (TextUtils.equals(mFullTitle, fullTitle)) return;
+        mFullTitle = fullTitle;
         renderTitle();
     }
 
@@ -58,17 +62,9 @@ public class SessionOverviewTabTitleView extends TextView {
             super.setText(title);
             return;
         }
-        if (getPaint().measureText(title) <= maxWidth) {
-            super.setText(title);
-            return;
-        }
 
-        final int visibleEnd = getPaint().breakText(title, true, maxWidth, null);
-        if (visibleEnd >= title.length()) {
-            super.setText(title);
-        } else {
-            super.setText(TermuxSessionTabsController.buildFadedTitle(title, visibleEnd).text,
-                    BufferType.SPANNABLE);
-        }
+        final TermuxSessionTabsController.TitleRender render =
+                TermuxSessionTabsController.renderTitle(this, title, maxWidth);
+        super.setText(render.text, BufferType.SPANNABLE);
     }
 }

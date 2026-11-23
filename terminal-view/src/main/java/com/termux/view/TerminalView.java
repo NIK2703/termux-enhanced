@@ -3043,6 +3043,26 @@ public final class TerminalView extends View {
         return mGridOffsetY;
     }
 
+    /**
+     * Bounds of the glyph grid painted by this view, in view coordinates.
+     *
+     * <p>This excludes the terminal-background margins around the grid. Use it whenever terminal
+     * pixels are compared with, or animated into, a preview that has the grid's aspect ratio.
+     * Returns false and empties {@code out} when there is no emulator or no usable font metrics.</p>
+     */
+    public boolean getTerminalContentBounds(Rect out) {
+        if (mEmulator == null || mRenderer == null) {
+            out.setEmpty();
+            return false;
+        }
+        return TerminalGridGeometry.visibleBounds(getWidth(), getHeight(),
+                mEmulator.mColumns, mEmulator.mRows,
+                mRenderer.getFontWidth(), mRenderer.getFontLineSpacing(),
+                mGridOffsetX,
+                glyphYOffset() + mRenderer.mFontLineSpacingAndAscent,
+                out);
+    }
+
     /** Committed Autofill value is written to the terminal, then the flag is reset. */
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override

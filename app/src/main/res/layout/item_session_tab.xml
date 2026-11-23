@@ -16,7 +16,7 @@
         android:maxWidth="@dimen/terminal_tab_title_max_width"
         android:maxLines="2"
         android:lineSpacingExtra="-2dp"
-        android:textSize="13sp"
+        android:textSize="@dimen/terminal_tab_text_size"
         android:textColor="?attr/colorOnSurface" />
 
     <ImageButton

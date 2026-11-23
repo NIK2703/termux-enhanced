@@ -4,8 +4,8 @@ package com.termux.app.terminal;
  * Pure timing and interpolation math for the overview opening and closing transitions.
  *
  * <p>The controller feeds the animator's 0..1 progress through these functions so the visual
- * rules (when the snapshot crossfades into the preview, and the exact reverse on the way back)
- * are testable without a running view hierarchy.</p>
+ * rules (the opening snapshot stays opaque until the final frame, and the closing snapshot is
+ * opaque from the first frame) are testable without a running view hierarchy.</p>
  */
 public final class SessionOverviewTransitionMath {
 
@@ -13,9 +13,6 @@ public final class SessionOverviewTransitionMath {
 
     /** Total flight time. Short enough to feel immediate, long enough to read as motion. */
     public static final long DURATION_MS = 300L;
-
-    /** Progress at which the terminal snapshot starts dissolving into the live preview. */
-    public static final float CROSSFADE_START = 0.78f;
 
     public static float clamp01(float value) {
         if (Float.isNaN(value)) return 0f;
@@ -37,9 +34,13 @@ public final class SessionOverviewTransitionMath {
         return clamp01((p - from) / (1f - from));
     }
 
-    /** Final terminal preview opacity; zero until the snapshot is nearly in place. */
+    /**
+     * Final terminal preview opacity. The opening flight keeps the card preview hidden until
+     * the snapshot has landed, so the flying terminal disappears in one step at the very end
+     * instead of dissolving into the thumbnail.
+     */
     public static float previewAlpha(float progress) {
-        return fadeIn(progress, CROSSFADE_START);
+        return fadeIn(progress, 1f);
     }
 
     /** Flying terminal snapshot opacity, the exact inverse of {@link #previewAlpha(float)}. */
@@ -50,28 +51,25 @@ public final class SessionOverviewTransitionMath {
     /**
      * Expanding terminal snapshot opacity for the closing flight.
      *
-     * <p>This is the opening crossfade played backwards: at progress zero the card preview is
-     * fully visible and the snapshot is transparent; by {@code 1 - CROSSFADE_START} the snapshot
-     * is opaque and the preview has disappeared. After that the snapshot stays opaque until the
-     * overlay hands the screen back to the live terminal.</p>
+     * <p>The snapshot is fully opaque on the first frame: the selected thumbnail starts growing
+     * immediately instead of fading in over the card preview. The preview is hidden for the
+     * whole flight, so the expansion reads as one continuous resize from the card to the
+     * terminal.</p>
      */
     public static float closingGhostAlpha(float progress) {
-        final float p = clamp01(progress);
-        final float end = 1f - CROSSFADE_START;
-        if (end <= 0f) return 1f;
-        return clamp01(p / end);
+        return 1f;
     }
 
-    /** Card preview opacity during the closing flight; the reverse of the opening crossfade. */
+    /** Card preview opacity during the closing flight; hidden from the first frame. */
     public static float closingPreviewAlpha(float progress) {
-        return 1f - closingGhostAlpha(progress);
+        return 0f;
     }
 
     /**
      * Strip snapshot opacity while the terminal and its tab fly into the grid.
      *
-     * <p>The strip is behind the overview's opaque scrim. A snapshot of it is drawn above the
-     * scrim and follows this fade, so the panel does not simply vanish on the first frame.</p>
+     * <p>The strip is behind the overview backdrop. A snapshot of it is drawn above the
+     * backdrop and follows this fade, so the panel does not simply vanish on the first frame.</p>
      */
     public static float openingTabPanelAlpha(float progress) {
         return 1f - clamp01(progress);
@@ -88,14 +86,17 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Application-background opacity while the selected terminal expands back out.
-     *
-     * <p>The overview scrim is opaque, so without this layer the window background would only
-     * appear when the overlay is removed at the end of the flight. Fading it in at the same rate
-     * as the tab panel makes the whole surface return together instead of popping in.</p>
+     * Opacity of every grid card except the active one while the terminal flies into the grid.
+     * The active card is represented by the terminal snapshot until the final frame; the rest
+     * of the grid fades in around that flight instead of appearing at full strength immediately.
      */
-    public static float closingAppBackgroundAlpha(float progress) {
+    public static float openingGridCardsAlpha(float progress) {
         return clamp01(progress);
+    }
+
+    /** Opacity of the grid cards that stay behind while the selected terminal expands back out. */
+    public static float closingGridCardsAlpha(float progress) {
+        return 1f - clamp01(progress);
     }
 
     public static int lerp(int start, int end, float progress) {
@@ -106,6 +107,18 @@ public final class SessionOverviewTransitionMath {
     public static float lerp(float start, float end, float progress) {
         final float p = clamp01(progress);
         return start + (end - start) * p;
+    }
+
+    /**
+     * Translation Z for a flying tab. The terminal snapshot's elevation is animated up to
+     * {@code terminalElevation}, and child Z order wins over insertion order, so a tab with
+     * the default Z would disappear under the terminal even when it is added later. Keeping
+     * every tab one pixel above the snapshot's maximum elevation makes the strip stay on top
+     * for the whole flight.
+     */
+    public static float tabGhostZ(float terminalElevation) {
+        final float elevation = Float.isNaN(terminalElevation) ? 0f : terminalElevation;
+        return Math.max(0f, elevation) + 1f;
     }
 
     /** Linear ARGB interpolation, including alpha. */

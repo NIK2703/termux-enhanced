@@ -1774,6 +1774,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight(),
                 mActivity.getEffectiveBackgroundTransparency());
         }
+        if (mActivity.getSessionOverviewController() != null) {
+            mActivity.getSessionOverviewController().onTerminalBackgroundChanged();
+        }
     }
 
     /**

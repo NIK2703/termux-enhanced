@@ -3,12 +3,16 @@
     android:id="@+id/session_overview"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/session_overview_scrim"
+    android:background="@android:color/transparent"
     android:visibility="gone"
     android:clickable="true"
     android:focusable="true"
     android:focusableInTouchMode="true"
     android:importantForAccessibility="no">
+
+    <!-- The overlay is deliberately transparent. The activity's window/decor background is the
+         backdrop, so the terminal background transparency and the Android 12+ wallpaper blur
+         remain visible while SessionOverviewController hides the live content. -->
 
     <!-- Two columns and two visible rows. Extra rows live below the viewport and are reached by
          scrolling; the grid tells this scroll view how tall the viewport is during measurement. -->
