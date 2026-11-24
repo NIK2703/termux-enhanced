@@ -74,6 +74,38 @@ public final class SessionOverviewGridMath {
     }
 
     /**
+     * Compute the grid position for an already known, exact card size.
+     *
+     * <p>The overview derives {@code cardWidth/cardHeight} from the preview's integer cell pitch;
+     * this overload only places those cards, so no aspect arithmetic or rounding is involved.</p>
+     */
+    public static Layout compute(int sessionCount, int availableWidth, int availableHeight,
+                                 int gap, int cardWidth, int cardHeight) {
+        final int safeWidth = Math.max(0, availableWidth);
+        final int safeHeight = Math.max(0, availableHeight);
+        final int safeGap = Math.max(0, gap);
+        if (sessionCount <= 0) {
+            return new Layout(0, 0, 0, safeGap, safeWidth, safeHeight,
+                    0, 0, 0, 0, 0, 0);
+        }
+        final int columns = COLUMNS;
+        final int visibleRows = VISIBLE_ROWS;
+        final int totalRows = Math.max(visibleRows, (sessionCount + columns - 1) / columns);
+        if (safeWidth <= safeGap * (columns + 1)
+                || safeHeight <= safeGap * visibleRows
+                || cardWidth <= 0 || cardHeight <= 0) {
+            return new Layout(sessionCount, columns, totalRows, safeGap,
+                    safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
+        }
+        final int gridWidth = columns * cardWidth + safeGap * (columns - 1);
+        final int gridHeight = totalRows * cardHeight + safeGap * totalRows;
+        final int left = Math.max(safeGap, (safeWidth - gridWidth) / 2);
+        return new Layout(sessionCount, columns, totalRows, safeGap,
+                safeWidth, safeHeight, cardWidth, cardHeight,
+                gridWidth, gridHeight, left, 0);
+    }
+
+    /**
      * Compute the card size and the grid position using the content-area aspect ratio.
      *
      * <p>Kept for callers that have no terminal geometry yet; the overview passes the terminal

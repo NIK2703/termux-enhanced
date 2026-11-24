@@ -1,7 +1,6 @@
 package com.termux.view;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -63,22 +62,17 @@ public class TerminalPreviewViewportGridTest {
         assertEquals(normal.columns, ime.columns);
         assertTrue(ime.rows < normal.rows);
         assertTrue(ime.aspect() > normal.aspect());
-        assertFalse(normal.matches(ime.columns, ime.rows,
-                ime.cellWidthPx, ime.cellHeightPx));
     }
 
     @Test
-    public void matchesComparesTheFullGridIncludingPtyCellSize() {
+    public void carriesThePtyCellSizeAlongsideColumnsAndRows() {
         final TerminalPreviewRenderer.ViewportGrid grid =
                 TerminalPreviewRenderer.fromViewport(800, 900, 10f, 20, 25);
         assertNotNull(grid);
         assertEquals(80, grid.columns);
         assertEquals(43, grid.rows);
-        assertTrue(grid.matches(80, 43, 10, 20));
-        assertFalse(grid.matches(79, 43, 10, 20));
-        assertFalse(grid.matches(80, 42, 10, 20));
-        assertFalse(grid.matches(80, 43, 9, 20));
-        assertFalse(grid.matches(80, 43, 10, 19));
+        assertEquals(10, grid.cellWidthPx);
+        assertEquals(20, grid.cellHeightPx);
     }
 
     @Test

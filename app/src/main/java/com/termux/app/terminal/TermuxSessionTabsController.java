@@ -1611,13 +1611,42 @@ public class TermuxSessionTabsController {
         cancelScrollAnim();
         if (mTabsScroll != null) mTabsScroll.removeCallbacks(mScrollRunnable);
 
-        // Apply the highlight and width change behind the overlay. The pager is still on the old
-        // page; the caller hides the overlay and moves the pager only after this layout pass.
+        // The pager is still on the old page; the caller hides the overlay and moves the pager
+        // only after the selection has settled.
+        applyHiddenSelection(index, done);
+    }
+
+    /**
+     * Restore a highlight while the overview still covers the strip, without letting the width
+     * change animate out from under the overlay when it is removed.
+     */
+    public void restoreSelectionForOverview(int index) {
+        if (mTabsContainer == null) return;
+        applyHiddenSelection(index, null);
+    }
+
+    /**
+     * Apply a selection whose width change must already be final on the next layout pass.
+     *
+     * <p>Selecting a tab toggles its close button, which changes the width of short (not
+     * truncated) tabs. mTabsContainer's LayoutTransition.CHANGING animates that width for
+     * 220 ms, so a single layout pass would leave the strip mid-animation: the overview would
+     * snapshot the old X positions and capture ghosts whose landing rects are neither the old
+     * nor the final geometry. The strip is invisible under the overlay, so the width animation
+     * has nothing to show — apply it immediately instead. CHANGING stays off until the next
+     * layout has measured the final widths; re-enabling it earlier would animate the pending
+     * change again. An in-flight new-tab width animation owns the same switch, so leave
+     * re-enabling to it in that case.</p>
+     */
+    private void applyHiddenSelection(int index, @Nullable Runnable done) {
+        setChangingTransitionEnabled(false);
         setCurrentSession(index);
+        mTabsContainer.requestLayout();
 
         runAfterNextLayout(() -> {
+            if (mOpenAnimationsRunning == 0) setChangingTransitionEnabled(true);
             applyImmediateCentreScroll(index, true);
-            done.run();
+            if (done != null) done.run();
         });
     }
 

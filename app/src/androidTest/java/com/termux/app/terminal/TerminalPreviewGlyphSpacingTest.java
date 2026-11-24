@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -183,13 +184,19 @@ public class TerminalPreviewGlyphSpacingTest {
     }
 
     private static Preview render(TerminalEmulator emulator, int width) {
-        final double aspect = TerminalPreviewRenderer.aspectRatio(emulator, TEXT_SIZE, TYPEFACE);
-        assertTrue("no usable grid aspect", aspect > 0d);
-        final int height = Math.max(1, (int) Math.round(width / aspect));
-        final Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        final TerminalPreviewRenderer.ViewportGrid grid =
+                TerminalPreviewRenderer.emulatorGrid(emulator, TEXT_SIZE, TYPEFACE);
+        assertNotNull(grid);
+        final int height = Math.max(1, (int) Math.round(width / grid.aspect()));
+        final TerminalPreviewRenderer.PreviewCellGeometry geometry =
+                TerminalPreviewRenderer.cellGeometry(COLUMNS, ROWS, width, height,
+                        TEXT_SIZE, TYPEFACE);
+        assertNotNull(geometry);
+        final Bitmap bitmap = Bitmap.createBitmap(geometry.cardWidth(), geometry.cardHeight(),
+                Bitmap.Config.ARGB_8888);
         bitmap.eraseColor(Color.BLACK);
-        TerminalPreviewRenderer.render(emulator, bitmap, TEXT_SIZE, TYPEFACE, 0, 0);
-        return new Preview(bitmap, width / (float) COLUMNS);
+        TerminalPreviewRenderer.render(emulator, bitmap, geometry, 0, 0);
+        return new Preview(bitmap, geometry.cellWidth);
     }
 
     /**

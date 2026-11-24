@@ -48,6 +48,7 @@ import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalPreviewRenderer;
+import com.termux.view.TerminalPreviewRenderer.PreviewCellGeometry;
 import com.termux.view.TerminalPreviewRenderer.ViewportGrid;
 import com.termux.view.TerminalView;
 
@@ -143,6 +144,9 @@ public final class SessionOverviewController {
     private long mLastPreviewRenderStartMs;
     private int mCardWidth;
     private int mCardHeight;
+    /** Integer cell pitch shared by every preview in this overview. */
+    @Nullable
+    private PreviewCellGeometry mCellGeometry;
     /** Reused [first, end) buffer for the visible child range; no allocation per render pass. */
     private final int[] mVisibleChildRange = new int[2];
 
@@ -283,6 +287,9 @@ public final class SessionOverviewController {
             mGrid.addOnLayoutChangeListener((view, left, top, right, bottom,
                                              oldLeft, oldTop, oldRight, oldBottom) -> {
                 if (!mShowing || mActivityStopped) return;
+                // The slot size is known only after the first layout pass. Recompute the integer
+                // cell pitch instead of keeping the aspect fallback forever.
+                updateGridAspect();
                 markResizedPreviewsDirty();
                 requestPreviewRender();
             });
@@ -866,10 +873,7 @@ public final class SessionOverviewController {
         final TerminalSession current = mActivity.getCurrentSession();
         if (service == null || tabs == null || current == null) return;
         final int index = service.getIndexOfSession(current);
-        if (index >= 0) {
-            tabs.setCurrentSession(index);
-            tabs.scrollToTabIndexImmediately(index);
-        }
+        if (index >= 0) tabs.restoreSelectionForOverview(index);
     }
 
     private void switchToSession(@NonNull TerminalSession session) {
@@ -3436,8 +3440,20 @@ public final class SessionOverviewController {
                 grid = TerminalPreviewRenderer.emulatorGrid(emulator, textSize, typeface);
             }
         }
-        if (grid != null) refreshSessionSizesToCurrentWindow(grid);
-        mGrid.setCardAspect(grid != null ? grid.aspect() : 0);
+        if (grid != null) {
+            refreshSessionSizesToCurrentWindow(grid);
+            final int[] slot = mGrid.getMaxCardSlotSize();
+            mCellGeometry = TerminalPreviewRenderer.cellGeometry(grid.columns, grid.rows,
+                    slot[0], slot[1], textSize, typeface);
+        } else {
+            mCellGeometry = null;
+        }
+        if (mCellGeometry != null) {
+            mGrid.setCardSize(mCellGeometry.cardWidth(), mCellGeometry.cardHeight());
+        } else {
+            mGrid.setCardSize(0, 0);
+            mGrid.setCardAspect(grid != null ? grid.aspect() : 0);
+        }
     }
 
     /**
@@ -3451,7 +3467,9 @@ public final class SessionOverviewController {
      *
      * <p>{@link TerminalEmulator#hasSize} keeps this idempotent: an already-normal session costs
      * one comparison and no pty ioctl. A session with no emulator is skipped on purpose —
-     * resizing it would fork a shell just to draw a thumbnail.</p>
+     * resizing it would fork a shell just to draw a thumbnail. Every caller of
+     * {@link #updateGridAspect()} schedules a full preview render, so no per-card dirty marking
+     * is needed here.</p>
      */
     private void refreshSessionSizesToCurrentWindow(@NonNull ViewportGrid grid) {
         final TermuxService service = mActivity.getTermuxService();
@@ -3465,8 +3483,6 @@ public final class SessionOverviewController {
             final TerminalEmulator emulator = session.getEmulator();
             if (emulator == null || grid.matches(emulator)) continue;
             session.updateSize(grid.columns, grid.rows, grid.cellWidthPx, grid.cellHeightPx);
-            final Card card = findCard(session);
-            if (card != null) card.previewDirty = true;
         }
     }
 
@@ -3483,17 +3499,27 @@ public final class SessionOverviewController {
             return false;
         }
 
+        final int bitmapWidth = mCellGeometry != null
+                ? mCellGeometry.widthFor(emulator.mColumns) : mCardWidth;
+        final int bitmapHeight = mCellGeometry != null
+                ? mCellGeometry.heightFor(emulator.mRows) : mCardHeight;
+        if (bitmapWidth <= 0 || bitmapHeight <= 0) return false;
+
         final Bitmap oldBitmap = card.bitmap;
         final boolean sizeChanged = oldBitmap != null
-                && (oldBitmap.getWidth() != mCardWidth
-                || oldBitmap.getHeight() != mCardHeight);
+                && (oldBitmap.getWidth() != bitmapWidth
+                || oldBitmap.getHeight() != bitmapHeight);
         if (oldBitmap == null || sizeChanged) {
-            card.bitmap = Bitmap.createBitmap(mCardWidth, mCardHeight,
+            card.bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight,
                     Bitmap.Config.RGB_565);
         }
 
         final int topRow = scrollTopRow(card.session);
-        TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface, topRow);
+        if (mCellGeometry != null) {
+            TerminalPreviewRenderer.render(emulator, card.bitmap, mCellGeometry, topRow, 0);
+        } else {
+            TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface, topRow);
+        }
         // Keep the old preview visible until the replacement has been fully rendered. Clearing
         // the ImageView first would expose a blank card for a frame whenever the grid aspect
         // changes, for example after closing the active session.
@@ -3521,8 +3547,16 @@ public final class SessionOverviewController {
     private void markResizedPreviewsDirty() {
         for (Card card : mCards) {
             final Bitmap bitmap = card.bitmap;
-            final int width = card.preview.getWidth();
-            final int height = card.preview.getHeight();
+            final TerminalEmulator emulator = card.session.getEmulator();
+            final int width;
+            final int height;
+            if (mCellGeometry != null && emulator != null) {
+                width = mCellGeometry.widthFor(emulator.mColumns);
+                height = mCellGeometry.heightFor(emulator.mRows);
+            } else {
+                width = card.preview.getWidth();
+                height = card.preview.getHeight();
+            }
             if (width <= 0 || height <= 0) continue;
             if (bitmap == null || bitmap.getWidth() != width || bitmap.getHeight() != height) {
                 card.previewDirty = true;

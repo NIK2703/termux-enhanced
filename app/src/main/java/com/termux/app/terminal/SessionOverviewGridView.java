@@ -38,6 +38,9 @@ public class SessionOverviewGridView extends ViewGroup {
     private int mLastMeasuredWidth = -1;
     /** Terminal-grid aspect; 0 falls back to the content-area aspect. */
     private double mCardAspect;
+    /** Exact card size derived from the preview's integer cell pitch; -1 uses the aspect path. */
+    private int mExactCardWidth = -1;
+    private int mExactCardHeight = -1;
     private SessionOverviewGridMath.Layout mLayout;
     private OnGridLayoutListener mOnGridLayoutListener;
     private int mLastCardWidth = -1;
@@ -93,6 +96,52 @@ public class SessionOverviewGridView extends ViewGroup {
         if (mCardAspect == next) return;
         mCardAspect = next;
         requestLayout();
+    }
+
+    /**
+     * Use an exact card size instead of deriving one from the terminal aspect.
+     *
+     * <p>The caller has already fitted the integer cell pitch to the slot returned by
+     * {@link #getMaxCardSlotSize()}, so no further rounding happens here.</p>
+     */
+    public void setCardSize(int widthPx, int heightPx) {
+        final int width = Math.max(0, widthPx);
+        final int height = Math.max(0, heightPx);
+        if (mExactCardWidth == width && mExactCardHeight == height) return;
+        mExactCardWidth = width;
+        mExactCardHeight = height;
+        requestLayout();
+    }
+
+    /**
+     * Largest card the current viewport can hold, before the cell pitch is applied.
+     *
+     * @return packed {@code {maxWidth, maxHeight}} in pixels
+     */
+    public int[] getMaxCardSlotSize() {
+        final int width = getWidth() > 0 ? getWidth() : mLastMeasuredWidth;
+        final int stableHeight = Math.max(mViewportHeight, mMaxViewportHeight);
+        final int viewportHeight = stableHeight > 0 ? stableHeight : getHeight();
+        final int availableWidth = Math.max(0, width - getPaddingLeft() - getPaddingRight());
+        final int availableHeight = Math.max(0,
+                viewportHeight - getPaddingTop() - getPaddingBottom());
+        final int columns = SessionOverviewGridMath.COLUMNS;
+        final int visibleRows = SessionOverviewGridMath.VISIBLE_ROWS;
+        final int maxWidth = Math.max(0,
+                (availableWidth - mGapPx * (columns + 1)) / columns);
+        final int maxHeight = Math.max(0,
+                (availableHeight - mGapPx * visibleRows) / visibleRows);
+        return new int[]{maxWidth, maxHeight};
+    }
+
+    private SessionOverviewGridMath.Layout computeLayout(int sessionCount, int availableWidth,
+                                                         int availableHeight) {
+        if (mExactCardWidth > 0 && mExactCardHeight > 0) {
+            return SessionOverviewGridMath.compute(sessionCount, availableWidth,
+                    availableHeight, mGapPx, mExactCardWidth, mExactCardHeight);
+        }
+        return SessionOverviewGridMath.compute(sessionCount, availableWidth,
+                availableHeight, mGapPx, mCardAspect);
     }
 
     @Nullable
@@ -172,8 +221,8 @@ public class SessionOverviewGridView extends ViewGroup {
                 getWidth() - getPaddingLeft() - getPaddingRight());
         final int availableHeight = Math.max(0,
                 viewportHeight - getPaddingTop() - getPaddingBottom());
-        final SessionOverviewGridMath.Layout layout = SessionOverviewGridMath.compute(
-                sessionCount, availableWidth, availableHeight, mGapPx, mCardAspect);
+        final SessionOverviewGridMath.Layout layout = computeLayout(
+                sessionCount, availableWidth, availableHeight);
         if (!layout.hasCards()) return null;
 
         final boolean rtl = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
@@ -225,8 +274,7 @@ public class SessionOverviewGridView extends ViewGroup {
         final int availableHeight = Math.max(0,
                 layoutViewportHeight - getPaddingTop() - getPaddingBottom());
 
-        mLayout = SessionOverviewGridMath.compute(getChildCount(),
-                availableWidth, availableHeight, mGapPx, mCardAspect);
+        mLayout = computeLayout(getChildCount(), availableWidth, availableHeight);
 
         final int childWidth = mLayout.cardWidth;
         final int childHeight = mLayout.cardHeight;

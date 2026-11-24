@@ -6,6 +6,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.util.SparseArray;
 
 import com.termux.terminal.TerminalBuffer;
@@ -23,16 +24,25 @@ public final class TerminalRenderer {
 
     final int mTextSize;
     final Typeface mTypeface;
-    private final Paint mTextPaint = new Paint();
+    private final Paint mTextPaint;
 
     /** The width of a single mono spaced character obtained by {@link Paint#measureText(String)} on a single 'X'. */
     final float mFontWidth;
     /** The {@link Paint#getFontSpacing()}. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
     final int mFontLineSpacing;
-    /** The {@link Paint#ascent()}. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
-    private final int mFontAscent;
-    /** The {@link #mFontLineSpacing} + {@link #mFontAscent}. */
+    /** The {@link #mFontLineSpacing} + the font ascent. */
     final int mFontLineSpacingAndAscent;
+
+    /**
+     * Floating-point copies of the vertical metrics used by the drawing path.
+     *
+     * <p>A font-derived renderer initialises these from the integer fields above, so its geometry is
+     * unchanged. A renderer created for an explicit grid uses the exact values it was given:
+     * rounding the row pitch back to whole pixels would shift every row below the first.</p>
+     */
+    private final float mRenderLineSpacing;
+    private final float mRenderAscent;
+    private final float mRenderLineSpacingAndAscent;
 
     /**
      * Cache of {@link Paint#measureText} results per code point. {@code bmpMeasures} covers the
@@ -46,7 +56,9 @@ public final class TerminalRenderer {
      * every pinch-zoom step and per ViewPager page, so without sharing each one would allocate a
      * fresh 256 KB array and re-run 128 native {@code measureText} calls — a guaranteed GC on
      * every zoom step. The metrics depend only on the typeface and text size (anti-alias is always
-     * on), so the array is safe to reuse across instances.
+     * on), so the array is safe to reuse across instances. Preview renderers leave this null: their
+     * fractional paint size must not populate the full-size table, so they measure ASCII locally
+     * and keep the remaining code points in {@link #supplementaryMeasures}.
      */
     private float[] bmpMeasures;
     private final SparseArray<Float> supplementaryMeasures = new SparseArray<>();
@@ -74,6 +86,15 @@ public final class TerminalRenderer {
      */
     private final float mFontWidthTolerance;
     private final float mFontWidth2;
+    /**
+     * True when the grid pitch was supplied by the caller instead of being derived from the paint.
+     *
+     * <p>Such a renderer can be used at any window size or scale. The paint is calibrated so one
+     * 'X' advance equals one cell, but hinting, ligatures and shaping can still make the advance
+     * that {@code drawTextRun()} actually uses differ from the measured cell pitch. Each run is
+     * therefore fitted back to the cells it owns; see {@link #drawRunText}.</p>
+     */
+    private final boolean mCellFitted;
 
     /** B3: per-(typeface,textSize) cache of the BMP measure table, bounded via LRU eviction. */
     private static final java.util.LinkedHashMap<RenderKey, float[]> sBmpMeasuresCache =
@@ -106,6 +127,73 @@ public final class TerminalRenderer {
     }
 
     /**
+     * The three full-screen measurements every renderer needs before it can lay out a grid.
+     *
+     * <p>Callers that only need geometry do not need a renderer, a 64K measurement table or a
+     * 128-entry ASCII pass. Keeping the measurements in an immutable value lets them reuse the
+     * result across cards and frames.</p>
+     */
+    static final class Metrics {
+        final float fontWidth;
+        final int lineSpacing;
+        final int lineSpacingAndAscent;
+
+        Metrics(float fontWidth, int lineSpacing, int lineSpacingAndAscent) {
+            this.fontWidth = fontWidth;
+            this.lineSpacing = lineSpacing;
+            this.lineSpacingAndAscent = lineSpacingAndAscent;
+        }
+
+        int ascent() {
+            return lineSpacingAndAscent - lineSpacing;
+        }
+    }
+
+    /** B3/B5: per-(typeface,textSize) cache of the three full-screen metrics, bounded by LRU. */
+    private static final java.util.LinkedHashMap<RenderKey, Metrics> sMetricsCache =
+        new java.util.LinkedHashMap<RenderKey, Metrics>(4, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<RenderKey, Metrics> eldest) {
+                return size() > 4;
+            }
+        };
+
+    /**
+     * Return the measurements for a full-screen font without constructing a renderer.
+     *
+     * <p>This is the same measurement path as the constructor below. The cache is process-wide,
+     * so the small map lookup and measurement pass are synchronized; callers still run on their
+     * own threads without blocking any guest dispatch.</p>
+     */
+    static Metrics metrics(int textSize, Typeface typeface) {
+        final RenderKey key = new RenderKey(typeface, textSize);
+        synchronized (sMetricsCache) {
+            final Metrics cached = sMetricsCache.get(key);
+            if (cached != null) return cached;
+        }
+
+        final Paint paint = new Paint();
+        paint.setTypeface(typeface);
+        paint.setAntiAlias(true);
+        paint.setTextSize(textSize);
+        final Metrics measured = measureMetrics(paint);
+
+        synchronized (sMetricsCache) {
+            final Metrics cached = sMetricsCache.get(key);
+            if (cached != null) return cached;
+            sMetricsCache.put(key, measured);
+        }
+        return measured;
+    }
+
+    /** The single definition of the font-derived metrics used by every renderer size. */
+    private static Metrics measureMetrics(Paint paint) {
+        final int lineSpacing = (int) Math.ceil(paint.getFontSpacing());
+        final int ascent = (int) Math.ceil(paint.ascent());
+        return new Metrics(paint.measureText("X"), lineSpacing, lineSpacing + ascent);
+    }
+
+    /**
      * Reusable per-frame run list. The renderer splits each row into "runs" of equal style; instead
      * of drawing every run immediately (which issues a separate background {@link Paint#drawRect}
      * per run), runs are collected into these arrays once per row and drawn in two passes: all
@@ -114,6 +202,14 @@ public final class TerminalRenderer {
      */
     private int[] mRunStartColumn;
     private int[] mRunWidthColumns;
+    /**
+     * Number of columns occupied by the characters actually handed to {@code drawTextRun()}.
+     *
+     * <p>This is normally the run width, but F0 trims trailing blanks from the run's character
+     * range. The glyphs that remain still occupy only their own cells, so cell fitting must use
+     * this narrower span instead of stretching the visible text across the trimmed blanks.</p>
+     */
+    private int[] mRunTextColumns;
     private int[] mRunStartChar;
     private int[] mRunCharCount;
     private float[] mRunMeasuredWidth;
@@ -245,11 +341,77 @@ public final class TerminalRenderer {
     private boolean mLastPaintStrike = false;
 
     public TerminalRenderer(int textSize, Typeface typeface) {
-        mTextSize = textSize;
+        this((float) textSize, typeface, 0f, 0f, 0f, false, null);
+    }
+
+    /**
+     * Create a renderer for an explicit grid geometry in any pixel space.
+     *
+     * <p>This is the same renderer as the full-screen one; only the measurements differ. A caller
+     * that draws into a bitmap, a scaled canvas or a view of any size supplies the cell pitch and
+     * baseline it wants. The paint is rasterised at {@code textSize} and calibrated so one 'X'
+     * advance occupies one cell, then every shaped run is fitted back to the cells it owns so
+     * hinting and shaping cannot accumulate visible gaps between neighbouring glyphs.</p>
+     *
+     * @param textSize    paint size in the target pixel space
+     * @param typeface    terminal typeface
+     * @param cellWidth   width of one cell in the target pixel space
+     * @param lineSpacing row pitch in the target pixel space
+     * @param ascent      font ascent in the target pixel space
+     */
+    public TerminalRenderer(float textSize, Typeface typeface,
+                            float cellWidth, float lineSpacing, float ascent) {
+        this(textSize, typeface, cellWidth, lineSpacing, ascent, true, null);
+    }
+
+    /**
+     * Package-private seam for the host-side rendering-system test.
+     *
+     * <p>The test supplies a {@link Paint} whose measurement methods are deterministic, so the
+     * renderer's run layout, cell calibration and per-run fitting can be exercised on the JVM
+     * without a device rasteriser. Production callers use the constructors above and keep the
+     * platform Paint.</p>
+     */
+    TerminalRenderer(float textSize, Typeface typeface,
+                     float cellWidth, float lineSpacing, float ascent, Paint textPaint) {
+        this(textSize, typeface, cellWidth, lineSpacing, ascent, true, textPaint);
+    }
+
+    /**
+     * Calibrate the paint's horizontal advance so one 'X' occupies exactly one cell.
+     *
+     * <p>The requested cell width and the paint's natural advance can differ by a fraction of a
+     * pixel because of hinting. Applying that fraction through {@link Paint#setTextScaleX} keeps
+     * the measured cell grid aligned. The remaining difference between a shaped run and the grid
+     * is removed per run in {@link #drawRunText}.</p>
+     */
+    static float textScaleXForCell(float cellWidth, float naturalAdvance) {
+        if (!(cellWidth > 0f) || !(naturalAdvance > 0f)) return 1f;
+        final float scale = cellWidth / naturalAdvance;
+        return (scale > 0f && !Float.isInfinite(scale) && !Float.isNaN(scale)) ? scale : 1f;
+    }
+
+    private TerminalRenderer(float textSize, Typeface typeface,
+                             float cellWidth, float lineSpacing, float ascent,
+                             boolean explicitGrid, Paint textPaint) {
+        mTextPaint = textPaint != null ? textPaint : new Paint();
+        mCellFitted = explicitGrid;
+        mTextSize = explicitGrid ? Math.round(textSize) : (int) textSize;
         mTypeface = typeface;
 
         mTextPaint.setTypeface(typeface);
         mTextPaint.setAntiAlias(true);
+        if (explicitGrid) {
+            // Subpixel positioning keeps glyph origins fractional when the cell pitch is not an
+            // integer. Hinting and linear metrics deliberately stay at the full-screen defaults:
+            // grid-fitted outlines are what makes full-screen glyphs fill their cells, while an
+            // unhinted raster at thumbnail size shrinks the ink inside the same cell and reads as
+            // a gap between neighbouring glyphs and their backgrounds. The integer layout size
+            // Minikin truncates to, and the hinted advances that come with it, are compensated per
+            // run by the shaped-run fit in drawRunText(), which measures exactly the run the
+            // canvas draws, so layout and raster size may differ without drifting off the grid.
+            mTextPaint.setSubpixelText(true);
+        }
         mTextPaint.setTextSize(textSize);
 
         mBgPaint.setStyle(Paint.Style.FILL);
@@ -259,39 +421,69 @@ public final class TerminalRenderer {
         mBaseFillSrcPaint.setStyle(Paint.Style.FILL);
         mBaseFillSrcPaint.setXfermode(SRC_XFERMODE);
 
-        mFontLineSpacing = (int) Math.ceil(mTextPaint.getFontSpacing());
-        mFontAscent = (int) Math.ceil(mTextPaint.ascent());
-        mFontLineSpacingAndAscent = mFontLineSpacing + mFontAscent;
-        mFontWidth = mTextPaint.measureText("X");
+        if (!explicitGrid) {
+            final Metrics metrics = measureMetrics(mTextPaint);
+            mFontLineSpacing = metrics.lineSpacing;
+            mFontLineSpacingAndAscent = metrics.lineSpacingAndAscent;
+            mFontWidth = metrics.fontWidth;
+            mRenderLineSpacing = metrics.lineSpacing;
+            mRenderAscent = metrics.ascent();
+            mRenderLineSpacingAndAscent = metrics.lineSpacingAndAscent;
+        } else {
+            mTextPaint.setTextScaleX(textScaleXForCell(cellWidth,
+                    mTextPaint.measureText("X")));
+            mFontWidth = cellWidth;
+            mFontLineSpacing = (int) Math.ceil(lineSpacing);
+            final int fontAscent = (int) Math.ceil(ascent);
+            mFontLineSpacingAndAscent = mFontLineSpacing + fontAscent;
+            mRenderLineSpacing = lineSpacing;
+            mRenderAscent = ascent;
+            mRenderLineSpacingAndAscent = lineSpacing + ascent;
+        }
         mFontWidthTolerance = 0.01f * mFontWidth;
         mFontWidth2 = 2.f * mFontWidth;
 
-        // B3: reuse a cached BMP measure table for this (typeface, textSize) if one exists,
-        // otherwise create and pre-measure it, then store it for later renderers to share.
-        final RenderKey key = new RenderKey(typeface, textSize);
-        float[] shared;
-        synchronized (sBmpMeasuresCache) {
-            shared = sBmpMeasuresCache.get(key);
-        }
-        if (shared == null) {
-            shared = new float[0x10000];
-            // Pre-measure ASCII so the first paint does not pay for it; the rest is filled lazily.
-            StringBuilder sb = new StringBuilder(" ");
-            for (int i = 0; i < 0x80; i++) {
-                sb.setCharAt(0, (char) i);
-                shared[i] = mTextPaint.measureText(sb, 0, 1);
-            }
+        float[] sharedAscii = null;
+        if (!explicitGrid) {
+            // B3: reuse a cached BMP measure table for this (typeface, textSize) if one exists,
+            // otherwise create and pre-measure it, then store it for later renderers to share.
+            final RenderKey key = new RenderKey(typeface, (int) textSize);
+            float[] shared;
             synchronized (sBmpMeasuresCache) {
-                sBmpMeasuresCache.put(key, shared);
+                shared = sBmpMeasuresCache.get(key);
             }
+            if (shared == null) {
+                shared = new float[0x10000];
+                // Pre-measure ASCII so the first paint does not pay for it; the rest is filled lazily.
+                StringBuilder sb = new StringBuilder(" ");
+                for (int i = 0; i < 0x80; i++) {
+                    sb.setCharAt(0, (char) i);
+                    shared[i] = mTextPaint.measureText(sb, 0, 1);
+                }
+                synchronized (sBmpMeasuresCache) {
+                    sBmpMeasuresCache.put(key, shared);
+                }
+            }
+            bmpMeasures = shared;
+            sharedAscii = shared;
+        } else {
+            // An explicit-grid paint can have a fractional size and a calibrated text scale. Its
+            // measurements must not enter the full-size shared table; ASCII is measured below and
+            // the rest is cached per renderer in supplementaryMeasures.
+            bmpMeasures = null;
         }
-        bmpMeasures = shared;
 
-        // G1: shared[] is pre-measured for 0..0x7F both when it is created above and when it
-        // comes from the cache, so these entries are already the values measureCodePoint()
-        // would return.
+        // G1: pre-measure ASCII so the per-cell path never calls measureText. Full-screen
+        // renderers reuse the shared table; explicit-grid renderers measure at their own paint size.
+        final StringBuilder localAscii = (sharedAscii == null) ? new StringBuilder(" ") : null;
         for (int i = 0; i < 0x80; i++) {
-            final float measured = shared[i];
+            final float measured;
+            if (sharedAscii != null) {
+                measured = sharedAscii[i];
+            } else {
+                localAscii.setCharAt(0, (char) i);
+                measured = mTextPaint.measureText(localAscii, 0, 1);
+            }
             final int wc = WcWidth.width(i);
             asciiMeasure[i] = measured;
             asciiWc[i] = (byte) wc;
@@ -348,8 +540,31 @@ public final class TerminalRenderer {
         return measured;
     }
 
+    /**
+     * Advance of the exact shaped run that {@link #drawRunText} is about to draw.
+     *
+     * <p>{@link Paint#measureText(char[], int, int)} measures the font advances, not the shaped
+     * run: ligatures, kerning and context-dependent glyph substitution can change the result. The
+     * cell grid is defined by shaped output, so the fitting scale must be derived from the same
+     * shaped run the canvas will draw. The API used here is available from Android 6; on older
+     * releases the paint has no run-advance query and the font advance is the best available
+     * approximation.</p>
+     */
+    private float measureShapedRunWidth(char[] text, int start, int count) {
+        if (count <= 0) return 0f;
+        final int end = start + count;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return mTextPaint.getRunAdvance(text, start, end, start, end, false, end);
+        }
+        return mTextPaint.measureText(text, start, count);
+    }
+
     private float measureCodePoint(int codePoint, char[] line, int index, int count) {
-        if (codePoint < 0x10000) {
+        // ASCII is pre-measured in the constructor for both grid modes, so the common path never
+        // reaches the native shaper.
+        if (codePoint < 0x80) return asciiMeasure[codePoint];
+
+        if (bmpMeasures != null && codePoint < 0x10000) {
             float cached = bmpMeasures[codePoint];
             if (cached == 0f && codePoint != 0) {
                 cached = measureNeutral(line, index, count);
@@ -357,6 +572,9 @@ public final class TerminalRenderer {
             }
             return cached;
         }
+
+        // An explicit-grid renderer has no BMP table: measuring at its fractional paint size must
+        // not enter the full-size shared cache, so every remaining code point is kept per instance.
         Float cached = supplementaryMeasures.get(codePoint);
         if (cached == null) {
             cached = measureNeutral(line, index, count);
@@ -424,9 +642,9 @@ public final class TerminalRenderer {
         int renderStartRow = topRow;
         int renderEndRow = endRow; // exclusive
         if (dirtyRect != null) {
-            final float ls = mFontLineSpacing;
+            final float ls = mRenderLineSpacing;
             // View-y of the top edge of row `topRow` (matches TerminalView.rowToPixelTop).
-            final float base = yOffset + mFontLineSpacingAndAscent;
+            final float base = yOffset + mRenderLineSpacingAndAscent;
             int r0 = topRow + (int) Math.floor((dirtyRect.top - base) / ls);
             int r1 = topRow + (int) Math.floor((dirtyRect.bottom - 1 - base) / ls);
             renderStartRow = Math.max(r0, topRow);
@@ -493,13 +711,13 @@ public final class TerminalRenderer {
         // each end so a glyph that overhangs its cell — every box-drawing and block-element run —
         // is still inside the clip. The slack is what keeps a frame of █ or ┏━ looking like one
         // piece instead of a stack of separate cells.
-        final float gridTop = mFontLineSpacingAndAscent - mFontLineSpacing;
-        final float gridBottom = mFontLineSpacingAndAscent + (endRow - topRow) * mFontLineSpacing
-            + mFontLineSpacing;
+        final float gridTop = mRenderLineSpacingAndAscent - mRenderLineSpacing;
+        final float gridBottom = mRenderLineSpacingAndAscent
+            + (endRow - topRow) * mRenderLineSpacing + mRenderLineSpacing;
 
-        float heightOffset = mFontLineSpacingAndAscent;
+        float heightOffset = mRenderLineSpacingAndAscent;
         for (int row = topRow; row < endRow; row++) {
-            heightOffset += mFontLineSpacing;
+            heightOffset += mRenderLineSpacing;
             // Partial repaint: skip rows that do not intersect the dirty region. heightOffset is
             // advanced above for every row, so the y-coordinate stays correct for rendered rows.
             if (row < renderStartRow || row >= renderEndRow) continue;
@@ -517,7 +735,7 @@ public final class TerminalRenderer {
             // — the black-row regression. The view passes {@code pixelsValid=false} in that case,
             // and we draw every visible row (clipped to dirtyRect) to be safe.
             if (dirtyRect != null && pixelsValid && !forceDraw && !screen.isRowDirty(row)) continue;
-            final float rowTop = heightOffset - mFontLineSpacing;
+            final float rowTop = heightOffset - mRenderLineSpacing;
             // F1: on a full repaint drawColor() above has already covered the whole canvas with
             // bgColor, so filling every row again with that same colour over that same area is a
             // second full-screen pass per frame for nothing — and this is the hottest path there
@@ -599,7 +817,7 @@ public final class TerminalRenderer {
                         resolveRunColors(uniformStyle, reverseVideo, palette, mColorOut);
                         final int backColor = mColorOut[1];
                         if (backColor != rawBgColor) {
-                            canvas.drawRect(0f, heightOffset - mFontLineSpacingAndAscent + mFontAscent,
+                            canvas.drawRect(0f, heightOffset - mRenderLineSpacingAndAscent + mRenderAscent,
                                 columns * mFontWidth, heightOffset, bgFillPaint(backColor));
                         }
                         continue;
@@ -669,6 +887,7 @@ public final class TerminalRenderer {
             // F0: char index just past the last non-space code point seen in the current run, and
             // the two reasons a run must keep its trailing blanks.
             int runContentEnd = 0;
+            int runContentColumn = 0;
             boolean runHasCombining = false;
             boolean lastRunNoTrim = false;
 
@@ -752,12 +971,15 @@ public final class TerminalRenderer {
                     if (column != 0) {
                         final int columnWidthSinceLastRun = column - lastRunStartColumn;
                         int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
+                        int textColumnsSinceLastRun = columnWidthSinceLastRun;
                         // F0: hand drawTextRun() only up to the last non-blank code point of
-                        // the run.
+                        // the run. The text span is trimmed with it, so cell fitting still uses
+                        // the cells the visible glyphs actually occupy.
                         if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
                             charsSinceLastRun = runContentEnd - lastRunStartIndex;
+                            textColumnsSinceLastRun = runContentColumn - lastRunStartColumn;
                         }
-                        addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
+                        addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, textColumnsSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
                             lastRunStyle, lastRunInsideCursor, cursorShape, reverseVideo, lastRunInsideSelection, lastRunFontWidthMismatch,
                             lastRunBlockFill);
                     }
@@ -778,6 +1000,7 @@ public final class TerminalRenderer {
                     lastRunNoTrim = fontWidthMismatch
                         || (TextStyle.decodeEffect(style) & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) != 0;
                     runContentEnd = currentCharIndex;
+                    runContentColumn = column;
                     runHasCombining = false;
                 }
                 measuredWidthForRun += measuredCodePointWidth;
@@ -787,7 +1010,10 @@ public final class TerminalRenderer {
                 // genuine ' ' that has gone through clear(): `mSpaceUsed` is the column count (not
                 // the content length), so the loop above walks all `columns` cells of every row
                 // and every one of those blanks used to be shaped and drawn.
-                if (codePoint != ' ') runContentEnd = currentCharIndex;
+                if (codePoint != ' ') {
+                    runContentEnd = currentCharIndex;
+                    runContentColumn = column;
+                }
                 // G2: the combining-char eater called WcWidth.width(line, i) for *every* cell of
                 // every row — a 64 KB static table read per cell, on the hot path, to almost always
                 // conclude "nothing to eat". `hasNonOneWidthOrSurrogateChars()` is a maintained
@@ -809,6 +1035,7 @@ public final class TerminalRenderer {
 
             int columnWidthSinceLastRun = columns - lastRunStartColumn;
             int charsSinceLastRun = currentCharIndex - lastRunStartIndex;
+            int textColumnsSinceLastRun = columnWidthSinceLastRun;
             // G3: g3Start == 0 means the loop never ran and there is no run in
             // progress; `lastRunStartColumn == -1` would otherwise produce a bogus one.
             final boolean g3 = g3Start < columns;
@@ -825,10 +1052,13 @@ public final class TerminalRenderer {
             // space is visible).
             if (!lastRunNoTrim && !runHasCombining && runContentEnd < currentCharIndex) {
                 charsSinceLastRun = runContentEnd - lastRunStartIndex;
+                textColumnsSinceLastRun = runContentColumn - lastRunStartColumn;
+            } else {
+                textColumnsSinceLastRun = columnWidthSinceLastRun;
             }
             // When g3Start == 0 there is nothing to the left of the tail.
             if (!g3 || g3Start > 0) {
-                addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
+                addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, textColumnsSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
                     lastRunStyle, lastRunInsideCursor, cursorShape, reverseVideo, lastRunInsideSelection, lastRunFontWidthMismatch,
                     lastRunBlockFill);
             }
@@ -840,7 +1070,7 @@ public final class TerminalRenderer {
                 final long tailStyle = lineObject.getStyle(g3Start);
                 final boolean tailNoTrim = (TextStyle.decodeEffect(tailStyle)
                     & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) != 0;
-                addRun(mEmulator, g3Start, tailColumns, currentCharIndex, tailNoTrim ? tailColumns : 0,
+                addRun(mEmulator, g3Start, tailColumns, tailNoTrim ? tailColumns : 0, currentCharIndex, tailNoTrim ? tailColumns : 0,
                     tailColumns * mFontWidth, tailStyle, false, cursorShape, reverseVideo, false,
                     false, false);
             }
@@ -908,15 +1138,16 @@ public final class TerminalRenderer {
                 // SRC_OVER translucent layer over the translucent base would compose to a
                 // higher alpha (2A−A²), leaving painted cells more opaque than (and tinted
                 // by) their neighbours. bgFillPaint() picks SRC_OVER or SRC accordingly.
-                canvas.drawRect(left, heightOffset - mFontLineSpacingAndAscent + mFontAscent, right, heightOffset, bgFillPaint(backColor));
+                canvas.drawRect(left, heightOffset - mRenderLineSpacingAndAscent + mRenderAscent, right, heightOffset, bgFillPaint(backColor));
 
                 i = endRun - 1;
             }
 
             // Pass B: text (and cursor, and any scaled background) drawn on top of the backgrounds.
             for (int i = 0; i < mRunCount; i++) {
-                drawRunText(canvas, line, heightOffset, mRunStartColumn[i], mRunWidthColumns[i], mRunStartChar[i],
-                    mRunCharCount[i], mRunMeasuredWidth[i], mRunCursorColor[i], mRunCursorStyle[i], mRunStyle[i],
+                drawRunText(canvas, line, heightOffset, mRunStartColumn[i], mRunWidthColumns[i],
+                    mRunTextColumns[i], mRunStartChar[i], mRunCharCount[i], mRunMeasuredWidth[i],
+                    mRunCursorColor[i], mRunCursorStyle[i], mRunStyle[i],
                     mRunForeColor[i], mRunBackColor[i], mRunFontWidthMismatch[i], rawBgColor, mRunBlockFill[i]);
             }
 
@@ -937,6 +1168,7 @@ public final class TerminalRenderer {
         if (mRunStartColumn == null || mRunStartColumn.length < columns) {
             mRunStartColumn = new int[columns];
             mRunWidthColumns = new int[columns];
+            mRunTextColumns = new int[columns];
             mRunStartChar = new int[columns];
             mRunCharCount = new int[columns];
             mRunMeasuredWidth = new float[columns];
@@ -988,12 +1220,16 @@ public final class TerminalRenderer {
         mRunMeasuredWidth[a] += mRunMeasuredWidth[b];
         if (mRunCharCount[b] > 0) {
             mRunCharCount[a] = (mRunStartChar[b] + mRunCharCount[b]) - mRunStartChar[a];
+            // The merged character range picks up run a's trimmed blanks on the way to b's
+            // glyphs, so the fitted text span reaches b's last text column.
+            mRunTextColumns[a] = (mRunStartColumn[b] + mRunTextColumns[b]) - mRunStartColumn[a];
         }
     }
 
     private void copyRun(int from, int to) {
         mRunStartColumn[to] = mRunStartColumn[from];
         mRunWidthColumns[to] = mRunWidthColumns[from];
+        mRunTextColumns[to] = mRunTextColumns[from];
         mRunStartChar[to] = mRunStartChar[from];
         mRunCharCount[to] = mRunCharCount[from];
         mRunMeasuredWidth[to] = mRunMeasuredWidth[from];
@@ -1007,7 +1243,8 @@ public final class TerminalRenderer {
         mRunBackColor[to] = mRunBackColor[from];
     }
 
-    private void addRun(TerminalEmulator emulator, int startColumn, int runWidthColumns, int startCharIndex, int runWidthChars, float measuredWidth,
+    private void addRun(TerminalEmulator emulator, int startColumn, int runWidthColumns, int runTextColumns,
+                        int startCharIndex, int runWidthChars, float measuredWidth,
                         long style, boolean insideCursor, int cursorStyle, boolean reverseVideo, boolean insideSelection,
                         boolean fontWidthMismatch, boolean blockFill) {
         final int cursorColor = insideCursor ? emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
@@ -1015,6 +1252,7 @@ public final class TerminalRenderer {
         ensureRunCapacity(mRunCount + 1);
         mRunStartColumn[mRunCount] = startColumn;
         mRunWidthColumns[mRunCount] = runWidthColumns;
+        mRunTextColumns[mRunCount] = runTextColumns;
         mRunStartChar[mRunCount] = startCharIndex;
         mRunCharCount[mRunCount] = runWidthChars;
         mRunMeasuredWidth[mRunCount] = measuredWidth;
@@ -1119,10 +1357,29 @@ public final class TerminalRenderer {
         return scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE;
     }
 
+    /**
+     * Horizontal scale that maps a shaped run advance onto the cells its visible text occupies.
+     *
+     * <p>The scale is deliberately bounded by the same factors as a mismatch run. A zero or
+     * non-finite measurement means the font has no usable glyph for the run, and an extreme ratio
+     * means the measurement describes an absence of glyphs rather than text; drawing the run
+     * unscaled is safer than installing a degenerate canvas matrix.</p>
+     *
+     * @param expectedWidth width of the cells occupied by the run's visible text, in pixels
+     * @param shapedWidth   advance returned by the same shaped run the canvas will draw
+     * @return a finite scale in {@code [0.125, 8]}, or {@code 1} when no correction is possible
+     */
+    static float cellFitScale(float expectedWidth, float shapedWidth) {
+        if (!(expectedWidth > 0f) || !(shapedWidth > 0f)) return 1f;
+        final float scale = expectedWidth / shapedWidth;
+        if (!(scale > 0f) || Float.isInfinite(scale) || Float.isNaN(scale)) return 1f;
+        return (scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE) ? scale : 1f;
+    }
+
     private void drawRunText(Canvas canvas, char[] text, float y, int startColumn, int runWidthColumns,
-                             int startCharIndex, int runWidthChars, float mes, int cursor, int cursorStyle,
-                             long textStyle, int foreColor, int backColor, boolean fontWidthMismatch,
-                             int baseBgColor, boolean blockFill) {
+                             int runTextColumns, int startCharIndex, int runWidthChars, float mes,
+                             int cursor, int cursorStyle, long textStyle, int foreColor, int backColor,
+                             boolean fontWidthMismatch, int baseBgColor, boolean blockFill) {
         // foreColor/backColor are pre-resolved ARGB colors (palette lookup + reverse-video swap done
         // once per run in render()); only the effect bits and the dim adjustment are handled here.
         final int effect = TextStyle.decodeEffect(textStyle);
@@ -1149,7 +1406,11 @@ public final class TerminalRenderer {
         // smeared a Devanagari vowel sign into the margin on every row that held one. A run
         // that needs a factor past the bounds below has no glyph to place either, so it is
         // left unscaled and the row-band clip in render() keeps it inside its own row.
-        final boolean scalable = fontWidthMismatch && isMismatchScaleUsable(runWidthColumns, mes);
+        // An explicit-grid renderer fits the actual shaped run below. That fit is exact for both
+        // monospace and fallback glyphs, so it must not be combined with the old per-code-point
+        // measurement scale: applying both would scale the run twice and reintroduce a gap.
+        final boolean scalable = fontWidthMismatch && !mCellFitted
+            && isMismatchScaleUsable(runWidthColumns, mes);
         if (scalable && Math.abs(mes - runWidthColumns) > 0.01) {
             canvas.save();
             canvas.scale(runWidthColumns / mes, 1.f);
@@ -1173,11 +1434,11 @@ public final class TerminalRenderer {
         // showing through. Never set SRC on mTextPaint itself: text is drawn with partial
         // glyph coverage, and SRC would erase the background behind the anti-aliased edges.
         if (fontWidthMismatch && backColor != baseBgColor) {
-            canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, bgFillPaint(backColor));
+            canvas.drawRect(left, y - mRenderLineSpacingAndAscent + mRenderAscent, right, y, bgFillPaint(backColor));
         }
 
         if (cursor != 0) {
-            float cursorHeight = mFontLineSpacingAndAscent - mFontAscent;
+            float cursorHeight = mRenderLineSpacingAndAscent - mRenderAscent;
             if (cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_UNDERLINE) cursorHeight /= 4.;
             else if (cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_BAR) right -= ((right - left) * 3) / 4.;
             // The cursor is a background fill too, so it honours the configured transparency
@@ -1232,7 +1493,7 @@ public final class TerminalRenderer {
             }
 
             // The text alignment is the default Paint.Align.LEFT.
-            final float textY = y - mFontLineSpacingAndAscent;
+            final float textY = y - mRenderLineSpacingAndAscent;
             // H1: a block element (U+2580..U+259F) paints a solid or dithered *area*, so on a
             // translucent terminal it is a background in everything but name. Leaving it opaque
             // punches a fully saturated hole through the wallpaper — the visible symptom was an
@@ -1245,10 +1506,32 @@ public final class TerminalRenderer {
             // destination alpha, not by the ink. Adding mBackgroundAlpha here would re-introduce
             // the doubled-alpha error at the rim. Geometry is untouched — same text, same matrix,
             // same left/right — so a mismatch-scaled run looks exactly as it did before.
+            //
+            // An explicit-grid renderer cannot trust the font's natural advance to equal the
+            // cell pitch: Skia may round advances at a fractional text size, a ligature may
+            // change the shaped width, and a fallback face may advance differently. Fit the
+            // shaped run back to the cells its visible text occupies. The transform is installed
+            // only around drawTextRun(), so the background, selection and cursor rectangles keep
+            // their exact cell geometry.
+            boolean cellFitMatrix = false;
+            float textX = left;
+            if (mCellFitted && runWidthChars > 0 && runTextColumns > 0) {
+                final float shapedWidth = measureShapedRunWidth(text, startCharIndex, runWidthChars);
+                final float expectedWidth = runTextColumns * mFontWidth;
+                final float fitScale = cellFitScale(expectedWidth, shapedWidth);
+                if (fitScale != 1f && Math.abs(shapedWidth - expectedWidth) > 0.01f) {
+                    canvas.save();
+                    canvas.translate(left, 0f);
+                    canvas.scale(fitScale, 1f);
+                    cellFitMatrix = true;
+                    textX = 0f;
+                }
+            }
             final boolean blockTranslucent = blockFill && mBackgroundAlpha < 255;
             if (blockTranslucent) mTextPaint.setXfermode(SRC_ATOP_XFERMODE);
-            canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars, left, textY, false, mTextPaint);
+            canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars, textX, textY, false, mTextPaint);
             if (blockTranslucent) mTextPaint.setXfermode(null);
+            if (cellFitMatrix) canvas.restore();
         }
 
         if (savedMatrix) canvas.restore();
