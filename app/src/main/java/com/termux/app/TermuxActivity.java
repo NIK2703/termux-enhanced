@@ -4992,20 +4992,19 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Current normal terminal viewport height for the overview's window grid.
      *
-     * <p>The overview turns this height into the columns and rows a terminal has with the IME
-     * hidden, and publishes that grid to every session before measuring its card. It reports the
-     * current height plus the current IME inset when the keyboard is visible; it never returns a
-     * height remembered from an earlier window shape.</p>
+     * <p>The controller turns this height into the glyph grid the cards are sized for and
+     * republishes to stale sessions. The IME inset is added straight from the latest insets
+     * dispatch instead of a visibility boolean: during a keyboard animation height and inset
+     * move together, so their sum is stable, while a boolean threshold could report one frame
+     * of the compressed height with the inset already gone. No height from an earlier window
+     * shape is involved.</p>
      */
     public int getTerminalViewportHeightForOverview() {
         final TerminalView terminal = getActiveTerminalView();
         if (terminal == null) return 0;
         final int height = terminal.getHeight();
         if (height <= 0) return 0;
-        if (computeImeVisibility()) {
-            return height + Math.max(0, mLastImeBottomPx);
-        }
-        return height;
+        return height + Math.max(0, mLastImeBottomPx);
     }
 
     public androidx.viewpager2.widget.ViewPager2 getTerminalPager() {

@@ -48,6 +48,7 @@ import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalPreviewRenderer;
+import com.termux.view.TerminalPreviewRenderer.ViewportGrid;
 import com.termux.view.TerminalView;
 
 import java.util.ArrayList;
@@ -2372,10 +2373,12 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Reverse the opening tab flight for every visible card tab. Each ghost moves and fades out
-     * on its card, is transformed once while invisible, then moves into its strip slot and fades
-     * in. All target tabs are hidden before the panel snapshot is taken, so the snapshot and the
-     * ghosts never draw the same tab at once.
+     * Reverse the opening tab flight for every card whose thumbnail is visible. The compact tab
+     * itself may be clipped by the overview viewport; its ghost still starts from the full layout
+     * rect and carries the thumbnail with it. Each ghost moves and fades out on its card, is
+     * transformed once while invisible, then moves into its strip slot and fades in. All target
+     * tabs are hidden before the panel snapshot is taken, so the snapshot and the ghosts never
+     * draw the same tab at once.
      */
     private void installClosingTabVisuals(@NonNull ClosingTransition transition,
                                           @NonNull int[] origin) {
@@ -2384,9 +2387,11 @@ public final class SessionOverviewController {
         if (tabs == null) return;
 
         for (Card card : new ArrayList<>(mCards)) {
-            // Only animate tabs the user can actually see on the grid. Off-screen cards keep
-            // their real pill under the expanding terminal and do not need a ghost.
-            if (visibleLocalRect(card.tab, origin) == null) continue;
+            // The compact pill may be clipped by the overview viewport while its thumbnail is
+            // still on screen. Fly that tab as well: the ghost starts from the pill's full layout
+            // rect, so the thumbnail keeps the same coupled motion as every other visible card.
+            // Cards with no visible thumbnail stay out of the flight and only fade out.
+            if (visibleLocalRect(card.preview, origin) == null) continue;
             final Rect startBounds = localRect(card.tab, origin);
             if (startBounds == null || startBounds.isEmpty()) continue;
 
@@ -2583,10 +2588,10 @@ public final class SessionOverviewController {
         }
 
         // The selected card preview is hidden immediately and the full-size terminal snapshot is
-        // opaque from progress zero, so the expansion starts without an unfade. Every visible
-        // card tab has a ghost that moves and fades out on the card, then moves into its strip
-        // slot and fades in. If the selected card had no visible tab to animate, its pill and
-        // cross simply disappear under the expanding terminal.
+        // opaque from progress zero, so the expansion starts without an unfade. Every card with a
+        // visible thumbnail has a ghost that moves and fades out on the card, then moves into its
+        // strip slot and fades in. If the selected card has no ghost, its pill and cross simply
+        // disappear under the expanding terminal.
         final float previewAlpha = SessionOverviewTransitionMath.closingPreviewAlpha(p);
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
@@ -2605,9 +2610,8 @@ public final class SessionOverviewController {
     /**
      * Fade the rest of the grid out while the selected terminal expands. All unselected cards
      * share the flying tab's source fade, so a thumbnail disappears during the first 33% of the
-     * motion whether or not its own tab was visible in the strip and has a ghost to move it.
-     * The selected card is already owned by the opaque terminal snapshot, so only the neighbours
-     * follow this alpha.
+     * motion whether or not its own ghost was installed. The selected card is already owned by
+     * the opaque terminal snapshot, so only the neighbours follow this alpha.
      */
     private void applyClosingCardAlpha(@NonNull ClosingTransition transition, float progress) {
         final float alpha = SessionOverviewTransitionMath.closingCardAlpha(progress);
@@ -3398,10 +3402,8 @@ public final class SessionOverviewController {
      * Re-target the cards after the live terminal viewport changed.
      *
      * <p>The terminal may resize from an IME-compressed height to its current height after the
-     * grid has already been built. Every stale session is first brought to the window's normal
-     * grid, then each card follows its own emulator and the slot follows the largest grid among
-     * all cards. No remembered height is involved: the normal grid is recomputed from the
-     * viewport that exists now.</p>
+     * grid has already been built. The normal grid is recomputed from the viewport that exists
+     * now and published to stale sessions before the cards are measured again.</p>
      */
     public void onTerminalViewportChanged() {
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null) return;
@@ -3410,30 +3412,62 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Size every card to the largest glyph grid the terminal can display with the keyboard
-     * hidden. The preview renderer preserves the grid's aspect ratio, so matching the card to it
-     * removes the background bands above and below the terminal, and using the maximum viewport
-     * keeps all cards at one constant size when the active terminal happens to be compressed by
-     * the IME. A missing terminal leaves the grid on its content-area fallback.
+     * Choose the glyph grid the overview uses for every card and publish it to stale sessions.
+     *
+     * <p>The grid is computed once: the active terminal's viewport with the IME height added
+     * back, or the active emulator's own grid when there is no measurable view yet. Both entry
+     * points return the same {@link ViewportGrid}, so the aspect the cards are sized for and the
+     * columns and rows the sessions are resized to cannot disagree.</p>
      */
     private void updateGridAspect() {
         if (mGrid == null) return;
-        final TerminalView terminal = mActivity.getActiveTerminalView();
-        final int viewportHeight = mActivity.getTerminalViewportHeightForOverview();
         final int textSize = previewTextSize();
         final Typeface typeface = previewTypeface();
-        double aspect = terminal != null
-                ? TerminalPreviewRenderer.aspectRatioForViewport(terminal.getWidth(),
-                        viewportHeight, textSize, typeface)
-                : 0;
-        if (aspect <= 0) {
+        final TerminalView terminal = mActivity.getActiveTerminalView();
+        final int viewportHeight = mActivity.getTerminalViewportHeightForOverview();
+        ViewportGrid grid = terminal != null
+                ? TerminalPreviewRenderer.viewportGrid(
+                        terminal.getWidth(), viewportHeight, textSize, typeface)
+                : null;
+        if (grid == null) {
             final TerminalSession session = mActivity.getCurrentSession();
             final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
-            aspect = emulator != null
-                    ? TerminalPreviewRenderer.aspectRatio(emulator, textSize, typeface)
-                    : 0;
+            if (emulator != null) {
+                grid = TerminalPreviewRenderer.emulatorGrid(emulator, textSize, typeface);
+            }
         }
-        mGrid.setCardAspect(aspect);
+        if (grid != null) refreshSessionSizesToCurrentWindow(grid);
+        mGrid.setCardAspect(grid != null ? grid.aspect() : 0);
+    }
+
+    /**
+     * Bring every session that still carries a stale terminal size to the window's normal grid.
+     *
+     * <p>Only the pager's active page and its neighbours publish their view size to their
+     * sessions. A session several tabs away can therefore keep the compressed grid it had when
+     * the keyboard was last up: its preview was painted at that smaller grid while its card was
+     * sized for a normal terminal, and the grid only became normal after the card was selected.
+     * Publishing here makes the thumbnail and the live terminal agree from the first frame.</p>
+     *
+     * <p>{@link TerminalEmulator#hasSize} keeps this idempotent: an already-normal session costs
+     * one comparison and no pty ioctl. A session with no emulator is skipped on purpose —
+     * resizing it would fork a shell just to draw a thumbnail.</p>
+     */
+    private void refreshSessionSizesToCurrentWindow(@NonNull ViewportGrid grid) {
+        final TermuxService service = mActivity.getTermuxService();
+        if (service == null) return;
+        // updateSize() fires session callbacks; iterate a snapshot in case one of them binds a
+        // page and changes the live list while we are publishing.
+        for (TermuxSession termuxSession : new ArrayList<>(service.getTermuxSessions())) {
+            if (termuxSession == null) continue;
+            final TerminalSession session = termuxSession.getTerminalSession();
+            if (session == null) continue;
+            final TerminalEmulator emulator = session.getEmulator();
+            if (emulator == null || grid.matches(emulator)) continue;
+            session.updateSize(grid.columns, grid.rows, grid.cellWidthPx, grid.cellHeightPx);
+            final Card card = findCard(session);
+            if (card != null) card.previewDirty = true;
+        }
     }
 
     private boolean renderCard(@NonNull Card card, int textSize, @NonNull Typeface typeface) {

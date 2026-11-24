@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Typeface;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.termux.terminal.TerminalEmulator;
 
@@ -21,7 +22,55 @@ import com.termux.terminal.TerminalEmulator;
  */
 public final class TerminalPreviewRenderer {
 
+    /** Same floor as {@link TerminalView#updateSize()} uses for degenerate viewports. */
+    private static final int MIN_COLUMNS = 4;
+    private static final int MIN_ROWS = 4;
+
     private TerminalPreviewRenderer() {}
+
+    /**
+     * The exact glyph grid a terminal session should carry for a given viewport.
+     *
+     * <p>One value object is the single source of truth for the overview's sizing: the same
+     * columns and rows are used to size a card, to recognize a stale emulator, and to republish
+     * the normal window grid to it. The cell dimensions are the integers
+     * {@link TerminalView#updateSize()} reports to the pty; {@link #aspect()} uses the same
+     * fractional font metrics {@link #render} paints with, so a card sized from it has no bands.</p>
+     */
+    public static final class ViewportGrid {
+        public final int columns;
+        public final int rows;
+        /** Integer cell width reported to the pty, matching {@code TerminalView.updateSize()}. */
+        public final int cellWidthPx;
+        /** Line spacing reported to the pty, matching {@code TerminalView.updateSize()}. */
+        public final int cellHeightPx;
+        private final double aspect;
+
+        private ViewportGrid(int columns, int rows, int cellWidthPx, int cellHeightPx,
+                             double aspect) {
+            this.columns = columns;
+            this.rows = rows;
+            this.cellWidthPx = cellWidthPx;
+            this.cellHeightPx = cellHeightPx;
+            this.aspect = aspect;
+        }
+
+        /** Width/height ratio of the glyph grid; always positive for a constructed grid. */
+        public double aspect() {
+            return aspect;
+        }
+
+        /** True when the emulator already carries exactly this grid, pty cell size included. */
+        public boolean matches(@NonNull TerminalEmulator emulator) {
+            return emulator.hasSize(columns, rows, cellWidthPx, cellHeightPx);
+        }
+
+        /** Pure form of {@link #matches(TerminalEmulator)}, usable without an emulator. */
+        public boolean matches(int columns, int rows, int cellWidthPx, int cellHeightPx) {
+            return this.columns == columns && this.rows == rows
+                    && this.cellWidthPx == cellWidthPx && this.cellHeightPx == cellHeightPx;
+        }
+    }
 
     /**
      * Width-to-height ratio of the exact glyph grid {@link #render} paints for this emulator.
@@ -34,9 +83,8 @@ public final class TerminalPreviewRenderer {
      */
     public static double aspectRatio(@NonNull TerminalEmulator emulator,
                                      int textSizePx, @NonNull Typeface typeface) {
-        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return 0;
-        final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
-        return gridAspect(emulator.mColumns, emulator.mRows, renderer);
+        final ViewportGrid grid = emulatorGrid(emulator, textSizePx, typeface);
+        return grid != null ? grid.aspect() : 0;
     }
 
     /**
@@ -52,22 +100,61 @@ public final class TerminalPreviewRenderer {
      */
     public static double aspectRatioForViewport(int viewWidth, int viewHeight,
                                                 int textSizePx, @NonNull Typeface typeface) {
-        if (viewWidth <= 0 || viewHeight <= 0) return 0;
-        final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
-        if (renderer.mFontWidth <= 0f || renderer.mFontLineSpacing <= 0f) return 0;
-        final int columns = Math.max(4, (int) (viewWidth / renderer.mFontWidth));
-        final int rows = Math.max(4,
-                (int) ((viewHeight - renderer.mFontLineSpacingAndAscent)
-                        / renderer.mFontLineSpacing));
-        return gridAspect(columns, rows, renderer);
+        final ViewportGrid grid = viewportGrid(viewWidth, viewHeight, textSizePx, typeface);
+        return grid != null ? grid.aspect() : 0;
     }
 
-    private static double gridAspect(int columns, int rows,
-                                     @NonNull TerminalRenderer renderer) {
-        final float gridWidth = columns * renderer.mFontWidth;
-        final float gridHeight = rows * renderer.mFontLineSpacing;
-        if (gridWidth <= 0f || gridHeight <= 0f) return 0;
-        return (double) gridWidth / gridHeight;
+    /**
+     * Largest glyph grid that fits a terminal viewport, with the cell size a {@link TerminalView}
+     * would report to the pty. Null when the viewport or font metrics are not usable yet.
+     */
+    @Nullable
+    public static ViewportGrid viewportGrid(int viewWidth, int viewHeight,
+                                            int textSizePx, @NonNull Typeface typeface) {
+        if (viewWidth <= 0 || viewHeight <= 0) return null;
+        final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
+        return fromViewport(viewWidth, viewHeight, renderer.mFontWidth,
+                renderer.mFontLineSpacing, renderer.mFontLineSpacingAndAscent);
+    }
+
+    /** Glyph grid an existing emulator carries, with metrics of the preview font. */
+    @Nullable
+    public static ViewportGrid emulatorGrid(@NonNull TerminalEmulator emulator,
+                                            int textSizePx, @NonNull Typeface typeface) {
+        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return null;
+        final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
+        return fromGrid(emulator.mColumns, emulator.mRows,
+                renderer.mFontWidth, renderer.mFontLineSpacing);
+    }
+
+    /**
+     * Pure column/row calculation shared by the viewport and emulator entry points. Takes the
+     * font metrics directly so it can be tested without an Android {@code Paint}.
+     */
+    @Nullable
+    static ViewportGrid fromViewport(int viewWidth, int viewHeight,
+                                     float fontWidth, int fontLineSpacing,
+                                     int fontLineSpacingAndAscent) {
+        if (viewWidth <= 0 || viewHeight <= 0 || !(fontWidth > 0f)
+                || !Float.isFinite(fontWidth) || fontLineSpacing <= 0) {
+            return null;
+        }
+        final int columns = Math.max(MIN_COLUMNS, (int) (viewWidth / fontWidth));
+        final int rows = Math.max(MIN_ROWS,
+                (int) ((viewHeight - fontLineSpacingAndAscent) / fontLineSpacing));
+        return fromGrid(columns, rows, fontWidth, fontLineSpacing);
+    }
+
+    @Nullable
+    private static ViewportGrid fromGrid(int columns, int rows,
+                                         float fontWidth, int fontLineSpacing) {
+        if (columns <= 0 || rows <= 0 || !(fontWidth > 0f)
+                || !Float.isFinite(fontWidth) || fontLineSpacing <= 0) return null;
+        final float gridWidth = columns * fontWidth;
+        final float gridHeight = rows * fontLineSpacing;
+        if (gridWidth <= 0f || gridHeight <= 0f) return null;
+        return new ViewportGrid(columns, rows, (int) fontWidth, fontLineSpacing,
+                (double) gridWidth / gridHeight);
     }
 
     /**
