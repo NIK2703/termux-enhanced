@@ -199,12 +199,13 @@ public final class SessionOverviewTransitionMath {
      * Translation Z for a flying tab whose card thumbnail is visible and moving with it.
      *
      * <p>That pair belongs to the grid, not to the terminal that is shrinking or expanding
-     * above it. A zero translation Z puts the tab below every positive terminal elevation, so
-     * the terminal window covers the tab and its thumbnail. A tab moving alone, with no
-     * thumbnail on screen yet or any more, keeps the old "above the terminal" Z.</p>
+     * above it. The flight terminal has zero Z and the tab ghosts are appended after it, so a
+     * zero Z would still paint the tab on top by insertion order. A negative Z puts the tab
+     * and its close cross strictly below the terminal. A tab moving alone, with no thumbnail on
+     * screen yet or any more, keeps the old "above the terminal" Z.</p>
      */
     public static float tabGhostZ(boolean thumbnailVisible, float terminalElevation) {
-        return thumbnailVisible ? 0f : tabGhostZ(terminalElevation);
+        return thumbnailVisible ? -1f : tabGhostZ(terminalElevation);
     }
 
     /** Linear ARGB interpolation, including alpha. */

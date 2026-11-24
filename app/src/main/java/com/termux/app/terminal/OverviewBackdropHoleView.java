@@ -14,13 +14,14 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /**
- * Clears a rounded rectangle out of the window decor while an overview flight is running.
+ * Shapes the decor colour under the flying terminal during an overview flight.
  *
  * <p>The activity paints the fading background colour on the decor view before any child is
- * drawn. This view is the first child of the overview ghost layer, so it punches a transparent
- * hole in that colour before the flying terminal snapshot is composited over it. The snapshot
+ * drawn. This view is the first child of the overview ghost layer, so it clears a rounded hole
+ * in that colour before the flying terminal snapshot is composited over it. The snapshot
  * already carries the terminal background at the configured alpha; without the hole the same
- * alpha would be stacked twice underneath it.</p>
+ * alpha would be stacked twice. At a flight endpoint a tint is drawn back into the hole so the
+ * hand-off to the resting card has no darkening step.</p>
  *
  * <p>The window must be translucent when this view is used. The caller only installs it while
  * the wallpaper feature is enabled; on an opaque window {@link PorterDuff.Mode#CLEAR} would show
@@ -52,25 +53,24 @@ final class OverviewBackdropHoleView extends View {
     }
 
     /**
-     * Set the hole in this view's coordinates; {@code null} or an empty rect disables it.
+     * Update the cut-out shape and its endpoint tint in one pass.
      *
-     * <p>The radii must follow the flying terminal's visible shape. The top corners match the
-     * ghost outline. The bottom corners only match it when the bitmap fills the whole view;
-     * {@link TopCropImageView} leaves the bottom empty when the view is taller than the scaled
-     * bitmap, and that strip must keep the decor tint instead of being cut out.</p>
+     * <p>The radii follow the flying terminal's visible shape: top corners match the ghost
+     * outline, bottom corners only when the scaled bitmap fills the view. The tint ramps back in
+     * at a flight endpoint so the hand-off to the resting card has no darkening step.</p>
      */
-    void setHole(@Nullable Rect hole, float topRadius, float bottomRadius) {
-        // Remember the old cut-out: CLEAR is destructive, so the area it vacated has to be
-        // repainted by the views below it on the next draw.
+    void setContent(@Nullable Rect hole, float topRadius, float bottomRadius,
+                    int fillColor, int fillAlpha) {
+        // CLEAR is destructive: the area the hole vacates must be repainted by the views below.
         if (mHole.isEmpty()) {
             mInvalidateRect.setEmpty();
         } else {
             mInvalidateRect.set(mHole);
         }
 
-        final boolean changed;
+        final boolean geometryChanged;
         if (hole == null || hole.isEmpty()) {
-            changed = !mHole.isEmpty();
+            geometryChanged = !mHole.isEmpty();
             mHole.setEmpty();
             mTopRadius = 0f;
             mBottomRadius = 0f;
@@ -78,47 +78,51 @@ final class OverviewBackdropHoleView extends View {
             final float limit = Math.min(hole.width(), hole.height()) / 2f;
             final float top = Math.max(0f, Math.min(topRadius, limit));
             final float bottom = Math.max(0f, Math.min(bottomRadius, limit));
-            changed = !mHole.equals(hole) || mTopRadius != top || mBottomRadius != bottom;
+            geometryChanged = !mHole.equals(hole)
+                    || mTopRadius != top || mBottomRadius != bottom;
             mHole.set(hole);
             mTopRadius = top;
             mBottomRadius = bottom;
         }
-        if (!changed) return;
+
+        fillAlpha = Math.max(0, Math.min(255, fillAlpha));
+        final boolean fillChanged = mFillColor != fillColor || mFillAlpha != fillAlpha;
+        mFillColor = fillColor;
+        mFillAlpha = fillAlpha;
+        if (!geometryChanged && !fillChanged) return;
 
         // Invalidate only the moving cut-out, not the whole match-parent view. Decor already
         // repaints the full window each frame, but this view must not add a second full-screen
         // damage region of its own.
-        if (!mInvalidateRect.isEmpty()) {
-            if (!mHole.isEmpty()) mInvalidateRect.union(mHole);
-            invalidate(mInvalidateRect);
+        if (geometryChanged) {
+            // Two small damage rects are cheaper than their (possibly much larger) union.
+            if (!mInvalidateRect.isEmpty()) invalidate(mInvalidateRect);
+            if (!mHole.isEmpty()) invalidate(mHole);
         } else if (!mHole.isEmpty()) {
             invalidate(mHole);
         }
     }
 
-    /**
-     * Tint drawn back over the cleared area. The ramp from transparent to the overview backdrop
-     * alpha makes the hand-off from the flying terminal to the resting card seamless; without it
-     * the card would suddenly sit on the doubled-transparency backdrop one frame after the ghost vanished.
-     */
-    void setFill(int color, int alpha) {
-        alpha = Math.max(0, Math.min(255, alpha));
-        if (mFillColor == color && mFillAlpha == alpha) return;
-        mFillColor = color;
-        mFillAlpha = alpha;
-        if (!mHole.isEmpty()) invalidate(mHole);
-    }
-
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         if (mHole.isEmpty()) return;
-        canvas.save();
         if (mTopRadius <= 0f && mBottomRadius <= 0f) {
-            // Most of the opening and the end of the closing flight have no rounding yet.
-            // A rect clip avoids building and rasterising a path mask for those frames.
-            canvas.clipRect(mHole);
+            // No rounding yet: clear and tint the rect directly, without canvas clip state.
+            canvas.drawRect(mHole, mClearPaint);
+            if (mFillAlpha > 0) {
+                mFillPaint.setColor((mFillAlpha << 24) | (mFillColor & 0x00FFFFFF));
+                canvas.drawRect(mHole, mFillPaint);
+            }
+            return;
+        }
+
+        mHoleF.set(mHole);
+        mHolePath.reset();
+        if (mTopRadius == mBottomRadius) {
+            // Normal case: the whole outline rounds uniformly.
+            mHolePath.addRoundRect(mHoleF, mTopRadius, mTopRadius, Path.Direction.CW);
         } else {
-            mHoleF.set(mHole);
+            // Empty strip under a width-scaled snapshot: only the top corners follow the outline.
             mRadii[0] = mTopRadius;
             mRadii[1] = mTopRadius;
             mRadii[2] = mTopRadius;
@@ -127,15 +131,13 @@ final class OverviewBackdropHoleView extends View {
             mRadii[5] = mBottomRadius;
             mRadii[6] = mBottomRadius;
             mRadii[7] = mBottomRadius;
-            mHolePath.reset();
             mHolePath.addRoundRect(mHoleF, mRadii, Path.Direction.CW);
-            canvas.clipPath(mHolePath);
         }
-        canvas.drawRect(mHole, mClearPaint);
+        // Draw the shape itself instead of clipping to it: one draw per layer.
+        canvas.drawPath(mHolePath, mClearPaint);
         if (mFillAlpha > 0) {
             mFillPaint.setColor((mFillAlpha << 24) | (mFillColor & 0x00FFFFFF));
-            canvas.drawRect(mHole, mFillPaint);
+            canvas.drawPath(mHolePath, mFillPaint);
         }
-        canvas.restore();
     }
 }

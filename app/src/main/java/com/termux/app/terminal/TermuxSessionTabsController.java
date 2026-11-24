@@ -97,7 +97,7 @@ public class TermuxSessionTabsController {
     /**
      * Cached, resolved metrics + preference values. Read through {@link #ensureDimens()} so a
      * title refresh no longer hits SharedPreferences repeatedly (and {@code getDimension()} a
-     * handful of times) per tab per frame — with 8 tabs at 10-30 Hz that was ~500 synchronized
+     * handful of times) per tab per frame — with up to 10 tabs at 10-30 Hz that was ~500 synchronized
      * SP reads and ~1000 resource lookups per second for values that essentially never change.
      * Invalidated by {@link #invalidateDimens()} (tab-height mode change / styling reload).
      */

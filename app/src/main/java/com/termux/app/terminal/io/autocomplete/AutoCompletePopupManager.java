@@ -9,9 +9,9 @@ import android.text.Layout;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.DecelerateInterpolator;
 import android.view.ViewConfiguration;
 import android.view.ViewOutlineProvider;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -168,7 +168,9 @@ final class AutoCompletePopupManager {
         mSwipeDismissAnimating = false;
         if (mSwipeDismissDecor != null) mSwipeDismissDecor.animate().cancel();
         mSwipeDismissDecor = null;
-        dismissAutoCompleteSuggestions();
+        // The caller is about to show the new row set. Clearing the controller's
+        // candidates here would leave showAutoCompletePopup() with an empty list.
+        dismissAutoCompleteSuggestions(false);
     }
 
     // ── Width / geometry (shared by both windows) ──
@@ -261,7 +263,7 @@ final class AutoCompletePopupManager {
         // Versions were recorded by rebuildHistoryViews() above.
         // Resize instantly to the new row set; no animation is attached to the popup,
         // so adding/removing suggestions changes the window without any motion.
-        applyPopupGeometry(inputField, true);
+        applyPopupGeometry(inputField);
         if (mSuggestionsLayoutListener == null) {
             mSuggestionsLayoutListener =
                     (v, l, t, r, b, ol, ot, or, ob) -> {
@@ -381,16 +383,16 @@ final class AutoCompletePopupManager {
             }
         }
         if (inputField == null) return;
-        applyPopupGeometry(inputField, true);
+        applyPopupGeometry(inputField);
     }
 
-    private void applyPopupGeometry(@NonNull EditText inputField, boolean contentChanged) {
+    private void applyPopupGeometry(@NonNull EditText inputField) {
         if (!isShowing()) {
             return;
         }
         Layout layout = inputField.getLayout();
         if (layout == null) {
-            inputField.post(() -> applyPopupGeometry(inputField, contentChanged));
+            inputField.post(() -> applyPopupGeometry(inputField));
             return;
         }
         int w = mLastPopupWidth > 0 ? mLastPopupWidth : computePopupWidth(inputField.getWidth());
@@ -401,19 +403,12 @@ final class AutoCompletePopupManager {
         int[] loc = mTmpLoc;
         inputField.getLocationInWindow(loc);
 
-        // A prefix-only keystroke cannot change the row count or height, so reuse the
-        // last measurement; a list change or a fresh show measures normally.
-        int historyH;
-        if (!contentChanged && mLastPopupHeight > 0) {
-            historyH = mLastPopupHeight;
-        } else {
-            historyH = 0;
-            if (mHistoryPopup != null && mHistoryPopup.isShowing() && mHistoryContent != null) {
-                mHistoryContent.measure(
-                        View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
-                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-                historyH = mHistoryContent.getMeasuredHeight();
-            }
+        int historyH = 0;
+        if (mHistoryPopup != null && mHistoryPopup.isShowing() && mHistoryContent != null) {
+            mHistoryContent.measure(
+                    View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            historyH = mHistoryContent.getMeasuredHeight();
         }
 
         int historyX = calcPopupX(inputField, w, loc[0], loc[1]);
@@ -459,7 +454,7 @@ final class AutoCompletePopupManager {
         // Versions are updated inside rebuildHistoryViews()/show.
         // Resize instantly only when the row set changed. A prefix-only keystroke keeps
         // the current geometry, so the window neither moves nor animates while typing.
-        if (historyChanged) applyPopupGeometry(inputField, true);
+        if (historyChanged) applyPopupGeometry(inputField);
     }
 
     // ── Per-window rebuild + bold spans ──
@@ -533,6 +528,14 @@ final class AutoCompletePopupManager {
     // ── Dismiss ──
 
     private void dismissAutoCompleteSuggestions() {
+        dismissAutoCompleteSuggestions(true);
+    }
+
+    /**
+     * @param notifyController whether the controller should drop its candidate list. False when
+     *                         an incoming show will reuse that list immediately.
+     */
+    private void dismissAutoCompleteSuggestions(boolean notifyController) {
         if (mHistoryPopup == null) {
             return;
         }
@@ -553,7 +556,7 @@ final class AutoCompletePopupManager {
         }
         // The controller owns the suggestion data; it clears its own lists and
         // resets the fetch state in onSuggestionDismissed().
-        mData.onSuggestionDismissed();
+        if (notifyController) mData.onSuggestionDismissed();
     }
 
     // ── Swipe-down-to-hide gesture ──

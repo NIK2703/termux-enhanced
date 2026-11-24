@@ -32,6 +32,8 @@ public final class TerminalPreviewRenderer {
     private static final float MAX_SIZE_FACTOR = 2f;
     private static final float MIN_TEXT_SIZE_PX = 4f;
     private static final int GEOMETRY_CACHE_SIZE = 4;
+    /** One renderer per distinct font/geometry pair; preview refreshes reuse them. */
+    private static final int RENDERER_CACHE_SIZE = 4;
 
     private TerminalPreviewRenderer() {}
 
@@ -227,6 +229,77 @@ public final class TerminalPreviewRenderer {
                 }
             };
 
+    /** Font and cell geometry that fully determines a reusable {@link TerminalRenderer}. */
+    private static final class RendererKey {
+        final float textSize;
+        final Typeface typeface;
+        final float cellWidth, lineSpacing, ascent;
+        final boolean explicitGrid;
+
+        RendererKey(float textSize, Typeface typeface, float cellWidth,
+                    float lineSpacing, float ascent, boolean explicitGrid) {
+            this.textSize = textSize;
+            this.typeface = typeface;
+            this.cellWidth = cellWidth;
+            this.lineSpacing = lineSpacing;
+            this.ascent = ascent;
+            this.explicitGrid = explicitGrid;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof RendererKey)) return false;
+            RendererKey k = (RendererKey) o;
+            return explicitGrid == k.explicitGrid && typeface == k.typeface
+                    && Float.floatToIntBits(textSize) == Float.floatToIntBits(k.textSize)
+                    && Float.floatToIntBits(cellWidth) == Float.floatToIntBits(k.cellWidth)
+                    && Float.floatToIntBits(lineSpacing) == Float.floatToIntBits(k.lineSpacing)
+                    && Float.floatToIntBits(ascent) == Float.floatToIntBits(k.ascent);
+        }
+
+        @Override
+        public int hashCode() {
+            int h = typeface == null ? 0 : System.identityHashCode(typeface);
+            h = 31 * h + Float.floatToIntBits(textSize);
+            h = 31 * h + Float.floatToIntBits(cellWidth);
+            h = 31 * h + Float.floatToIntBits(lineSpacing);
+            h = 31 * h + Float.floatToIntBits(ascent);
+            return 31 * h + (explicitGrid ? 1 : 0);
+        }
+    }
+
+    private static final Map<RendererKey, TerminalRenderer> sRendererCache =
+            new LinkedHashMap<RendererKey, TerminalRenderer>(RENDERER_CACHE_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<RendererKey, TerminalRenderer> e) {
+                    return size() > RENDERER_CACHE_SIZE;
+                }
+            };
+
+    /**
+     * Get a renderer for this font/geometry. {@link TerminalRenderer#render} resets its transient
+     * paint state on entry, so instances are safe to reuse across consecutive preview passes.
+     */
+    @NonNull
+    private static TerminalRenderer rendererFor(float textSize, @NonNull Typeface typeface,
+                                                float cellWidth, float lineSpacing,
+                                                float ascent, boolean explicitGrid) {
+        final RendererKey key = new RendererKey(textSize, typeface,
+                cellWidth, lineSpacing, ascent, explicitGrid);
+        synchronized (sRendererCache) {
+            final TerminalRenderer cached = sRendererCache.get(key);
+            if (cached != null) return cached;
+        }
+        final TerminalRenderer renderer = explicitGrid
+                ? new TerminalRenderer(textSize, typeface, cellWidth, lineSpacing, ascent)
+                : new TerminalRenderer(Math.round(textSize), typeface);
+        synchronized (sRendererCache) {
+            sRendererCache.put(key, renderer);
+        }
+        return renderer;
+    }
+
     /**
      * Build the integer geometry for a reference grid and the largest available card slot.
      *
@@ -292,8 +365,8 @@ public final class TerminalPreviewRenderer {
         if (target.getWidth() != geometry.widthFor(emulator.mColumns)
                 || target.getHeight() != geometry.heightFor(emulator.mRows)) return;
 
-        final TerminalRenderer renderer = new TerminalRenderer(geometry.textSizePx,
-                geometry.typeface, geometry.cellWidth, geometry.cellHeight, geometry.ascent);
+        final TerminalRenderer renderer = rendererFor(geometry.textSizePx, geometry.typeface,
+                geometry.cellWidth, geometry.cellHeight, geometry.ascent, true);
         renderer.setBackgroundTransparencyPercent(backgroundTransparencyPercent);
 
         final int clampedTopRow = Math.min(0, Math.max(topRow,
@@ -316,7 +389,7 @@ public final class TerminalPreviewRenderer {
                                        int backgroundTransparencyPercent) {
         if (target.isRecycled() || target.getWidth() <= 0 || target.getHeight() <= 0) return;
         if (emulator.mColumns <= 0 || emulator.mRows <= 0) return;
-        final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
+        final TerminalRenderer renderer = rendererFor(textSizePx, typeface, 0f, 0f, 0f, false);
         renderer.setBackgroundTransparencyPercent(backgroundTransparencyPercent);
         final float gridWidth = emulator.mColumns * renderer.mFontWidth;
         final float gridHeight = emulator.mRows * renderer.mFontLineSpacing;

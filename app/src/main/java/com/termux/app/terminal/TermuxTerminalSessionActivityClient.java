@@ -56,7 +56,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     private final android.os.Handler mMainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
-    static final int MAX_SESSIONS = 8;
+    static final int MAX_SESSIONS = 10;
 
     /** The quick actions that share the pencil's floating-button treatment. */
     private static final int[] INPUT_PANEL_ACTION_IDS = {
