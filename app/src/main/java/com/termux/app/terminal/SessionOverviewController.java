@@ -2504,13 +2504,10 @@ public final class SessionOverviewController {
             tabGhost.targetTabVisibility = targetTab.getVisibility();
             transition.tabGhosts.add(tabGhost);
 
-            // The real compact pill is exactly covered by its ghost at progress zero. The card
-            // cross is hidden for every flying pill: only the selected target tab has a cross
-            // for the ghost to land on, and an un-anchored X must not float over the expansion.
-            card.tab.setVisibility(View.INVISIBLE);
-            card.close.setVisibility(View.INVISIBLE);
-
-            // Keep each strip slot (INVISIBLE, not GONE) but stop painting it. The panel snapshot
+            // The real compact pill is hidden on the first animated frame, not here: a ghost has
+            // not been measured yet at progress zero, so hiding the real pill now would leave the
+            // card's top edge empty for one frame. Keep the strip slot hidden now, though — the
+            // panel snapshot taken afterwards must have an empty landing spot for this ghost. The panel snapshot
             // taken after this method therefore has a gap at every landing spot, and cleanup
             // restores all of them before the overlay is removed.
             targetTab.setVisibility(View.INVISIBLE);
@@ -2596,12 +2593,23 @@ public final class SessionOverviewController {
         // visible thumbnail has a ghost that moves and fades out on the card, then moves into its
         // strip slot and fades in. If the selected card has no ghost, its pill and cross simply
         // disappear under the expanding terminal.
-        final float previewAlpha = SessionOverviewTransitionMath.closingPreviewAlpha(p);
+        // At progress zero the ghost has only just been added to the layer: it has not been
+        // measured yet, so TopCropImageView still has an identity matrix and paints nothing.
+        // Hiding the preview here would leave the card empty for one frame — the flash seen just
+        // before the flight starts. Keep the preview visible until the first animated frame; the
+        // opaque, already laid-out ghost covers it from then on.
+        final float previewAlpha = p <= 0f ? 1f
+                : SessionOverviewTransitionMath.closingPreviewAlpha(p);
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
                 ? View.INVISIBLE : View.VISIBLE);
         boolean selectedTabHasGhost = false;
         for (ClosingTabGhost ghost : transition.tabGhosts) {
+            if (p > 0f && !ghost.cardChromeHidden) {
+                ghost.cardChromeHidden = true;
+                ghost.card.tab.setVisibility(View.INVISIBLE);
+                ghost.card.close.setVisibility(View.INVISIBLE);
+            }
             applyClosingTabProgress(transition, ghost, origin, p);
             if (ghost.card == transition.card) selectedTabHasGhost = true;
         }
@@ -3711,6 +3719,8 @@ public final class SessionOverviewController {
         final int targetCloseTint;
         boolean targetApplied;
         boolean closeTargetApplied;
+        /** True once the real card pill has been covered by the laid-out ghost. */
+        boolean cardChromeHidden;
         /** Visibility to put back on the strip tab after the flight. */
         int targetTabVisibility = View.VISIBLE;
         /** Alpha of the real card pill and cross before they were hidden for this ghost. */
