@@ -2588,24 +2588,23 @@ public final class SessionOverviewController {
                             transition.card.thumbnailCornerRadius, 0f, p)));
         }
 
-        // The selected card preview is hidden immediately and the full-size terminal snapshot is
-        // opaque from progress zero, so the expansion starts without an unfade. Every card with a
-        // visible thumbnail has a ghost that moves and fades out on the card, then moves into its
-        // strip slot and fades in. If the selected card has no ghost, its pill and cross simply
-        // disappear under the expanding terminal.
-        // At progress zero the ghost has only just been added to the layer: it has not been
-        // measured yet, so TopCropImageView still has an identity matrix and paints nothing.
-        // Hiding the preview here would leave the card empty for one frame — the flash seen just
-        // before the flight starts. Keep the preview visible until the first animated frame; the
-        // opaque, already laid-out ghost covers it from then on.
-        final float previewAlpha = p <= 0f ? 1f
-                : SessionOverviewTransitionMath.closingPreviewAlpha(p);
+        // A newly added ghost is not painted until it has been through layout: TopCropImageView
+        // has an identity matrix until onSizeChanged(), and animation callbacks run before the
+        // traversal that would give it a size. Hide the card preview only once the terminal ghost
+        // is actually measurable, otherwise there is a frame with neither image on screen.
+        final boolean terminalGhostReady = transition.terminalGhost != null
+                && transition.terminalGhost.isLaidOut()
+                && transition.terminalGhost.getWidth() > 0
+                && transition.terminalGhost.getHeight() > 0;
+        final float previewAlpha = terminalGhostReady
+                ? SessionOverviewTransitionMath.closingPreviewAlpha(p) : 1f;
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
                 ? View.INVISIBLE : View.VISIBLE);
         boolean selectedTabHasGhost = false;
         for (ClosingTabGhost ghost : transition.tabGhosts) {
-            if (p > 0f && !ghost.cardChromeHidden) {
+            if (!ghost.cardChromeHidden && ghost.view.isLaidOut()
+                    && ghost.view.getWidth() > 0) {
                 ghost.cardChromeHidden = true;
                 ghost.card.tab.setVisibility(View.INVISIBLE);
                 ghost.card.close.setVisibility(View.INVISIBLE);
@@ -2785,6 +2784,7 @@ public final class SessionOverviewController {
         // The strip was pre-positioned for the target before the flight. A cancelled flight must
         // leave the highlight on the session that is still current.
         restoreTabSelectionToCurrentSession();
+        requestPreviewRender();
     }
 
     private void cleanupClosingTransition(@NonNull ClosingTransition transition) {
@@ -3312,6 +3312,10 @@ public final class SessionOverviewController {
                 || mCardWidth <= 0 || mCardHeight <= 0) {
             return;
         }
+        // A posted render pass can land in the tap-to-flight gap. Reallocating a bitmap there
+        // would swap the thumbnail under the user just before the closing flight; live output
+        // is picked up by the next pass once the overview is shown again or the flight is cancelled.
+        if (mPendingClosingCard != null || mClosingTransition != null) return;
         final int count = Math.min(mCards.size(), mGrid.getChildCount());
         if (count == 0) return;
 
