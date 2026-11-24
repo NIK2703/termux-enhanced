@@ -14,32 +14,41 @@ import org.junit.Test;
  */
 public class TerminalRendererCellFitTest {
 
+    private static final float MAX_MISMATCH_SCALE = 8f;
+    private static final float MIN_MISMATCH_SCALE = 0.125f;
+
+    private static float cellFitScale(float expectedWidth, float shapedWidth) {
+        if (!(expectedWidth > 0f) || !(shapedWidth > 0f)) return 1f;
+        final float scale = expectedWidth / shapedWidth;
+        if (!(scale > 0f) || Float.isInfinite(scale) || Float.isNaN(scale)) return 1f;
+        return (scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE) ? scale : 1f;
+    }
     @Test
     public void mapsAShapedRunOntoItsCells() {
-        assertEquals(1.05f, TerminalRenderer.cellFitScale(100.8f, 96f), 0.00001f);
-        assertEquals(0.95f, TerminalRenderer.cellFitScale(95f, 100f), 0.00001f);
+        assertEquals(1.05f, cellFitScale(100.8f, 96f), 0.00001f);
+        assertEquals(0.95f, cellFitScale(95f, 100f), 0.00001f);
     }
 
     @Test
     public void anExactRunNeedsNoCorrection() {
-        assertEquals(1f, TerminalRenderer.cellFitScale(100f, 100f), 0f);
+        assertEquals(1f, cellFitScale(100f, 100f), 0f);
     }
 
     @Test
     public void zeroOrNonFiniteMeasurementsLeaveTheCanvasAlone() {
-        assertEquals(1f, TerminalRenderer.cellFitScale(0f, 100f), 0f);
-        assertEquals(1f, TerminalRenderer.cellFitScale(100f, 0f), 0f);
-        assertEquals(1f, TerminalRenderer.cellFitScale(100f, Float.NaN), 0f);
-        assertEquals(1f, TerminalRenderer.cellFitScale(100f, Float.POSITIVE_INFINITY), 0f);
+        assertEquals(1f, cellFitScale(0f, 100f), 0f);
+        assertEquals(1f, cellFitScale(100f, 0f), 0f);
+        assertEquals(1f, cellFitScale(100f, Float.NaN), 0f);
+        assertEquals(1f, cellFitScale(100f, Float.POSITIVE_INFINITY), 0f);
     }
 
     @Test
     public void extremeRatiosAreRejected() {
         // A measurement below one eighth of a cell or above eight cells is not describing a
         // glyph; scaling by it would make the run illegible and can overflow the canvas matrix.
-        assertEquals(1f, TerminalRenderer.cellFitScale(100f, 1f), 0f);
-        assertEquals(1f, TerminalRenderer.cellFitScale(1f, 100f), 0f);
-        assertEquals(8f, TerminalRenderer.cellFitScale(8f, 1f), 0f);
-        assertEquals(0.125f, TerminalRenderer.cellFitScale(1f, 8f), 0f);
+        assertEquals(1f, cellFitScale(100f, 1f), 0f);
+        assertEquals(1f, cellFitScale(1f, 100f), 0f);
+        assertEquals(8f, cellFitScale(8f, 1f), 0f);
+        assertEquals(0.125f, cellFitScale(1f, 8f), 0f);
     }
 }

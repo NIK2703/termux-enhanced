@@ -1,7 +1,6 @@
 package com.termux.app.terminal;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
@@ -21,10 +20,10 @@ public class SessionOverviewPreviewThrottleTest {
     }
 
     @Test
-    public void disabledOnlyAtZero() {
-        assertFalse(SessionOverviewPreviewThrottle.isEnabled(0));
-        assertTrue(SessionOverviewPreviewThrottle.isEnabled(1));
-        assertTrue(SessionOverviewPreviewThrottle.isEnabled(30));
+    public void onlyZeroDisablesTheGate() {
+        assertEquals(0L, SessionOverviewPreviewThrottle.intervalMs(0));
+        assertTrue(SessionOverviewPreviewThrottle.intervalMs(1) > 0L);
+        assertTrue(SessionOverviewPreviewThrottle.intervalMs(30) > 0L);
     }
 
     @Test
@@ -32,36 +31,18 @@ public class SessionOverviewPreviewThrottleTest {
         final int defaultFps =
             TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS;
         assertEquals(0, defaultFps);
-        assertFalse(SessionOverviewPreviewThrottle.isEnabled(defaultFps));
-        assertEquals(0, SessionOverviewPreviewThrottle.sliderPositionForFps(defaultFps));
+        assertEquals(0L, SessionOverviewPreviewThrottle.intervalMs(defaultFps));
+        assertEquals(0, SessionOverviewPreviewThrottle.clampFps(defaultFps));
     }
 
     @Test
-    public void sliderStartsWithOffThenCountsDownFrom30() {
-        assertEquals(0, SessionOverviewPreviewThrottle.sliderPositionForFps(0));
-        assertEquals(1, SessionOverviewPreviewThrottle.sliderPositionForFps(30));
-        assertEquals(2, SessionOverviewPreviewThrottle.sliderPositionForFps(29));
-        assertEquals(30, SessionOverviewPreviewThrottle.sliderPositionForFps(1));
-        assertEquals(0, SessionOverviewPreviewThrottle.sliderPositionForFps(-1));
-        assertEquals(1, SessionOverviewPreviewThrottle.sliderPositionForFps(31));
-    }
-
-    @Test
-    public void sliderPositionsMapBackToFps() {
-        assertEquals(0, SessionOverviewPreviewThrottle.fpsForSliderPosition(0));
-        assertEquals(30, SessionOverviewPreviewThrottle.fpsForSliderPosition(1));
-        assertEquals(29, SessionOverviewPreviewThrottle.fpsForSliderPosition(2));
-        assertEquals(1, SessionOverviewPreviewThrottle.fpsForSliderPosition(30));
-        assertEquals(0, SessionOverviewPreviewThrottle.fpsForSliderPosition(-1));
-        assertEquals(1, SessionOverviewPreviewThrottle.fpsForSliderPosition(31));
-    }
-
-    @Test
-    public void sliderMappingRoundTripsEverySupportedFps() {
-        for (int fps = 0; fps <= 30; fps++) {
-            assertEquals(fps, SessionOverviewPreviewThrottle.fpsForSliderPosition(
-                SessionOverviewPreviewThrottle.sliderPositionForFps(fps)));
-        }
+    public void clampKeepsZeroAndBounds() {
+        assertEquals(0, SessionOverviewPreviewThrottle.clampFps(0));
+        assertEquals(1, SessionOverviewPreviewThrottle.clampFps(1));
+        assertEquals(29, SessionOverviewPreviewThrottle.clampFps(29));
+        assertEquals(30, SessionOverviewPreviewThrottle.clampFps(30));
+        assertEquals(0, SessionOverviewPreviewThrottle.clampFps(-1));
+        assertEquals(30, SessionOverviewPreviewThrottle.clampFps(31));
     }
 
     @Test

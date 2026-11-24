@@ -21,17 +21,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Pixel-level check that a terminal preview keeps every glyph on its exact cell.
+ * Pixel-level check that a terminal preview keeps every glyph on its cell.
  *
- * <p>The preview now uses the exact raster selected by {@link TerminalPreviewRenderer#fitGridRaster}:
- * the bitmap is {@code ceil(columns * advance)} by {@code ceil(rows * lineHeight)} and there is no
- * horizontal text scale. A row of identical glyphs is the simplest way to expose a cumulative
- * spacing error. The tests vary the available width so the fit lands at different fractional
- * advances.</p>
+ * <p>The preview renderer scales the emulator's glyph grid into the card bitmap with
+ * {@link TerminalPreviewRenderer#render}. Giving the bitmap the grid's own aspect ratio removes
+ * margins, so the visible cell pitch is exactly {@code bitmap.width / columns}. A row of identical
+ * glyphs is the simplest way to expose a cumulative spacing error; varying the bitmap width makes
+ * that pitch fractional.</p>
  *
  * <p>This is an instrumentation test because it needs real Skia rasterisation. The Robolectric
  * runtime available to the JVM tests does not provide native graphics on Android/arm64.</p>
@@ -46,12 +45,12 @@ public class TerminalPreviewGlyphSpacingTest {
     private static final int TEXT_SIZE = 32;
 
     @Test
-    public void glyphSpacingMatchesTheFittedCellWidth() {
+    public void glyphSpacingMatchesTheCellPitch() {
         final int[] targetWidths = {301, 307, 313, 319, 327, 331};
         for (int targetWidth : targetWidths) {
             final TerminalEmulator emulator = createEmulator();
-            final Preview preview = render(emulator, targetWidth, 320);
-            assertGlyphSpacing(preview.bitmap, preview.raster.cellWidth);
+            final Preview preview = render(emulator, targetWidth);
+            assertGlyphSpacing(preview.bitmap, preview.cellWidth);
             preview.bitmap.recycle();
         }
     }
@@ -68,7 +67,7 @@ public class TerminalPreviewGlyphSpacingTest {
     @Test
     public void blockGlyphsLeaveNoNewBackgroundColumnsInThePreview() {
         final TerminalEmulator emulator = createBlockEmulator();
-        final Preview preview = render(emulator, 400, 320);
+        final Preview preview = render(emulator, 400);
 
         final Bitmap fullScreen = renderFullScreen(emulator);
         final boolean[] fullInk = inkedColumns(fullScreen);
@@ -80,7 +79,7 @@ public class TerminalPreviewGlyphSpacingTest {
                         + previewEmpty + ", full-screen=" + fullEmpty,
                 previewEmpty <= fullEmpty + 0.10f);
 
-        final float cellWidth = preview.raster.cellWidth;
+        final float cellWidth = preview.cellWidth;
         for (int column = 0; column < COLUMNS; column++) {
             final int start = Math.round(column * cellWidth);
             final int end = Math.min(preview.bitmap.getWidth(),
@@ -183,16 +182,14 @@ public class TerminalPreviewGlyphSpacingTest {
         emulator.append(bytes, bytes.length);
     }
 
-    private static Preview render(TerminalEmulator emulator, int maxWidth, int maxHeight) {
-        final TerminalPreviewRenderer.GridRaster raster =
-                TerminalPreviewRenderer.fitGridRaster(COLUMNS, ROWS, TEXT_SIZE, TYPEFACE,
-                        maxWidth, maxHeight);
-        assertNotNull("no raster fits " + maxWidth + "x" + maxHeight, raster);
-        final Bitmap bitmap = Bitmap.createBitmap(raster.widthFor(COLUMNS),
-                raster.heightFor(ROWS), Bitmap.Config.ARGB_8888);
+    private static Preview render(TerminalEmulator emulator, int width) {
+        final double aspect = TerminalPreviewRenderer.aspectRatio(emulator, TEXT_SIZE, TYPEFACE);
+        assertTrue("no usable grid aspect", aspect > 0d);
+        final int height = Math.max(1, (int) Math.round(width / aspect));
+        final Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         bitmap.eraseColor(Color.BLACK);
-        TerminalPreviewRenderer.render(emulator, bitmap, raster, 0, 0, null);
-        return new Preview(bitmap, raster);
+        TerminalPreviewRenderer.render(emulator, bitmap, TEXT_SIZE, TYPEFACE, 0, 0);
+        return new Preview(bitmap, width / (float) COLUMNS);
     }
 
     /**
@@ -250,11 +247,11 @@ public class TerminalPreviewGlyphSpacingTest {
 
     private static final class Preview {
         final Bitmap bitmap;
-        final TerminalPreviewRenderer.GridRaster raster;
+        final float cellWidth;
 
-        Preview(Bitmap bitmap, TerminalPreviewRenderer.GridRaster raster) {
+        Preview(Bitmap bitmap, float cellWidth) {
             this.bitmap = bitmap;
-            this.raster = raster;
+            this.cellWidth = cellWidth;
         }
     }
 }

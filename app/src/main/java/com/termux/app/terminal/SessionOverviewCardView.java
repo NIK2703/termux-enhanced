@@ -89,8 +89,8 @@ public class SessionOverviewCardView extends FrameLayout {
     }
 
     /**
-     * Set the thin outline drawn inside the card's rounded corners. The controller supplies the
-     * same stroke width and colour as the controls floating over the terminal.
+     * Set the outline drawn inside the card's rounded corners. The controller supplies the
+     * overview card stroke width and the floating controls' colour.
      */
     public void setBorder(int widthPx, int color, float radiusPx) {
         mBorderWidth = Math.max(0, widthPx);

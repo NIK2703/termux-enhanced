@@ -142,6 +142,8 @@ public final class SessionOverviewController {
     private long mLastPreviewRenderStartMs;
     private int mCardWidth;
     private int mCardHeight;
+    /** Reused [first, end) buffer for the visible child range; no allocation per render pass. */
+    private final int[] mVisibleChildRange = new int[2];
 
     /** Last overview scroll offset left by the user; -1 until the first close. */
     private int mRememberedScrollY = -1;
@@ -172,11 +174,9 @@ public final class SessionOverviewController {
         @Override
         public void run() {
             if (!mShowing || mActivityStopped || mGrid == null) return;
-            markChangedCursorPreviewsDirty();
-            // Safe retry: a card may have stayed dirty because it was offscreen on a previous
-            // pass. Once it is inside the viewport (or after a missed layout event), the same
-            // runnable paints it without repainting any static card.
-            requestPreviewRender(true);
+            // Existing dirty cards are included in the result, so a card that stayed dirty while
+            // offscreen is retried as soon as it becomes visible without repainting static cards.
+            if (markChangedCursorPreviewsDirty()) requestPreviewRender(true);
             mGrid.postDelayed(this, 500L);
         }
     };
@@ -274,12 +274,11 @@ public final class SessionOverviewController {
                 mCardHeight = cardHeight;
                 if (!mShowing) return;
                 scrollToActiveCard();
-                schedulePreviewRender();
+                // One render request per traversal: the layout listener below owns dirty marking.
             });
-            // onGridLayoutListener above only fires when the slot dimensions or grid dimensions
-            // change. A card can also change its own glyph grid while the slot stays the same,
-            // and a deletion can move a dirty card into the viewport without a scroll event.
-            // Every real layout pass therefore re-checks both preview size and visibility.
+            // onGridLayoutListener above fires only when the slot dimensions or grid dimensions
+            // change. A deletion can move a dirty card into the viewport without a scroll event,
+            // so every real layout pass also rechecks bitmap size and requests one render pass.
             mGrid.addOnLayoutChangeListener((view, left, top, right, bottom,
                                              oldLeft, oldTop, oldRight, oldBottom) -> {
                 if (!mShowing || mActivityStopped) return;
@@ -1291,7 +1290,14 @@ public final class SessionOverviewController {
         final Card card = findCard(session);
         if (card == null) return;
         card.previewDirty = true;
-        requestPreviewRender(true);
+        // An offscreen card keeps its dirty flag; scroll, layout or the 500 ms tick will request
+        // a pass once it enters the viewport. Avoid empty passes for background output.
+        final int scrollY = mScrollView != null ? mScrollView.getScrollY() : 0;
+        final int viewportHeight = mScrollView != null ? mScrollView.getHeight() : 0;
+        final int gridTop = mGrid.getTop();
+        if (isCardPreviewVisible(card, scrollY, viewportHeight, gridTop)) {
+            requestPreviewRender(true);
+        }
     }
 
     /** Cheap refresh for high-frequency OSC title updates. */
@@ -2999,8 +3005,8 @@ public final class SessionOverviewController {
     /**
      * Cards carry no fill of their own: the terminal snapshot is the card, with the compact tab
      * floating over its top edge. Removing the background and press ripple keeps the thumbnail
-     * from pulsing under the tab when the card is tapped. A thin outline matching the floating
-     * controls is the only chrome; the thumbnail itself casts no shadow.
+     * from pulsing under the tab when the card is tapped. A card outline in the floating
+     * controls' colour is the only chrome; the thumbnail itself casts no shadow.
      */
     private void applyCardAppearance(@NonNull Card card) {
         card.root.setBackground(null);
@@ -3013,11 +3019,12 @@ public final class SessionOverviewController {
         // The outline is installed by applyTabMetrics() so the stroke follows the thumbnail's
         // rounded corners. Do not replace it with BOUNDS here; this method also runs when only
         // the terminal background changes.
-        // The thumbnail has no elevation. Its only chrome is a thin outline using the same
-        // stroke width, colour and opacity as the controls floating over the terminal.
+        // The thumbnail has no elevation. Its only chrome is an outline using the overview card
+        // stroke width and the floating controls' colour and opacity. The card stroke is
+        // intentionally thicker than the text-input stroke; both sit over different content.
         card.root.setElevation(0f);
         final float strokeWidth = mActivity.getResources().getDimension(
-                R.dimen.terminal_text_input_stroke);
+                R.dimen.session_overview_card_stroke);
         card.root.setBorder(Math.round(strokeWidth), mActivity.getFloatingButtonStroke(),
                 card.thumbnailCornerRadius);
         card.root.setBorderSuppressed(card.outlineSuppressed);
@@ -3258,17 +3265,20 @@ public final class SessionOverviewController {
         if (!mShowing || mActivityStopped || mGrid == null) return;
         if (mCardWidth <= 0 || mCardHeight <= 0) return;
 
+        if (mPreviewIntervalMs == 0L) {
+            // With no delay there is nothing to promote: the pending pass runs next frame and
+            // will pick up the new dirty flags.
+            if (mRenderPosted) return;
+            mRenderPosted = true;
+            mGrid.post(mRenderPreviewsRunnable);
+            return;
+        }
+
         if (mRenderPosted) {
             if (throttled) return;
             // An immediate request promotes a pending throttled pass instead of waiting for it.
             mGrid.removeCallbacks(mRenderPreviewsRunnable);
             mRenderPosted = false;
-        }
-
-        if (mPreviewIntervalMs == 0L) {
-            mRenderPosted = true;
-            mGrid.post(mRenderPreviewsRunnable);
-            return;
         }
 
         final long delayMs = SessionOverviewPreviewThrottle.remainingDelayMs(
@@ -3293,34 +3303,25 @@ public final class SessionOverviewController {
         final Typeface typeface = previewTypeface();
         final int scrollY = mScrollView.getScrollY();
         final int viewportHeight = mScrollView.getHeight();
-        // A zero-height viewport is the first-frame fallback: scan from the first card, as
-        // SessionOverviewPreviewPolicy does, instead of culling everything above the scroll.
-        final int first = viewportHeight > 0 ? mGrid.getFirstVisibleChildIndex(scrollY) : 0;
-        final int end = Math.min(count,
-                mGrid.getVisibleChildEnd(scrollY, viewportHeight));
+        // One arithmetic pass gives the candidate range; the predicate below only narrows it.
+        mGrid.getVisibleChildRange(scrollY, viewportHeight, mVisibleChildRange);
+        final int first = Math.min(count, mVisibleChildRange[0]);
+        final int end = Math.min(count, mVisibleChildRange[1]);
         if (first >= end) return;
 
-        if (mPreviewIntervalMs == 0L) {
-            for (int i = first; i < end; i++) {
-                final Card card = mCards.get(i);
-                if (!card.previewDirty || !isCardPreviewVisible(card, scrollY, viewportHeight)) {
-                    continue;
-                }
-                renderCard(card, textSize, typeface);
-            }
-            return;
-        }
-
-        final long renderStartMs = SystemClock.uptimeMillis();
+        final int gridTop = mGrid.getTop();
+        final boolean throttled = mPreviewIntervalMs != 0L;
+        final long renderStartMs = throttled ? SystemClock.uptimeMillis() : 0L;
         boolean renderedAny = false;
         for (int i = first; i < end; i++) {
             final Card card = mCards.get(i);
-            if (!card.previewDirty || !isCardPreviewVisible(card, scrollY, viewportHeight)) {
+            if (!card.previewDirty || !isCardPreviewVisible(card, scrollY, viewportHeight,
+                    gridTop)) {
                 continue;
             }
             if (renderCard(card, textSize, typeface)) renderedAny = true;
         }
-        if (renderedAny) mLastPreviewRenderStartMs = renderStartMs;
+        if (throttled && renderedAny) mLastPreviewRenderStartMs = renderStartMs;
     }
 
     /**
@@ -3330,16 +3331,10 @@ public final class SessionOverviewController {
      * here; the grid's layout-change listener issues another request as soon as the pass assigns
      * real bounds, and the 500 ms tick is a second safety net.</p>
      */
-    private boolean isCardPreviewVisible(@NonNull Card card) {
-        return isCardPreviewVisible(card,
-                mScrollView != null ? mScrollView.getScrollY() : 0,
-                mScrollView != null ? mScrollView.getHeight() : 0);
-    }
-
-    private boolean isCardPreviewVisible(@NonNull Card card, int scrollY, int viewportHeight) {
+    private boolean isCardPreviewVisible(@NonNull Card card, int scrollY, int viewportHeight,
+                                         int gridTop) {
         if (mGrid == null) return true;
         if (card.root.getWidth() <= 0 || card.root.getHeight() <= 0) return false;
-        final int gridTop = mGrid.getTop();
         return SessionOverviewPreviewPolicy.isVisible(
                 gridTop + card.root.getTop(), gridTop + card.root.getBottom(),
                 scrollY, viewportHeight);
@@ -3357,11 +3352,20 @@ public final class SessionOverviewController {
      * <p>The 500 ms tick used to repaint every card. Background sessions do not run a cursor
      * blinker, and the active session normally changes only its cursor state, so this comparison
      * turns the common tick into a no-op.</p>
+     *
+     * @return {@code true} if any visible card is dirty after this scan, including cards that
+     *         were already dirty before it.
      */
-    private void markChangedCursorPreviewsDirty() {
-        if (!mShowing || mActivityStopped || mGrid == null) return;
+    private boolean markChangedCursorPreviewsDirty() {
+        if (!mShowing || mActivityStopped || mGrid == null) return false;
+        final int scrollY = mScrollView != null ? mScrollView.getScrollY() : 0;
+        final int viewportHeight = mScrollView != null ? mScrollView.getHeight() : 0;
+        final int gridTop = mGrid.getTop();
+        boolean anyDirty = false;
         for (Card card : mCards) {
-            if (card.previewDirty || !isCardPreviewVisible(card)) continue;
+            final boolean visible = isCardPreviewVisible(card, scrollY, viewportHeight, gridTop);
+            if (visible && card.previewDirty) anyDirty = true;
+            if (card.previewDirty || !visible) continue;
             final TerminalEmulator emulator = card.session.getEmulator();
             if (emulator == null) continue;
             final int topRow = scrollTopRow(card.session);
@@ -3370,13 +3374,16 @@ public final class SessionOverviewController {
                     card.lastTopRow, emulator.getCursorRow(), emulator.getCursorCol(),
                     emulator.shouldCursorBeVisible(), topRow)) {
                 card.previewDirty = true;
+                anyDirty = true;
             }
         }
+        return anyDirty;
     }
 
     private int previewTextSize() {
-        return mActivity.getPreferences() != null
-                ? mActivity.getPreferences().getFontSizePx()
+        final TermuxAppSharedPreferences prefs = mActivity.getPreferences();
+        return prefs != null
+                ? prefs.getFontSizePx()
                 : Math.round(14f * mActivity.getResources().getDisplayMetrics().scaledDensity);
     }
 
@@ -3403,33 +3410,27 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Bring every session to the current window's normal terminal grid, then publish each card's
-     * exact columns and rows and the largest grid as the slot reference.
-     *
-     * <p>The preview renderer paints exactly {@code mColumns x mRows} cells. Only the pager pages
-     * near the active one publish their view size to their sessions, so a session outside that
-     * band can keep the compressed grid it had when the keyboard was last up. Painting that grid
-     * into its card is what made some overview thumbnails look cropped; the session itself stayed
-     * at the old size until it was switched to. The refresh below publishes the window's normal
-     * (IME-hidden) grid to every stale session, so the thumbnail and the session agree.</p>
-     *
-     * <p>The active terminal's viewport is only a fallback before an emulator exists. No
-     * remembered height is used: the window is always read as it is now.</p>
+     * Size every card to the largest glyph grid the terminal can display with the keyboard
+     * hidden. The preview renderer preserves the grid's aspect ratio, so matching the card to it
+     * removes the background bands above and below the terminal, and using the maximum viewport
+     * keeps all cards at one constant size when the active terminal happens to be compressed by
+     * the IME. A missing terminal leaves the grid on its content-area fallback.
      */
     private void updateGridAspect() {
         if (mGrid == null) return;
         final TerminalView terminal = mActivity.getActiveTerminalView();
         final int viewportHeight = mActivity.getTerminalViewportHeightForOverview();
+        final int textSize = previewTextSize();
+        final Typeface typeface = previewTypeface();
         double aspect = terminal != null
                 ? TerminalPreviewRenderer.aspectRatioForViewport(terminal.getWidth(),
-                        viewportHeight, previewTextSize(), previewTypeface())
+                        viewportHeight, textSize, typeface)
                 : 0;
         if (aspect <= 0) {
             final TerminalSession session = mActivity.getCurrentSession();
             final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
             aspect = emulator != null
-                    ? TerminalPreviewRenderer.aspectRatio(emulator,
-                            previewTextSize(), previewTypeface())
+                    ? TerminalPreviewRenderer.aspectRatio(emulator, textSize, typeface)
                     : 0;
         }
         mGrid.setCardAspect(aspect);
@@ -3512,7 +3513,6 @@ public final class SessionOverviewController {
         mRenderPosted = false;
         for (Card card : mCards) {
             card.preview.setImageDrawable(null);
-            card.previewBitmapAttached = false;
             releaseBitmap(card);
         }
         mCards.clear();
@@ -3755,8 +3755,6 @@ public final class SessionOverviewController {
         final TerminalSession session;
         Bitmap bitmap;
         /** Exact size of this session's glyph grid; 0 when it has no emulator. */
-        int glyphColumns;
-        int glyphRows;
         GradientDrawable tabBackground;
         int tabBackgroundColor;
         /** Effective radius of the compact tab, reused by the thumbnail and its outline. */
@@ -3772,8 +3770,6 @@ public final class SessionOverviewController {
         boolean closing;
         /** True until the current bitmap has been painted for the latest content. */
         boolean previewDirty = true;
-        /** True once the ImageView has been given the current bitmap object. */
-        boolean previewBitmapAttached;
         int lastCursorRow;
         int lastCursorCol;
         boolean lastCursorVisible;

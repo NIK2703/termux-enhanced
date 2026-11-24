@@ -19,6 +19,9 @@
     <!-- Session overview grid. One value drives the gap between cards and the grid's outer
          gutter reserve; halving it tightens both at once. -->
     <dimen name="session_overview_gap">4dp</dimen>
+    <!-- Card outline width is independent of the thin text-input stroke: the thumbnail edge
+         sits over arbitrary terminal content and needs a little more weight to stay visible. -->
+    <dimen name="session_overview_card_stroke">1dp</dimen>
     <dimen name="session_overview_tab_margin">2dp</dimen>
     <!-- Fallback only: the controller adopts the strip tab's height, corner radius and line
          count, including the two-line mode, before the cards are shown. -->
@@ -32,7 +35,7 @@
     <dimen name="session_overview_tab_padding_vertical">0dp</dimen>
     <!-- Tab margin + the tab's horizontal padding: the close icon sits 8dp inside the pill. -->
     <dimen name="session_overview_tab_close_inset">10dp</dimen>
-    <!-- The thumbnail has no shadow. Its outline reuses terminal_text_input_stroke and the
+    <!-- The thumbnail has no shadow. Its outline uses session_overview_card_stroke and the
          floating controls' runtime stroke colour. -->
 
     <!-- Text input panel (matches vertical scrollbar thumb) -->

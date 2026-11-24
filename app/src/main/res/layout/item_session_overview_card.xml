@@ -6,7 +6,7 @@
     android:focusable="true"
     android:outlineProvider="bounds">
 
-    <!-- The root casts no shadow. SessionOverviewCardView draws a thin outline in the floating
+    <!-- The root casts no shadow. SessionOverviewCardView draws the card outline in the floating
          controls' stroke colour; its preview and compact tab remain chrome-free. -->
 
     <ImageView

@@ -54,6 +54,9 @@ public class UnitSeekBarPreference extends SeekBarPreference implements TextWatc
     /** Divisor applied to the value before display, e.g. 10 for tenths of a dp. 1 = no scaling. */
     private final int mDivisor;
 
+    /** Label for zero instead of "0", e.g. "OFF"; empty keeps the numeric zero. */
+    private final String mZeroText;
+
     /** The label currently bound to this preference (recycled view — updated on every bind). */
     private TextView mValueView;
 
@@ -64,6 +67,18 @@ public class UnitSeekBarPreference extends SeekBarPreference implements TextWatc
         super(context, attrs);
         mUnit = readUnit(context, attrs);
         mDivisor = readDivisor(context, attrs);
+        mZeroText = readZeroText(context, attrs);
+    }
+
+    private static String readZeroText(Context context, AttributeSet attrs) {
+        if (attrs == null) return "";
+        TypedArray a = context.obtainStyledAttributes(attrs, new int[]{R.attr.valueZeroText});
+        try {
+            String text = a.getString(0);
+            return text == null ? "" : text;
+        } finally {
+            a.recycle();
+        }
     }
 
     private static String readUnit(Context context, AttributeSet attrs) {
@@ -143,6 +158,10 @@ public class UnitSeekBarPreference extends SeekBarPreference implements TextWatc
         if (!matcher.find()) return text;
 
         String number = matcher.group();
+        if (!mZeroText.isEmpty()
+                && ("0".equals(number) || "+0".equals(number) || "-0".equals(number))) {
+            return mZeroText;
+        }
         if (mDivisor > 1) {
             // BigDecimal, not String.format: no locale-dependent decimal separator, and
             // stripTrailingZeros() gives "2" for 20/10 and "1.5" for 15/10. The MathContext only

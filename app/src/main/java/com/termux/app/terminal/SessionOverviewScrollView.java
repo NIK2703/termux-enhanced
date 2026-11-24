@@ -52,6 +52,7 @@ public class SessionOverviewScrollView extends ScrollView {
      * this view's fling. Mirrors {@link ElasticHorizontalScrollView#FLING_IDLE_MS}.
      */
     private static final long FLING_IDLE_MS = 96L;
+    private static final long FLING_IDLE_NANOS = FLING_IDLE_MS * 1_000_000L;
 
     /** How long the grid takes to slide to the new end after a removal shortened it. */
     private static final long SHRINK_SETTLE_DURATION_MS = 250L;
@@ -109,6 +110,12 @@ public class SessionOverviewScrollView extends ScrollView {
     /** Timestamp of the previous fling frame, for {@link #onFlingFrame}'s speed measurement. */
     private long mLastFlingFrameNanos;
 
+    /** Last fling activity, used only by the disarm timer; distinct from the speed timestamp. */
+    private long mFlingLastActivityNanos;
+
+    /** True while a settle check is already posted, so fling frames do not repost it. */
+    private boolean mSettleCheckPending;
+
     /**
      * The speed the fling is carrying, in px/s — refreshed by every frame the list absorbed and
      * left alone by the frames it did not, so it still holds the last speed the fling had when a
@@ -122,8 +129,21 @@ public class SessionOverviewScrollView extends ScrollView {
     /** Deferred {@link #settleNow()} — see {@link #ensureSettled()}. */
     private final Runnable mSettleRunnable = this::settleNow;
 
-    /** {@link #mFlingArmed}'s expiry. */
-    private final Runnable mFlingDisarm = () -> mFlingArmed = false;
+    /**
+     * {@link #mFlingArmed}'s expiry. Fling frames only refresh a timestamp, so this runnable is
+     * posted once and reposts itself while frames keep arriving instead of being removed and
+     * re-posted from every frame.
+     */
+    private final Runnable mFlingDisarm = this::disarmFling;
+
+    /** Repost while fling frames keep arriving; otherwise let the armed state lapse. */
+    private void disarmFling() {
+        if (System.nanoTime() - mFlingLastActivityNanos < FLING_IDLE_NANOS) {
+            postOnAnimationDelayed(mFlingDisarm, FLING_IDLE_MS);
+        } else {
+            mFlingArmed = false;
+        }
+    }
 
     public SessionOverviewScrollView(Context context) {
         this(context, null);
@@ -274,9 +294,9 @@ public class SessionOverviewScrollView extends ScrollView {
     private void onFlingFrame(int direction, int requestedPx, int consumedPx,
                               int clampedPosition, int scrollRangeY) {
         mFlingFrameSeen = true;
-        armFlingLifetime();
 
         final long now = System.nanoTime();
+        mFlingLastActivityNanos = now;
         final float dtSeconds = mLastFlingFrameNanos == 0L
                 ? 0f : (now - mLastFlingFrameNanos) / 1_000_000_000f;
         mLastFlingFrameNanos = now;
@@ -348,17 +368,9 @@ public class SessionOverviewScrollView extends ScrollView {
         mFlingFrameSeen = false;
         mFlingArmed = true;
         mLastFlingFrameNanos = 0L;
-        armFlingLifetime();
-        super.fling(velocityY);
-    }
-
-    /**
-     * Keep {@link #mFlingArmed} true while a scroller produces frames and let it lapse
-     * {@link #FLING_IDLE_MS} after the last one.
-     */
-    private void armFlingLifetime() {
-        removeCallbacks(mFlingDisarm);
+        mFlingLastActivityNanos = System.nanoTime();
         postOnAnimationDelayed(mFlingDisarm, FLING_IDLE_MS);
+        super.fling(velocityY);
     }
 
     /**
@@ -646,11 +658,13 @@ public class SessionOverviewScrollView extends ScrollView {
      * than zeroing it — a clean 0 would be a visible snap of up to the full cap.
      */
     private void ensureSettled() {
-        removeCallbacks(mSettleRunnable);
+        if (mSettleCheckPending) return;
+        mSettleCheckPending = true;
         postOnAnimation(mSettleRunnable);
     }
 
     private void settleNow() {
+        mSettleCheckPending = false;
         final boolean flingStillRunning = mFlingFrameSeen;
         mFlingFrameSeen = false;
         if (mSpring != null || mImpact != null) return;
@@ -707,6 +721,7 @@ public class SessionOverviewScrollView extends ScrollView {
     /** Drop any held displacement right now, without animating. */
     private void reset() {
         cancelAnimators();
+        mSettleCheckPending = false;
         removeCallbacks(mSettleRunnable);
         removeCallbacks(mFlingDisarm);
         mFlingFrameSeen = false;

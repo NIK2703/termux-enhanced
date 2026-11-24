@@ -7,38 +7,18 @@ import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
  *
  * <p>The user-facing setting is a maximum pass rate in frames per second. {@code 0} disables
  * throttling; {@code 1..30} spaces preview passes by {@code 1000 / fps} milliseconds. The slider
- * has off at position 0 and then 30 down to 1 FPS, so positions are mapped explicitly instead of
- * showing the raw slider number.</p>
+ * uses the same numbers: 0 is off, 1 is 1 FPS and 30 is 30 FPS.</p>
  */
 public final class SessionOverviewPreviewThrottle {
 
     private SessionOverviewPreviewThrottle() {
     }
 
-    /** Clamp a stored or user-provided rate to the supported {@code 0..30} FPS range. */
+    /** Clamp a stored, user-provided or slider value to the supported {@code 0..30} range. */
     public static int clampFps(int fps) {
         return Math.max(TermuxPreferenceConstants.TERMUX_APP.MIN_SESSION_OVERVIEW_PREVIEW_FPS,
             Math.min(TermuxPreferenceConstants.TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS,
                 fps));
-    }
-
-    /** Whether throttling is enabled; {@code false} means passes are not rate-limited. */
-    public static boolean isEnabled(int fps) {
-        return clampFps(fps) > 0;
-    }
-
-    /** Slider position for a rate: position 0 is off, then 30 down to 1 FPS. */
-    public static int sliderPositionForFps(int fps) {
-        final int clamped = clampFps(fps);
-        final int maxFps = TermuxPreferenceConstants.TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS;
-        return clamped == 0 ? 0 : maxFps + 1 - clamped;
-    }
-
-    /** Rate for a slider position: position 0 is off, then 30 down to 1 FPS. */
-    public static int fpsForSliderPosition(int position) {
-        final int maxFps = TermuxPreferenceConstants.TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS;
-        final int clamped = Math.max(0, Math.min(maxFps, position));
-        return clamped == 0 ? 0 : maxFps + 1 - clamped;
     }
 
     /**

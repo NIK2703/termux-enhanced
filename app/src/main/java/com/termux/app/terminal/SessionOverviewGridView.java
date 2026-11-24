@@ -109,36 +109,50 @@ public class SessionOverviewGridView extends ViewGroup {
     }
 
     /**
-     * First child whose slot can intersect the viewport at {@code scrollY}.
+     * First (inclusive) and exclusive end child index whose slots intersect the viewport.
      *
-     * <p>Read-only helper for the preview scheduler: it uses the same row pitch as
-     * {@link #onLayout} and never changes the grid's geometry.</p>
+     * <p>One arithmetic pass reads {@link #mLayout} once and writes into {@code out}, so a render
+     * pass performs no allocation and no duplicated pitch/padding calculation. A zero viewport
+     * is the first-frame fallback: the whole grid is returned.</p>
      */
-    public int getFirstVisibleChildIndex(int scrollY) {
-        final SessionOverviewGridMath.Layout layout = mLayout;
-        if (layout == null || layout.columns <= 0 || layout.rows <= 0
-                || layout.cardHeight <= 0 || getChildCount() == 0) return 0;
-        final int pitch = layout.cardHeight + layout.gap;
-        if (pitch <= 0) return 0;
-        final int contentTop = getPaddingTop() + layout.top;
-        final int distance = scrollY - getTop() - contentTop - layout.cardHeight;
-        final int row = distance < 0 ? 0 : distance / pitch + 1;
-        if (row >= layout.rows) return getChildCount();
-        return Math.min(getChildCount(), row * layout.columns);
-    }
+    public void getVisibleChildRange(int scrollY, int viewportHeight, int[] out) {
+        final int childCount = getChildCount();
+        out[0] = 0;
+        out[1] = childCount;
 
-    /** Exclusive end of the visible child range; companion to {@link #getFirstVisibleChildIndex}. */
-    public int getVisibleChildEnd(int scrollY, int viewportHeight) {
         final SessionOverviewGridMath.Layout layout = mLayout;
         if (layout == null || layout.columns <= 0 || layout.rows <= 0
-                || layout.cardHeight <= 0 || viewportHeight <= 0) return getChildCount();
+                || layout.cardHeight <= 0 || childCount == 0) return;
         final int pitch = layout.cardHeight + layout.gap;
-        if (pitch <= 0) return getChildCount();
+        if (pitch <= 0) return;
+
         final int contentTop = getPaddingTop() + layout.top;
-        final int distance = scrollY - getTop() + viewportHeight - contentTop;
-        if (distance <= 0) return 0;
+        final int top = scrollY - getTop();
+        final int firstRow;
+        if (viewportHeight <= 0) {
+            firstRow = 0;
+        } else {
+            final int distance = top - contentTop - layout.cardHeight;
+            firstRow = distance < 0 ? 0 : distance / pitch + 1;
+        }
+        if (firstRow >= layout.rows) {
+            out[0] = childCount;
+            out[1] = childCount;
+            return;
+        }
+        out[0] = Math.min(childCount, firstRow * layout.columns);
+
+        if (viewportHeight <= 0) {
+            out[1] = childCount;
+            return;
+        }
+        final int distance = top + viewportHeight - contentTop;
+        if (distance <= 0) {
+            out[1] = 0;
+            return;
+        }
         final int endRow = Math.min(layout.rows, (distance - 1) / pitch + 1);
-        return Math.min(getChildCount(), endRow * layout.columns);
+        out[1] = Math.min(childCount, endRow * layout.columns);
     }
 
     /**

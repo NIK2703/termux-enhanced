@@ -1,7 +1,7 @@
 package com.termux.shared.termux.settings.preferences;
 
 /*
- * Version: v0.18.0
+ * Version: v0.17.0
  *
  * Changelog
  *
@@ -72,14 +72,9 @@ package com.termux.shared.termux.settings.preferences;
  *
  * - 0.17.0 (2026-11-24)
  *      - Added following to `TERMUX_APP`:
- *          `KEY_SESSION_OVERVIEW_PREVIEW_THROTTLE`, `DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_THROTTLE`,
- *          `MIN_SESSION_OVERVIEW_PREVIEW_THROTTLE` and `MAX_SESSION_OVERVIEW_PREVIEW_THROTTLE`.
- *
- * - 0.18.0 (2026-11-24)
- *      - Replaced the session-overview preview frame divisor with an FPS cap:
  *          `KEY_SESSION_OVERVIEW_PREVIEW_FPS`, `DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS`,
  *          `MIN_SESSION_OVERVIEW_PREVIEW_FPS` and `MAX_SESSION_OVERVIEW_PREVIEW_FPS`.
- *          A value of `0` disables the throttle.
+ *          A value of `0` disables the throttle; `1..30` caps preview passes per second.
  */
 
 import com.termux.shared.shell.command.ExecutionCommand;

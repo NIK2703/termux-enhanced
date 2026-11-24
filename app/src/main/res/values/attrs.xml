@@ -13,4 +13,8 @@
          button-margin slider counts tenths of a dp, so app:valueDivisor="10" renders 15 as "1.5 dp".
          Default 1 (no scaling); only meaningful together with app:valueUnit. -->
     <attr name="valueDivisor" format="integer" />
+
+    <!-- Label used when the slider value is zero, e.g. app:valueZeroText="OFF". Empty means the
+         numeric zero is rendered normally. Read by UnitSeekBarPreference. -->
+    <attr name="valueZeroText" format="string" />
 </resources>
