@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
@@ -59,7 +61,8 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
      * this view's fling — a live fling delivers a frame every animation frame; see
      * {@link #mFlingArmed}.
      */
-    private static final long FLING_IDLE_MS = 96L;
+    private static final long FLING_IDLE_NANOS =
+            TermuxAppConstants.Overview.FLING_IDLE_MS * 1_000_000L;
 
     /** Accumulated (undamped) finger travel past the left / right end, in px. Never negative. */
     private float mLeftRawPx;
@@ -87,7 +90,7 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
     /**
      * True while the scroller frames arriving are a fling this view launched. Armed by
-     * {@link #fling(int)}, disarmed by {@link #mFlingDisarm} after {@link #FLING_IDLE_MS} of
+     * {@link #fling(int)}, disarmed by {@link #mFlingDisarm} after {@link #TermuxAppConstants.Overview.FLING_IDLE_MS} of
      * silence. Needed because {@code HorizontalScrollView} also starts the same private
      * {@code OverScroller} from {@code smoothScrollBy}/{@code smoothScrollTo} (both final), whose
      * frames are indistinguishable from a fling's — a programmatic scroll finishing on an end
@@ -329,12 +332,12 @@ public class ElasticHorizontalScrollView extends HorizontalScrollView {
 
     /**
      * Keep {@link #mFlingArmed} true while a scroller produces frames and let it lapse
-     * {@link #FLING_IDLE_MS} after the last one. Called on launch and every frame, so the timer
+     * {@link #TermuxAppConstants.Overview.FLING_IDLE_MS} after the last one. Called on launch and every frame, so the timer
      * only fires for a scroller that has actually stopped.
      */
     private void armFlingLifetime() {
         removeCallbacks(mFlingDisarm);
-        postOnAnimationDelayed(mFlingDisarm, FLING_IDLE_MS);
+        postOnAnimationDelayed(mFlingDisarm, TermuxAppConstants.Overview.FLING_IDLE_MS);
     }
 
     /**

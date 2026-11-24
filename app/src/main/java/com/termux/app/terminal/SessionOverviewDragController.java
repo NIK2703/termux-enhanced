@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.animation.ValueAnimator;
 import android.os.SystemClock;
 import android.view.HapticFeedbackConstants;
@@ -43,12 +45,8 @@ final class SessionOverviewDragController {
                                 @NonNull List<SessionOverviewCardView> orderedCards);
     }
 
-    private static final int STATE_IDLE = 0;
-    private static final int STATE_PRESSED = 1;
-    private static final int STATE_DRAGGING = 2;
 
     private static final long SHIFT_DURATION_MS = 180L;
-    private static final long SETTLE_DURATION_MS = 160L;
     /** The held card grows slightly instead of shrinking, so the lifted item reads as picked up. */
     private static final float LIFT_SCALE = 1.05f;
     private static final float LIFT_ALPHA = 0.82f;
@@ -69,7 +67,7 @@ final class SessionOverviewDragController {
     private final int[] mGridLocation = new int[2];
     private final int[] mScrollLocation = new int[2];
 
-    private int mState = STATE_IDLE;
+    private int mState = TermuxAppConstants.Overview.STATE_IDLE;
     @Nullable
     private SessionOverviewCardView mCard;
     private int mDragChildIndex = -1;
@@ -111,7 +109,7 @@ final class SessionOverviewDragController {
     private final Runnable mSettleRunnable = this::settleWhenLaidOut;
     private final View.OnLayoutChangeListener mCardLayoutListener =
             (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-                if (mState == STATE_DRAGGING && view == mCard) {
+                if (mState == TermuxAppConstants.Overview.STATE_DRAGGING && view == mCard) {
                     updateCardPosition();
                 }
             };
@@ -136,7 +134,7 @@ final class SessionOverviewDragController {
 
     /** @return true while a press or drag is being tracked. */
     boolean isActive() {
-        return mState != STATE_IDLE;
+        return mState != TermuxAppConstants.Overview.STATE_IDLE;
     }
 
     boolean onTouch(@NonNull SessionOverviewCardView card, @NonNull MotionEvent event) {
@@ -150,25 +148,25 @@ final class SessionOverviewDragController {
             case MotionEvent.ACTION_CANCEL:
                 return onCancel(card);
             case MotionEvent.ACTION_POINTER_DOWN:
-                if (mState == STATE_PRESSED) {
+                if (mState == TermuxAppConstants.Overview.STATE_PRESSED) {
                     // A second finger turns this into an ordinary multi-touch gesture.
                     card.removeCallbacks(mLongPressRunnable);
                     resetGesture();
                     return false;
                 }
-                return mState != STATE_IDLE;
+                return mState != TermuxAppConstants.Overview.STATE_IDLE;
             default:
-                return mState != STATE_IDLE;
+                return mState != TermuxAppConstants.Overview.STATE_IDLE;
         }
     }
 
     private boolean onDown(@NonNull SessionOverviewCardView card, @NonNull MotionEvent event) {
         if (mDropAnimator != null) cancelDropFlight(false);
-        if (mState != STATE_IDLE || mSettleCards != null) return false;
+        if (mState != TermuxAppConstants.Overview.STATE_IDLE || mSettleCards != null) return false;
         if (!mHost.canStartDrag(card)) return false;
 
         mCard = card;
-        mState = STATE_PRESSED;
+        mState = TermuxAppConstants.Overview.STATE_PRESSED;
         mDownRawX = mLastRawX = event.getRawX();
         mDownRawY = mLastRawY = event.getRawY();
         card.postDelayed(mLongPressRunnable, mLongPressTimeout);
@@ -178,7 +176,7 @@ final class SessionOverviewDragController {
     private boolean onMove(@NonNull SessionOverviewCardView card, @NonNull MotionEvent event) {
         if (mCard != card) return false;
 
-        if (mState == STATE_PRESSED) {
+        if (mState == TermuxAppConstants.Overview.STATE_PRESSED) {
             mLastRawX = event.getRawX();
             mLastRawY = event.getRawY();
             final float dx = mLastRawX - mDownRawX;
@@ -191,7 +189,7 @@ final class SessionOverviewDragController {
             return false;
         }
 
-        if (mState == STATE_DRAGGING) {
+        if (mState == TermuxAppConstants.Overview.STATE_DRAGGING) {
             mLastRawX = event.getRawX();
             mLastRawY = event.getRawY();
             updateCardPosition();
@@ -204,11 +202,11 @@ final class SessionOverviewDragController {
 
     private boolean onUp(@NonNull SessionOverviewCardView card) {
         card.removeCallbacks(mLongPressRunnable);
-        if (mState == STATE_PRESSED) {
+        if (mState == TermuxAppConstants.Overview.STATE_PRESSED) {
             resetGesture();
             return false; // let the View deliver the click
         }
-        if (mState == STATE_DRAGGING) {
+        if (mState == TermuxAppConstants.Overview.STATE_DRAGGING) {
             drop();
             return true;
         }
@@ -217,7 +215,7 @@ final class SessionOverviewDragController {
 
     private boolean onCancel(@NonNull SessionOverviewCardView card) {
         card.removeCallbacks(mLongPressRunnable);
-        if (mState == STATE_DRAGGING) {
+        if (mState == TermuxAppConstants.Overview.STATE_DRAGGING) {
             cancelDrag();
             return true;
         }
@@ -228,7 +226,7 @@ final class SessionOverviewDragController {
     /** Long-press timeout: lift the card and start following the finger. */
     private void grab() {
         final SessionOverviewCardView card = mCard;
-        if (mState != STATE_PRESSED || card == null) return;
+        if (mState != TermuxAppConstants.Overview.STATE_PRESSED || card == null) return;
         if (!card.isAttachedToWindow() || !mHost.canStartDrag(card)) {
             resetGesture();
             return;
@@ -238,7 +236,7 @@ final class SessionOverviewDragController {
             return;
         }
 
-        mState = STATE_DRAGGING;
+        mState = TermuxAppConstants.Overview.STATE_DRAGGING;
         mDragChildIndex = indexOfChild(card);
         if (mDragChildIndex < 0) {
             resetGesture();
@@ -303,7 +301,7 @@ final class SessionOverviewDragController {
      */
     private void updateCardPosition() {
         final SessionOverviewCardView card = mCard;
-        if (mState != STATE_DRAGGING || card == null || !card.isAttachedToWindow()) return;
+        if (mState != TermuxAppConstants.Overview.STATE_DRAGGING || card == null || !card.isAttachedToWindow()) return;
         if (card.getWidth() <= 0 || card.getHeight() <= 0) return;
 
         mGrid.getLocationOnScreen(mGridLocation);
@@ -321,7 +319,7 @@ final class SessionOverviewDragController {
      * following maths stay untouched until the release actually commits the reorder.
      */
     private void updatePreviewOrder() {
-        if (mState != STATE_DRAGGING || mDragChildIndex < 0) return;
+        if (mState != TermuxAppConstants.Overview.STATE_DRAGGING || mDragChildIndex < 0) return;
         final int count = mGrid.getChildCount();
         if (count < 2 || mBaseCenterXs.length != count || mBaseCenterYs.length != count) return;
 
@@ -372,7 +370,7 @@ final class SessionOverviewDragController {
     /** @return the slot nearest the finger at release, or -1 when the layout is unusable. */
     private int resolveDropTarget() {
         final int count = mGrid.getChildCount();
-        if (mState != STATE_DRAGGING || mDragChildIndex < 0 || count < 2
+        if (mState != TermuxAppConstants.Overview.STATE_DRAGGING || mDragChildIndex < 0 || count < 2
                 || mBaseCenterXs.length != count || mBaseCenterYs.length != count) {
             return -1;
         }
@@ -384,7 +382,7 @@ final class SessionOverviewDragController {
     }
 
     private void updateAutoScroll(float rawY) {
-        if (mScroll == null || mState != STATE_DRAGGING) {
+        if (mScroll == null || mState != TermuxAppConstants.Overview.STATE_DRAGGING) {
             stopAutoScroll();
             return;
         }
@@ -404,7 +402,7 @@ final class SessionOverviewDragController {
 
     private void autoScrollFrame() {
         mAutoScrollPosted = false;
-        if (mState != STATE_DRAGGING || mScroll == null) return;
+        if (mState != TermuxAppConstants.Overview.STATE_DRAGGING || mScroll == null) return;
 
         mScroll.getLocationOnScreen(mScrollLocation);
         final float pointerY = mLastRawY - mScrollLocation[1];
@@ -507,7 +505,7 @@ final class SessionOverviewDragController {
         final float fromZ = card.getTranslationZ();
         cancelDropFlight(false);
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
-        animator.setDuration(SETTLE_DURATION_MS);
+        animator.setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS);
         animator.setInterpolator(DECELERATE);
         animator.addUpdateListener(animation -> {
             final float progress = (float) animation.getAnimatedValue();
@@ -605,7 +603,7 @@ final class SessionOverviewDragController {
                 .scaleY(1f)
                 .alpha(1f)
                 .translationZ(0f)
-                .setDuration(SETTLE_DURATION_MS)
+                .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
                 .setInterpolator(DECELERATE)
                 .start();
     }
@@ -639,7 +637,7 @@ final class SessionOverviewDragController {
     void animateLayoutChange(@NonNull List<SessionOverviewCardView> cards,
                              @NonNull float[] fromCenterXs, @NonNull float[] fromCenterYs,
                              @NonNull float[] targetCenterXs, @NonNull float[] targetCenterYs) {
-        if (mState != STATE_IDLE || mSettleCards != null) return;
+        if (mState != TermuxAppConstants.Overview.STATE_IDLE || mSettleCards != null) return;
         final int count = cards.size();
         if (count == 0 || fromCenterXs.length != count || fromCenterYs.length != count
                 || targetCenterXs.length != count || targetCenterYs.length != count) {
@@ -737,7 +735,7 @@ final class SessionOverviewDragController {
                     .scaleY(1f)
                     .alpha(1f)
                     .translationZ(0f)
-                    .setDuration(SETTLE_DURATION_MS)
+                    .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
                     .setInterpolator(DECELERATE)
                     .start();
         }
@@ -822,7 +820,7 @@ final class SessionOverviewDragController {
     private void resetGesture() {
         stopAutoScroll();
         if (mCard != null) mCard.removeCallbacks(mLongPressRunnable);
-        mState = STATE_IDLE;
+        mState = TermuxAppConstants.Overview.STATE_IDLE;
         mCard = null;
         mDragChildIndex = -1;
         mPreviewTargetIndex = -1;

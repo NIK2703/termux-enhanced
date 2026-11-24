@@ -1,5 +1,7 @@
 package com.termux.shared.file;
 
+import com.termux.shared.CommonValues;
+
 import android.os.Build;
 import android.system.Os;
 
@@ -1409,7 +1411,7 @@ public class FileUtils {
                 dataStringBuilder.append(receiveString);
             }
 
-            Logger.logVerbose(LOG_TAG, Logger.getMultiLineLogStringEntry("String", DataUtils.getTruncatedCommandOutput(dataStringBuilder.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD, true, false, true), "-"));
+            Logger.logVerbose(LOG_TAG, Logger.getMultiLineLogStringEntry("String", DataUtils.getTruncatedCommandOutput(dataStringBuilder.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD, true, false, true), CommonValues.EMPTY_VALUE_PLACEHOLDER));
         } catch (Exception e) {
             return FileUtilsErrno.ERRNO_READING_TEXT_FROM_FILE_FAILED_WITH_EXCEPTION.getError(e, label + "file", filePath, e.getMessage());
         } finally {
@@ -1493,7 +1495,7 @@ public class FileUtils {
         label = normalizeLabel(label);
         if (filePath == null || filePath.isEmpty()) return getNullOrEmptyParameterError(label + "file path", "writeStringToFile");
 
-        Logger.logVerbose(LOG_TAG, Logger.getMultiLineLogStringEntry("Writing text to " + label + "file at path \"" + filePath + "\"", DataUtils.getTruncatedCommandOutput(dataString, Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD, true, false, true), "-"));
+        Logger.logVerbose(LOG_TAG, Logger.getMultiLineLogStringEntry("Writing text to " + label + "file at path \"" + filePath + "\"", DataUtils.getTruncatedCommandOutput(dataString, Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD, true, false, true), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         Error error;
 

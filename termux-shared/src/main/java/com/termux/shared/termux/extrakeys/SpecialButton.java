@@ -9,10 +9,10 @@ public class SpecialButton {
 
     private static final HashMap<String, SpecialButton> map = new HashMap<>();
 
-    public static final SpecialButton CTRL = new SpecialButton("CTRL");
-    public static final SpecialButton ALT = new SpecialButton("ALT");
-    public static final SpecialButton SHIFT = new SpecialButton("SHIFT");
-    public static final SpecialButton FN = new SpecialButton("FN");
+    public static final SpecialButton CTRL = new SpecialButton(KeyCombination.CTRL);
+    public static final SpecialButton ALT = new SpecialButton(KeyCombination.ALT);
+    public static final SpecialButton SHIFT = new SpecialButton(KeyCombination.SHIFT);
+    public static final SpecialButton FN = new SpecialButton(KeyCombination.FN);
 
     private final String key;
 

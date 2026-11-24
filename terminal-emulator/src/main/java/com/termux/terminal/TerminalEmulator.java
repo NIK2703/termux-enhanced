@@ -45,14 +45,14 @@ public final class TerminalEmulator {
 
     private static boolean isUnassignedCodePoint(int codePoint) {
         if (codePoint >= 0xD800 && codePoint <= 0xDFFF) return true; // surrogate (shouldn't occur post-UTF8-decode)
-        if (codePoint >= 0x10000) {
+        if (codePoint >= TerminalConstants.Unicode.BMP_LIMIT) {
             return Character.getType(codePoint) == Character.UNASSIGNED;
         }
         byte[] cache = sBmpTypeCache;
         if (cache == null) {
             synchronized (TerminalEmulator.class) {
                 cache = sBmpTypeCache;
-                if (cache == null) sBmpTypeCache = cache = new byte[0x10000];
+                if (cache == null) sBmpTypeCache = cache = new byte[TerminalConstants.Unicode.BMP_LIMIT];
             }
         }
         int v = cache[codePoint];
@@ -125,9 +125,9 @@ public final class TerminalEmulator {
     private static final int MAX_OSC_STRING_LENGTH = 8192;
 
     /** DECSET 1004: the window gained keyboard focus. */
-    private static final String FOCUS_IN = "\033[I";
+    public static final String FOCUS_IN = "\033[I";
     /** DECSET 1004: the window lost keyboard focus. */
-    private static final String FOCUS_OUT = "\033[O";
+    public static final String FOCUS_OUT = "\033[O";
 
     /** DECSET 1 - application cursor keys. */
     private static final int DECSET_BIT_APPLICATION_CURSOR_KEYS = 1;
@@ -608,7 +608,7 @@ public final class TerminalEmulator {
 
                     mUtf8Index = mUtf8ToFollow = 0;
 
-                    if (codePoint >= 0x80 && codePoint <= 0x9F) {
+                    if (codePoint >= TerminalConstants.Ascii.C1_MIN && codePoint <= TerminalConstants.Ascii.C1_MAX) {
                         // Sequence decoded to a C1 control character which we ignore. They are
                         // not used nowadays and increases the risk of messing up the terminal state
                         // on binary input. XTerm does not allow them in utf-8:
@@ -716,10 +716,10 @@ public final class TerminalEmulator {
                 if (mEscapeState != ESC_NONE) {
                     // FIXME: What is this??
                     mEscapeState = ESC_NONE;
-                    emitCodePoint(127);
+                    emitCodePoint(TerminalConstants.Ascii.DEL);
                 }
                 break;
-            case 27: // ESC
+            case TerminalConstants.Ascii.ESC: // ESC
                 // Starts an escape sequence unless we're parsing a string
                 if (mEscapeState == ESC_P) {
                     // XXX: Ignore escape when reading device control sequence, since it may be part of string terminator.
@@ -1124,7 +1124,7 @@ public final class TerminalEmulator {
      * When in {@link #ESC_APC} (APC, Application Program Command) sequence.
      */
     private void doApc(int b) {
-        if (b == 27) {
+        if (b == TerminalConstants.Ascii.ESC) {
             continueSequence(ESC_APC_ESCAPE);
         }
         // Eat APC sequences silently for now.
@@ -1829,7 +1829,7 @@ public final class TerminalEmulator {
                 switch (getArg0(0)) {
                     case 5: // Device status report (DSR):
                         // Answer is ESC [ 0 n (Terminal OK).
-                        byte[] dsr = {(byte) 27, (byte) '[', (byte) '0', (byte) 'n'};
+                        byte[] dsr = {(byte) TerminalConstants.Ascii.ESC, (byte) '[', (byte) '0', (byte) 'n'};
                         mSession.write(dsr, 0, dsr.length);
                         break;
                     case 6: // Cursor position report (CPR):
@@ -2078,7 +2078,7 @@ public final class TerminalEmulator {
             case 7: // Bell.
                 doOscSetTextParameters("\007");
                 break;
-            case 27: // Escape.
+            case TerminalConstants.Ascii.ESC: // Escape.
                 continueSequence(ESC_OSC_ESC);
                 break;
             default:
@@ -2095,7 +2095,7 @@ public final class TerminalEmulator {
             default:
                 // The ESC character was not followed by a \, so insert the ESC and
                 // the current character in arg buffer.
-                collectOSCArgs(27);
+                collectOSCArgs(TerminalConstants.Ascii.ESC);
                 collectOSCArgs(b);
                 continueSequence(ESC_OSC);
                 break;

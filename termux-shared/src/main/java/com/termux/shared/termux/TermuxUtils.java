@@ -1,5 +1,9 @@
 package com.termux.shared.termux;
 
+import com.termux.shared.CommonValues;
+
+import com.termux.shared.shell.command.ShellCommandConstants;
+
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -250,7 +254,7 @@ public class TermuxUtils {
 
                 String termuxPluginAppsInfo =  TermuxUtils.getTermuxPluginAppsInfoMarkdownString(currentPackageContext);
                 if (termuxPluginAppsInfo != null)
-                    appInfo.append("\n\n").append(termuxPluginAppsInfo);
+                    appInfo.append(MarkdownUtils.SECTION_SEPARATOR).append(termuxPluginAppsInfo);
                 return appInfo.toString();
 
             case TERMUX_PLUGIN_PACKAGES:
@@ -294,7 +298,7 @@ public class TermuxUtils {
      * @return Returns the markdown {@link String}.
      */
     public static String getTermuxPluginAppsInfoMarkdownString(final Context currentPackageContext) {
-        if (currentPackageContext == null) return "null";
+        if (currentPackageContext == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
@@ -307,7 +311,7 @@ public class TermuxUtils {
                 // If the package context for the plugin app is not null, then assume its installed and get its info
                 if (termuxPluginAppContext != null) {
                     if (i != 0)
-                        markdownString.append("\n\n");
+                        markdownString.append(MarkdownUtils.SECTION_SEPARATOR);
                     markdownString.append(getAppInfoMarkdownString(termuxPluginAppContext, false));
                 }
             }
@@ -331,7 +335,7 @@ public class TermuxUtils {
      * @return Returns the markdown {@link String}.
      */
     public static String getAppInfoMarkdownString(final Context currentPackageContext, final boolean returnTermuxPackageInfoToo) {
-        if (currentPackageContext == null) return "null";
+        if (currentPackageContext == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
@@ -350,9 +354,9 @@ public class TermuxUtils {
         boolean isTermuxPackage = (termuxPackageName != null && termuxPackageName.equals(currentPackageName));
 
         if (returnTermuxPackageInfoToo && !isTermuxPackage)
-            markdownString.append("## ").append(currentAppName).append(" App Info (Current)\n");
+            markdownString.append(MarkdownUtils.HEADING_PREFIX).append(currentAppName).append(" App Info (Current)\n");
         else
-            markdownString.append("## ").append(currentAppName).append(" App Info\n");
+            markdownString.append(MarkdownUtils.HEADING_PREFIX).append(currentAppName).append(" App Info\n");
         markdownString.append(getAppInfoMarkdownStringInner(currentPackageContext));
         markdownString.append("\n##\n");
 
@@ -404,13 +408,13 @@ public class TermuxUtils {
      * @return Returns the markdown {@link String}.
      */
     public static String getReportIssueMarkdownString(@NonNull final Context context) {
-        if (context == null) return "null";
+        if (context == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
         markdownString.append("## Where To Report An Issue");
 
-        markdownString.append("\n\n").append(context.getString(R.string.msg_report_issue, TermuxConstants.TERMUX_WIKI_URL)).append("\n");
+        markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(context.getString(R.string.msg_report_issue, TermuxConstants.TERMUX_WIKI_URL)).append("\n");
 
         appendEmailAndRedditLinksMarkdown(markdownString);
 
@@ -450,7 +454,7 @@ public class TermuxUtils {
      * @return Returns the markdown {@link String}.
      */
     public static String getImportantLinksMarkdownString(@NonNull final Context context) {
-        if (context == null) return "null";
+        if (context == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
@@ -524,7 +528,7 @@ public class TermuxUtils {
 
         StringBuilder markdownString = new StringBuilder();
 
-        markdownString.append("## ").append(TermuxConstants.TERMUX_APP_NAME).append(" APT Info\n\n");
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append(TermuxConstants.TERMUX_APP_NAME).append(" APT Info\n\n");
         markdownString.append(executionCommand.resultData.stdout.toString());
         markdownString.append("\n##\n");
 
@@ -542,7 +546,7 @@ public class TermuxUtils {
         String logcatInfo = getLogcatDumpMarkdownString(context);
 
         if (statInfo != null && logcatInfo != null)
-            return statInfo + "\n\n" + logcatInfo;
+            return statInfo + MarkdownUtils.SECTION_SEPARATOR + logcatInfo;
         else if (statInfo != null)
             return statInfo;
         else
@@ -563,7 +567,7 @@ public class TermuxUtils {
         String logcatScript = "/system/bin/logcat -d -t 3000 2>&1";
 
         // Logging must be disabled for output of logcat command itself in StreamGobbler
-        ExecutionCommand executionCommand = new ExecutionCommand(-1, "/system/bin/sh",
+        ExecutionCommand executionCommand = new ExecutionCommand(-1, ShellCommandConstants.ANDROID_SHELL_PATH,
             null, logcatScript + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getName(), true);
         executionCommand.commandLabel = "Logcat dump command";
         executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_OFF;
@@ -578,14 +582,14 @@ public class TermuxUtils {
 
         StringBuilder markdownString = new StringBuilder();
         markdownString.append("## Logcat Dump\n\n");
-        markdownString.append("\n\n").append(MarkdownUtils.getMarkdownCodeForString(logcatOutput.toString(), true));
+        markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(MarkdownUtils.getMarkdownCodeForString(logcatOutput.toString(), true));
         markdownString.append("\n##\n");
 
         return markdownString.toString();
     }
 
     public static String getAPKRelease(String signingCertificateSHA256Digest) {
-        if (signingCertificateSHA256Digest == null) return "null";
+        if (signingCertificateSHA256Digest == null) return CommonValues.NULL_STRING;
 
         switch (signingCertificateSHA256Digest.toUpperCase()) {
             case TermuxConstants.APK_RELEASE_FDROID_SIGNING_CERTIFICATE_SHA256_DIGEST:

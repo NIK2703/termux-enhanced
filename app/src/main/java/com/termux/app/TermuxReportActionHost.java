@@ -82,7 +82,7 @@ public final class TermuxReportActionHost implements ReportActivity.ReportAction
         } else if (ACTION_BACKUP_SETTINGS.equals(action.id)) {
             confirm(activity, R.string.settings_backup_warning,
                 () -> chooseDestinationFile(activity, REQUEST_CODE_BACKUP_SETTINGS,
-                    TermuxSettingsBackupUtils.MIME_TYPE_ZIP, defaultSettingsBackupFilename()));
+                    TermuxAppConstants.MimeTypes.ZIP, defaultSettingsBackupFilename()));
         }
     }
 

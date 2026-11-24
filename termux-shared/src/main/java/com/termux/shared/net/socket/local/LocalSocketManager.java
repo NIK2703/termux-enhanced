@@ -1,5 +1,7 @@
 package com.termux.shared.net.socket.local;
 
+import com.termux.shared.markdown.MarkdownUtils;
+
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -250,12 +252,12 @@ public class LocalSocketManager {
 
         logString.append(localSocketRunConfig.getTitle()).append(" Socket Server Error:\n");
         logString.append(error.getErrorLogString());
-        logString.append("\n\n\n");
+        logString.append(MarkdownUtils.SUBSECTION_SEPARATOR);
 
         logString.append(localSocketRunConfig.getLogString());
 
         if (clientSocket != null) {
-            logString.append("\n\n\n");
+            logString.append(MarkdownUtils.SUBSECTION_SEPARATOR);
             logString.append(clientSocket.getLogString());
         }
 
@@ -274,7 +276,7 @@ public class LocalSocketManager {
         markdownString.append(localSocketRunConfig.getMarkdownString());
 
         if (clientSocket != null) {
-            markdownString.append("\n\n\n");
+            markdownString.append(MarkdownUtils.SUBSECTION_SEPARATOR);
             markdownString.append(clientSocket.getMarkdownString());
         }
 

@@ -1,5 +1,7 @@
 package com.termux.shared.net.socket.local;
 
+import com.termux.shared.CommonValues;
+
 import androidx.annotation.NonNull;
 
 import com.termux.shared.file.FileUtils;
@@ -174,14 +176,14 @@ public class LocalSocketRunConfig implements Serializable {
         StringBuilder logString = new StringBuilder();
 
         logString.append(mTitle).append(" Socket Server Run Config:");
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Path", mPath, "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("AbstractNamespaceSocket", mAbstractNamespaceSocket, "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("LocalSocketManagerClient", mLocalSocketManagerClient.getClass().getName(), "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("FD", mFD, "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("ReceiveTimeout", getReceiveTimeout(), "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("SendTimeout", getSendTimeout(), "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Deadline", getDeadline(), "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Backlog", getBacklog(), "-"));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Path", mPath, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("AbstractNamespaceSocket", mAbstractNamespaceSocket, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("LocalSocketManagerClient", mLocalSocketManagerClient.getClass().getName(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("FD", mFD, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("ReceiveTimeout", getReceiveTimeout(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("SendTimeout", getSendTimeout(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Deadline", getDeadline(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Backlog", getBacklog(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return logString.toString();
     }
@@ -191,15 +193,15 @@ public class LocalSocketRunConfig implements Serializable {
     public String getMarkdownString() {
         StringBuilder markdownString = new StringBuilder();
 
-        markdownString.append("## ").append(mTitle).append(" Socket Server Run Config");
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Path", mPath, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("AbstractNamespaceSocket", mAbstractNamespaceSocket, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("LocalSocketManagerClient", mLocalSocketManagerClient.getClass().getName(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("FD", mFD, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("ReceiveTimeout", getReceiveTimeout(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("SendTimeout", getSendTimeout(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Deadline", getDeadline(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Backlog", getBacklog(), "-"));
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append(mTitle).append(" Socket Server Run Config");
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Path", mPath, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("AbstractNamespaceSocket", mAbstractNamespaceSocket, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("LocalSocketManagerClient", mLocalSocketManagerClient.getClass().getName(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("FD", mFD, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("ReceiveTimeout", getReceiveTimeout(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("SendTimeout", getSendTimeout(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Deadline", getDeadline(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Backlog", getBacklog(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return markdownString.toString();
     }

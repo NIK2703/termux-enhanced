@@ -22,7 +22,7 @@ public final class WcWidth {
      * for the same character. Memory: 64 KiB. Supplementary code points (rare in practice) are
      * not cached.
      */
-    private static final byte[] BMP_WIDTH_CACHE = new byte[0x10000];
+    private static final byte[] BMP_WIDTH_CACHE = new byte[TerminalConstants.Unicode.BMP_LIMIT];
     private static final byte CACHE_UNINITIALIZED = -1;
 
     static {
@@ -541,7 +541,7 @@ public final class WcWidth {
 
     /** Return the terminal display width of a code point: 0, 1 or 2. */
     public static int width(int ucs) {
-        if (ucs >= 0 && ucs < 0x10000) {
+        if (ucs >= 0 && ucs < TerminalConstants.Unicode.BMP_LIMIT) {
             byte cached = BMP_WIDTH_CACHE[ucs];
             if (cached != CACHE_UNINITIALIZED) return cached;
             int w = computeWidth(ucs);

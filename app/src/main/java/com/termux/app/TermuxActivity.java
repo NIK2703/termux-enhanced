@@ -726,8 +726,6 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private final TermuxColorSchemeManager mColorSchemeManager = TermuxColorSchemeManager.shared();
 
     /** Default max number of remembered messages (overridable in Settings). */
-    private static final int MESSAGE_HISTORY_MAX_DEFAULT =
-        MessageHistoryController.MESSAGE_HISTORY_MAX_DEFAULT;
 
     /** Directory history controller — owns visited-CWD list. */
     private DirectoryHistoryController mDirectoryHistoryCtrl = null;
@@ -736,7 +734,6 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private DirectoryHistoryPopupController mDirectoryHistoryPopupCtrl = null;
 
     /** Default max number of remembered directories. */
-    private static final int DIRECTORY_HISTORY_MAX_DEFAULT = 20;
 
     // NOTE: the per-session Bundle keys (text / caret / visible / focus / scroll / kb-intent)
     // live in SessionUiStateStore, which owns both the L1 store and the L2 Bundle (de)serialisation.
@@ -780,17 +777,17 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     /** Listens for message-history settings changes from the Settings activity. */
     private final SharedPreferences.OnSharedPreferenceChangeListener mHistoryPrefListener =
             (prefs, key) -> {
-                if ("per_directory_message_history".equals(key)) {
-                    boolean newValue = prefs.getBoolean("per_directory_message_history", false);
+                if (TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY.equals(key)) {
+                    boolean newValue = prefs.getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false);
                     if (newValue == mMessageHistoryCtrl.isPerDirectoryEnabled()) return;
 
                     // Persist history under the current (old) mode before switching.
                     mMessageHistoryCtrl.save();
                     mMessageHistoryCtrl.setPerDirectoryEnabled(newValue);
                     loadMessageHistory();
-                } else if ("message_history_max".equals(key)) {
+                } else if (TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX.equals(key)) {
                     mMessageHistoryCtrl.setMaxSize(
-                        prefs.getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
+                        prefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
                 }
             };
 
@@ -798,12 +795,12 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
     /** The app's {@code termux_prefs} shared preferences. */
     private SharedPreferences termuxPrefs() {
-        return getSharedPreferences("termux_prefs", MODE_PRIVATE);
+        return getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, MODE_PRIVATE);
     }
 
     /** The configured tab-strip position ({@code "top"} or {@code "bottom"}). */
     private String getTabPanelPosition() {
-        return termuxPrefs().getString("tab_panel_position", "top");
+        return termuxPrefs().getString(TermuxAppConstants.Preferences.TAB_PANEL_POSITION, "top");
     }
 
     /** Show the soft keyboard for {@code target} with an implicit show intent. */
@@ -2953,7 +2950,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Also update the add-tab button height.
         String mode = termuxPrefs()
-                .getString("tab_height_mode", "single");
+                .getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE, "single");
         boolean doubleMode = "double".equals(mode);
         int buttonSizeDp = doubleMode ? 36 : 24;
         float density = getResources().getDisplayMetrics().density;
@@ -2991,8 +2988,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (toggleTextInputButton != null) {
             SharedPreferences prefs = termuxPrefs();
             // Load the persisted sent-message history once.
-            mMessageHistoryCtrl.setMaxSize(prefs.getInt("message_history_max", MESSAGE_HISTORY_MAX_DEFAULT));
-            mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean("per_directory_message_history", false));
+            mMessageHistoryCtrl.setMaxSize(prefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
+            mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false));
             loadMessageHistory();
 
             // Apply history mode and retention changes without recreating the activity.
@@ -3001,7 +2998,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // Load the persisted recent-directories history once. The default working directory is
             // filtered out (and purged from anything persisted before this filter existed) — set the
             // exclusion BEFORE loading so it applies to the entries coming off disk.
-            mDirectoryHistoryCtrl.setMaxSize(prefs.getInt("directory_history_max", DIRECTORY_HISTORY_MAX_DEFAULT));
+            mDirectoryHistoryCtrl.setMaxSize(prefs.getInt(TermuxAppConstants.Preferences.DIRECTORY_HISTORY_MAX, TermuxAppConstants.History.DIRECTORY_MAX_DEFAULT));
             mDirectoryHistoryCtrl.setExcludedDirectory(mProperties.getDefaultWorkingDirectory());
             loadDirectoryHistory();
 
@@ -3466,6 +3463,53 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // pencil would have.
         updateInputPanelActionsEndMargin(toggleTextInputButton);
     }
+
+    /**
+     * Fade the controls that float over the terminal out of the overview. They keep their normal
+     * layout until the 50 ms fade ends, then the existing visibility rules run as before.
+     */
+    private void fadeOutOverviewFloatingControls(@Nullable Runnable onEnd) {
+        final View[] views = {
+                findViewById(R.id.terminal_toolbar_text_input_container),
+                mInputPanelActions != null
+                        ? mInputPanelActions : findViewById(R.id.input_panel_actions),
+                findViewById(R.id.toggle_text_input_button)
+        };
+        for (final View view : views) {
+            if (view == null || view.getVisibility() != View.VISIBLE) continue;
+            view.animate().cancel();
+            view.animate().alpha(0f)
+                    .setDuration(OVERVIEW_FLOATING_CONTROLS_FADE_MS)
+                    .withEndAction(() -> {
+                        view.setVisibility(View.GONE);
+                        view.setAlpha(1f);
+                    })
+                    .start();
+        }
+        if (onEnd != null) mMainHandler.postDelayed(onEnd, OVERVIEW_FLOATING_CONTROLS_FADE_MS);
+    }
+
+    /** Bring the floating controls back from zero alpha over 50 ms. */
+    private void fadeInOverviewFloatingControls() {
+        final View[] views = {
+                findViewById(R.id.terminal_toolbar_text_input_container),
+                mInputPanelActions != null
+                        ? mInputPanelActions : findViewById(R.id.input_panel_actions),
+                findViewById(R.id.toggle_text_input_button)
+        };
+        for (View view : views) {
+            if (view == null || view.getVisibility() != View.VISIBLE) continue;
+            view.animate().cancel();
+            view.setAlpha(0f);
+            view.animate().alpha(1f)
+                    .setDuration(OVERVIEW_FLOATING_CONTROLS_FADE_MS)
+                    .withEndAction(() -> view.setAlpha(1f))
+                    .start();
+        }
+    }
+
+    /** Fade for the floating controls that sit over the terminal when the overview opens/closes. */
+    private static final long OVERVIEW_FLOATING_CONTROLS_FADE_MS = 50L;
 
     /** Gap between the quick-action row and the pencil when both are visible. */
     private static final int INPUT_PANEL_ACTIONS_TOGGLE_GAP_DP = 6;
@@ -4209,7 +4253,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * @return true if text input field should be shown, false otherwise
      */
     public boolean isTextInputEnabled() {
-        return termuxPrefs().getBoolean("text_input_enabled", true);
+        return termuxPrefs().getBoolean(TermuxAppConstants.Preferences.TEXT_INPUT_ENABLED, true);
     }
 
     /** Whether the open input panel shows the additional paste, attach and history buttons. */
@@ -5500,11 +5544,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             else dismissAutoCompleteSuggestions();
             dismissMessageHistoryPopup();
             saveTextInputForCurrentSession();
-            setTextInputPanelVisible(false);
         }
-        // Applies the overview's suppression to the pencil even when the panel was already
-        // closed, and hides the quick-action row along with its container.
-        updateToggleTextInputButtonIcon();
+        // Keep the per-session state untouched; only the views fade out. The normal visibility
+        // rules run at the end of the fade, so the panel and the floating buttons disappear
+        // together instead of snapping away on the first overview frame.
+        fadeOutOverviewFloatingControls(() -> {
+            if (wasVisible) setTextInputPanelVisible(false);
+            updateToggleTextInputButtonIcon();
+        });
         return wasVisible;
     }
 
@@ -5526,6 +5573,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setTextInputPanelVisible(true);
         restoreTextInputForSession(session);
         updateToggleTextInputButtonIcon();
+        fadeInOverviewFloatingControls();
     }
 
     /**

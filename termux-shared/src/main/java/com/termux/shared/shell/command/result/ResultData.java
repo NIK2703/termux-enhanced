@@ -1,5 +1,7 @@
 package com.termux.shared.shell.command.result;
 
+import com.termux.shared.CommonValues;
+
 import androidx.annotation.NonNull;
 
 import com.termux.shared.data.DataUtils;
@@ -67,7 +69,7 @@ public class ResultData implements Serializable {
      * @return Returns the log friendly {@link String}.
      */
     public static String getResultDataLogString(final ResultData resultData, boolean logStdoutAndStderr) {
-        if (resultData == null) return "null";
+        if (resultData == null) return CommonValues.NULL_STRING;
 
         StringBuilder logString = new StringBuilder();
 
@@ -77,7 +79,7 @@ public class ResultData implements Serializable {
         }
         logString.append("\n").append(resultData.getExitCodeLogString());
 
-        logString.append("\n\n").append(getErrorsListLogString(resultData));
+        logString.append(MarkdownUtils.SECTION_SEPARATOR).append(getErrorsListLogString(resultData));
 
         return logString.toString();
     }
@@ -92,13 +94,13 @@ public class ResultData implements Serializable {
 
     private String getStreamLogString(String label, StringBuilder stream) {
         if (stream.toString().isEmpty())
-            return Logger.getSingleLineLogStringEntry(label, null, "-");
+            return Logger.getSingleLineLogStringEntry(label, null, CommonValues.EMPTY_VALUE_PLACEHOLDER);
         else
-            return Logger.getMultiLineLogStringEntry(label, DataUtils.getTruncatedCommandOutput(stream.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD / 5, false, false, true), "-");
+            return Logger.getMultiLineLogStringEntry(label, DataUtils.getTruncatedCommandOutput(stream.toString(), Logger.LOGGER_ENTRY_MAX_SAFE_PAYLOAD / 5, false, false, true), CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getExitCodeLogString() {
-        return Logger.getSingleLineLogStringEntry("Exit Code", exitCode, "-");
+        return Logger.getSingleLineLogStringEntry("Exit Code", exitCode, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public static String getErrorsListLogString(final ResultData resultData) {
@@ -112,25 +114,25 @@ public class ResultData implements Serializable {
      * @return Returns the markdown {@link String}.
      */
     public static String getResultDataMarkdownString(final ResultData resultData) {
-        if (resultData == null) return "null";
+        if (resultData == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
         markdownString.append(getStreamMarkdownString("Stdout", resultData.stdout));
         markdownString.append("\n").append(getStreamMarkdownString("Stderr", resultData.stderr));
 
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Exit Code", resultData.exitCode, "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Exit Code", resultData.exitCode, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        markdownString.append("\n\n").append(getErrorsListMarkdownString(resultData));
+        markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(getErrorsListMarkdownString(resultData));
 
         return markdownString.toString();
     }
 
     private static String getStreamMarkdownString(String label, StringBuilder stream) {
         if (stream.toString().isEmpty())
-            return MarkdownUtils.getSingleLineMarkdownStringEntry(label, null, "-");
+            return MarkdownUtils.getSingleLineMarkdownStringEntry(label, null, CommonValues.EMPTY_VALUE_PLACEHOLDER);
         else
-            return MarkdownUtils.getMultiLineMarkdownStringEntry(label, stream.toString(), "-");
+            return MarkdownUtils.getMultiLineMarkdownStringEntry(label, stream.toString(), CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public static String getErrorsListMarkdownString(final ResultData resultData) {
@@ -142,7 +144,7 @@ public class ResultData implements Serializable {
     }
 
     private static String getErrorsListString(final ResultData resultData, ErrorStringGetter errorStringGetter) {
-        if (resultData == null) return "null";
+        if (resultData == null) return CommonValues.NULL_STRING;
 
         StringBuilder string = new StringBuilder();
 

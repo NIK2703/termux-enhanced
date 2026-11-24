@@ -243,7 +243,7 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
                                                    boolean showToast,
                                                    boolean addDeviceInfo) {
         sendCrashReportNotification(currentPackageContext, logTag,
-            title, notificationTextString, "## " + title + "\n\n" + message + "\n\n",
+            title, notificationTextString, MarkdownUtils.HEADING_PREFIX + title + MarkdownUtils.SECTION_SEPARATOR + message + MarkdownUtils.SECTION_SEPARATOR,
             forceNotification, showToast, TermuxUtils.AppInfoMode.TERMUX_AND_PLUGIN_PACKAGE, addDeviceInfo);
     }
 
@@ -296,16 +296,16 @@ public class TermuxCrashUtils implements CrashHandler.CrashHandlerClient {
         StringBuilder reportString = new StringBuilder(message);
 
         if (appInfoMode != null)
-            reportString.append("\n\n").append(TermuxUtils.getAppInfoMarkdownString(currentPackageContext, appInfoMode, currentPackageName));
+            reportString.append(MarkdownUtils.SECTION_SEPARATOR).append(TermuxUtils.getAppInfoMarkdownString(currentPackageContext, appInfoMode, currentPackageName));
 
         if (addDeviceInfo)
-            reportString.append("\n\n").append(AndroidUtils.getDeviceInfoMarkdownString(currentPackageContext, true));
+            reportString.append(MarkdownUtils.SECTION_SEPARATOR).append(AndroidUtils.getDeviceInfoMarkdownString(currentPackageContext, true));
 
         String userActionName = UserAction.CRASH_REPORT.getName();
 
         ReportInfo reportInfo = new ReportInfo(userActionName, logTag, title.toString());
         reportInfo.setReportString(reportString.toString());
-        reportInfo.setReportStringSuffix("\n\n" + TermuxUtils.getReportIssueMarkdownString(currentPackageContext));
+        reportInfo.setReportStringSuffix(MarkdownUtils.SECTION_SEPARATOR + TermuxUtils.getReportIssueMarkdownString(currentPackageContext));
         reportInfo.setAddReportInfoHeaderToMarkdown(true);
         reportInfo.setReportSaveFileLabelAndPath(userActionName,
             Environment.getExternalStorageDirectory() + "/" +

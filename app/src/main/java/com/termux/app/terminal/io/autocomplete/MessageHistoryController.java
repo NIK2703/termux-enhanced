@@ -1,5 +1,7 @@
 package com.termux.app.terminal.io.autocomplete;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
@@ -40,15 +42,11 @@ public final class MessageHistoryController {
     private static final String PREF_CORRUPT_BACKUP = "message_history_v3_corrupt";
 
     /** Settings keys, read here so a write from outside the activity is configured the same way. */
-    private static final String PREF_MAX = "message_history_max";
-    private static final String PREF_PER_DIR = "per_directory_message_history";
 
     /** Default when the pref is unset; the activity reads it too. */
-    public static final int MESSAGE_HISTORY_MAX_DEFAULT = 20;
     /** Upper bound of the history retention setting. */
     public static final int MESSAGE_HISTORY_MAX_LIMIT = 1000;
     /** Entries rendered in the context history popup; older ones remain available to autocomplete. */
-    public static final int MESSAGE_HISTORY_POPUP_LIMIT = 100;
 
     // Process-scoped singleton: the bubble is a second TermuxActivity instance, and both
     // windows must see the same history. A per-instance controller gave each window its
@@ -95,7 +93,7 @@ public final class MessageHistoryController {
     private int mHistoryVersion = 0;
 
     /** Max entries kept in-memory and persisted. Replaced by {@link #applyStoredSettings} on load. */
-    private int mMessageHistoryMax = MESSAGE_HISTORY_MAX_DEFAULT;
+    private int mMessageHistoryMax = TermuxAppConstants.History.MESSAGE_MAX_DEFAULT;
 
     private boolean mPerDirectoryMessageHistory = false;
 
@@ -117,8 +115,8 @@ public final class MessageHistoryController {
      * broadcast starts the app with no activity, so nothing has applied the user's settings yet.
      */
     private void applyStoredSettings() {
-        mMessageHistoryMax = clampMaxSize(mPrefs.getInt(PREF_MAX, MESSAGE_HISTORY_MAX_DEFAULT));
-        mPerDirectoryMessageHistory = mPrefs.getBoolean(PREF_PER_DIR, false);
+        mMessageHistoryMax = clampMaxSize(mPrefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
+        mPerDirectoryMessageHistory = mPrefs.getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false);
     }
 
     // ── Persistence ──

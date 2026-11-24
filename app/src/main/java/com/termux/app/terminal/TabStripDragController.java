@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.animation.LayoutTransition;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -48,16 +50,12 @@ final class TabStripDragController {
         void onTabReordered(int fromIndex, int toIndex);
     }
 
-    private static final int STATE_IDLE = 0;
-    private static final int STATE_PRESSED = 1;
     private static final int STATE_GRABBED = 2;
-    private static final int STATE_DRAGGING = 3;
     /** Vertical movement cancelled the hold; keep consuming until the finger lifts. */
     private static final int STATE_CANCELLED = 4;
 
     private static final long LIFT_DURATION_MS = 120L;
     private static final long GAP_DURATION_MS = 130L;
-    private static final long SETTLE_DURATION_MS = 160L;
     private static final float LIFT_SCALE = 1.1f;
     private static final float LIFT_Y_DP = -1.5f;
     private static final float LIFT_Z_DP = 6f;
@@ -82,7 +80,7 @@ final class TabStripDragController {
     private int[] mMarginStarts = new int[0];
     private int[] mMarginEnds = new int[0];
 
-    private int mState = STATE_IDLE;
+    private int mState = TermuxAppConstants.Overview.STATE_IDLE;
     @Nullable
     private View mTab;
     private int mFromIndex = -1;
@@ -115,15 +113,15 @@ final class TabStripDragController {
 
     /** @return true while the strip is grabbed or being dragged. */
     boolean isActive() {
-        return mState == STATE_GRABBED || mState == STATE_DRAGGING;
+        return mState == STATE_GRABBED || mState == TermuxAppConstants.TabStrip.STATE_DRAGGING;
     }
 
     /** Abort any gesture in flight without renaming or reordering. Used on pause / settings change. */
     void cancel() {
-        if (mState == STATE_IDLE) return;
+        if (mState == TermuxAppConstants.Overview.STATE_IDLE) return;
         stopAutoScroll();
         final View tab = mTab;
-        if (mState == STATE_DRAGGING) {
+        if (mState == TermuxAppConstants.TabStrip.STATE_DRAGGING) {
             clearNeighbourTranslations(true);
         }
         if (tab != null) {
@@ -136,10 +134,10 @@ final class TabStripDragController {
 
     /** Abort before a structural update; the following pager sync re-arms pager input. */
     void cancelForModelChange() {
-        if (mState == STATE_IDLE) return;
+        if (mState == TermuxAppConstants.Overview.STATE_IDLE) return;
         stopAutoScroll();
         final View tab = mTab;
-        if (mState == STATE_DRAGGING) {
+        if (mState == TermuxAppConstants.TabStrip.STATE_DRAGGING) {
             clearNeighbourTranslations(false);
         }
         if (tab != null) {
@@ -161,16 +159,16 @@ final class TabStripDragController {
             case MotionEvent.ACTION_CANCEL:
                 return onCancel();
             default:
-                return mState != STATE_IDLE;
+                return mState != TermuxAppConstants.Overview.STATE_IDLE;
         }
     }
 
     private boolean onDown(View tab, MotionEvent event) {
-        if (mState != STATE_IDLE) return false;
+        if (mState != TermuxAppConstants.Overview.STATE_IDLE) return false;
         if (!mHost.canStartDrag(tab)) return false;
 
         mTab = tab;
-        mState = STATE_PRESSED;
+        mState = TermuxAppConstants.Overview.STATE_PRESSED;
         mDownRawX = event.getRawX();
         mDownRawY = event.getRawY();
         mLastRawX = mDownRawX;
@@ -184,7 +182,7 @@ final class TabStripDragController {
         final float dx = event.getRawX() - mDownRawX;
         final float dy = event.getRawY() - mDownRawY;
 
-        if (mState == STATE_PRESSED) {
+        if (mState == TermuxAppConstants.Overview.STATE_PRESSED) {
             if (Math.hypot(dx, dy) > mTouchSlop) {
                 // Normal click or scroll started before the long press.
                 removeGrabCallback(tab);
@@ -215,7 +213,7 @@ final class TabStripDragController {
             return true;
         }
 
-        if (mState == STATE_DRAGGING) {
+        if (mState == TermuxAppConstants.TabStrip.STATE_DRAGGING) {
             dragTo(event.getRawX());
             return true;
         }
@@ -228,7 +226,7 @@ final class TabStripDragController {
         removeGrabCallback(tab);
 
         switch (mState) {
-            case STATE_PRESSED:
+            case TermuxAppConstants.Overview.STATE_PRESSED:
                 resetGesture();
                 return false; // let the View deliver the click
             case STATE_GRABBED:
@@ -237,7 +235,7 @@ final class TabStripDragController {
                 resetGesture();
                 mHost.onRenameTab(tab);
                 return true;
-            case STATE_DRAGGING:
+            case TermuxAppConstants.TabStrip.STATE_DRAGGING:
                 drop(tab);
                 return true;
             case STATE_CANCELLED:
@@ -249,10 +247,10 @@ final class TabStripDragController {
     }
 
     private boolean onCancel() {
-        final boolean consumed = mState != STATE_IDLE;
-        if (mState == STATE_GRABBED || mState == STATE_DRAGGING) {
+        final boolean consumed = mState != TermuxAppConstants.Overview.STATE_IDLE;
+        if (mState == STATE_GRABBED || mState == TermuxAppConstants.TabStrip.STATE_DRAGGING) {
             stopAutoScroll();
-            if (mState == STATE_DRAGGING) {
+            if (mState == TermuxAppConstants.TabStrip.STATE_DRAGGING) {
                 clearNeighbourTranslations(true);
             }
             if (mTab != null) animateDown(mTab);
@@ -266,7 +264,7 @@ final class TabStripDragController {
 
     private void onGrab() {
         final View tab = mTab;
-        if (mState != STATE_PRESSED || tab == null || !tab.isAttachedToWindow()
+        if (mState != TermuxAppConstants.Overview.STATE_PRESSED || tab == null || !tab.isAttachedToWindow()
                 || !mHost.canStartDrag(tab)) {
             resetGesture();
             return;
@@ -301,7 +299,7 @@ final class TabStripDragController {
     private void beginDrag(float rawX) {
         final View tab = mTab;
         if (tab == null || mHost.getTabCount() < 2) return;
-        mState = STATE_DRAGGING;
+        mState = TermuxAppConstants.TabStrip.STATE_DRAGGING;
         mPagerInputReserved = true;
         mHost.onDragStarted();
         mLastRawX = mDownRawX;
@@ -394,7 +392,7 @@ final class TabStripDragController {
     }
 
     private void updateAutoScroll(float rawX) {
-        if (mState != STATE_DRAGGING) return;
+        if (mState != TermuxAppConstants.TabStrip.STATE_DRAGGING) return;
 
         mScroll.getLocationOnScreen(mScrollLocation);
         final int pointerX = Math.round(rawX - mScrollLocation[0]);
@@ -413,7 +411,7 @@ final class TabStripDragController {
     private final Runnable mAutoScrollRunnable = new Runnable() {
         @Override
         public void run() {
-            if (mState != STATE_DRAGGING || mTab == null || mAutoScrollStep == 0) {
+            if (mState != TermuxAppConstants.TabStrip.STATE_DRAGGING || mTab == null || mAutoScrollStep == 0) {
                 mAutoScrollPosted = false;
                 return;
             }
@@ -466,7 +464,7 @@ final class TabStripDragController {
         }
 
         // Let the host run updateTabs() without treating it as a live drag.
-        mState = STATE_IDLE;
+        mState = TermuxAppConstants.Overview.STATE_IDLE;
 
         if (from == target) {
             animateDown(tab);
@@ -540,7 +538,7 @@ final class TabStripDragController {
                 .translationZ(0f)
                 .scaleX(1f)
                 .scaleY(1f)
-                .setDuration(SETTLE_DURATION_MS)
+                .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
                 .setInterpolator(DECELERATE)
                 .start();
     }
@@ -575,7 +573,7 @@ final class TabStripDragController {
         mDragWidth = 0f;
         mDraggedMarginStart = 0;
         mDraggedMarginEnd = 0;
-        mState = STATE_IDLE;
+        mState = TermuxAppConstants.Overview.STATE_IDLE;
     }
 
     private void removeGrabCallback(@Nullable View tab) {

@@ -1,5 +1,7 @@
 package com.termux.view;
 
+import com.termux.terminal.TerminalConstants;
+
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
@@ -76,9 +78,9 @@ public final class TerminalRenderer {
      * <p>The tables are a pure function of (typeface, text size), both fixed for the lifetime of
      * the renderer, so they carry no per-row state.</p>
      */
-    private final float[] asciiMeasure = new float[0x80];
-    private final byte[] asciiWc = new byte[0x80];
-    private final boolean[] asciiMismatch = new boolean[0x80];
+    private final float[] asciiMeasure = new float[TerminalConstants.Unicode.ASCII_LIMIT];
+    private final byte[] asciiWc = new byte[TerminalConstants.Unicode.ASCII_LIMIT];
+    private final boolean[] asciiMismatch = new boolean[TerminalConstants.Unicode.ASCII_LIMIT];
 
     /**
      * G5: the font-width mismatch tolerance ({@code 0.01 * mFontWidth}) and the expected width of a
@@ -315,8 +317,8 @@ public final class TerminalRenderer {
      * nothing legible. Either way the run is drawn unscaled inside the row clip, which is a
      * wrong-looking cell rather than a wrong canvas.</p>
      */
-    private static final float MAX_MISMATCH_SCALE = 8f;
-    private static final float MIN_MISMATCH_SCALE = 0.125f;
+    public static final float MAX_MISMATCH_SCALE = 8f;
+    public static final float MIN_MISMATCH_SCALE = 0.125f;
 
     /**
      * B4: last {@link Paint} text-style state applied, so {@link #drawRunText} only touches the
@@ -453,10 +455,10 @@ public final class TerminalRenderer {
                 shared = sBmpMeasuresCache.get(key);
             }
             if (shared == null) {
-                shared = new float[0x10000];
+                shared = new float[TerminalConstants.Unicode.BMP_LIMIT];
                 // Pre-measure ASCII so the first paint does not pay for it; the rest is filled lazily.
                 StringBuilder sb = new StringBuilder(" ");
-                for (int i = 0; i < 0x80; i++) {
+                for (int i = 0; i < TerminalConstants.Unicode.ASCII_LIMIT; i++) {
                     sb.setCharAt(0, (char) i);
                     shared[i] = mTextPaint.measureText(sb, 0, 1);
                 }
@@ -476,7 +478,7 @@ public final class TerminalRenderer {
         // G1: pre-measure ASCII so the per-cell path never calls measureText. Full-screen
         // renderers reuse the shared table; explicit-grid renderers measure at their own paint size.
         final StringBuilder localAscii = (sharedAscii == null) ? new StringBuilder(" ") : null;
-        for (int i = 0; i < 0x80; i++) {
+        for (int i = 0; i < TerminalConstants.Unicode.ASCII_LIMIT; i++) {
             final float measured;
             if (sharedAscii != null) {
                 measured = sharedAscii[i];
@@ -562,9 +564,9 @@ public final class TerminalRenderer {
     private float measureCodePoint(int codePoint, char[] line, int index, int count) {
         // ASCII is pre-measured in the constructor for both grid modes, so the common path never
         // reaches the native shaper.
-        if (codePoint < 0x80) return asciiMeasure[codePoint];
+        if (codePoint < TerminalConstants.Unicode.ASCII_LIMIT) return asciiMeasure[codePoint];
 
-        if (bmpMeasures != null && codePoint < 0x10000) {
+        if (bmpMeasures != null && codePoint < TerminalConstants.Unicode.BMP_LIMIT) {
             float cached = bmpMeasures[codePoint];
             if (cached == 0f && codePoint != 0) {
                 cached = measureNeutral(line, index, count);
@@ -910,7 +912,7 @@ public final class TerminalRenderer {
                     charAtIndex = line[currentCharIndex];
                     // G1: ASCII needs no WcWidth table lookup, no surrogate branch and no
                     // measureCodePoint() call — three array reads instead.
-                    if (charAtIndex < 0x80) {
+                    if (charAtIndex < TerminalConstants.Unicode.ASCII_LIMIT) {
                         charIsHighsurrogate = false;
                         charsForCodePoint = 1;
                         codePoint = charAtIndex;
@@ -940,7 +942,7 @@ public final class TerminalRenderer {
                 // T8: the tail's ' ' is already known to match (the row was disqualified above when
                 // it didn't), so this collapses to false with no multiply.
                 final boolean fontWidthMismatch = inTail ? false
-                    : (charAtIndex < 0x80) ? asciiMismatch[charAtIndex]
+                    : (charAtIndex < TerminalConstants.Unicode.ASCII_LIMIT) ? asciiMismatch[charAtIndex]
                     : Math.abs(measuredCodePointWidth - expectedCodePointWidth) > mFontWidthTolerance;
 
                 // A3: how much this code point's measured width deviates from the cell width it is
@@ -1292,12 +1294,12 @@ public final class TerminalRenderer {
         int backColor = TextStyle.decodeBackColor(textStyle);
         final boolean bold = (effect & (TextStyle.CHARACTER_ATTRIBUTE_BOLD | TextStyle.CHARACTER_ATTRIBUTE_BLINK)) != 0;
 
-        if ((foreColor & 0xff000000) != 0xff000000) {
+        if ((foreColor & TerminalConstants.TRUECOLOR_ALPHA_MASK) != TerminalConstants.TRUECOLOR_ALPHA_MASK) {
             // Let bold have bright colors if applicable (one of the first 8):
             if (bold && foreColor >= 0 && foreColor < 8) foreColor += 8;
             foreColor = palette[foreColor];
         }
-        if ((backColor & 0xff000000) != 0xff000000) {
+        if ((backColor & TerminalConstants.TRUECOLOR_ALPHA_MASK) != TerminalConstants.TRUECOLOR_ALPHA_MASK) {
             backColor = palette[backColor];
         }
 

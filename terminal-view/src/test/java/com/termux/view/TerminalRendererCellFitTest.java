@@ -14,14 +14,12 @@ import org.junit.Test;
  */
 public class TerminalRendererCellFitTest {
 
-    private static final float MAX_MISMATCH_SCALE = 8f;
-    private static final float MIN_MISMATCH_SCALE = 0.125f;
 
     private static float cellFitScale(float expectedWidth, float shapedWidth) {
         if (!(expectedWidth > 0f) || !(shapedWidth > 0f)) return 1f;
         final float scale = expectedWidth / shapedWidth;
         if (!(scale > 0f) || Float.isInfinite(scale) || Float.isNaN(scale)) return 1f;
-        return (scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE) ? scale : 1f;
+        return (scale <= TerminalRenderer.MAX_MISMATCH_SCALE && scale >= TerminalRenderer.MIN_MISMATCH_SCALE) ? scale : 1f;
     }
     @Test
     public void mapsAShapedRunOntoItsCells() {
@@ -48,7 +46,7 @@ public class TerminalRendererCellFitTest {
         // glyph; scaling by it would make the run illegible and can overflow the canvas matrix.
         assertEquals(1f, cellFitScale(100f, 1f), 0f);
         assertEquals(1f, cellFitScale(1f, 100f), 0f);
-        assertEquals(8f, cellFitScale(8f, 1f), 0f);
-        assertEquals(0.125f, cellFitScale(1f, 8f), 0f);
+        assertEquals(TerminalRenderer.MAX_MISMATCH_SCALE, cellFitScale(TerminalRenderer.MAX_MISMATCH_SCALE, 1f), 0f);
+        assertEquals(TerminalRenderer.MIN_MISMATCH_SCALE, cellFitScale(1f, TerminalRenderer.MAX_MISMATCH_SCALE), 0f);
     }
 }

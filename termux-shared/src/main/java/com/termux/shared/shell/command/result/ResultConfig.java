@@ -1,5 +1,7 @@
 package com.termux.shared.shell.command.result;
 
+import com.termux.shared.CommonValues;
+
 import android.app.PendingIntent;
 
 import androidx.annotation.NonNull;
@@ -70,7 +72,7 @@ public class ResultConfig {
      * @return Returns the log friendly {@link String}.
      */
     public static String getResultConfigLogString(final ResultConfig resultConfig, boolean ignoreNull) {
-        if (resultConfig == null) return "null";
+        if (resultConfig == null) return CommonValues.NULL_STRING;
 
         StringBuilder logString = new StringBuilder();
 
@@ -112,9 +114,9 @@ public class ResultConfig {
 
         StringBuilder resultDirectoryVariablesString = new StringBuilder();
 
-        resultDirectoryVariablesString.append(Logger.getSingleLineLogStringEntry("Result Directory Path", resultDirectoryPath, "-"));
+        resultDirectoryVariablesString.append(Logger.getSingleLineLogStringEntry("Result Directory Path", resultDirectoryPath, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Single File", resultSingleFile, "-"));
+        resultDirectoryVariablesString.append("\n").append(Logger.getSingleLineLogStringEntry("Result Single File", resultSingleFile, CommonValues.EMPTY_VALUE_PLACEHOLDER));
         appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFileBasename, "Result File Basename");
         appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFileOutputFormat, "Result File Output Format");
         appendLogEntry(resultDirectoryVariablesString, ignoreNull, resultFileErrorFormat, "Result File Error Format");
@@ -125,7 +127,7 @@ public class ResultConfig {
 
     private static void appendLogEntry(StringBuilder builder, boolean ignoreNull, Object value, String label) {
         if (!ignoreNull || value != null)
-            builder.append("\n").append(Logger.getSingleLineLogStringEntry(label, value, "-"));
+            builder.append("\n").append(Logger.getSingleLineLogStringEntry(label, value, CommonValues.EMPTY_VALUE_PLACEHOLDER));
     }
 
     /**
@@ -135,22 +137,22 @@ public class ResultConfig {
      * @return Returns the markdown {@link String}.
      */
     public static String getResultConfigMarkdownString(final ResultConfig resultConfig) {
-        if (resultConfig == null) return "null";
+        if (resultConfig == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
         if (resultConfig.resultPendingIntent != null)
-            markdownString.append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result PendingIntent Creator", resultConfig.resultPendingIntent.getCreatorPackage(), "-"));
+            markdownString.append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result PendingIntent Creator", resultConfig.resultPendingIntent.getCreatorPackage(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
         else
             markdownString.append("**Result PendingIntent Creator:** -  ");
 
         if (resultConfig.resultDirectoryPath != null) {
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result Directory Path", resultConfig.resultDirectoryPath, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result Single File", resultConfig.resultSingleFile, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result File Basename", resultConfig.resultFileBasename, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result File Output Format", resultConfig.resultFileOutputFormat, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result File Error Format", resultConfig.resultFileErrorFormat, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result Files Suffix", resultConfig.resultFilesSuffix, "-"));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result Directory Path", resultConfig.resultDirectoryPath, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result Single File", resultConfig.resultSingleFile, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result File Basename", resultConfig.resultFileBasename, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result File Output Format", resultConfig.resultFileOutputFormat, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result File Error Format", resultConfig.resultFileErrorFormat, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Result Files Suffix", resultConfig.resultFilesSuffix, CommonValues.EMPTY_VALUE_PLACEHOLDER));
         }
 
         return markdownString.toString();

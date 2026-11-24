@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
@@ -49,10 +51,10 @@ public class SessionOverviewScrollView extends ScrollView {
 
     /**
      * How long the scroller may be silent before later frames are no longer assumed to belong to
-     * this view's fling. Mirrors {@link ElasticHorizontalScrollView#FLING_IDLE_MS}.
+     * this view's fling. Mirrors {@link TermuxAppConstants.Overview#FLING_IDLE_MS}.
      */
-    private static final long FLING_IDLE_MS = 96L;
-    private static final long FLING_IDLE_NANOS = FLING_IDLE_MS * 1_000_000L;
+    private static final long FLING_IDLE_NANOS =
+            TermuxAppConstants.Overview.FLING_IDLE_MS * 1_000_000L;
 
     /** How long the grid takes to slide to the new end after a removal shortened it. */
     private static final long SHRINK_SETTLE_DURATION_MS = 250L;
@@ -102,7 +104,7 @@ public class SessionOverviewScrollView extends ScrollView {
 
     /**
      * True while the scroller frames arriving are a fling this view launched. Armed by
-     * {@link #fling(int)} and disarmed after {@link #FLING_IDLE_MS} of silence, so a programmatic
+     * {@link #fling(int)} and disarmed after {@link #TermuxAppConstants.Overview.FLING_IDLE_MS} of silence, so a programmatic
      * scroll finishing on an end is not mistaken for an impact.
      */
     private boolean mFlingArmed;
@@ -139,7 +141,7 @@ public class SessionOverviewScrollView extends ScrollView {
     /** Repost while fling frames keep arriving; otherwise let the armed state lapse. */
     private void disarmFling() {
         if (System.nanoTime() - mFlingLastActivityNanos < FLING_IDLE_NANOS) {
-            postOnAnimationDelayed(mFlingDisarm, FLING_IDLE_MS);
+            postOnAnimationDelayed(mFlingDisarm, TermuxAppConstants.Overview.FLING_IDLE_MS);
         } else {
             mFlingArmed = false;
         }
@@ -369,7 +371,7 @@ public class SessionOverviewScrollView extends ScrollView {
         mFlingArmed = true;
         mLastFlingFrameNanos = 0L;
         mFlingLastActivityNanos = System.nanoTime();
-        postOnAnimationDelayed(mFlingDisarm, FLING_IDLE_MS);
+        postOnAnimationDelayed(mFlingDisarm, TermuxAppConstants.Overview.FLING_IDLE_MS);
         super.fling(velocityY);
     }
 

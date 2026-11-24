@@ -1,5 +1,7 @@
 package com.termux.app.fragments.settings.termux;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
@@ -137,7 +139,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         if (activity == null) return;
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
+        intent.setType(TermuxAppConstants.MimeTypes.ALL);
         startActivityForResult(intent, REQUEST_CODE_RESTORE);
     }
 
@@ -176,7 +178,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         if (activity == null) return;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType(TermuxSettingsBackupUtils.MIME_TYPE_ZIP);
+        intent.setType(TermuxAppConstants.MimeTypes.ZIP);
         intent.putExtra(Intent.EXTRA_TITLE, getDefaultSettingsBackupFilename());
         startActivityForResult(intent, REQUEST_CODE_BACKUP_SETTINGS);
     }
@@ -186,7 +188,7 @@ public class BackupRestorePreferencesFragment extends TermuxPreferenceFragmentBa
         if (activity == null) return;
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
+        intent.setType(TermuxAppConstants.MimeTypes.ALL);
         startActivityForResult(intent, REQUEST_CODE_RESTORE_SETTINGS);
     }
 

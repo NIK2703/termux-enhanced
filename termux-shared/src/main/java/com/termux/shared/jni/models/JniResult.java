@@ -1,5 +1,7 @@
 package com.termux.shared.jni.models;
 
+import com.termux.shared.CommonValues;
+
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 
@@ -61,7 +63,7 @@ public class JniResult {
     /** Null-safe {@link #getErrorString()}; {@code "null"} when {@code result} is null. */
     @NonNull
     public static String getErrorString(final JniResult result) {
-        if (result == null) return "null";
+        if (result == null) return CommonValues.NULL_STRING;
         return result.getErrorString();
     }
 
@@ -74,13 +76,13 @@ public class JniResult {
     public String getErrorString() {
         StringBuilder logString = new StringBuilder();
 
-        logString.append(Logger.getSingleLineLogStringEntry("Retval", retval, "-"));
+        logString.append(Logger.getSingleLineLogStringEntry("Retval", retval, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         if (errno != 0)
-            logString.append("\n").append(Logger.getSingleLineLogStringEntry("Errno", errno, "-"));
+            logString.append("\n").append(Logger.getSingleLineLogStringEntry("Errno", errno, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         if (errmsg != null && !errmsg.isEmpty())
-            logString.append("\n").append(Logger.getMultiLineLogStringEntry("Errmsg", errmsg, "-"));
+            logString.append("\n").append(Logger.getMultiLineLogStringEntry("Errmsg", errmsg, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return logString.toString();
     }

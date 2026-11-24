@@ -1,5 +1,7 @@
 package com.termux.installer;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ComponentName;
@@ -187,9 +189,9 @@ public class BootstrapSelectorActivity extends Activity {
     private void pickLocalZip() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/zip");
+        intent.setType(TermuxAppConstants.MimeTypes.ZIP);
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-            "application/zip", "application/x-zip-compressed", "application/octet-stream"
+            TermuxAppConstants.MimeTypes.ZIP, "application/x-zip-compressed", "application/octet-stream"
         });
         startActivityForResult(intent, REQUEST_PICK_ZIP);
     }

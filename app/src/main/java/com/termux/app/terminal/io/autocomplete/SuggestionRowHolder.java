@@ -11,6 +11,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 
 import com.termux.R;
+import com.termux.app.TermuxAppConstants;
 import com.termux.app.TermuxActivityUtils;
 
 /**
@@ -23,9 +24,6 @@ import com.termux.app.TermuxActivityUtils;
  * remove the suggestion from history.
  */
 final class SuggestionRowHolder extends FrameLayout {
-
-    /** Matches {@code TermuxActivityPopupController.HISTORY_DELETE_BG}. */
-    static final int DELETE_BG = 0xFFB3261E;
 
     @NonNull private final TextView mRow;
     @NonNull private final ImageView mDeleteIcon;
@@ -59,7 +57,7 @@ final class SuggestionRowHolder extends FrameLayout {
 
     /** Reveal the red underlay and the dustbin icon for the duration of a swipe. */
     void showDeleteUnderlay() {
-        setBackgroundColor(DELETE_BG);
+        setBackgroundColor(TermuxAppConstants.SwipeDelete.BACKGROUND);
         mDeleteIcon.setVisibility(View.VISIBLE);
     }
 

@@ -44,9 +44,9 @@ public final class TermuxActivityUtils {
             return;
         }
 
-        final SharedPreferences prefs = activity.getSharedPreferences("termux_prefs", Activity.MODE_PRIVATE);
+        final SharedPreferences prefs = activity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Activity.MODE_PRIVATE);
         final boolean isTablet = activity.getResources().getConfiguration().smallestScreenWidthDp >= 600;
-        final String value = prefs.getString("screen_orientation",
+        final String value = prefs.getString(TermuxAppConstants.Preferences.SCREEN_ORIENTATION,
                 isTablet ? "sensor" : "portrait");
         final int orientation;
         switch (value) {

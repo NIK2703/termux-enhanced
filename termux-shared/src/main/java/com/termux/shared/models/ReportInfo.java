@@ -1,5 +1,7 @@
 package com.termux.shared.models;
 
+import com.termux.shared.CommonValues;
+
 import androidx.annotation.Keep;
 
 import com.termux.shared.markdown.MarkdownUtils;
@@ -88,15 +90,15 @@ public class ReportInfo implements Serializable {
      * @return the markdown string.
      */
     public static String getReportInfoMarkdownString(final ReportInfo reportInfo) {
-        if (reportInfo == null) return "null";
+        if (reportInfo == null) return CommonValues.NULL_STRING;
 
         StringBuilder markdownString = new StringBuilder();
 
         if (reportInfo.addReportInfoHeaderToMarkdown) {
             markdownString.append("## Report Info\n\n");
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("User Action", reportInfo.userAction, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Sender", reportInfo.sender, "-"));
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Report Timestamp", reportInfo.reportTimestamp, "-"));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("User Action", reportInfo.userAction, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Sender", reportInfo.sender, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Report Timestamp", reportInfo.reportTimestamp, CommonValues.EMPTY_VALUE_PLACEHOLDER));
             markdownString.append("\n##\n\n");
         }
 

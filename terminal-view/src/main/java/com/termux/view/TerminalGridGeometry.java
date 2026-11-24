@@ -14,6 +14,10 @@ import android.graphics.Rect;
  */
 public final class TerminalGridGeometry {
 
+    /** Smallest terminal grid the view and its previews may use. */
+    public static final int MIN_COLUMNS = 4;
+    public static final int MIN_ROWS = 4;
+
     private TerminalGridGeometry() {}
 
     /**

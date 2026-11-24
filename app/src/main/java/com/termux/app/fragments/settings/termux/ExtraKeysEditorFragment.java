@@ -1,5 +1,7 @@
 package com.termux.app.fragments.settings.termux;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -603,7 +605,7 @@ public class ExtraKeysEditorFragment extends TermuxPreferenceFragmentBase {
     private void startProfileImport() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
+        intent.setType(TermuxAppConstants.MimeTypes.ALL);
         startActivityForResult(intent, REQUEST_CODE_IMPORT_PROFILE);
     }
 

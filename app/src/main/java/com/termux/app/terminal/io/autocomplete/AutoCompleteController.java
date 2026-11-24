@@ -1,5 +1,7 @@
 package com.termux.app.terminal.io.autocomplete;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -26,6 +28,7 @@ import java.util.HashSet;
 import com.termux.R;
 import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.TermuxColorSchemeManager;
+import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 
 /**
  * Drives message-history suggestions: matching, ranking, insertion, and the text/caret
@@ -39,8 +42,6 @@ import com.termux.app.terminal.TermuxColorSchemeManager;
 public final class AutoCompleteController implements AutoCompleteDataProvider {
 
     /** Match the input-history row delete animation/timing exactly. */
-    private static final int SUGGESTION_DELETE_ANIM_MS = 140;
-    private static final int SUGGESTION_DELETE_RESTORE_MS = 160;
 
     private final Context mContext;
     private EditText mInputField;
@@ -183,7 +184,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mInputField = inputField;
         mMessageHistoryCtrl = messageHistoryCtrl;
         mColorSchemeManager = colorSchemeManager;
-        mPrefs = context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        mPrefs = context.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
         mSuggestionNormalBg = colorSchemeManager.getHistoryPopupBg();
         mSuggestionHighlightBg = TermuxColorSchemeManager.compositeColors(
                 mSuggestionNormalBg, colorSchemeManager.getHistoryHighlightFill());
@@ -224,15 +225,20 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     }
 
     private void readPreferences() {
-        int maxCount = mPrefs.getInt("suggestions_max_count", 4);
-        if (maxCount < 0) maxCount = 0;
-        if (maxCount > 10) maxCount = 10;
+        int maxCount = mPrefs.getInt(TermuxPreferenceConstants.TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT,
+                TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_SUGGESTIONS_MAX_COUNT);
+        if (maxCount < TermuxPreferenceConstants.TERMUX_APP.SUGGESTIONS_MAX_COUNT_MIN) {
+            maxCount = TermuxPreferenceConstants.TERMUX_APP.SUGGESTIONS_MAX_COUNT_MIN;
+        }
+        if (maxCount > TermuxPreferenceConstants.TERMUX_APP.SUGGESTIONS_MAX_COUNT_MAX) {
+            maxCount = TermuxPreferenceConstants.TERMUX_APP.SUGGESTIONS_MAX_COUNT_MAX;
+        }
         mDisplayMax = maxCount;
         int minPrefix = mPrefs.getInt("autocomplete_min_prefix", 1);
         if (minPrefix < 1) minPrefix = 1;
         if (minPrefix > 3) minPrefix = 3;
         mMinPrefix = minPrefix;
-        mSentenceSuggestionsEnabled = mPrefs.getBoolean("autocomplete_sentences_enabled", true);
+        mSentenceSuggestionsEnabled = mPrefs.getBoolean(TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, true);
     }
 
     @Override @NonNull public ArrayList<String> getSuggestions() { return mCurrentSuggestions; }
@@ -1053,14 +1059,14 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                         v.setClickable(false);
                         final View rowToRemove = holder != null ? holder : v;
                         v.animate().translationX(-v.getWidth())
-                                .setDuration(SUGGESTION_DELETE_ANIM_MS)
+                                .setDuration(TermuxAppConstants.SwipeDelete.ANIM_MS)
                                 .withEndAction(() -> finishSuggestionDelete(rowToRemove))
                                 .start();
                     } else {
                         // Not far enough (or the source row was already gone): slide
                         // back, then return to the transparent idle background.
                         v.animate().translationX(0f)
-                                .setDuration(SUGGESTION_DELETE_RESTORE_MS)
+                                .setDuration(TermuxAppConstants.SwipeDelete.RESTORE_ANIM_MS)
                                 .withEndAction(() -> {
                                     v.setBackgroundColor(Color.TRANSPARENT);
                                     if (holder != null) holder.hideDeleteUnderlay();
@@ -1078,8 +1084,9 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
     /** Same threshold as the input-history row: 56 dp or 30% of the row width. */
     private int suggestionDeleteThreshold(int rowWidth) {
-        return Math.max(TermuxActivityUtils.dpToPx(mContext, 56),
-                Math.round(rowWidth * 0.30f));
+        return Math.max(TermuxActivityUtils.dpToPx(mContext,
+                        mContext.getResources().getDimensionPixelSize(R.dimen.swipe_delete_threshold)),
+                Math.round(rowWidth * TermuxAppConstants.SwipeDelete.THRESHOLD_WIDTH_FRACTION));
     }
 
     /** Drop the finished delete row and refresh the popup from the shrunken index. */

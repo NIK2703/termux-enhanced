@@ -1,5 +1,7 @@
 package com.termux.shared.crash;
 
+import com.termux.shared.CommonValues;
+
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -88,16 +90,16 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
         StringBuilder reportString = new StringBuilder();
 
         reportString.append("## Crash Details\n");
-        reportString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Crash Thread", thread.toString(), "-"));
-        reportString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Crash Timestamp", AndroidUtils.getCurrentMilliSecondUTCTimeStamp(), "-"));
-        reportString.append("\n\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry("Crash Message", throwable.getMessage(), "-"));
-        reportString.append("\n\n").append(Logger.getStackTracesMarkdownString("Stacktrace", Logger.getStackTracesStringArray(throwable)));
+        reportString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Crash Thread", thread.toString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        reportString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Crash Timestamp", AndroidUtils.getCurrentMilliSecondUTCTimeStamp(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        reportString.append(MarkdownUtils.SECTION_SEPARATOR).append(MarkdownUtils.getMultiLineMarkdownStringEntry("Crash Message", throwable.getMessage(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        reportString.append(MarkdownUtils.SECTION_SEPARATOR).append(Logger.getStackTracesMarkdownString("Stacktrace", Logger.getStackTracesStringArray(throwable)));
 
         String appInfoMarkdownString = crashHandlerClient.getAppInfoMarkdownString(context);
         if (appInfoMarkdownString != null && !appInfoMarkdownString.isEmpty())
-            reportString.append("\n\n").append(appInfoMarkdownString);
+            reportString.append(MarkdownUtils.SECTION_SEPARATOR).append(appInfoMarkdownString);
 
-        reportString.append("\n\n").append(AndroidUtils.getDeviceInfoMarkdownString(context));
+        reportString.append(MarkdownUtils.SECTION_SEPARATOR).append(AndroidUtils.getDeviceInfoMarkdownString(context));
 
         Logger.logError(reportString.toString());
 

@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.LayoutTransition;
@@ -163,7 +165,7 @@ public class TermuxSessionTabsController {
     private void ensureDimens() {
         if (mDimensCached) return;
         mDimensCached = true;
-        mSingleLineMode = !"double".equals(mPrefs.getString("tab_height_mode", "single"));
+        mSingleLineMode = !"double".equals(mPrefs.getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE, "single"));
         android.content.res.Resources r = mActivity.getResources();
         mTabHeightPx = Math.round(r.getDimension(mSingleLineMode
                 ? R.dimen.terminal_tab_height_single
@@ -202,7 +204,7 @@ public class TermuxSessionTabsController {
 
     public TermuxSessionTabsController(TermuxActivity activity) {
         this.mActivity = activity;
-        this.mPrefs = activity.getSharedPreferences("termux_prefs", android.content.Context.MODE_PRIVATE);
+        this.mPrefs = activity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, android.content.Context.MODE_PRIVATE);
         this.mTabsContainer = activity.findViewById(R.id.session_tabs);
         this.mTabsScroll = activity.findViewById(R.id.session_tabs_scroll);
 
@@ -559,7 +561,7 @@ public class TermuxSessionTabsController {
 
     /**
      * Show or hide the trailing (+) add-tab button based on the number of open sessions.
-     * Once {@link TermuxTerminalSessionActivityClient#MAX_SESSIONS} is reached there is
+     * Once {@link TermuxAppConstants#MAX_SESSIONS} is reached there is
      * nothing left to add, so the button is hidden; it reappears as soon as a slot frees up.
      */
     public void updateAddButtonVisibility(int sessionCount) {
@@ -568,7 +570,7 @@ public class TermuxSessionTabsController {
         if (addBtn == null) return;
         // GONE releases the button's width and margin. If it hides while pinned, the layout
         // listener re-anchors scrollX on the next pass.
-        addBtn.setVisibility(sessionCount >= TermuxTerminalSessionActivityClient.MAX_SESSIONS
+        addBtn.setVisibility(sessionCount >= TermuxAppConstants.MAX_SESSIONS
                 ? View.GONE : View.VISIBLE);
     }
 

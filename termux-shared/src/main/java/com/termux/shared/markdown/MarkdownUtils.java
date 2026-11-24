@@ -41,6 +41,11 @@ public class MarkdownUtils {
     public static final String backtick = "`";
     public static final Pattern backticksPattern = Pattern.compile("(" + backtick + "+)");
 
+    /** Separators and heading prefix shared by every generated report string. */
+    public static final String SECTION_SEPARATOR = "\n\n";
+    public static final String SUBSECTION_SEPARATOR = "\n\n\n";
+    public static final String HEADING_PREFIX = "## ";
+
     /**
      * Resolve the inline-code background from the active Termux:Style scheme. The context is
      * scheme-wrapped (SchemeDialogTheme), so {@code R.color.scheme_dialog_code_block} resolves to

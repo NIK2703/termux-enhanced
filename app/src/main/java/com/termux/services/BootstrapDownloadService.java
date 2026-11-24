@@ -1,5 +1,7 @@
 package com.termux.services;
 
+import com.termux.shared.CommonValues;
+
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -197,7 +199,7 @@ public class BootstrapDownloadService extends Service {
         String action = intent.getAction();
         if (ACTION_DOWNLOAD.equals(action)) {
             BootstrapSource source = (BootstrapSource) intent.getSerializableExtra(EXTRA_SOURCE);
-            Logger.i(LOG_TAG, "ACTION_DOWNLOAD source=" + (source != null ? source.name : "null"));
+            Logger.i(LOG_TAG, "ACTION_DOWNLOAD source=" + (source != null ? source.name : CommonValues.NULL_STRING));
             if (source != null) startDownloadTask(source);
         } else if (ACTION_INSTALL_LOCAL.equals(action)) {
             Uri uri = intent.getParcelableExtra(EXTRA_URI);

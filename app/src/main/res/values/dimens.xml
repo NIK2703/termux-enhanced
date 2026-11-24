@@ -57,6 +57,28 @@
     <item name="autocomplete_popup_content_alpha" type="fraction">90%</item>
     <item name="autocomplete_popup_shadow_alpha" type="fraction">65%</item>
 
+    <!-- Message-history context popups (the pencil and directory-button popups). Both use
+         the same geometry so a tab and its history entry keep one visual language. -->
+    <dimen name="history_popup_corner_radius">12dp</dimen>
+    <dimen name="history_popup_max_width">320dp</dimen>
+    <dimen name="history_popup_horizontal_inset">24dp</dimen>
+    <dimen name="history_popup_elevation">16dp</dimen>
+    <dimen name="history_popup_row_padding_horizontal">14dp</dimen>
+    <dimen name="history_popup_row_padding_vertical">10dp</dimen>
+    <dimen name="history_popup_min_room_above">48dp</dimen>
+    <dimen name="history_popup_anchor_edge">8dp</dimen>
+    <dimen name="history_popup_divider">1dp</dimen>
+    <dimen name="history_popup_action_row_padding">8dp</dimen>
+    <dimen name="history_popup_text_size">15sp</dimen>
+    <dimen name="history_popup_delete_icon_size">24dp</dimen>
+    <dimen name="history_popup_delete_icon_margin">20dp</dimen>
+    <dimen name="history_popup_autoscroll_band">36dp</dimen>
+    <dimen name="history_popup_autoscroll_max_step">24dp</dimen>
+    <!-- Swipe-to-delete threshold shared by history rows and suggestion rows. -->
+    <dimen name="swipe_delete_threshold">56dp</dimen>
+    <!-- Small slide-down of the autocomplete popup when it is swiped away. -->
+    <dimen name="autocomplete_popup_swipe_slide_distance">8dp</dimen>
+
     <!-- 60% × 50/80: matches the controls' shadow despite the panel's higher fill opacity. -->
     <dimen name="floating_shadow_elevation">4dp</dimen>
     <item name="floating_shadow_alpha" type="fraction">60%</item>

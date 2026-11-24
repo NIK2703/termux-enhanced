@@ -39,7 +39,6 @@ public final class TermuxSettingsBackupUtils {
     public static final String BACKUP_FORMAT_VERSION = "1";
     public static final Error CANCELLED_ERROR = new Error("__SETTINGS_CANCELLED__");
 
-    public static final String MIME_TYPE_ZIP = "application/zip";
     public static final String DEFAULT_FILENAME_PREFIX = "termux-settings-backup-";
 
     public interface ResultListener {
@@ -613,7 +612,7 @@ public final class TermuxSettingsBackupUtils {
                 return context.getSharedPreferences(
                     TermuxConstants.TERMUX_DEFAULT_PREFERENCES_FILE_BASENAME_WITHOUT_EXTENSION, Context.MODE_PRIVATE);
             case PREFERENCES_UI:
-                return context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+                return context.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
             case PREFERENCES_BOOTSTRAP:
                 return context.getSharedPreferences("termux_bootstrap_state", Context.MODE_PRIVATE);
             default:

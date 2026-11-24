@@ -1,5 +1,7 @@
 package com.termux.shared.errors;
 
+import com.termux.shared.CommonValues;
+
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -165,7 +167,7 @@ public class Error implements Serializable {
      * @return Returns the log friendly {@link String}.
      */
     public static String getErrorLogString(final Error error) {
-        if (error == null) return "null";
+        if (error == null) return CommonValues.NULL_STRING;
         return error.getErrorLogString();
     }
 
@@ -196,7 +198,7 @@ public class Error implements Serializable {
      * @return Returns the {@link String}.
      */
     public static String getMinimalErrorString(final Error error) {
-        if (error == null) return "null";
+        if (error == null) return CommonValues.NULL_STRING;
         return error.getMinimalErrorString();
     }
 
@@ -216,29 +218,29 @@ public class Error implements Serializable {
      * @return Returns the markdown {@link String}.
      */
     public static String getErrorMarkdownString(final Error error) {
-        if (error == null) return "null";
+        if (error == null) return CommonValues.NULL_STRING;
         return error.getErrorMarkdownString();
     }
 
     public String getErrorMarkdownString() {
         StringBuilder markdownString = new StringBuilder();
 
-        markdownString.append(MarkdownUtils.getSingleLineMarkdownStringEntry("Error Code", getCode(), "-"));
+        markdownString.append(MarkdownUtils.getSingleLineMarkdownStringEntry("Error Code", getCode(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
         markdownString.append("\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry(
-            (Errno.TYPE.equals(getType()) ? "Error Message" : "Error Message (" + getType() + ")"), message, "-"));
+            (Errno.TYPE.equals(getType()) ? "Error Message" : "Error Message (" + getType() + ")"), message, CommonValues.EMPTY_VALUE_PLACEHOLDER));
         if (throwablesList != null && throwablesList.size() > 0)
-            markdownString.append("\n\n").append(geStackTracesMarkdownString());
+            markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(geStackTracesMarkdownString());
 
         return markdownString.toString();
     }
 
 
     public String getCodeString() {
-        return Logger.getSingleLineLogStringEntry("Error Code", code, "-");
+        return Logger.getSingleLineLogStringEntry("Error Code", code, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getTypeAndMessageLogString() {
-        return Logger.getMultiLineLogStringEntry(Errno.TYPE.equals(type) ? "Error Message" : "Error Message (" + type + ")", message, "-");
+        return Logger.getMultiLineLogStringEntry(Errno.TYPE.equals(type) ? "Error Message" : "Error Message (" + type + ")", message, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String geStackTracesLogString() {

@@ -1,5 +1,7 @@
 package com.termux.app.terminal.io.autocomplete;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Outline;
@@ -21,8 +23,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.R;
 import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.TermuxColorSchemeManager;
+import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 
 /**
  * Owns the message-history auto-complete popup window and its lifecycle: building, showing,
@@ -149,9 +153,9 @@ final class AutoCompletePopupManager {
         decor.setAlpha(1f);
         decor.setTranslationY(0f);
         decor.animate()
-                .translationY(TermuxActivityUtils.dpToPx(mContext, 8))
+                .translationY(mContext.getResources().getDimensionPixelSize(R.dimen.autocomplete_popup_swipe_slide_distance))
                 .alpha(0f)
-                .setDuration(140)
+                .setDuration(TermuxAppConstants.Autocomplete.POPUP_SLIDE_DURATION_MS)
                 .setInterpolator(new DecelerateInterpolator())
                 .withEndAction(() -> {
                     if (!mSwipeDismissAnimating) return;
@@ -521,7 +525,9 @@ final class AutoCompletePopupManager {
     private int displayMax() {
         int maxCount = mData.getDisplayMax();
         if (maxCount < 0) maxCount = 0;
-        if (maxCount > 10) maxCount = 10;
+        if (maxCount > TermuxPreferenceConstants.TERMUX_APP.SUGGESTIONS_MAX_COUNT_MAX) {
+            maxCount = TermuxPreferenceConstants.TERMUX_APP.SUGGESTIONS_MAX_COUNT_MAX;
+        }
         return maxCount;
     }
 

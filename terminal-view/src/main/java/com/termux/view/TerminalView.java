@@ -48,6 +48,7 @@ import androidx.annotation.RequiresApi;
 
 import com.termux.terminal.KeyHandler;
 import com.termux.terminal.TerminalBuffer;
+import com.termux.terminal.TerminalConstants;
 import com.termux.terminal.TerminalColors;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
@@ -398,7 +399,7 @@ public final class TerminalView extends View {
     /** Extra touch tolerance (px) around the thumb on each side for finger targeting. */
     private final int mScrollbarThumbTouchSlop;
     /** Sentinel for "no scrollbar thumb was painted", used by {@link #mLastThumbTop}. */
-    private static final int NO_THUMB = Integer.MIN_VALUE;
+    public static final int NO_THUMB = Integer.MIN_VALUE;
 
     /** Whether the user is currently dragging the scrollbar thumb. */
     private boolean mScrollbarDragging;
@@ -781,7 +782,7 @@ public final class TerminalView extends View {
                         codePoint = Character.toUpperCase(codePoint);
 
                     boolean ctrlHeld = false;
-                    if (codePoint <= 31 && codePoint != 27) {
+                    if (codePoint <= TerminalConstants.Ascii.C0_MAX && codePoint != TerminalConstants.Ascii.ESC) {
                         if (codePoint == '\n') {
                             // The AOSP keyboard and descendants seems to send \n as text when the enter key is pressed,
                             // instead of a key event like most other keyboard apps. A terminal expects \r for the enter
@@ -2339,7 +2340,7 @@ public final class TerminalView extends View {
             } else if (codePoint == ' ' || codePoint == '2') {
                 codePoint = 0;
             } else if (codePoint == '[' || codePoint == '3') {
-                codePoint = 27; // ^[ (Esc)
+                codePoint = TerminalConstants.Ascii.ESC; // ^[ (Esc)
             } else if (codePoint == '\\' || codePoint == '4') {
                 codePoint = 28;
             } else if (codePoint == ']' || codePoint == '5') {
@@ -2349,9 +2350,9 @@ public final class TerminalView extends View {
             } else if (codePoint == '_' || codePoint == '7' || codePoint == '/') {
                 // "Ctrl-/ sends 0x1f which is equivalent of Ctrl-_ since the days of VT102"
                 // - http://apple.stackexchange.com/questions/24261/how-do-i-send-c-that-is-control-slash-to-the-terminal
-                codePoint = 31;
+                codePoint = TerminalConstants.Ascii.C0_MAX;
             } else if (codePoint == '8') {
-                codePoint = 127; // DEL
+                codePoint = TerminalConstants.Ascii.DEL;
             }
         }
 
@@ -2479,8 +2480,8 @@ public final class TerminalView extends View {
         if (viewWidth == 0 || viewHeight == 0 || mTermSession == null) return;
 
         // Set to 80 and 24 if you want to enable vttest.
-        int newColumns = Math.max(4, (int) (viewWidth / mRenderer.mFontWidth));
-        int newRows = Math.max(4, (viewHeight - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
+        int newColumns = Math.max(TerminalGridGeometry.MIN_COLUMNS, (int) (viewWidth / mRenderer.mFontWidth));
+        int newRows = Math.max(TerminalGridGeometry.MIN_ROWS, (viewHeight - mRenderer.mFontLineSpacingAndAscent) / mRenderer.mFontLineSpacing);
 
         final boolean sizeChanged = (mEmulator == null
             || newColumns != mEmulator.mColumns || newRows != mEmulator.mRows);
@@ -2914,7 +2915,7 @@ public final class TerminalView extends View {
     /** Fallback: derive a scrollbar colour from the terminal scheme background on-the-fly (old behaviour). */
     private static int fallbackScrollbarColor(int alpha) {
         int bg = TerminalColors.COLOR_SCHEME.mDefaultColors[TextStyle.COLOR_INDEX_BACKGROUND];
-        boolean isLight = TerminalColors.getPerceivedBrightnessOfColor(bg) >= 130;
+        boolean isLight = TerminalColors.getPerceivedBrightnessOfColor(bg) >= TerminalColors.LIGHT_BACKGROUND_BRIGHTNESS_THRESHOLD;
         int base = isLight ? 0x000000 : 0xFFFFFF;
         return (alpha << 24) | base;
     }

@@ -1,5 +1,7 @@
 package com.termux.filepicker;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -36,7 +38,6 @@ import java.util.LinkedList;
  */
 public class TermuxDocumentsProvider extends DocumentsProvider {
 
-    private static final String ALL_MIME_TYPES = "*/*";
 
     private static final File BASE_DIR = TermuxConstants.TERMUX_HOME_DIR;
 
@@ -73,7 +74,7 @@ public class TermuxDocumentsProvider extends DocumentsProvider {
         row.add(Root.COLUMN_SUMMARY, null);
         row.add(Root.COLUMN_FLAGS, Root.FLAG_SUPPORTS_CREATE | Root.FLAG_SUPPORTS_SEARCH | Root.FLAG_SUPPORTS_IS_CHILD);
         row.add(Root.COLUMN_TITLE, applicationName);
-        row.add(Root.COLUMN_MIME_TYPES, ALL_MIME_TYPES);
+        row.add(Root.COLUMN_MIME_TYPES, TermuxAppConstants.MimeTypes.ALL);
         row.add(Root.COLUMN_AVAILABLE_BYTES, BASE_DIR.getFreeSpace());
         row.add(Root.COLUMN_ICON, R.mipmap.ic_launcher);
         return result;

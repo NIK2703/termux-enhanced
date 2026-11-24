@@ -1,5 +1,7 @@
 package com.termux.shared.net.socket.local;
 
+import com.termux.shared.CommonValues;
+
 import androidx.annotation.NonNull;
 
 import com.termux.shared.data.DataUtils;
@@ -304,9 +306,9 @@ public class LocalClientSocket implements Closeable {
         StringBuilder logString = new StringBuilder();
 
         logString.append("Client Socket:");
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("FD", mFD, "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Creation Time", mCreationTime, "-"));
-        logString.append("\n\n\n");
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("FD", mFD, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Creation Time", mCreationTime, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append(MarkdownUtils.SUBSECTION_SEPARATOR);
 
         logString.append(mPeerCred.getLogString());
 
@@ -318,10 +320,10 @@ public class LocalClientSocket implements Closeable {
     public String getMarkdownString() {
         StringBuilder markdownString = new StringBuilder();
 
-        markdownString.append("## ").append("Client Socket");
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("FD", mFD, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Creation Time", mCreationTime, "-"));
-        markdownString.append("\n\n\n");
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append("Client Socket");
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("FD", mFD, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Creation Time", mCreationTime, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append(MarkdownUtils.SUBSECTION_SEPARATOR);
 
         markdownString.append(mPeerCred.getMarkdownString());
 

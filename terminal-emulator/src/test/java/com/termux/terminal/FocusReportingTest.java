@@ -7,8 +7,6 @@ package com.termux.terminal;
  */
 public class FocusReportingTest extends TerminalTestCase {
 
-    private static final String FOCUS_IN = "\033[I";
-    private static final String FOCUS_OUT = "\033[O";
 
     public void testNothingIsReportedBeforeTheModeIsEnabled() {
         withTerminalSized(10, 3);
@@ -21,14 +19,14 @@ public class FocusReportingTest extends TerminalTestCase {
         // A program that just turned the mode on has no other way to learn the state.
         withTerminalSized(10, 3);
         enterString("\033[?1004h");
-        assertEquals("a blurred window must be reported as such on enable", FOCUS_OUT, mOutput.getOutputAndClear());
+        assertEquals("a blurred window must be reported as such on enable", TerminalEmulator.FOCUS_OUT, mOutput.getOutputAndClear());
 
         mTerminal.setTerminalFocused(true);
         mOutput.getOutputAndClear();
         enterString("\033[?1004l");
         mTerminal.setTerminalFocused(true);
         enterString("\033[?1004h");
-        assertEquals("a focused window must be reported as such on enable", FOCUS_IN, mOutput.getOutputAndClear());
+        assertEquals("a focused window must be reported as such on enable", TerminalEmulator.FOCUS_IN, mOutput.getOutputAndClear());
     }
 
     public void testFocusChangesAreReportedOnceEnabled() {
@@ -37,10 +35,10 @@ public class FocusReportingTest extends TerminalTestCase {
         mOutput.getOutputAndClear();
 
         mTerminal.setTerminalFocused(true);
-        assertEquals(FOCUS_IN, mOutput.getOutputAndClear());
+        assertEquals(TerminalEmulator.FOCUS_IN, mOutput.getOutputAndClear());
 
         mTerminal.setTerminalFocused(false);
-        assertEquals(FOCUS_OUT, mOutput.getOutputAndClear());
+        assertEquals(TerminalEmulator.FOCUS_OUT, mOutput.getOutputAndClear());
     }
 
     public void testRepeatedIdenticalStateIsNotRepeated() {

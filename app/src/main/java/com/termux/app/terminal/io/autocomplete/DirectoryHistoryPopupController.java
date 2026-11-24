@@ -22,6 +22,7 @@ import androidx.annotation.Nullable;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.termux.R;
+import com.termux.app.TermuxAppConstants;
 import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.TermuxColorSchemeManager;
 
@@ -112,7 +113,7 @@ public final class DirectoryHistoryPopupController {
         mCallback = callback;
         mPopupGapDp = popupGapDp;
         mPopupMaxHeightDp = popupMaxHeightDp;
-        mOutlineRadiusPx = TermuxActivityUtils.dpToPx(mContext, 12);
+        mOutlineRadiusPx = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_corner_radius);
     }
 
     /** @return true if there is at least one entry to show (capturing CWD on demand). */
@@ -144,8 +145,8 @@ public final class DirectoryHistoryPopupController {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setBackgroundColor(Color.TRANSPARENT);
 
-        int padH = TermuxActivityUtils.dpToPx(mContext, 14);
-        int padV = TermuxActivityUtils.dpToPx(mContext, 10);
+        int padH = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_row_padding_horizontal);
+        int padV = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_row_padding_vertical);
 
         if (mInverted) {
             // Newest at the TOP: iterate FORWARD so index 0 (newest) ends first.
@@ -156,7 +157,7 @@ public final class DirectoryHistoryPopupController {
                 tv.setMaxLines(2);
                 tv.setEllipsize(TextUtils.TruncateAt.MIDDLE);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
-                tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
                 tv.setPadding(padH, padV, padH, padV);
                 tv.setClickable(true);
                 tv.setTag(i);
@@ -172,14 +173,14 @@ public final class DirectoryHistoryPopupController {
                 View sep = new View(mContext);
                 sep.setBackgroundColor(mColorScheme.getHistoryPopupSepColor());
                 content.addView(sep, new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
+                        ViewGroup.LayoutParams.MATCH_PARENT, mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_divider)));
 
                 TextView tv = new TextView(mContext);
                 tv.setText(mContext.getString(R.string.input_history_clear_all));
                 tv.setGravity(Gravity.CENTER);
                 tv.setAllCaps(true);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
-                tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
                 tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
                 tv.setPadding(padH, padV, padH, padV);
                 tv.setClickable(true);
@@ -197,7 +198,7 @@ public final class DirectoryHistoryPopupController {
                 tv.setGravity(Gravity.CENTER);
                 tv.setAllCaps(true);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
-                tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
                 tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
                 tv.setPadding(padH, padV, padH, padV);
                 tv.setClickable(true);
@@ -210,7 +211,7 @@ public final class DirectoryHistoryPopupController {
                 View sep = new View(mContext);
                 sep.setBackgroundColor(mColorScheme.getHistoryPopupSepColor());
                 content.addView(sep, new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
+                        ViewGroup.LayoutParams.MATCH_PARENT, mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_divider)));
             }
 
             // Newest at the BOTTOM: iterate REVERSE so index 0 (newest) ends last.
@@ -221,7 +222,7 @@ public final class DirectoryHistoryPopupController {
                 tv.setMaxLines(2);
                 tv.setEllipsize(TextUtils.TruncateAt.MIDDLE);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
-                tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
                 tv.setPadding(padH, padV, padH, padV);
                 tv.setClickable(true);
                 tv.setTag(i);
@@ -233,8 +234,8 @@ public final class DirectoryHistoryPopupController {
         }
 
         int popupWidth = Math.min(
-                mContext.getResources().getDisplayMetrics().widthPixels - TermuxActivityUtils.dpToPx(mContext, 24),
-                TermuxActivityUtils.dpToPx(mContext, 320));
+                mContext.getResources().getDisplayMetrics().widthPixels - mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_horizontal_inset),
+                mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_max_width));
 
         ScrollView scroll = new ScrollView(mContext);
         scroll.setVerticalScrollBarEnabled(false);
@@ -270,7 +271,7 @@ public final class DirectoryHistoryPopupController {
         // Elevation shadow needs a fully opaque background drawable for WindowManager to
         // derive a valid Outline (GradientDrawable.getOutline bails when alpha < 255); the
         // 10% visual transparency is applied to the ScrollView via setAlpha() instead.
-        mPopup.setElevation(TermuxActivityUtils.dpToPx(mContext, 16));
+        mPopup.setElevation(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_elevation));
         // Rounded rect, fully opaque scheme colour; getOutline() overrides outline.setAlpha()
         // so shadow opacity can differ from elevation size.
         GradientDrawable popupBgDrawable = new GradientDrawable() {
@@ -280,17 +281,17 @@ public final class DirectoryHistoryPopupController {
                 if (!outline.isEmpty()) {
                     // setAlpha requires API 31+.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        outline.setAlpha(0.65f);
+                        outline.setAlpha(TermuxAppConstants.HistoryPopup.SHADOW_ALPHA);
                     }
                 }
             }
         };
         popupBgDrawable.setShape(GradientDrawable.RECTANGLE);
-        popupBgDrawable.setCornerRadius(TermuxActivityUtils.dpToPx(mContext, 12));
+        popupBgDrawable.setCornerRadius(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_corner_radius));
         popupBgDrawable.setColor(mColorScheme.getHistoryPopupBg()); // must be opaque for getOutline
         mPopup.setBackgroundDrawable(popupBgDrawable);
         // 10% visual transparency on content only (not the background, so the outline stays valid).
-        scroll.setAlpha(0.9f);
+        scroll.setAlpha(TermuxAppConstants.HistoryPopup.CONTENT_ALPHA);
         mPopup.setClippingEnabled(true);
         mPopup.setTouchable(false);
         mPopup.setFocusable(false);
@@ -318,7 +319,7 @@ public final class DirectoryHistoryPopupController {
             final ScrollView scrollRef = scroll;
             scrollRef.post(() -> scrollRef.scrollTo(0, 0));
         } else {
-            int roomAbove = Math.max(TermuxActivityUtils.dpToPx(mContext, 48), anchorLoc[1] - TermuxActivityUtils.dpToPx(mContext, 8) - popupGap);
+            int roomAbove = Math.max(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_min_room_above), anchorLoc[1] - mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_anchor_edge) - popupGap);
             maxHeight = Math.min(TermuxActivityUtils.dpToPx(mContext, mPopupMaxHeightDp), roomAbove);
             int popupHeight = Math.min(contentHeight, maxHeight);
             mPopup.setHeight(popupHeight);
@@ -420,8 +421,8 @@ public final class DirectoryHistoryPopupController {
         mScroll.getLocationOnScreen(mTmpLoc);
         int top = mTmpLoc[1];
         int bottom = mTmpLoc[1] + mScroll.getHeight();
-        int band = TermuxActivityUtils.dpToPx(mContext, 36);      // edge-sensitive zone
-        int maxStep = TermuxActivityUtils.dpToPx(mContext, 24);   // max px scrolled per 16ms reference interval
+        int band = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_autoscroll_band);      // edge-sensitive zone
+        int maxStep = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_autoscroll_max_step);   // max px scrolled per 16ms reference interval
 
         // Time-based step so speed is consistent across 60/90/120 Hz displays.
         long now = SystemClock.uptimeMillis();
@@ -429,8 +430,8 @@ public final class DirectoryHistoryPopupController {
         if (mLastScrollTimeMs == 0) {
             frameRatio = 1f;
         } else {
-            long dt = Math.min(now - mLastScrollTimeMs, 48L);
-            frameRatio = dt / 16f;
+            long dt = Math.min(now - mLastScrollTimeMs, TermuxAppConstants.HistoryPopup.FRAME_CAP_MS);
+            frameRatio = dt / TermuxAppConstants.HistoryPopup.FRAME_REFERENCE_MS;
         }
         mLastScrollTimeMs = now;
 

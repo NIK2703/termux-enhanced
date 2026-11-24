@@ -187,7 +187,7 @@ public final class TerminalSession extends TerminalOutput {
         }
 
         int bufferPosition = 0;
-        if (prependEscape) mUtf8InputBuffer[bufferPosition++] = 27;
+        if (prependEscape) mUtf8InputBuffer[bufferPosition++] = TerminalConstants.Ascii.ESC;
 
         if (codePoint <= /* 7 bits */0b1111111) {
             mUtf8InputBuffer[bufferPosition++] = (byte) codePoint;

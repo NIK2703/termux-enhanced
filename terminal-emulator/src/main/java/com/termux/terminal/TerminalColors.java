@@ -5,6 +5,9 @@ import android.graphics.Color;
 /** Current terminal colors (if different from default). */
 public final class TerminalColors {
 
+    /** Perceived-brightness threshold above which a terminal background counts as light. */
+    public static final int LIGHT_BACKGROUND_BRIGHTNESS_THRESHOLD = 130;
+
     public static final TerminalColorScheme COLOR_SCHEME = new TerminalColorScheme();
 
     /**

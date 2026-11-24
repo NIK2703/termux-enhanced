@@ -1,5 +1,7 @@
 package com.termux.app.attachments;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.ContentUris;
@@ -43,7 +45,7 @@ public final class AttachmentPicker {
     public static Intent createFilesIntent() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
+        intent.setType(TermuxAppConstants.MimeTypes.ALL);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         return intent;
     }

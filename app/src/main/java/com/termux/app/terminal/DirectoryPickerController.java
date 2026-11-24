@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.util.TypedValue;
@@ -112,8 +114,8 @@ public final class DirectoryPickerController {
      * which drops the list and keeps the "+ new session" hint centred.
      */
     public boolean isHistoryEnabled() {
-        return mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE)
-                .getBoolean(PREF_GESTURE_DIRECTORY_HISTORY, true);
+        return mActivity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE)
+                .getBoolean(TermuxAppConstants.Preferences.GESTURE_DIRECTORY_HISTORY_ENABLED, true);
     }
 
     public DirectoryPickerController(@NonNull TermuxActivity activity) {
@@ -352,7 +354,6 @@ public final class DirectoryPickerController {
     }
 
     /** Key of the "show directory history in the swipe gesture" switch. */
-    private static final String PREF_GESTURE_DIRECTORY_HISTORY = "gesture_directory_history_enabled";
 
     /** The 10 newest visited directories, newest first. Empty when the switch is off. */
     private void buildItems() {

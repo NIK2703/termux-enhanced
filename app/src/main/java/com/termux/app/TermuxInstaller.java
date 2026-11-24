@@ -1853,7 +1853,7 @@ public final class TermuxInstaller {
             bootstrapErrorMessage = Error.getMinimalErrorString(filesDirectoryAccessibleError);
             if (PackageUtils.isAppInstalledOnExternalStorage(activity) &&
                 !TermuxConstants.TERMUX_FILES_DIR_PATH.equals(activity.getFilesDir().getAbsolutePath().replaceAll("^/data/user/0/", "/data/data/"))) {
-                bootstrapErrorMessage += "\n\n" + activity.getString(R.string.bootstrap_error_installed_on_portable_sd,
+                bootstrapErrorMessage += MarkdownUtils.SECTION_SEPARATOR + activity.getString(R.string.bootstrap_error_installed_on_portable_sd,
                     MarkdownUtils.getMarkdownCodeForString(TERMUX_PREFIX_DIR_PATH, false));
             }
             Logger.logError(LOG_TAG, bootstrapErrorMessage);

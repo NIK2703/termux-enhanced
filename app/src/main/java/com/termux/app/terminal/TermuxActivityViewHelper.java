@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
@@ -27,19 +29,6 @@ import com.termux.view.TerminalView;
 public class TermuxActivityViewHelper {
 
     // Context-menu item ids (mirror the private constants on TermuxActivity).
-    private static final int CONTEXT_MENU_SELECT_URL_ID = 0;
-    private static final int CONTEXT_MENU_SHARE_TRANSCRIPT_ID = 1;
-    private static final int CONTEXT_MENU_AUTOFILL_PASSWORD = 2;
-    private static final int CONTEXT_MENU_RESET_TERMINAL_ID = 3;
-    private static final int CONTEXT_MENU_KILL_PROCESS_ID = 4;
-    private static final int CONTEXT_MENU_STYLING_ID = 5;
-    private static final int CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON = 6;
-    private static final int CONTEXT_MENU_HELP_ID = 7;
-    private static final int CONTEXT_MENU_SETTINGS_ID = 8;
-    private static final int CONTEXT_MENU_REPORT_ID = 9;
-    private static final int CONTEXT_MENU_SHARE_SELECTED_TEXT = 10;
-    private static final int CONTEXT_MENU_AUTOFILL_USERNAME = 11;
-    private static final int CONTEXT_MENU_FONT_ID = 12;
 
     @NonNull
     private final TermuxActivity mActivity;
@@ -77,16 +66,16 @@ public class TermuxActivityViewHelper {
                                  boolean keepScreenOn) {
         boolean autoFillEnabled = terminalView.isAutoFillEnabled();
 
-        menu.add(Menu.NONE, CONTEXT_MENU_SELECT_URL_ID, Menu.NONE, R.string.action_select_url);
-        menu.add(Menu.NONE, CONTEXT_MENU_SHARE_TRANSCRIPT_ID, Menu.NONE, R.string.action_share_transcript);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.SELECT_URL, Menu.NONE, R.string.action_select_url);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.SHARE_TRANSCRIPT, Menu.NONE, R.string.action_share_transcript);
         if (!com.termux.shared.data.DataUtils.isNullOrEmpty(terminalView.getStoredSelectedText()))
-            menu.add(Menu.NONE, CONTEXT_MENU_SHARE_SELECTED_TEXT, Menu.NONE, R.string.action_share_selected_text);
+            menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.SHARE_SELECTED_TEXT, Menu.NONE, R.string.action_share_selected_text);
         if (autoFillEnabled)
-            menu.add(Menu.NONE, CONTEXT_MENU_AUTOFILL_USERNAME, Menu.NONE, R.string.action_autofill_username);
+            menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.AUTOFILL_USERNAME, Menu.NONE, R.string.action_autofill_username);
         if (autoFillEnabled)
-            menu.add(Menu.NONE, CONTEXT_MENU_AUTOFILL_PASSWORD, Menu.NONE, R.string.action_autofill_password);
-        menu.add(Menu.NONE, CONTEXT_MENU_RESET_TERMINAL_ID, Menu.NONE, R.string.action_reset_terminal);
-        menu.add(Menu.NONE, CONTEXT_MENU_KILL_PROCESS_ID, Menu.NONE,
+            menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.AUTOFILL_PASSWORD, Menu.NONE, R.string.action_autofill_password);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.RESET_TERMINAL, Menu.NONE, R.string.action_reset_terminal);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.KILL_PROCESS, Menu.NONE,
             resources.getString(R.string.action_kill_process, sessionPid))
             .setEnabled(sessionRunning);
         boolean stylingInstalled = PackageUtils.getContextForPackage(context,
@@ -94,15 +83,15 @@ public class TermuxActivityViewHelper {
         // The "Style" item opens our own color-scheme picker, which on Android 12+ also offers the
         // wallpaper-derived Monet schemes — so it is useful even without Termux:Style.
         if (stylingInstalled || MonetSchemeStore.isSupported()) {
-            menu.add(Menu.NONE, CONTEXT_MENU_STYLING_ID, Menu.NONE, R.string.action_style_terminal);
+            menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.STYLING, Menu.NONE, R.string.action_style_terminal);
         }
         if (stylingInstalled) {
-            menu.add(Menu.NONE, CONTEXT_MENU_FONT_ID, Menu.NONE, R.string.action_font_terminal);
+            menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.FONT, Menu.NONE, R.string.action_font_terminal);
         }
-        menu.add(Menu.NONE, CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON, Menu.NONE, R.string.action_toggle_keep_screen_on)
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.TOGGLE_KEEP_SCREEN_ON, Menu.NONE, R.string.action_toggle_keep_screen_on)
             .setCheckable(true).setChecked(keepScreenOn);
-        menu.add(Menu.NONE, CONTEXT_MENU_HELP_ID, Menu.NONE, R.string.action_open_help);
-        menu.add(Menu.NONE, CONTEXT_MENU_SETTINGS_ID, Menu.NONE, R.string.action_open_settings);
-        menu.add(Menu.NONE, CONTEXT_MENU_REPORT_ID, Menu.NONE, R.string.action_report_issue);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.HELP, Menu.NONE, R.string.action_open_help);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.SETTINGS, Menu.NONE, R.string.action_open_settings);
+        menu.add(Menu.NONE, TermuxAppConstants.ContextMenu.REPORT, Menu.NONE, R.string.action_report_issue);
     }
 }

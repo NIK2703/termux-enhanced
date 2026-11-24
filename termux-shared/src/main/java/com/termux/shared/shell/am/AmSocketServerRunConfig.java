@@ -1,5 +1,7 @@
 package com.termux.shared.shell.am;
 
+import com.termux.shared.CommonValues;
+
 import android.Manifest;
 
 import androidx.annotation.NonNull;
@@ -36,10 +38,10 @@ public class AmSocketServerRunConfig extends LocalSocketRunConfig implements Ser
     @NonNull
     public String getLogString() {
         StringBuilder logString = new StringBuilder();
-        logString.append(super.getLogString()).append("\n\n\n");
+        logString.append(super.getLogString()).append(MarkdownUtils.SUBSECTION_SEPARATOR);
 
         logString.append("Am Command:");
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("CheckDisplayOverAppsPermission", shouldCheckDisplayOverAppsPermission(), "-"));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("CheckDisplayOverAppsPermission", shouldCheckDisplayOverAppsPermission(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return logString.toString();
     }
@@ -48,10 +50,10 @@ public class AmSocketServerRunConfig extends LocalSocketRunConfig implements Ser
     @NonNull
     public String getMarkdownString() {
         StringBuilder markdownString = new StringBuilder();
-        markdownString.append(super.getMarkdownString()).append("\n\n\n");
+        markdownString.append(super.getMarkdownString()).append(MarkdownUtils.SUBSECTION_SEPARATOR);
 
-        markdownString.append("## ").append("Am Command");
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("CheckDisplayOverAppsPermission", shouldCheckDisplayOverAppsPermission(), "-"));
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append("Am Command");
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("CheckDisplayOverAppsPermission", shouldCheckDisplayOverAppsPermission(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return markdownString.toString();
     }

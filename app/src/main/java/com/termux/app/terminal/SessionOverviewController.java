@@ -159,6 +159,7 @@ public final class SessionOverviewController {
      */
     private static final long GESTURE_SELECTION_DELAY_MS = 300L;
 
+
     /** Short fade-and-shrink used when a card is closed from its own X button. */
     private static final long CARD_CLOSE_DURATION_MS = 160L;
     /** The card shrinks slightly into its centre while it fades. */
@@ -541,13 +542,22 @@ public final class SessionOverviewController {
      * ends at alpha zero, and {@link #restoreLiveContentAfterOverview()} must not snap it back
      * to full strength before the reverse slide has run.</p>
      */
+    /** Floating controls whose 50 ms fade is owned by {@link TermuxActivity}. */
+    private static boolean isOverviewFadingControl(@NonNull View view) {
+        // R.id fields are not compile-time constants in this build, so no switch here.
+        final int id = view.getId();
+        return id == R.id.terminal_toolbar_text_input_container
+                || id == R.id.input_panel_actions
+                || id == R.id.toggle_text_input_button;
+    }
+
     private void hideLiveContentForOverview() {
         if (!(mContentArea instanceof ViewGroup)) return;
         final ViewGroup content = (ViewGroup) mContentArea;
         for (int i = 0; i < content.getChildCount(); i++) {
             final View child = content.getChildAt(i);
             if (child == mOverlay || child == mAnimatedExtraKeysPanel
-                    || mHiddenLiveViews.contains(child)) {
+                    || isOverviewFadingControl(child) || mHiddenLiveViews.contains(child)) {
                 continue;
             }
             mHiddenLiveViews.add(child);

@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -56,7 +58,6 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     private final android.os.Handler mMainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
-    static final int MAX_SESSIONS = 10;
 
     /** The quick actions that share the pencil's floating-button treatment. */
     private static final int[] INPUT_PANEL_ACTION_IDS = {
@@ -762,7 +763,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     }
 
     public static final String PREF_NEW_TAB_IN_ACTIVE_SESSION_DIRECTORY =
-            "new_tab_in_active_session_directory";
+            TermuxAppConstants.Preferences.NEW_TAB_IN_ACTIVE_SESSION_DIRECTORY;
 
     /**
      * The working directory for an add-tab path that was not handed one: with the switch on, the
@@ -775,7 +776,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
      */
     @Nullable
     public static String resolveNewTabDirectory(@NonNull TermuxActivity activity) {
-        final boolean inheritActive = activity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE)
+        final boolean inheritActive = activity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE)
                 .getBoolean(PREF_NEW_TAB_IN_ACTIVE_SESSION_DIRECTORY, false);
         if (!inheritActive) return activity.getProperties().getDefaultWorkingDirectory();
         return getCurrentSessionCwd(activity);
@@ -810,7 +811,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /**
      * Single entry point for creating a new terminal-session tab, shared by every add-tab path:
      * the "+" button, the directory-history popup, keyboard shortcuts and the right-swipe-to-add
-     * gesture. Centralises the MAX_SESSIONS limit, working-directory resolution, session creation
+     * gesture. Centralises the TermuxAppConstants.MAX_SESSIONS limit, working-directory resolution, session creation
      * and (for selectable tabs) the right-edge reveal, removing the duplicated logic that used to
      * live in {@code addNewSession} / {@code addNewSessionInDirectory} / {@code createSessionForPlaceholder}.
      *
@@ -833,7 +834,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         TermuxService service = mActivity.getTermuxService();
         if (service == null) return null;
 
-        if (service.getTermuxSessionsSize() >= MAX_SESSIONS) {
+        if (service.getTermuxSessionsSize() >= TermuxAppConstants.MAX_SESSIONS) {
             if (showLimitDialog) {
                 AlertDialog maxDialog = new AlertDialog.Builder(mActivity).setTitle(R.string.title_max_terminals_reached).setMessage(R.string.msg_max_terminals_reached)
                     .setPositiveButton(android.R.string.ok, null).create();

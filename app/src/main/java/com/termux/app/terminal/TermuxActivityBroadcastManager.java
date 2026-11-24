@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -18,22 +20,15 @@ public class TermuxActivityBroadcastManager {
 
     private static final String LOG_TAG = "TermuxActivity";
 
-    private static final String ACTION_TEXT_INPUT_VISIBILITY_CHANGED = "com.termux.TEXT_INPUT_VISIBILITY_CHANGED";
-    private static final String ACTION_TEXT_INPUT_ENABLED_CHANGED = "com.termux.TEXT_INPUT_ENABLED_CHANGED";
-    private static final String ACTION_TAB_PANEL_POSITION_CHANGED = "com.termux.TAB_PANEL_POSITION_CHANGED";
-    private static final String ACTION_TAB_HEIGHT_MODE_CHANGED = "com.termux.TAB_HEIGHT_MODE_CHANGED";
     /**
      * The input panel was switched between the two arrangements: floating over the terminal, or
      * taking the extra-keys panel's place with the terminal resized for it.
      */
-    private static final String ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED = "com.termux.TEXT_INPUT_OVER_TERMINAL_CHANGED";
     /**
      * The input panel's extra paste/attach/history buttons were switched on or off; off restores
      * the toggle button's swipes.
      */
-    private static final String ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED = "com.termux.INPUT_PANEL_QUICK_ACTIONS_CHANGED";
     /** Input-panel auto-complete settings changed; re-read them without recreating the activity. */
-    private static final String ACTION_AUTOCOMPLETE_SETTINGS_CHANGED = "com.termux.AUTOCOMPLETE_SETTINGS_CHANGED";
     /**
      * The terminal font size was changed outside the activity (the Display settings slider).
      *
@@ -41,7 +36,6 @@ public class TermuxActivityBroadcastManager {
      * full property reload, an extra-keys rebuild and a colour-scheme re-apply just to carry one
      * number across, and the terminal only has to re-apply the size to the pages it keeps bound.
      */
-    private static final String ACTION_FONT_SIZE_CHANGED = "com.termux.FONT_SIZE_CHANGED";
 
     private final Activity mActivity;
     private final BroadcastReceiver mReceiver;
@@ -68,13 +62,13 @@ public class TermuxActivityBroadcastManager {
      * next time they are bound — which is also what happens after an activity recreate.
      */
     public static void notifyFontSizeChanged(@NonNull Context context) {
-        Intent intent = new Intent(ACTION_FONT_SIZE_CHANGED);
+        Intent intent = new Intent(TermuxAppConstants.Broadcasts.FONT_SIZE_CHANGED);
         intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
 
     public static void notifyAutoCompleteSettingsChanged(@NonNull Context context) {
-        Intent intent = new Intent(ACTION_AUTOCOMPLETE_SETTINGS_CHANGED);
+        Intent intent = new Intent(TermuxAppConstants.Broadcasts.AUTOCOMPLETE_SETTINGS_CHANGED);
         intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
@@ -84,14 +78,14 @@ public class TermuxActivityBroadcastManager {
         intentFilter.addAction(TERMUX_ACTIVITY.ACTION_NOTIFY_APP_CRASH);
         intentFilter.addAction(TERMUX_ACTIVITY.ACTION_RELOAD_STYLE);
         intentFilter.addAction(TERMUX_ACTIVITY.ACTION_REQUEST_PERMISSIONS);
-        intentFilter.addAction(ACTION_TEXT_INPUT_VISIBILITY_CHANGED);
-        intentFilter.addAction(ACTION_TEXT_INPUT_ENABLED_CHANGED);
-        intentFilter.addAction(ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED);
-        intentFilter.addAction(ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED);
-        intentFilter.addAction(ACTION_AUTOCOMPLETE_SETTINGS_CHANGED);
-        intentFilter.addAction(ACTION_TAB_PANEL_POSITION_CHANGED);
-        intentFilter.addAction(ACTION_TAB_HEIGHT_MODE_CHANGED);
-        intentFilter.addAction(ACTION_FONT_SIZE_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.TEXT_INPUT_VISIBILITY_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.TEXT_INPUT_ENABLED_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.TEXT_INPUT_OVER_TERMINAL_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.INPUT_PANEL_QUICK_ACTIONS_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.AUTOCOMPLETE_SETTINGS_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.TAB_PANEL_POSITION_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.TAB_HEIGHT_MODE_CHANGED);
+        intentFilter.addAction(TermuxAppConstants.Broadcasts.FONT_SIZE_CHANGED);
         return intentFilter;
     }
 
@@ -123,43 +117,43 @@ public class TermuxActivityBroadcastManager {
 
             String action = intent.getAction();
 
-            if (ACTION_TEXT_INPUT_VISIBILITY_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.TEXT_INPUT_VISIBILITY_CHANGED.equals(action)) {
                 boolean visible = intent.getBooleanExtra("visible", true);
                 termuxActivity.setTextInputVisible(visible);
                 return;
             }
 
-            if (ACTION_TEXT_INPUT_ENABLED_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.TEXT_INPUT_ENABLED_CHANGED.equals(action)) {
                 termuxActivity.updateToggleTextInputButtonVisibility();
                 return;
             }
 
-            if (ACTION_TEXT_INPUT_OVER_TERMINAL_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.TEXT_INPUT_OVER_TERMINAL_CHANGED.equals(action)) {
                 termuxActivity.applyTextInputPanelPlacement();
                 return;
             }
 
-            if (ACTION_INPUT_PANEL_QUICK_ACTIONS_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.INPUT_PANEL_QUICK_ACTIONS_CHANGED.equals(action)) {
                 termuxActivity.applyInputPanelQuickActionsPreference();
                 return;
             }
 
-            if (ACTION_AUTOCOMPLETE_SETTINGS_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.AUTOCOMPLETE_SETTINGS_CHANGED.equals(action)) {
                 termuxActivity.reloadAutoCompletePreferences();
                 return;
             }
 
-            if (ACTION_TAB_PANEL_POSITION_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.TAB_PANEL_POSITION_CHANGED.equals(action)) {
                 termuxActivity.applyTabPanelPosition();
                 return;
             }
 
-            if (ACTION_TAB_HEIGHT_MODE_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.TAB_HEIGHT_MODE_CHANGED.equals(action)) {
                 termuxActivity.applyTabHeightMode();
                 return;
             }
 
-            if (ACTION_FONT_SIZE_CHANGED.equals(action)) {
+            if (TermuxAppConstants.Broadcasts.FONT_SIZE_CHANGED.equals(action)) {
                 termuxActivity.applyTerminalFontSize();
                 return;
             }

@@ -1,5 +1,7 @@
 package com.termux.app.activities;
 
+import com.termux.shared.markdown.MarkdownUtils;
+
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Build;
@@ -186,8 +188,8 @@ public class SettingsActivity extends AppCompatActivity {
 
                             StringBuilder aboutString = new StringBuilder();
                             aboutString.append(TermuxUtils.getAppInfoMarkdownString(context, TermuxUtils.AppInfoMode.TERMUX_AND_PLUGIN_PACKAGES));
-                            aboutString.append("\n\n").append(AndroidUtils.getDeviceInfoMarkdownString(context, true));
-                            aboutString.append("\n\n").append(TermuxUtils.getImportantLinksMarkdownString(context));
+                            aboutString.append(MarkdownUtils.SECTION_SEPARATOR).append(AndroidUtils.getDeviceInfoMarkdownString(context, true));
+                            aboutString.append(MarkdownUtils.SECTION_SEPARATOR).append(TermuxUtils.getImportantLinksMarkdownString(context));
 
                             String userActionName = UserAction.ABOUT.getName();
 

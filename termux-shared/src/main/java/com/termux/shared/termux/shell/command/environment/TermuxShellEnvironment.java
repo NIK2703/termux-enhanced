@@ -1,5 +1,7 @@
 package com.termux.shared.termux.shell.command.environment;
 
+import com.termux.shared.shell.command.ShellCommandConstants;
+
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -392,7 +394,7 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         } else {
             // bin/login has a #!/system/bin/sh shebang; run it through mksh
             // explicitly if the exec bit was lost.
-            args.add("/system/bin/sh");
+            args.add(ShellCommandConstants.ANDROID_SHELL_PATH);
             args.add(login.getAbsolutePath());
         }
         for (int i = 1; i < argv.length; i++) {

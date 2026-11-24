@@ -1,5 +1,7 @@
 package com.termux.shared.shell.am;
 
+import com.termux.shared.markdown.MarkdownUtils;
+
 import android.Manifest;
 import android.app.Application;
 import android.content.Context;
@@ -116,7 +118,7 @@ public class AmSocketServer {
             amSocketServerRunConfig.shouldCheckDisplayOverAppsPermission());
         if (error != null) {
             sendResultToClient(localSocketManager, clientSocket, 1, stdout.toString(),
-                !stderr.toString().isEmpty() ? stderr + "\n\n" + error : error.toString());
+                !stderr.toString().isEmpty() ? stderr + MarkdownUtils.SECTION_SEPARATOR + error : error.toString());
         }
 
         sendResultToClient(localSocketManager, clientSocket, 0, stdout.toString(), stderr.toString());

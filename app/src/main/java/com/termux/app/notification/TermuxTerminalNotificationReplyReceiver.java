@@ -1,5 +1,7 @@
 package com.termux.app.notification;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.app.RemoteInput;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -91,7 +93,7 @@ public class TermuxTerminalNotificationReplyReceiver extends BroadcastReceiver {
         // in a process loads the per-directory file. Still on the main thread, since the controller
         // is not thread-safe and the activity shares it.
         final SharedPreferences preferences =
-            context.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+            context.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
         MAIN_HANDLER.post(() -> {
             try {
                 MessageHistoryController controller = MessageHistoryController.shared(preferences);

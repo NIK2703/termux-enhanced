@@ -130,7 +130,7 @@
             app:min="0"
             android:max="1000"
             app:seekBarIncrement="10"
-            app:updatesContinuously="false"
+            app:updatesContinuously="true"
             app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
 

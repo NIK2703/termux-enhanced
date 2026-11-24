@@ -1,5 +1,7 @@
 package com.termux.shared.termux.shell.command.runner.terminal;
 
+import com.termux.shared.shell.command.ShellCommandConstants;
+
 import android.content.Context;
 import android.system.OsConstants;
 
@@ -114,7 +116,7 @@ public class TermuxSession {
                 // https://cs.android.com/android/platform/superproject/+/android-11.0.0_r3:external/mksh/src/main.c;l=663
                 // https://cs.android.com/android/platform/superproject/+/android-11.0.0_r3:external/mksh/src/main.c;l=41
                 // https://cs.android.com/android/platform/superproject/+/android-11.0.0_r3:external/mksh/Android.bp;l=114
-                executionCommand.executable = "/system/bin/sh";
+                executionCommand.executable = ShellCommandConstants.ANDROID_SHELL_PATH;
             } else {
                 isLoginShell = true;
             }

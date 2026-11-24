@@ -24,8 +24,6 @@ import java.util.Map;
 public final class TerminalPreviewRenderer {
 
     /** Same floor as {@link TerminalView#updateSize()} uses for degenerate viewports. */
-    private static final int MIN_COLUMNS = 4;
-    private static final int MIN_ROWS = 4;
     /** Smallest cell a preview may use; below this the grid is unreadable. */
     private static final int MIN_CELL_PX = 4;
     /** Upper bound on growing the preview font to fill a large slot. */
@@ -141,8 +139,8 @@ public final class TerminalPreviewRenderer {
                 || !Float.isFinite(fontWidth) || fontLineSpacing <= 0) {
             return null;
         }
-        final int columns = Math.max(MIN_COLUMNS, (int) (viewWidth / fontWidth));
-        final int rows = Math.max(MIN_ROWS,
+        final int columns = Math.max(TerminalGridGeometry.MIN_COLUMNS, (int) (viewWidth / fontWidth));
+        final int rows = Math.max(TerminalGridGeometry.MIN_ROWS,
                 (int) ((viewHeight - fontLineSpacingAndAscent) / fontLineSpacing));
         return fromGrid(columns, rows, fontWidth, fontLineSpacing);
     }

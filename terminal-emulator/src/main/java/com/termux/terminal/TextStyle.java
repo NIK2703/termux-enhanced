@@ -48,14 +48,14 @@ public final class TextStyle {
 
     static long encode(int foreColor, int backColor, int effect) {
         long result = effect & 0b111111111;
-        if ((0xff000000 & foreColor) == 0xff000000) {
+        if ((TerminalConstants.TRUECOLOR_ALPHA_MASK & foreColor) == TerminalConstants.TRUECOLOR_ALPHA_MASK) {
             // 24-bit color.
             result |= CHARACTER_ATTRIBUTE_TRUECOLOR_FOREGROUND | ((foreColor & 0x00ffffffL) << 40L);
         } else {
             // Indexed color.
             result |= (foreColor & 0b111111111L) << 40;
         }
-        if ((0xff000000 & backColor) == 0xff000000) {
+        if ((TerminalConstants.TRUECOLOR_ALPHA_MASK & backColor) == TerminalConstants.TRUECOLOR_ALPHA_MASK) {
             // 24-bit color.
             result |= CHARACTER_ATTRIBUTE_TRUECOLOR_BACKGROUND | ((backColor & 0x00ffffffL) << 16L);
         } else {
@@ -70,7 +70,7 @@ public final class TextStyle {
         if ((style & CHARACTER_ATTRIBUTE_TRUECOLOR_FOREGROUND) == 0) {
             return (int) ((style >>> 40) & 0b111111111L);
         } else {
-            return 0xff000000 | (int) ((style >>> 40) & 0x00ffffffL);
+            return TerminalConstants.TRUECOLOR_ALPHA_MASK | (int) ((style >>> 40) & 0x00ffffffL);
         }
 
     }
@@ -79,7 +79,7 @@ public final class TextStyle {
         if ((style & CHARACTER_ATTRIBUTE_TRUECOLOR_BACKGROUND) == 0) {
             return (int) ((style >>> 16) & 0b111111111L);
         } else {
-            return 0xff000000 | (int) ((style >>> 16) & 0x00ffffffL);
+            return TerminalConstants.TRUECOLOR_ALPHA_MASK | (int) ((style >>> 16) & 0x00ffffffL);
         }
     }
 

@@ -1,5 +1,7 @@
 package com.termux.shared.termux.file;
 
+import com.termux.shared.shell.command.ShellCommandConstants;
+
 import android.content.Context;
 import android.os.Environment;
 
@@ -250,7 +252,7 @@ public class TermuxFileUtils {
             .append("\necho; echo 'mount info:'\n")
             .append("/system/bin/grep -E '( /data )|( /data/data )|( /data/user/[0-9]+ )' /proc/self/mountinfo 2>&1 | /system/bin/grep -v '/data_mirror' 2>&1");
 
-        ExecutionCommand executionCommand = new ExecutionCommand(-1, "/system/bin/sh", null,
+        ExecutionCommand executionCommand = new ExecutionCommand(-1, ShellCommandConstants.ANDROID_SHELL_PATH, null,
             statScript.toString() + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getName(), true);
         executionCommand.commandLabel = TermuxConstants.TERMUX_APP_NAME + " Files Stat Command";
         executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_OFF;
@@ -260,14 +262,14 @@ public class TermuxFileUtils {
 
         StringBuilder statOutput = new StringBuilder();
         statOutput.append("$ ").append(statScript.toString());
-        statOutput.append("\n\n").append(executionCommand.resultData.stdout.toString());
+        statOutput.append(MarkdownUtils.SECTION_SEPARATOR).append(executionCommand.resultData.stdout.toString());
         TermuxUtils.appendCommandErrorOutput(statOutput, LOG_TAG, executionCommand);
 
         StringBuilder markdownString = new StringBuilder();
-        markdownString.append("## ").append(TermuxConstants.TERMUX_APP_NAME).append(" Files Info\n\n");
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append(TermuxConstants.TERMUX_APP_NAME).append(" Files Info\n\n");
         AndroidUtils.appendPropertyToMarkdown(markdownString,"TERMUX_REQUIRED_FILES_DIR_PATH ($PREFIX)", TermuxConstants.TERMUX_FILES_DIR_PATH);
         AndroidUtils.appendPropertyToMarkdown(markdownString,"ANDROID_ASSIGNED_FILES_DIR_PATH", filesDir);
-        markdownString.append("\n\n").append(MarkdownUtils.getMarkdownCodeForString(statOutput.toString(), true));
+        markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(MarkdownUtils.getMarkdownCodeForString(statOutput.toString(), true));
         markdownString.append("\n##\n");
 
         return markdownString.toString();

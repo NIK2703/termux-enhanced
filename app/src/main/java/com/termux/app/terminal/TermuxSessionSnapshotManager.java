@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
@@ -58,7 +60,7 @@ public class TermuxSessionSnapshotManager {
      * reads/writes the snapshot-related key and the restore toggle.
      */
     private SharedPreferences getPrefs() {
-        return mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        return mActivity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
     }
 
     /** Whether restoring open tabs on launch is enabled (default: off). */

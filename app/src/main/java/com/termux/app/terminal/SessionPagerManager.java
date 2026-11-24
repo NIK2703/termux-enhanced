@@ -1,5 +1,9 @@
 package com.termux.app.terminal;
 
+import com.termux.shared.CommonValues;
+
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.view.MotionEvent;
@@ -503,8 +507,8 @@ public final class SessionPagerManager {
     /** Keeps {@link #mSwipeRightmostNewTabEnabled} fresh without re-reading disk on every settle. */
     private final SharedPreferences.OnSharedPreferenceChangeListener mPrefsListener =
             (sp, key) -> {
-                if ("swipe_rightmost_new_tab".equals(key)) {
-                    mSwipeRightmostNewTabEnabled = sp.getBoolean("swipe_rightmost_new_tab", true);
+                if (TermuxAppConstants.Preferences.SWIPE_RIGHTMOST_NEW_TAB.equals(key)) {
+                    mSwipeRightmostNewTabEnabled = sp.getBoolean(TermuxAppConstants.Preferences.SWIPE_RIGHTMOST_NEW_TAB, true);
                 }
             };
 
@@ -720,8 +724,8 @@ public final class SessionPagerManager {
 
         // Cache the "swipe rightmost tab for new session" preference: read once here, kept
         // fresh via a listener so onPageSelected() never reads SharedPreferences per settle.
-        mPrefs = mActivity.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
-        mSwipeRightmostNewTabEnabled = mPrefs.getBoolean("swipe_rightmost_new_tab", true);
+        mPrefs = mActivity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
+        mSwipeRightmostNewTabEnabled = mPrefs.getBoolean(TermuxAppConstants.Preferences.SWIPE_RIGHTMOST_NEW_TAB, true);
         mPrefs.registerOnSharedPreferenceChangeListener(mPrefsListener);
     }
 
@@ -787,11 +791,11 @@ public final class SessionPagerManager {
 
     /**
      * @return true if the "swipe rightmost tab for new session" feature is enabled and the user is
-     *         not already at the {@link TermuxTerminalSessionActivityClient#MAX_SESSIONS} limit.
+     *         not already at the {@link TermuxAppConstants#MAX_SESSIONS} limit.
      */
     private boolean isAtMaxSessions() {
         TermuxService service = mActivity.getTermuxService();
-        return service != null && service.getTermuxSessionsSize() >= TermuxTerminalSessionActivityClient.MAX_SESSIONS;
+        return service != null && service.getTermuxSessionsSize() >= TermuxAppConstants.MAX_SESSIONS;
     }
 
     private boolean isPlaceholderEnabled() {
@@ -1629,11 +1633,11 @@ public final class SessionPagerManager {
         TerminalSession activeSession = getActiveSession();
         sb.append(" activeSession=").append(id(activeSession));
         TerminalView tv = mActivity.getTerminalView();
-        sb.append(" tv=").append(tv == null ? "null" : id(tv.getCurrentSession()));
+        sb.append(" tv=").append(tv == null ? CommonValues.NULL_STRING : id(tv.getCurrentSession()));
         sb.append(" tvAttached=").append(tv != null && tv.isAttachedToWindow() ? 1 : 0);
         TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         sb.append(" tabSel=").append(tabs != null ? tabs.getCurrentSessionIndex() : -2);
-        sb.append(" tabSelSession=").append(tabs != null ? id(tabs.getSelectedSession()) : "null");
+        sb.append(" tabSelSession=").append(tabs != null ? id(tabs.getSelectedSession()) : CommonValues.NULL_STRING);
         // What the RecyclerView is ACTUALLY showing: scroll offset and, for every attached page
         // child, its adapter position and the session its TerminalView displays. This is the only
         // way to see "the closed session's page is still the one on screen" — every field above
@@ -1649,7 +1653,7 @@ public final class SessionPagerManager {
                         ? ((TerminalPagerAdapter.TerminalPageViewHolder) vh).mTerminalView : null;
                 sb.append(" |child").append(i).append(" pos=").append(pos)
                   .append(" x=").append(child.getLeft())
-                  .append(" s=").append(ctv == null ? "null" : id(ctv.getCurrentSession()));
+                  .append(" s=").append(ctv == null ? CommonValues.NULL_STRING : id(ctv.getCurrentSession()));
             }
         }
         for (int i = 0; i < sessions; i++) {
@@ -1662,7 +1666,7 @@ public final class SessionPagerManager {
     }
 
     private static String id(@Nullable TerminalSession session) {
-        return session == null ? "null" : Integer.toHexString(System.identityHashCode(session));
+        return session == null ? CommonValues.NULL_STRING : Integer.toHexString(System.identityHashCode(session));
     }
 
     /** Resolve the {@link TerminalView} of the currently active pager page, resolving it live. */

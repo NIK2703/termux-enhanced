@@ -1,5 +1,7 @@
 package com.termux.app.fragments.settings.termux;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.os.Bundle;
 import android.view.View;
@@ -16,6 +18,7 @@ import androidx.preference.SeekBarPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
 import com.termux.R;
+import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 import com.termux.app.TermuxActivity;
 import com.termux.app.fragments.settings.TermuxPreferenceFragmentBase;
 import com.termux.app.terminal.TermuxActivityBroadcastManager;
@@ -62,10 +65,10 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
             configureNeverDisablesSection(extraKeysVisibility, "never");
         }
 
-        SwitchPreferenceCompat textInputPref = findPreference("text_input_enabled");
+        SwitchPreferenceCompat textInputPref = findPreference(TermuxAppConstants.Preferences.TEXT_INPUT_ENABLED);
         if (textInputPref != null) {
             textInputPref.setOnPreferenceChangeListener((preference, newValue) -> {
-                android.content.Intent intent = new android.content.Intent("com.termux.TEXT_INPUT_ENABLED_CHANGED");
+                android.content.Intent intent = new android.content.Intent(TermuxAppConstants.Broadcasts.TEXT_INPUT_ENABLED_CHANGED);
                 intent.setPackage(context.getPackageName());
                 context.sendBroadcast(intent);
                 return true;
@@ -78,7 +81,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         if (overTerminalPref != null) {
             overTerminalPref.setOnPreferenceChangeListener((preference, newValue) -> {
                 android.content.Intent intent =
-                    new android.content.Intent("com.termux.TEXT_INPUT_OVER_TERMINAL_CHANGED");
+                    new android.content.Intent(TermuxAppConstants.Broadcasts.TEXT_INPUT_OVER_TERMINAL_CHANGED);
                 intent.setPackage(context.getPackageName());
                 context.sendBroadcast(intent);
                 return true;
@@ -95,7 +98,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
                 preference.setSummary(Boolean.TRUE.equals(newValue)
                     ? null : getString(R.string.input_panel_quick_actions_disabled_summary));
                 android.content.Intent intent =
-                    new android.content.Intent("com.termux.INPUT_PANEL_QUICK_ACTIONS_CHANGED");
+                    new android.content.Intent(TermuxAppConstants.Broadcasts.INPUT_PANEL_QUICK_ACTIONS_CHANGED);
                 intent.setPackage(context.getPackageName());
                 context.sendBroadcast(intent);
                 return true;
@@ -104,7 +107,7 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
 
         final TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(context, true);
 
-        configureHistorySlider("message_history_max", HISTORY_MAX_MIN,
+        configureHistorySlider(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, HISTORY_MAX_MIN,
             MessageHistoryController.MESSAGE_HISTORY_MAX_LIMIT, HISTORY_MAX_STEP);
 
         // Session shortcuts are combinations, not free text, so they are picked with the same
@@ -205,6 +208,8 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
         slider.setMin(min);
         slider.setMax(max);
         slider.setSeekBarIncrement(step);
+        // seekBarIncrement only affects arrow keys. Continuous updates let the change listener
+        // snap the thumb back to the step while the finger is still dragging.
 
         int initial = snapToStep(slider.getValue(), min, max, step);
         if (initial != slider.getValue()) slider.setValue(initial);
@@ -228,9 +233,9 @@ public class TerminalIOPreferencesFragment extends TermuxPreferenceFragmentBase 
     }
 
     private void updateHistorySliderSummary(@NonNull SeekBarPreference slider, int value) {
-        slider.setSummary(value > MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT
+        slider.setSummary(value > TermuxAppConstants.History.MESSAGE_POPUP_LIMIT
             ? getString(R.string.input_history_max_popup_limit_summary,
-                MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT)
+                TermuxAppConstants.History.MESSAGE_POPUP_LIMIT)
             : null);
     }
 
@@ -247,7 +252,7 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
     }
 
     private android.content.SharedPreferences getTermuxPrefs() {
-        return mContext.getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        return mContext.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
     }
 
     private void notifyAutoCompleteSettingsChanged() {
@@ -297,8 +302,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "hide-soft-keyboard-on-startup":
                 mPreferences.setSoftKeyboardHiddenOnStartup(value);
                 break;
-            case "text_input_enabled":
-                getTermuxPrefs().edit().putBoolean("text_input_enabled", value).apply();
+            case TermuxAppConstants.Preferences.TEXT_INPUT_ENABLED:
+                getTermuxPrefs().edit().putBoolean(TermuxAppConstants.Preferences.TEXT_INPUT_ENABLED, value).apply();
                 break;
             case "text-input-over-terminal":
                 if (mPreferences != null) mPreferences.setTextInputOverTerminalEnabled(value);
@@ -309,11 +314,11 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "text_input_append_enter":
                 if (mPreferences != null) mPreferences.setTextInputAppendEnter(value);
                 break;
-            case "per_directory_message_history":
-                getTermuxPrefs().edit().putBoolean("per_directory_message_history", value).apply();
+            case TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY:
+                getTermuxPrefs().edit().putBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, value).apply();
                 break;
-            case "autocomplete_sentences_enabled":
-                getTermuxPrefs().edit().putBoolean("autocomplete_sentences_enabled", value).apply();
+            case TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED:
+                getTermuxPrefs().edit().putBoolean(TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, value).apply();
                 notifyAutoCompleteSettingsChanged();
                 break;
             default:
@@ -325,12 +330,12 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
     public void putInt(String key, int value) {
         if (key == null) return;
         switch (key) {
-            case "suggestions_max_count":
-                getTermuxPrefs().edit().putInt("suggestions_max_count", value).apply();
+            case TermuxPreferenceConstants.TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT:
+                getTermuxPrefs().edit().putInt(TermuxPreferenceConstants.TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT, value).apply();
                 notifyAutoCompleteSettingsChanged();
                 break;
-            case "message_history_max":
-                getTermuxPrefs().edit().putInt("message_history_max", value).apply();
+            case TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX:
+                getTermuxPrefs().edit().putInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, value).apply();
                 break;
             default:
                 break;
@@ -364,18 +369,18 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences.shouldOpenTerminalTranscriptURLOnClick();
             case "hide-soft-keyboard-on-startup":
                 return mPreferences.shouldSoftKeyboardBeHiddenOnStartup();
-            case "text_input_enabled":
-                return getTermuxPrefs().getBoolean("text_input_enabled", true);
+            case TermuxAppConstants.Preferences.TEXT_INPUT_ENABLED:
+                return getTermuxPrefs().getBoolean(TermuxAppConstants.Preferences.TEXT_INPUT_ENABLED, true);
             case "text-input-over-terminal":
                 return mPreferences == null || mPreferences.isTextInputOverTerminalEnabled();
             case "input-panel-quick-actions":
                 return mPreferences == null || mPreferences.areInputPanelQuickActionsEnabled();
             case "text_input_append_enter":
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
-            case "per_directory_message_history":
-                return getTermuxPrefs().getBoolean("per_directory_message_history", false);
-            case "autocomplete_sentences_enabled":
-                return getTermuxPrefs().getBoolean("autocomplete_sentences_enabled", true);
+            case TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY:
+                return getTermuxPrefs().getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false);
+            case TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED:
+                return getTermuxPrefs().getBoolean(TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, true);
             default:
                 return false;
         }
@@ -385,11 +390,11 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
     public int getInt(String key, int defValue) {
         if (key == null) return defValue;
         switch (key) {
-            case "suggestions_max_count":
-                return getTermuxPrefs().getInt("suggestions_max_count", 4);
-            case "message_history_max":
-                return getTermuxPrefs().getInt("message_history_max",
-                    MessageHistoryController.MESSAGE_HISTORY_MAX_DEFAULT);
+            case TermuxPreferenceConstants.TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT:
+                return getTermuxPrefs().getInt(TermuxPreferenceConstants.TERMUX_APP.KEY_SUGGESTIONS_MAX_COUNT, 4);
+            case TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX:
+                return getTermuxPrefs().getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX,
+                    TermuxAppConstants.History.MESSAGE_MAX_DEFAULT);
             default:
                 return defValue;
         }

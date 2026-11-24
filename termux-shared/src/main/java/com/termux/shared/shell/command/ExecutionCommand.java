@@ -1,5 +1,7 @@
 package com.termux.shared.shell.command;
 
+import com.termux.shared.CommonValues;
+
 import android.content.Intent;
 import android.net.Uri;
 
@@ -291,7 +293,7 @@ public class ExecutionCommand {
      * @return Returns the log friendly {@link String}.
      */
     public static String getExecutionInputLogString(final ExecutionCommand executionCommand, boolean ignoreNull, boolean logStdin) {
-        if (executionCommand == null) return "null";
+        if (executionCommand == null) return CommonValues.NULL_STRING;
 
         StringBuilder logString = new StringBuilder();
 
@@ -351,7 +353,7 @@ public class ExecutionCommand {
      * @return Returns the log friendly {@link String}.
      */
     public static String getExecutionOutputLogString(final ExecutionCommand executionCommand, boolean ignoreNull, boolean logResultData, boolean logStdoutAndStderr) {
-        if (executionCommand == null) return "null";
+        if (executionCommand == null) return CommonValues.NULL_STRING;
 
         StringBuilder logString = new StringBuilder();
 
@@ -373,44 +375,44 @@ public class ExecutionCommand {
      * @return Returns the markdown {@link String}.
      */
     public static String getExecutionCommandMarkdownString(final ExecutionCommand executionCommand) {
-        if (executionCommand == null) return "null";
+        if (executionCommand == null) return CommonValues.NULL_STRING;
 
         if (executionCommand.commandLabel == null) executionCommand.commandLabel = "Execution Command";
 
         StringBuilder markdownString = new StringBuilder();
 
-        markdownString.append("## ").append(executionCommand.commandLabel).append("\n");
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append(executionCommand.commandLabel).append("\n");
 
         if (executionCommand.mPid != -1)
-            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Pid", executionCommand.mPid, "-"));
+            markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Pid", executionCommand.mPid, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Previous State", executionCommand.previousState.getName(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Current State", executionCommand.currentState.getName(), "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Previous State", executionCommand.previousState.getName(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Current State", executionCommand.currentState.getName(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Executable", executionCommand.executable, "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Executable", executionCommand.executable, CommonValues.EMPTY_VALUE_PLACEHOLDER));
         markdownString.append("\n").append(getArgumentsMarkdownString("Arguments", executionCommand.arguments));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Working Directory", executionCommand.workingDirectory, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Runner", executionCommand.runner, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("isFailsafe", executionCommand.isFailsafe, "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Working Directory", executionCommand.workingDirectory, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Runner", executionCommand.runner, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("isFailsafe", executionCommand.isFailsafe, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         if (Runner.APP_SHELL.equalsRunner(executionCommand.runner)) {
             if (!DataUtils.isNullOrEmpty(executionCommand.stdin))
-                markdownString.append("\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry("Stdin", executionCommand.stdin, "-"));
+                markdownString.append("\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry("Stdin", executionCommand.stdin, CommonValues.EMPTY_VALUE_PLACEHOLDER));
             if (executionCommand.backgroundCustomLogLevel != null)
-                markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Background Custom Log Level", executionCommand.backgroundCustomLogLevel, "-"));
+                markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Background Custom Log Level", executionCommand.backgroundCustomLogLevel, CommonValues.EMPTY_VALUE_PLACEHOLDER));
         }
 
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Session Action", executionCommand.sessionAction, "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Session Action", executionCommand.sessionAction, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Shell Name", executionCommand.shellName, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Shell Create Mode", executionCommand.shellCreateMode, "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Set Shell Command Shell Environment", executionCommand.setShellCommandShellEnvironment, "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Shell Name", executionCommand.shellName, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Shell Create Mode", executionCommand.shellCreateMode, CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Set Shell Command Shell Environment", executionCommand.setShellCommandShellEnvironment, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("isPluginExecutionCommand", executionCommand.isPluginExecutionCommand, "-"));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("isPluginExecutionCommand", executionCommand.isPluginExecutionCommand, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
-        markdownString.append("\n\n").append(ResultConfig.getResultConfigMarkdownString(executionCommand.resultConfig));
+        markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(ResultConfig.getResultConfigMarkdownString(executionCommand.resultConfig));
 
-        markdownString.append("\n\n").append(ResultData.getResultDataMarkdownString(executionCommand.resultData));
+        markdownString.append(MarkdownUtils.SECTION_SEPARATOR).append(ResultData.getResultDataMarkdownString(executionCommand.resultData));
 
         if (executionCommand.commandDescription != null || executionCommand.commandHelp != null) {
             if (executionCommand.commandDescription != null)
@@ -471,7 +473,7 @@ public class ExecutionCommand {
     }
 
     public String getRunnerLogString() {
-        return Logger.getSingleLineLogStringEntry("Runner", runner, "-");
+        return Logger.getSingleLineLogStringEntry("Runner", runner, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getIsFailsafeLogString() {
@@ -482,7 +484,7 @@ public class ExecutionCommand {
         if (DataUtils.isNullOrEmpty(stdin))
             return "Stdin: -";
         else
-            return Logger.getMultiLineLogStringEntry("Stdin", stdin, "-");
+            return Logger.getMultiLineLogStringEntry("Stdin", stdin, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getBackgroundCustomLogLevelLogString() {
@@ -490,15 +492,15 @@ public class ExecutionCommand {
     }
 
     public String getSessionActionLogString() {
-        return Logger.getSingleLineLogStringEntry("Session Action", sessionAction, "-");
+        return Logger.getSingleLineLogStringEntry("Session Action", sessionAction, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getShellNameLogString() {
-        return Logger.getSingleLineLogStringEntry("Shell Name", shellName, "-");
+        return Logger.getSingleLineLogStringEntry("Shell Name", shellName, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getShellCreateModeLogString() {
-        return Logger.getSingleLineLogStringEntry("Shell Create Mode", shellCreateMode, "-");
+        return Logger.getSingleLineLogStringEntry("Shell Create Mode", shellCreateMode, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getSetRunnerShellEnvironmentLogString() {
@@ -506,22 +508,22 @@ public class ExecutionCommand {
     }
 
     public String getCommandDescriptionLogString() {
-        return Logger.getSingleLineLogStringEntry("Command Description", commandDescription, "-");
+        return Logger.getSingleLineLogStringEntry("Command Description", commandDescription, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getCommandHelpLogString() {
-        return Logger.getSingleLineLogStringEntry("Command Help", commandHelp, "-");
+        return Logger.getSingleLineLogStringEntry("Command Help", commandHelp, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getPluginAPIHelpLogString() {
-        return Logger.getSingleLineLogStringEntry("Plugin API Help", pluginAPIHelp, "-");
+        return Logger.getSingleLineLogStringEntry("Plugin API Help", pluginAPIHelp, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getCommandIntentLogString() {
         if (commandIntent == null)
             return "Command Intent: -";
         else
-            return Logger.getMultiLineLogStringEntry("Command Intent", IntentUtils.getIntentString(commandIntent), "-");
+            return Logger.getMultiLineLogStringEntry("Command Intent", IntentUtils.getIntentString(commandIntent), CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public String getIsPluginExecutionCommandLogString() {
@@ -585,7 +587,7 @@ public class ExecutionCommand {
         if (argumentsArray != null && argumentsArray.length != 0) {
             argumentsString.append("\n");
             for (int i = 0; i != argumentsArray.length; i++) {
-                argumentsString.append(MarkdownUtils.getMultiLineMarkdownStringEntry("Arg " + (i + 1), argumentsArray[i], "-")).append("\n");
+                argumentsString.append(MarkdownUtils.getMultiLineMarkdownStringEntry("Arg " + (i + 1), argumentsArray[i], CommonValues.EMPTY_VALUE_PLACEHOLDER)).append("\n");
             }
         } else{
             argumentsString.append(" -  ");

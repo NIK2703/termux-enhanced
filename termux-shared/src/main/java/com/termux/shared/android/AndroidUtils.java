@@ -1,5 +1,7 @@
 package com.termux.shared.android;
 
+import com.termux.shared.CommonValues;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
@@ -214,7 +216,7 @@ public class AndroidUtils {
     }
 
     public static String getPropertyMarkdown(String label, Object value) {
-        return MarkdownUtils.getSingleLineMarkdownStringEntry(label, value, "-");
+        return MarkdownUtils.getSingleLineMarkdownStringEntry(label, value, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     public static void appendLiteralPropertyToMarkdown(StringBuilder markdownString, String label, Object value) {
@@ -222,7 +224,7 @@ public class AndroidUtils {
     }
 
     public static String getLiteralPropertyMarkdown(String label, Object value) {
-        return MarkdownUtils.getLiteralSingleLineMarkdownStringEntry(label, value, "-");
+        return MarkdownUtils.getLiteralSingleLineMarkdownStringEntry(label, value, CommonValues.EMPTY_VALUE_PLACEHOLDER);
     }
 
     private static String getTimeStamp(String pattern, TimeZone timeZone) {

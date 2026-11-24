@@ -7,6 +7,9 @@ import java.util.IllegalFormatException;
 
 public class ShellCommandConstants {
 
+    /** The Android system shell used for commands that must not run through Termux's own mksh. */
+    public static final String ANDROID_SHELL_PATH = "/system/bin/sh";
+
     /**
      * Class to send back results of commands to their callers like plugin or 3rd party apps.
      */

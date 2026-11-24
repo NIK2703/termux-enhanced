@@ -1,5 +1,7 @@
 package com.termux.shared.net.socket.local;
 
+import com.termux.shared.CommonValues;
+
 import android.content.Context;
 
 import androidx.annotation.Keep;
@@ -62,12 +64,12 @@ public class PeerCred {
         StringBuilder logString = new StringBuilder();
 
         logString.append("Peer Cred:");
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Process", getProcessString(), "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("User", getUserString(), "-"));
-        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Group", getGroupString(), "-"));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Process", getProcessString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("User", getUserString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        logString.append("\n").append(Logger.getSingleLineLogStringEntry("Group", getGroupString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         if (cmdline != null)
-            logString.append("\n").append(Logger.getMultiLineLogStringEntry("Cmdline", cmdline, "-"));
+            logString.append("\n").append(Logger.getMultiLineLogStringEntry("Cmdline", cmdline, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return logString.toString();
     }
@@ -77,13 +79,13 @@ public class PeerCred {
     public String getMarkdownString() {
         StringBuilder markdownString = new StringBuilder();
 
-        markdownString.append("## ").append("Peer Cred");
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Process", getProcessString(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("User", getUserString(), "-"));
-        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Group", getGroupString(), "-"));
+        markdownString.append(MarkdownUtils.HEADING_PREFIX).append("Peer Cred");
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Process", getProcessString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("User", getUserString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
+        markdownString.append("\n").append(MarkdownUtils.getSingleLineMarkdownStringEntry("Group", getGroupString(), CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         if (cmdline != null)
-            markdownString.append("\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry("Cmdline", cmdline, "-"));
+            markdownString.append("\n").append(MarkdownUtils.getMultiLineMarkdownStringEntry("Cmdline", cmdline, CommonValues.EMPTY_VALUE_PLACEHOLDER));
 
         return markdownString.toString();
     }

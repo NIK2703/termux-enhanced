@@ -1,5 +1,7 @@
 package com.termux.app.fragments.settings;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -101,15 +103,15 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         wireSliderListener("button_bg_active_alpha", context);
 
         // --- Window: screen orientation ---
-        final ListPreference orientationPref = findPreference("screen_orientation");
+        final ListPreference orientationPref = findPreference(TermuxAppConstants.Preferences.SCREEN_ORIENTATION);
         if (orientationPref != null) {
             orientationPref.setPersistent(false);
             final SharedPreferences termuxPrefs = termuxPrefs();
             final boolean isTablet = requireContext().getResources()
                     .getConfiguration().smallestScreenWidthDp >= 600;
-            orientationPref.setValue(termuxPrefs.getString("screen_orientation", isTablet ? "sensor" : "portrait"));
+            orientationPref.setValue(termuxPrefs.getString(TermuxAppConstants.Preferences.SCREEN_ORIENTATION, isTablet ? "sensor" : "portrait"));
             orientationPref.setOnPreferenceChangeListener((preference, newValue) -> {
-                termuxPrefs.edit().putString("screen_orientation", (String) newValue).apply();
+                termuxPrefs.edit().putString(TermuxAppConstants.Preferences.SCREEN_ORIENTATION, (String) newValue).apply();
                 final androidx.fragment.app.FragmentActivity activity = getActivity();
                 if (activity != null) {
                     // Applied to the window this screen is drawn in — in the bubble that means no
@@ -139,12 +141,12 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureSessionOverviewPreviewThrottle(prefs);
 
         // --- Tabs ---
-        configureTabListPrefWithBroadcast("tab_panel_position", "top", "com.termux.TAB_PANEL_POSITION_CHANGED");
-        configureTabListPrefWithBroadcast("tab_height_mode", "single", "com.termux.TAB_HEIGHT_MODE_CHANGED");
-        configureTermuxPrefsSwitch("swipe_rightmost_new_tab", true);
-        configureTermuxPrefsSwitch("gesture_directory_history_enabled", true);
+        configureTabListPrefWithBroadcast(TermuxAppConstants.Preferences.TAB_PANEL_POSITION, "top", TermuxAppConstants.Broadcasts.TAB_PANEL_POSITION_CHANGED);
+        configureTabListPrefWithBroadcast(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE, "single", TermuxAppConstants.Broadcasts.TAB_HEIGHT_MODE_CHANGED);
+        configureTermuxPrefsSwitch(TermuxAppConstants.Preferences.SWIPE_RIGHTMOST_NEW_TAB, true);
+        configureTermuxPrefsSwitch(TermuxAppConstants.Preferences.GESTURE_DIRECTORY_HISTORY_ENABLED, true);
         configureTermuxPrefsSwitch("restore_sessions", false);
-        configureTermuxPrefsSwitch("new_tab_in_active_session_directory", false);
+        configureTermuxPrefsSwitch(TermuxAppConstants.Preferences.NEW_TAB_IN_ACTIVE_SESSION_DIRECTORY, false);
         configureDirectoryHistoryMaxPreference();
     }
 
@@ -438,7 +440,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     private SharedPreferences termuxPrefs() {
-        return requireContext().getSharedPreferences("termux_prefs", Context.MODE_PRIVATE);
+        return requireContext().getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, Context.MODE_PRIVATE);
     }
 
     /**
@@ -496,12 +498,12 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
     }
 
     private void configureDirectoryHistoryMaxPreference() {
-        final androidx.preference.SeekBarPreference pref = findPreference("directory_history_max");
+        final androidx.preference.SeekBarPreference pref = findPreference(TermuxAppConstants.Preferences.DIRECTORY_HISTORY_MAX);
         if (pref == null) return;
 
         final SharedPreferences termuxPrefs = termuxPrefs();
         pref.setPersistent(false);
-        int current = termuxPrefs.getInt("directory_history_max", 20);
+        int current = termuxPrefs.getInt(TermuxAppConstants.Preferences.DIRECTORY_HISTORY_MAX, 20);
         if (current < 10) current = 10;
         if (current > 100) current = 100;
         pref.setValue(current);
@@ -512,7 +514,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
                 value = 10;
                 pref.setValue(value);
             }
-            termuxPrefs.edit().putInt("directory_history_max", value).apply();
+            termuxPrefs.edit().putInt(TermuxAppConstants.Preferences.DIRECTORY_HISTORY_MAX, value).apply();
             return true;
         });
     }

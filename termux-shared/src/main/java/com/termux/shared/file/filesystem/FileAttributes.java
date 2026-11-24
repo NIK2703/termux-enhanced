@@ -25,6 +25,8 @@
 
 package com.termux.shared.file.filesystem;
 
+import com.termux.shared.CommonValues;
+
 import android.os.Build;
 import android.system.StructStat;
 
@@ -319,7 +321,7 @@ public class FileAttributes {
     }
 
     public static String getFileAttributesLogString(final FileAttributes fileAttributes) {
-        if (fileAttributes == null) return "null";
+        if (fileAttributes == null) return CommonValues.NULL_STRING;
 
         StringBuilder logString = new StringBuilder();
 

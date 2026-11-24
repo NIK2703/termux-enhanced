@@ -1,5 +1,7 @@
 package com.termux.shared.android;
 
+import com.termux.shared.shell.command.ShellCommandConstants;
+
 import android.Manifest;
 import android.content.Context;
 
@@ -79,7 +81,7 @@ public class PhantomProcessUtils {
 
         // Dumpsys logs the currently enforced MAX_PHANTOM_PROCESSES value and not the device config setting.
         String script = "/system/bin/dumpsys activity settings | /system/bin/grep -iE '^[\t ]+" + KEY_MAX_PHANTOM_PROCESSES + "=[0-9]+$' | /system/bin/cut -d = -f2";
-        ExecutionCommand executionCommand = new ExecutionCommand(-1, "/system/bin/sh", null,
+        ExecutionCommand executionCommand = new ExecutionCommand(-1, ShellCommandConstants.ANDROID_SHELL_PATH, null,
             script + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getName(), true);
         executionCommand.commandLabel = " ActivityManager " + KEY_MAX_PHANTOM_PROCESSES + " Command";
         executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_OFF;

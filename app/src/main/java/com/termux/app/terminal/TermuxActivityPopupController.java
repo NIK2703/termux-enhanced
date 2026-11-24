@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import com.termux.app.TermuxAppConstants;
+
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
@@ -121,19 +123,6 @@ public final class TermuxActivityPopupController {
     private int mHistoryPopupGeneration = 0;
 
     // Context menu item ids (mirrors TermuxActivity definitions).
-    private static final int CONTEXT_MENU_SELECT_URL_ID = 0;
-    private static final int CONTEXT_MENU_SHARE_TRANSCRIPT_ID = 1;
-    private static final int CONTEXT_MENU_SHARE_SELECTED_TEXT = 10;
-    private static final int CONTEXT_MENU_AUTOFILL_USERNAME = 11;
-    private static final int CONTEXT_MENU_AUTOFILL_PASSWORD = 2;
-    private static final int CONTEXT_MENU_RESET_TERMINAL_ID = 3;
-    private static final int CONTEXT_MENU_KILL_PROCESS_ID = 4;
-    private static final int CONTEXT_MENU_STYLING_ID = 5;
-    private static final int CONTEXT_MENU_FONT_ID = 12;
-    private static final int CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON = 6;
-    private static final int CONTEXT_MENU_HELP_ID = 7;
-    private static final int CONTEXT_MENU_SETTINGS_ID = 8;
-    private static final int CONTEXT_MENU_REPORT_ID = 9;
 
     // Synthetic action rows use negative tags; history rows store their index.
     private static final int MESSAGE_HISTORY_SAVE_AND_CLEAR_TAG = -2;
@@ -141,16 +130,14 @@ public final class TermuxActivityPopupController {
     private static final int MESSAGE_HISTORY_SAVE_TAG = -4;
     private static final int MESSAGE_HISTORY_CLEAR_ONLY_TAG = -5;
 
-    private static final int HISTORY_DELETE_BG = 0xFFB3261E;
-    private static final int HISTORY_DELETE_ANIM_MS = 140;
-    private static final int HISTORY_DELETE_RESTORE_MS = 160;
+
 
     public TermuxActivityPopupController(@NonNull Context context, @NonNull Host host,
                                           @NonNull TermuxColorSchemeManager colorSchemeManager) {
         mContext = context;
         mHost = host;
         mColorSchemeManager = colorSchemeManager;
-        mOutlineRadiusPx = TermuxActivityUtils.dpToPx(mContext, 12);
+        mOutlineRadiusPx = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_corner_radius);
     }
 
     public void setMessageHistoryController(@Nullable MessageHistoryController controller) {
@@ -199,8 +186,8 @@ public final class TermuxActivityPopupController {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setBackgroundColor(Color.TRANSPARENT);
 
-        int padH = TermuxActivityUtils.dpToPx(mContext, 14);
-        int padV = TermuxActivityUtils.dpToPx(mContext, 10);
+        int padH = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_row_padding_horizontal);
+        int padV = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_row_padding_vertical);
 
         // Empty state: no history and no typed text → render the hint inside the same
         // scheme-styled popup. Previously this was a system Toast, which is drawn by
@@ -222,15 +209,15 @@ public final class TermuxActivityPopupController {
 
             // Thin separator below the clear all row to visually group it.
             content.addView(createHistorySeparator(), new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
+                    ViewGroup.LayoutParams.MATCH_PARENT, mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_divider)));
         }
         // Newest at the bottom (first reached by a swipe-up), oldest at the top. Render only
-        // the newest MESSAGE_HISTORY_POPUP_LIMIT entries; older ones stay available to
+        // the newest TermuxAppConstants.History.MESSAGE_POPUP_LIMIT entries; older ones stay available to
         // autocomplete. Iterate the slice in reverse so the newest is added last.
         if (mMessageHistoryCtrl != null) {
             final java.util.List<String> history = mMessageHistoryCtrl.getHistoryList();
             final int visibleCount = Math.min(history.size(),
-                    MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT);
+                    TermuxAppConstants.History.MESSAGE_POPUP_LIMIT);
             for (int i = visibleCount - 1; i >= 0; i--) {
                 final String message = history.get(i);
                 TextView tv = new TextView(mContext);
@@ -259,7 +246,7 @@ public final class TermuxActivityPopupController {
         if (!TextUtils.isEmpty(inputText)) {
             if (mMessageHistoryCtrl != null && !mMessageHistoryCtrl.getHistoryList().isEmpty()) {
                 content.addView(createHistorySeparator(), new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, TermuxActivityUtils.dpToPx(mContext, 1)));
+                        ViewGroup.LayoutParams.MATCH_PARENT, mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_divider)));
             }
             final boolean clearOnly = MessageHistoryController.isBlankMessage(inputText)
                     || (mMessageHistoryCtrl != null
@@ -290,8 +277,8 @@ public final class TermuxActivityPopupController {
         }
 
         int popupWidth = Math.min(
-                mContext.getResources().getDisplayMetrics().widthPixels - TermuxActivityUtils.dpToPx(mContext, 24),
-                TermuxActivityUtils.dpToPx(mContext, 320));
+                mContext.getResources().getDisplayMetrics().widthPixels - mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_horizontal_inset),
+                mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_max_width));
 
         // Wrap in a ScrollView: the popup is a bounded box (never edge-to-edge) and a taller
         // history scrolls inside it. Kept for edge auto-scroll while the finger drags near
@@ -329,7 +316,7 @@ public final class TermuxActivityPopupController {
         // window visibly unfolds downward. Byte-for-byte replica of the framework's
         // anim/grow_fade_in_from_bottom + shrink_fade_out_from_bottom.
         mHistoryPopup.setAnimationStyle(R.style.HistoryPopupGrowFromBottomAnimation);
-        mHistoryPopup.setElevation(TermuxActivityUtils.dpToPx(mContext, 16));
+        mHistoryPopup.setElevation(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_elevation));
         // Rounded scheme-colour background; opaque so WindowManager derives a valid outline
         // (GradientDrawable.getOutline bails when alpha < 255). Soften the shadow on S+ via
         // outline.setAlpha; 10% visual transparency is applied to the ScrollView instead.
@@ -340,17 +327,17 @@ public final class TermuxActivityPopupController {
                 if (!outline.isEmpty()) {
                     // setAlpha requires API 31+.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        outline.setAlpha(0.65f);
+                        outline.setAlpha(TermuxAppConstants.HistoryPopup.SHADOW_ALPHA);
                     }
                 }
             }
         };
         popupBgDrawable.setShape(GradientDrawable.RECTANGLE);
-        popupBgDrawable.setCornerRadius(TermuxActivityUtils.dpToPx(mContext, 12));
+        popupBgDrawable.setCornerRadius(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_corner_radius));
         popupBgDrawable.setColor(mColorSchemeManager.getHistoryPopupBg()); // must be opaque for getOutline
         mHistoryPopup.setBackgroundDrawable(popupBgDrawable);
         // Content transparency only — keeps the elevation outline valid.
-        scroll.setAlpha(0.9f);
+        scroll.setAlpha(TermuxAppConstants.HistoryPopup.CONTENT_ALPHA);
         mHistoryPopup.setClippingEnabled(true);
         // Non-touchable for the pencil gesture; touchable for the quick-action button.
         mHistoryPopup.setTouchable(interactive);
@@ -380,7 +367,7 @@ public final class TermuxActivityPopupController {
                 View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int contentHeight = content.getMeasuredHeight();
-        int roomAbove = Math.max(TermuxActivityUtils.dpToPx(mContext, 48), anchorLoc[1] - TermuxActivityUtils.dpToPx(mContext, 8) - popupGap);
+        int roomAbove = Math.max(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_min_room_above), anchorLoc[1] - mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_anchor_edge) - popupGap);
         int maxHeight = Math.min(mContext.getResources().getDimensionPixelSize(R.dimen.message_history_popup_max_height), roomAbove);
         int popupHeight = Math.min(contentHeight, maxHeight);
         mHistoryPopup.setHeight(popupHeight);
@@ -420,7 +407,7 @@ public final class TermuxActivityPopupController {
     /** Shared history-row text styling: scheme colour, 15 sp, horizontal/vertical padding. */
     private void styleHistoryRowText(TextView tv, int padH, int padV) {
         tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
         tv.setPadding(padH, padV, padH, padV);
     }
 
@@ -435,7 +422,7 @@ public final class TermuxActivityPopupController {
     @NonNull
     private View createSwipeableHistoryRow(@NonNull TextView row) {
         FrameLayout holder = new FrameLayout(mContext);
-        holder.setBackgroundColor(HISTORY_DELETE_BG);
+        holder.setBackgroundColor(TermuxAppConstants.SwipeDelete.BACKGROUND);
         // Keep the row opaque so the red underlay shows only where it slid away.
         row.setBackgroundColor(mColorSchemeManager.getHistoryPopupBg());
 
@@ -443,10 +430,10 @@ public final class TermuxActivityPopupController {
         icon.setImageResource(R.drawable.ic_delete);
         icon.setColorFilter(Color.WHITE);
         icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        int iconSize = TermuxActivityUtils.dpToPx(mContext, 24);
+        int iconSize = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_delete_icon_size);
         FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
                 iconSize, iconSize, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        iconParams.rightMargin = TermuxActivityUtils.dpToPx(mContext, 20);
+        iconParams.rightMargin = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_delete_icon_margin);
         holder.addView(icon, iconParams);
 
         holder.addView(row, new FrameLayout.LayoutParams(
@@ -478,7 +465,7 @@ public final class TermuxActivityPopupController {
 
         GradientDrawable divider = new GradientDrawable();
         divider.setColor(mColorSchemeManager.getHistoryPopupSepColor());
-        divider.setSize(TermuxActivityUtils.dpToPx(mContext, 1), 1);
+        divider.setSize(mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_divider), 1);
         row.setShowDividers(LinearLayout.SHOW_DIVIDER_MIDDLE);
         row.setDividerDrawable(divider);
 
@@ -507,11 +494,11 @@ public final class TermuxActivityPopupController {
         tv.setGravity(Gravity.CENTER);
         tv.setAllCaps(true);
         tv.setTextColor(mColorSchemeManager.getHistoryTextColor());
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
         tv.setTypeface(tv.getTypeface(), android.graphics.Typeface.BOLD);
         tv.setSingleLine(true);
         tv.setEllipsize(TextUtils.TruncateAt.END);
-        int padH = TermuxActivityUtils.dpToPx(mContext, 8);
+        int padH = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_action_row_padding);
         tv.setPadding(padH, padV, padH, padV);
         tv.setTag(tag);
         return tv;
@@ -679,7 +666,7 @@ public final class TermuxActivityPopupController {
                         animateHistoryRowAway(v, message);
                     } else {
                         v.animate().translationX(0f)
-                                .setDuration(HISTORY_DELETE_RESTORE_MS).start();
+                                .setDuration(TermuxAppConstants.SwipeDelete.RESTORE_ANIM_MS).start();
                     }
                     return true;
                 }
@@ -724,8 +711,9 @@ public final class TermuxActivityPopupController {
     }
 
     private int historyDeleteThreshold(int rowWidth) {
-        return Math.max(TermuxActivityUtils.dpToPx(mContext, 56),
-                Math.round(rowWidth * 0.30f));
+        return Math.max(TermuxActivityUtils.dpToPx(mContext,
+                        mContext.getResources().getDimensionPixelSize(R.dimen.swipe_delete_threshold)),
+                Math.round(rowWidth * TermuxAppConstants.SwipeDelete.THRESHOLD_WIDTH_FRACTION));
     }
 
     private void animateHistoryRowAway(@NonNull View row, @NonNull String message) {
@@ -734,7 +722,7 @@ public final class TermuxActivityPopupController {
         if (mMessageHistoryCtrl != null) mMessageHistoryCtrl.removeMessage(message);
         final int generation = mHistoryPopupGeneration;
         row.animate().translationX(-row.getWidth())
-                .setDuration(HISTORY_DELETE_ANIM_MS)
+                .setDuration(TermuxAppConstants.SwipeDelete.ANIM_MS)
                 .withEndAction(() -> finishHistoryRowRemoval(row, message, removedIndex, generation))
                 .start();
     }
@@ -753,7 +741,7 @@ public final class TermuxActivityPopupController {
         final int historySize = mMessageHistoryCtrl == null
                 ? 0 : mMessageHistoryCtrl.getHistoryList().size();
         final int expectedRows = Math.min(historySize,
-                MessageHistoryController.MESSAGE_HISTORY_POPUP_LIMIT);
+                TermuxAppConstants.History.MESSAGE_POPUP_LIMIT);
         if (historySize == 0 || visibleHistoryRowCount() < expectedRows) {
             // A deletion left the capped slice short; refill it from the older entries.
             rebuildHistoryPopup();
@@ -954,8 +942,8 @@ public final class TermuxActivityPopupController {
         mHistoryScroll.getLocationOnScreen(loc);
         int top = loc[1];
         int bottom = loc[1] + mHistoryScroll.getHeight();
-        int band = TermuxActivityUtils.dpToPx(mContext, 36);      // edge-sensitive zone
-        int maxStep = TermuxActivityUtils.dpToPx(mContext, 24);   // max px scrolled per 16ms reference interval
+        int band = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_autoscroll_band);      // edge-sensitive zone
+        int maxStep = mContext.getResources().getDimensionPixelSize(R.dimen.history_popup_autoscroll_max_step);   // max px scrolled per 16ms reference interval
 
         // Time-based step: scale by actual frame time so scroll speed is
         // consistent across 60/90/120 Hz displays (Choreographer / postOnAnimation).
@@ -964,8 +952,8 @@ public final class TermuxActivityPopupController {
         if (mHistoryLastScrollTimeMs == 0) {
             frameRatio = 1f;   // first tick
         } else {
-            long dt = Math.min(now - mHistoryLastScrollTimeMs, 48L); // cap at 3× reference
-            frameRatio = dt / 16f;
+            long dt = Math.min(now - mHistoryLastScrollTimeMs, TermuxAppConstants.HistoryPopup.FRAME_CAP_MS); // cap at 3× reference
+            frameRatio = dt / TermuxAppConstants.HistoryPopup.FRAME_REFERENCE_MS;
         }
         mHistoryLastScrollTimeMs = now;
 
@@ -1061,43 +1049,43 @@ public final class TermuxActivityPopupController {
         TerminalView terminalView = mHost.getTerminalView();
 
         switch (item.getItemId()) {
-            case CONTEXT_MENU_SELECT_URL_ID:
+            case TermuxAppConstants.ContextMenu.SELECT_URL:
                 mHost.showUrlSelection();
                 return true;
-            case CONTEXT_MENU_SHARE_TRANSCRIPT_ID:
+            case TermuxAppConstants.ContextMenu.SHARE_TRANSCRIPT:
                 mHost.shareSessionTranscript();
                 return true;
-            case CONTEXT_MENU_SHARE_SELECTED_TEXT:
+            case TermuxAppConstants.ContextMenu.SHARE_SELECTED_TEXT:
                 mHost.shareSelectedText();
                 return true;
-            case CONTEXT_MENU_AUTOFILL_USERNAME:
+            case TermuxAppConstants.ContextMenu.AUTOFILL_USERNAME:
                 if (terminalView != null) terminalView.requestAutoFillUsername();
                 return true;
-            case CONTEXT_MENU_AUTOFILL_PASSWORD:
+            case TermuxAppConstants.ContextMenu.AUTOFILL_PASSWORD:
                 if (terminalView != null) terminalView.requestAutoFillPassword();
                 return true;
-            case CONTEXT_MENU_RESET_TERMINAL_ID:
+            case TermuxAppConstants.ContextMenu.RESET_TERMINAL:
                 mHost.onResetTerminalSession(session);
                 return true;
-            case CONTEXT_MENU_KILL_PROCESS_ID:
+            case TermuxAppConstants.ContextMenu.KILL_PROCESS:
                 mHost.showKillSessionDialog(session);
                 return true;
-            case CONTEXT_MENU_STYLING_ID:
+            case TermuxAppConstants.ContextMenu.STYLING:
                 showStylingDialog();
                 return true;
-            case CONTEXT_MENU_FONT_ID:
+            case TermuxAppConstants.ContextMenu.FONT:
                 showFontPicker();
                 return true;
-            case CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON:
+            case TermuxAppConstants.ContextMenu.TOGGLE_KEEP_SCREEN_ON:
                 mHost.toggleKeepScreenOn();
                 return true;
-            case CONTEXT_MENU_HELP_ID:
+            case TermuxAppConstants.ContextMenu.HELP:
                 mHost.startHelpActivity();
                 return true;
-            case CONTEXT_MENU_SETTINGS_ID:
+            case TermuxAppConstants.ContextMenu.SETTINGS:
                 mHost.startSettingsActivity();
                 return true;
-            case CONTEXT_MENU_REPORT_ID:
+            case TermuxAppConstants.ContextMenu.REPORT:
                 mHost.reportIssueFromTranscript();
                 return true;
             default:
