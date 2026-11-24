@@ -29,7 +29,11 @@ import androidx.annotation.Nullable;
 final class OverviewBackdropHoleView extends View {
 
     private final Paint mClearPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private int mFillColor;
+    private int mFillAlpha;
     private final Rect mHole = new Rect();
+    private final Rect mInvalidateRect = new Rect();
     private final RectF mHoleF = new RectF();
     private final Path mHolePath = new Path();
     private final float[] mRadii = new float[8];
@@ -56,6 +60,14 @@ final class OverviewBackdropHoleView extends View {
      * bitmap, and that strip must keep the decor tint instead of being cut out.</p>
      */
     void setHole(@Nullable Rect hole, float topRadius, float bottomRadius) {
+        // Remember the old cut-out: CLEAR is destructive, so the area it vacated has to be
+        // repainted by the views below it on the next draw.
+        if (mHole.isEmpty()) {
+            mInvalidateRect.setEmpty();
+        } else {
+            mInvalidateRect.set(mHole);
+        }
+
         final boolean changed;
         if (hole == null || hole.isEmpty()) {
             changed = !mHole.isEmpty();
@@ -71,26 +83,59 @@ final class OverviewBackdropHoleView extends View {
             mTopRadius = top;
             mBottomRadius = bottom;
         }
-        if (changed) invalidate();
+        if (!changed) return;
+
+        // Invalidate only the moving cut-out, not the whole match-parent view. Decor already
+        // repaints the full window each frame, but this view must not add a second full-screen
+        // damage region of its own.
+        if (!mInvalidateRect.isEmpty()) {
+            if (!mHole.isEmpty()) mInvalidateRect.union(mHole);
+            invalidate(mInvalidateRect);
+        } else if (!mHole.isEmpty()) {
+            invalidate(mHole);
+        }
+    }
+
+    /**
+     * Tint drawn back over the cleared area. The ramp from transparent to the overview backdrop
+     * alpha makes the hand-off from the flying terminal to the resting card seamless; without it
+     * the card would suddenly sit on the doubled-transparency backdrop one frame after the ghost vanished.
+     */
+    void setFill(int color, int alpha) {
+        alpha = Math.max(0, Math.min(255, alpha));
+        if (mFillColor == color && mFillAlpha == alpha) return;
+        mFillColor = color;
+        mFillAlpha = alpha;
+        if (!mHole.isEmpty()) invalidate(mHole);
     }
 
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         if (mHole.isEmpty()) return;
-        mHoleF.set(mHole);
-        mRadii[0] = mTopRadius;
-        mRadii[1] = mTopRadius;
-        mRadii[2] = mTopRadius;
-        mRadii[3] = mTopRadius;
-        mRadii[4] = mBottomRadius;
-        mRadii[5] = mBottomRadius;
-        mRadii[6] = mBottomRadius;
-        mRadii[7] = mBottomRadius;
-        mHolePath.reset();
-        mHolePath.addRoundRect(mHoleF, mRadii, Path.Direction.CW);
         canvas.save();
-        canvas.clipPath(mHolePath);
+        if (mTopRadius <= 0f && mBottomRadius <= 0f) {
+            // Most of the opening and the end of the closing flight have no rounding yet.
+            // A rect clip avoids building and rasterising a path mask for those frames.
+            canvas.clipRect(mHole);
+        } else {
+            mHoleF.set(mHole);
+            mRadii[0] = mTopRadius;
+            mRadii[1] = mTopRadius;
+            mRadii[2] = mTopRadius;
+            mRadii[3] = mTopRadius;
+            mRadii[4] = mBottomRadius;
+            mRadii[5] = mBottomRadius;
+            mRadii[6] = mBottomRadius;
+            mRadii[7] = mBottomRadius;
+            mHolePath.reset();
+            mHolePath.addRoundRect(mHoleF, mRadii, Path.Direction.CW);
+            canvas.clipPath(mHolePath);
+        }
         canvas.drawRect(mHole, mClearPaint);
+        if (mFillAlpha > 0) {
+            mFillPaint.setColor((mFillAlpha << 24) | (mFillColor & 0x00FFFFFF));
+            canvas.drawRect(mHole, mFillPaint);
+        }
         canvas.restore();
     }
 }

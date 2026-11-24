@@ -2129,10 +2129,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *
      * <p>The overview hides the live terminal, tab strip and floating controls instead of
      * covering them with an opaque scrim. Each card carries the terminal background itself at
-     * the configured transparency, so the overview backdrop must not paint a second translucent
-     * layer underneath it: with the wallpaper feature on the controller passes a fully
-     * transparent colour here. The terminal-coloured decor still drives the status/navigation-bar
-     * icon appearance.</p>
+     * the configured transparency; with the wallpaper feature on the controller passes the
+     * overview backdrop colour here, whose transparency is twice the terminal's so the wallpaper
+     * still shows while the grid is dimmed more than the terminal itself.
+     * The flying terminal gets its own transparent cut-out above this layer. The terminal-coloured
+     * decor still drives the status/navigation-bar icon appearance.</p>
      *
      * <p>The colour's own alpha is honoured. Passing {@code 0} as the transparency percent keeps
      * {@link #applySystemBarColors(Window, int, boolean, int)} from overwriting it.</p>

@@ -97,10 +97,18 @@ public final class SessionOverviewGridMath {
             return new Layout(sessionCount, columns, totalRows, safeGap,
                     safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
         }
-        final int gridWidth = columns * cardWidth + safeGap * (columns - 1);
-        final int gridHeight = totalRows * cardHeight + safeGap * totalRows;
-        final int left = Math.max(safeGap, (safeWidth - gridWidth) / 2);
-        return new Layout(sessionCount, columns, totalRows, safeGap,
+        // Cards keep their exact integer glyph pitch, so a small amount of width is left
+        // over. Spread that remainder across every horizontal gutter — the two screen
+        // edges and the gap(s) between cards — instead of piling it into the outer margins.
+        // The result is one shared, minimal gap on all sides with no holes in a preview.
+        final int cardsWidth = columns * cardWidth;
+        final int dynamicGap = safeWidth > cardsWidth
+                ? Math.max(1, (safeWidth - cardsWidth) / (columns + 1))
+                : safeGap;
+        final int gridWidth = cardsWidth + dynamicGap * (columns - 1);
+        final int gridHeight = totalRows * cardHeight + dynamicGap * totalRows;
+        final int left = dynamicGap;
+        return new Layout(sessionCount, columns, totalRows, dynamicGap,
                 safeWidth, safeHeight, cardWidth, cardHeight,
                 gridWidth, gridHeight, left, 0);
     }
@@ -185,15 +193,19 @@ public final class SessionOverviewGridMath {
             cardWidth = Math.min(cardWidth, Math.max(1, (int) Math.floor(aspect)));
         }
 
-        // gridWidth spans the outer card edges; the two edge gaps are represented by left and
-        // the matching right-hand slack, not included in this span.
-        final int gridWidth = columns * cardWidth + safeGap * (columns - 1);
+        // Spread the leftover width across all three horizontal gutters so the edges and
+        // the space between cards use the same gap. gridWidth spans the outer card edges;
+        // the two edge gaps are represented by left and the matching right-hand slack.
+        final int dynamicGap = safeWidth > columns * cardWidth
+                ? Math.max(1, (safeWidth - columns * cardWidth) / (columns + 1))
+                : safeGap;
+        final int gridWidth = columns * cardWidth + dynamicGap * (columns - 1);
         // Every row is followed by one gap, including the bottom row. The top edge has no outer
         // gap because the grid is pinned directly below the status bar.
-        final int gridHeight = totalRows * cardHeight + safeGap * totalRows;
-        final int left = Math.max(safeGap, (safeWidth - gridWidth) / 2);
-        // The grid belongs against the top edge of the app content, below the status bar. Only
-        // horizontal slack is distributed; vertical slack stays below the cards.
+        final int gridHeight = totalRows * cardHeight + dynamicGap * totalRows;
+        final int left = dynamicGap;
+        // The grid belongs against the top edge of the app content, below the status bar;
+        // vertical slack stays below the cards.
         final int top = 0;
 
         return new Layout(sessionCount, columns, totalRows, safeGap,

@@ -9,7 +9,7 @@ import android.text.Layout;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.view.ViewConfiguration;
 import android.view.ViewOutlineProvider;
 import android.widget.EditText;
@@ -131,10 +131,9 @@ final class AutoCompletePopupManager {
     }
 
     /**
-     * Hide with a subtle downward slide plus an accelerating fade. The animation runs on the
-     * popup's decor view (so the rounded background fades with the rows); window animations are
-     * deliberately not used here because they are not reliably played for a
-     * {@code showAtLocation()} popup.
+     * Hide with a subtle downward slide plus a fade. The animation runs on the popup's decor view
+     * (so the rounded background fades with the rows); window animations are deliberately not used
+     * here because they are not reliably played for a {@code showAtLocation()} popup.
      */
     void dismissWithSwipeAnimation() {
         final PopupWindow popup = mHistoryPopup;
@@ -153,7 +152,7 @@ final class AutoCompletePopupManager {
                 .translationY(TermuxActivityUtils.dpToPx(mContext, 8))
                 .alpha(0f)
                 .setDuration(140)
-                .setInterpolator(new AccelerateInterpolator(1.5f))
+                .setInterpolator(new DecelerateInterpolator())
                 .withEndAction(() -> {
                     if (!mSwipeDismissAnimating) return;
                     mSwipeDismissAnimating = false;
@@ -260,9 +259,9 @@ final class AutoCompletePopupManager {
         }
 
         // Versions were recorded by rebuildHistoryViews() above.
-        // A reused window keeps its size and position: recomputing them here on every
-        // rescan (backspace, full rescan) is what makes the popup shrink and slide.
-        if (!historyReuse) applyPopupGeometry(inputField, true);
+        // Resize instantly to the new row set; no animation is attached to the popup,
+        // so adding/removing suggestions changes the window without any motion.
+        applyPopupGeometry(inputField, true);
         if (mSuggestionsLayoutListener == null) {
             mSuggestionsLayoutListener =
                     (v, l, t, r, b, ol, ot, or, ob) -> {
@@ -458,10 +457,9 @@ final class AutoCompletePopupManager {
         }
 
         // Versions are updated inside rebuildHistoryViews()/show.
-        // No applyPopupGeometry() here: recomputing the window size and its anchored Y on
-        // every keystroke is what makes the popup visibly shrink and slide while typing.
-        // Keep the current geometry until a fresh show or a real layout change
-        // (repositionAutoCompletePopup) recomputes it.
+        // Resize instantly only when the row set changed. A prefix-only keystroke keeps
+        // the current geometry, so the window neither moves nor animates while typing.
+        if (historyChanged) applyPopupGeometry(inputField, true);
     }
 
     // ── Per-window rebuild + bold spans ──

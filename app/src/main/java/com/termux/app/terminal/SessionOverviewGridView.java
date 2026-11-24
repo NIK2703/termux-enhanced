@@ -321,8 +321,10 @@ public class SessionOverviewGridView extends ViewGroup {
             final int row = i / columns;
             final int column = i % columns;
             final int visualColumn = rtl ? (columns - 1 - column) : column;
-            final int childLeft = originLeft + visualColumn * (cardWidth + mGapPx);
-            final int childTop = originTop + row * (cardHeight + mGapPx);
+            // Use the layout's gap, which spreads the leftover width evenly across the
+            // outer gutters and the gaps between cards.
+            final int childLeft = originLeft + visualColumn * (cardWidth + mLayout.gap);
+            final int childTop = originTop + row * (cardHeight + mLayout.gap);
             getChildAt(i).layout(childLeft, childTop,
                     childLeft + cardWidth, childTop + cardHeight);
         }
