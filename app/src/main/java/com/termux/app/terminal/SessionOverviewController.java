@@ -312,6 +312,11 @@ public final class SessionOverviewController {
                 public void onOverviewRequested() {
                     show();
                 }
+
+                @Override
+                public void onOverviewGestureReleased(float rawX, float rawY) {
+                    selectCardUnderFinger(rawX, rawY);
+                }
             });
         }
     }
@@ -2881,6 +2886,47 @@ public final class SessionOverviewController {
         }
         return null;
     }
+
+    /**
+     * Select the card under the release point of the gesture that opened the overview.
+     *
+     * <p>The card never received this gesture's {@code ACTION_DOWN}, so its own click handler
+     * cannot be used. Screen coordinates and {@link View#getGlobalVisibleRect} keep the hit-test
+     * correct with window insets, card translations during the opening flight and RTL layouts.</p>
+     */
+    private void selectCardUnderFinger(float rawX, float rawY) {
+        if (!mShowing || mActivityStopped || mClosingTransition != null
+                || mPendingClosingCard != null || mClosingCardAnimation != null) return;
+        final Card hit = findCardAtScreenPoint(rawX, rawY);
+        if (hit == null) return;
+        if (containsScreenPoint(hit.close, rawX, rawY)) {
+            closeSessionFromButton(hit);
+            return;
+        }
+        selectSession(hit.session);
+    }
+
+    /** Topmost card whose preview contains the given screen point, or null. */
+    @Nullable
+    private Card findCardAtScreenPoint(float rawX, float rawY) {
+        for (int i = mCards.size() - 1; i >= 0; i--) {
+            final Card card = mCards.get(i);
+            if (card.root.getVisibility() != View.VISIBLE) continue;
+            // The preview is temporarily hidden while the opening flight covers it, so the card
+            // root is the stable hit target for the whole gesture.
+            if (containsScreenPoint(card.root, rawX, rawY)) return card;
+        }
+        return null;
+    }
+
+    /** True when the view is visible and the screen point falls inside its clipped bounds. */
+    private static boolean containsScreenPoint(@NonNull View view, float rawX, float rawY) {
+        final Rect bounds = new Rect();
+        if (!view.getGlobalVisibleRect(bounds) || bounds.isEmpty()) return false;
+        return rawX >= bounds.left && rawX < bounds.right
+                && rawY >= bounds.top && rawY < bounds.bottom;
+    }
+
 
     /**
      * Restore the grid's opening scroll position while keeping the active card fully visible.

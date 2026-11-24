@@ -30,6 +30,14 @@ public class TabPanelLayout extends LinearLayout {
 
         /** Called once per gesture, after the movement has been recognized. */
         void onOverviewRequested();
+
+        /**
+         * Called on the release that ends the gesture which opened the overview.
+         *
+         * @param rawX screen x of the release, usable for hit-testing the card grid
+         * @param rawY screen y of the release
+         */
+        void onOverviewGestureReleased(float rawX, float rawY);
     }
 
     private final int mTouchSlop;
@@ -37,6 +45,8 @@ public class TabPanelLayout extends LinearLayout {
     private float mDownY;
     private boolean mTracking;
     private boolean mGestureConsumed;
+    /** Primary pointer of the gesture that opened the overview. */
+    private int mOverviewPointerId = -1;
     @Nullable
     private Listener mListener;
 
@@ -74,6 +84,7 @@ public class TabPanelLayout extends LinearLayout {
                 if (!towardTerminal) break;
 
                 mGestureConsumed = true;
+                mOverviewPointerId = event.getPointerId(0);
                 performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
                 listener.onOverviewRequested();
                 return true;
@@ -82,6 +93,7 @@ public class TabPanelLayout extends LinearLayout {
             case MotionEvent.ACTION_CANCEL:
                 mTracking = false;
                 mGestureConsumed = false;
+                mOverviewPointerId = -1;
                 break;
             default:
                 break;
@@ -92,10 +104,23 @@ public class TabPanelLayout extends LinearLayout {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (mGestureConsumed) {
-            if (event.getActionMasked() == MotionEvent.ACTION_UP
-                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            final int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_UP) {
+                final Listener listener = mListener;
+                if (listener != null && event.getPointerCount() == 1
+                        && event.getPointerId(0) == mOverviewPointerId) {
+                    // The finger never left the screen: let the controller select whatever card
+                    // is under it now. The card itself never received ACTION_DOWN, so its own
+                    // click handler cannot do this.
+                    listener.onOverviewGestureReleased(event.getRawX(), event.getRawY());
+                }
                 mGestureConsumed = false;
                 mTracking = false;
+                mOverviewPointerId = -1;
+            } else if (action == MotionEvent.ACTION_CANCEL) {
+                mGestureConsumed = false;
+                mTracking = false;
+                mOverviewPointerId = -1;
             }
             return true;
         }

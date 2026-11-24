@@ -108,6 +108,29 @@ public class TabPanelLayoutTest {
     }
 
     @Test
+    public void releaseAfterOpeningReportsTheFingerPosition() {
+        Assert.assertFalse(down(100, 100));
+        Assert.assertTrue(move(100, 220));
+        Assert.assertTrue(consumedUp(240, 300));
+        Assert.assertEquals(1, mListener.released);
+        Assert.assertEquals(240f, mListener.releaseX, 0f);
+        Assert.assertEquals(300f, mListener.releaseY, 0f);
+    }
+
+    @Test
+    public void cancelAfterOpeningNeverSelects() {
+        Assert.assertFalse(down(100, 100));
+        Assert.assertTrue(move(100, 220));
+        MotionEvent cancel = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_CANCEL, 240, 300, 0);
+        try {
+            Assert.assertTrue(mPanel.onTouchEvent(cancel));
+        } finally {
+            cancel.recycle();
+        }
+        Assert.assertEquals(0, mListener.released);
+    }
+
+    @Test
     public void aNewGestureCanOpenAfterTheOldOneEnds() {
         Assert.assertFalse(down(100, 100));
         Assert.assertTrue(move(100, 220));
@@ -167,6 +190,9 @@ public class TabPanelLayoutTest {
         boolean canOpen = true;
         boolean opensOnSwipeDown = true;
         int opened;
+        int released;
+        float releaseX;
+        float releaseY;
 
         @Override
         public boolean canOpenOverview() {
@@ -181,6 +207,13 @@ public class TabPanelLayoutTest {
         @Override
         public void onOverviewRequested() {
             opened++;
+        }
+
+        @Override
+        public void onOverviewGestureReleased(float rawX, float rawY) {
+            released++;
+            releaseX = rawX;
+            releaseY = rawY;
         }
     }
 }
