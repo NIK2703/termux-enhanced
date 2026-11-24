@@ -260,7 +260,7 @@ public final class TerminalPreviewRenderer {
         return geometry;
     }
 
-    /** Build geometry for an explicitly chosen integer pitch (used by the legacy render API). */
+    /** Build geometry for an explicitly chosen integer pitch. */
     @Nullable
     private static PreviewCellGeometry geometryForCells(int columns, int rows,
                                                         int cellWidth, int cellHeight,
@@ -303,34 +303,38 @@ public final class TerminalPreviewRenderer {
                 0f, -geometry.cellHeight - geometry.ascent, target.getWidth(), null, false);
     }
 
-    /** Legacy entry point: derives an integer pitch from the target bitmap size. */
-    public static void render(@NonNull TerminalEmulator emulator, @NonNull Bitmap target,
-                              int textSizePx, @NonNull Typeface typeface, int topRow) {
-        render(emulator, target, textSizePx, typeface, topRow, 0);
+    /**
+     * Render a snapshot for the closing flight rather than for a card.
+     *
+     * <p>Unlike a card, the flying image is scaled by {@code TopCropImageView} from the full
+     * terminal width down to the card width. Its grid must therefore fill the target bitmap's
+     * width: only then does the scaled glyph pitch equal the card's integer cell pitch, so the
+     * hand-off at progress zero is invisible. Card previews must use {@link #render} instead.</p>
+     */
+    public static void renderForFlight(@NonNull TerminalEmulator emulator, @NonNull Bitmap target,
+                                       int textSizePx, @NonNull Typeface typeface, int topRow,
+                                       int backgroundTransparencyPercent) {
+        if (target.isRecycled() || target.getWidth() <= 0 || target.getHeight() <= 0) return;
+        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return;
+        final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
+        renderer.setBackgroundTransparencyPercent(backgroundTransparencyPercent);
+        final float gridWidth = emulator.mColumns * renderer.mFontWidth;
+        final float gridHeight = emulator.mRows * renderer.mFontLineSpacing;
+        if (gridWidth <= 0f || gridHeight <= 0f) return;
+        final float scale = Math.min(target.getWidth() / gridWidth,
+                target.getHeight() / gridHeight);
+        if (!(scale > 0f) || !Float.isFinite(scale)) return;
+
+        final int clampedTopRow = Math.min(0, Math.max(topRow,
+                -emulator.getScreen().getActiveTranscriptRows()));
+        final Canvas canvas = new Canvas(target);
+        canvas.scale(scale, scale);
+        final float xOffset = (target.getWidth() / scale - gridWidth) / 2f;
+        final float yOffset = (target.getHeight() / scale - gridHeight) / 2f
+                - renderer.mFontLineSpacingAndAscent;
+        renderer.render(emulator, canvas, clampedTopRow, -1, -1, -1, -1,
+                xOffset, yOffset, Math.max(1, (int) Math.ceil(target.getWidth() / scale)),
+                null, false);
     }
 
-    /** Legacy entry point with transparency, used by the closing flight. */
-    public static void render(@NonNull TerminalEmulator emulator, @NonNull Bitmap target,
-                              int textSizePx, @NonNull Typeface typeface, int topRow,
-                              int backgroundTransparencyPercent) {
-        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return;
-        final TerminalRenderer.Metrics metrics = TerminalRenderer.metrics(textSizePx, typeface);
-        if (metrics == null) return;
-        final PreviewCellGeometry geometry = geometryForCells(emulator.mColumns, emulator.mRows,
-                Math.max(MIN_CELL_PX, target.getWidth() / emulator.mColumns),
-                Math.max(MIN_CELL_PX, target.getHeight() / emulator.mRows),
-                textSizePx, typeface, metrics);
-        if (geometry == null) return;
-        if (target.getWidth() == geometry.cardWidth()
-                && target.getHeight() == geometry.cardHeight()) {
-            render(emulator, target, geometry, topRow, backgroundTransparencyPercent);
-            return;
-        }
-        final Bitmap exact = Bitmap.createBitmap(geometry.cardWidth(), geometry.cardHeight(),
-                target.getConfig() != null ? target.getConfig() : Bitmap.Config.ARGB_8888);
-        render(emulator, exact, geometry, topRow, backgroundTransparencyPercent);
-        final Canvas canvas = new Canvas(target);
-        canvas.drawBitmap(exact, 0f, 0f, null);
-        exact.recycle();
-    }
 }

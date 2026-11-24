@@ -2294,7 +2294,7 @@ public final class SessionOverviewController {
             } else {
                 bitmap = Bitmap.createBitmap(terminalTarget.width(), terminalTarget.height(),
                         bitmapConfig);
-                TerminalPreviewRenderer.render(emulator, bitmap, previewTextSize(),
+                TerminalPreviewRenderer.renderForFlight(emulator, bitmap, previewTextSize(),
                         previewTypeface(), scrollTopRow(card.session), transparency);
             }
         } catch (RuntimeException ignored) {
@@ -3518,7 +3518,10 @@ public final class SessionOverviewController {
         if (mCellGeometry != null) {
             TerminalPreviewRenderer.render(emulator, card.bitmap, mCellGeometry, topRow, 0);
         } else {
-            TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface, topRow);
+            // No fitted geometry yet (first layout or an unusably small slot). Fill the bitmap
+            // with the grid rather than leaving a half-empty card.
+            TerminalPreviewRenderer.renderForFlight(emulator, card.bitmap,
+                    textSize, typeface, topRow, 0);
         }
         // Keep the old preview visible until the replacement has been fully rendered. Clearing
         // the ImageView first would expose a blank card for a frame whenever the grid aspect
