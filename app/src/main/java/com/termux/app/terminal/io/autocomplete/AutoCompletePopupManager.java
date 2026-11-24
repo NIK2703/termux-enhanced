@@ -7,7 +7,10 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.text.Layout;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.AccelerateInterpolator;
+import android.view.ViewConfiguration;
 import android.view.ViewOutlineProvider;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -18,6 +21,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.TermuxColorSchemeManager;
 
 /**
@@ -48,6 +52,10 @@ final class AutoCompletePopupManager {
     // ── Popup window state (owned here, not in the controller) ──
     @Nullable private PopupWindow mHistoryPopup;
     @Nullable private LinearLayout mHistoryContent;
+    /** True while the swipe-down slide/fade-out is running on the popup's decor view. */
+    private boolean mSwipeDismissAnimating;
+    /** Decor being animated, so an incoming show can cancel the motion immediately. */
+    @Nullable private View mSwipeDismissDecor;
     /**
      * Layout-change listener attached to the INPUT FIELD (not the decor view), so a reposition is
      * only triggered when the input field's own layout changes — not on every Activity-wide layout
@@ -103,14 +111,64 @@ final class AutoCompletePopupManager {
     }
 
     void show(@NonNull EditText inputField, @NonNull String input) {
+        cancelSwipeDismissAnimation();
         showAutoCompletePopup(inputField, input);
     }
 
     void update(@NonNull String newText, @NonNull EditText inputField) {
+        cancelSwipeDismissAnimation();
         updatePopupContent(newText, inputField);
     }
 
     void dismiss() {
+        cancelSwipeDismissAnimation();
+        dismissAutoCompleteSuggestions();
+    }
+
+    /** Popup content reported a downward swipe; the controller owns the suppression state. */
+    private void onPopupSwipeDown() {
+        mData.onSuggestionsPopupSwipedDown();
+    }
+
+    /**
+     * Hide with a subtle downward slide plus an accelerating fade. The animation runs on the
+     * popup's decor view (so the rounded background fades with the rows); window animations are
+     * deliberately not used here because they are not reliably played for a
+     * {@code showAtLocation()} popup.
+     */
+    void dismissWithSwipeAnimation() {
+        final PopupWindow popup = mHistoryPopup;
+        final View decor = popup != null && popup.isShowing()
+                ? popup.getContentView().getRootView() : null;
+        if (decor == null) {
+            dismissAutoCompleteSuggestions();
+            return;
+        }
+        mSwipeDismissAnimating = true;
+        mSwipeDismissDecor = decor;
+        decor.animate().cancel();
+        decor.setAlpha(1f);
+        decor.setTranslationY(0f);
+        decor.animate()
+                .translationY(TermuxActivityUtils.dpToPx(mContext, 8))
+                .alpha(0f)
+                .setDuration(140)
+                .setInterpolator(new AccelerateInterpolator(1.5f))
+                .withEndAction(() -> {
+                    if (!mSwipeDismissAnimating) return;
+                    mSwipeDismissAnimating = false;
+                    mSwipeDismissDecor = null;
+                    dismissAutoCompleteSuggestions();
+                })
+                .start();
+    }
+
+    /** Cancel an in-flight swipe dismissal and drop the popup immediately. */
+    private void cancelSwipeDismissAnimation() {
+        if (!mSwipeDismissAnimating) return;
+        mSwipeDismissAnimating = false;
+        if (mSwipeDismissDecor != null) mSwipeDismissDecor.animate().cancel();
+        mSwipeDismissDecor = null;
         dismissAutoCompleteSuggestions();
     }
 
@@ -202,7 +260,9 @@ final class AutoCompletePopupManager {
         }
 
         // Versions were recorded by rebuildHistoryViews() above.
-        applyPopupGeometry(inputField, true);
+        // A reused window keeps its size and position: recomputing them here on every
+        // rescan (backspace, full rescan) is what makes the popup shrink and slide.
+        if (!historyReuse) applyPopupGeometry(inputField, true);
         if (mSuggestionsLayoutListener == null) {
             mSuggestionsLayoutListener =
                     (v, l, t, r, b, ol, ot, or, ob) -> {
@@ -238,7 +298,7 @@ final class AutoCompletePopupManager {
     private PopupWindow buildPopupWindow(@NonNull LinearLayout content) {
         int sumWidth = computePopupWidth(mData.getInputField() != null ? mData.getInputField().getWidth() : 0);
 
-        ScrollView scroll = new ScrollView(mContext);
+        SwipeDownScrollView scroll = new SwipeDownScrollView(mContext, this::onPopupSwipeDown);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content, new android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -263,6 +323,17 @@ final class AutoCompletePopupManager {
 
         PopupWindow popup = new PopupWindow(scroll, sumWidth,
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false);
+        // No framework DropDownUp grow/shrink window animation: while typing, a
+        // narrowing suggestion list dismisses the popup, and the default animation
+        // makes it visibly collapse. Show/hide must stay instant.
+        popup.setAnimationStyle(0);
+        // The theme can also give PopupWindow enter/exit Transitions (a slide/scale of
+        // the decor view). Those survive setAnimationStyle(0) and are the source of the
+        // remaining shrink/shift motion, so clear them explicitly.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            popup.setEnterTransition(null);
+            popup.setExitTransition(null);
+        }
         popup.setElevation(mPopupElevationPx);
         GradientDrawable popupBgDrawable = new GradientDrawable() {
             @Override
@@ -379,15 +450,18 @@ final class AutoCompletePopupManager {
 
         if ((historyChanged || prefixChanged) && mHistoryContent != null) {
             // Rebuild (not in-place Spannable mutation): an in-place bold-span edit on a TextView
-            // inside a showing PopupWindow is not guaranteed to repaint (and the geometry guard
-            // below can skip popup.update()), so a backspace would leave old characters bold.
+            // inside a showing PopupWindow is not guaranteed to repaint, so a backspace would
+            // leave old characters bold.
             final int savedScroll = mHistoryContent.getScrollY();
             rebuildHistoryViews(mHistoryContent, newText);
             mHistoryContent.setScrollY(savedScroll);
         }
 
         // Versions are updated inside rebuildHistoryViews()/show.
-        applyPopupGeometry(inputField, historyChanged);
+        // No applyPopupGeometry() here: recomputing the window size and its anchored Y on
+        // every keystroke is what makes the popup visibly shrink and slide while typing.
+        // Keep the current geometry until a fresh show or a real layout change
+        // (repositionAutoCompletePopup) recomputes it.
     }
 
     // ── Per-window rebuild + bold spans ──
@@ -482,5 +556,77 @@ final class AutoCompletePopupManager {
         // The controller owns the suggestion data; it clears its own lists and
         // resets the fetch state in onSuggestionDismissed().
         mData.onSuggestionDismissed();
+    }
+
+    // ── Swipe-down-to-hide gesture ──
+
+    /**
+     * Popup content that turns a deliberate downward drag into a dismissal. Horizontal
+     * drags stay with the row's word-restore/delete handlers (they disallow interception);
+     * an upward drag still belongs to the ScrollView.
+     */
+    private static final class SwipeDownScrollView extends ScrollView {
+
+        @NonNull private final Runnable mOnSwipeDown;
+        /** Minimum downward travel, scaled to the device's touch slop. */
+        private final int mThresholdPx;
+
+        private float mDownX;
+        private float mDownY;
+        private boolean mTracking;
+        private boolean mConsumingGesture;
+
+        SwipeDownScrollView(@NonNull Context context, @NonNull Runnable onSwipeDown) {
+            super(context);
+            mOnSwipeDown = onSwipeDown;
+            mThresholdPx = ViewConfiguration.get(context).getScaledTouchSlop() * 2;
+        }
+
+        /** Returns true once the downward gesture has been taken over. */
+        private boolean trackSwipe(@NonNull MotionEvent ev) {
+            final int action = ev.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                mDownX = ev.getX();
+                mDownY = ev.getY();
+                mTracking = true;
+                mConsumingGesture = false;
+            } else if (mTracking && action == MotionEvent.ACTION_MOVE) {
+                final float dx = ev.getX() - mDownX;
+                final float dy = ev.getY() - mDownY;
+                // Downward, clearly vertical, and no content left to scroll up.
+                if (dy > mThresholdPx && dy > Math.abs(dx) * 1.4f && getScrollY() <= 0) {
+                    mTracking = false;
+                    mConsumingGesture = true;
+                    // Dismiss on the next frame instead of inside touch dispatch.
+                    post(mOnSwipeDown);
+                    return true;
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                mTracking = false;
+                mConsumingGesture = false;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(@NonNull MotionEvent ev) {
+            if (trackSwipe(ev)) return true;
+            return super.onInterceptTouchEvent(ev);
+        }
+
+        @Override
+        public boolean onTouchEvent(@NonNull MotionEvent ev) {
+            if (mConsumingGesture) {
+                final int action = ev.getActionMasked();
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                    mConsumingGesture = false;
+                }
+                return true;
+            }
+            // A drag that starts on the ScrollView itself never reaches interception
+            // for MOVE, so detect it here too.
+            if (trackSwipe(ev)) return true;
+            return super.onTouchEvent(ev);
+        }
     }
 }

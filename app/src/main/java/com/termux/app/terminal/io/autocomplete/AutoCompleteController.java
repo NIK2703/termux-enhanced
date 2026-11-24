@@ -82,6 +82,10 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     private boolean mSwipeSuppressed;
     /** Force a full rescan on the next update, e.g. after a swipe replaces text. */
     private boolean mForceFullRescan;
+    /** True after a downward swipe hid the popup; it stays hidden until the set grows or a new sentence starts. */
+    private boolean mPopupSwipeDismissed;
+    /** Candidate count when the swipe hid the popup; the baseline for detecting a later expansion. */
+    private int mSwipeDismissedCandidateCount;
 
     /** Set when the caret returns to the end, to bypass the unchanged-text early skip. */
     private boolean mForceRescanOnNextUpdate;
@@ -261,6 +265,32 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mSuggestionsVersion++;
     }
 
+    @Override public void onSuggestionsPopupSwipedDown() {
+        if (!isShowing()) return;
+        // Capture the baseline before dismissAutoCompleteSuggestions() clears the list.
+        mSwipeDismissedCandidateCount = mCandidates.size();
+        mPopupSwipeDismissed = true;
+        mPopupManager.dismissWithSwipeAnimation();
+    }
+
+    /**
+     * A swipe-hidden popup may only reappear when this update actually expanded the
+     * candidate set (e.g. after backspace). A shrinking or unchanged set keeps it hidden.
+     *
+     * @return whether the caller may show/update the popup normally.
+     */
+    private boolean revealAfterSwipeIfExpanded(int countBefore) {
+        if (!mPopupSwipeDismissed) return true;
+        final int now = mCandidates.size();
+        if (now > countBefore) {
+            mPopupSwipeDismissed = false;
+            mSwipeDismissedCandidateCount = 0;
+            return true;
+        }
+        mSwipeDismissedCandidateCount = now;
+        return false;
+    }
+
     /** Reuses the suggestion word-restore swipe for an input-history row; only rightward motion engages. */
     public boolean onHistoryRowSwipe(@NonNull View row, @NonNull MotionEvent event,
             @NonNull String message, @Nullable Runnable onWordsRestored) {
@@ -279,6 +309,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mSwipeHandler.resetIfEngaged();
         mSwipeSuppressed = false;
         mSuppressAutoComplete = false;
+        mPopupSwipeDismissed = false;
         if (mComposingCoalesce != null) { mImeHandler.removeCallbacks(mComposingCoalesce); mComposingCoalesce = null; }
     }
 
@@ -349,6 +380,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     public void dismiss() {
         mSwipeHandler.resetIfEngaged();
         mSwipeSuppressed = false;
+        mPopupSwipeDismissed = false;
         dismissAutoCompleteSuggestions();
     }
 
@@ -488,6 +520,10 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         final int changeCount = mAutoCompleteChangeCount;
         final boolean textChanged = mAutoCompleteTextChanged;
         mAutoCompleteTextChanged = false;
+        // After a swipe dismissal the candidate list was cleared, so compare the new
+        // count against the captured baseline instead of the (empty) live list.
+        final int candidateCountBefore = mPopupSwipeDismissed
+                ? mSwipeDismissedCandidateCount : mCandidates.size();
 
         final Editable editable = inputField.getText();
         if (editable == null || editable.length() == 0) {
@@ -663,6 +699,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                 && tailStart == prevTailStart && tailLen < prevTailLen) {
             rebuildCandidates(text, lineStart, lineLen, tailStart, tailLen, maxCount);
             mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
+            if (!revealAfterSwipeIfExpanded(candidateCountBefore)) return;
             if (mCandidates.isEmpty()) {
                 dismissAutoCompleteSuggestions();
             } else {
@@ -674,6 +711,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (!additive || mMessageHistoryCtrl.getHistoryVersion() != mLastBuiltHistoryVersion) {
             rebuildCandidates(text, lineStart, lineLen, tailStart, tailLen, maxCount);
             mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
+            if (!revealAfterSwipeIfExpanded(candidateCountBefore)) return;
             if (mCandidates.isEmpty()) {
                 dismissAutoCompleteSuggestions();
             } else {
@@ -713,6 +751,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         }
         mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
 
+        if (!revealAfterSwipeIfExpanded(candidateCountBefore)) return;
         if (mCandidates.isEmpty()) {
             dismissAutoCompleteSuggestions();
             return;
@@ -764,6 +803,9 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
     /** Drop candidates and the resumable scan cursor, keeping the current text bases. */
     private void resetCandidates() {
+        // A reset means a new sentence/line, empty input or a fresh setup: the
+        // swipe suppression no longer applies.
+        mPopupSwipeDismissed = false;
         mCandidates.clear();
         mCurrentSuggestions.clear();
         mScanPos.reset();

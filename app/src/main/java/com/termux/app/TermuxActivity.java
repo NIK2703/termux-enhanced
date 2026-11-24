@@ -2125,33 +2125,36 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Paint the window surface behind the all-sessions overview with the live terminal
-     * background.
+     * Paint the window surface behind the all-sessions overview.
      *
      * <p>The overview hides the live terminal, tab strip and floating controls instead of
-     * covering them with an opaque scrim. The decor background is therefore the single
-     * background layer while the overview is open; keeping the same alpha as the terminal
-     * preserves the wallpaper and the Android 12+ blur behind the window. The terminal-coloured
-     * decor also keeps the status/navigation-bar areas in step with the grid.</p>
+     * covering them with an opaque scrim. Each card carries the terminal background itself at
+     * the configured transparency, so the overview backdrop must not paint a second translucent
+     * layer underneath it: with the wallpaper feature on the controller passes a fully
+     * transparent colour here. The terminal-coloured decor still drives the status/navigation-bar
+     * icon appearance.</p>
      *
-     * @param color live terminal background colour, normally opaque
+     * <p>The colour's own alpha is honoured. Passing {@code 0} as the transparency percent keeps
+     * {@link #applySystemBarColors(Window, int, boolean, int)} from overwriting it.</p>
+     *
+     * @param color live terminal background colour, with the alpha the overview wants
      */
     public void applyOverviewWindowBackground(int color) {
         final Window window = getWindow();
         if (window == null) return;
-        applySystemBarColors(window, color, ColorSchemeUtils.isColorLight(color),
-                getEffectiveBackgroundTransparency());
+        applySystemBarColors(window, color, ColorSchemeUtils.isColorLight(color), 0);
     }
 
     /**
      * Set only the decor fill while the overview crossfades its backdrop. The status bars are
      * already transparent and edge-to-edge, so changing the colour here must not reapply their
-     * flags on every animation frame.
+     * flags on every animation frame. The colour is used as-is, including its alpha: the
+     * overview controller supplies a transparent backdrop while the wallpaper is visible.
      */
     public void applyWindowBackgroundColor(int color) {
         final Window window = getWindow();
         if (window == null) return;
-        applyWindowSurfaceColor(window, color, getEffectiveBackgroundTransparency());
+        applyWindowSurfaceColor(window, color, 0);
     }
 
     /** The decor colour currently visible behind the content, including its alpha. */

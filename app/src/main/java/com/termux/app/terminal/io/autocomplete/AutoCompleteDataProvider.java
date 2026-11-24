@@ -49,6 +49,9 @@ interface AutoCompleteDataProvider {
     /** Callback run when the popup is dismissed by a suggestion tap. */
     void onSuggestionDismissed();
 
+    /** Callback run when the popup content is swiped downward to hide it. */
+    void onSuggestionsPopupSwipedDown();
+
     /** True while a swipe-to-select gesture is in progress (popup must survive). */
     boolean isSwipeActive();
 }
