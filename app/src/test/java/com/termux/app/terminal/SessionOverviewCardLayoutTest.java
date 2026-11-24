@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.text.Layout;
 import android.text.Spanned;
 import android.text.style.CharacterStyle;
 import android.util.TypedValue;
@@ -215,6 +216,16 @@ public class SessionOverviewCardLayoutTest {
         title.setLineSpacing(-2f, 1f);
 
         final String source = "a long session title that needs more than two lines at this width";
+        SessionOverviewTabTitleView overviewTitle = LayoutInflater.from(activity)
+                .inflate(R.layout.item_session_overview_card, null, false)
+                .findViewById(R.id.session_overview_tab);
+        overviewTitle.setPadding(0, 0, 0, 0);
+        overviewTitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, 12f);
+        overviewTitle.setIncludeFontPadding(true);
+        overviewTitle.setLineSpacing(-2f, 1f);
+        overviewTitle.layout(0, 0, 20, 34);
+        overviewTitle.setFullTitle(source);
+
         for (int maxLines : new int[]{1, 2}) {
             title.setMaxLines(maxLines);
             TermuxSessionTabsController.TitleRender render =
@@ -235,6 +246,24 @@ public class SessionOverviewCardLayoutTest {
             for (String line : text.split("\n", -1)) {
                 Assert.assertTrue("line too wide: " + line,
                         title.getPaint().measureText(line) <= 20);
+            }
+
+            // The view must use that same faded prefix in its own layout. Simulate an ellipsis
+            // arriving from a theme or an earlier line-count mode; rendering has to remove it.
+            overviewTitle.setMaxLines(maxLines);
+            overviewTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            overviewTitle.refreshTitle();
+            overviewTitle.measure(
+                    View.MeasureSpec.makeMeasureSpec(20, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(34, View.MeasureSpec.EXACTLY));
+            overviewTitle.layout(0, 0, 20, 34);
+            Assert.assertNull(overviewTitle.getEllipsize());
+            Assert.assertEquals(text, overviewTitle.getText().toString());
+            final Layout layout = overviewTitle.getLayout();
+            Assert.assertNotNull(layout);
+            for (int line = 0; line < layout.getLineCount(); line++) {
+                Assert.assertEquals("maxLines=" + maxLines + " line=" + line,
+                        0, layout.getEllipsisCount(line));
             }
         }
     }

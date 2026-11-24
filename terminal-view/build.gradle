@@ -26,6 +26,14 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    testOptions {
+        // Renderer-system tests run on the host and inject their own measuring Paint and recording
+        // Canvas. The remaining platform paints are only constructed, configured and asked for
+        // their default state; without this flag the mockable android.jar throws from every one of
+        // those calls instead of returning the JVM default.
+        unitTests.returnDefaultValues = true
+    }
+
     publishing {
         multipleVariants {
             withSourcesJar()

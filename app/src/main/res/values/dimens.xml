@@ -17,8 +17,8 @@
     <dimen name="terminal_tab_close_size">20dp</dimen>
 
     <!-- Session overview grid. One value drives the gap between cards and the grid's outer
-         gutter reserve. -->
-    <dimen name="session_overview_gap">8dp</dimen>
+         gutter reserve; halving it tightens both at once. -->
+    <dimen name="session_overview_gap">4dp</dimen>
     <dimen name="session_overview_tab_margin">2dp</dimen>
     <!-- Fallback only: the controller adopts the strip tab's height, corner radius and line
          count, including the two-line mode, before the cards are shown. -->

@@ -386,6 +386,9 @@
     <string name="tab_close_description">Close tab</string>
     <string name="session_default_title">Terminal</string>
     <string name="session_overview_description">All terminal sessions</string>
+    <string name="session_overview_preview_throttle_title">Maximum terminal refresh rate in overview mode</string>
+    <string name="session_overview_preview_throttle_value">%1$d fps</string>
+    <string name="session_overview_preview_throttle_off_value">Off</string>
     <string name="session_overview_session_description">%1$s, terminal session</string>
     <string name="session_overview_session_selected_description">%1$s, terminal session, selected</string>
     <string name="session_overview_close_session_description">Close session %1$s</string>

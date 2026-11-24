@@ -1,6 +1,9 @@
 # Local documentation / plans (not committed)
 docs/
 
+# Local scratch (screenshots, logs, decompiled APKs, rollback backups)
+.tmp/
+
 # Agent artifacts
 AGENT*.md
 .hermes/

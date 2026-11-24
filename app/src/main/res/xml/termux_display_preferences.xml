@@ -142,6 +142,18 @@
         app:title="@string/terminal_category_title"
         app:iconSpaceReserved="false">
 
+        <!-- Position 0 is off; positions 1..30 map to 30..1 FPS. The custom preference rewrites
+             the seek bar label to the mapped rate with a unit, so the raw position is never shown. -->
+        <com.termux.app.fragments.settings.SessionOverviewPreviewThrottlePreference
+            app:key="session-overview-preview-fps"
+            app:title="@string/session_overview_preview_throttle_title"
+            app:min="0"
+            android:max="30"
+            app:defaultValue="0"
+            app:updatesContinuously="true"
+            app:showSeekBarValue="true"
+            app:iconSpaceReserved="false" />
+
         <Preference
             app:key="terminal-transcript-rows"
             app:title="@string/terminal_transcript_rows_title"

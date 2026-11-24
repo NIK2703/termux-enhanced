@@ -144,13 +144,7 @@ public class TermuxSessionTabsController {
         TabRenderState(View tabView) {
             titleView = tabView.findViewById(R.id.session_tab_title);
             closeButton = tabView.findViewById(R.id.session_tab_close);
-            if (titleView != null) {
-                // Truncation is rendered as an alpha fade, never as a platform ellipsis. Clear
-                // any ellipsize inherited from a theme or a previous layout so the TextView
-                // cannot append "..." to the faded prefix.
-                titleView.setEllipsize(null);
-                titleView.setHorizontallyScrolling(false);
-            }
+            if (titleView != null) applyTitleFadeContract(titleView);
         }
     }
 
@@ -874,6 +868,16 @@ public class TermuxSessionTabsController {
         }
     }
 
+    /**
+     * Applies the fade-only truncation contract to a title view. Every title owner calls this
+     * after it changes line count or inflation state, so a theme, a previous single-line layout,
+     * or a platform default cannot reintroduce the ellipsis over the faded prefix.
+     */
+    static void applyTitleFadeContract(@androidx.annotation.NonNull TextView titleView) {
+        titleView.setEllipsize(null);
+        titleView.setHorizontallyScrolling(false);
+    }
+
     /** Multiplies paint alpha so the title's colour and strike-through remain intact. */
     private static final class AlphaSpan extends CharacterStyle {
         private final int mAlpha;
@@ -1203,8 +1207,7 @@ public class TermuxSessionTabsController {
         ensureDimens();
         // setMaxLines() may have run since the view was inflated; re-assert the fade contract
         // after every line-count change so a platform or theme ellipsis cannot come back.
-        titleView.setEllipsize(null);
-        titleView.setHorizontallyScrolling(false);
+        applyTitleFadeContract(titleView);
 
         final int baseMaxWidth = mTitleMaxWidthPx;
         final int gap = mCloseGapPx;

@@ -726,6 +726,23 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
+     * Maximum session-overview preview passes per second. {@code 0} disables throttling.
+     */
+    public int getSessionOverviewPreviewFps() {
+        return DataUtils.clamp(
+            getInt(TERMUX_APP.KEY_SESSION_OVERVIEW_PREVIEW_FPS,
+                TERMUX_APP.DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS),
+            TERMUX_APP.MIN_SESSION_OVERVIEW_PREVIEW_FPS,
+            TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS);
+    }
+
+    public void setSessionOverviewPreviewFps(int value) {
+        setIntClamped(TERMUX_APP.KEY_SESSION_OVERVIEW_PREVIEW_FPS, value,
+            TERMUX_APP.MIN_SESSION_OVERVIEW_PREVIEW_FPS,
+            TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS);
+    }
+
+    /**
      * Get the terminal margin for one side. For a left/right side, if the new per-side
      * key is unset, falls back to the legacy "terminal-margin-horizontal" value; for a
      * top/bottom side, to the legacy "terminal-margin-vertical" value.

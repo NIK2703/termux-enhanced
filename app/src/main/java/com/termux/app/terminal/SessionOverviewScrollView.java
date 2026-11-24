@@ -7,6 +7,7 @@ import android.content.Context;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.PathInterpolator;
 import android.widget.ScrollView;
 
 import androidx.annotation.Nullable;
@@ -24,8 +25,21 @@ import com.termux.view.ElasticOverdrag;
  * and the terminal pager: {@link ElasticHorizontalScrollView} is the horizontal adapter and this
  * is the vertical one. They share {@link ElasticOverdrag} for the pull curve, cap, spring and
  * fling impulse; only the gesture plumbing and the axis differ.</p>
+ *
+ * <p>A removal can leave the grid shorter than the current scroll offset. The platform would
+ * clamp the scroll in one frame; {@link #armContentShrinkSettle()} instead lets the controller
+ * ask for a short settle, in which the grid starts at the old position and slides down to the new
+ * end.</p>
  */
 public class SessionOverviewScrollView extends ScrollView {
+
+    /** Receives real scroll-position changes (not the elastic translation). */
+    public interface OnScrollListener {
+        void onScrollChanged(int scrollY);
+    }
+
+    @Nullable
+    private OnScrollListener mOnScrollListener;
 
     /** The first (top) end: the content is pulled DOWN, so translationY > 0. */
     private static final int DIRECTION_TOP = -1;
@@ -39,12 +53,34 @@ public class SessionOverviewScrollView extends ScrollView {
      */
     private static final long FLING_IDLE_MS = 96L;
 
+    /** How long the grid takes to slide to the new end after a removal shortened it. */
+    private static final long SHRINK_SETTLE_DURATION_MS = 250L;
+
+    /** Decelerating curve for the shrink settle; stateless, so one instance is enough. */
+    private static final PathInterpolator SHRINK_SETTLE_INTERPOLATOR =
+            new PathInterpolator(0f, 0f, 0.2f, 1f);
+
     /** Accumulated (undamped) finger travel past the top / bottom end, in px. Never negative. */
     private float mTopRawPx;
     private float mBottomRawPx;
 
     /** The damped displacement currently applied as the content's {@code translationY}, in px. */
     private float mTranslationPx;
+
+    /**
+     * Extra downward settle applied on top of the elastic displacement while the grid slides to
+     * the new end after a removal shortened it, in px. Non-negative; zero when idle.
+     */
+    private float mShrinkSettlePx;
+
+    /** The last {@code translationY} written to the grid, including the settle above. */
+    private float mContentTranslationPx;
+
+    /** True when the next layout pass should smooth out a clamp caused by content shrinking. */
+    private boolean mShrinkSettleArmed;
+
+    @Nullable
+    private ValueAnimator mShrinkSettle;
 
     @Nullable
     private ValueAnimator mSpring;
@@ -115,6 +151,53 @@ public class SessionOverviewScrollView extends ScrollView {
         setHorizontalScrollBarEnabled(false);
         setVerticalFadingEdgeEnabled(false);
         setHorizontalFadingEdgeEnabled(false);
+    }
+
+    /** Set the listener for real scroll changes; pass {@code null} to detach it. */
+    public void setOnScrollListener(@Nullable OnScrollListener listener) {
+        mOnScrollListener = listener;
+    }
+
+    /**
+     * Arm a one-shot settle for the next layout pass.
+     *
+     * <p>A removal can leave the grid shorter than the current scroll offset. The platform then
+     * clamps {@code scrollY} inside {@link #onLayout}, which reads as an instant jump to the new
+     * end. If that clamp actually happens, the content instead slides down to the new end; a
+     * layout that does not clamp consumes the flag and changes nothing.</p>
+     */
+    public void armContentShrinkSettle() {
+        mShrinkSettleArmed = true;
+    }
+
+    /**
+     * Drop a pending or running shrink settle immediately.
+     *
+     * <p>Used when the overview closes: the next open must start from the real scroll position,
+     * not from a translation left halfway through the settle.</p>
+     */
+    public void cancelContentShrinkSettle() {
+        mShrinkSettleArmed = false;
+        cancelShrinkSettleAnimator();
+        mShrinkSettlePx = 0f;
+        applyContentTranslation();
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        final int before = getScrollY();
+        super.onLayout(changed, left, top, right, bottom);
+        if (!mShrinkSettleArmed) return;
+        // One layout owns the flag: a clamp either happened in this pass or it never will.
+        mShrinkSettleArmed = false;
+        final int distance = SessionOverviewScrollMath.shrinkSettleDistance(before, getScrollY());
+        if (distance > 0) startShrinkSettle(distance);
+    }
+
+    @Override
+    protected void onScrollChanged(int left, int top, int oldLeft, int oldTop) {
+        super.onScrollChanged(left, top, oldLeft, oldTop);
+        if (mOnScrollListener != null) mOnScrollListener.onScrollChanged(top);
     }
 
     @Override
@@ -205,8 +288,9 @@ public class SessionOverviewScrollView extends ScrollView {
             }
             bleedIntoScroll(consumedPx);
             // It is a fling giving the pull back — nothing else will notice if this one stops
-            // before the displacement reaches 0.
-            ensureSettled();
+            // before the displacement reaches 0. A normal in-range fling has no displacement, so
+            // posting the settle check every frame would only keep a no-op callback alive.
+            if (mTranslationPx != 0f) ensureSettled();
         }
 
         if (mFlingImpactSpent || mDragPullAbsorbed || !mFlingArmed) return;
@@ -302,7 +386,11 @@ public class SessionOverviewScrollView extends ScrollView {
     @Override
     protected void onDetachedFromWindow() {
         // A view pulled out of the window can no longer be sprung back, and whatever displacement
-        // it was holding must not survive into the next attachment.
+        // it was holding must not survive into the next attachment. A shrink settle is dropped
+        // without animation for the same reason.
+        mShrinkSettleArmed = false;
+        cancelShrinkSettleAnimator();
+        mShrinkSettlePx = 0f;
         reset();
         super.onDetachedFromWindow();
     }
@@ -428,15 +516,33 @@ public class SessionOverviewScrollView extends ScrollView {
     }
 
     /**
-     * The single writer of the content's {@code translationY}: must always be a finite, bounded
-     * number — anything else is coerced to 0 rather than allowed to poison the view's transform.
+     * Write the elastic component of the content's translation. It is finite and bounded by the
+     * pull cap; the shrink settle is applied on top in {@link #applyContentTranslation()}.
      */
     private void setTranslation(float px, float heightPx) {
         px = PagerOverscrollController.coerceTranslation(px, heightPx);
-        // An unchanged displacement must not dirty the RenderNode. Every settle/reset ends here,
-        // and most of them are writing a 0 that is already there.
-        if (px == mTranslationPx) return;
         mTranslationPx = px;
+        applyContentTranslation();
+    }
+
+    /**
+     * Write the single {@code translationY} the grid can have: the elastic pull minus the shrink
+     * settle. Routing both writers through one place keeps a settle that is still running from
+     * being overwritten by a pull, or the other way round.
+     */
+    private void applyContentTranslation() {
+        float px = mTranslationPx - mShrinkSettlePx;
+        if (!isFinite(px)) {
+            // Both inputs are individually finite; this is belt and braces against a bad animator
+            // sample poisoning the view's transform.
+            mTranslationPx = 0f;
+            mShrinkSettlePx = 0f;
+            px = 0f;
+        }
+        // An unchanged translation must not dirty the RenderNode. Every settle/reset ends here,
+        // and most of them are writing a value that is already on screen.
+        if (px == mContentTranslationPx) return;
+        mContentTranslationPx = px;
         View content = getChildAt(0);
         if (content != null) content.setTranslationY(px);
     }
@@ -476,6 +582,55 @@ public class SessionOverviewScrollView extends ScrollView {
 
     private static boolean isFinite(float v) {
         return PagerOverscrollController.isFinite(v);
+    }
+
+    // ── shrink settle ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Slide the grid from the position the platform just clamped away from down to the new end.
+     *
+     * <p>{@code distancePx} is the amount the layout clamp removed from {@code scrollY}. The
+     * scroll itself is already at the new maximum, so the offset is applied as a translation: the
+     * content starts exactly where it was before the removal and eases into the new end. A second
+     * clamp while a settle is running stacks on the remaining offset, keeping the frame
+     * continuous.</p>
+     */
+    private void startShrinkSettle(float distancePx) {
+        if (!isFinite(distancePx) || distancePx <= 0f) return;
+        final float from = mShrinkSettlePx + distancePx;
+        cancelShrinkSettleAnimator();
+        mShrinkSettlePx = from;
+        applyContentTranslation();
+
+        final ValueAnimator animator = ValueAnimator.ofFloat(from, 0f);
+        animator.setDuration(SHRINK_SETTLE_DURATION_MS);
+        animator.setInterpolator(SHRINK_SETTLE_INTERPOLATOR);
+        animator.addUpdateListener(animation -> {
+            if (mShrinkSettle != animation) return;
+            mShrinkSettlePx = (Float) animation.getAnimatedValue();
+            applyContentTranslation();
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mShrinkSettle != animation) return;
+                mShrinkSettle = null;
+                mShrinkSettlePx = 0f;
+                applyContentTranslation();
+            }
+        });
+        mShrinkSettle = animator;
+        animator.start();
+    }
+
+    /** Stop the settle animator without touching the offset it has reached. */
+    private void cancelShrinkSettleAnimator() {
+        final ValueAnimator settle = mShrinkSettle;
+        mShrinkSettle = null;
+        if (settle == null) return;
+        settle.removeAllUpdateListeners();
+        settle.removeAllListeners();
+        settle.cancel();
     }
 
     // ── the "never displaced while idle" invariant ─────────────────────────────────────────

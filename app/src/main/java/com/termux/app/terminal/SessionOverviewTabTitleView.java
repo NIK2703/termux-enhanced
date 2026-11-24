@@ -29,10 +29,7 @@ public class SessionOverviewTabTitleView extends TextView {
     public SessionOverviewTabTitleView(Context context, @Nullable AttributeSet attrs,
                                        int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        // Truncation is an alpha fade; a platform ellipsis would draw on top of the faded
-        // prefix and is exactly the "..." the overview must never show.
-        setEllipsize(null);
-        setHorizontallyScrolling(false);
+        TermuxSessionTabsController.applyTitleFadeContract(this);
         // The overview uses this title as a flying ghost above the terminal. Its Z offset keeps
         // it above the terminal snapshot, but the default background outline would make that
         // offset cast a shadow. A title never needs an outline.
@@ -59,6 +56,9 @@ public class SessionOverviewTabTitleView extends TextView {
     }
 
     private void renderTitle() {
+        // A theme, inflation attribute, or line-count change may have installed an ellipsis
+        // since the last render; clear it before the TextView measures the faded prefix.
+        TermuxSessionTabsController.applyTitleFadeContract(this);
         final String title = mFullTitle;
         final int maxWidth = getWidth() - getPaddingStart() - getPaddingEnd();
         if (title.isEmpty() || maxWidth <= 0) {

@@ -1119,6 +1119,20 @@ public final class TerminalRenderer {
         return scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE;
     }
 
+    /**
+     * Scale that maps a shaped run's advance onto the cells it occupies.
+     *
+     * <p>Kept as an additive helper for the existing cell-fit unit tests; the full-screen
+     * renderer itself still uses {@link #isMismatchScaleUsable(int, float)} and never installs a
+     * cell-fit matrix.</p>
+     */
+    static float cellFitScale(float expectedWidth, float shapedWidth) {
+        if (!(expectedWidth > 0f) || !(shapedWidth > 0f)) return 1f;
+        final float scale = expectedWidth / shapedWidth;
+        if (!(scale > 0f) || Float.isInfinite(scale) || Float.isNaN(scale)) return 1f;
+        return (scale <= MAX_MISMATCH_SCALE && scale >= MIN_MISMATCH_SCALE) ? scale : 1f;
+    }
+
     private void drawRunText(Canvas canvas, char[] text, float y, int startColumn, int runWidthColumns,
                              int startCharIndex, int runWidthChars, float mes, int cursor, int cursorStyle,
                              long textStyle, int foreColor, int backColor, boolean fontWidthMismatch,

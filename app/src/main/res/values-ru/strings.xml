@@ -398,6 +398,9 @@
 
     
     <string name="tabs_category_title">Вкладки</string>
+    <string name="session_overview_preview_throttle_title">Максимальная частота обновления терминалов в режиме обзора</string>
+    <string name="session_overview_preview_throttle_value">%1$d к/с</string>
+    <string name="session_overview_preview_throttle_off_value">Отключено</string>
 
     
     <string name="theme_mode_entry_dark">Тёмная</string>

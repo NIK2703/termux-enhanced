@@ -157,15 +157,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     @Nullable
     SessionOverviewController mSessionOverviewController;
 
-    /**
-     * Largest height the active terminal view has had in the current window shape. The overview
-     * sizes every card for the keyboard-hidden terminal, so opening it while the IME compresses
-     * the terminal must not shrink all cards to the live viewport.
-     */
-    private int mMaxTerminalViewHeight;
-    /** Width the maximum above belongs to; a width change is a new window shape. */
-    private int mTrackedTerminalViewportWidth;
-    /** Last height reported by layout, used to refresh previews when the IME hides. */
+    /** Last terminal size reported by layout, used to refresh overview geometry on change. */
+    private int mLastTerminalViewWidth;
     private int mLastTerminalViewHeight;
 
     public void setPendingInitialSession(@Nullable TerminalSession session) {
@@ -951,7 +944,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
                 mTextInputPanel.applyPanelHeightLimitForContentView(v);
                 mTextInputPanel.updatePanelHeight();
-                trackTerminalViewportHeight(v);
+                trackTerminalViewportSize();
             });
         mViewHelper = new TermuxActivityViewHelper(this, getLayoutInflater());
 
@@ -1116,10 +1109,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        // Do not reset the remembered terminal height here: keyboardHidden is one of this
-        // activity's configChanges, so this also runs when the IME opens and the live viewport
-        // becomes the compressed one. trackTerminalViewportHeight() resets on a width change,
-        // which is the signal that the window shape itself changed.
+        // The overview reads each emulator's actual grid and the current viewport, so there is
+        // no remembered terminal height to reset here. keyboardHidden is one of this activity's
+        // configChanges, which is why the layout listener keeps the fallback height current.
         updateExtraKeysCompaction(newConfig);
         // Rotation and split-screen resize arrive without a recreate, so the strip is re-decided.
         applyExtraKeysToKeyboardVisibility();
@@ -4972,53 +4964,40 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Remember the largest terminal viewport in this window shape.
+     * Report every real terminal viewport size to the overview.
      *
-     * <p>The IME shrinks the pager, and hiding the extra keys with the keyboard can change the
-     * bottom strip independently. Taking the maximum avoids needing to reconstruct that layout:
-     * the normal keyboard-hidden height is what the view had before the IME opened. A width
-     * change is a new window shape (rotation, split-screen), so the maximum is discarded.</p>
+     * <p>The overview reads each session's actual emulator grid. This callback keeps the
+     * fallback reference grid current while an emulator is still missing, so it must follow the
+     * current window rather than a remembered maximum. Both axes are compared because a
+     * width-only split-screen resize changes the columns without changing the height; the last
+     * size is cached to avoid re-entering the overview on layout passes that change nothing.</p>
      */
-    private void trackTerminalViewportHeight(@NonNull View root) {
-        final int width = root.getWidth();
-        if (width != mTrackedTerminalViewportWidth) {
-            mTrackedTerminalViewportWidth = width;
-            mMaxTerminalViewHeight = 0;
-            mLastTerminalViewHeight = 0;
-        }
-
+    private void trackTerminalViewportSize() {
         final TerminalView terminal = getActiveTerminalView();
         if (terminal == null) return;
+        final int width = terminal.getWidth();
         final int height = terminal.getHeight();
-        if (height <= 0) return;
-
-        // Only a keyboard-hidden height is the normal one. The IME inset is checked as well as
-        // the combined visibility signal because the first layout after a cold start can arrive
-        // before the detector has settled.
-        final boolean imeVisible = computeImeVisibility() || mLastImeBottomPx > 0;
-        if (!imeVisible && height > mMaxTerminalViewHeight) {
-            mMaxTerminalViewHeight = height;
-        }
-        if (height == mLastTerminalViewHeight) return;
+        if (width <= 0 || height <= 0) return;
+        if (width == mLastTerminalViewWidth && height == mLastTerminalViewHeight) return;
+        mLastTerminalViewWidth = width;
         mLastTerminalViewHeight = height;
 
-        // The keyboard can hide after the overview has started opening. The emulator then grows
-        // back to its normal rows, so the grid aspect and the previews have to be refreshed.
+        // A window resize or IME transition changes the normal terminal grid. Refresh the
+        // fallback and let the overview publish the new size to sessions that are out of date.
         if (mSessionOverviewController != null) {
             mSessionOverviewController.onTerminalViewportChanged();
         }
     }
 
     /**
-     * Height of the active terminal with the IME hidden, for overview card sizing.
+     * Current normal terminal viewport height for the overview's window grid.
      *
-     * <p>Returns the largest height seen in this window shape. If the window started with the
-     * keyboard already up, fall back to the current height plus the IME inset so the cards still
-     * do not inherit the compressed rows.</p>
+     * <p>The overview turns this height into the columns and rows a terminal has with the IME
+     * hidden, and publishes that grid to every session before measuring its card. It reports the
+     * current height plus the current IME inset when the keyboard is visible; it never returns a
+     * height remembered from an earlier window shape.</p>
      */
     public int getTerminalViewportHeightForOverview() {
-        if (mMaxTerminalViewHeight > 0) return mMaxTerminalViewHeight;
-
         final TerminalView terminal = getActiveTerminalView();
         if (terminal == null) return 0;
         final int height = terminal.getHeight();

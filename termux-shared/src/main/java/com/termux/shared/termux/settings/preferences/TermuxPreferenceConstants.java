@@ -1,7 +1,7 @@
 package com.termux.shared.termux.settings.preferences;
 
 /*
- * Version: v0.16.0
+ * Version: v0.18.0
  *
  * Changelog
  *
@@ -69,6 +69,17 @@ package com.termux.shared.termux.settings.preferences;
  * - 0.16.0 (2022-06-11)
  *      - Added following to `TERMUX_APP`:
  *          `KEY_APP_SHELL_NUMBER_SINCE_BOOT` and `KEY_TERMINAL_SESSION_NUMBER_SINCE_BOOT`.
+ *
+ * - 0.17.0 (2026-11-24)
+ *      - Added following to `TERMUX_APP`:
+ *          `KEY_SESSION_OVERVIEW_PREVIEW_THROTTLE`, `DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_THROTTLE`,
+ *          `MIN_SESSION_OVERVIEW_PREVIEW_THROTTLE` and `MAX_SESSION_OVERVIEW_PREVIEW_THROTTLE`.
+ *
+ * - 0.18.0 (2026-11-24)
+ *      - Replaced the session-overview preview frame divisor with an FPS cap:
+ *          `KEY_SESSION_OVERVIEW_PREVIEW_FPS`, `DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS`,
+ *          `MIN_SESSION_OVERVIEW_PREVIEW_FPS` and `MAX_SESSION_OVERVIEW_PREVIEW_FPS`.
+ *          A value of `0` disables the throttle.
  */
 
 import com.termux.shared.shell.command.ExecutionCommand;
@@ -421,6 +432,15 @@ public final class TermuxPreferenceConstants {
 
         public static final String KEY_SCROLL_ON_NEW_OUTPUT = "scroll-on-new-output";
         public static final boolean DEFAULT_VALUE_SCROLL_ON_NEW_OUTPUT = false;
+
+        /**
+         * Maximum number of session-overview preview passes per second. A value of {@code 0}
+         * disables throttling; {@code 1..30} limits previews to that many passes per second.
+         */
+        public static final String KEY_SESSION_OVERVIEW_PREVIEW_FPS = "session-overview-preview-fps";
+        public static final int DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS = 0;
+        public static final int MIN_SESSION_OVERVIEW_PREVIEW_FPS = 0;
+        public static final int MAX_SESSION_OVERVIEW_PREVIEW_FPS = 30;
 
         public static final String KEY_TERMINAL_CURSOR_STYLE = "terminal-cursor-style";
         public static final int DEFAULT_VALUE_TERMINAL_CURSOR_STYLE = TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_CURSOR_STYLE;

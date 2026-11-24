@@ -45,6 +45,8 @@ android {
         if (appVersionName) versionName = appVersionName
         validateVersionName(versionName)
 
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
         // Restrict every native build (app + library modules) to the configured ABIs.
         // Only set ndk abiFilters when splits are disabled — AGP 8.13+ rejects ndk.abiFilters
         // alongside splits.abi.include even when they match.
@@ -212,6 +214,8 @@ dependencies {
     // Pin the SDK-28 android-all runtime so Robolectric does not need to fetch it
     // at test runtime (its built-in downloader has no network in some CI envs).
     testImplementation "org.robolectric:android-all-instrumented:9-robolectric-4913185-2-i6"
+    androidTestImplementation "androidx.test.ext:junit:1.1.5"
+    androidTestImplementation "androidx.test:runner:1.5.2"
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.1.5"
 }
 

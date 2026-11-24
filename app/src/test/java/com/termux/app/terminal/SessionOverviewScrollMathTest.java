@@ -3,7 +3,7 @@ package com.termux.app.terminal;
 import org.junit.Assert;
 import org.junit.Test;
 
-/** Remembered overview scroll positions must yield to the active card's visibility. */
+/** Pure arithmetic for overview scroll restore and the post-removal settle. */
 public class SessionOverviewScrollMathTest {
 
     @Test
@@ -62,5 +62,26 @@ public class SessionOverviewScrollMathTest {
         // The usable viewport is empty; keep the preferred position rather than forcing a jump.
         Assert.assertEquals(0, SessionOverviewScrollMath.scrollForActiveCard(
                 0, 100, 200, 0, 10, 20));
+    }
+
+    @Test
+    public void clampCausedByAShorterGridProducesTheSettleDistance() {
+        // Removing the last row takes the maximum from 900 to 600; the content must slide 300 px.
+        Assert.assertEquals(300, SessionOverviewScrollMath.shrinkSettleDistance(900, 600));
+    }
+
+    @Test
+    public void layoutThatDidNotMoveTheScrollNeedsNoSettle() {
+        Assert.assertEquals(0, SessionOverviewScrollMath.shrinkSettleDistance(600, 600));
+        Assert.assertEquals(0, SessionOverviewScrollMath.shrinkSettleDistance(300, 600));
+    }
+
+    @Test
+    public void stackedClampsAddUpToTheTotalDistance() {
+        // A second removal while the first settle is still running clamps again. The offsets
+        // stack, so their sum must still equal the distance from the original position.
+        final int first = SessionOverviewScrollMath.shrinkSettleDistance(900, 600);
+        final int second = SessionOverviewScrollMath.shrinkSettleDistance(600, 500);
+        Assert.assertEquals(900 - 500, first + second);
     }
 }

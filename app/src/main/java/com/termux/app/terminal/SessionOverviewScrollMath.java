@@ -54,4 +54,20 @@ final class SessionOverviewScrollMath {
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
+
+    /**
+     * How far the content must slide after a layout clamps the scroll to a shorter range.
+     *
+     * <p>Removing cards can make the grid shorter than the current scroll offset. The platform
+     * clamps {@code scrollY} immediately; the difference between the old and the clamped position
+     * is the distance the content has to travel to reach the new end smoothly. A layout that did
+     * not move the position produces zero.</p>
+     *
+     * @param scrollBefore position before the layout pass
+     * @param scrollAfter  position after the pass clamped it
+     * @return non-negative settle distance in pixels
+     */
+    static int shrinkSettleDistance(int scrollBefore, int scrollAfter) {
+        return Math.max(0, scrollBefore - scrollAfter);
+    }
 }

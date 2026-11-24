@@ -18,6 +18,7 @@ import com.termux.R;
 import com.termux.app.TermuxActivity;
 import com.termux.app.activities.SettingsActivity;
 import com.termux.app.bubble.TermuxBubbleManager;
+import com.termux.app.terminal.SessionOverviewPreviewThrottle;
 import com.termux.app.terminal.TermuxActivityBroadcastManager;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
@@ -135,6 +136,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
         // --- Terminal appearance (moved from Terminal screen) ---
         configureTerminalAppearancePreferences(prefs);
+        configureSessionOverviewPreviewThrottle(prefs);
 
         // --- Tabs ---
         configureTabListPrefWithBroadcast("tab_panel_position", "top", "com.termux.TAB_PANEL_POSITION_CHANGED");
@@ -144,6 +146,33 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         configureTermuxPrefsSwitch("restore_sessions", false);
         configureTermuxPrefsSwitch("new_tab_in_active_session_directory", false);
         configureDirectoryHistoryMaxPreference();
+    }
+
+    // Terminal refresh rate in overview
+
+    private void configureSessionOverviewPreviewThrottle(@Nullable TermuxAppSharedPreferences prefs) {
+        final SeekBarPreference pref = findPreference(
+            TermuxPreferenceConstants.TERMUX_APP.KEY_SESSION_OVERVIEW_PREVIEW_FPS);
+        if (pref == null) return;
+
+        // Detach the framework store before touching min/max: setMin/setMax may clamp and
+        // persist the current value, which must go through the explicit listener below.
+        pref.setPersistent(false);
+        pref.setMin(TermuxPreferenceConstants.TERMUX_APP.MIN_SESSION_OVERVIEW_PREVIEW_FPS);
+        pref.setMax(TermuxPreferenceConstants.TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS);
+        pref.setSeekBarIncrement(1);
+
+        final int fps = prefs != null
+            ? prefs.getSessionOverviewPreviewFps()
+            : TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS;
+        // Slider position 0 is off, then positions 1..30 map to 30..1 FPS.
+        pref.setValue(SessionOverviewPreviewThrottle.sliderPositionForFps(fps));
+
+        pref.setOnPreferenceChangeListener((preference, newValue) -> {
+            final int newFps = SessionOverviewPreviewThrottle.fpsForSliderPosition((Integer) newValue);
+            if (prefs != null) prefs.setSessionOverviewPreviewFps(newFps);
+            return true;
+        });
     }
 
     // Terminal appearance
