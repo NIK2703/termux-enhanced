@@ -60,6 +60,8 @@
     <!-- 60% × 50/80: matches the controls' shadow despite the panel's higher fill opacity. -->
     <dimen name="floating_shadow_elevation">4dp</dimen>
     <item name="floating_shadow_alpha" type="fraction">60%</item>
+    <!-- Hover shadow for overview cards: same alpha as the floating controls, larger elevation. -->
+    <item name="session_overview_hover_shadow_alpha" type="fraction">60%</item>
     <item name="floating_panel_shadow_alpha" type="fraction">37.5%</item>
 
     <!-- Message history popup dimensions -->

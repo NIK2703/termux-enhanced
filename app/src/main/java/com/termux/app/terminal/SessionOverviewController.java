@@ -38,6 +38,7 @@ import androidx.core.content.ContextCompat;
 
 import com.termux.R;
 import com.termux.app.TermuxActivity;
+import com.termux.app.TermuxActivityUtils;
 import com.termux.app.TermuxService;
 import com.termux.shared.termux.extrakeys.ColorSchemeUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
@@ -106,8 +107,13 @@ public final class SessionOverviewController {
     /** Non-zero while the overlay is drawn behind the status bar, in pixels. */
     private int mStatusBarTopExtension;
     private boolean mStatusBarExtensionApplied;
+    /** Non-zero while the overlay is drawn behind the navigation bar, in pixels. */
+    private int mNavigationBarBottomExtension;
+    private boolean mNavigationBarExtensionApplied;
     private int mOverlayOriginalTopMargin;
+    private int mOverlayOriginalBottomMargin;
     private int mGridOriginalPaddingTop;
+    private int mGridOriginalPaddingBottom;
     private boolean mRootOriginalClipChildren;
     private boolean mRootOriginalClipToPadding;
 
@@ -126,6 +132,22 @@ public final class SessionOverviewController {
     /** How many frames to wait for the grid to lay out before starting with whatever exists. */
     private static final int MAX_START_ATTEMPTS = 20;
 
+    /**
+     * An activity recreate (theme/style change) destroys the controller instance. Remember the open
+     * overview across that recreate so changing the device theme does not kick the user out of it.
+     */
+    private static boolean sRestoreOverviewAfterRecreate;
+    private static int sRecreateScrollY = -1;
+    private static final int MAX_RESTORE_ATTEMPTS = 30;
+    private boolean mRestoreAfterRecreatePosted;
+
+    /**
+     * While the finger that opened the overview stays down, cards are not recognised until this
+     * long has elapsed. A quick flick therefore ends inside the overview instead of switching to
+     * whichever card happened to be under the finger.
+     */
+    private static final long GESTURE_SELECTION_DELAY_MS = 300L;
+
     /** Short fade-and-shrink used when a card is closed from its own X button. */
     private static final long CARD_CLOSE_DURATION_MS = 160L;
     /** The card shrinks slightly into its centre while it fades. */
@@ -133,6 +155,9 @@ public final class SessionOverviewController {
 
     /** 50% alpha for the compact pill so the terminal stays visible underneath it. */
     private static final int OVERVIEW_TAB_BACKGROUND_ALPHA = 0x80;
+
+    /** Same tick as the overview-opening gesture, defined once in {@link TabPanelLayout}. */
+    private static final int HOVER_FEEDBACK = TabPanelLayout.OVERVIEW_GESTURE_FEEDBACK;
 
     private boolean mShowing;
     /** True between activity stop and resume while the overview stays open in the background. */
@@ -147,6 +172,20 @@ public final class SessionOverviewController {
     /** Integer cell pitch shared by every preview in this overview. */
     @Nullable
     private PreviewCellGeometry mCellGeometry;
+    /** Card currently under the finger of the gesture that opened the overview. */
+    @Nullable
+    private Card mHoverCard;
+    /** True once the opening gesture is old enough to hit-test and select cards. */
+    private boolean mGestureSelectionArmed;
+    private final Runnable mArmGestureSelectionRunnable = this::armGestureSelection;
+    /** Last hover point, reused after every auto-scroll step. */
+    private float mHoverRawX;
+    private float mHoverRawY;
+    /** Edge auto-scroll of the grid while the drop finger is parked near its top/bottom. */
+    private boolean mAutoScrollPosted;
+    /** Timestamp of the previous scroll frame, for vsync-independent step sizing. */
+    private long mAutoScrollLastTimeMs;
+    private final Runnable mAutoScrollRunnable = this::autoScrollStep;
     /** Reused [first, end) buffer for the visible child range; no allocation per render pass. */
     private final int[] mVisibleChildRange = new int[2];
 
@@ -310,7 +349,19 @@ public final class SessionOverviewController {
 
                 @Override
                 public void onOverviewRequested() {
-                    show();
+                    if (show()) armGestureSelectionAfterDelay();
+                }
+
+                @Override
+                public void onOverviewGestureHover(float rawX, float rawY) {
+                    updateGestureHover(rawX, rawY);
+                }
+
+                @Override
+                public void onOverviewGestureCancelled() {
+                    disarmGestureSelection();
+                    stopAutoScroll();
+                    clearGestureHover();
                 }
 
                 @Override
@@ -323,6 +374,58 @@ public final class SessionOverviewController {
 
     public boolean isShowing() {
         return mShowing;
+    }
+
+    /** Called by the activity before a configuration-change recreate destroys this controller. */
+    public static void saveForActivityRecreate(@NonNull SessionOverviewController controller) {
+        sRestoreOverviewAfterRecreate = true;
+        sRecreateScrollY = controller.mRememberedScrollY;
+    }
+
+    /**
+     * Reopen the overview in the recreated activity. The service may still be connecting on the
+     * first resume, so retry on the UI thread for a short while instead of losing the request.
+     */
+    public void restoreAfterActivityRecreate() {
+        if (!sRestoreOverviewAfterRecreate || mRestoreAfterRecreatePosted) return;
+        mRestoreAfterRecreatePosted = true;
+        final int savedScrollY = sRecreateScrollY;
+
+        final View decor = mActivity.getWindow() != null
+                ? mActivity.getWindow().getDecorView() : null;
+        if (decor == null) {
+            mRestoreAfterRecreatePosted = false;
+            return;
+        }
+
+        final Runnable attempt = new Runnable() {
+            private int mAttempts;
+
+            @Override
+            public void run() {
+                if (mShowing) {
+                    sRestoreOverviewAfterRecreate = false;
+                    sRecreateScrollY = -1;
+                    mRestoreAfterRecreatePosted = false;
+                    return;
+                }
+                if (mRememberedScrollY < 0) mRememberedScrollY = savedScrollY;
+                if (show()) {
+                    sRestoreOverviewAfterRecreate = false;
+                    sRecreateScrollY = -1;
+                    mRestoreAfterRecreatePosted = false;
+                    return;
+                }
+                if (++mAttempts < MAX_RESTORE_ATTEMPTS) {
+                    decor.postDelayed(this, 50L);
+                } else {
+                    sRestoreOverviewAfterRecreate = false;
+                    sRecreateScrollY = -1;
+                    mRestoreAfterRecreatePosted = false;
+                }
+            }
+        };
+        decor.post(attempt);
     }
 
     /** The overlay view, used by the activity's touch tracking so a tap cannot close the panel. */
@@ -366,9 +469,39 @@ public final class SessionOverviewController {
         } else if (mClosingTransition == null) {
             mActivity.applyOverviewWindowBackground(target);
         }
+        // The navigation bar belongs to the overview window too, whatever the status-bar
+        // extension state: make it transparent on every entry, not only when the status bar is
+        // extended. hide() restores the scheme colours through applySchemeColors().
+        applyOverviewNavigationBarAppearance(target);
         if (mStatusBarExtensionApplied) {
             applyOverviewStatusBarAppearance(target);
         }
+    }
+
+    /** Keep the navigation bar transparent and its icons matched to the overview backdrop. */
+    private void applyOverviewNavigationBarAppearance(int background) {
+        final Window window = mActivity.getWindow();
+        if (window == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.setNavigationBarColor(Color.TRANSPARENT);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.setNavigationBarDividerColor(Color.TRANSPARENT);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarContrastEnforced(false);
+        }
+        final View decor = window.getDecorView();
+        int flags = decor.getSystemUiVisibility();
+        flags |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (ColorSchemeUtils.isColorLight(background)) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            } else {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+        }
+        decor.setSystemUiVisibility(flags);
     }
 
     /**
@@ -491,11 +624,11 @@ public final class SessionOverviewController {
         mRestoreScrollOnOpen = true;
         scheduleScrollRestoreAfterLayout();
 
-        // Let the overlay paint behind the transparent system status bar. The grid gets the same
-        // amount as top padding, so the resting layout is unchanged while scrolled rows can pass
-        // under the status bar instead of disappearing behind an opaque strip.
-        final boolean statusBarExtended = extendOverlayIntoStatusBar();
-        if (statusBarExtended) applyOverviewStatusBarAppearance(mOverlayBackgroundColor);
+        // Let the overlay paint behind the transparent system bars. The grid gets the insets as
+        // padding, so its resting layout is unchanged while scrolled rows can pass under both
+        // bars instead of disappearing behind them.
+        extendOverlayIntoSystemBars();
+        if (mStatusBarExtensionApplied) applyOverviewStatusBarAppearance(mOverlayBackgroundColor);
         mOverlay.setVisibility(View.VISIBLE);
         // The overlay is on screen, so the panel is no longer the user's live bottom strip.
         // Let it sink and fade behind the grid instead of vanishing on the first frame.
@@ -533,6 +666,9 @@ public final class SessionOverviewController {
     /** Close without restoring focus, used while switching sessions or leaving the activity. */
     public void hide(boolean restoreFocus) {
         if (!mShowing) return;
+        disarmGestureSelection();
+        stopAutoScroll();
+        clearGestureHover();
         cancelCardCloseAnimation();
 
         // Keep the position the user left. If the opening restore has not run yet, the previous
@@ -574,7 +710,7 @@ public final class SessionOverviewController {
         mShowing = false;
         mActivity.restoreTextInputPanelAfterOverview();
         if (mOverlay != null) mOverlay.setVisibility(View.GONE);
-        restoreOverlayFromStatusBar();
+        restoreOverlayFromSystemBars();
         // The overlay is gone, so the live content can paint again. The window background goes
         // back to the scheme colour after the content is restored, never before: a transparent
         // overview over live content would flash the terminal through the grid.
@@ -632,64 +768,72 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Stretch the overlay into the status-bar inset while keeping the grid's resting layout
+     * Stretch the overlay into both system-bar insets while keeping the grid's resting layout
      * unchanged.
      *
-     * <p>The window is already laid out edge-to-edge and the status bar is transparent, but the
-     * activity root consumes the top inset as padding. A negative top margin lets the overview
-     * draw above that padding; the same amount is added to the grid's top padding, so its
-     * viewport grows by exactly the strip it gained and the cards keep their size and resting
-     * position. Once the user scrolls, the padding moves out of the way and rows slide under the
-     * status bar.</p>
+     * <p>The window is already laid out edge-to-edge and the bars are transparent, but the
+     * activity root consumes the insets as padding. Negative overlay margins let the overview draw
+     * over those strips; the same amounts are added to the grid's padding, so its viewport grows
+     * by exactly what it gained and the cards keep their size and resting position. Once the user
+     * scrolls, the padding moves out of the way and rows slide under the status and navigation
+     * bars instead of disappearing behind them.</p>
      *
-     * @return true when the overlay is now extended and its status-bar chrome should follow.
+     * @return true when at least one inset was claimed and the overlay must be allowed to paint
+     *         outside the padded root.
      */
-    private boolean extendOverlayIntoStatusBar() {
-        if (mStatusBarExtensionApplied) return true;
+    private boolean extendOverlayIntoSystemBars() {
+        if (mStatusBarExtensionApplied || mNavigationBarExtensionApplied) return true;
         if (mOverlay == null || mGrid == null || mRootView == null) return false;
 
         final int topInset = mRootView.getPaddingTop();
-        if (topInset <= 0) return false;
+        final int bottomInset = mRootView.getPaddingBottom();
+        if (topInset <= 0 && bottomInset <= 0) return false;
 
         final ViewGroup.LayoutParams layoutParams = mOverlay.getLayoutParams();
         if (!(layoutParams instanceof ViewGroup.MarginLayoutParams)) return false;
 
         final ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) layoutParams;
         mOverlayOriginalTopMargin = margins.topMargin;
+        mOverlayOriginalBottomMargin = margins.bottomMargin;
         mGridOriginalPaddingTop = mGrid.getPaddingTop();
+        mGridOriginalPaddingBottom = mGrid.getPaddingBottom();
         mRootOriginalClipChildren = mRootView.getClipChildren();
         mRootOriginalClipToPadding = mRootView.getClipToPadding();
 
-        margins.topMargin = -topInset;
+        if (topInset > 0) margins.topMargin = mOverlayOriginalTopMargin - topInset;
+        if (bottomInset > 0) margins.bottomMargin = mOverlayOriginalBottomMargin - bottomInset;
         mOverlay.setLayoutParams(margins);
         mGrid.setPadding(mGrid.getPaddingLeft(), mGridOriginalPaddingTop + topInset,
-                mGrid.getPaddingRight(), mGrid.getPaddingBottom());
-        // The overlay lives inside the padded root and now paints above its parent's top edge;
-        // both parents must allow that drawing or the top strip is clipped away.
+                mGrid.getPaddingRight(), mGridOriginalPaddingBottom + bottomInset);
+        // The overlay lives inside the padded root and now paints beyond its edges; both parents
+        // must allow that drawing or the bar strips are clipped away.
         mRootView.setClipChildren(false);
         mRootView.setClipToPadding(false);
 
         mStatusBarTopExtension = topInset;
-        mStatusBarExtensionApplied = true;
+        mNavigationBarBottomExtension = bottomInset;
+        mStatusBarExtensionApplied = topInset > 0;
+        mNavigationBarExtensionApplied = bottomInset > 0;
         return true;
     }
 
-    /** Put the overlay back inside the content area and restore the normal status-bar icons. */
-    private void restoreOverlayFromStatusBar() {
-        if (!mStatusBarExtensionApplied) return;
-        mStatusBarExtensionApplied = false;
+    /** Put the overlay back inside the content area and restore the normal system-bar chrome. */
+    private void restoreOverlayFromSystemBars() {
+        if (!mStatusBarExtensionApplied && !mNavigationBarExtensionApplied) return;
 
         if (mOverlay != null) {
             final ViewGroup.LayoutParams layoutParams = mOverlay.getLayoutParams();
             if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
-                ((ViewGroup.MarginLayoutParams) layoutParams).topMargin =
-                        mOverlayOriginalTopMargin;
+                final ViewGroup.MarginLayoutParams margins =
+                        (ViewGroup.MarginLayoutParams) layoutParams;
+                margins.topMargin = mOverlayOriginalTopMargin;
+                margins.bottomMargin = mOverlayOriginalBottomMargin;
                 mOverlay.setLayoutParams(layoutParams);
             }
         }
         if (mGrid != null) {
             mGrid.setPadding(mGrid.getPaddingLeft(), mGridOriginalPaddingTop,
-                    mGrid.getPaddingRight(), mGrid.getPaddingBottom());
+                    mGrid.getPaddingRight(), mGridOriginalPaddingBottom);
         }
         if (mRootView != null) {
             mRootView.setClipChildren(mRootOriginalClipChildren);
@@ -697,6 +841,9 @@ public final class SessionOverviewController {
         }
 
         mStatusBarTopExtension = 0;
+        mNavigationBarBottomExtension = 0;
+        mStatusBarExtensionApplied = false;
+        mNavigationBarExtensionApplied = false;
         restoreStatusBarAppearanceAfterOverview();
     }
 
@@ -713,7 +860,6 @@ public final class SessionOverviewController {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.setStatusBarContrastEnforced(false);
         }
-
         final View decor = window.getDecorView();
         int flags = decor.getSystemUiVisibility();
         flags |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -1348,6 +1494,7 @@ public final class SessionOverviewController {
     public void onActivityStopped() {
         if (!mShowing) return;
         mActivityStopped = true;
+        disarmGestureSelection();
 
         cancelCardCloseAnimation();
         cancelTransition();
@@ -1388,7 +1535,8 @@ public final class SessionOverviewController {
         mSoftKeyboardHiddenForResume = true;
 
         applyOverviewBackground();
-        if (extendOverlayIntoStatusBar()) {
+        extendOverlayIntoSystemBars();
+        if (mStatusBarExtensionApplied) {
             applyOverviewStatusBarAppearance(mOverlayBackgroundColor);
         }
 
@@ -2895,15 +3043,154 @@ public final class SessionOverviewController {
      * correct with window insets, card translations during the opening flight and RTL layouts.</p>
      */
     private void selectCardUnderFinger(float rawX, float rawY) {
-        if (!mShowing || mActivityStopped || mClosingTransition != null
+        if (!mShowing || mActivityStopped) return;
+        // Capture the state before clearing it: disarmGestureSelection() sets the flag to false,
+        // so testing the field afterwards would reject every legitimate selection.
+        final boolean armed = mGestureSelectionArmed;
+        // The gesture is over whether or not recognition had begun. Cancel a pending arm so a
+        // fast flick cannot produce a hover shadow (or a selection) after the finger is gone.
+        disarmGestureSelection();
+        if (!armed || mClosingTransition != null
                 || mPendingClosingCard != null || mClosingCardAnimation != null) return;
-        final Card hit = findCardAtScreenPoint(rawX, rawY);
+        final Card hit = mHoverCard != null ? mHoverCard : findCardAtScreenPoint(rawX, rawY);
+        stopAutoScroll();
+        clearGestureHover();
         if (hit == null) return;
         if (containsScreenPoint(hit.close, rawX, rawY)) {
             closeSessionFromButton(hit);
             return;
         }
         selectSession(hit.session);
+    }
+
+    /**
+     * Start the recognition delay for the gesture that just opened the overview. Until it expires
+     * the grid is deliberately inert to that finger, so a fast flick cannot drop onto a card.
+     */
+    private void armGestureSelectionAfterDelay() {
+        disarmGestureSelection();
+        if (mGrid == null) return;
+        mGrid.postDelayed(mArmGestureSelectionRunnable, GESTURE_SELECTION_DELAY_MS);
+    }
+
+    private void armGestureSelection() {
+        if (!mShowing) return;
+        mGestureSelectionArmed = true;
+        // The finger may have been stationary during the delay; hit-test the last point now.
+        applyHoverCard();
+    }
+
+    /** Drop any pending or active recognition of the gesture that opened the overview. */
+    private void disarmGestureSelection() {
+        if (mGrid != null) mGrid.removeCallbacks(mArmGestureSelectionRunnable);
+        mGestureSelectionArmed = false;
+    }
+
+    /** Track the finger, highlight the drop target and scroll the list at its edges. */
+    private void updateGestureHover(float rawX, float rawY) {
+        if (!mShowing || mActivityStopped || mClosingTransition != null
+                || mPendingClosingCard != null) return;
+        // Remember the point even while recognition is delayed, so the first eligible frame can
+        // highlight the card the finger is actually over.
+        mHoverRawX = rawX;
+        mHoverRawY = rawY;
+        if (!mGestureSelectionArmed) return;
+        updateAutoScrollEdge(rawX, rawY);
+        applyHoverCard();
+    }
+
+    /** Re-run only the hit-test after the grid has moved under a stationary finger. */
+    private void applyHoverCard() {
+        final Card card = findCardAtScreenPoint(mHoverRawX, mHoverRawY);
+        if (card == mHoverCard) return;
+        clearGestureHover();
+        mHoverCard = card;
+        if (card != null) {
+            card.root.setHoverHighlight(true);
+            // Only the armed gesture produces feedback: one tick when the finger lands on a new
+            // card, not one per hover frame and nothing during the initial recognition delay.
+            if (mGestureSelectionArmed) {
+                card.root.performHapticFeedback(HOVER_FEEDBACK);
+            }
+        }
+    }
+
+    /**
+     * Start the edge auto-scroll loop at most once per gesture. The loop decides on every frame
+     * whether the finger is still inside an edge band, exactly like the input-history popup.
+     */
+    private void updateAutoScrollEdge(float rawX, float rawY) {
+        if (mScrollView == null || !mScrollView.isAttachedToWindow()
+                || mScrollView.getHeight() <= 0) {
+            stopAutoScroll();
+            return;
+        }
+        if (mAutoScrollPosted) return;
+        mAutoScrollPosted = true;
+        mAutoScrollLastTimeMs = SystemClock.uptimeMillis();
+        mScrollView.postOnAnimation(mAutoScrollRunnable);
+    }
+
+    /**
+     * One frame of the edge auto-scroll loop, mirroring the input-history popup: a 36dp band, a
+     * maximum of 24dp per 16ms reference frame, and a step scaled by the real frame time so the
+     * speed is the same on 60/90/120 Hz displays. Reschedules on the next vsync while the finger
+     * stays in the band; stops as soon as it leaves.
+     */
+    private void autoScrollStep() {
+        if (!mShowing || mActivityStopped || mClosingTransition != null
+                || mPendingClosingCard != null || mScrollView == null) {
+            stopAutoScroll();
+            return;
+        }
+
+        final int[] location = new int[2];
+        mScrollView.getLocationOnScreen(location);
+        final int top = location[1];
+        final int bottom = location[1] + mScrollView.getHeight();
+        final int band = TermuxActivityUtils.dpToPx(
+                mActivity, SessionOverviewReorderMath.AUTO_SCROLL_BAND_DP);
+        final int maxStep = TermuxActivityUtils.dpToPx(
+                mActivity, SessionOverviewReorderMath.AUTO_SCROLL_MAX_STEP_DP);
+
+        final long now = SystemClock.uptimeMillis();
+        float frameRatio;
+        if (mAutoScrollLastTimeMs == 0L) {
+            frameRatio = 1f;
+        } else {
+            frameRatio = Math.min(now - mAutoScrollLastTimeMs, 48L) / 16f;
+        }
+        mAutoScrollLastTimeMs = now;
+
+        int step;
+        if (mHoverRawY < top + band) {
+            final float t = Math.min(1f, (top + band - mHoverRawY) / band);
+            step = -Math.round(maxStep * t * frameRatio);
+        } else if (mHoverRawY > bottom - band) {
+            final float t = Math.min(1f, (mHoverRawY - (bottom - band)) / band);
+            step = Math.round(maxStep * t * frameRatio);
+        } else {
+            stopAutoScroll();
+            return;
+        }
+
+        mScrollView.scrollBy(0, step);
+        applyHoverCard();
+        mScrollView.postOnAnimation(mAutoScrollRunnable);
+    }
+
+    private void stopAutoScroll() {
+        if (mScrollView != null) mScrollView.removeCallbacks(mAutoScrollRunnable);
+        mAutoScrollPosted = false;
+        mAutoScrollLastTimeMs = 0L;
+    }
+
+    /** Restore the normal outline of the previously hovered card. */
+    private void clearGestureHover() {
+        if (mHoverCard == null) return;
+        final Card previous = mHoverCard;
+        mHoverCard = null;
+        previous.root.setHoverHighlight(false);
     }
 
     /** Topmost card whose preview contains the given screen point, or null. */
@@ -3065,6 +3352,19 @@ public final class SessionOverviewController {
     }
 
     /**
+     * Give the card the same system shadow family as the floating terminal controls: four times
+     * the elevation (twice as large as the first hover version) and half the alpha. The colour follows the
+     * scheme so the shadow stays visible on both light and dark terminals. Resting elevation is
+     * left at zero; only {@link SessionOverviewCardView#setHoverHighlight(boolean)} raises it.
+     */
+    private void applyCardShadow(@NonNull Card card) {
+        final android.content.res.Resources res = mActivity.getResources();
+        card.root.setHoverShadow(
+                FloatingShadow.overviewCardElevationPx(res),
+                FloatingShadow.overviewCardShadowColor(res, mActivity.isCachedSchemeLight()));
+    }
+
+    /**
      * Cards carry no fill of their own: the terminal snapshot is the card, with the compact tab
      * floating over its top edge. Removing the background and press ripple keeps the thumbnail
      * from pulsing under the tab when the card is tapped. A card outline in the floating
@@ -3081,10 +3381,11 @@ public final class SessionOverviewController {
         // The outline is installed by applyTabMetrics() so the stroke follows the thumbnail's
         // rounded corners. Do not replace it with BOUNDS here; this method also runs when only
         // the terminal background changes.
-        // The thumbnail has no elevation. Its only chrome is an outline using the overview card
-        // stroke width and the floating controls' colour and opacity. The card stroke is
-        // intentionally thicker than the text-input stroke; both sit over different content.
-        card.root.setElevation(0f);
+        // The thumbnail has no resting elevation: its chrome is the outline below. System
+        // elevation is added only while the card is the hovered drop target (see
+        // applyCardShadow()). The card stroke is intentionally thicker than the text-input
+        // stroke; both sit over different content.
+        applyCardShadow(card);
         final float strokeWidth = mActivity.getResources().getDimension(
                 R.dimen.session_overview_card_stroke);
         card.root.setBorder(Math.round(strokeWidth), mActivity.getFloatingButtonStroke(),
@@ -3634,6 +3935,9 @@ public final class SessionOverviewController {
     }
 
     private void releaseCards() {
+        disarmGestureSelection();
+        stopAutoScroll();
+        clearGestureHover();
         if (mDragController != null) mDragController.cancelForModelChange();
         if (mGrid != null) {
             mGrid.removeCallbacks(mRenderPreviewsRunnable);

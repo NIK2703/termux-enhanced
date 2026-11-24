@@ -1,5 +1,7 @@
 package com.termux.app.terminal;
 
+import android.animation.ValueAnimator;
+import android.os.SystemClock;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
@@ -17,11 +19,12 @@ import java.util.List;
 /**
  * Long-press drag-reorder for the overview grid.
  *
- * <p>A press becomes a candidate at the long-press timeout. The lifted card shrinks, fades and
- * follows the finger, while every other card stays in its slot. On release the lifted card is
- * removed from its original index and inserted at the slot nearest the finger. Only then is the
- * final order handed to the host, which applies one remove-and-insert move to the session model so
- * the pager and the tab strip change together with the grid.</p>
+ * <p>A press becomes a candidate at the long-press timeout. The lifted card grows slightly, fades
+ * and follows the finger. As the finger crosses another slot, the other cards shift into the order
+ * the drop would produce, so the new order is visible before the finger is released. On release the
+ * lifted card is removed from its original index and inserted at the slot nearest the finger; the
+ * host then applies one remove-and-insert move to the session model so the pager and the tab strip
+ * change together with the grid.</p>
  */
 final class SessionOverviewDragController {
 
@@ -44,13 +47,11 @@ final class SessionOverviewDragController {
     private static final int STATE_PRESSED = 1;
     private static final int STATE_DRAGGING = 2;
 
-    private static final long LIFT_DURATION_MS = 120L;
+    private static final long SHIFT_DURATION_MS = 180L;
     private static final long SETTLE_DURATION_MS = 160L;
-    private static final float LIFT_SCALE = 0.92f;
+    /** The held card grows slightly instead of shrinking, so the lifted item reads as picked up. */
+    private static final float LIFT_SCALE = 1.05f;
     private static final float LIFT_ALPHA = 0.82f;
-    private static final float LIFT_Z_DP = 8f;
-    private static final float AUTO_SCROLL_EDGE_DP = 48f;
-    private static final float AUTO_SCROLL_MAX_STEP_DP = 10f;
     private static final int MAX_SETTLE_LAYOUT_ATTEMPTS = 20;
     private static final DecelerateInterpolator DECELERATE = new DecelerateInterpolator();
 
@@ -62,7 +63,7 @@ final class SessionOverviewDragController {
     private final int mTouchSlop;
     private final int mLongPressTimeout;
     private final float mLiftZ;
-    private final int mAutoScrollEdge;
+    private final int mAutoScrollBand;
     private final int mAutoScrollMaxStep;
 
     private final int[] mGridLocation = new int[2];
@@ -72,6 +73,8 @@ final class SessionOverviewDragController {
     @Nullable
     private SessionOverviewCardView mCard;
     private int mDragChildIndex = -1;
+    /** Slot the dragged card currently previews over; neighbours shift while this changes. */
+    private int mPreviewTargetIndex = -1;
     private float[] mBaseCenterXs = new float[0];
     private float[] mBaseCenterYs = new float[0];
     private float mDownRawX;
@@ -84,8 +87,11 @@ final class SessionOverviewDragController {
     private float mGrabTranslationX;
     private float mGrabTranslationY;
 
+    /** Drop flight: children stay in their old order until the model reorder is committed. */
+    @Nullable
+    private ValueAnimator mDropAnimator;
     private boolean mAutoScrollPosted;
-    private int mAutoScrollStep;
+    private long mAutoScrollLastTimeMs;
 
     /**
      * A drop has reordered the children but the grid has not laid them out yet. Non-null only
@@ -121,9 +127,11 @@ final class SessionOverviewDragController {
         mTouchSlop = configuration.getScaledTouchSlop();
         mLongPressTimeout = ViewConfiguration.getLongPressTimeout();
         final float density = grid.getResources().getDisplayMetrics().density;
-        mLiftZ = LIFT_Z_DP * density;
-        mAutoScrollEdge = Math.max(1, Math.round(AUTO_SCROLL_EDGE_DP * density));
-        mAutoScrollMaxStep = Math.max(1, Math.round(AUTO_SCROLL_MAX_STEP_DP * density));
+        mLiftZ = FloatingShadow.overviewCardElevationPx(grid.getResources());
+        mAutoScrollBand = Math.max(1, Math.round(
+                SessionOverviewReorderMath.AUTO_SCROLL_BAND_DP * density));
+        mAutoScrollMaxStep = Math.max(1, Math.round(
+                SessionOverviewReorderMath.AUTO_SCROLL_MAX_STEP_DP * density));
     }
 
     /** @return true while a press or drag is being tracked. */
@@ -155,6 +163,7 @@ final class SessionOverviewDragController {
     }
 
     private boolean onDown(@NonNull SessionOverviewCardView card, @NonNull MotionEvent event) {
+        if (mDropAnimator != null) cancelDropFlight(false);
         if (mState != STATE_IDLE || mSettleCards != null) return false;
         if (!mHost.canStartDrag(card)) return false;
 
@@ -187,6 +196,7 @@ final class SessionOverviewDragController {
             mLastRawY = event.getRawY();
             updateCardPosition();
             updateAutoScroll(mLastRawY);
+            updatePreviewOrder();
             return true;
         }
         return false;
@@ -234,6 +244,7 @@ final class SessionOverviewDragController {
             resetGesture();
             return;
         }
+        mPreviewTargetIndex = mDragChildIndex;
 
         // Follow the finger from the lift point. Snapping the card's centre to the finger here
         // made a long press look like the card jumped out from under the user's hand.
@@ -255,7 +266,7 @@ final class SessionOverviewDragController {
                 .scaleY(LIFT_SCALE)
                 .alpha(LIFT_ALPHA)
                 .translationZ(mLiftZ)
-                .setDuration(LIFT_DURATION_MS)
+                .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
                 .setInterpolator(DECELERATE)
                 .start();
         updateCardPosition();
@@ -304,6 +315,60 @@ final class SessionOverviewDragController {
                 mGrabTranslationY, mGrabGridY, gridY));
     }
 
+    /**
+     * Shift the other cards into the slots they would occupy if the drag were dropped now. The
+     * child order is left alone — only translations change — so the touch target and the finger
+     * following maths stay untouched until the release actually commits the reorder.
+     */
+    private void updatePreviewOrder() {
+        if (mState != STATE_DRAGGING || mDragChildIndex < 0) return;
+        final int count = mGrid.getChildCount();
+        if (count < 2 || mBaseCenterXs.length != count || mBaseCenterYs.length != count) return;
+
+        final int to = resolveDropTarget();
+        if (to < 0 || to == mPreviewTargetIndex) return;
+        mPreviewTargetIndex = to;
+
+        final int[] order = SessionOverviewReorderMath.orderAfterMove(count, mDragChildIndex, to);
+        if (order == null) return;
+        for (int newIndex = 0; newIndex < count; newIndex++) {
+            final int oldIndex = order[newIndex];
+            if (oldIndex == mDragChildIndex) continue;
+            final View child = mGrid.getChildAt(oldIndex);
+            if (child == null) continue;
+            child.animate().cancel();
+            child.animate()
+                    .translationX(mBaseCenterXs[newIndex] - mBaseCenterXs[oldIndex])
+                    .translationY(mBaseCenterYs[newIndex] - mBaseCenterYs[oldIndex])
+                    .setDuration(SHIFT_DURATION_MS)
+                    .setInterpolator(DECELERATE)
+                    .start();
+        }
+    }
+
+    /** Return the previewed neighbours to their own slots, with or without an animation. */
+    private void clearPreviewOrder(boolean animate) {
+        final int count = mGrid.getChildCount();
+        for (int i = 0; i < count; i++) {
+            if (i == mDragChildIndex) continue;
+            final View child = mGrid.getChildAt(i);
+            if (child == null) continue;
+            child.animate().cancel();
+            if (animate && child.isAttachedToWindow()) {
+                child.animate()
+                        .translationX(0f)
+                        .translationY(0f)
+                        .setDuration(SHIFT_DURATION_MS)
+                        .setInterpolator(DECELERATE)
+                        .start();
+            } else {
+                child.setTranslationX(0f);
+                child.setTranslationY(0f);
+            }
+        }
+        mPreviewTargetIndex = -1;
+    }
+
     /** @return the slot nearest the finger at release, or -1 when the layout is unusable. */
     private int resolveDropTarget() {
         final int count = mGrid.getChildCount();
@@ -323,46 +388,53 @@ final class SessionOverviewDragController {
             stopAutoScroll();
             return;
         }
-        mScroll.getLocationOnScreen(mScrollLocation);
-        final float pointerY = rawY - mScrollLocation[1];
-        final int step = SessionOverviewReorderMath.autoScrollStep(
-                pointerY, mScroll.getHeight(), mAutoScrollEdge, mAutoScrollMaxStep);
-        mAutoScrollStep = step;
-        if (step == 0) {
-            stopAutoScroll();
-            return;
-        }
-        if (!mAutoScrollPosted) {
-            mAutoScrollPosted = true;
-            mScroll.postOnAnimation(mAutoScrollRunnable);
-        }
+        // Idempotent: the running loop re-evaluates the finger position on every frame, exactly
+        // like the post-opening hover auto-scroll.
+        if (mAutoScrollPosted) return;
+        mAutoScrollPosted = true;
+        mAutoScrollLastTimeMs = SystemClock.uptimeMillis();
+        mScroll.postOnAnimation(mAutoScrollRunnable);
     }
 
     private void stopAutoScroll() {
-        mAutoScrollStep = 0;
         mAutoScrollPosted = false;
+        mAutoScrollLastTimeMs = 0L;
         if (mScroll != null) mScroll.removeCallbacks(mAutoScrollRunnable);
     }
 
     private void autoScrollFrame() {
         mAutoScrollPosted = false;
-        if (mState != STATE_DRAGGING || mScroll == null || mAutoScrollStep == 0) return;
+        if (mState != STATE_DRAGGING || mScroll == null) return;
+
+        mScroll.getLocationOnScreen(mScrollLocation);
+        final float pointerY = mLastRawY - mScrollLocation[1];
+
+        final long now = SystemClock.uptimeMillis();
+        final float frameRatio = mAutoScrollLastTimeMs == 0L
+                ? 1f : Math.min(now - mAutoScrollLastTimeMs, 48L) / 16f;
+        mAutoScrollLastTimeMs = now;
+
+        final int step = SessionOverviewReorderMath.autoScrollStep(
+                pointerY, mScroll.getHeight(), mAutoScrollBand, mAutoScrollMaxStep, frameRatio);
+        if (step == 0) {
+            stopAutoScroll();
+            return;
+        }
 
         final int before = mScroll.getScrollY();
-        mScroll.scrollBy(0, mAutoScrollStep);
+        mScroll.scrollBy(0, step);
         if (mScroll.getScrollY() == before) {
-            // The grid fits or is already at the end. Wait for the next MOVE to re-evaluate.
-            mAutoScrollStep = 0;
+            // At the end of the content; the next MOVE will start the loop again if needed.
+            stopAutoScroll();
             return;
         }
 
         // The grid moved under the finger, so the card's screen-relative translation has to be
         // refreshed even though the finger itself did not move.
         updateCardPosition();
-        if (mState == STATE_DRAGGING && mAutoScrollStep != 0) {
-            mAutoScrollPosted = true;
-            mScroll.postOnAnimation(mAutoScrollRunnable);
-        }
+        updatePreviewOrder();
+        mAutoScrollPosted = true;
+        mScroll.postOnAnimation(mAutoScrollRunnable);
     }
 
     private void drop() {
@@ -375,10 +447,22 @@ final class SessionOverviewDragController {
         }
         stopAutoScroll();
         card.removeOnLayoutChangeListener(mCardLayoutListener);
+        // Freeze the live preview at its current visual positions; the settle below animates from
+        // exactly these centres, and no leftover animator may move a re-added child afterwards.
+        for (int i = 0; i < mGrid.getChildCount(); i++) {
+            final View child = mGrid.getChildAt(i);
+            if (child != null) child.animate().cancel();
+        }
 
         final int to = resolveDropTarget();
+        // Snapshot the slot geometry now. A layout/model callback during the reorder below can
+        // reset the controller's fields mid-drop; the settle must use the geometry captured while
+        // the gesture was still active, not whatever the fields hold a few lines later.
+        final float[] slotCenterXs = mBaseCenterXs.clone();
+        final float[] slotCenterYs = mBaseCenterYs.clone();
         if (to < 0 || to == from) {
             // Dropped back where it started: no visual or model reorder happened during the drag.
+            clearPreviewOrder(true);
             settleInPlace(card);
             disallowIntercept(card, false);
             resetGesture();
@@ -387,15 +471,21 @@ final class SessionOverviewDragController {
 
         final int count = mGrid.getChildCount();
         final int[] order = SessionOverviewReorderMath.orderAfterMove(count, from, to);
-        if (order == null || mBaseCenterXs.length != count || mBaseCenterYs.length != count) {
+        if (order == null || slotCenterXs.length != count || slotCenterYs.length != count) {
             cancelDrag();
             return;
         }
 
-        final List<SessionOverviewCardView> orderedCards = new ArrayList<>(count);
-        final ViewGroup.LayoutParams[] params = new ViewGroup.LayoutParams[count];
-        final float[] fromCenterXs = new float[count];
-        final float[] fromCenterYs = new float[count];
+        // Keep the child order untouched during the flight. Re-adding the views first is what made
+        // the dragged card appear in its new slot for a frame: detach reset its transforms, and the
+        // seed was computed against slots the children did not occupy yet. Instead animate every
+        // card from its current offset to the offset that will place it in its new slot, and only
+        // reorder the children when the flight ends.
+        final float[] startTx = new float[count];
+        final float[] startTy = new float[count];
+        final float[] endTx = new float[count];
+        final float[] endTy = new float[count];
+        final View[] children = new View[count];
         for (int newIndex = 0; newIndex < count; newIndex++) {
             final int oldIndex = order[newIndex];
             final View child = mGrid.getChildAt(oldIndex);
@@ -403,42 +493,105 @@ final class SessionOverviewDragController {
                 cancelDrag();
                 return;
             }
-            orderedCards.add((SessionOverviewCardView) child);
-            params[newIndex] = child.getLayoutParams();
-            fromCenterXs[newIndex] = child.getLeft() + child.getWidth() / 2f
-                    + child.getTranslationX();
-            fromCenterYs[newIndex] = child.getTop() + child.getHeight() / 2f
-                    + child.getTranslationY();
+            children[oldIndex] = child;
+            startTx[oldIndex] = child.getTranslationX();
+            startTy[oldIndex] = child.getTranslationY();
+            endTx[oldIndex] = slotCenterXs[newIndex]
+                    - (child.getLeft() + child.getWidth() / 2f);
+            endTy[oldIndex] = slotCenterYs[newIndex]
+                    - (child.getTop() + child.getHeight() / 2f);
         }
 
-        final float[] targetCenterXs = mBaseCenterXs.clone();
-        final float[] targetCenterYs = mBaseCenterYs.clone();
+        final float fromScale = card.getScaleX();
+        final float fromAlpha = card.getAlpha();
+        final float fromZ = card.getTranslationZ();
+        cancelDropFlight(false);
+        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(SETTLE_DURATION_MS);
+        animator.setInterpolator(DECELERATE);
+        animator.addUpdateListener(animation -> {
+            final float progress = (float) animation.getAnimatedValue();
+            for (int oldIndex = 0; oldIndex < count; oldIndex++) {
+                final View child = children[oldIndex];
+                child.setTranslationX(startTx[oldIndex]
+                        + (endTx[oldIndex] - startTx[oldIndex]) * progress);
+                child.setTranslationY(startTy[oldIndex]
+                        + (endTy[oldIndex] - startTy[oldIndex]) * progress);
+            }
+            final float inverse = 1f - progress;
+            card.setScaleX(1f + (fromScale - 1f) * inverse);
+            card.setScaleY(1f + (fromScale - 1f) * inverse);
+            card.setAlpha(1f + (fromAlpha - 1f) * inverse);
+            card.setTranslationZ(fromZ * inverse);
+        });
+        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                mDropAnimator = null;
+                finishDrop(count, order);
+            }
+        });
+        mDropAnimator = animator;
+        animator.start();
+    }
 
-        // The touch has ended, so changing the child order now cannot cut the gesture short.
-        // Re-adding the children also clears the swipe/lift transforms that detaching resets.
+    /** Reorder the children after the drop flight and hand the final order to the controller. */
+    private void finishDrop(int count, int[] order) {
+        final int from = mDragChildIndex;
+        final List<SessionOverviewCardView> orderedCards = new ArrayList<>(count);
+        final ViewGroup.LayoutParams[] params = new ViewGroup.LayoutParams[count];
+        for (int newIndex = 0; newIndex < count; newIndex++) {
+            final View child = mGrid.getChildAt(order[newIndex]);
+            if (!(child instanceof SessionOverviewCardView)) {
+                cancelDropFlight(false);
+                return;
+            }
+            orderedCards.add((SessionOverviewCardView) child);
+            params[newIndex] = child.getLayoutParams();
+        }
         mGrid.removeAllViews();
         for (int newIndex = 0; newIndex < count; newIndex++) {
             mGrid.addView(orderedCards.get(newIndex), newIndex, params[newIndex]);
         }
-        mGrid.requestLayout();
-
-        beginSettle(orderedCards, fromCenterXs, fromCenterYs,
-                targetCenterXs, targetCenterYs, to);
-        // Re-adding the children clears their transforms. Put every card back at its previous
-        // visual centre before the next layout pass. Without this seed, the grid is painted once
-        // in the new order: the card under the finger appears in the dragged card's old slot,
-        // then jumps back and animates into that slot.
-        seedLayoutChangeTranslations(orderedCards, fromCenterXs, fromCenterYs,
-                targetCenterXs, targetCenterYs);
-        final SessionOverviewCardView draggedCard = orderedCards.get(to);
-        draggedCard.setScaleX(LIFT_SCALE);
-        draggedCard.setScaleY(LIFT_SCALE);
-        draggedCard.setAlpha(LIFT_ALPHA);
-        draggedCard.setTranslationZ(mLiftZ);
-
+        for (View child : orderedCards) {
+            child.setTranslationX(0f);
+            child.setTranslationY(0f);
+            child.setScaleX(1f);
+            child.setScaleY(1f);
+            child.setAlpha(1f);
+            child.setTranslationZ(0f);
+        }
+        final int to = orderFromIndex(order, from);
         resetGesture();
-        disallowIntercept(card, false);
-        mHost.onReorderCommitted(from, to, orderedCards);
+        if (to >= 0) disallowIntercept(orderedCards.get(to), false);
+        if (to >= 0 && from >= 0) mHost.onReorderCommitted(from, to, orderedCards);
+    }
+
+    private static int orderFromIndex(int[] order, int oldIndex) {
+        for (int i = 0; i < order.length; i++) {
+            if (order[i] == oldIndex) return i;
+        }
+        return -1;
+    }
+
+    /** Abort a drop flight without committing a model move, restoring the resting transforms. */
+    private void cancelDropFlight(boolean commit) {
+        if (mDropAnimator == null) return;
+        mDropAnimator.removeAllUpdateListeners();
+        mDropAnimator.removeAllListeners();
+        mDropAnimator.cancel();
+        mDropAnimator = null;
+        if (!commit) {
+            for (int i = 0; i < mGrid.getChildCount(); i++) {
+                final View child = mGrid.getChildAt(i);
+                child.setTranslationX(0f);
+                child.setTranslationY(0f);
+                child.setScaleX(1f);
+                child.setScaleY(1f);
+                child.setAlpha(1f);
+                child.setTranslationZ(0f);
+            }
+        }
     }
 
     /** Animate the lifted card back into its own slot without changing any order. */
@@ -511,6 +664,10 @@ final class SessionOverviewDragController {
             @NonNull List<SessionOverviewCardView> cards,
             @NonNull float[] fromCenterXs, @NonNull float[] fromCenterYs,
             @NonNull float[] targetCenterXs, @NonNull float[] targetCenterYs) {
+        if (cards.size() != fromCenterXs.length || cards.size() != targetCenterXs.length
+                || cards.size() != fromCenterYs.length || cards.size() != targetCenterYs.length) {
+            return;
+        }
         for (int i = 0; i < cards.size(); i++) {
             cards.get(i).setTranslationX(fromCenterXs[i] - targetCenterXs[i]);
             cards.get(i).setTranslationY(fromCenterYs[i] - targetCenterYs[i]);
@@ -625,8 +782,10 @@ final class SessionOverviewDragController {
     /** Release the finger without a drop: the lifted card returns to its own slot. */
     private void cancelDrag() {
         final SessionOverviewCardView card = mCard;
+        cancelDropFlight(false);
         stopAutoScroll();
         if (card != null) {
+            clearPreviewOrder(true);
             card.removeOnLayoutChangeListener(mCardLayoutListener);
             settleInPlace(card);
             disallowIntercept(card, false);
@@ -640,6 +799,7 @@ final class SessionOverviewDragController {
      */
     void cancelForModelChange() {
         final SessionOverviewCardView card = mCard;
+        cancelDropFlight(false);
         if (card != null) card.removeCallbacks(mLongPressRunnable);
         stopAutoScroll();
         cancelPendingSettle();
@@ -665,6 +825,7 @@ final class SessionOverviewDragController {
         mState = STATE_IDLE;
         mCard = null;
         mDragChildIndex = -1;
+        mPreviewTargetIndex = -1;
         mBaseCenterXs = new float[0];
         mBaseCenterYs = new float[0];
     }

@@ -9,6 +9,10 @@ package com.termux.app.terminal;
  */
 final class SessionOverviewReorderMath {
 
+    /** Edge band and peak speed shared by both overview auto-scrolls, in dp. */
+    static final int AUTO_SCROLL_BAND_DP = 64;
+    static final int AUTO_SCROLL_MAX_STEP_DP = 48;
+
     private SessionOverviewReorderMath() {
     }
 
@@ -65,31 +69,29 @@ final class SessionOverviewReorderMath {
      *
      * @param pointerY    finger Y relative to the scroll viewport.
      * @param viewportH   visible height of the scroll viewport.
-     * @param edgeZonePx  requested edge zone; clamped to a quarter of the viewport.
-     * @param maxStepPx   step at the very edge (one animation frame).
+     * @param bandPx      edge-sensitive zone at each end of the viewport.
+     * @param maxStepPx   step at the very edge for one 16 ms reference frame.
+     * @param frameRatio  real frame time divided by 16 ms, capped by the caller.
      * @return a signed scroll step for {@code ScrollView.scrollBy()}: negative near the top,
      *         positive near the bottom, zero in the middle.
      */
-    static int autoScrollStep(float pointerY, int viewportH, int edgeZonePx, int maxStepPx) {
-        if (viewportH <= 0 || edgeZonePx <= 0 || maxStepPx <= 0) return 0;
-        final int zone = Math.min(edgeZonePx, viewportH / 4);
-        if (zone <= 0) return 0;
+    static int autoScrollStep(float pointerY, int viewportH, int bandPx, int maxStepPx,
+                              float frameRatio) {
+        if (viewportH <= 0 || bandPx <= 0 || maxStepPx <= 0) return 0;
 
         final float strength;
         final boolean top;
-        if (pointerY < zone) {
-            strength = (zone - pointerY) / (float) zone;
+        if (pointerY < bandPx) {
+            strength = (bandPx - pointerY) / (float) bandPx;
             top = true;
-        } else if (pointerY > viewportH - zone) {
-            strength = (pointerY - (viewportH - zone)) / (float) zone;
+        } else if (pointerY > viewportH - bandPx) {
+            strength = (pointerY - (viewportH - bandPx)) / (float) bandPx;
             top = false;
         } else {
             return 0;
         }
         if (!(strength > 0f)) return 0;
-        final float clamped = Math.min(1f, strength);
-        final int step = Math.max(1, Math.round(maxStepPx * clamped));
-        return top ? -step : step;
+        return Math.round((top ? -1f : 1f) * maxStepPx * Math.min(1f, strength) * frameRatio);
     }
 
     /**

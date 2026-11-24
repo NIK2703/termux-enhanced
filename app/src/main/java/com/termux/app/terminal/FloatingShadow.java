@@ -22,12 +22,28 @@ import com.termux.R;
  */
 final class FloatingShadow {
 
+    /** Fade time shared by every overview-card shadow: hover, reorder lift and swipe lift. */
+    static final long OVERVIEW_SHADOW_ANIM_MS = 160L;
+
     private FloatingShadow() {
     }
 
     /** The shared elevation, in pixels. */
     static int elevationPx(@NonNull Resources res) {
         return res.getDimensionPixelSize(R.dimen.floating_shadow_elevation);
+    }
+
+    /**
+     * Elevation of an overview card's hover/lift shadow: four times the floating controls' shadow,
+     * which is the single size used by hover, reorder-lift and swipe-to-delete alike.
+     */
+    static int overviewCardElevationPx(@NonNull Resources res) {
+        return elevationPx(res) * 4;
+    }
+
+    /** Colour of that same overview card shadow, with its own alpha fraction. */
+    static int overviewCardShadowColor(@NonNull Resources res, boolean isSchemeLight) {
+        return color(res, isSchemeLight, R.fraction.session_overview_hover_shadow_alpha);
     }
 
     /**

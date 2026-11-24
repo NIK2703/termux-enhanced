@@ -6,6 +6,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.os.Build;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.HapticFeedbackConstants;
@@ -42,12 +43,16 @@ public class SessionOverviewCardView extends FrameLayout {
 
     private static final long DISMISS_DURATION_MS = 160L;
     private static final long RETURN_DURATION_MS = 200L;
-    private static final float DRAG_ELEVATION_DP = 8f;
+    private static final float DRAG_LIFT_SCALE = 1.05f;
 
     private final int mTouchSlop;
     private final int mMinFlingVelocity;
-    private final float mDragElevationPx;
     private final Paint mBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** System elevation used only while this card is the drop target of the opening gesture. */
+    private float mHoverElevationPx;
+    private boolean mHoverHighlighted;
+    @Nullable
+    private ValueAnimator mHoverAnimator;
     private float mBorderWidth;
     private float mBorderRadius;
     private boolean mBorderSuppressed;
@@ -84,7 +89,6 @@ public class SessionOverviewCardView extends FrameLayout {
         final ViewConfiguration configuration = ViewConfiguration.get(context);
         mTouchSlop = configuration.getScaledTouchSlop();
         mMinFlingVelocity = configuration.getScaledMinimumFlingVelocity();
-        mDragElevationPx = DRAG_ELEVATION_DP * getResources().getDisplayMetrics().density;
         mBorderPaint.setStyle(Paint.Style.STROKE);
     }
 
@@ -121,6 +125,46 @@ public class SessionOverviewCardView extends FrameLayout {
         final float radius = Math.max(0f, mBorderRadius - inset);
         canvas.drawRoundRect(inset, inset, getWidth() - inset, getHeight() - inset,
                 radius, radius, mBorderPaint);
+    }
+
+    /**
+     * Configure the system shadow used for hover. It mirrors the floating controls' shadow, but
+     * is larger and less pronounced so the drop target reads as a soft lift, not a new layer.
+     */
+    public void setHoverShadow(int elevationPx, int color) {
+        mHoverElevationPx = elevationPx;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            setOutlineAmbientShadowColor(color);
+            setOutlineSpotShadowColor(color);
+        }
+    }
+
+    public boolean isHoverHighlighted() {
+        return mHoverHighlighted;
+    }
+
+    /** Fade the card's system elevation in or out to mark it as the drop target. */
+    public void setHoverHighlight(boolean highlighted) {
+        if (mHoverHighlighted == highlighted) return;
+        mHoverHighlighted = highlighted;
+        if (mHoverAnimator != null) {
+            mHoverAnimator.cancel();
+            mHoverAnimator = null;
+        }
+        final float target = highlighted ? mHoverElevationPx : 0f;
+        mHoverAnimator = ValueAnimator.ofFloat(getElevation(), target);
+        mHoverAnimator.setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS);
+        mHoverAnimator.setInterpolator(new DecelerateInterpolator());
+        mHoverAnimator.addUpdateListener(animation ->
+                setElevation((float) animation.getAnimatedValue()));
+        mHoverAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                mHoverAnimator = null;
+                setElevation(target);
+            }
+        });
+        mHoverAnimator.start();
     }
 
     public void setOnSwipeDismissListener(@Nullable OnSwipeDismissListener listener) {
@@ -257,7 +301,24 @@ public class SessionOverviewCardView extends FrameLayout {
         mDragging = true;
         setPressed(false);
         cancelLongPress();
-        setTranslationZ(mDragElevationPx);
+        // A hover from the opening gesture may still own the elevation animator. Release it so the
+        // lift below is the single owner, with the same shadow and the same fade as that gesture.
+        if (mHoverAnimator != null) {
+            mHoverAnimator.cancel();
+            mHoverAnimator = null;
+            mHoverHighlighted = false;
+        }
+        final float liftZ = mHoverElevationPx > 0f
+                ? mHoverElevationPx
+                : FloatingShadow.overviewCardElevationPx(getResources());
+        animate().cancel();
+        animate()
+                .scaleX(DRAG_LIFT_SCALE)
+                .scaleY(DRAG_LIFT_SCALE)
+                .translationZ(liftZ)
+                .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
         final android.view.ViewParent parent = getParent();
         if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
     }
@@ -297,7 +358,9 @@ public class SessionOverviewCardView extends FrameLayout {
 
     private void animateOut(int direction) {
         final float fromTranslation = getTranslationX();
-        final float toTranslation = direction * (getWidth() + mDragElevationPx * 4f);
+        // Same 32dp fly-out distance as before, now derived from the shared shadow size.
+        final float toTranslation = direction
+                * (getWidth() + FloatingShadow.overviewCardElevationPx(getResources()) * 2f);
         final float fromAlpha = getAlpha();
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(DISMISS_DURATION_MS);
@@ -331,6 +394,8 @@ public class SessionOverviewCardView extends FrameLayout {
     private void animateBack() {
         final float fromTranslation = getTranslationX();
         final float fromAlpha = getAlpha();
+        final float fromZ = getTranslationZ();
+        final float fromScale = getScaleX();
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(RETURN_DURATION_MS);
         animator.setInterpolator(new DecelerateInterpolator());
@@ -338,6 +403,11 @@ public class SessionOverviewCardView extends FrameLayout {
             final float progress = (float) animation.getAnimatedValue();
             setTranslationX(fromTranslation * (1f - progress));
             setAlpha(fromAlpha + (1f - fromAlpha) * progress);
+            // Fade the lift out with the same curve as the hover highlight, not in one frame.
+            setTranslationZ(fromZ * (1f - progress));
+            final float scale = 1f + (fromScale - 1f) * (1f - progress);
+            setScaleX(scale);
+            setScaleY(scale);
         });
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -346,6 +416,8 @@ public class SessionOverviewCardView extends FrameLayout {
                 mSettling = false;
                 setTranslationX(0f);
                 setTranslationZ(0f);
+                setScaleX(1f);
+                setScaleY(1f);
                 setAlpha(1f);
                 final android.view.ViewParent parent = getParent();
                 if (parent != null) parent.requestDisallowInterceptTouchEvent(false);

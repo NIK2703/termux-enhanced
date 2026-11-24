@@ -1366,6 +1366,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (overviewShowing && mSessionOverviewController != null) {
             mSessionOverviewController.onActivityResumed();
         }
+        // Restore an overview that was open when a theme/style change recreated this activity.
+        if (mSessionOverviewController != null) {
+            mSessionOverviewController.restoreAfterActivityRecreate();
+        }
     }
 
     @Override
@@ -1426,6 +1430,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // where the next instance starts with a fresh hierarchy.
         if (mSessionOverviewController != null) {
             if (isFinishing() || isChangingConfigurations()) {
+                // A theme/style change recreates the activity. Keep the overview open in the new
+                // instance instead of kicking the user out to the terminal.
+                if (isChangingConfigurations() && mSessionOverviewController.isShowing()) {
+                    SessionOverviewController.saveForActivityRecreate(mSessionOverviewController);
+                }
                 mSessionOverviewController.hide(false);
             } else {
                 mSessionOverviewController.onActivityStopped();

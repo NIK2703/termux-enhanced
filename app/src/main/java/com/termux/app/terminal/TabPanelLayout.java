@@ -1,6 +1,7 @@
 package com.termux.app.terminal;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -21,6 +22,19 @@ import androidx.annotation.Nullable;
  */
 public class TabPanelLayout extends LinearLayout {
 
+    /**
+     * Softest tick available on this device, shared by the opening gesture and the card-hover
+     * feedback so both feel identical. API 34 has a dedicated very soft segment tick; API 27+ has
+     * the text-handle tick, which is much lighter than a clock/key click; older devices fall back
+     * to a virtual key tap.
+     */
+    public static final int OVERVIEW_GESTURE_FEEDBACK =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                    ? HapticFeedbackConstants.SEGMENT_FREQUENT_TICK
+                    : Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1
+                            ? HapticFeedbackConstants.TEXT_HANDLE_MOVE
+                            : HapticFeedbackConstants.VIRTUAL_KEY;
+
     public interface Listener {
         /** Whether there is anything to show. */
         boolean canOpenOverview();
@@ -38,6 +52,12 @@ public class TabPanelLayout extends LinearLayout {
          * @param rawY screen y of the release
          */
         void onOverviewGestureReleased(float rawX, float rawY);
+
+        /** Called while the finger moves over the open overview, for hover highlighting. */
+        void onOverviewGestureHover(float rawX, float rawY);
+
+        /** Called when the opened gesture is cancelled before release. */
+        void onOverviewGestureCancelled();
     }
 
     private final int mTouchSlop;
@@ -47,6 +67,8 @@ public class TabPanelLayout extends LinearLayout {
     private boolean mGestureConsumed;
     /** Primary pointer of the gesture that opened the overview. */
     private int mOverviewPointerId = -1;
+    /** True once the swipe has opened the overview, for hover/release/cancel routing. */
+    private boolean mOverviewOpened;
     @Nullable
     private Listener mListener;
 
@@ -67,10 +89,13 @@ public class TabPanelLayout extends LinearLayout {
     public boolean onInterceptTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                // The previous gesture can end with its UP redirected elsewhere (the overview
+                // closes and focus changes inside the release callback). Start from a known
+                // state instead of trusting that onTouchEvent saw that UP.
+                resetOverviewGesture();
                 mDownX = event.getX();
                 mDownY = event.getY();
                 mTracking = true;
-                mGestureConsumed = false;
                 break;
             case MotionEvent.ACTION_MOVE: {
                 if (!mTracking || mGestureConsumed) break;
@@ -84,16 +109,18 @@ public class TabPanelLayout extends LinearLayout {
                 if (!towardTerminal) break;
 
                 mGestureConsumed = true;
+                mOverviewOpened = true;
                 mOverviewPointerId = event.getPointerId(0);
-                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                performHapticFeedback(OVERVIEW_GESTURE_FEEDBACK);
                 listener.onOverviewRequested();
                 return true;
             }
             case MotionEvent.ACTION_UP:
+                resetOverviewGesture();
+                break;
             case MotionEvent.ACTION_CANCEL:
-                mTracking = false;
-                mGestureConsumed = false;
-                mOverviewPointerId = -1;
+                if (mOverviewOpened && mListener != null) mListener.onOverviewGestureCancelled();
+                resetOverviewGesture();
                 break;
             default:
                 break;
@@ -103,27 +130,50 @@ public class TabPanelLayout extends LinearLayout {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        final int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN && mGestureConsumed) {
+            // A new finger with the old state still set: reset and let normal dispatch (and the
+            // next MOVE interception) decide, instead of keeping the stale target.
+            resetOverviewGesture();
+            return false;
+        }
         if (mGestureConsumed) {
-            final int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_UP) {
+            if (action == MotionEvent.ACTION_MOVE) {
                 final Listener listener = mListener;
-                if (listener != null && event.getPointerCount() == 1
+                if (mOverviewOpened && listener != null && event.getPointerCount() == 1
+                        && event.getPointerId(0) == mOverviewPointerId) {
+                    listener.onOverviewGestureHover(event.getRawX(), event.getRawY());
+                }
+            } else if (action == MotionEvent.ACTION_UP) {
+                final Listener listener = mListener;
+                if (mOverviewOpened && listener != null && event.getPointerCount() == 1
                         && event.getPointerId(0) == mOverviewPointerId) {
                     // The finger never left the screen: let the controller select whatever card
                     // is under it now. The card itself never received ACTION_DOWN, so its own
                     // click handler cannot do this.
                     listener.onOverviewGestureReleased(event.getRawX(), event.getRawY());
                 }
-                mGestureConsumed = false;
-                mTracking = false;
-                mOverviewPointerId = -1;
+                resetOverviewGesture();
             } else if (action == MotionEvent.ACTION_CANCEL) {
-                mGestureConsumed = false;
-                mTracking = false;
-                mOverviewPointerId = -1;
+                if (mOverviewOpened && mListener != null) mListener.onOverviewGestureCancelled();
+                resetOverviewGesture();
             }
             return true;
         }
         return super.onTouchEvent(event);
+    }
+
+
+    private void resetOverviewGesture() {
+        mOverviewOpened = false;
+        mGestureConsumed = false;
+        mTracking = false;
+        mOverviewPointerId = -1;
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        resetOverviewGesture();
+        super.onDetachedFromWindow();
     }
 }
