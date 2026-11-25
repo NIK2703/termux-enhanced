@@ -83,6 +83,26 @@ public final class SessionPagerManager {
     private int mActiveIndex = -1;
 
     /**
+     * Sessions whose terminal pages are currently on screen and must repaint when their output
+     * changes.
+     *
+     * <p>A horizontal scroll exposes at most two pages: the one being left and the one being
+     * revealed. The pair is tracked from {@code onPageScrolled(position, positionOffset)} rather
+     * than from {@link #mActiveIndex}, because ViewPager2 dispatches {@code onPageSelected} for the
+     * target page at the <em>start</em> of the drag. The page still filling most of the screen
+     * would otherwise stop repainting the moment the finger moves. Following the scroll pair also
+     * makes a reversal inside the same gesture drop the neighbour that left the screen and pick up
+     * the one on the other side.
+     */
+    @Nullable
+    private TerminalSession mRenderSessionA;
+    @Nullable
+    private TerminalSession mRenderSessionB;
+
+    /** True once the render pair has been resolved against the live session list at least once. */
+    private boolean mRenderWindowReady;
+
+    /**
      * Resolve the active page index, repairing it if it drifted out of range (a session was closed
      * or the pager has not been populated yet).
      *
@@ -207,6 +227,104 @@ public final class SessionPagerManager {
         TerminalSession shown = (view != null) ? view.getCurrentSession() : null;
         if (shown != null && service.getIndexOfSession(shown) >= 0) return shown;
         return null;
+    }
+
+    /**
+     * Repaint the page of {@code session} if it is inside the pager's render window.
+     *
+     * <p>Called for every terminal output callback. The active-view path used to be the only
+     * consumer, which left the neighbouring page visible mid-swipe frozen at its last active
+     * frame: its emulator received the output, but no view repainted it. The pager now owns the
+     * decision while a scroll is in progress, so both pages actually on screen stay live.
+     *
+     * @return {@code true} when the pager owns the decision (the caller must not fall back to
+     *         repainting the active view), {@code false} before the pager has been populated.
+     */
+    public boolean onSessionTextChanged(@NonNull TerminalSession session) {
+        if (!mRenderWindowReady) return false;
+        if (session == mRenderSessionA || session == mRenderSessionB) {
+            repaintRenderPage(session);
+        }
+        return true;
+    }
+
+    /** Repaint one page that is currently inside the render window. */
+    private void repaintRenderPage(@NonNull TerminalSession session) {
+        TerminalView view = (mTerminalPagerAdapter != null)
+                ? mTerminalPagerAdapter.getViewForSession(session) : null;
+        if (view == null) {
+            // The active view is also reachable while the adapter's session->view map has not
+            // caught up yet (e.g. a page bound in the same frame as the first output chunk).
+            TerminalView active = mActivity.getTerminalView();
+            if (active != null && active.getCurrentSession() == session) view = active;
+        }
+        if (view != null) view.onScreenUpdated();
+    }
+
+    /**
+     * Replace the render window. A page that ENTERS the window is repainted once, so output that
+     * arrived while it was off screen is applied before the pager reveals it; the page that was
+     * already inside is left alone (its next output callback repaints it as usual).
+     */
+    private void setRenderWindow(@Nullable TerminalSession a, @Nullable TerminalSession b) {
+        if (a == b) b = null;
+        if (mRenderWindowReady && a == mRenderSessionA && b == mRenderSessionB) return;
+        final TerminalSession previousA = mRenderSessionA;
+        final TerminalSession previousB = mRenderSessionB;
+        mRenderSessionA = a;
+        mRenderSessionB = b;
+        mRenderWindowReady = true;
+        if (a != null && a != previousA && a != previousB) repaintRenderPage(a);
+        if (b != null && b != previousA && b != previousB) repaintRenderPage(b);
+    }
+
+    /**
+     * Resolve the render window from the two pages exposed by the current scroll position.
+     * A page sitting exactly at offset 0 is alone on screen; as soon as the offset leaves it, the
+     * adjacent page is visible too. Offset 1 is the boundary frame where the page at
+     * {@code position} has just left the viewport, so only {@code position + 1} is visible.
+     */
+    private void updateRenderWindowForScroll(int position, float positionOffset) {
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null) {
+            setRenderWindow(null, null);
+            return;
+        }
+        final int size = service.getTermuxSessionsSize();
+        if (size == 0 || position >= size) {
+            // No real page at/after `size`: that slot is the trailing placeholder, which shows no
+            // terminal. Keeping the last real session here would repaint a fully clipped page.
+            setRenderWindow(null, null);
+            return;
+        }
+        final int first = (positionOffset >= 1f) ? position + 1 : Math.max(0, position);
+        if (first >= size) {
+            setRenderWindow(null, null);
+            return;
+        }
+        // position + 1 is a real session only while the offset is strictly inside the page pair
+        // and the next slot is not the trailing placeholder (which resolves to null).
+        final TerminalSession a = terminalSessionAt(service, first);
+        final TerminalSession b = (positionOffset > 0f && positionOffset < 1f && first + 1 < size)
+                ? terminalSessionAt(service, first + 1) : null;
+        setRenderWindow(a, b);
+    }
+
+    /** Collapse the render window onto one page, for a jump that produces no scroll callbacks. */
+    private void setRenderWindowForPage(int position) {
+        TermuxService service = mActivity.getTermuxService();
+        if (service == null || service.getTermuxSessionsSize() == 0) {
+            setRenderWindow(null, null);
+            return;
+        }
+        final int size = service.getTermuxSessionsSize();
+        if (position < 0 || position >= size) {
+            // Out of range means either no page has been selected yet or the settled item is the
+            // trailing placeholder. Neither has a terminal to keep live.
+            setRenderWindow(null, null);
+            return;
+        }
+        setRenderWindow(terminalSessionAt(service, position), null);
     }
 
     /**
@@ -615,6 +733,11 @@ public final class SessionPagerManager {
                     // commitPlaceholderToSession() already consumed it (onPageSelected is
                     // dispatched on the settle's FIRST frame; IDLE only arrives at its end).
                     endPickerGesture();
+                    // The scroll is over, so only the settled page is still on screen. Skipped for
+                    // the spurious IDLE a forced commit emits mid-settle: the real one follows.
+                    if (!mForcedPickPending) {
+                        setRenderWindowForPage(mTerminalPager.getCurrentItem());
+                    }
                 }
 
                 // Suppress IME hide/show churn for the ENTIRE swipe, not just around
@@ -647,6 +770,10 @@ public final class SessionPagerManager {
 
             @Override
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+                // Keep both pages the finger has exposed live. This runs before the pager draws the
+                // next frame, so a neighbour that just entered the screen is repainted with any
+                // output it received while it was off screen.
+                updateRenderWindowForScroll(position, positionOffset);
                 // Forward intermediate scroll progress to the tab strip so the selection
                 // highlight follows the finger. Cached fields + single non-capturing lambda —
                 // no Consumer/Float allocation per swipe frame.
@@ -1327,6 +1454,14 @@ public final class SessionPagerManager {
         // Keep the overview's selected card in sync if it is open (e.g. a hardware shortcut
         // switches pages underneath it).
         mActivity.onSessionOverviewSelectionChanged();
+
+        // A jump that does not produce scroll callbacks (tab click, startup sync, a close
+        // re-landing) leaves the render window to this method. Mid-gesture callbacks arrive with
+        // DRAGGING/SETTLING and must keep the pair from onPageScrolled(), so only collapse here
+        // when the pager is actually at rest.
+        if (mTerminalPager.getScrollState() == ViewPager2.SCROLL_STATE_IDLE) {
+            setRenderWindowForPage(position);
+        }
     }
 
     /**

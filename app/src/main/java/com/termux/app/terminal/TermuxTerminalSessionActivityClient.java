@@ -274,8 +274,14 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     @Override
     public void onTextChanged(@NonNull TerminalSession changedSession) {
         runIfVisible(() -> {
-            if (mActivity.getCurrentSession() == changedSession) {
-                withTerminalView(TerminalView::onScreenUpdated);
+            // The pager owns which pages repaint while more than one is on screen (a swipe
+            // reveals the neighbour before it is selected). Before it is populated there is no
+            // window to consult, so keep the original active-view path.
+            SessionPagerManager pager = mActivity.getSessionPagerManager();
+            if (pager == null || !pager.onSessionTextChanged(changedSession)) {
+                if (mActivity.getCurrentSession() == changedSession) {
+                    withTerminalView(TerminalView::onScreenUpdated);
+                }
             }
             // The overview cards are live previews: repaint the matching card while the overlay
             // is open instead of leaving the bitmap frozen at the moment the overview opened.
