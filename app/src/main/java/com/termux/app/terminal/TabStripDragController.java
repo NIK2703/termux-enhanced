@@ -19,9 +19,10 @@ import androidx.annotation.Nullable;
 /**
  * Long-press drag-reorder for the session tab strip.
  *
- * <p>A press becomes a candidate at the long-press timeout: the tab scales up. Horizontal movement
- * past the touch slop starts the drag, while vertical movement or a completed drag cancels it.
- * Releasing a lifted tab without movement keeps long-press rename.
+ * <p>A press becomes a candidate at the long-press timeout: the tab scales up and shifts 1.5 dp
+ * away from the screen edge — up when the strip is at the top, down when it is at the bottom.
+ * Horizontal movement past the touch slop starts the drag, while vertical movement or a completed
+ * drag cancels it. Releasing a lifted tab without movement keeps long-press rename.
  *
  * <p>Only the dragged tab moves during the gesture. Child order and the session model change on
  * drop, so every index used by the controller and by the pager stays valid until then.
@@ -36,6 +37,9 @@ final class TabStripDragController {
 
         /** True when this tab can take the gesture (live session, not closing). */
         boolean canStartDrag(@Nullable View tab);
+
+        /** Whether the strip is anchored at the bottom, so the hold moves down instead of up. */
+        boolean isTabStripAtBottom();
 
         /** The drag started: stop strip animations and park pager input. */
         void onDragStarted();
@@ -57,7 +61,8 @@ final class TabStripDragController {
     private static final long LIFT_DURATION_MS = 120L;
     private static final long GAP_DURATION_MS = 130L;
     private static final float LIFT_SCALE = 1.1f;
-    private static final float LIFT_Y_DP = -1.5f;
+    /** Magnitude of the hold's vertical shift; the sign follows the strip position. */
+    private static final float LIFT_Y_DP = 1.5f;
     private static final float LIFT_Z_DP = 6f;
     private static final float AUTO_SCROLL_EDGE_DP = 48f;
     private static final float AUTO_SCROLL_MAX_STEP_DP = 10f;
@@ -69,6 +74,7 @@ final class TabStripDragController {
 
     private final int mTouchSlop;
     private final int mLongPressTimeout;
+    /** Absolute vertical shift; {@link #liftY()} applies the direction for the current layout. */
     private final float mLiftY;
     private final float mLiftZ;
     private final int mAutoScrollEdge;
@@ -260,6 +266,11 @@ final class TabStripDragController {
         return consumed;
     }
 
+    /** Up at the top strip, down at the bottom strip; the magnitude stays 1.5 dp. */
+    private float liftY() {
+        return mHost.isTabStripAtBottom() ? mLiftY : -mLiftY;
+    }
+
     private final Runnable mGrabRunnable = this::onGrab;
 
     private void onGrab() {
@@ -286,7 +297,7 @@ final class TabStripDragController {
         tab.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
 
         tab.animate()
-                .translationY(mLiftY)
+                .translationY(liftY())
                 .translationZ(mLiftZ)
                 .scaleX(LIFT_SCALE)
                 .scaleY(LIFT_SCALE)

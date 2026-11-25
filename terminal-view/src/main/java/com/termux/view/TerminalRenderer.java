@@ -1529,7 +1529,11 @@ public final class TerminalRenderer {
                     textX = 0f;
                 }
             }
-            final boolean blockTranslucent = blockFill && mBackgroundAlpha < 255;
+            // At a fully transparent background (alpha 0) SRC_ATOP would multiply the glyph by
+            // a zero destination alpha and erase block art. Flight snapshots use that mode to
+            // let the ghost view supply the terminal background, so keep blocks opaque there.
+            final boolean blockTranslucent = blockFill && mBackgroundAlpha > 0
+                    && mBackgroundAlpha < 255;
             if (blockTranslucent) mTextPaint.setXfermode(SRC_ATOP_XFERMODE);
             canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars, textX, textY, false, mTextPaint);
             if (blockTranslucent) mTextPaint.setXfermode(null);

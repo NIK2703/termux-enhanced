@@ -268,6 +268,11 @@ public class TermuxSessionTabsController {
                     }
 
                     @Override
+                    public boolean isTabStripAtBottom() {
+                        return mActivity.isTabPanelAtBottom();
+                    }
+
+                    @Override
                     public void onDragStarted() {
                         mEndScrollActive = false;
                         mPinRightEdge = false;
@@ -905,9 +910,44 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Returns the visible title prefix, with its last three code points faded if truncated.
-     * Package-private and static so the overview card title uses exactly the strip's wrapping
-     * and fade rules for both single-line and two-line modes.
+     * Removes a truncation marker that another program appended to the title before Termux saw
+     * it. OpenCode, for example, caps its OSC title at 40 characters and appends an ellipsis.
+     * The strip and the overview draw their own alpha fade, so that literal marker would
+     * otherwise be the only truncation style the user sees — and a wide overview card may show
+     * it untouched because the already-shortened title fits there.
+     *
+     * <p>Whitespace before the marker is removed with it, so the fade lands on the last real
+     * letter. Returns {@code text} unchanged when there is no marker.</p>
+     */
+    @androidx.annotation.NonNull
+    static String stripTrailingTruncationMarker(@Nullable String text) {
+        if (text == null || text.isEmpty()) return text == null ? "" : text;
+        int end = text.length();
+        while (end > 0 && Character.isWhitespace(text.charAt(end - 1))) end--;
+        final boolean unicodeEllipsis = end > 0 && text.charAt(end - 1) == '\u2026';
+        final boolean asciiEllipsis = end >= 3
+                && text.charAt(end - 1) == '.'
+                && text.charAt(end - 2) == '.'
+                && text.charAt(end - 3) == '.';
+        if (!unicodeEllipsis && !asciiEllipsis) return text;
+        end -= unicodeEllipsis ? 1 : 3;
+        while (end > 0 && Character.isWhitespace(text.charAt(end - 1))) end--;
+        return text.substring(0, end);
+    }
+
+    /** Fades the tail of an already visible title without changing its width decision. */
+    @androidx.annotation.NonNull
+    private static TitleRender fadeTail(String text, boolean truncated) {
+        final TitleRender faded = buildFadedTitle(text, text.length());
+        return new TitleRender(faded.text, truncated);
+    }
+
+    /**
+     * Returns the visible title prefix, with its last three visible code points faded if
+     * truncated.
+     *
+     * <p>Package-private and static so the overview card title uses exactly the strip's wrapping
+     * and fade rules for both single-line and two-line modes.</p>
      */
     @androidx.annotation.NonNull
     static TitleRender renderTitle(TextView tv, String text, int maxWidthPx) {
@@ -921,17 +961,25 @@ public class TermuxSessionTabsController {
      * renderer was unified, so hiding the close button still gives them its full reclaimed
      * width. Every line count uses the same line-filling loop and the same
      * {@link #buildFadedTitle} tail, so no path can fall back to a platform ellipsis.
+     *
+     * <p>A trailing truncation marker is treated as though this renderer had cut the title:
+     * the marker is removed and the last real code points are faded. The marker does not make
+     * the title claim the strip's fixed truncated width, because the remaining text may be
+     * short enough to be laid out normally.</p>
      */
     @androidx.annotation.NonNull
     static TitleRender renderTitle(TextView tv, String text, int maxWidthPx,
                                    int firstLineWidthPx) {
-        if (text == null || text.isEmpty() || maxWidthPx <= 0) {
-            return new TitleRender(text == null ? "" : text, false);
+        final String sourceText = text == null ? "" : text;
+        final String source = stripTrailingTruncationMarker(sourceText);
+        final boolean markedTruncated = source.length() != sourceText.length();
+        if (source.isEmpty() || maxWidthPx <= 0) {
+            return new TitleRender(source, false);
         }
-        final boolean hardBreak = text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0;
+        final boolean hardBreak = source.indexOf('\n') >= 0 || source.indexOf('\r') >= 0;
         // Short single-line titles are the common case; avoid a StaticLayout.
-        if (!hardBreak && tv.getPaint().measureText(text) <= maxWidthPx) {
-            return new TitleRender(text, false);
+        if (!hardBreak && tv.getPaint().measureText(source) <= maxWidthPx) {
+            return markedTruncated ? fadeTail(source, false) : new TitleRender(source, false);
         }
 
         int maxLines = tv.getMaxLines();
@@ -940,7 +988,12 @@ public class TermuxSessionTabsController {
         final int safeFirstWidth = maxLines == 1
                 ? safeWidth
                 : Math.max(1, Math.min(firstLineWidthPx, safeWidth));
-        return renderLines(tv, text, safeWidth, safeFirstWidth, maxLines);
+        final TitleRender render =
+                renderLines(tv, source, safeWidth, safeFirstWidth, maxLines);
+        if (!markedTruncated) return render;
+        // The source may still fit both lines now that the marker and its preceding space are
+        // gone (the overview card is wide enough); fade the tail in that case too.
+        return fadeTail(render.text.toString(), render.truncated);
     }
 
     /**
@@ -1170,7 +1223,7 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Builds the visible prefix with the final three code points progressively faded.
+     * Builds the visible prefix with the final three visible code points progressively faded.
      * Package-private so the overview card title renders exactly like a strip title.
      */
     @androidx.annotation.NonNull
@@ -1188,12 +1241,20 @@ public class TermuxSessionTabsController {
         if (visibleEnd <= 0) return new TitleRender("", true);
 
         SpannableString visible = new SpannableString(text.substring(0, visibleEnd));
-        // Use code points so an emoji fades as one glyph.
+        // Use code points so an emoji fades as one glyph. Spaces are skipped: the fade is meant
+        // for the last three visible characters, and a title that ends "... слабые м" should
+        // fade "ы", "е" and "м", not spend one of its three steps on the space.
         int spanEnd = visibleEnd;
-        for (int remaining = 1; remaining <= 3 && spanEnd > 0; remaining++) {
+        int faded = 0;
+        while (faded < 3 && spanEnd > 0) {
             int spanStart = Character.offsetByCodePoints(text, spanEnd, -1);
-            visible.setSpan(new AlphaSpan(fadeAlphaForPosition(remaining)),
-                    spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            final char last = text.charAt(spanStart);
+            if (last == '\n' || last == '\r') break;
+            if (!Character.isWhitespace(last) && !Character.isSpaceChar(last)) {
+                faded++;
+                visible.setSpan(new AlphaSpan(fadeAlphaForPosition(faded)),
+                        spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
             spanEnd = spanStart;
         }
         return new TitleRender(visible, true);

@@ -390,6 +390,24 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         dismissAutoCompleteSuggestions();
     }
 
+    /**
+     * Called after the message history was mutated outside autocomplete: a history
+     * row was deleted or the history was cleared. Candidates and visible rows refer
+     * to history records by position, so drop both immediately instead of waiting
+     * for the next text/caret event — a deleted entry must never stay tappable.
+     *
+     * <p>Must run on the main thread.
+     */
+    public void onHistoryChanged() {
+        dismiss();
+
+        // dismiss() clears the index only when a popup was actually showing
+        // (AutoCompletePopupManager returns early when mHistoryPopup is null).
+        resetScanState();
+
+        invalidateHistoryVersion();
+    }
+
     /** Whether either the shell or the history suggestion window is currently showing. */
     public boolean isShowing() {
         return mPopupManager.isShowing();
@@ -839,6 +857,12 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
      */
     private boolean suggestionsMatchTail(@NonNull CharSequence text, int caret) {
         if (mCandidates.isEmpty() || mSnapshot == null) return false;
+        // deleteSuggestion() can rebuild the snapshot for a newer history while
+        // mCandidates still carries entryIndex values from the previous one.
+        if (mSnapshotVersion != mLastBuiltHistoryVersion
+                || mSnapshotVersion != mMessageHistoryCtrl.getHistoryVersion()) {
+            return false;
+        }
         // At the end of unchanged text the incrementally maintained bases are exact;
         // otherwise (caret inside the text) recompute from the text.
         final boolean useCachedBases = caret == text.length() && mBasesValid;
@@ -1225,11 +1249,16 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (mInputField == null) return;
         Editable editable = mInputField.getText();
         if (editable == null) return;
+        final SuggestionEngine.Candidate c = findCandidate(candidate);
+        if (c == null) {
+            // The row outlived the index entry it was built from (the history
+            // changed under it). Never insert text the history no longer backs.
+            dismissAutoCompleteSuggestions();
+            return;
+        }
         int caret = mInputField.getSelectionStart();
         if (caret < 0 || caret > editable.length()) caret = editable.length();
-        final SuggestionEngine.Candidate c = findCandidate(candidate);
-        final boolean lineBase = c != null
-                && (c.isFirstSentence || c.kind == SuggestionEngine.Kind.FULL);
+        final boolean lineBase = c.isFirstSentence || c.kind == SuggestionEngine.Kind.FULL;
         final int replaceStart = lineBase
                 ? SuggestionEngine.activeLineStart(editable, caret)
                 : SuggestionEngine.activeSentenceStart(editable, caret);

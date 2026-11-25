@@ -27,6 +27,7 @@ import org.robolectric.annotation.ConscryptMode;
 import org.robolectric.shadows.ShadowLooper;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 /**
@@ -491,6 +492,62 @@ public class AutoCompleteControllerTest {
         type("git s");
         assertEquals(1, suggestions().size());
         assertEquals("git status", suggestions().get(0));
+    }
+
+    @Test
+    public void historyChangeHidesPopupAndDropsStaleCandidates() {
+        history.addToMessageHistory("git status", HOME);
+        history.addToMessageHistory("git stash", HOME);
+        type("git s");
+        assertEquals(2, suggestions().size());
+
+        assertTrue(history.removeMessage("git stash"));
+        controller.onHistoryChanged();
+        assertTrue(suggestions().isEmpty());
+
+        // The next caret event rebuilds from the new history version.
+        controller.onCaretMoved();
+        assertEquals(1, suggestions().size());
+        assertEquals("git status", suggestions().get(0));
+    }
+
+    @Test
+    public void staleRowCannotInsertTextAfterHistoryDeletion() {
+        history.addToMessageHistory("git status", HOME);
+        history.addToMessageHistory("git stash", HOME);
+        type("git s");
+
+        String removed = suggestions().get(0);
+        TextView staleRow = controller.buildSuggestionTextView(removed, "git s");
+
+        assertTrue(history.removeMessage(removed));
+        controller.onHistoryChanged();
+        staleRow.performClick();
+
+        assertEquals("git s", input.getText().toString());
+    }
+
+    @Test
+    public void staleCandidateIndexIsRejectedAfterSnapshotRebuild() throws Exception {
+        history.addToMessageHistory("cmd beta", HOME);
+        history.addToMessageHistory("cmd gamma", HOME);
+        type("cmd ");
+        assertEquals(2, suggestions().size());
+        SuggestionEngine.Candidate removed = controller.getCandidate(0);
+        SuggestionEngine.Candidate remaining = controller.getCandidate(1);
+        assertEquals(1, remaining.entryIndex);
+
+        // Remove the newer entry externally, then let deleteSuggestion() rebuild
+        // the snapshot. The remaining candidate keeps its old entryIndex, which is
+        // now outside the shorter snapshot.
+        assertTrue(history.removeMessage(removed.text));
+        assertTrue(controller.deleteSuggestion(removed));
+        assertEquals(1, suggestions().size());
+
+        Method match = AutoCompleteController.class.getDeclaredMethod(
+                "suggestionsMatchTail", CharSequence.class, int.class);
+        match.setAccessible(true);
+        assertFalse((Boolean) match.invoke(controller, "cmd ", 4));
     }
 
     @Test

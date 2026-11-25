@@ -269,6 +269,97 @@ public class SessionOverviewCardLayoutTest {
     }
 
     @Test
+    public void upstreamEllipsisIsFadedEvenWhenTheTitleFits() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        TextView title = new TextView(activity);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, 12f);
+        title.setIncludeFontPadding(true);
+        title.setLineSpacing(-2f, 1f);
+
+        final String unicode = "OC | Горячие функции x86 → arm64: слабые м…";
+        final String ascii = "OC | Мультитач: обзор и отдача приказов (f...";
+        for (int maxLines : new int[]{1, 2}) {
+            title.setMaxLines(maxLines);
+            for (String source : new String[]{unicode, ascii}) {
+                for (int width : new int[]{10_000, 200}) {
+                    TermuxSessionTabsController.TitleRender render =
+                            TermuxSessionTabsController.renderTitle(title, source, width);
+                    final String text = render.text.toString();
+
+                    // The producer's marker is gone and the last three real code points carry
+                    // the fade, whether the shortened title fits or is cut again by the view.
+                    Assert.assertFalse("marker left in " + text,
+                            text.endsWith("…") || text.endsWith("..."));
+                    if (width == 10_000) {
+                        Assert.assertFalse("title should fit: " + text, render.truncated);
+                    }
+                    Assert.assertTrue("fade spans missing for " + text,
+                            render.text instanceof Spanned);
+                    Assert.assertEquals("maxLines=" + maxLines + " width=" + width
+                                    + " text=" + text, 3,
+                            ((Spanned) render.text).getSpans(
+                                    0, text.length(), CharacterStyle.class).length);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void overviewTitleReplacesAnUpstreamEllipsisWithFade() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        SessionOverviewTabTitleView overviewTitle = LayoutInflater.from(activity)
+                .inflate(R.layout.item_session_overview_card, null, false)
+                .findViewById(R.id.session_overview_tab);
+        overviewTitle.setPadding(0, 0, 0, 0);
+        overviewTitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, 12f);
+        overviewTitle.setIncludeFontPadding(true);
+        overviewTitle.setLineSpacing(-2f, 1f);
+        overviewTitle.setMaxLines(2);
+        overviewTitle.layout(0, 0, 1000, 34);
+        overviewTitle.setFullTitle("OC | Горячие функции x86 → arm64: слабые м…");
+        overviewTitle.measure(
+                View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(34, View.MeasureSpec.EXACTLY));
+        overviewTitle.layout(0, 0, 1000, 34);
+
+        final String text = overviewTitle.getText().toString();
+        Assert.assertFalse(text.endsWith("…"));
+        Assert.assertFalse(text.endsWith("..."));
+        Assert.assertTrue(overviewTitle.getText() instanceof Spanned);
+        Assert.assertEquals(3, ((Spanned) overviewTitle.getText())
+                .getSpans(0, text.length(), CharacterStyle.class).length);
+        Assert.assertNull(overviewTitle.getEllipsize());
+        Assert.assertNotNull(overviewTitle.getLayout());
+        for (int line = 0; line < overviewTitle.getLayout().getLineCount(); line++) {
+            Assert.assertEquals(0, overviewTitle.getLayout().getEllipsisCount(line));
+        }
+    }
+
+    @Test
+    public void fadeSkipsSpacesWhenChoosingTheLastThreeCharacters() {
+        final String text = "abc de";
+        TermuxSessionTabsController.TitleRender render =
+                TermuxSessionTabsController.buildFadedTitle(text, text.length());
+        final Spanned spanned = (Spanned) render.text;
+        final CharacterStyle[] spans =
+                spanned.getSpans(0, text.length(), CharacterStyle.class);
+        Assert.assertEquals(3, spans.length);
+
+        final boolean[] covered = new boolean[text.length()];
+        for (CharacterStyle span : spans) {
+            for (int i = spanned.getSpanStart(span); i < spanned.getSpanEnd(span); i++) {
+                covered[i] = true;
+            }
+        }
+        // The last three visible characters are c, d and e; the space between words is not
+        // allowed to consume one of the fade steps.
+        Assert.assertTrue(covered[2]);
+        Assert.assertTrue(covered[4]);
+        Assert.assertTrue(covered[5]);
+        Assert.assertFalse(covered[3]);
+    }
+
+    @Test
     public void overviewTabBackgroundIsHalfOpaque() {
         final int background = SessionOverviewController.overviewTabBackground(
                 0xFF000000, 0x14FFFFFF);

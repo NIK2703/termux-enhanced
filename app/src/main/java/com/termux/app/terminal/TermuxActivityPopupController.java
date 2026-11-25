@@ -65,6 +65,9 @@ public final class TermuxActivityPopupController {
 
         void cancelHistoryRowWordSwipe();
 
+        /** The message history was mutated (row deleted or history cleared). */
+        void onMessageHistoryChanged();
+
         void onInputHistoryAction(boolean saveToHistory, boolean clearInput);
 
         // Keep-screen-on preference bridge
@@ -391,12 +394,16 @@ public final class TermuxActivityPopupController {
 
     /** Wipe message history for ALL directories (per-directory mode only). */
     private void clearAllDirectoriesHistory() {
-        if (mMessageHistoryCtrl != null) mMessageHistoryCtrl.clearAllPerDirectory();
+        if (mMessageHistoryCtrl == null) return;
+        mMessageHistoryCtrl.clearAllPerDirectory();
+        mHost.onMessageHistoryChanged();
     }
 
     /** Wipe the message history for the current context (global or current directory). */
     private void clearAllHistory() {
-        if (mMessageHistoryCtrl != null) mMessageHistoryCtrl.clearCurrent(mHost.getCurrentCwdForHistory());
+        if (mMessageHistoryCtrl == null) return;
+        mMessageHistoryCtrl.clearCurrent(mHost.getCurrentCwdForHistory());
+        mHost.onMessageHistoryChanged();
     }
 
     /** Whether the history popup is currently showing. */
@@ -719,7 +726,12 @@ public final class TermuxActivityPopupController {
     private void animateHistoryRowAway(@NonNull View row, @NonNull String message) {
         final int removedIndex = mMessageHistoryCtrl == null ? -1
                 : mMessageHistoryCtrl.getHistoryList().indexOf(message);
-        if (mMessageHistoryCtrl != null) mMessageHistoryCtrl.removeMessage(message);
+        if (mMessageHistoryCtrl != null) {
+            mMessageHistoryCtrl.removeMessage(message);
+            // The row is already sliding away, so the autocomplete popup must not
+            // keep offering the deleted entry regardless of the removal result.
+            mHost.onMessageHistoryChanged();
+        }
         final int generation = mHistoryPopupGeneration;
         row.animate().translationX(-row.getWidth())
                 .setDuration(TermuxAppConstants.SwipeDelete.ANIM_MS)

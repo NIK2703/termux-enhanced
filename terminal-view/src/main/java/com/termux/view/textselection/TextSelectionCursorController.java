@@ -51,6 +51,7 @@ public class TextSelectionCursorController implements CursorController {
     public final int ACTION_COPY = 1;
     public final int ACTION_PASTE = 2;
     public final int ACTION_MORE = 3;
+    public final int ACTION_COPY_ONE_LINE = 4;
 
     public TextSelectionCursorController(TerminalView terminalView) {
         this.terminalView = terminalView;
@@ -158,6 +159,8 @@ public class TextSelectionCursorController implements CursorController {
 
                 ClipboardManager clipboard = (ClipboardManager) terminalView.getContext().getSystemService(Context.CLIPBOARD_SERVICE);
                 menu.add(Menu.NONE, ACTION_COPY, Menu.NONE, R.string.copy_text).setShowAsAction(show);
+                menu.add(Menu.NONE, ACTION_COPY_ONE_LINE, Menu.NONE,
+                        R.string.copy_text_one_line).setShowAsAction(show);
                 menu.add(Menu.NONE, ACTION_PASTE, Menu.NONE, R.string.paste_text).setEnabled(clipboard != null && clipboard.hasPrimaryClip()).setShowAsAction(show);
                 menu.add(Menu.NONE, ACTION_MORE, Menu.NONE, R.string.text_selection_more);
 
@@ -185,9 +188,10 @@ public class TextSelectionCursorController implements CursorController {
 
                 switch (item.getItemId()) {
                     case ACTION_COPY:
-                        String selectedText = getSelectedText();
-                        terminalView.mTermSession.onCopyTextToClipboard(selectedText);
-                        terminalView.stopTextSelectionMode();
+                        copySelectedText(false);
+                        break;
+                    case ACTION_COPY_ONE_LINE:
+                        copySelectedText(true);
                         break;
                     case ACTION_PASTE:
                         terminalView.stopTextSelectionMode();
@@ -425,6 +429,54 @@ public class TextSelectionCursorController implements CursorController {
         sel[1] = mSelY2;
         sel[2] = mSelX1;
         sel[3] = mSelX2;
+    }
+
+    private void copySelectedText(boolean oneLine) {
+        String selectedText = getSelectedText();
+        if (oneLine) selectedText = joinLinesIntoOneLine(selectedText);
+        terminalView.mTermSession.onCopyTextToClipboard(selectedText);
+        terminalView.stopTextSelectionMode();
+    }
+
+    /**
+     * Join a terminal selection into a single line.
+     *
+     * <p>A line break is removed. When spaces/tabs sit next to the break, the whole run collapses
+     * to one space; a bare newline becomes nothing, so words are never glued together by an
+     * inserted space. Ordinary runs of spaces elsewhere are left as they were.</p>
+     */
+    static String joinLinesIntoOneLine(@Nullable String text) {
+        if (text == null || text.isEmpty()) return "";
+        final int length = text.length();
+        final StringBuilder out = new StringBuilder(length);
+        int i = 0;
+        while (i < length) {
+            final char c = text.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                out.append(c);
+                i++;
+                continue;
+            }
+            final int start = i;
+            boolean hasLineBreak = false;
+            boolean hasSpace = false;
+            while (i < length && Character.isWhitespace(text.charAt(i))) {
+                final char whitespace = text.charAt(i);
+                if (whitespace == '\n' || whitespace == '\r') {
+                    hasLineBreak = true;
+                } else {
+                    hasSpace = true;
+                }
+                i++;
+            }
+            if (hasLineBreak) {
+                // Only keep a space when the selection actually had one around the break.
+                if (hasSpace && out.length() > 0 && i < length) out.append(' ');
+            } else {
+                out.append(text, start, i);
+            }
+        }
+        return out.toString();
     }
 
     /** Get the currently selected text. */

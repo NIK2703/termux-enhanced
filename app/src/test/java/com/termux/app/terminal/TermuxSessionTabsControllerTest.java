@@ -20,4 +20,23 @@ public class TermuxSessionTabsControllerTest {
         Assert.assertEquals(255, TermuxSessionTabsController.fadeAlphaForPosition(4));
         Assert.assertEquals(255, TermuxSessionTabsController.fadeAlphaForPosition(0));
     }
+
+    @Test
+    public void truncationMarkersAddedByTheTitleProducerAreRemoved() {
+        // OpenCode caps its OSC title at 40 characters and appends U+2026. The renderer has to
+        // treat that marker as its own truncation, not as title content.
+        Assert.assertEquals("OC | слабые места",
+                TermuxSessionTabsController.stripTrailingTruncationMarker("OC | слабые места…"));
+        Assert.assertEquals("OC | слабые места",
+                TermuxSessionTabsController.stripTrailingTruncationMarker("OC | слабые места ..."));
+        Assert.assertEquals("OC | слабые места",
+                TermuxSessionTabsController.stripTrailingTruncationMarker("OC | слабые места…   "));
+        Assert.assertEquals("OC | слабые места",
+                TermuxSessionTabsController.stripTrailingTruncationMarker("OC | слабые места..."));
+        Assert.assertEquals("", TermuxSessionTabsController.stripTrailingTruncationMarker("…"));
+        // A normal title is returned unchanged.
+        Assert.assertEquals("OC | слабые места",
+                TermuxSessionTabsController.stripTrailingTruncationMarker("OC | слабые места"));
+        Assert.assertEquals("", TermuxSessionTabsController.stripTrailingTruncationMarker(null));
+    }
 }

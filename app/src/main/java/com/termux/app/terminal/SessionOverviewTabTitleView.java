@@ -17,6 +17,8 @@ import androidx.annotation.Nullable;
 public class SessionOverviewTabTitleView extends TextView {
 
     private String mFullTitle = "";
+    /** False until the super constructor and this view's own setup have finished. */
+    private boolean mReady;
 
     public SessionOverviewTabTitleView(Context context) {
         this(context, null);
@@ -34,6 +36,7 @@ public class SessionOverviewTabTitleView extends TextView {
         // it above the terminal snapshot, but the default background outline would make that
         // offset cast a shadow. A title never needs an outline.
         setOutlineProvider(null);
+        mReady = true;
     }
 
     /** Sets the full title. The visible faded prefix is derived from the current width. */
@@ -50,6 +53,16 @@ public class SessionOverviewTabTitleView extends TextView {
     }
 
     @Override
+    public void setMaxLines(int maxLines) {
+        final boolean changed = getMaxLines() != maxLines;
+        super.setMaxLines(maxLines);
+        // A line-count change alters the wrapping and the fade point. The overview applies
+        // maxLines before its first layout, so this is also what keeps the single/double-line
+        // preference from leaving a one-line render in a two-line pill.
+        if (mReady && changed) renderTitle();
+    }
+
+    @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         if (w != oldw) renderTitle();
@@ -59,15 +72,12 @@ public class SessionOverviewTabTitleView extends TextView {
         // A theme, inflation attribute, or line-count change may have installed an ellipsis
         // since the last render; clear it before the TextView measures the faded prefix.
         TermuxSessionTabsController.applyTitleFadeContract(this);
-        final String title = mFullTitle;
         final int maxWidth = getWidth() - getPaddingStart() - getPaddingEnd();
-        if (title.isEmpty() || maxWidth <= 0) {
-            super.setText(title);
-            return;
-        }
-
         final TermuxSessionTabsController.TitleRender render =
-                TermuxSessionTabsController.renderTitle(this, title, maxWidth);
+                TermuxSessionTabsController.renderTitle(this, mFullTitle, maxWidth);
+        // renderTitle() also strips a truncation marker added by the title producer and, once
+        // the width is known, fades the last real code points. At width 0 it returns the marker
+        // free title; onSizeChanged() replaces it with the faded prefix after layout.
         super.setText(render.text, BufferType.SPANNABLE);
     }
 }

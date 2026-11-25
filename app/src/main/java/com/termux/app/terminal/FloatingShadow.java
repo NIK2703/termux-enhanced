@@ -25,6 +25,14 @@ final class FloatingShadow {
     /** Fade time shared by every overview-card shadow: hover, reorder lift and swipe lift. */
     static final long OVERVIEW_SHADOW_ANIM_MS = 160L;
 
+    /**
+     * Lift transform shared by hover, reorder drag and swipe. The alpha matters: with a semi-
+     * transparent preview, the shadow behind the card is only visible through the card itself
+     * when its content is translucent too.
+     */
+    static final float OVERVIEW_CARD_LIFT_SCALE = 1.05f;
+    static final float OVERVIEW_CARD_LIFT_ALPHA = 0.82f;
+
     private FloatingShadow() {
     }
 

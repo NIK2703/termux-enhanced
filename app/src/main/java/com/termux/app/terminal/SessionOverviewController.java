@@ -96,7 +96,6 @@ public final class SessionOverviewController {
     private OverviewBackdropHoleView mBackdropHole;
     /** Reused flight geometry; callees copy what they need to keep. */
     private final Rect mScratchGhostRect = new Rect();
-    private final Rect mScratchHoleRect = new Rect();
     /** One terminal ghost is live at a time, so its layout params can be reused every frame. */
     private final FrameLayout.LayoutParams mScratchGhostParams =
             new FrameLayout.LayoutParams(0, 0);
@@ -169,12 +168,15 @@ public final class SessionOverviewController {
     private static final int OVERVIEW_TAB_BACKGROUND_ALPHA = 0x80;
 
     /**
-     * The overview backdrop is twice as transparent as the live terminal. A 20% terminal
-     * transparency therefore leaves the overview 60% opaque; 50% makes it fully transparent.
+     * The overview backdrop is 20 percentage points more transparent than the live terminal.
+     * A 20% terminal transparency therefore leaves the overview 60% opaque; 80% makes it fully
+     * transparent. This is a fixed step, not a doubling of the terminal value.
      */
-    private static final int OVERVIEW_BACKDROP_TRANSPARENCY_MULTIPLIER = 2;
+    private static final int OVERVIEW_BACKDROP_TRANSPARENCY_OFFSET = 20;
     /** Short hand-off ramp at each end of a flight, so the cut-out tint meets the decor smoothly. */
     private static final float OVERVIEW_BACKDROP_HANDOFF = 0.12f;
+    /** How quickly a closing ghost that inherited a hover lift returns to full opacity. */
+    private static final float HOVER_LIFT_HANDOFF_FRACTION = 0.25f;
 
     /** Same tick as the overview-opening gesture, defined once in {@link TabPanelLayout}. */
     private static final int HOVER_FEEDBACK = TabPanelLayout.OVERVIEW_GESTURE_FEEDBACK;
@@ -476,8 +478,9 @@ public final class SessionOverviewController {
 
     /**
      * Paint the window surface behind the overview at rest. With the wallpaper visible the
-     * backdrop transparency is twice the terminal's; each card still supplies the terminal
-     * background at the configured alpha. During a flight the animator owns this colour, so a
+     * backdrop transparency is the terminal's plus 20 percentage points; each card still supplies
+     * the terminal background at the configured alpha. During a flight the animator owns this
+     * colour, so a
      * change here only updates its destination.
      */
     private void applyOverviewBackground() {
@@ -616,7 +619,7 @@ public final class SessionOverviewController {
 
         // The card is the terminal, not the whole content area. Match the terminal grid before
         // the first measure so the opening flight already has exact thumbnail targets. The
-        // window surface fades from the live terminal alpha to the doubled-transparency overview;
+        // window surface fades from the live terminal alpha to the +20-point overview alpha;
         // the decor cut-out under the flying terminal keeps those two layers from stacking.
         final int backgroundStart = mActivity.getWindowBackgroundColor();
         applyOverviewBackground();
@@ -976,6 +979,15 @@ public final class SessionOverviewController {
     }
 
     private void selectSession(@NonNull TerminalSession session) {
+        selectSession(session, null);
+    }
+
+    /**
+     * @param startOverride visual rect of a hovered card, so the expansion starts from the lifted
+     *                      thumbnail instead of jumping back to its resting size first
+     */
+    private void selectSession(@NonNull TerminalSession session,
+                               @Nullable Rect startOverride) {
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null
                 || mClosingCardAnimation != null) return;
 
@@ -1000,7 +1012,7 @@ public final class SessionOverviewController {
             switchToSession(session);
             return;
         }
-        beginClosingSelection(card);
+        beginClosingSelection(card, startOverride);
     }
 
     /**
@@ -1009,12 +1021,12 @@ public final class SessionOverviewController {
      * active one: the ghost has a selected, on-screen target even when the old tab was inactive
      * or scrolled out of view.
      */
-    private void beginClosingSelection(@NonNull Card card) {
+    private void beginClosingSelection(@NonNull Card card, @Nullable Rect startOverride) {
         final TermuxService service = mActivity.getTermuxService();
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         final int index = service != null ? service.getIndexOfSession(card.session) : -1;
         if (tabs == null || index < 0) {
-            beginClosingExpansion(card);
+            beginClosingExpansion(card, startOverride);
             return;
         }
 
@@ -1027,14 +1039,14 @@ public final class SessionOverviewController {
                 hide(false);
                 return;
             }
-            beginClosingExpansion(card);
+            beginClosingExpansion(card, startOverride);
         });
     }
 
     /** Start the expansion after the strip is already in its final state behind the overview. */
-    private void beginClosingExpansion(@NonNull Card card) {
+    private void beginClosingExpansion(@NonNull Card card, @Nullable Rect startOverride) {
         if (!mShowing || mClosingTransition != null) return;
-        final ClosingTransition closing = prepareClosingTransition(card);
+        final ClosingTransition closing = prepareClosingTransition(card, startOverride);
         if (closing == null) {
             hide(false);
             switchToSession(card.session);
@@ -1135,15 +1147,17 @@ public final class SessionOverviewController {
         card.root.setPivotX(card.root.getWidth() / 2f);
         card.root.setPivotY(card.root.getHeight() / 2f);
 
+        final float fromAlpha = card.root.getAlpha();
+        final float fromScale = card.root.getScaleX();
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(CARD_CLOSE_DURATION_MS);
         animator.setInterpolator(new PathInterpolator(0.4f, 0f, 0.2f, 1f));
         animator.addUpdateListener(animation -> {
             if (mClosingCardAnimation != card) return;
             final float progress = (float) animation.getAnimatedValue();
-            card.root.setAlpha(1f - progress);
+            card.root.setAlpha(fromAlpha * (1f - progress));
             final float scale = SessionOverviewTransitionMath.lerp(
-                    1f, CARD_CLOSE_SCALE, progress);
+                    fromScale, CARD_CLOSE_SCALE, progress);
             card.root.setScaleX(scale);
             card.root.setScaleY(scale);
         });
@@ -1637,9 +1651,9 @@ public final class SessionOverviewController {
                 final TerminalEmulator activeEmulator = activeSession != null
                         ? activeSession.getEmulator() : null;
                 if (backgroundTransparency > 0 && activeEmulator != null) {
-                    // The overview backdrop is slightly opaque at rest and fades during the flight,
-                    // but the decor cut-out keeps it away from the snapshot. The snapshot paints
-                    // the terminal background itself at the configured alpha, like the cards.
+                    // The snapshot carries the terminal background at the configured alpha.
+                    // TopCropImageView paints the uncovered strip below the bitmap with the same
+                    // colour and alpha, so the whole flight rect stays uniformly translucent.
                     transition.terminalBitmap = Bitmap.createBitmap(
                             terminalContent.width(), terminalContent.height(),
                             Bitmap.Config.ARGB_8888);
@@ -1800,17 +1814,23 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Height of the part of a flight rect actually covered by the terminal bitmap.
+     * Height the width-scaled flight bitmap actually covers in {@code viewHeight}.
      *
-     * <p>{@link TopCropImageView} scales the snapshot by width only. When the interpolated rect
-     * is taller than the scaled bitmap, its bottom is empty; cutting the decor out there would
-     * leave an un-tinted strip of wallpaper that flickers at the edge of the terminal. The value
-     * stays fractional: rounding it to an integer makes the corner choice flip between frames.</p>
+     * <p>The card aspect is the terminal aspect rounded to integers, so this differs from the
+     * view height by at most a pixel. Clipping the flight rect to this height removes the empty
+     * bottom strip instead of painting a second translucent layer under it.</p>
      */
     private static float paintedTerminalHeight(int viewWidth, int viewHeight,
                                                @Nullable Bitmap bitmap) {
         if (bitmap == null || bitmap.getWidth() <= 0 || viewWidth <= 0) return viewHeight;
         return Math.min(viewHeight, bitmap.getHeight() * ((float) viewWidth / bitmap.getWidth()));
+    }
+
+    /** Shorten a flight rect to the bitmap's last fully covered pixel row. */
+    private static void clipFlightRectToBitmap(@NonNull Rect rect, @Nullable Bitmap bitmap) {
+        final float painted = paintedTerminalHeight(rect.width(), rect.height(), bitmap);
+        final int usable = Math.max(1, (int) Math.floor(painted));
+        if (usable < rect.height()) rect.bottom = rect.top + usable;
     }
 
     /**
@@ -1959,7 +1979,7 @@ public final class SessionOverviewController {
                 active.preview.setAlpha(0f);
                 active.preview.setVisibility(View.INVISIBLE);
 
-                final ImageView ghost = new TopCropImageView(mActivity);
+                final TopCropImageView ghost = new TopCropImageView(mActivity);
                 ghost.setImportantForAccessibility(
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 ghost.setImageBitmap(transition.terminalBitmap);
@@ -1976,7 +1996,7 @@ public final class SessionOverviewController {
                 // The flight may not have painted its first frame yet. Cut the hole now so the
                 // restored live decor never sits under the already-installed snapshot.
                 if (mBackdropHole != null) {
-                    mBackdropHole.setContent(transition.terminalSourceLocal, 0f, 0f,
+                    mBackdropHole.setContent(transition.terminalSourceLocal, 0f,
                             mOverlayBackgroundColor, 0);
                 }
             } else {
@@ -2262,6 +2282,7 @@ public final class SessionOverviewController {
             if (target != null && transition.terminalSourceLocal != null) {
                 lerpRect(mScratchGhostRect, transition.terminalSourceLocal, target, p);
                 hole = mScratchGhostRect;
+                if (p < 1f) clipFlightRectToBitmap(hole, transition.terminalBitmap);
                 layoutTerminalGhost(transition.terminalGhost, hole);
             }
             // The snapshot starts square and grows into the rounded card. The card's own outline
@@ -2291,24 +2312,10 @@ public final class SessionOverviewController {
         }
 
         if (mBackdropHole != null) {
-            Rect paintedHole = null;
-            float bottomRadius = 0f;
-            if (hole != null) {
-                final float paintedHeight = paintedTerminalHeight(
-                        hole.width(), hole.height(), transition.terminalBitmap);
-                mScratchHoleRect.set(hole.left, hole.top, hole.right,
-                        hole.top + Math.round(paintedHeight));
-                paintedHole = mScratchHoleRect;
-                // A sub-pixel gap is only rounding. Only a real empty strip should square the
-                // bottom corners; switching on one pixel makes them flicker between rounded
-                // and sharp while the radius itself is still animating.
-                bottomRadius = paintedHeight >= hole.height() - 2f
-                        ? holeCornerRadius : 0f;
-            }
             final int fillAlpha = Math.round(255f
                     * mOverviewBackdropAlpha
                     * overviewFillFraction(p, true));
-            mBackdropHole.setContent(paintedHole, holeCornerRadius, bottomRadius,
+            mBackdropHole.setContent(hole, holeCornerRadius,
                     mOverlayBackgroundColor, fillAlpha);
         }
         if (origin == null) return;
@@ -2534,7 +2541,8 @@ public final class SessionOverviewController {
      * grid size; no second TerminalView is created and no PTY is resized.</p>
      */
     @Nullable
-    private ClosingTransition prepareClosingTransition(@NonNull Card card) {
+    private ClosingTransition prepareClosingTransition(@NonNull Card card,
+                                                       @Nullable Rect startOverride) {
         if (mOverlay == null || mGhostLayer == null || mContentArea == null) return null;
         if (!card.root.isLaidOut() || card.root.getWidth() <= 0 || card.root.getHeight() <= 0) {
             return null;
@@ -2542,7 +2550,8 @@ public final class SessionOverviewController {
 
         final int[] origin = contentOrigin();
         if (origin == null) return null;
-        final Rect cardStart = localRect(card.preview, origin);
+        final Rect cardStart = startOverride != null
+                ? new Rect(startOverride) : localRect(card.preview, origin);
         if (cardStart == null || cardStart.isEmpty()) return null;
 
         final TerminalView terminal = mActivity.getActiveTerminalView();
@@ -2560,10 +2569,9 @@ public final class SessionOverviewController {
         final TerminalEmulator emulator = card.session.getEmulator();
         if (emulator == null) return null;
 
-        // The expansion snapshot paints the terminal background itself at the configured alpha,
-        // exactly like the card previews. The decor cut-out keeps the fading backdrop away from
-        // it. At 0% the snapshot keeps the terminal's own alpha instead, because an RGB bitmap
-        // would hide the wallpaper.
+        // Flight snapshots carry the terminal background at the configured alpha; the ghost
+        // view fills the strip below the width-scaled bitmap with the same colour and alpha.
+        // At 0% the visible terminal is copied straight from its view.
         final int transparency = previewBackgroundTransparency();
         final Bitmap.Config bitmapConfig = transparency > 0
                 ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
@@ -2596,6 +2604,9 @@ public final class SessionOverviewController {
 
         final ClosingTransition transition = new ClosingTransition(card, bitmap,
                 cardStart, terminalTarget);
+        if (startOverride != null) {
+            transition.startAlpha = FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA;
+        }
         if (!installClosingVisuals(transition)) {
             recycleBitmap(bitmap);
             return null;
@@ -2619,9 +2630,8 @@ public final class SessionOverviewController {
         mGhostLayer.removeAllViews();
         installBackdropHole();
 
-        final ImageView ghost = new TopCropImageView(mActivity);
+        final TopCropImageView ghost = new TopCropImageView(mActivity);
         ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-
         ghost.setImageBitmap(transition.terminalBitmap);
         ghost.setAlpha(0f);
         // The card's own outline is suppressed while this snapshot expands; the snapshot starts
@@ -2816,8 +2826,8 @@ public final class SessionOverviewController {
         // leaving an empty bottom strip until the overlay is removed.
         mActivity.showExtraKeysPanelAfterOverview();
         updateOverviewBackdropAlpha();
-        // The decor fades from the doubled-transparency overview back to the terminal's alpha
-        // while the snapshot expands. The cut-out under the ghost keeps the fading colour away
+        // The decor fades from the +20-point overview alpha back to the terminal's alpha while
+        // the snapshot expands. The cut-out under the ghost keeps the fading colour away
         // from the terminal itself, which already carries that alpha in its own bitmap.
         transition.backgroundStart = overviewBackdropColor(
                 mActivity.getWindowBackgroundColor());
@@ -2883,6 +2893,7 @@ public final class SessionOverviewController {
             lerpRect(mScratchGhostRect,
                     start != null ? start : transition.cardStartLocal, target, p);
             hole = mScratchGhostRect;
+            if (p < 1f) clipFlightRectToBitmap(hole, transition.terminalBitmap);
             layoutTerminalGhost(transition.terminalGhost, hole);
             // Reverse of the opening: the rounded snapshot expands and becomes square by the
             // time it reaches the live terminal. The card's own outline stays suppressed for the
@@ -2897,24 +2908,10 @@ public final class SessionOverviewController {
             }
         }
         if (mBackdropHole != null) {
-            Rect paintedHole = null;
-            float bottomRadius = 0f;
-            if (hole != null) {
-                final float paintedHeight = paintedTerminalHeight(
-                        hole.width(), hole.height(), transition.terminalBitmap);
-                mScratchHoleRect.set(hole.left, hole.top, hole.right,
-                        hole.top + Math.round(paintedHeight));
-                paintedHole = mScratchHoleRect;
-                // A sub-pixel gap is only rounding. Only a real empty strip should square the
-                // bottom corners; switching on one pixel makes them flicker between rounded
-                // and sharp while the radius itself is still animating.
-                bottomRadius = paintedHeight >= hole.height() - 2f
-                        ? holeCornerRadius : 0f;
-            }
             final int fillAlpha = Math.round(255f
                     * mOverviewBackdropAlpha
                     * overviewFillFraction(p, false));
-            mBackdropHole.setContent(paintedHole, holeCornerRadius, bottomRadius,
+            mBackdropHole.setContent(hole, holeCornerRadius,
                     mOverlayBackgroundColor, fillAlpha);
         }
 
@@ -2922,8 +2919,13 @@ public final class SessionOverviewController {
         // A layout pass can give the ghost a size between two animator callbacks; if its alpha
         // had already been raised, it would draw over the still-visible preview and stack two
         // translucent terminal backgrounds for that frame.
+        final float fullAlpha = SessionOverviewTransitionMath.closingGhostAlpha(p);
+        final float ramp = SessionOverviewTransitionMath.clamp01(
+                p / HOVER_LIFT_HANDOFF_FRACTION);
+        final float inheritedAlpha = transition.startAlpha
+                + (fullAlpha - transition.startAlpha) * ramp;
         final float ghostAlpha = terminalGhostReady
-                ? SessionOverviewTransitionMath.closingGhostAlpha(p) : 0f;
+                ? Math.max(transition.startAlpha, inheritedAlpha) : 0f;
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setAlpha(ghostAlpha);
         }
@@ -3236,13 +3238,23 @@ public final class SessionOverviewController {
                 || mPendingClosingCard != null || mClosingCardAnimation != null) return;
         final Card hit = mHoverCard != null ? mHoverCard : findCardAtScreenPoint(rawX, rawY);
         stopAutoScroll();
-        clearGestureHover();
+        // A lift from the opening gesture is still animating when the finger is released. Freeze
+        // its current visual size as the closing start rect; otherwise the expansion would snap
+        // back to the resting thumbnail before growing.
+        final Rect liftedStart = hit != null && hit == mHoverCard
+                ? visualPreviewRect(hit) : null;
+        if (liftedStart != null) {
+            hit.root.cancelHoverLift();
+            mHoverCard = null;
+        } else {
+            clearGestureHover();
+        }
         if (hit == null) return;
         if (containsScreenPoint(hit.close, rawX, rawY)) {
             closeSessionFromButton(hit);
             return;
         }
-        selectSession(hit.session);
+        selectSession(hit.session, liftedStart);
     }
 
     /**
@@ -3373,6 +3385,28 @@ public final class SessionOverviewController {
         final Card previous = mHoverCard;
         mHoverCard = null;
         previous.root.setHoverHighlight(false);
+    }
+
+    /**
+     * Current on-screen rect of a card's preview, including the scale applied by the hover lift.
+     * View locations are unscaled layout positions, so the root's centre is used as the pivot.
+     */
+    @Nullable
+    private Rect visualPreviewRect(@NonNull Card card) {
+        final int[] origin = contentOrigin();
+        if (origin == null) return null;
+        final Rect preview = localRect(card.preview, origin);
+        final Rect root = localRect(card.root, origin);
+        if (preview == null || root == null || preview.isEmpty() || root.isEmpty()) return null;
+        final float scale = card.root.getScaleX();
+        if (scale <= 0f) return new Rect(preview);
+        final float centerX = (root.left + root.right) / 2f;
+        final float centerY = (root.top + root.bottom) / 2f;
+        return new Rect(
+                Math.round(centerX + (preview.left - centerX) * scale),
+                Math.round(centerY + (preview.top - centerY) * scale),
+                Math.round(centerX + (preview.right - centerX) * scale),
+                Math.round(centerY + (preview.bottom - centerY) * scale));
     }
 
     /** Topmost card whose preview contains the given screen point, or null. */
@@ -3943,8 +3977,9 @@ public final class SessionOverviewController {
     /**
      * Decor colour behind the overview grid.
      *
-     * <p>With the wallpaper feature on the backdrop transparency is twice the terminal's, so
-     * the wallpaper stays visible while the grid is dimmed more than the terminal itself. The
+     * <p>With the wallpaper feature on the backdrop transparency is the terminal's plus a fixed
+     * 20 percentage points, so the wallpaper stays visible while the grid is dimmed more than the
+     * terminal itself. The
      * flying terminal still gets a fully transparent cut-out so its own alpha is not stacked
      * with this tint during a flight. At 0% the terminal colour stays opaque.</p>
      */
@@ -3960,8 +3995,8 @@ public final class SessionOverviewController {
             return;
         }
         final int transparency = Math.min(100,
-                OVERVIEW_BACKDROP_TRANSPARENCY_MULTIPLIER
-                        * mActivity.getEffectiveBackgroundTransparency());
+                OVERVIEW_BACKDROP_TRANSPARENCY_OFFSET
+                        + mActivity.getEffectiveBackgroundTransparency());
         mOverviewBackdropAlpha = (100f - transparency) / 100f;
     }
 
@@ -4364,6 +4399,8 @@ public final class SessionOverviewController {
         final List<ClosingTabGhost> tabGhosts = new ArrayList<>();
         ValueAnimator animator;
         boolean started;
+        /** Opacity the ghost inherits from a hovered (lifted) card; 1 for a normal tap. */
+        float startAlpha = 1f;
         float tabBaseAlpha;
         float closeBaseAlpha;
 

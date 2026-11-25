@@ -785,9 +785,13 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
                     mMessageHistoryCtrl.save();
                     mMessageHistoryCtrl.setPerDirectoryEnabled(newValue);
                     loadMessageHistory();
+                    // The mode switch replaces the visible list (and can trim it).
+                    onMessageHistoryChanged();
                 } else if (TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX.equals(key)) {
                     mMessageHistoryCtrl.setMaxSize(
                         prefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
+                    // Lowering the limit deletes the oldest entries immediately.
+                    onMessageHistoryChanged();
                 }
             };
 
@@ -2127,8 +2131,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * <p>The overview hides the live terminal, tab strip and floating controls instead of
      * covering them with an opaque scrim. Each card carries the terminal background itself at
      * the configured transparency; with the wallpaper feature on the controller passes the
-     * overview backdrop colour here, whose transparency is twice the terminal's so the wallpaper
-     * still shows while the grid is dimmed more than the terminal itself.
+     * overview backdrop colour here, whose transparency is 20 percentage points above the
+     * terminal's so the wallpaper still shows while the grid is dimmed more than the terminal.
      * The flying terminal gets its own transparent cut-out above this layer. The terminal-coloured
      * decor still drives the status/navigation-bar icon appearance.</p>
      *
@@ -2416,7 +2420,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         // Auto-complete + caret-reposition handled by AutoCompleteController in constructor.
         editText.setOnEditorActionListener((v, actionId, event) -> {
-            sendTextInputPanel(mPreferences.shouldTextInputAppendEnter(), true);
+            sendTextInputPanel(mPreferences.shouldTextInputAppendEnter(), true, true);
             return true;
         });
 
@@ -2431,11 +2435,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Send the text input panel contents without appending Enter.
      *
-     * <p>Used by the SEND_INPUT extra key. History, clearing and the "Action on send"
-     * preference behave the same as the keyboard send button; an empty panel sends nothing.</p>
+     * <p>Used by the SEND_INPUT extra key. History, clearing and hiding the input panel behave
+     * the same as for the keyboard send button; only the keyboard is left open even when the
+     * "Action on send" preference says to hide it. An empty panel sends nothing.</p>
      */
     public void sendTextInputPanelWithoutEnter() {
-        sendTextInputPanel(false, false);
+        sendTextInputPanel(false, false, false);
     }
 
     /**
@@ -2443,8 +2448,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *
      * @param appendEnter whether to append a carriage return to non-empty text
      * @param sendEnterIfEmpty whether an empty panel should send a lone carriage return
+     * @param hideKeyboardAfterSend whether the "hide keyboard" part of the "Action on send"
+     *                              preference may dismiss the IME. True for the keyboard send
+     *                              button, false for SEND_INPUT: pressing a panel button must
+     *                              not hide the keyboard.
      */
-    private void sendTextInputPanel(boolean appendEnter, boolean sendEnterIfEmpty) {
+    private void sendTextInputPanel(boolean appendEnter, boolean sendEnterIfEmpty, boolean hideKeyboardAfterSend) {
         TerminalSession session = getCurrentSession();
         if (session == null) return;
 
@@ -2484,11 +2493,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mLastSavedInputText = null;
             mLastSavedInputSession = null;
 
-            // What to do after sending depends on the single "Action on send"
-            // preference: do nothing, hide the input panel, or hide the keyboard
-            // (which also hides the input panel).
+            // Hiding the input panel still follows the "Action on send" preference for both
+            // send paths. The keyboard part does not: SEND_INPUT is an extra-keys button, so
+            // pressing it must never dismiss the IME even when "hide keyboard" is selected.
             boolean hidePanel = mPreferences.shouldTextInputHideOnSend();
-            boolean hideKeyboard = mPreferences.shouldTextInputHideKeyboardOnSend();
+            boolean hideKeyboard = hideKeyboardAfterSend && mPreferences.shouldTextInputHideKeyboardOnSend();
 
             if (hidePanel) {
                 setTextInputVisible(false);
@@ -3837,8 +3846,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (!mMessageHistoryCtrl.isPerDirectoryEnabled()) return;
         String newCwd = !TextUtils.isEmpty(resolvedCwd) ? resolvedCwd : getCurrentCwdForHistory();
         String oldCwd = mMessageHistoryCtrl.getHistoryCurrentDirectory();
+        final int version = mMessageHistoryCtrl.getHistoryVersion();
         mMessageHistoryCtrl.onHistoryDirectoryChanged(
                 oldCwd != null ? oldCwd : newCwd, newCwd);
+        if (mMessageHistoryCtrl.getHistoryVersion() != version) onMessageHistoryChanged();
     }
 
     /**
@@ -3897,6 +3908,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /** Dismiss the auto-complete suggestions popup (handled by AutoCompleteController). */
     public void dismissAutoCompleteSuggestions() {
         mAutoCompleteCtrl.dismiss();
+    }
+
+    @Override
+    public void onMessageHistoryChanged() {
+        if (mAutoCompleteCtrl != null) mAutoCompleteCtrl.onHistoryChanged();
     }
 
     /** Dismiss the history popup and reset highlight state. */

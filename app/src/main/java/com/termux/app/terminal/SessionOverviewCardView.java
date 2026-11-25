@@ -43,7 +43,6 @@ public class SessionOverviewCardView extends FrameLayout {
 
     private static final long DISMISS_DURATION_MS = 160L;
     private static final long RETURN_DURATION_MS = 200L;
-    private static final float DRAG_LIFT_SCALE = 1.05f;
 
     private final int mTouchSlop;
     private final int mMinFlingVelocity;
@@ -143,7 +142,20 @@ public class SessionOverviewCardView extends FrameLayout {
         return mHoverHighlighted;
     }
 
-    /** Fade the card's system elevation in or out to mark it as the drop target. */
+    /** Let a drag take over the lift without animating the hover values back to rest first. */
+    void cancelHoverLift() {
+        if (mHoverAnimator != null) {
+            mHoverAnimator.cancel();
+            mHoverAnimator = null;
+        }
+        mHoverHighlighted = false;
+    }
+
+    /**
+     * Animate the same lift used by reorder drag and swipe-to-delete: scale, translation Z and a
+     * slight alpha loss. The alpha is what makes the system shadow visible through a translucent
+     * preview; elevation alone would only draw it outside the card and leave a hard rectangle.
+     */
     public void setHoverHighlight(boolean highlighted) {
         if (mHoverHighlighted == highlighted) return;
         mHoverHighlighted = highlighted;
@@ -151,17 +163,33 @@ public class SessionOverviewCardView extends FrameLayout {
             mHoverAnimator.cancel();
             mHoverAnimator = null;
         }
-        final float target = highlighted ? mHoverElevationPx : 0f;
-        mHoverAnimator = ValueAnimator.ofFloat(getElevation(), target);
+        final float targetZ = highlighted ? mHoverElevationPx : 0f;
+        final float targetScale = highlighted
+                ? FloatingShadow.OVERVIEW_CARD_LIFT_SCALE : 1f;
+        final float targetAlpha = highlighted
+                ? FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA : 1f;
+        final float fromZ = getTranslationZ();
+        final float fromScale = getScaleX();
+        final float fromAlpha = getAlpha();
+        mHoverAnimator = ValueAnimator.ofFloat(0f, 1f);
         mHoverAnimator.setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS);
         mHoverAnimator.setInterpolator(new DecelerateInterpolator());
-        mHoverAnimator.addUpdateListener(animation ->
-                setElevation((float) animation.getAnimatedValue()));
+        mHoverAnimator.addUpdateListener(animation -> {
+            final float fraction = (float) animation.getAnimatedValue();
+            setTranslationZ(fromZ + (targetZ - fromZ) * fraction);
+            final float scale = fromScale + (targetScale - fromScale) * fraction;
+            setScaleX(scale);
+            setScaleY(scale);
+            setAlpha(fromAlpha + (targetAlpha - fromAlpha) * fraction);
+        });
         mHoverAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
                 mHoverAnimator = null;
-                setElevation(target);
+                setTranslationZ(targetZ);
+                setScaleX(targetScale);
+                setScaleY(targetScale);
+                setAlpha(targetAlpha);
             }
         });
         mHoverAnimator.start();
@@ -301,20 +329,17 @@ public class SessionOverviewCardView extends FrameLayout {
         mDragging = true;
         setPressed(false);
         cancelLongPress();
-        // A hover from the opening gesture may still own the elevation animator. Release it so the
-        // lift below is the single owner, with the same shadow and the same fade as that gesture.
-        if (mHoverAnimator != null) {
-            mHoverAnimator.cancel();
-            mHoverAnimator = null;
-            mHoverHighlighted = false;
-        }
+        // A hover from the opening gesture may still own the lift animator. Release it so the
+        // drag below is the single owner of scale, alpha and Z.
+        cancelHoverLift();
         final float liftZ = mHoverElevationPx > 0f
                 ? mHoverElevationPx
                 : FloatingShadow.overviewCardElevationPx(getResources());
         animate().cancel();
         animate()
-                .scaleX(DRAG_LIFT_SCALE)
-                .scaleY(DRAG_LIFT_SCALE)
+                .scaleX(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
+                .scaleY(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
+                .alpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA)
                 .translationZ(liftZ)
                 .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
                 .setInterpolator(new DecelerateInterpolator())
@@ -325,7 +350,10 @@ public class SessionOverviewCardView extends FrameLayout {
 
     private void updateDrag(float dx) {
         setTranslationX(dx);
-        setAlpha(SessionOverviewSwipeMath.dragAlpha(dx, getWidth()));
+        // Stay at the shared lift alpha while the card is back in its slot: a fully opaque card
+        // would hide the shadow behind it and show a hard rectangle around the translucent preview.
+        setAlpha(Math.min(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA,
+                SessionOverviewSwipeMath.dragAlpha(dx, getWidth())));
 
         final boolean passed = SessionOverviewSwipeMath.isPastDismissThreshold(dx, getWidth());
         if (passed != mDismissThresholdPassed) {

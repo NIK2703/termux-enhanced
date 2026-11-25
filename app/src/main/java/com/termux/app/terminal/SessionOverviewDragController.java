@@ -48,8 +48,6 @@ final class SessionOverviewDragController {
 
     private static final long SHIFT_DURATION_MS = 180L;
     /** The held card grows slightly instead of shrinking, so the lifted item reads as picked up. */
-    private static final float LIFT_SCALE = 1.05f;
-    private static final float LIFT_ALPHA = 0.82f;
     private static final int MAX_SETTLE_LAYOUT_ATTEMPTS = 20;
     private static final DecelerateInterpolator DECELERATE = new DecelerateInterpolator();
 
@@ -253,6 +251,7 @@ final class SessionOverviewDragController {
         mGrabTranslationY = card.getTranslationY();
 
         card.cancelSwipeGesture();
+        card.cancelHoverLift();
         card.setPressed(false);
         card.cancelLongPress();
         card.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
@@ -260,9 +259,9 @@ final class SessionOverviewDragController {
         card.addOnLayoutChangeListener(mCardLayoutListener);
         card.animate().cancel();
         card.animate()
-                .scaleX(LIFT_SCALE)
-                .scaleY(LIFT_SCALE)
-                .alpha(LIFT_ALPHA)
+                .scaleX(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
+                .scaleY(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
+                .alpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA)
                 .translationZ(mLiftZ)
                 .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
                 .setInterpolator(DECELERATE)
@@ -718,9 +717,9 @@ final class SessionOverviewDragController {
             child.setTranslationX(mSettleFromCenterXs[i] - baseX);
             child.setTranslationY(mSettleFromCenterYs[i] - baseY);
             if (i == mSettleDraggedIndex) {
-                child.setScaleX(LIFT_SCALE);
-                child.setScaleY(LIFT_SCALE);
-                child.setAlpha(LIFT_ALPHA);
+                child.setScaleX(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE);
+                child.setScaleY(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE);
+                child.setAlpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA);
                 child.setTranslationZ(mLiftZ);
             } else {
                 child.setScaleX(1f);

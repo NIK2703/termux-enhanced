@@ -53,31 +53,31 @@ public class SessionOverviewReorderMathTest {
     @Test
     public void autoScrollPullsTowardTheNearestEdge() {
         Assert.assertEquals(-10, SessionOverviewReorderMath.autoScrollStep(
-                0f, 1000, 100, 10));
+                0f, 1000, 100, 10, 1f));
         Assert.assertEquals(-5, SessionOverviewReorderMath.autoScrollStep(
-                50f, 1000, 100, 10));
+                50f, 1000, 100, 10, 1f));
         Assert.assertEquals(0, SessionOverviewReorderMath.autoScrollStep(
-                500f, 1000, 100, 10));
+                500f, 1000, 100, 10, 1f));
         Assert.assertEquals(5, SessionOverviewReorderMath.autoScrollStep(
-                950f, 1000, 100, 10));
+                950f, 1000, 100, 10, 1f));
         Assert.assertEquals(10, SessionOverviewReorderMath.autoScrollStep(
-                1000f, 1000, 100, 10));
+                1000f, 1000, 100, 10, 1f));
 
         // Overshooting the edge must saturate, not grow without bound.
         Assert.assertEquals(-10, SessionOverviewReorderMath.autoScrollStep(
-                -100f, 1000, 100, 10));
+                -100f, 1000, 100, 10, 1f));
         Assert.assertEquals(10, SessionOverviewReorderMath.autoScrollStep(
-                1100f, 1000, 100, 10));
+                1100f, 1000, 100, 10, 1f));
     }
 
     @Test
     public void autoScrollDisablesItselfForInvalidGeometry() {
         Assert.assertEquals(0, SessionOverviewReorderMath.autoScrollStep(
-                0f, 0, 100, 10));
+                0f, 0, 100, 10, 1f));
         Assert.assertEquals(0, SessionOverviewReorderMath.autoScrollStep(
-                0f, 1000, 0, 10));
+                0f, 1000, 0, 10, 1f));
         Assert.assertEquals(0, SessionOverviewReorderMath.autoScrollStep(
-                0f, 1000, 100, 0));
+                0f, 1000, 100, 0, 1f));
     }
 
     @Test
