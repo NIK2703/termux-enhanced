@@ -66,6 +66,36 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
+    public void closingHoverAlphaRampsFromTheFrozenAlphaToOpaque() {
+        Assert.assertEquals(0.82f,
+                SessionOverviewTransitionMath.closingHoverAlpha(0.82f, 0f), EPS);
+        Assert.assertEquals(0.91f,
+                SessionOverviewTransitionMath.closingHoverAlpha(0.82f, 0.125f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingHoverAlpha(0.82f,
+                        SessionOverviewTransitionMath.CLOSING_HOVER_HANDOFF_END), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingHoverAlpha(0.82f, 1f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingHoverAlpha(1f, 0.25f), EPS);
+        Assert.assertEquals(0.82f,
+                SessionOverviewTransitionMath.closingHoverAlpha(0.82f, Float.NaN), EPS);
+    }
+
+    @Test
+    public void closingShadowAlphaIsFullyTransparentAtHalfway() {
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingShadowAlpha(0f), EPS);
+        Assert.assertEquals(0.5f,
+                SessionOverviewTransitionMath.closingShadowAlpha(0.25f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingShadowAlpha(
+                        SessionOverviewTransitionMath.CLOSING_SHADOW_FADE_END), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingShadowAlpha(1f), EPS);
+    }
+
+    @Test
     public void fadeInHandlesDegenerateStarts() {
         Assert.assertEquals(0.5f, SessionOverviewTransitionMath.fadeIn(0.5f, -1f), EPS);
         Assert.assertEquals(0f, SessionOverviewTransitionMath.fadeIn(0.5f, 1f), EPS);
@@ -244,10 +274,11 @@ public class SessionOverviewTransitionMathTest {
 
     @Test
     public void tabsWithVisibleThumbnailsGoBelowTheTerminalSnapshot() {
-        // The pair is drawn at Z 0, below every positive terminal elevation.
-        Assert.assertEquals(0f,
+        // The pair is drawn below every positive terminal elevation, and also below a
+        // zero-elevation snapshot because the ghosts are appended after it.
+        Assert.assertEquals(-1f,
                 SessionOverviewTransitionMath.tabGhostZ(true, 24f), EPS);
-        Assert.assertEquals(0f,
+        Assert.assertEquals(-1f,
                 SessionOverviewTransitionMath.tabGhostZ(true, 0f), EPS);
         // A tab moving without its thumbnail keeps the old above-the-terminal order.
         Assert.assertTrue(SessionOverviewTransitionMath.tabGhostZ(false, 24f) > 24f);

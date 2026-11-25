@@ -6,7 +6,6 @@ import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.SystemClock;
-import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -16,6 +15,8 @@ import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.ScrollView;
 import android.widget.TextView;
+
+import com.termux.app.terminal.FadeTextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -152,10 +153,10 @@ public final class DirectoryHistoryPopupController {
             // Newest at the TOP: iterate FORWARD so index 0 (newest) ends first.
             for (int i = 0; i < mDirCtrl.getHistoryList().size(); i++) {
                 final String directory = mDirCtrl.getHistoryList().get(i);
-                TextView tv = new TextView(mContext);
-                tv.setText(directory);
+                FadeTextView tv = new FadeTextView(mContext);
+                tv.setTruncation(FadeTextView.Truncation.MIDDLE);
                 tv.setMaxLines(2);
-                tv.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+                tv.setText(directory);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
                 tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
                 tv.setPadding(padH, padV, padH, padV);
@@ -217,10 +218,10 @@ public final class DirectoryHistoryPopupController {
             // Newest at the BOTTOM: iterate REVERSE so index 0 (newest) ends last.
             for (int i = mDirCtrl.getHistoryList().size() - 1; i >= 0; i--) {
                 final String directory = mDirCtrl.getHistoryList().get(i);
-                TextView tv = new TextView(mContext);
-                tv.setText(directory);
+                FadeTextView tv = new FadeTextView(mContext);
+                tv.setTruncation(FadeTextView.Truncation.MIDDLE);
                 tv.setMaxLines(2);
-                tv.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+                tv.setText(directory);
                 tv.setTextColor(mColorScheme.getHistoryTextColor());
                 tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mContext.getResources().getDimension(R.dimen.history_popup_text_size));
                 tv.setPadding(padH, padV, padH, padV);

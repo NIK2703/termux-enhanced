@@ -42,6 +42,8 @@ public class SessionOverviewCardView extends FrameLayout {
 
     private static final long DISMISS_DURATION_MS = 160L;
     private static final long RETURN_DURATION_MS = 200L;
+    /** Stateless interpolator shared by every card, reorder and settle animation. */
+    static final DecelerateInterpolator DECELERATE = new DecelerateInterpolator();
 
     private final int mTouchSlop;
     private final int mMinFlingVelocity;
@@ -53,6 +55,8 @@ public class SessionOverviewCardView extends FrameLayout {
     private ValueAnimator mHoverAnimator;
     private float mBorderWidth;
     private float mBorderRadius;
+    private int mBorderColor;
+    private float mBorderAlpha = 1f;
     private boolean mBorderSuppressed;
 
     @Nullable
@@ -91,15 +95,43 @@ public class SessionOverviewCardView extends FrameLayout {
     }
 
     /**
+     * Restore the six visual properties every card gesture mutates. Shared by swipe, hover,
+     * reorder drop and transition cleanup so none of them can leave a stale lift behind.
+     */
+    static void resetVisual(@NonNull View view) {
+        view.setTranslationX(0f);
+        view.setTranslationY(0f);
+        view.setScaleX(1f);
+        view.setScaleY(1f);
+        view.setAlpha(1f);
+        view.setTranslationZ(0f);
+    }
+
+    /**
      * Set the outline drawn inside the card's rounded corners. The controller supplies the
      * overview card stroke width and the floating controls' colour.
      */
     public void setBorder(int widthPx, int color, float radiusPx) {
         mBorderWidth = Math.max(0, widthPx);
         mBorderRadius = Math.max(0f, radiusPx);
+        mBorderColor = color;
         mBorderPaint.setStrokeWidth(mBorderWidth);
-        mBorderPaint.setColor(color);
+        updateBorderPaintColor();
         invalidate();
+    }
+
+    /** Continue alpha of the outline, driven by the overview opening/closing flights. */
+    public void setBorderAlpha(float alpha) {
+        alpha = Math.max(0f, Math.min(1f, alpha));
+        if (mBorderAlpha == alpha) return;
+        mBorderAlpha = alpha;
+        updateBorderPaintColor();
+        invalidate();
+    }
+
+    private void updateBorderPaintColor() {
+        mBorderPaint.setColor((Math.round(Color.alpha(mBorderColor) * mBorderAlpha) << 24)
+                | (mBorderColor & 0x00FFFFFF));
     }
 
     /** Hide the outline while a terminal snapshot owns the card's visual during a flight. */
@@ -156,6 +188,8 @@ public class SessionOverviewCardView extends FrameLayout {
      * Animate the same lift used by reorder drag and swipe-to-delete: scale, translation Z and a
      * slight alpha loss. The alpha is what makes the system shadow visible through a translucent
      * preview; elevation alone would only draw it outside the card and leave a hard rectangle.
+     * This is the committed behaviour: every lift parameter, including the view alpha that dims
+     * the elevation shadow, matches the last commit.
      */
     public void setHoverHighlight(boolean highlighted) {
         if (mHoverHighlighted == highlighted) return;
@@ -174,7 +208,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float fromAlpha = getAlpha();
         mHoverAnimator = ValueAnimator.ofFloat(0f, 1f);
         mHoverAnimator.setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS);
-        mHoverAnimator.setInterpolator(new DecelerateInterpolator());
+        mHoverAnimator.setInterpolator(DECELERATE);
         mHoverAnimator.addUpdateListener(animation -> {
             final float fraction = (float) animation.getAnimatedValue();
             setTranslationZ(fromZ + (targetZ - fromZ) * fraction);
@@ -211,12 +245,7 @@ public class SessionOverviewCardView extends FrameLayout {
         mActivePointerId = MotionEvent.INVALID_POINTER_ID;
         releaseVelocityTracker();
         setPressed(false);
-        setTranslationX(0f);
-        setTranslationY(0f);
-        setTranslationZ(0f);
-        setScaleX(1f);
-        setScaleY(1f);
-        setAlpha(1f);
+        resetVisual(this);
         final android.view.ViewParent parent = getParent();
         if (parent != null) parent.requestDisallowInterceptTouchEvent(false);
     }
@@ -343,7 +372,7 @@ public class SessionOverviewCardView extends FrameLayout {
                 .alpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA)
                 .translationZ(liftZ)
                 .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
-                .setInterpolator(new DecelerateInterpolator())
+                .setInterpolator(DECELERATE)
                 .start();
         final android.view.ViewParent parent = getParent();
         if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
@@ -393,7 +422,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float fromAlpha = getAlpha();
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(DISMISS_DURATION_MS);
-        animator.setInterpolator(new DecelerateInterpolator());
+        animator.setInterpolator(DECELERATE);
         animator.addUpdateListener(animation -> {
             final float progress = (float) animation.getAnimatedValue();
             setTranslationX(fromTranslation + (toTranslation - fromTranslation) * progress);
@@ -427,7 +456,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float fromScale = getScaleX();
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(RETURN_DURATION_MS);
-        animator.setInterpolator(new DecelerateInterpolator());
+        animator.setInterpolator(DECELERATE);
         animator.addUpdateListener(animation -> {
             final float progress = (float) animation.getAnimatedValue();
             setTranslationX(fromTranslation * (1f - progress));
@@ -443,11 +472,7 @@ public class SessionOverviewCardView extends FrameLayout {
             public void onAnimationEnd(Animator animation) {
                 mSettleAnimator = null;
                 mSettling = false;
-                setTranslationX(0f);
-                setTranslationZ(0f);
-                setScaleX(1f);
-                setScaleY(1f);
-                setAlpha(1f);
+                resetVisual(SessionOverviewCardView.this);
                 final android.view.ViewParent parent = getParent();
                 if (parent != null) parent.requestDisallowInterceptTouchEvent(false);
             }

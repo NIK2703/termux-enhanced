@@ -65,6 +65,15 @@ final class SessionOverviewReorderMath {
     }
 
     /**
+     * Frame-time ratio shared by both overview auto-scroll loops: real elapsed time divided by
+     * the 16 ms reference frame, capped at three frames so a long stall cannot jump the list.
+     */
+    static float frameRatio(long nowMs, long lastMs) {
+        if (lastMs == 0L) return 1f;
+        return Math.min(nowMs - lastMs, 48L) / 16f;
+    }
+
+    /**
      * Auto-scroll step for a finger at {@code pointerY} inside the overview viewport.
      *
      * @param pointerY    finger Y relative to the scroll viewport.

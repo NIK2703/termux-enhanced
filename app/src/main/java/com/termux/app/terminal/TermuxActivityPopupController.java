@@ -223,8 +223,8 @@ public final class TermuxActivityPopupController {
                     TermuxAppConstants.History.MESSAGE_POPUP_LIMIT);
             for (int i = visibleCount - 1; i >= 0; i--) {
                 final String message = history.get(i);
-                TextView tv = new TextView(mContext);
-                // Preview: collapse newlines to spaces, wrap to at most 2 lines with an ellipsis.
+                FadeTextView tv = new FadeTextView(mContext);
+                // Preview: collapse newlines to spaces, wrap to at most 2 lines with an alpha fade.
                 // Only allocate when the message actually has a newline or outer whitespace.
                 String display = message;
                 if (message.indexOf('\n') >= 0) display = message.replace("\n", " ");
@@ -233,9 +233,8 @@ public final class TermuxActivityPopupController {
                         || display.charAt(display.length() - 1) <= ' ') {
                     display = display.trim();
                 }
-                tv.setText(display);
                 tv.setMaxLines(2);
-                tv.setEllipsize(TextUtils.TruncateAt.END);
+                tv.setText(display);
                 styleHistoryRowText(tv, padH, padV);
                 tv.setClickable(true);
                 // Tag with the real history index so highlight/selection maps back.

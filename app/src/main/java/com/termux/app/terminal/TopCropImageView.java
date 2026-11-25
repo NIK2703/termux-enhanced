@@ -1,7 +1,10 @@
 package com.termux.app.terminal;
 
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
@@ -26,7 +29,15 @@ import androidx.annotation.Nullable;
 public final class TopCropImageView extends ImageView {
 
     private final Matrix mScaleMatrix = new Matrix();
+    /** Reused bounds for the rectangular clip; flying ghosts resize every animation frame. */
+    private final Rect mClipRect = new Rect();
     private boolean mSkipClipBounds;
+    /** Optional card outline drawn over the snapshot while it is flying. */
+    private final Paint mBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private float mBorderWidth;
+    private float mBorderRadius;
+    private int mBorderColor;
+    private float mBorderAlpha;
 
     public TopCropImageView(Context context) {
         this(context, null);
@@ -57,15 +68,20 @@ public final class TopCropImageView extends ImageView {
         mSkipClipBounds = skip;
         if (skip) setClipBounds(null);
         else if (getWidth() > 0 && getHeight() > 0) {
-            setClipBounds(new Rect(0, 0, getWidth(), getHeight()));
+            setClipBounds(widthBounds());
         }
+    }
+
+    private Rect widthBounds() {
+        mClipRect.set(0, 0, getWidth(), getHeight());
+        return mClipRect;
     }
 
     @Override
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
         setClipBounds(!mSkipClipBounds && width > 0 && height > 0
-                ? new Rect(0, 0, width, height) : null);
+                ? widthBounds() : null);
         updateScaleMatrix();
     }
 
@@ -96,5 +112,37 @@ public final class TopCropImageView extends ImageView {
         final float scale = (float) availableWidth / drawableWidth;
         mScaleMatrix.setScale(scale, scale);
         setImageMatrix(mScaleMatrix);
+    }
+
+    /**
+     * Draw the same rounded stroke as a resting overview card on the flying snapshot. The flight
+     * owns this outline so it can fade it independently of the card hidden underneath it.
+     */
+    void setFlightBorder(float width, int color, float radius, float alpha) {
+        width = Math.max(0f, width);
+        radius = Math.max(0f, radius);
+        alpha = Math.max(0f, Math.min(1f, alpha));
+        if (mBorderWidth == width && mBorderRadius == radius
+                && mBorderColor == color && mBorderAlpha == alpha) return;
+        mBorderWidth = width;
+        mBorderRadius = radius;
+        mBorderColor = color;
+        mBorderAlpha = alpha;
+        mBorderPaint.setStyle(Paint.Style.STROKE);
+        mBorderPaint.setStrokeWidth(width);
+        mBorderPaint.setColor((Math.round(Color.alpha(color) * alpha) << 24)
+                | (color & 0x00FFFFFF));
+        invalidate();
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        if (mBorderWidth <= 0f || mBorderAlpha <= 0f
+                || getWidth() <= mBorderWidth || getHeight() <= mBorderWidth) return;
+        final float inset = mBorderWidth / 2f;
+        final float radius = Math.max(0f, mBorderRadius - inset);
+        canvas.drawRoundRect(inset, inset, getWidth() - inset, getHeight() - inset,
+                radius, radius, mBorderPaint);
     }
 }

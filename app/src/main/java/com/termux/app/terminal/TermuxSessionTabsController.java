@@ -13,11 +13,8 @@ import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.text.Layout;
 import android.text.SpannableString;
-import android.text.Spanned;
 import android.text.StaticLayout;
-import android.text.TextPaint;
 import android.text.TextUtils;
-import android.text.style.CharacterStyle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -146,7 +143,7 @@ public class TermuxSessionTabsController {
         TabRenderState(View tabView) {
             titleView = tabView.findViewById(R.id.session_tab_title);
             closeButton = tabView.findViewById(R.id.session_tab_close);
-            if (titleView != null) applyTitleFadeContract(titleView);
+            if (titleView != null) TextFade.applyFadeContract(titleView);
         }
     }
 
@@ -876,40 +873,6 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * Applies the fade-only truncation contract to a title view. Every title owner calls this
-     * after it changes line count or inflation state, so a theme, a previous single-line layout,
-     * or a platform default cannot reintroduce the ellipsis over the faded prefix.
-     */
-    static void applyTitleFadeContract(@androidx.annotation.NonNull TextView titleView) {
-        titleView.setEllipsize(null);
-        titleView.setHorizontallyScrolling(false);
-    }
-
-    /** Multiplies paint alpha so the title's colour and strike-through remain intact. */
-    private static final class AlphaSpan extends CharacterStyle {
-        private final int mAlpha;
-
-        AlphaSpan(int alpha) {
-            mAlpha = alpha;
-        }
-
-        @Override
-        public void updateDrawState(TextPaint tp) {
-            tp.setAlpha(tp.getAlpha() * mAlpha / 255);
-        }
-    }
-
-    /** Alpha for the last characters of a truncated title, counted from the end. */
-    static int fadeAlphaForPosition(int charsFromEnd) {
-        switch (charsFromEnd) {
-            case 1: return 64;   // 25%
-            case 2: return 128;  // 50%
-            case 3: return 191;  // 75%
-            default: return 255;
-        }
-    }
-
-    /**
      * Removes a truncation marker that another program appended to the title before Termux saw
      * it. OpenCode, for example, caps its OSC title at 40 characters and appends an ellipsis.
      * The strip and the overview draw their own alpha fade, so that literal marker would
@@ -952,6 +915,22 @@ public class TermuxSessionTabsController {
     @androidx.annotation.NonNull
     static TitleRender renderTitle(TextView tv, String text, int maxWidthPx) {
         return renderTitle(tv, text, maxWidthPx, maxWidthPx);
+    }
+
+    /**
+     * Generic END-mode renderer shared with {@link FadeTextView}. Unlike
+     * {@link #renderTitle}, it does not strip an upstream truncation marker: history messages
+     * and directory paths are plain content.
+     */
+    @androidx.annotation.NonNull
+    static TitleRender renderFadedText(@androidx.annotation.NonNull TextView tv,
+                                       @androidx.annotation.NonNull String text,
+                                       int maxWidthPx, int maxLines) {
+        if (text.isEmpty() || maxWidthPx <= 0 || maxLines <= 0) {
+            return new TitleRender(text, false);
+        }
+        final int safeWidth = Math.max(1, maxWidthPx);
+        return renderLines(tv, text, safeWidth, safeWidth, maxLines);
     }
 
     /**
@@ -1241,22 +1220,10 @@ public class TermuxSessionTabsController {
         if (visibleEnd <= 0) return new TitleRender("", true);
 
         SpannableString visible = new SpannableString(text.substring(0, visibleEnd));
-        // Use code points so an emoji fades as one glyph. Spaces are skipped: the fade is meant
-        // for the last three visible characters, and a title that ends "... слабые м" should
-        // fade "ы", "е" and "м", not spend one of its three steps on the space.
-        int spanEnd = visibleEnd;
-        int faded = 0;
-        while (faded < 3 && spanEnd > 0) {
-            int spanStart = Character.offsetByCodePoints(text, spanEnd, -1);
-            final char last = text.charAt(spanStart);
-            if (last == '\n' || last == '\r') break;
-            if (!Character.isWhitespace(last) && !Character.isSpaceChar(last)) {
-                faded++;
-                visible.setSpan(new AlphaSpan(fadeAlphaForPosition(faded)),
-                        spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-            spanEnd = spanStart;
-        }
+        // Shared with auto-complete rows and history popups: code points fade as one glyph
+        // and spaces are skipped, so "... слабые м" fades "ы", "е" and "м" rather than
+        // spending one of its three steps on the space.
+        TextFade.fadeTail(visible, visible.length());
         return new TitleRender(visible, true);
     }
 
@@ -1270,7 +1237,7 @@ public class TermuxSessionTabsController {
         ensureDimens();
         // setMaxLines() may have run since the view was inflated; re-assert the fade contract
         // after every line-count change so a platform or theme ellipsis cannot come back.
-        applyTitleFadeContract(titleView);
+        TextFade.applyFadeContract(titleView);
 
         final int baseMaxWidth = mTitleMaxWidthPx;
         final int gap = mCloseGapPx;

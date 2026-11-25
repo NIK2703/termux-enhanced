@@ -268,4 +268,22 @@ public class SessionOverviewGridMathTest {
         Assert.assertEquals(0, layout.gridWidth);
         Assert.assertEquals(0, layout.gridHeight);
     }
+
+    @Test
+    public void exactCardSizeNeverOverflowsTheViewport() {
+        // Exercise the leftover-width 0..2 px cases where three min-width gutters do not fit.
+        for (int availableWidth = 0; availableWidth <= 200; availableWidth++) {
+            final SessionOverviewGridMath.Layout layout =
+                    SessionOverviewGridMath.compute(4, availableWidth, 800, 8, 12, 40);
+            if (!layout.hasCards()) continue;
+            Assert.assertTrue("width=" + availableWidth + " left=" + layout.left,
+                    layout.left >= 0);
+            Assert.assertTrue("width=" + availableWidth + " right=" + layout.left + layout.gridWidth,
+                    layout.left + layout.gridWidth <= availableWidth);
+            Assert.assertTrue("width=" + availableWidth + " inner gap=" + layout.gap,
+                    layout.gap >= 1);
+            Assert.assertEquals("width=" + availableWidth + " published gap",
+                    layout.gap, layout.gridWidth - 2 * layout.cardWidth);
+        }
+    }
 }

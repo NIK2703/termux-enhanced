@@ -1,10 +1,16 @@
 package com.termux.app.terminal.io.autocomplete;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.graphics.Typeface;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextPaint;
+import android.text.style.CharacterStyle;
+import android.text.style.StyleSpan;
 import android.util.LruCache;
 
 import org.junit.Test;
@@ -13,6 +19,9 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.ConscryptMode;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 @RunWith(RobolectricTestRunner.class)
 @ConscryptMode(ConscryptMode.Mode.OFF)
@@ -36,11 +45,128 @@ public class AutoCompleteTextRendererTest {
                 cache.size() > 0);
 
         // The truncation result must be stable across calls. Robolectric's
-        // StaticLayout/Paint shadows do not wrap by width, so the '…' itself is a
+        // StaticLayout/Paint shadows do not wrap by width, so the cut itself is a
         // device-level behavior and is not asserted here.
         String first = AutoCompleteTextRenderer.truncateToLines(text, 600, paint, 2);
         String second = AutoCompleteTextRenderer.truncateToLines(text, 600, paint, 2);
         assertEquals(first, second);
+    }
+
+    @Test
+    public void leadingCutKeepsOnlyTheLastThreeLettersOfTheTypedWord() {
+        TextPaint paint = paint();
+        SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "git checkout main", "git checkout", 0, paint);
+
+        assertEquals("out main", rendered.toString());
+        assertFalse(rendered.toString().startsWith("..."));
+
+        StyleSpan bold = boldSpan(rendered);
+        assertNotNull(bold);
+        assertEquals(0, rendered.getSpanStart(bold));
+        assertEquals(3, rendered.getSpanEnd(bold));
+
+        List<FadeSpan> fades = fades(rendered);
+        assertEquals(3, fades.size());
+        assertFade(fades.get(0), 0, 1, 64);
+        assertFade(fades.get(1), 1, 2, 128);
+        assertFade(fades.get(2), 2, 3, 191);
+    }
+
+    @Test
+    public void leadingCutFadesOnlyTheVisiblePartOfAShortWord() {
+        TextPaint paint = paint();
+        SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "git hello", "git he", 0, paint);
+
+        assertEquals("hello", rendered.toString());
+        StyleSpan bold = boldSpan(rendered);
+        assertNotNull(bold);
+        assertEquals(0, rendered.getSpanStart(bold));
+        assertEquals(2, rendered.getSpanEnd(bold));
+
+        List<FadeSpan> fades = fades(rendered);
+        assertEquals(2, fades.size());
+        assertFade(fades.get(0), 0, 1, 64);
+        assertFade(fades.get(1), 1, 2, 128);
+    }
+
+    @Test
+    public void firstWordKeepsItsFullTextAndStaysOpaque() {
+        TextPaint paint = paint();
+        SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "git checkout", "git", 0, paint);
+
+        assertEquals("git checkout", rendered.toString());
+        assertTrue(fades(rendered).isEmpty());
+    }
+
+    @Test
+    public void trailingSeparatorsDoNotConsumeTheKeptLetters() {
+        TextPaint paint = paint();
+        SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "git checkout main", "git checkout ", 0, paint);
+
+        assertEquals("out main", rendered.toString());
+    }
+
+    @Test
+    public void fadeRangeChangeResetsTheRowEvenWhenTextAndBoldMatch() {
+        TextPaint paint = paint();
+        SpannableString one = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "helloworld", "git h", 0, paint);
+        SpannableString two = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "helloworld", "git he", 0, paint);
+
+        assertEquals(one.toString(), two.toString());
+        assertFalse(AutoCompleteTextRenderer.sameRendering(one, two));
+    }
+
+    private static TextPaint paint() {
+        TextPaint paint = new TextPaint();
+        paint.setTextSize(42f);
+        paint.setAntiAlias(true);
+        return paint;
+    }
+
+    private static StyleSpan boldSpan(Spanned text) {
+        for (StyleSpan span : text.getSpans(0, text.length(), StyleSpan.class)) {
+            if (span.getStyle() == Typeface.BOLD) return span;
+        }
+        return null;
+    }
+
+    private static List<FadeSpan> fades(Spanned text) {
+        List<FadeSpan> result = new ArrayList<>();
+        for (CharacterStyle span : text.getSpans(0, text.length(), CharacterStyle.class)) {
+            TextPaint paint = new TextPaint();
+            paint.setAlpha(255);
+            span.updateDrawState(paint);
+            if (paint.getAlpha() != 255) {
+                result.add(new FadeSpan(text.getSpanStart(span), text.getSpanEnd(span),
+                        paint.getAlpha()));
+            }
+        }
+        result.sort(Comparator.comparingInt(span -> span.start));
+        return result;
+    }
+
+    private static void assertFade(FadeSpan span, int start, int end, int alpha) {
+        assertEquals(start, span.start);
+        assertEquals(end, span.end);
+        assertEquals(alpha, span.alpha);
+    }
+
+    private static final class FadeSpan {
+        final int start;
+        final int end;
+        final int alpha;
+
+        FadeSpan(int start, int end, int alpha) {
+            this.start = start;
+            this.end = end;
+            this.alpha = alpha;
+        }
     }
 
     private static String longText() {

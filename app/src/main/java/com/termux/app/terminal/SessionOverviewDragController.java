@@ -10,7 +10,6 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -49,7 +48,6 @@ final class SessionOverviewDragController {
     private static final long SHIFT_DURATION_MS = 180L;
     /** The held card grows slightly instead of shrinking, so the lifted item reads as picked up. */
     private static final int MAX_SETTLE_LAYOUT_ATTEMPTS = 20;
-    private static final DecelerateInterpolator DECELERATE = new DecelerateInterpolator();
 
     private final SessionOverviewGridView mGrid;
     @Nullable
@@ -264,7 +262,7 @@ final class SessionOverviewDragController {
                 .alpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA)
                 .translationZ(mLiftZ)
                 .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
-                .setInterpolator(DECELERATE)
+                .setInterpolator(SessionOverviewCardView.DECELERATE)
                 .start();
         updateCardPosition();
     }
@@ -338,7 +336,7 @@ final class SessionOverviewDragController {
                     .translationX(mBaseCenterXs[newIndex] - mBaseCenterXs[oldIndex])
                     .translationY(mBaseCenterYs[newIndex] - mBaseCenterYs[oldIndex])
                     .setDuration(SHIFT_DURATION_MS)
-                    .setInterpolator(DECELERATE)
+                    .setInterpolator(SessionOverviewCardView.DECELERATE)
                     .start();
         }
     }
@@ -356,7 +354,7 @@ final class SessionOverviewDragController {
                         .translationX(0f)
                         .translationY(0f)
                         .setDuration(SHIFT_DURATION_MS)
-                        .setInterpolator(DECELERATE)
+                        .setInterpolator(SessionOverviewCardView.DECELERATE)
                         .start();
             } else {
                 child.setTranslationX(0f);
@@ -407,8 +405,8 @@ final class SessionOverviewDragController {
         final float pointerY = mLastRawY - mScrollLocation[1];
 
         final long now = SystemClock.uptimeMillis();
-        final float frameRatio = mAutoScrollLastTimeMs == 0L
-                ? 1f : Math.min(now - mAutoScrollLastTimeMs, 48L) / 16f;
+        final float frameRatio = SessionOverviewReorderMath.frameRatio(
+                now, mAutoScrollLastTimeMs);
         mAutoScrollLastTimeMs = now;
 
         final int step = SessionOverviewReorderMath.autoScrollStep(
@@ -505,7 +503,7 @@ final class SessionOverviewDragController {
         cancelDropFlight(false);
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS);
-        animator.setInterpolator(DECELERATE);
+        animator.setInterpolator(SessionOverviewCardView.DECELERATE);
         animator.addUpdateListener(animation -> {
             final float progress = (float) animation.getAnimatedValue();
             for (int oldIndex = 0; oldIndex < count; oldIndex++) {
@@ -551,12 +549,7 @@ final class SessionOverviewDragController {
             mGrid.addView(orderedCards.get(newIndex), newIndex, params[newIndex]);
         }
         for (View child : orderedCards) {
-            child.setTranslationX(0f);
-            child.setTranslationY(0f);
-            child.setScaleX(1f);
-            child.setScaleY(1f);
-            child.setAlpha(1f);
-            child.setTranslationZ(0f);
+            SessionOverviewCardView.resetVisual(child);
         }
         final int to = orderFromIndex(order, from);
         resetGesture();
@@ -580,13 +573,7 @@ final class SessionOverviewDragController {
         mDropAnimator = null;
         if (!commit) {
             for (int i = 0; i < mGrid.getChildCount(); i++) {
-                final View child = mGrid.getChildAt(i);
-                child.setTranslationX(0f);
-                child.setTranslationY(0f);
-                child.setScaleX(1f);
-                child.setScaleY(1f);
-                child.setAlpha(1f);
-                child.setTranslationZ(0f);
+                SessionOverviewCardView.resetVisual(mGrid.getChildAt(i));
             }
         }
     }
@@ -603,7 +590,7 @@ final class SessionOverviewDragController {
                 .alpha(1f)
                 .translationZ(0f)
                 .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
-                .setInterpolator(DECELERATE)
+                .setInterpolator(SessionOverviewCardView.DECELERATE)
                 .start();
     }
 
@@ -735,7 +722,7 @@ final class SessionOverviewDragController {
                     .alpha(1f)
                     .translationZ(0f)
                     .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
-                    .setInterpolator(DECELERATE)
+                    .setInterpolator(SessionOverviewCardView.DECELERATE)
                     .start();
         }
 
@@ -755,12 +742,7 @@ final class SessionOverviewDragController {
             for (SessionOverviewCardView card : cards) {
                 if (!card.isAttachedToWindow()) continue;
                 card.animate().cancel();
-                card.setTranslationX(0f);
-                card.setTranslationY(0f);
-                card.setScaleX(1f);
-                card.setScaleY(1f);
-                card.setAlpha(1f);
-                card.setTranslationZ(0f);
+                SessionOverviewCardView.resetVisual(card);
             }
         }
         clearSettleState();
@@ -805,12 +787,7 @@ final class SessionOverviewDragController {
         for (int i = 0; i < mGrid.getChildCount(); i++) {
             final View child = mGrid.getChildAt(i);
             child.animate().cancel();
-            child.setTranslationX(0f);
-            child.setTranslationY(0f);
-            child.setScaleX(1f);
-            child.setScaleY(1f);
-            child.setAlpha(1f);
-            child.setTranslationZ(0f);
+            SessionOverviewCardView.resetVisual(child);
         }
         if (card != null) disallowIntercept(card, false);
         resetGesture();

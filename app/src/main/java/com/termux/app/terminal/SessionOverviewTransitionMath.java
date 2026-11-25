@@ -32,6 +32,12 @@ public final class SessionOverviewTransitionMath {
     /** Fraction of the path at which the source copy hands over to the target copy. */
     public static final float TAB_MOTION_SPLIT = 0.5f;
 
+    /** Progress by which a closing ghost that inherited a hover lift is fully opaque. */
+    public static final float CLOSING_HOVER_HANDOFF_END = 0.25f;
+
+    /** Progress at which the inherited hover shadow is fully transparent. */
+    public static final float CLOSING_SHADOW_FADE_END = 0.5f;
+
     public static float clamp01(float value) {
         if (Float.isNaN(value)) return 0f;
         if (value <= 0f) return 0f;
@@ -83,9 +89,8 @@ public final class SessionOverviewTransitionMath {
      * the source half — is traversed invisibly before the hand-off.
      */
     public static float tabSourcePathFraction(float progress) {
-        final float p = clamp01(progress);
-        if (p >= TAB_MOTION_SPLIT || TAB_MOTION_SPLIT <= 0f) return TAB_MOTION_SPLIT;
-        return TAB_MOTION_SPLIT * (p / TAB_MOTION_SPLIT);
+        if (TAB_MOTION_SPLIT <= 0f) return TAB_MOTION_SPLIT;
+        return Math.min(clamp01(progress), TAB_MOTION_SPLIT);
     }
 
     /**
@@ -96,10 +101,9 @@ public final class SessionOverviewTransitionMath {
      */
     public static float tabTargetPathFraction(float progress) {
         final float p = clamp01(progress);
-        if (p <= TAB_MOTION_SPLIT) return TAB_MOTION_SPLIT;
+        if (TAB_MOTION_SPLIT <= 0f) return p;
         if (TAB_MOTION_SPLIT >= 1f) return 1f;
-        return TAB_MOTION_SPLIT + (1f - TAB_MOTION_SPLIT)
-                * ((p - TAB_MOTION_SPLIT) / (1f - TAB_MOTION_SPLIT));
+        return Math.max(p, TAB_MOTION_SPLIT);
     }
 
     /**
@@ -108,7 +112,7 @@ public final class SessionOverviewTransitionMath {
      * instead of dissolving into the thumbnail.
      */
     public static float previewAlpha(float progress) {
-        return fadeIn(progress, 1f);
+        return clamp01(progress) >= 1f ? 1f : 0f;
     }
 
     /** Flying terminal snapshot opacity, the exact inverse of {@link #previewAlpha(float)}. */
@@ -131,6 +135,27 @@ public final class SessionOverviewTransitionMath {
     /** Card preview opacity during the closing flight; hidden from the first frame. */
     public static float closingPreviewAlpha(float progress) {
         return 0f;
+    }
+
+    /**
+     * Opacity of a closing ghost selected from a lifted card. It inherits the card's frozen
+     * opacity, then returns to full over the first quarter of the flight. A normal tap passes
+     * {@code 1f} and is unaffected.
+     */
+    public static float closingHoverAlpha(float startAlpha, float progress) {
+        final float start = clamp01(startAlpha);
+        final float ramp = clamp01(progress / CLOSING_HOVER_HANDOFF_END);
+        return start + (1f - start) * ramp;
+    }
+
+    /**
+     * Colour-alpha fraction of the shadow handed off from a hovered card. The lift opacity that
+     * also dims this shadow lives on the ghost view (see {@link #closingHoverAlpha(float, float)})
+     * exactly as it did at the last commit; this helper only owns the colour fade to zero at the
+     * halfway point.
+     */
+    public static float closingShadowAlpha(float progress) {
+        return 1f - clamp01(progress / CLOSING_SHADOW_FADE_END);
     }
 
     /**
@@ -208,13 +233,17 @@ public final class SessionOverviewTransitionMath {
         return thumbnailVisible ? -1f : tabGhostZ(terminalElevation);
     }
 
-    /** Linear ARGB interpolation, including alpha. */
+    /** Linear ARGB interpolation, including alpha. Progress is clamped once for all channels. */
     public static int blendColor(int start, int end, float progress) {
         final float p = clamp01(progress);
-        final int a = lerp((start >>> 24) & 0xFF, (end >>> 24) & 0xFF, p);
-        final int r = lerp((start >>> 16) & 0xFF, (end >>> 16) & 0xFF, p);
-        final int g = lerp((start >>> 8) & 0xFF, (end >>> 8) & 0xFF, p);
-        final int b = lerp(start & 0xFF, end & 0xFF, p);
+        final int a = mix((start >>> 24) & 0xFF, (end >>> 24) & 0xFF, p);
+        final int r = mix((start >>> 16) & 0xFF, (end >>> 16) & 0xFF, p);
+        final int g = mix((start >>> 8) & 0xFF, (end >>> 8) & 0xFF, p);
+        final int b = mix(start & 0xFF, end & 0xFF, p);
         return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int mix(int start, int end, float clampedProgress) {
+        return Math.round(start + (end - start) * clampedProgress);
     }
 }

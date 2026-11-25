@@ -13,15 +13,24 @@ import android.util.LruCache;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.app.terminal.TextFade;
+
 /**
  * Pure text-rendering helpers for auto-complete suggestion rows: drawing only
  * (truncation, bold prefix, line-fitting).
+ *
+ * <p>Truncation uses the same alpha fade as tab titles. A leading cut keeps only the last
+ * three letters of the typed word and fades them in; a trailing cut fades the last visible
+ * letters instead of appending an ellipsis.</p>
  */
 final class AutoCompleteTextRenderer {
 
     private AutoCompleteTextRenderer() {}
 
     private static final StyleSpan BOLD_SPAN = new StyleSpan(Typeface.BOLD);
+
+    /** Suggestion rows always use two lines. */
+    private static final int MAX_LINES = 2;
 
     /** Small cache of laid-out rows; each entry costs one slot. */
     private static final int LAYOUT_CACHE_MAX = 64;
@@ -31,30 +40,30 @@ final class AutoCompleteTextRenderer {
                     return 1;
                 }
             };
-    private static String layoutKey(@NonNull String text, int w, int maxLines) {
-        return text + "\u0000" + w + "\u0000" + maxLines;
+    private static String layoutKey(@NonNull String text, int start, int end, int w, int maxLines) {
+        return text + "\u0000" + start + "\u0000" + end + "\u0000" + w + "\u0000" + maxLines;
     }
 
     /**
      * Memoization of the (expensive) truncation step in {@link #buildSuggestionSpannable}. The
-     * truncated display text depends only on (suggestion, wordStart, availWidth, maxLines), and
-     * within a popup session availWidth/maxLines are constant — so a hit skips the whole
+     * truncated display text depends only on (suggestion, visibleStart, availWidth, maxLines),
+     * and within a popup session availWidth/maxLines are constant — so a hit skips the whole
      * StaticLayout / binary-search pipeline for every keystroke on every shown row.
      */
     private static final class DisplayKey {
         final String suggestion;
-        final int wordStart;
+        final int visibleStart;
         final int availWidth;
         final int maxLines;
-        DisplayKey(@NonNull String suggestion, int wordStart, int availWidth, int maxLines) {
+        DisplayKey(@NonNull String suggestion, int visibleStart, int availWidth, int maxLines) {
             this.suggestion = suggestion;
-            this.wordStart = wordStart;
+            this.visibleStart = visibleStart;
             this.availWidth = availWidth;
             this.maxLines = maxLines;
         }
         @Override public int hashCode() {
             int h = suggestion.hashCode();
-            h = 31 * h + wordStart;
+            h = 31 * h + visibleStart;
             h = 31 * h + availWidth;
             h = 31 * h + maxLines;
             return h;
@@ -63,7 +72,7 @@ final class AutoCompleteTextRenderer {
             if (this == o) return true;
             if (!(o instanceof DisplayKey)) return false;
             DisplayKey k = (DisplayKey) o;
-            return wordStart == k.wordStart && availWidth == k.availWidth
+            return visibleStart == k.visibleStart && availWidth == k.availWidth
                     && maxLines == k.maxLines && suggestion.equals(k.suggestion);
         }
     }
@@ -94,27 +103,31 @@ final class AutoCompleteTextRenderer {
         int i = s.length();
         // Skip trailing separators: "hello " is still word 0, not an empty next word.
         while (i > 0) {
-            char c = s.charAt(i - 1);
-            if (c != ' ' && c != '/') break;
+            if (!isWordSeparator(s.charAt(i - 1))) break;
             i--;
         }
         while (i > 0) {
-            char c = s.charAt(i - 1);
-            if (c == ' ' || c == '/') return i;
+            if (isWordSeparator(s.charAt(i - 1))) return i;
             i--;
         }
         return 0;
     }
 
+    private static boolean isWordSeparator(char c) {
+        return c == ' ' || c == '/';
+    }
+
     /**
-     * Build the display {@link SpannableString} for an auto-complete suggestion: word-based
-     * leading truncation (the {@code "... "} prefix when the match starts mid-word), manual
-     * end-truncation with a trailing {@code '…'} when it would exceed {@code maxLines}, and the
-     * matched input prefix rendered in BOLD.
+     * Build the display {@link SpannableString} for an auto-complete suggestion.
+     *
+     * <p>When the match starts mid-word, only the last three letters of the typed word are
+     * kept and faded in; the omitted words are not replaced by {@code "... "}. When the text
+     * is too tall for {@code maxLines}, the tail is cut and its last three visible code points
+     * fade out, exactly like a truncated tab title.</p>
      *
      * <p>Manual truncation instead of {@code TextView.setEllipsize(END)}: on Android (API 21-28
      * in particular) {@code ellipsize=end} is only reliably honored for single-line text — with
-     * {@code setMaxLines(n > 1)} the trailing ellipsis frequently never appears.
+     * {@code setMaxLines(n > 1)} the trailing ellipsis frequently never appears.</p>
      *
      * @param availWidth available text width in px (popup width minus padding);
      *                   pass {@code 0} to skip truncation (e.g. not yet laid out).
@@ -131,44 +144,61 @@ final class AutoCompleteTextRenderer {
     static SpannableString buildSuggestionSpannable(@NonNull String suggestion,
             @NonNull String input, int inputWordStart, int availWidth,
             @NonNull TextPaint paint) {
-        String matchStr = input;
+        final String matchStr = input;
         // A full-entry candidate can be multi-line; render it as one logical line
         // so the popup row does not grow to the height of the whole entry.
-        String displaySuggestion = normalizedSuggestion(suggestion);
-        int wordStart = Math.min(inputWordStart, displaySuggestion.length());
-        int boldLen = matchStr.length() - wordStart;
-        boolean hasLastWord = boldLen > 0;
-        String prefix = (wordStart > 0) ? "... " : "";
-        int prefixLen = prefix.length();
+        final String displaySuggestion = normalizedSuggestion(suggestion);
+        final int wordStart = Math.min(inputWordStart, displaySuggestion.length());
 
-        String displayText;
+        // The last typed word ends at the input end, but trailing separators are not
+        // part of it. The visible text keeps only its final three code points.
+        int lastWordEnd = Math.min(matchStr.length(), displaySuggestion.length());
+        while (lastWordEnd > wordStart
+                && isWordSeparator(matchStr.charAt(lastWordEnd - 1))) {
+            lastWordEnd--;
+        }
+        final int lastWordLen = Math.max(0, lastWordEnd - wordStart);
+        final int visibleStart = wordStart > 0
+                ? wordStart + Math.max(0, lastWordLen - TextFade.FADE_CHARS)
+                : 0;
+        final int visibleWordLen = Math.max(0, lastWordEnd - visibleStart);
+
+        final String raw = displaySuggestion.substring(visibleStart);
+        final String displayText;
         if (availWidth > 0) {
-            DisplayKey key = new DisplayKey(displaySuggestion, wordStart, availWidth, 2);
+            DisplayKey key = new DisplayKey(displaySuggestion, visibleStart, availWidth,
+                    MAX_LINES);
             String cached = sDisplayCache.get(key);
             if (cached != null) {
                 displayText = cached;
             } else {
-                String raw = (prefixLen > 0)
-                        ? prefix + displaySuggestion.substring(wordStart) : displaySuggestion;
-                displayText = truncateToLines(raw, availWidth, paint, 2);
+                displayText = truncateToLines(raw, availWidth, paint, MAX_LINES);
                 sDisplayCache.put(key, displayText);
             }
         } else {
-            displayText = (prefixLen > 0)
-                    ? prefix + displaySuggestion.substring(wordStart) : displaySuggestion;
+            displayText = raw;
         }
 
         SpannableString ss = new SpannableString(displayText);
-        int spanEnd = Math.min(prefixLen + boldLen, displayText.length());
-        if (hasLastWord && spanEnd > prefixLen
+        // The kept part of the typed word fades in from the left, mirroring the faded
+        // tail of a truncated tab title.
+        if (wordStart > 0 && visibleWordLen > 0) {
+            TextFade.fadeHead(ss, 0, Math.min(visibleWordLen, displayText.length()));
+        }
+        // A manual end cut has no ellipsis; its last visible letters fade out.
+        if (displayText.length() < raw.length()) {
+            TextFade.fadeTail(ss, displayText.length());
+        }
+
+        final int boldEnd = Math.min(visibleWordLen, displayText.length());
+        if (boldEnd > 0
                 && displaySuggestion.regionMatches(true, 0, matchStr, 0, matchStr.length())) {
-            ss.setSpan(BOLD_SPAN,
-                    prefixLen, spanEnd, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+            ss.setSpan(BOLD_SPAN, 0, boldEnd, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return ss;
     }
 
-    /** True when {@code old} already has {@code next}'s characters and bold range. */
+    /** True when {@code old} already has {@code next}'s characters, bold range and fades. */
     static boolean sameRendering(@Nullable CharSequence old, @NonNull SpannableString next) {
         if (old == null || old.length() != next.length()) return false;
         for (int i = 0; i < next.length(); i++) {
@@ -177,13 +207,14 @@ final class AutoCompleteTextRenderer {
         if (!(old instanceof Spanned)) return false;
         Spanned spanned = (Spanned) old;
         return spanned.getSpanStart(BOLD_SPAN) == next.getSpanStart(BOLD_SPAN)
-                && spanned.getSpanEnd(BOLD_SPAN) == next.getSpanEnd(BOLD_SPAN);
+                && spanned.getSpanEnd(BOLD_SPAN) == next.getSpanEnd(BOLD_SPAN)
+                && TextFade.sameFades(spanned, next);
     }
 
     /**
      * Truncate {@code text} so it fits within {@code maxLines} lines of width
      * {@code availWidth}. Returns the original text unchanged if it already fits.
-     * Otherwise keeps the start and appends a single {@code '…'}.
+     * Otherwise keeps the longest prefix that fits; the caller fades its tail.
      */
     @NonNull
     static String truncateToLines(@NonNull String text, int availWidth,
@@ -198,14 +229,13 @@ final class AutoCompleteTextRenderer {
         return binarySearchTruncate(text, availWidth, paint, maxLines);
     }
 
-    /** Slice-aware variant: builds layout only for [start, end) (+ "…" when {@code ellipsis}). */
-    static boolean fitsLines(@NonNull String text, int start, int end, boolean ellipsis,
+    /** Slice-aware variant: builds a layout only for [start, end). */
+    static boolean fitsLines(@NonNull String text, int start, int end,
             int availWidth, @NonNull TextPaint paint, int maxLines) {
-        String key = layoutKey(text, start, end, end, end, ellipsis, availWidth, maxLines);
+        String key = layoutKey(text, start, end, availWidth, maxLines);
         StaticLayout layout = sLayoutCache.get(key);
         if (layout == null) {
-            String slice = (ellipsis ? text.substring(start, end) + "…" : text.substring(start, end));
-            layout = buildLayout(slice, availWidth, paint, maxLines);
+            layout = buildLayout(text.substring(start, end), availWidth, paint, maxLines);
             sLayoutCache.put(key, layout);
         }
         return layout.getLineCount() <= maxLines;
@@ -214,13 +244,7 @@ final class AutoCompleteTextRenderer {
     /** True when {@code text} lays out to at most {@code maxLines} lines of {@code availWidth}. */
     static boolean fitsLines(@NonNull String text, int availWidth,
             @NonNull TextPaint paint, int maxLines) {
-        String key = layoutKey(text, availWidth, maxLines);
-        StaticLayout layout = sLayoutCache.get(key);
-        if (layout == null) {
-            layout = buildLayout(text, availWidth, paint, maxLines);
-            sLayoutCache.put(key, layout);
-        }
-        return layout.getLineCount() <= maxLines;
+        return fitsLines(text, 0, text.length(), availWidth, paint, maxLines);
     }
 
     private static String binarySearchTruncate(@NonNull String text, int availWidth,
@@ -228,13 +252,23 @@ final class AutoCompleteTextRenderer {
         int lo = 0, hi = text.length();
         while (lo < hi) {
             int mid = (lo + hi + 1) / 2;
-            if (fitsLines(text, 0, mid, true, availWidth, paint, maxLines)) {
+            if (fitsLines(text, 0, mid, availWidth, paint, maxLines)) {
                 lo = mid;
             } else {
                 hi = mid - 1;
             }
         }
-        return text.substring(0, lo) + "…";
+        // Never expose half of a surrogate pair.
+        if (lo > 0 && lo < text.length()
+                && Character.isHighSurrogate(text.charAt(lo - 1))
+                && Character.isLowSurrogate(text.charAt(lo))) {
+            lo--;
+        }
+        // The fade marks the cut; trailing whitespace would only add an invisible gap.
+        while (lo > 0 && Character.isWhitespace(text.charAt(lo - 1))) {
+            lo--;
+        }
+        return text.substring(0, lo);
     }
 
     private static StaticLayout buildLayout(@NonNull String text, int availWidth,
@@ -254,11 +288,5 @@ final class AutoCompleteTextRenderer {
                     Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
         }
         return layout;
-    }
-
-    private static String layoutKey(@NonNull String text, int start, int end, int tailStart,
-            int tailEnd, boolean ellipsis, int w, int maxLines) {
-        return text + "\u0000" + start + "\u0000" + end + "\u0000" + tailStart + "\u0000"
-                + tailEnd + "\u0000" + ellipsis + "\u0000" + w + "\u0000" + maxLines;
     }
 }

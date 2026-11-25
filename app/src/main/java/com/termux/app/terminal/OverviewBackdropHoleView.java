@@ -86,6 +86,12 @@ final class OverviewBackdropHoleView extends View {
         if (!geometryChanged && !fillChanged) return;
 
         if (geometryChanged) {
+            // The outline is a pure function of the rect and radius. Rebuild it here, not on
+            // every draw: most frames only change mFillAlpha.
+            mHolePath.reset();
+            if (!mHole.isEmpty() && mCornerRadius > 0f) {
+                mHolePath.addRoundRect(mHoleF, mCornerRadius, mCornerRadius, Path.Direction.CW);
+            }
             if (!mInvalidateRect.isEmpty()) invalidate(mInvalidateRect);
             if (!mHole.isEmpty()) invalidate(mHole);
         } else if (!mHole.isEmpty()) {
@@ -100,8 +106,6 @@ final class OverviewBackdropHoleView extends View {
         if (mCornerRadius <= 0f) {
             canvas.drawRect(mHoleF, mClearPaint);
         } else {
-            mHolePath.reset();
-            mHolePath.addRoundRect(mHoleF, mCornerRadius, mCornerRadius, Path.Direction.CW);
             canvas.drawPath(mHolePath, mClearPaint);
         }
         if (mFillAlpha > 0) {

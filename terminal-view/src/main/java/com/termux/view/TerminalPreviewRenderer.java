@@ -278,12 +278,17 @@ public final class TerminalPreviewRenderer {
     /**
      * Get a renderer for this font/geometry. {@link TerminalRenderer#render} resets its transient
      * paint state on entry, so instances are safe to reuse across consecutive preview passes.
+     * Renderers are stateful and this cache is used from the UI thread only; the synchronized
+     * blocks guard the map itself, not renderer mutation.
      */
     @NonNull
     private static TerminalRenderer rendererFor(float textSize, @NonNull Typeface typeface,
                                                 float cellWidth, float lineSpacing,
                                                 float ascent, boolean explicitGrid) {
-        final RendererKey key = new RendererKey(textSize, typeface,
+        // The implicit constructor rounds textSize, so normalise the key the same way or two
+        // nearly identical sizes share one renderer under two keys.
+        final float keyTextSize = explicitGrid ? textSize : Math.round(textSize);
+        final RendererKey key = new RendererKey(keyTextSize, typeface,
                 cellWidth, lineSpacing, ascent, explicitGrid);
         synchronized (sRendererCache) {
             final TerminalRenderer cached = sRendererCache.get(key);

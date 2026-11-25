@@ -42,8 +42,8 @@ final class FloatingShadow {
     }
 
     /**
-     * Elevation of an overview card's hover/lift shadow: four times the floating controls' shadow,
-     * which is the single size used by hover, reorder-lift and swipe-to-delete alike.
+     * Elevation of an overview card's hover/lift shadow: four times the floating controls' shadow.
+     * This one size is used by hover, reorder-lift and swipe-to-delete alike.
      */
     static int overviewCardElevationPx(@NonNull Resources res) {
         return elevationPx(res) * 4;
@@ -83,10 +83,11 @@ final class FloatingShadow {
         view.setOutlineSpotShadowColor(shadowColor);
     }
 
-    /** Scale a shadow colour's alpha, leaving its RGB and the elevation untouched. */
+    /** Scale a shadow colour's alpha, leaving its RGB, elevation and outline untouched. */
     static int withAlphaFraction(int color, float fraction) {
         final float f = Math.max(0f, Math.min(1f, fraction));
         final int alpha = Math.round(Color.alpha(color) * f);
         return (alpha << 24) | (color & 0x00FFFFFF);
     }
+
 }

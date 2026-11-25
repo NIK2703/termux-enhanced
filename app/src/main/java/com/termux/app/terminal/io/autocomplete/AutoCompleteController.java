@@ -8,7 +8,6 @@ import android.content.res.Resources;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.SpannableString;
-import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
@@ -28,6 +27,7 @@ import java.util.HashSet;
 import com.termux.R;
 import com.termux.app.TermuxActivityUtils;
 import com.termux.app.terminal.TermuxColorSchemeManager;
+import com.termux.app.terminal.TextFade;
 import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 
 /**
@@ -1167,7 +1167,9 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         tv.setPadding(mPopupItemPadHPx, mPopupItemPadVPx, mPopupItemPadHPx, mPopupItemPadVPx);
         tv.setMaxLines(2);
-        tv.setEllipsize(TextUtils.TruncateAt.END); // backup; text already fits 2 lines
+        // The renderer fades the cut edges itself; a platform ellipsis would be a second,
+        // different truncation style.
+        TextFade.applyFadeContract(tv);
         tv.setClickable(true);
     }
 
@@ -1190,7 +1192,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         }
 
         // TextView's ellipsis is unreliable for maxLines > 1 on API 21-28, so rows
-        // truncate at a word boundary and append their own trailing ellipsis.
+        // cut the text themselves and fade the cut edges instead of appending "...".
         // The hot path uses the cached bases; the 3-arg overload falls back to live text.
         final boolean fullRow = candidate != null && candidate.kind == SuggestionEngine.Kind.FULL;
         final String typed;
