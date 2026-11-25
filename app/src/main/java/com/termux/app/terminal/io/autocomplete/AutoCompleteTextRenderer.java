@@ -120,10 +120,12 @@ final class AutoCompleteTextRenderer {
     /**
      * Build the display {@link SpannableString} for an auto-complete suggestion.
      *
-     * <p>When the match starts mid-word, only the last three letters of the typed word are
-     * kept and faded in; the omitted words are not replaced by {@code "... "}. When the text
-     * is too tall for {@code maxLines}, the tail is cut and its last three visible code points
-     * fade out, exactly like a truncated tab title.</p>
+     * <p>When the match starts mid-word, only the last three letters of the truncated word
+     * are kept and faded in; the omitted words are not replaced by {@code "... "}. While the
+     * next word is being typed, that word stays readable and the previous word is the one
+     * reduced to its last three letters. When the text is too tall for {@code maxLines}, the
+     * tail is cut and its last three visible code points fade out, exactly like a truncated
+     * tab title.</p>
      *
      * <p>Manual truncation instead of {@code TextView.setEllipsize(END)}: on Android (API 21-28
      * in particular) {@code ellipsize=end} is only reliably honored for single-line text — with
@@ -151,17 +153,57 @@ final class AutoCompleteTextRenderer {
         final int wordStart = Math.min(inputWordStart, displaySuggestion.length());
 
         // The last typed word ends at the input end, but trailing separators are not
-        // part of it. The visible text keeps only its final three code points.
+        // part of it.
         int lastWordEnd = Math.min(matchStr.length(), displaySuggestion.length());
         while (lastWordEnd > wordStart
                 && isWordSeparator(matchStr.charAt(lastWordEnd - 1))) {
             lastWordEnd--;
         }
-        final int lastWordLen = Math.max(0, lastWordEnd - wordStart);
-        final int visibleStart = wordStart > 0
-                ? wordStart + Math.max(0, lastWordLen - TextFade.FADE_CHARS)
-                : 0;
-        final int visibleWordLen = Math.max(0, lastWordEnd - visibleStart);
+
+        // If the suggestion keeps going inside the word the user is typing, that word must
+        // stay readable: fade the tail of the previous word instead and put the typed word
+        // to its right. A completed word is truncated the usual way.
+        int suggestionWordEnd = wordStart;
+        while (suggestionWordEnd < displaySuggestion.length()
+                && !isWordSeparator(displaySuggestion.charAt(suggestionWordEnd))) {
+            suggestionWordEnd++;
+        }
+        final boolean midWord = suggestionWordEnd > lastWordEnd;
+
+        int visibleStart;
+        int fadeEnd;
+        int boldStart;
+        int boldEnd;
+        if (midWord && wordStart > 0) {
+            int prevEnd = wordStart;
+            while (prevEnd > 0 && isWordSeparator(matchStr.charAt(prevEnd - 1))) {
+                prevEnd--;
+            }
+            final int prevStart = wordStartOffset(matchStr.substring(0, prevEnd));
+            final int prevLen = prevEnd - prevStart;
+            if (prevLen > 0) {
+                visibleStart = prevStart + Math.max(0, prevLen - TextFade.FADE_CHARS);
+                fadeEnd = prevEnd - visibleStart;
+                boldStart = wordStart - visibleStart;
+                boldEnd = lastWordEnd - visibleStart;
+            } else {
+                visibleStart = 0;
+                fadeEnd = 0;
+                boldStart = 0;
+                boldEnd = lastWordEnd;
+            }
+        } else if (wordStart > 0) {
+            final int lastWordLen = lastWordEnd - wordStart;
+            visibleStart = wordStart + Math.max(0, lastWordLen - TextFade.FADE_CHARS);
+            fadeEnd = lastWordEnd - visibleStart;
+            boldStart = 0;
+            boldEnd = fadeEnd;
+        } else {
+            visibleStart = 0;
+            fadeEnd = 0;
+            boldStart = 0;
+            boldEnd = lastWordEnd;
+        }
 
         final String raw = displaySuggestion.substring(visibleStart);
         final String displayText;
@@ -180,20 +222,21 @@ final class AutoCompleteTextRenderer {
         }
 
         SpannableString ss = new SpannableString(displayText);
-        // The kept part of the typed word fades in from the left, mirroring the faded
+        // The kept tail of the truncated word fades in from the left, mirroring the faded
         // tail of a truncated tab title.
-        if (wordStart > 0 && visibleWordLen > 0) {
-            TextFade.fadeHead(ss, 0, Math.min(visibleWordLen, displayText.length()));
+        if (fadeEnd > 0) {
+            TextFade.fadeHead(ss, 0, Math.min(fadeEnd, displayText.length()));
         }
         // A manual end cut has no ellipsis; its last visible letters fade out.
         if (displayText.length() < raw.length()) {
             TextFade.fadeTail(ss, displayText.length());
         }
 
-        final int boldEnd = Math.min(visibleWordLen, displayText.length());
-        if (boldEnd > 0
+        final int boldFrom = Math.min(boldStart, displayText.length());
+        final int boldTo = Math.min(boldEnd, displayText.length());
+        if (boldTo > boldFrom
                 && displaySuggestion.regionMatches(true, 0, matchStr, 0, matchStr.length())) {
-            ss.setSpan(BOLD_SPAN, 0, boldEnd, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+            ss.setSpan(BOLD_SPAN, boldFrom, boldTo, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return ss;
     }

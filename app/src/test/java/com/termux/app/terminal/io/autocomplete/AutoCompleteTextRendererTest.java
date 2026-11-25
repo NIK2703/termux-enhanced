@@ -74,21 +74,22 @@ public class AutoCompleteTextRendererTest {
     }
 
     @Test
-    public void leadingCutFadesOnlyTheVisiblePartOfAShortWord() {
+    public void whileTypingAShortWordThePreviousWordIsShownFadedToItsLeft() {
         TextPaint paint = paint();
         SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
                 "git hello", "git he", 0, paint);
 
-        assertEquals("hello", rendered.toString());
+        assertEquals("git hello", rendered.toString());
         StyleSpan bold = boldSpan(rendered);
         assertNotNull(bold);
-        assertEquals(0, rendered.getSpanStart(bold));
-        assertEquals(2, rendered.getSpanEnd(bold));
+        assertEquals(4, rendered.getSpanStart(bold));
+        assertEquals(6, rendered.getSpanEnd(bold));
 
         List<FadeSpan> fades = fades(rendered);
-        assertEquals(2, fades.size());
+        assertEquals(3, fades.size());
         assertFade(fades.get(0), 0, 1, 64);
         assertFade(fades.get(1), 1, 2, 128);
+        assertFade(fades.get(2), 2, 3, 191);
     }
 
     @Test
@@ -111,12 +112,45 @@ public class AutoCompleteTextRendererTest {
     }
 
     @Test
+    public void whileTypingTheNextWordThePreviousWordIsTruncatedToItsLeft() {
+        TextPaint paint = paint();
+        SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "git checkout main", "git checkout ma", 0, paint);
+
+        // "checkout" is reduced to "out" and faded; the typed "ma" stays intact and bold.
+        assertEquals("out main", rendered.toString());
+        List<FadeSpan> fades = fades(rendered);
+        assertEquals(3, fades.size());
+        assertFade(fades.get(0), 0, 1, 64);
+        assertFade(fades.get(1), 1, 2, 128);
+        assertFade(fades.get(2), 2, 3, 191);
+
+        StyleSpan bold = boldSpan(rendered);
+        assertNotNull(bold);
+        assertEquals(4, rendered.getSpanStart(bold));
+        assertEquals(6, rendered.getSpanEnd(bold));
+    }
+
+    @Test
+    public void whileTypingTheNextWordOneLetterStillShowsThePreviousWord() {
+        TextPaint paint = paint();
+        SpannableString rendered = AutoCompleteTextRenderer.buildSuggestionSpannable(
+                "git checkout main", "git checkout m", 0, paint);
+
+        assertEquals("out main", rendered.toString());
+        StyleSpan bold = boldSpan(rendered);
+        assertNotNull(bold);
+        assertEquals(4, rendered.getSpanStart(bold));
+        assertEquals(5, rendered.getSpanEnd(bold));
+    }
+
+    @Test
     public void fadeRangeChangeResetsTheRowEvenWhenTextAndBoldMatch() {
         TextPaint paint = paint();
         SpannableString one = AutoCompleteTextRenderer.buildSuggestionSpannable(
-                "helloworld", "git h", 0, paint);
+                "git hello", "git h", 0, paint);
         SpannableString two = AutoCompleteTextRenderer.buildSuggestionSpannable(
-                "helloworld", "git he", 0, paint);
+                "git hello", "git he", 0, paint);
 
         assertEquals(one.toString(), two.toString());
         assertFalse(AutoCompleteTextRenderer.sameRendering(one, two));
