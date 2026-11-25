@@ -26,6 +26,7 @@ import androidx.annotation.Nullable;
 public final class TopCropImageView extends ImageView {
 
     private final Matrix mScaleMatrix = new Matrix();
+    private boolean mSkipClipBounds;
 
     public TopCropImageView(Context context) {
         this(context, null);
@@ -46,10 +47,25 @@ public final class TopCropImageView extends ImageView {
         updateScaleMatrix();
     }
 
+    /**
+     * Disable the explicit clip rectangle and rely on {@code clipToOutline} alone. Needed when a
+     * flight ghost must cast an elevation shadow: {@code setClipBounds} clips the shadow to the
+     * view's own bounds, hiding everything outside it.
+     */
+    void setSkipClipBounds(boolean skip) {
+        if (mSkipClipBounds == skip) return;
+        mSkipClipBounds = skip;
+        if (skip) setClipBounds(null);
+        else if (getWidth() > 0 && getHeight() > 0) {
+            setClipBounds(new Rect(0, 0, getWidth(), getHeight()));
+        }
+    }
+
     @Override
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
-        setClipBounds(width > 0 && height > 0 ? new Rect(0, 0, width, height) : null);
+        setClipBounds(!mSkipClipBounds && width > 0 && height > 0
+                ? new Rect(0, 0, width, height) : null);
         updateScaleMatrix();
     }
 

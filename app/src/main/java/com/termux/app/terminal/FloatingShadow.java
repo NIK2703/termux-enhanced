@@ -73,9 +73,20 @@ final class FloatingShadow {
     static void apply(@Nullable View view, int elevationPx, int shadowColor) {
         if (view == null) return;
         view.setElevation(elevationPx);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            view.setOutlineAmbientShadowColor(shadowColor);
-            view.setOutlineSpotShadowColor(shadowColor);
-        }
+        setShadowColors(view, shadowColor);
+    }
+
+    /** Only the colour, so a flight can fade an existing shadow without changing its geometry. */
+    static void setShadowColors(@Nullable View view, int shadowColor) {
+        if (view == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
+        view.setOutlineAmbientShadowColor(shadowColor);
+        view.setOutlineSpotShadowColor(shadowColor);
+    }
+
+    /** Scale a shadow colour's alpha, leaving its RGB and the elevation untouched. */
+    static int withAlphaFraction(int color, float fraction) {
+        final float f = Math.max(0f, Math.min(1f, fraction));
+        final int alpha = Math.round(Color.alpha(color) * f);
+        return (alpha << 24) | (color & 0x00FFFFFF);
     }
 }

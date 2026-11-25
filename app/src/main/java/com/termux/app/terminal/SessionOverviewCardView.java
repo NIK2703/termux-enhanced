@@ -6,7 +6,6 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.os.Build;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.HapticFeedbackConstants;
@@ -132,10 +131,12 @@ public class SessionOverviewCardView extends FrameLayout {
      */
     public void setHoverShadow(int elevationPx, int color) {
         mHoverElevationPx = elevationPx;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            setOutlineAmbientShadowColor(color);
-            setOutlineSpotShadowColor(color);
-        }
+        setShadowColor(color);
+    }
+
+    /** Change only the shadow colour, e.g. to fade a lift during a flight. */
+    void setShadowColor(int color) {
+        FloatingShadow.setShadowColors(this, color);
     }
 
     public boolean isHoverHighlighted() {

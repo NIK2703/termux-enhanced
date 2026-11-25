@@ -177,6 +177,8 @@ public final class SessionOverviewController {
     private static final float OVERVIEW_BACKDROP_HANDOFF = 0.12f;
     /** How quickly a closing ghost that inherited a hover lift returns to full opacity. */
     private static final float HOVER_LIFT_HANDOFF_FRACTION = 0.25f;
+    /** The inherited hover shadow reaches zero alpha halfway through the expansion. */
+    private static final float HOVER_SHADOW_FADE_FRACTION = 0.5f;
 
     /** Same tick as the overview-opening gesture, defined once in {@link TabPanelLayout}. */
     private static final int HOVER_FEEDBACK = TabPanelLayout.OVERVIEW_GESTURE_FEEDBACK;
@@ -2606,6 +2608,10 @@ public final class SessionOverviewController {
                 cardStart, terminalTarget);
         if (startOverride != null) {
             transition.startAlpha = FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA;
+            final android.content.res.Resources res = mActivity.getResources();
+            transition.startElevationPx = FloatingShadow.overviewCardElevationPx(res);
+            transition.shadowColor = FloatingShadow.overviewCardShadowColor(
+                    res, mActivity.isCachedSchemeLight());
         }
         if (!installClosingVisuals(transition)) {
             recycleBitmap(bitmap);
@@ -2640,6 +2646,14 @@ public final class SessionOverviewController {
                 transition.card.thumbnailCornerRadius);
         ghost.setOutlineProvider(transition.terminalOutline);
         ghost.setClipToOutline(true);
+        // The hover shadow transfers to the ghost so it does not vanish the moment the card's
+        // preview is hidden. applyClosingProgress fades it out with the expansion.
+        if (transition.startAlpha < 1f) {
+            // clipBounds would clip the elevation shadow to the bitmap rectangle; the rounded
+            // outline already clips the scaled image, so let the shadow render outside it.
+            ghost.setSkipClipBounds(true);
+            FloatingShadow.apply(ghost, transition.startElevationPx, transition.shadowColor);
+        }
         layoutTerminalGhost(ghost, transition.cardStartLocal);
 
         mGhostLayer.addView(ghost);
@@ -2701,7 +2715,13 @@ public final class SessionOverviewController {
             // rect, so the thumbnail keeps the same coupled motion as every other visible card.
             // Cards with no visible thumbnail stay out of the flight and only fade out.
             if (visibleLocalRect(card.preview, origin) == null) continue;
-            final Rect startBounds = localRect(card.tab, origin);
+            // A card selected from the opening gesture is still lifted. Its tab ghost must start
+            // from the enlarged, moved pill the finger was actually hovering, not the layout slot.
+            final boolean lifted = card == transition.card && transition.startAlpha < 1f;
+            final float scale = lifted ? card.root.getScaleX() : 1f;
+            final Rect startBounds = lifted
+                    ? visualChildRect(card, card.tab, origin)
+                    : localRect(card.tab, origin);
             if (startBounds == null || startBounds.isEmpty()) continue;
 
             final View targetTab = tabs.findTabForSession(card.session);
@@ -2740,24 +2760,28 @@ public final class SessionOverviewController {
             // The card title and the strip title both include font padding; keeping it here
             // avoids a baseline jump when the ghost lands.
             ghost.setIncludeFontPadding(true);
-            ghost.setLineSpacing(card.tab.getLineSpacingExtra(),
+            ghost.setLineSpacing(card.tab.getLineSpacingExtra() * scale,
                     card.tab.getLineSpacingMultiplier());
             ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             ghost.setFullTitle(card.fullTitle);
-            ghost.setTextSize(TypedValue.COMPLEX_UNIT_PX, card.tab.getTextSize());
+            ghost.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                    card.tab.getTextSize() * scale);
             ghost.setTextColor(card.tab.getCurrentTextColor());
             ghost.setPaintFlags(targetTitle != null
                     ? targetTitle.getPaintFlags() : card.tab.getPaintFlags());
             final Typeface targetTypeface = targetTitle != null
                     ? targetTitle.getTypeface() : card.tab.getTypeface();
             if (targetTypeface != null) ghost.setTypeface(targetTypeface);
-            ghost.setPaddingRelative(card.tab.getPaddingStart(), card.tab.getPaddingTop(),
-                    card.tab.getPaddingEnd(), card.tab.getPaddingBottom());
+            ghost.setPaddingRelative(
+                    Math.round(card.tab.getPaddingStart() * scale),
+                    Math.round(card.tab.getPaddingTop() * scale),
+                    Math.round(card.tab.getPaddingEnd() * scale),
+                    Math.round(card.tab.getPaddingBottom() * scale));
 
             final GradientDrawable background = new GradientDrawable();
             background.setShape(GradientDrawable.RECTANGLE);
             background.setColor(card.tabBackgroundColor);
-            background.setCornerRadius(mTabCornerRadius);
+            background.setCornerRadius(mTabCornerRadius * scale);
             ghost.setBackground(background);
             ghost.setLayoutParams(frameParams(startBounds));
             // Keep the returning tab above the expanding terminal for the whole flight.
@@ -2777,7 +2801,9 @@ public final class SessionOverviewController {
             final int targetPadEnd = targetTab.getPaddingEnd() + closeFootprint;
             final int targetPadBottom = targetTab.getPaddingBottom();
 
-            final Rect startCloseBounds = localRect(card.close, origin);
+            final Rect startCloseBounds = lifted
+                    ? visualChildRect(card, card.close, origin)
+                    : localRect(card.close, origin);
             final int startCloseTint = card.textColor;
             ImageView closeGhost = null;
             // Only the selected strip tab has a close cross to fly to. A card whose target tab
@@ -2789,6 +2815,10 @@ public final class SessionOverviewController {
                 closeGhost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
                 closeGhost.setImageResource(R.drawable.ic_close);
                 closeGhost.setImageTintList(ColorStateList.valueOf(startCloseTint));
+                if (lifted) {
+                    closeGhost.setScaleX(scale);
+                    closeGhost.setScaleY(scale);
+                }
                 closeGhost.setAlpha(0.7f);
                 closeGhost.setImportantForAccessibility(
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -2882,10 +2912,10 @@ public final class SessionOverviewController {
                 && transition.terminalGhost.getHeight() > 0;
         if (terminalGhostReady) applyClosingCardAlpha(p);
 
-        // Read the preview without the card's temporary translation (when a cancel restores it)
-        // so the expansion always starts in the resting grid slot.
-        final Rect start = cardChildTarget(
-                transition.card, transition.card.preview, origin);
+        // Use the rect captured when the selection began. A hovered card freezes its lifted
+        // visual size there; re-reading the layout slot would snap the flight back to the
+        // unscaled thumbnail on the very first frame.
+        final Rect start = transition.cardStartLocal;
         final Rect target = closingTerminalTarget(origin, transition.terminalTargetLocal);
         Rect hole = null;
         float holeCornerRadius = 0f;
@@ -2928,6 +2958,21 @@ public final class SessionOverviewController {
                 ? Math.max(transition.startAlpha, inheritedAlpha) : 0f;
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setAlpha(ghostAlpha);
+        }
+        if (transition.startAlpha < 1f) {
+            // Fade the shadow's colour alpha, not its elevation: the lift stays the same size
+            // while the card grows, so the shadow follows the ghost and reaches zero opacity
+            // exactly at the end. Only the final frame drops the Z itself.
+            final float shadowFade = 1f - SessionOverviewTransitionMath.clamp01(
+                    p / HOVER_SHADOW_FADE_FRACTION);
+            final int fadedColor = FloatingShadow.withAlphaFraction(
+                    transition.shadowColor, shadowFade);
+            transition.card.root.setShadowColor(fadedColor);
+            if (transition.terminalGhost != null) {
+                FloatingShadow.setShadowColors(transition.terminalGhost, fadedColor);
+            }
+            // Elevation and outline stay untouched for the whole flight: only the colour's alpha
+            // changes. The Z is reset in cleanup, when the shadow is already fully transparent.
         }
 
         final float previewAlpha = terminalGhostReady
@@ -3068,6 +3113,8 @@ public final class SessionOverviewController {
                 ghost.closeGhost.setLayoutParams(frameParams(targetClose));
                 ghost.closeGhost.setImageTintList(
                         ColorStateList.valueOf(ghost.targetCloseTint));
+                ghost.closeGhost.setScaleX(1f);
+                ghost.closeGhost.setScaleY(1f);
                 ghost.closeTargetApplied = true;
             }
         }
@@ -3141,6 +3188,10 @@ public final class SessionOverviewController {
             card.root.setTranslationY(0f);
         }
         if (mGrid != null) mGrid.setAlpha(1f);
+        // A hovered card was frozen in its lifted transform; a cancelled hand-off must restore it.
+        transition.card.root.setScaleX(1f);
+        transition.card.root.setScaleY(1f);
+        transition.card.root.setTranslationZ(0f);
         setCardOutlineSuppressed(transition.card, false);
         transition.card.tab.setAlpha(transition.tabBaseAlpha);
         transition.card.close.setAlpha(transition.closeBaseAlpha);
@@ -3388,25 +3439,33 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Current on-screen rect of a card's preview, including the scale applied by the hover lift.
-     * View locations are unscaled layout positions, so the root's centre is used as the pivot.
+     * Current on-screen rect of a card's preview, including the hover scale.
+     *
+     * <p>{@link View#getLocationInWindow(int[])} already maps the view's origin through its
+     * ancestors' transforms, so the top-left is lifted. Only the layout width/height still need
+     * the scale applied; scaling the mapped rect a second time would overshoot.</p>
      */
     @Nullable
     private Rect visualPreviewRect(@NonNull Card card) {
         final int[] origin = contentOrigin();
-        if (origin == null) return null;
-        final Rect preview = localRect(card.preview, origin);
-        final Rect root = localRect(card.root, origin);
-        if (preview == null || root == null || preview.isEmpty() || root.isEmpty()) return null;
-        final float scale = card.root.getScaleX();
-        if (scale <= 0f) return new Rect(preview);
-        final float centerX = (root.left + root.right) / 2f;
-        final float centerY = (root.top + root.bottom) / 2f;
-        return new Rect(
-                Math.round(centerX + (preview.left - centerX) * scale),
-                Math.round(centerY + (preview.top - centerY) * scale),
-                Math.round(centerX + (preview.right - centerX) * scale),
-                Math.round(centerY + (preview.bottom - centerY) * scale));
+        return origin == null ? null : visualChildRect(card, card.preview, origin);
+    }
+
+    /** On-screen rect of a card child, including the root's hover scale. */
+    @Nullable
+    private Rect visualChildRect(@NonNull Card card, @NonNull View child,
+                                 @NonNull int[] origin) {
+        if (!child.isAttachedToWindow() || child.getWidth() <= 0
+                || child.getHeight() <= 0) return null;
+        final int[] location = new int[2];
+        child.getLocationInWindow(location);
+        final float scaleX = card.root.getScaleX();
+        final float scaleY = card.root.getScaleY();
+        final int left = location[0] - origin[0];
+        final int top = location[1] - origin[1];
+        return new Rect(left, top,
+                left + Math.round(child.getWidth() * scaleX),
+                top + Math.round(child.getHeight() * scaleY));
     }
 
     /** Topmost card whose preview contains the given screen point, or null. */
@@ -4401,6 +4460,9 @@ public final class SessionOverviewController {
         boolean started;
         /** Opacity the ghost inherits from a hovered (lifted) card; 1 for a normal tap. */
         float startAlpha = 1f;
+        /** Hover shadow handed to the ghost and faded out across the expansion. */
+        int startElevationPx;
+        int shadowColor;
         float tabBaseAlpha;
         float closeBaseAlpha;
 
