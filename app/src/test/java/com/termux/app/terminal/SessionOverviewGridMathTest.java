@@ -39,12 +39,11 @@ public class SessionOverviewGridMathTest {
                     if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
                         Assert.assertFalse(layout.isScrollable());
                         Assert.assertTrue(layout.gridHeight <= height);
-                        Assert.assertEquals(0, layout.top);
-                        Assert.assertTrue(layout.top + layout.gridHeight <= height);
+                        Assert.assertEquals(layout.gap, layout.top);
                     } else {
                         Assert.assertTrue(layout.isScrollable());
                         Assert.assertTrue(layout.gridHeight > height);
-                        Assert.assertEquals(0, layout.top);
+                        Assert.assertEquals(layout.gap, layout.top);
                     }
                 }
             }
@@ -79,7 +78,7 @@ public class SessionOverviewGridMathTest {
     }
 
     @Test
-    public void bottomEdgeGapMatchesTheInterCardGap() {
+    public void topAndBottomEdgeGapsMatchTheInterCardGap() {
         for (int count = 1; count <= 8; count++) {
             for (int width : WIDTHS) {
                 for (int height : HEIGHTS) {
@@ -91,10 +90,11 @@ public class SessionOverviewGridMathTest {
                     final int lastRowBottom = layout.top
                             + lastRow * (layout.cardHeight + layout.gap)
                             + layout.cardHeight;
+                    Assert.assertEquals(layout.gap, layout.top);
                     Assert.assertEquals(layout.gap, layout.gridHeight - lastRowBottom);
 
                     if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
-                        // The bottom gap is part of the visible viewport, not an extra scroll
+                        // Both outer gaps are part of the visible viewport, not extra scroll
                         // range that only appears after the user pulls the grid.
                         Assert.assertTrue(layout.gridHeight <= layout.availableHeight);
                         Assert.assertTrue(lastRowBottom
@@ -117,7 +117,7 @@ public class SessionOverviewGridMathTest {
         Assert.assertEquals(2, five.columns);
         Assert.assertEquals(3, five.rows);
         Assert.assertTrue(five.gridHeight > five.availableHeight);
-        Assert.assertEquals(0, five.top);
+        Assert.assertEquals(five.gap, five.top);
         Assert.assertFalse(four.isScrollable());
         Assert.assertTrue(five.isScrollable());
     }

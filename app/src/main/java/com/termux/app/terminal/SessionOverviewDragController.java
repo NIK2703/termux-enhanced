@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.ViewPropertyAnimator;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -256,6 +257,7 @@ final class SessionOverviewDragController {
         disallowIntercept(card, true);
         card.addOnLayoutChangeListener(mCardLayoutListener);
         card.animate().cancel();
+        card.restoreShadowColor();
         card.animate()
                 .scaleX(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
                 .scaleY(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
@@ -500,6 +502,7 @@ final class SessionOverviewDragController {
         final float fromScale = card.getScaleX();
         final float fromAlpha = card.getAlpha();
         final float fromZ = card.getTranslationZ();
+        final float fromShadow = card.getShadowAlphaFraction();
         cancelDropFlight(false);
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS);
@@ -518,6 +521,7 @@ final class SessionOverviewDragController {
             card.setScaleY(1f + (fromScale - 1f) * inverse);
             card.setAlpha(1f + (fromAlpha - 1f) * inverse);
             card.setTranslationZ(fromZ * inverse);
+            card.setShadowAlphaFraction(fromShadow * inverse);
         });
         animator.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override
@@ -582,7 +586,9 @@ final class SessionOverviewDragController {
     private void settleInPlace(@NonNull SessionOverviewCardView card) {
         if (!card.isAttachedToWindow()) return;
         card.animate().cancel();
-        card.animate()
+        final float fromZ = card.getTranslationZ();
+        final float fromShadow = card.getShadowAlphaFraction();
+        final ViewPropertyAnimator animator = card.animate()
                 .translationX(0f)
                 .translationY(0f)
                 .scaleX(1f)
@@ -590,8 +596,17 @@ final class SessionOverviewDragController {
                 .alpha(1f)
                 .translationZ(0f)
                 .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
-                .setInterpolator(SessionOverviewCardView.DECELERATE)
-                .start();
+                .setInterpolator(SessionOverviewCardView.DECELERATE);
+        if (fromZ > 0f) {
+            animator.setUpdateListener(animation -> card.setShadowAlphaFraction(
+                    fromShadow * Math.max(0f,
+                            Math.min(1f, card.getTranslationZ() / fromZ))));
+            animator.withEndAction(() -> {
+                card.setTranslationZ(0f);
+                card.restoreShadowColor();
+            });
+        }
+        animator.start();
     }
 
     /**
@@ -714,7 +729,9 @@ final class SessionOverviewDragController {
                 child.setAlpha(1f);
                 child.setTranslationZ(0f);
             }
-            child.animate()
+            final float fromZ = child.getTranslationZ();
+            final float fromShadow = child.getShadowAlphaFraction();
+            final ViewPropertyAnimator animator = child.animate()
                     .translationX(0f)
                     .translationY(0f)
                     .scaleX(1f)
@@ -722,8 +739,17 @@ final class SessionOverviewDragController {
                     .alpha(1f)
                     .translationZ(0f)
                     .setDuration(TermuxAppConstants.Overview.SETTLE_DURATION_MS)
-                    .setInterpolator(SessionOverviewCardView.DECELERATE)
-                    .start();
+                    .setInterpolator(SessionOverviewCardView.DECELERATE);
+            if (fromZ > 0f) {
+                animator.setUpdateListener(animation -> child.setShadowAlphaFraction(
+                        fromShadow * Math.max(0f,
+                                Math.min(1f, child.getTranslationZ() / fromZ))));
+                animator.withEndAction(() -> {
+                    child.setTranslationZ(0f);
+                    child.restoreShadowColor();
+                });
+            }
+            animator.start();
         }
 
         // The animations run independently from here on. A new long-press needs at least the

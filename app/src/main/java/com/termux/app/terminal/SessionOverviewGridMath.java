@@ -36,11 +36,12 @@ public final class SessionOverviewGridMath {
         public final int cardHeight;
         public final int gridWidth;
         /**
-         * Total content height, including the gap below the last row; may be larger than
-         * {@link #availableHeight}.
+         * Total content height, including the gaps above the first row and below the last row;
+         * may be larger than {@link #availableHeight}.
          */
         public final int gridHeight;
         public final int left;
+        /** Offset of the first row from the content top; equal to the outer gutter. */
         public final int top;
         public final int emptySlots;
 
@@ -93,7 +94,7 @@ public final class SessionOverviewGridMath {
         final int totalRows = Math.max(visibleRows, (sessionCount + columns - 1) / columns);
         final int effectiveGap = Math.max(1, safeGap);
         if (safeWidth <= effectiveGap * (columns + 1)
-                || safeHeight <= effectiveGap * visibleRows
+                || safeHeight <= effectiveGap * (visibleRows + 1)
                 || cardWidth <= 0 || cardHeight <= 0) {
             return new Layout(sessionCount, columns, totalRows, effectiveGap,
                     safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
@@ -124,12 +125,15 @@ public final class SessionOverviewGridMath {
         // grow taller than the viewport by taking a larger gap from the width arithmetic.
         final int gap = safeGap;
         final int gridWidth = cardsWidth + gap * (columns - 1);
-        final int gridHeight = totalRows * cardHeight + gap * totalRows;
+        // Equal gutters above the first row and below the last row. The top gutter is also the
+        // offset of the first row; gridHeight includes both outer gutters so it remains the
+        // full content height the scroll view needs.
+        final int gridHeight = totalRows * cardHeight + gap * (totalRows + 1);
         final int slack = Math.max(0, safeWidth - gridWidth);
         final int left = slack / 2;
         return new Layout(sessionCount, columns, totalRows, gap,
                 safeWidth, safeHeight, cardWidth, cardHeight,
-                gridWidth, gridHeight, left, 0);
+                gridWidth, gridHeight, left, gap);
     }
 
     /**
@@ -148,10 +152,9 @@ public final class SessionOverviewGridMath {
      *
      * <p>The card size is based on the two visible rows, not on the total row count. Adding a
      * fifth session therefore adds a scrollable row instead of shrinking every card. The block is
-     * horizontally centered but pinned to the top of the viewport: a short grid starts at the
-     * first available pixel below the status bar instead of floating in the middle of the
-     * window. The last row keeps one gap below it, the same size as the gap between cards, so a
-     * height-limited grid never ends flush with the bottom edge.</p>
+     * horizontally centered and keeps the same gap above the first row as below the last one.
+     * Both outer gutters match the gap between cards, so a short grid neither starts flush with
+     * the status bar nor ends flush with the bottom edge.</p>
      *
      * @param sessionCount number of live sessions; values below 1 produce an empty layout
      * @param availableWidth measured content width, excluding padding
@@ -181,10 +184,10 @@ public final class SessionOverviewGridMath {
         // between two thumbnails; when height caps the cards, the remaining width is split
         // evenly so both gutters stay equal and at least one gap wide.
         final int totalGapX = effectiveGap * (columns + 1);
-        // Reserve the gap between the two visible rows and one gap below the second row. The
-        // bottom gap matches the inter-card gap and keeps the last row off the screen edge when
-        // height limits the cards; the top edge stays pinned below the status bar.
-        final int totalGapYVisible = effectiveGap * visibleRows;
+        // Reserve one gap above the first visible row, one between the rows and one below the
+        // second row. All three match the inter-card gap, so the grid has the same breathing
+        // room at the top and the bottom when height limits the cards.
+        final int totalGapYVisible = effectiveGap * (visibleRows + 1);
 
         if (safeWidth <= 0 || safeHeight <= 0
                 || safeWidth <= totalGapX || safeHeight <= totalGapYVisible) {

@@ -50,6 +50,10 @@ public class SessionOverviewCardView extends FrameLayout {
     private final Paint mBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** System elevation used only while this card is the drop target of the opening gesture. */
     private float mHoverElevationPx;
+    /** Full-opacity hover shadow colour; only its alpha is animated while the card lands. */
+    private int mHoverShadowColor;
+    /** Current fraction of {@link #mHoverShadowColor}, 1 at rest and 0 when fully faded. */
+    private float mShadowAlphaFraction = 1f;
     private boolean mHoverHighlighted;
     @Nullable
     private ValueAnimator mHoverAnimator;
@@ -105,6 +109,11 @@ public class SessionOverviewCardView extends FrameLayout {
         view.setScaleY(1f);
         view.setAlpha(1f);
         view.setTranslationZ(0f);
+        if (view instanceof SessionOverviewCardView) {
+            // Z is already zero, so restoring the colour cannot make a shadow visible. It just
+            // makes the next lift start from the full hover shadow instead of a faded one.
+            ((SessionOverviewCardView) view).restoreShadowColor();
+        }
     }
 
     /**
@@ -163,12 +172,41 @@ public class SessionOverviewCardView extends FrameLayout {
      */
     public void setHoverShadow(int elevationPx, int color) {
         mHoverElevationPx = elevationPx;
+        mHoverShadowColor = color;
+        mShadowAlphaFraction = 1f;
         setShadowColor(color);
     }
 
     /** Change only the shadow colour, e.g. to fade a lift during a flight. */
     void setShadowColor(int color) {
         FloatingShadow.setShadowColors(this, color);
+    }
+
+    /**
+     * Fade the elevation shadow without touching the card's own alpha or the terminal preview.
+     * On API 28+ the shadow colours carry an independent alpha; below that the platform ignores
+     * the colour and the card still relies on the Z animation alone.
+     */
+    void setShadowAlphaFraction(float fraction) {
+        final float clamped = Math.max(0f, Math.min(1f, fraction));
+        if (mShadowAlphaFraction == clamped) return;
+        mShadowAlphaFraction = clamped;
+        if (mHoverElevationPx <= 0f) return;
+        setShadowColor(FloatingShadow.withAlphaFraction(mHoverShadowColor, clamped));
+    }
+
+    /** Current shadow-alpha fraction, used by the reorder controller to continue a fade. */
+    float getShadowAlphaFraction() {
+        return mShadowAlphaFraction;
+    }
+
+    /**
+     * Put the full hover colour back. Call only when Z is already zero; otherwise the shadow
+     * would pop back at full strength.
+     */
+    void restoreShadowColor() {
+        mShadowAlphaFraction = 1f;
+        if (mHoverElevationPx > 0f) setShadowColor(mHoverShadowColor);
     }
 
     public boolean isHoverHighlighted() {
@@ -203,9 +241,12 @@ public class SessionOverviewCardView extends FrameLayout {
                 ? FloatingShadow.OVERVIEW_CARD_LIFT_SCALE : 1f;
         final float targetAlpha = highlighted
                 ? FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA : 1f;
+        final float targetShadow = highlighted ? 1f : 0f;
+        if (highlighted) restoreShadowColor();
         final float fromZ = getTranslationZ();
         final float fromScale = getScaleX();
         final float fromAlpha = getAlpha();
+        final float fromShadow = mShadowAlphaFraction;
         mHoverAnimator = ValueAnimator.ofFloat(0f, 1f);
         mHoverAnimator.setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS);
         mHoverAnimator.setInterpolator(DECELERATE);
@@ -216,6 +257,8 @@ public class SessionOverviewCardView extends FrameLayout {
             setScaleX(scale);
             setScaleY(scale);
             setAlpha(fromAlpha + (targetAlpha - fromAlpha) * fraction);
+            setShadowAlphaFraction(
+                    fromShadow + (targetShadow - fromShadow) * fraction);
         });
         mHoverAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -225,6 +268,9 @@ public class SessionOverviewCardView extends FrameLayout {
                 setScaleX(targetScale);
                 setScaleY(targetScale);
                 setAlpha(targetAlpha);
+                // Z is zero on the way out, so restoring the full colour here cannot pop the
+                // shadow back into view; it only prepares the next lift.
+                restoreShadowColor();
             }
         });
         mHoverAnimator.start();
@@ -366,10 +412,14 @@ public class SessionOverviewCardView extends FrameLayout {
                 ? mHoverElevationPx
                 : FloatingShadow.overviewCardElevationPx(getResources());
         animate().cancel();
+        // The drag owns alpha from the first movement: updateDrag() maps horizontal distance
+        // to opacity. Animating alpha here as well would keep overwriting that value until the
+        // lift finished, so the card only started fading after the full lift.
+        setAlpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA);
+        restoreShadowColor();
         animate()
                 .scaleX(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
                 .scaleY(FloatingShadow.OVERVIEW_CARD_LIFT_SCALE)
-                .alpha(FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA)
                 .translationZ(liftZ)
                 .setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS)
                 .setInterpolator(DECELERATE)
@@ -420,6 +470,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float toTranslation = direction
                 * (getWidth() + FloatingShadow.overviewCardElevationPx(getResources()) * 2f);
         final float fromAlpha = getAlpha();
+        final float fromShadow = mShadowAlphaFraction;
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(DISMISS_DURATION_MS);
         animator.setInterpolator(DECELERATE);
@@ -427,6 +478,9 @@ public class SessionOverviewCardView extends FrameLayout {
             final float progress = (float) animation.getAnimatedValue();
             setTranslationX(fromTranslation + (toTranslation - fromTranslation) * progress);
             setAlpha(fromAlpha + (0f - fromAlpha) * progress);
+            // The card leaves instead of landing, but its shadow must not stay behind at full
+            // strength while the card itself becomes transparent.
+            setShadowAlphaFraction(fromShadow * (1f - progress));
         });
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -454,6 +508,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float fromAlpha = getAlpha();
         final float fromZ = getTranslationZ();
         final float fromScale = getScaleX();
+        final float fromShadow = mShadowAlphaFraction;
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(RETURN_DURATION_MS);
         animator.setInterpolator(DECELERATE);
@@ -463,6 +518,7 @@ public class SessionOverviewCardView extends FrameLayout {
             setAlpha(fromAlpha + (1f - fromAlpha) * progress);
             // Fade the lift out with the same curve as the hover highlight, not in one frame.
             setTranslationZ(fromZ * (1f - progress));
+            setShadowAlphaFraction(fromShadow * (1f - progress));
             final float scale = 1f + (fromScale - 1f) * (1f - progress);
             setScaleX(scale);
             setScaleY(scale);

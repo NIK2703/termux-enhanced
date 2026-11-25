@@ -15,10 +15,11 @@ import com.termux.R;
  *
  * <p>The grid is measured from the area it is actually given, never from display metrics. It
  * therefore follows rotation, split-screen resizes, foldables and any density without a separate
- * configuration path. The block is horizontally centered and pinned below the status bar, not
- * vertically centered in the window. A fifth session adds another row below the viewport; the
- * surrounding {@link SessionOverviewScrollView} makes those rows reachable. Empty slots are left
- * at the end and are not clickable because no view is created for them.</p>
+ * configuration path. The block is horizontally centered and keeps the same gap above the first
+ * row as below the last one, rather than being vertically centered in the window. A fifth session
+ * adds another row below the viewport; the surrounding {@link SessionOverviewScrollView} makes
+ * those rows reachable. Empty slots are left at the end and are not clickable because no view is
+ * created for them.</p>
  */
 public class SessionOverviewGridView extends ViewGroup {
 
@@ -130,7 +131,7 @@ public class SessionOverviewGridView extends ViewGroup {
         final int maxWidth = Math.max(0,
                 (availableWidth - mGapPx * (columns + 1)) / columns);
         final int maxHeight = Math.max(0,
-                (availableHeight - mGapPx * visibleRows) / visibleRows);
+                (availableHeight - mGapPx * (visibleRows + 1)) / visibleRows);
         return new int[]{maxWidth, maxHeight};
     }
 
@@ -286,9 +287,9 @@ public class SessionOverviewGridView extends ViewGroup {
             getChildAt(i).measure(childWidthSpec, childHeightSpec);
         }
 
-        // For up to four sessions the grid fits the viewport and the 2x2 block sits at the top,
-        // with one gap below the last row. More sessions make it taller than the viewport, which
-        // is the scroll range; the same bottom gap is the last thing the user can scroll to.
+        // For up to four sessions the grid fits the viewport with equal gaps above the first row
+        // and below the last one. More sessions make it taller than the viewport, which is the
+        // scroll range; the same bottom gap is the last thing the user can scroll to.
         final int contentHeight = mLayout.gridHeight + getPaddingTop() + getPaddingBottom();
         final int desiredHeight = Math.max(contentHeight, viewportHeight);
         final int measuredHeight;
