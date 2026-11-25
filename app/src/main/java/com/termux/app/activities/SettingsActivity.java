@@ -121,8 +121,19 @@ public class SettingsActivity extends AppCompatActivity {
      * header colour, so the band it covers needs no background of its own.
      */
     private void applyWindowStyling() {
+        applyWindowStyling(null);
+    }
+
+    /**
+     * @param newConfig the configuration being applied on a rotation, or {@code null} on creation.
+     *                  This activity handles rotation itself (see the manifest), so the mode that
+     *                  depends on orientation has to be re-decided here as well.
+     */
+    private void applyWindowStyling(@Nullable Configuration newConfig) {
         final TermuxAppSharedPreferences prefs = TermuxAppSharedPreferences.build(this, true);
-        final boolean fullScreen = prefs != null && prefs.isUsingFullScreen();
+        final Configuration config = newConfig != null ? newConfig : getResources().getConfiguration();
+        final boolean isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE;
+        final boolean fullScreen = prefs != null && prefs.shouldUseFullScreen(isLandscape);
 
         DisplayCutoutUtils.allowWindowIntoCutout(getWindow());
 
@@ -142,6 +153,12 @@ public class SettingsActivity extends AppCompatActivity {
 
         if (mCutoutInsetsListener != null)
             mCutoutInsetsListener.setExtend(prefs != null && prefs.isExtendIntoCutout());
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applyWindowStyling(newConfig);
     }
 
     @Override

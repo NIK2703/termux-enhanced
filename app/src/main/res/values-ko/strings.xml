@@ -172,6 +172,7 @@
     <string name="termux_tab_height_mode_title">탭 높이</string>
     <string name="termux_tab_height_mode_single">한 줄</string>
     <string name="termux_tab_height_mode_double">두 줄</string>
+    <string name="termux_tab_height_mode_double_landscape_single">두 줄, 가로 방향에서는 한 줄</string>
     <string name="termux_tab_panel_position_title">탭 패널 위치</string>
     <string name="termux_tab_panel_position_top">위</string>
     <string name="termux_tab_panel_position_bottom">아래</string>
@@ -280,6 +281,7 @@
     <string name="extra_keys_visibility_title">추가 버튼 패널 표시</string>
     <string name="extra_keys_visibility_always">항상 표시</string>
     <string name="extra_keys_visibility_keyboard">키보드가 열릴 때만</string>
+    <string name="extra_keys_visibility_keyboard_landscape">항상 표시, 가로 방향에서는 키보드가 열려 있을 때만</string>
     <string name="extra_keys_visibility_never">표시 안 함</string>
 
     
@@ -393,6 +395,9 @@
 
     
     <string name="fullscreen_title">전체 화면</string>
+    <string name="fullscreen_mode_entry_off">사용 안 함</string>
+    <string name="fullscreen_mode_entry_landscape">가로 방향에서 사용</string>
+    <string name="fullscreen_mode_entry_on">사용</string>
     <string name="extend_into_cutout_title">노치 영역 확장</string>
     <string name="bubble_on_background_title">백그라운드에서 버블</string>
     <string name="bubble_on_background_summary">앱이 백그라운드로 전환되면 다른 앱 위에서 터미널에 빠르게 접근할 수 있도록 버블을 표시합니다</string>

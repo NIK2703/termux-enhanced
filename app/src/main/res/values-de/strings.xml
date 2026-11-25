@@ -159,6 +159,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_tab_height_mode_title">Tabhöhe</string>
     <string name="termux_tab_height_mode_single">Eine Zeile</string>
     <string name="termux_tab_height_mode_double">Zwei Zeilen</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Zwei Zeilen, eine Zeile im Querformat</string>
     <string name="termux_tab_panel_position_title">Position der Tableiste</string>
     <string name="termux_tab_panel_position_top">Oben</string>
     <string name="termux_tab_panel_position_bottom">Unten</string>
@@ -277,6 +278,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_visibility_title">Zusatztastenleiste anzeigen</string>
     <string name="extra_keys_visibility_always">Immer</string>
     <string name="extra_keys_visibility_keyboard">Nur bei geöffneter Tastatur</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Immer, nur bei geöffneter Tastatur im Querformat</string>
     <string name="extra_keys_visibility_never">Nie</string>
 
     
@@ -405,6 +407,9 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="terminal_onclick_url_open_title">Links durch Antippen öffnen</string>
 
     <string name="fullscreen_title">Vollbildmodus</string>
+    <string name="fullscreen_mode_entry_off">Deaktivieren</string>
+    <string name="fullscreen_mode_entry_landscape">Im Querformat aktivieren</string>
+    <string name="fullscreen_mode_entry_on">Aktivieren</string>
     <string name="extend_into_cutout_title">In den Displayausschnitt erweitern</string>
     <string name="bubble_on_background_title">Blase im Hintergrund</string>
     <string name="bubble_on_background_summary">Beim Wechsel in den Hintergrund eine Blase für den schnellen Zugriff auf das Terminal über anderen Apps anzeigen</string>

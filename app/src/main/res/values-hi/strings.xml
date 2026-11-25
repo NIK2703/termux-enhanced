@@ -189,6 +189,7 @@
     <string name="termux_tab_height_mode_title">टैब ऊँचाई</string>
     <string name="termux_tab_height_mode_single">एक लाइन</string>
     <string name="termux_tab_height_mode_double">दो लाइनें</string>
+    <string name="termux_tab_height_mode_double_landscape_single">दो पंक्तियाँ, लैंडस्केप ओरिएंटेशन में एक पंक्ति</string>
     <string name="termux_tab_panel_position_title">टैब पैनल स्थिति</string>
     <string name="termux_tab_panel_position_top">शीर्ष</string>
     <string name="termux_tab_panel_position_bottom">नीचे</string>
@@ -279,6 +280,7 @@
     <string name="extra_keys_visibility_title">अतिरिक्त बटन पैनल दिखाएँ</string>
     <string name="extra_keys_visibility_always">हमेशा</string>
     <string name="extra_keys_visibility_keyboard">केवल जब कीबोर्ड खुला हो</string>
+    <string name="extra_keys_visibility_keyboard_landscape">हमेशा, केवल लैंडस्केप ओरिएंटेशन में कीबोर्ड खुला होने पर</string>
     <string name="extra_keys_visibility_never">कभी नहीं</string>
 
     
@@ -384,6 +386,9 @@
     <string name="scroll_on_new_output_title">नए आउटपुट पर स्क्रॉल करें</string>
     <string name="terminal_onclick_url_open_title">टैप पर URL खोलें</string>
     <string name="fullscreen_title">पूर्ण स्क्रीन</string>
+    <string name="fullscreen_mode_entry_off">अक्षम करें</string>
+    <string name="fullscreen_mode_entry_landscape">लैंडस्केप ओरिएंटेशन में सक्षम करें</string>
+    <string name="fullscreen_mode_entry_on">सक्षम करें</string>
     <string name="extend_into_cutout_title">कटआउट में विस्तार करें</string>
     <string name="bubble_on_background_title">पृष्ठभूमि में बबल</string>
     <string name="bubble_on_background_summary">ऐप के पृष्ठभूमि में जाने पर अन्य ऐप्स के ऊपर टर्मिनल तक त्वरित पहुँच के लिए बबल दिखाएँ</string>

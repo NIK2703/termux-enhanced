@@ -240,6 +240,10 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
      */
     private boolean mWallpaperThemeApplied = false;
 
+    /** Last fullscreen flag state applied to this window, so a rotation that does not cross the
+     *  landscape boundary does not touch the window flags again. */
+    private boolean mFullScreenApplied = false;
+
     /**
      * Registered {@code WindowManager#addCrossWindowBlurEnabledListener} callback (API 31+),
      * {@code null} when not registered. The system disables cross-window blur at runtime —
@@ -419,6 +423,18 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     // Tracks the last known IME (soft keyboard) visibility so we can react to it
     // being hidden while the text input panel is open.
     private boolean mSoftKeyboardVisible = false;
+
+    /**
+     * Orientation from the most recent configuration dispatch, or
+     * {@link Configuration#ORIENTATION_UNDEFINED} before the first one.
+     *
+     * <p>Callbacks that run after {@link #onConfigurationChanged(Configuration)} (the IME
+     * detector, focus changes, styling reloads) do not receive the new configuration. Reading
+     * the decor bounds in those callbacks returned the previous orientation until the next
+     * layout pass, which made the landscape-aware settings act one rotation late. The last
+     * dispatched value is stable for the whole transition.</p>
+     */
+    private int mLastConfigurationOrientation = Configuration.ORIENTATION_UNDEFINED;
 
     /** IME visibility as reported by {@link WindowInsetsCompat.Type#ime()} (insets method).
      *  AUTHORITY over the visible-frame method on API 30+ (see {@link #computeImeVisibility()}),
@@ -898,6 +914,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
         super.onCreate(savedInstanceState);
 
+        mLastConfigurationOrientation = getResources().getConfiguration().orientation;
+
         setContentView(R.layout.activity_termux);
 
 if (!TermuxInstaller.isBootstrapInstalled(this)) {
@@ -1109,13 +1127,23 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        // Remember it before super or any callback below can re-enter the activity: later calls
+        // without a Configuration must not fall back to decor bounds from the old orientation.
+        mLastConfigurationOrientation = newConfig.orientation;
         super.onConfigurationChanged(newConfig);
         // The overview reads each emulator's actual grid and the current viewport, so there is
         // no remembered terminal height to reset here. keyboardHidden is one of this activity's
         // configChanges, which is why the layout listener keeps the fallback height current.
         updateExtraKeysCompaction(newConfig);
+        // "Fullscreen in landscape" flips with the same rotation, and there is no recreate here.
+        setFullScreenFlags(newConfig);
+        // The landscape-aware tab-height mode flips here too. Pass the dispatched configuration:
+        // the activity's resources can still describe the previous orientation at this point.
+        applyTabHeightMode(newConfig);
         // Rotation and split-screen resize arrive without a recreate, so the strip is re-decided.
-        applyExtraKeysToKeyboardVisibility();
+        // The new configuration is passed so the landscape-aware visibility mode does not read a
+        // decor view that has not been laid out in the new orientation yet.
+        applyExtraKeysToKeyboardVisibility(isTextInputVisible(), newConfig);
         // A font-scale or density change can leave the card size unchanged while the preview
         // font changes; the grid listener only sees geometry, so ask for a fresh snapshot too.
         if (mSessionOverviewController != null)
@@ -1252,6 +1280,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // while this window was not in front) would otherwise stay invisible for the rest of the
         // session. Idempotent — it returns immediately when the panel already matches.
         updateExtraKeysCompaction();
+        // Fullscreen can have been rotated (or changed in Settings) while this window was away.
+        setFullScreenFlags();
 
         // Snapshot the remembered focus target BEFORE the terminal view client runs.
         // mTermuxTerminalViewClient.onResume() -> setSoftKeyboardState() calls
@@ -2502,11 +2532,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             if (hidePanel) {
                 setTextInputVisible(false);
                 // When the keyboard is also being hidden and the extra keys panel
-                // is tied to the keyboard ("hide extra keys when keyboard hidden"),
-                // collapse the extra keys panel directly so we don't briefly flash
+                // is tied to the keyboard (the keyboard-only mode, or the landscape-aware
+                // mode in landscape), collapse the extra keys panel directly so we don't briefly flash
                 // them on screen before the IME-visibility signal catches up. The
                 // panel and keyboard are dismissed in one go.
-                if (hideKeyboard && mPreferences.shouldHideExtraKeysWithKeyboard()
+                if (hideKeyboard && shouldHideExtraKeysWithKeyboardNow()
                         && mExtraKeysView != null) {
                     mExtraKeysView.setVisibility(View.GONE);
                 }
@@ -2613,33 +2643,33 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Whether the window is in landscape, i.e. wider than it is tall.
      *
-     * <p>The answer comes from a {@link Configuration} — the platform's value, the same one the rest
-     * of the app asks for (see {@code TermuxActivityUtils} and
-     * {@code ViewUtils.getDisplayOrientation}). The configuration handed to
-     * {@link #onConfigurationChanged(Configuration)} is used when there is one, the activity's own
-     * otherwise. Because this activity handles orientation and screen-size changes itself (see the
-     * manifest's {@code configChanges}), that value is refreshed on every rotation and on every
-     * window resize in split-screen or a floating window.
+     * <p>The configuration handed to {@link #onConfigurationChanged(Configuration)} is
+     * authoritative while that change is being applied. For callbacks that arrive afterwards
+     * without a configuration (IME changes, focus, styling reloads), the last dispatched
+     * orientation is used instead of the decor bounds: the decor is still sized for the previous
+     * orientation until the next layout pass, which made the landscape-aware settings react one
+     * rotation late.</p>
      *
-     * @param changedConfig the configuration being applied, or {@code null} to read the activity's.
+     * <p>The bubble is the exception. Its shape is not the display orientation, so its own decor
+     * bounds remain the right answer once it has been laid out. WindowManager metrics cannot be
+     * used for it: they are reported in the display's unrotated space.</p>
+     *
+     * @param changedConfig the configuration being applied, or {@code null} to use the last
+     *                      dispatched orientation (or the activity's configuration before the
+     *                      first dispatch).
      */
     private boolean isLandscape(@Nullable Configuration changedConfig) {
         if (changedConfig != null)
             return changedConfig.orientation == Configuration.ORIENTATION_LANDSCAPE;
 
-        // No configuration is being applied, so this is a decision the activity takes on its own
-        // initiative (creation, resume, focus). The configuration is the answer for a full-screen
-        // window, and it stays the first source. When the window has already been laid out its own
-        // size is the better one though: the question is "is the window this panel is drawn in wider
-        // than it is tall", and a floating window (the bubble) is shaped by its own bounds, which
-        // the configuration does not necessarily describe. Measured on this device:
-        // WindowManager.getCurrentWindowMetrics() reports bounds in the display's *unrotated*
-        // space, so it answers portrait on a landscape screen — the decor view's own size is in the
-        // window's space and is right for both windows. It is only consulted once it is non-zero,
-        // i.e. once the window really has been laid out; before that the configuration decides.
-        final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
-        if (decorView != null && decorView.getWidth() > 0 && decorView.getHeight() > 0)
-            return decorView.getWidth() > decorView.getHeight();
+        if (isBubbleWindow()) {
+            final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
+            if (decorView != null && decorView.getWidth() > 0 && decorView.getHeight() > 0)
+                return decorView.getWidth() > decorView.getHeight();
+        }
+
+        if (mLastConfigurationOrientation != Configuration.ORIENTATION_UNDEFINED)
+            return mLastConfigurationOrientation == Configuration.ORIENTATION_LANDSCAPE;
 
         return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
     }
@@ -2948,20 +2978,32 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Re-apply the tab height mode (single-line or two-line) to all existing tab views
-     * and to the add-tab / settings buttons in the tabs panel. Called on startup and
-     * when the user changes the setting.
+     * Re-apply the tab height mode (single-line, two-line, or two-line in portrait and
+     * single-line in landscape) to all existing tab views and to the add-tab button.
+     * Called on startup, when the user changes the setting, and on configuration changes.
      */
     public void applyTabHeightMode() {
+        applyTabHeightMode(null);
+    }
+
+    /**
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to read
+     *                      the activity's own configuration.
+     */
+    public void applyTabHeightMode(@Nullable Configuration changedConfig) {
         // Update all existing tab views via the tabs controller.
         if (mTermuxSessionTabsController != null)
-            mTermuxSessionTabsController.applyTabHeightMode();
+            mTermuxSessionTabsController.applyTabHeightMode(changedConfig);
 
-        // Also update the add-tab button height.
+        // Also update the add-tab button height. The landscape-aware mode can flip on rotation,
+        // so the decision is taken from the dispatched configuration when there is one.
         String mode = termuxPrefs()
-                .getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE, "single");
-        boolean doubleMode = "double".equals(mode);
-        int buttonSizeDp = doubleMode ? 36 : 24;
+                .getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE,
+                        TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_SINGLE);
+        Configuration configuration = changedConfig != null
+                ? changedConfig : getResources().getConfiguration();
+        boolean singleLine = TermuxSessionTabsController.isSingleLineMode(configuration, mode);
+        int buttonSizeDp = singleLine ? 24 : 36;
         float density = getResources().getDisplayMetrics().density;
         int buttonSizePx = Math.round(buttonSizeDp * density);
 
@@ -5397,6 +5439,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * store yet (see {@link #setTextInputVisible(boolean)}).
      */
     private void applyExtraKeysToKeyboardVisibility(boolean inputPanelVisible) {
+        applyExtraKeysToKeyboardVisibility(inputPanelVisible, null);
+    }
+
+    /**
+     * @param changedConfig the configuration being applied, or {@code null} to use the last
+     *                      dispatched orientation (see {@link #isLandscape(Configuration)})
+     */
+    private void applyExtraKeysToKeyboardVisibility(boolean inputPanelVisible,
+                                                    @Nullable Configuration changedConfig) {
         final LinearLayout container = getTerminalToolbarContainer();
         if (container == null || mPreferences == null) return;
 
@@ -5408,14 +5459,17 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final ExtraKeysView extraKeys = getExtraKeysView();
         if (extraKeys != null) {
             final boolean overTerminal = isTextInputPanelOverTerminal();
+            final boolean landscape = isLandscape(changedConfig);
             final boolean visible = ExtraKeysVisibilityPolicy.isExtraKeysVisible(
                 toolbarEnabled, mPreferences.shouldHideExtraKeysWithKeyboard(),
+                mPreferences.isExtraKeysKeyboardOnlyInLandscape(), landscape,
                 mSoftKeyboardVisible, inputPanelVisible, overTerminal);
             final int extraKeysVisibility = visible ? View.VISIBLE : View.GONE;
             if (extraKeys.getVisibility() != extraKeysVisibility) {
                 Logger.logDebug(LOG_TAG, "Extra keys " + (visible ? "shown" : "hidden")
                     + ": toolbar=" + toolbarEnabled
                     + ", keyboard=" + mSoftKeyboardVisible
+                    + ", landscape=" + landscape
                     + ", inputPanel=" + inputPanelVisible
                     + ", overTerminal=" + overTerminal);
                 extraKeys.setVisibility(extraKeysVisibility);
@@ -5423,6 +5477,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         }
 
         if (containerChanged) applyBottomStripAnchors();
+    }
+
+    /**
+     * Whether the extra-keys panel is tied to the soft keyboard in the current window shape.
+     * The landscape-aware mode ties it only in landscape; portrait always keeps the panel.
+     */
+    private boolean shouldHideExtraKeysWithKeyboardNow() {
+        return mPreferences.shouldHideExtraKeysWithKeyboard()
+            || (mPreferences.isExtraKeysKeyboardOnlyInLandscape() && isLandscape(null));
     }
 
     /**
@@ -5596,8 +5659,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * Capture the always-on extra-keys panel before the overview hides the live content.
      *
      * <p>Other live views are made transparent in one frame. This panel instead slides down and
-     * fades, so the overview must leave it out of that pass. Only the "always" mode is animated:
-     * in the keyboard-only mode the panel is already hidden whenever the keyboard is down, and
+     * fades, so the overview must leave it out of that pass. Only modes that keep the panel on
+     * screen without the keyboard are animated: in the keyboard-only mode, and in landscape for
+     * the landscape-aware mode, the panel is already hidden whenever the keyboard is down, so
      * there is nothing to slide away. Returns the panel that the overview now owns, or null when
      * the normal all-at-once hide should handle it.</p>
      */
@@ -5608,7 +5672,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final boolean eligible = mPreferences != null
             && ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(
                 mPreferences.shouldShowTerminalToolbar(),
-                mPreferences.shouldHideExtraKeysWithKeyboard())
+                mPreferences.shouldHideExtraKeysWithKeyboard(),
+                mPreferences.isExtraKeysKeyboardOnlyInLandscape(),
+                isLandscape(null))
             && panel != null && extraKeys != null
             && panel.getVisibility() == View.VISIBLE
             && extraKeys.getVisibility() == View.VISIBLE;
@@ -6009,20 +6075,33 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Apply or clear the fullscreen window flag according to the current
-     * {@link TermuxAppSharedProperties#isUsingFullScreen()} setting. Called on activity creation and
-     * on every styling reload so that toggling the setting takes effect immediately.
+     * Apply or clear the fullscreen window flag according to the current fullscreen mode:
+     * always on, on in landscape only, or off. Called on activity creation, on every styling
+     * reload, on resume, and on configuration changes — a rotation is the event that flips the
+     * landscape-only mode, and it does not recreate the activity.
      *
      * <p>Also applies {@link #setDisplayCutoutMode()}, which is independent of fullscreen but
      * belongs to the same styling pass.
+     *
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to use
+     *                      the activity's own configuration (see {@link #isLandscape(Configuration)}).
      */
-    private void setFullScreenFlags() {
-        if (mProperties == null) return;
-        if (mProperties.isUsingFullScreen())
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        else
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    private void setFullScreenFlags(@Nullable Configuration changedConfig) {
+        if (mPreferences == null) return;
+
+        final boolean fullScreen = mPreferences.shouldUseFullScreen(isLandscape(changedConfig));
+        if (fullScreen != mFullScreenApplied) {
+            if (fullScreen)
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            else
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            mFullScreenApplied = fullScreen;
+        }
         setDisplayCutoutMode();
+    }
+
+    private void setFullScreenFlags() {
+        setFullScreenFlags(null);
     }
 
     /**

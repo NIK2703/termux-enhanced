@@ -73,6 +73,10 @@ public final class TermuxAppConstants {
         public static final String AUTOCOMPLETE_SENTENCES_ENABLED = "autocomplete_sentences_enabled";
         public static final String DIRECTORY_HISTORY_MAX = "directory_history_max";
         public static final String TAB_HEIGHT_MODE = "tab_height_mode";
+        public static final String TAB_HEIGHT_MODE_SINGLE = "single";
+        public static final String TAB_HEIGHT_MODE_DOUBLE = "double";
+        /** Two lines in portrait, one line in landscape. */
+        public static final String TAB_HEIGHT_MODE_DOUBLE_LANDSCAPE_SINGLE = "double_landscape_single";
         public static final String TAB_PANEL_POSITION = "tab_panel_position";
         public static final String SCREEN_ORIENTATION = "screen_orientation";
         public static final String SWIPE_RIGHTMOST_NEW_TAB = "swipe_rightmost_new_tab";

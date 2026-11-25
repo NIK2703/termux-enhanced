@@ -15,11 +15,11 @@ import com.termux.R;
  *
  * <p>The grid is measured from the area it is actually given, never from display metrics. It
  * therefore follows rotation, split-screen resizes, foldables and any density without a separate
- * configuration path. The block is horizontally centered and keeps the same gap above the first
- * row as below the last one, rather than being vertically centered in the window. A fifth session
- * adds another row below the viewport; the surrounding {@link SessionOverviewScrollView} makes
- * those rows reachable. Empty slots are left at the end and are not clickable because no view is
- * created for them.</p>
+ * configuration path. The block is horizontally centered; when it is shorter than the visible
+ * viewport, the unused vertical space is split above the first row and below the last one so the
+ * cards are vertically centered too. A fifth session adds another row below the viewport; the
+ * surrounding {@link SessionOverviewScrollView} makes those rows reachable. Empty slots are left
+ * at the end and are not clickable because no view is created for them.</p>
  */
 public class SessionOverviewGridView extends ViewGroup {
 
@@ -136,13 +136,16 @@ public class SessionOverviewGridView extends ViewGroup {
     }
 
     private SessionOverviewGridMath.Layout computeLayout(int sessionCount, int availableWidth,
-                                                         int availableHeight) {
+                                                         int stableHeight, int visibleHeight) {
+        final SessionOverviewGridMath.Layout layout;
         if (mExactCardWidth > 0 && mExactCardHeight > 0) {
-            return SessionOverviewGridMath.compute(sessionCount, availableWidth,
-                    availableHeight, mGapPx, mExactCardWidth, mExactCardHeight);
+            layout = SessionOverviewGridMath.compute(sessionCount, availableWidth,
+                    stableHeight, mGapPx, mExactCardWidth, mExactCardHeight);
+        } else {
+            layout = SessionOverviewGridMath.compute(sessionCount, availableWidth,
+                    stableHeight, mGapPx, mCardAspect);
         }
-        return SessionOverviewGridMath.compute(sessionCount, availableWidth,
-                availableHeight, mGapPx, mCardAspect);
+        return SessionOverviewGridMath.recenter(layout, visibleHeight);
     }
 
     @Nullable
@@ -217,13 +220,16 @@ public class SessionOverviewGridView extends ViewGroup {
     public float[] getSlotCenters(int sessionCount) {
         if (sessionCount <= 0 || getWidth() <= 0) return null;
         final int stableHeight = Math.max(mViewportHeight, mMaxViewportHeight);
-        final int viewportHeight = stableHeight > 0 ? stableHeight : getHeight();
+        final int stableViewportHeight = stableHeight > 0 ? stableHeight : getHeight();
+        final int currentViewportHeight = mViewportHeight > 0 ? mViewportHeight : getHeight();
         final int availableWidth = Math.max(0,
                 getWidth() - getPaddingLeft() - getPaddingRight());
-        final int availableHeight = Math.max(0,
-                viewportHeight - getPaddingTop() - getPaddingBottom());
+        final int stableAvailableHeight = Math.max(0,
+                stableViewportHeight - getPaddingTop() - getPaddingBottom());
+        final int visibleAvailableHeight = Math.max(0,
+                currentViewportHeight - getPaddingTop() - getPaddingBottom());
         final SessionOverviewGridMath.Layout layout = computeLayout(
-                sessionCount, availableWidth, availableHeight);
+                sessionCount, availableWidth, stableAvailableHeight, visibleAvailableHeight);
         if (!layout.hasCards()) return null;
 
         final boolean rtl = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
@@ -274,8 +280,13 @@ public class SessionOverviewGridView extends ViewGroup {
         final int layoutViewportHeight = Math.max(viewportHeight, mMaxViewportHeight);
         final int availableHeight = Math.max(0,
                 layoutViewportHeight - getPaddingTop() - getPaddingBottom());
+        // Centring follows the height the user can actually see. Keeping the stable height here
+        // would let an old, taller viewport push the grid against the bottom edge.
+        final int visibleAvailableHeight = Math.max(0,
+                viewportHeight - getPaddingTop() - getPaddingBottom());
 
-        mLayout = computeLayout(getChildCount(), availableWidth, availableHeight);
+        mLayout = computeLayout(getChildCount(), availableWidth, availableHeight,
+                visibleAvailableHeight);
 
         final int childWidth = mLayout.cardWidth;
         final int childHeight = mLayout.cardHeight;
@@ -287,9 +298,9 @@ public class SessionOverviewGridView extends ViewGroup {
             getChildAt(i).measure(childWidthSpec, childHeightSpec);
         }
 
-        // For up to four sessions the grid fits the viewport with equal gaps above the first row
-        // and below the last one. More sessions make it taller than the viewport, which is the
-        // scroll range; the same bottom gap is the last thing the user can scroll to.
+        // For up to four sessions the grid is shorter than the viewport and is centred by
+        // Layout.top. More sessions make it taller than the viewport, which is the scroll range;
+        // the outer bottom gutter is the last thing the user can scroll to.
         final int contentHeight = mLayout.gridHeight + getPaddingTop() + getPaddingBottom();
         final int desiredHeight = Math.max(contentHeight, viewportHeight);
         final int measuredHeight;

@@ -12,8 +12,8 @@ import androidx.annotation.NonNull;
  * Shared alpha-fade truncation used by tab titles, auto-complete rows and history popups.
  *
  * <p>Instead of an ellipsis, the characters at a cut edge are drawn with decreasing
- * opacity: the outermost visible character keeps 25%, the next 50%, the third 75%.
- * Everything further in stays opaque.</p>
+ * opacity. A tail cut keeps 25%, 50%, 75% from the edge inward; a head cut is softer at
+ * 15%, 30%, 45%. Everything further in stays opaque.</p>
  */
 public final class TextFade {
 
@@ -31,12 +31,22 @@ public final class TextFade {
         view.setHorizontallyScrolling(false);
     }
 
-    /** Alpha for a character {@code step} code points from a cut edge (1 = outermost). */
+    /** Alpha for a character {@code step} code points from the tail cut (1 = outermost). */
     public static int alphaForStep(int step) {
         switch (step) {
             case 1: return 64;   // 25%
             case 2: return 128;  // 50%
             case 3: return 191;  // 75%
+            default: return 255;
+        }
+    }
+
+    /** Alpha for a character {@code step} code points from the head cut (1 = outermost). */
+    public static int headAlphaForStep(int step) {
+        switch (step) {
+            case 1: return 38;   // 15%
+            case 2: return 77;   // 30%
+            case 3: return 115;  // 45%
             default: return 255;
         }
     }
@@ -77,7 +87,7 @@ public final class TextFade {
             if (first == '\n' || first == '\r') break;
             if (!Character.isWhitespace(first) && !Character.isSpaceChar(first)) {
                 faded++;
-                text.setSpan(new AlphaSpan(alphaForStep(faded)),
+                text.setSpan(new AlphaSpan(headAlphaForStep(faded)),
                         spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
             spanStart = spanEnd;

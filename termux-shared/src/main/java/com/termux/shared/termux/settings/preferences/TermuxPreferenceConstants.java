@@ -197,6 +197,13 @@ public final class TermuxPreferenceConstants {
         public static final boolean DEFAULT_VALUE_HIDE_EXTRA_KEYS_WITH_KEYBOARD = true;
 
         /**
+         * Defines the key for whether extra keys should always be shown in portrait orientation but
+         * only while the soft keyboard is open in landscape orientation.
+         */
+        public static final String KEY_EXTRA_KEYS_KEYBOARD_LANDSCAPE = "extra_keys_keyboard_landscape";
+        public static final boolean DEFAULT_VALUE_EXTRA_KEYS_KEYBOARD_LANDSCAPE = false;
+
+        /**
          * Defines the key for the maximum number of auto-complete suggestions to show
          * in the text input popup, based on message history. Range 1-10, default 4.
          */
@@ -368,8 +375,26 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_USE_CTRL_SPACE_WORKAROUND = "ctrl-space-workaround";
         public static final boolean DEFAULT_VALUE_USE_CTRL_SPACE_WORKAROUND = false;
 
+        /** Legacy boolean key. Still read as a fallback (and written by {@code setFullScreen}) so
+         *  existing installs and older callers keep working. */
         public static final String KEY_USE_FULLSCREEN = "fullscreen";
         public static final boolean DEFAULT_VALUE_USE_FULLSCREEN = false;
+
+        /**
+         * Fullscreen mode:
+         * <ul>
+         *   <li>{@link #FULLSCREEN_MODE_OFF} — never hide the system bars;</li>
+         *   <li>{@link #FULLSCREEN_MODE_LANDSCAPE} — hide them only while the window is landscape;</li>
+         *   <li>{@link #FULLSCREEN_MODE_ON} — always hide them.</li>
+         * </ul>
+         * Supersedes {@link #KEY_USE_FULLSCREEN}; the boolean is only a fallback when no mode has
+         * been picked yet.
+         */
+        public static final String KEY_FULLSCREEN_MODE = "fullscreen-mode";
+        public static final String FULLSCREEN_MODE_OFF = "off";
+        public static final String FULLSCREEN_MODE_LANDSCAPE = "landscape";
+        public static final String FULLSCREEN_MODE_ON = "on";
+        public static final String DEFAULT_VALUE_FULLSCREEN_MODE = FULLSCREEN_MODE_OFF;
 
         /**
          * Whether the terminal content, not just the window, may be laid out in the display cutout.

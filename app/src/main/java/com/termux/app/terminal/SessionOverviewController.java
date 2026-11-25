@@ -1010,6 +1010,11 @@ public final class SessionOverviewController {
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null
                 || mClosingCardAnimation != null) return;
 
+        // Apply the target profile now, while the overview still hides the panel. Doing it at
+        // selection time also lets the following layout pass size the panel before the closing
+        // flight captures the terminal's final bounds, so the flight lands on the new profile.
+        prepareExtraKeysForSelectedSession(session);
+
         // A tap can land while the opening flight is still in the air. Land that flight first:
         // the closing expansion must start from the grid's final card geometry, not from a ghost
         // that is still shrinking into the card.
@@ -1052,12 +1057,18 @@ public final class SessionOverviewController {
         mPendingClosingCard = card;
         tabs.prepareSelectionForOverview(index, () -> {
             if (mPendingClosingCard != card || !mShowing) return;
-            mPendingClosingCard = null;
-            if (mClosingTransition != null) return;
+            if (mClosingTransition != null) {
+                mPendingClosingCard = null;
+                restoreTabSelectionToCurrentSession();
+                return;
+            }
             if (findCard(card.session) != card) {
+                // Keep the pending flag for hide() to clear so the tab highlight and the
+                // pre-applied extra-keys profile both go back to the still-current session.
                 hide(false);
                 return;
             }
+            mPendingClosingCard = null;
             beginClosingExpansion(card, liftStart);
         });
     }
@@ -1082,14 +1093,26 @@ public final class SessionOverviewController {
         restoreTabSelectionToCurrentSession();
     }
 
-    /** Put the highlighted tab and strip scroll back on the session that is still current. */
+    /** Put the highlighted tab, strip scroll and extra-keys profile back on the current session. */
     private void restoreTabSelectionToCurrentSession() {
+        final TermuxTerminalSessionActivityClient client = mActivity.getTermuxTerminalSessionClient();
+        if (client != null) client.cancelSessionExtraKeysForOverview();
         final TermuxService service = mActivity.getTermuxService();
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         final TerminalSession current = mActivity.getCurrentSession();
         if (service == null || tabs == null || current == null) return;
         final int index = service.getIndexOfSession(current);
         if (index >= 0) tabs.restoreSelectionForOverview(index);
+    }
+
+    /**
+     * Apply the selected session's extra-keys profile while the overview still hides the panel.
+     * The profile is installed at selection time so it is already current when the panel slides
+     * back in with the expanding terminal, and so the closing flight measures the final height.
+     */
+    private void prepareExtraKeysForSelectedSession(@NonNull TerminalSession session) {
+        TermuxTerminalSessionActivityClient client = mActivity.getTermuxTerminalSessionClient();
+        if (client != null) client.prepareSessionExtraKeysForOverview(session);
     }
 
     private void switchToSession(@NonNull TerminalSession session) {
@@ -2123,9 +2146,42 @@ public final class SessionOverviewController {
         transition.tabFlightsInstalled = true;
     }
 
+    /**
+     * Align a ghost's text insets with the laid-out content rect of the title it represents.
+     *
+     * <p>The strip title is a child of the pill with its own measured width; the ghost is one
+     * text view whose padding must reproduce that width. Deriving the insets from the child's
+     * real left and right edges also covers RTL and a close button whose margin changed.</p>
+     */
+    private static void applyTitleInsets(@NonNull TextView ghost, @NonNull View tab,
+                                         @Nullable TextView title,
+                                         int fallbackLeft, int fallbackTop,
+                                         int fallbackRight, int fallbackBottom) {
+        final int left;
+        final int right;
+        if (title != null && tab.getWidth() > 0 && title.getWidth() > 0) {
+            left = Math.max(0, title.getLeft());
+            right = Math.max(0, tab.getWidth() - title.getRight());
+        } else {
+            left = fallbackLeft;
+            right = fallbackRight;
+        }
+        ghost.setPadding(left, fallbackTop, right, fallbackBottom);
+    }
+
+    /** Borrow the already-rendered title so line breaks cannot drift at the same pill width. */
+    private static void copyRenderedTitle(@NonNull SessionOverviewTabTitleView ghost,
+                                          @Nullable TextView source) {
+        if (source == null) return;
+        if (source.getText() != null) ghost.setPreRenderedTitle(source.getText());
+        ghost.setLineSpacing(source.getLineSpacingExtra(), source.getLineSpacingMultiplier());
+        if (source.getTypeface() != null) ghost.setTypeface(source.getTypeface());
+    }
+
     /** Create the pill and close-cross ghosts for one strip tab that is part of the flight. */
     private void addOpeningTabGhost(@NonNull Transition transition, @NonNull SourceTab source,
                                     @NonNull Card card, @NonNull int[] origin) {
+        final TextView sourceTitle = source.tabView.findViewById(R.id.session_tab_title);
         final SessionOverviewTabTitleView ghost =
                 new SessionOverviewTabTitleView(mActivity);
         ghost.setMaxLines(card.tab.getMaxLines());
@@ -2134,8 +2190,6 @@ public final class SessionOverviewController {
         // shifts the baseline on the first and last frame, which reads as the tab jumping
         // even though its bounds are continuous.
         ghost.setIncludeFontPadding(true);
-        ghost.setLineSpacing(card.tab.getLineSpacingExtra(),
-                card.tab.getLineSpacingMultiplier());
         ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         ghost.setFullTitle(card.fullTitle);
         ghost.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, source.textSize);
@@ -2144,6 +2198,12 @@ public final class SessionOverviewController {
         if (source.typeface != null) ghost.setTypeface(source.typeface);
         ghost.setPaddingRelative(source.padStart, source.padTop,
                 source.padEnd, source.padBottom);
+        applyTitleInsets(ghost, source.tabView, sourceTitle,
+                ghost.getPaddingLeft(), ghost.getPaddingTop(),
+                ghost.getPaddingRight(), ghost.getPaddingBottom());
+        // The source half of the flight must show exactly the strip's wraps. Borrowing the
+        // rendered text avoids a second soft-break decision for the same outer width.
+        copyRenderedTitle(ghost, sourceTitle != null ? sourceTitle : card.tab);
 
         final GradientDrawable background = new GradientDrawable();
         background.setShape(GradientDrawable.RECTANGLE);
@@ -2456,11 +2516,11 @@ public final class SessionOverviewController {
     /**
      * Put one opening tab ghost at its final card position and style.
      *
-     * <p>This runs at most once per ghost, while the ghost is invisible. The title is rendered
-     * once for the target width instead of being rebuilt for every intermediate width. After
-     * this, the fade-in only changes the ghost's start edge, vertical centre and alpha. Returns
-     * false when the card has not been laid out yet, in which case the ghost stays invisible and
-     * the call is retried on the next frame.</p>
+     * <p>This runs at most once per ghost, while the ghost is invisible. The card's already
+     * rendered title is borrowed verbatim instead of being rebuilt for the ghost's padding or
+     * for an intermediate width. After this, the fade-in only changes the ghost's start edge,
+     * vertical centre and alpha. Returns false when the card has not been laid out yet, in which
+     * case the ghost stays invisible and the call is retried on the next frame.</p>
      */
     private boolean applyOpeningTabTarget(@NonNull TabGhost ghost, @NonNull int[] origin) {
         if (!cardTabTarget(ghost.card, origin, mScratchTargetRect)
@@ -2475,11 +2535,11 @@ public final class SessionOverviewController {
         ghost.view.setPaintFlags(finalPill.getPaintFlags());
         ghost.background.setColor(ghost.card.tabBackgroundColor);
         ghost.background.setCornerRadius(mTabCornerRadius);
-        ghost.view.setPaddingRelative(finalPill.getPaddingStart(), finalPill.getPaddingTop(),
-                finalPill.getPaddingEnd(), finalPill.getPaddingBottom());
-        // The width usually changes too, in which case onSizeChanged renders the title again.
-        // This call covers a target with the same width but a different text size or padding.
-        ghost.view.refreshTitle();
+        ghost.view.setPadding(finalPill.getPaddingLeft(), finalPill.getPaddingTop(),
+                finalPill.getPaddingRight(), finalPill.getPaddingBottom());
+        // Borrow the card's rendered title verbatim. Re-rendering the full string at the ghost's
+        // padding can choose different soft breaks even when the target pill is identical.
+        copyRenderedTitle(ghost.view, finalPill);
 
         if (ghost.closeGhost != null
                 && cardChildTarget(ghost.card, ghost.card.close, origin, mScratchCloseRect)
@@ -2839,11 +2899,17 @@ public final class SessionOverviewController {
             final Typeface targetTypeface = targetTitle != null
                     ? targetTitle.getTypeface() : card.tab.getTypeface();
             if (targetTypeface != null) ghost.setTypeface(targetTypeface);
-            ghost.setPaddingRelative(
-                    Math.round(card.tab.getPaddingStart() * scale),
+            // Physical insets mirror the card title's own content rect in both LTR and RTL.
+            ghost.setPadding(
+                    Math.round(card.tab.getPaddingLeft() * scale),
                     Math.round(card.tab.getPaddingTop() * scale),
-                    Math.round(card.tab.getPaddingEnd() * scale),
+                    Math.round(card.tab.getPaddingRight() * scale),
                     Math.round(card.tab.getPaddingBottom() * scale));
+            // The source half of the closing flight is the card itself: keep its exact wraps.
+            copyRenderedTitle(ghost, card.tab);
+            // The copied breaks stay fixed, but the lifted start scales the text and its leading.
+            ghost.setLineSpacing(card.tab.getLineSpacingExtra() * scale,
+                    card.tab.getLineSpacingMultiplier());
 
             final GradientDrawable background = new GradientDrawable();
             background.setShape(GradientDrawable.RECTANGLE);
@@ -2861,9 +2927,17 @@ public final class SessionOverviewController {
                     ? targetTitle.getCurrentTextColor() : card.tab.getCurrentTextColor();
             final int targetBackgroundColor = tabs.getTabBackgroundColor(targetTab);
             final int targetCornerRadius = tabs.getTabCornerRadiusPx();
-            final int targetPadStart = targetTab.getPaddingStart();
+            // Use the strip title's measured content rect, not the pill's start padding plus a
+            // reconstructed close footprint. The two are equal only while the close margin and
+            // all child widths are already settled; the real title is the source of truth.
+            final int targetPadStart = targetTitle != null && targetTab.getWidth() > 0
+                    && targetTitle.getWidth() > 0
+                    ? Math.max(0, targetTitle.getLeft()) : targetTab.getPaddingStart();
             final int targetPadTop = targetTab.getPaddingTop();
-            final int targetPadEnd = targetTab.getPaddingEnd() + closeFootprint;
+            final int targetPadEnd = targetTitle != null && targetTab.getWidth() > 0
+                    && targetTitle.getWidth() > 0
+                    ? Math.max(0, targetTab.getWidth() - targetTitle.getRight())
+                    : targetTab.getPaddingEnd() + closeFootprint;
             final int targetPadBottom = targetTab.getPaddingBottom();
 
             final Rect startCloseBounds = lifted
@@ -3145,9 +3219,10 @@ public final class SessionOverviewController {
     /**
      * Put one returning tab ghost at its final strip position and style.
      *
-     * <p>Like the opening target, this runs once while the ghost is invisible. The strip target
-     * is already captured, so the only per-frame work left is moving the start edge and fading
-     * while the vertical centre follows the line.</p>
+     * <p>Like the opening target, this runs once while the ghost is invisible. The strip's
+     * already rendered title is borrowed verbatim, so its line breaks are the ones the real tab
+     * will use after the hand-off. The only per-frame work left is moving the start edge and
+     * fading while the vertical centre follows the line.</p>
      */
     private boolean applyClosingTabTarget(@NonNull ClosingTabGhost ghost, @NonNull int[] origin) {
         // Use the full strip tab, not its visible intersection. The ghost may be partly
@@ -3167,9 +3242,13 @@ public final class SessionOverviewController {
         ghost.view.setPaintFlags(ghost.targetPaintFlags);
         ghost.background.setColor(ghost.targetBackgroundColor);
         ghost.background.setCornerRadius(ghost.targetCornerRadius);
-        ghost.view.setPaddingRelative(ghost.targetPadStart, ghost.targetPadTop,
+        final TextView liveTitle = ghost.targetTabView.findViewById(R.id.session_tab_title);
+        applyTitleInsets(ghost.view, ghost.targetTabView, liveTitle,
+                ghost.targetPadStart, ghost.targetPadTop,
                 ghost.targetPadEnd, ghost.targetPadBottom);
-        ghost.view.refreshTitle();
+        // Borrow the strip's rendered text so the ghost lands with exactly the same line breaks
+        // the real tab will show when the overlay is removed.
+        copyRenderedTitle(ghost.view, liveTitle);
 
         if (ghost.closeGhost != null) {
             final Rect liveClose = ghost.targetCloseView != null
@@ -3524,7 +3603,10 @@ public final class SessionOverviewController {
         final Rect preview = visualPreviewRect(card);
         if (preview == null || preview.isEmpty()) return null;
         final Resources res = mActivity.getResources();
-        return new LiftStart(preview, card.root.getScaleX(), card.root.getAlpha(),
+        // Hover-to-select only applies the 254/255 alpha step. Freeze that value explicitly so a
+        // stale alpha from an interrupted gesture cannot leak into the opening terminal flight.
+        return new LiftStart(preview, card.root.getScaleX(),
+                FloatingShadow.OVERVIEW_CARD_HOVER_ALPHA,
                 card.root.getTranslationZ(),
                 FloatingShadow.overviewCardShadowColor(res, mActivity.isCachedSchemeLight()));
     }
@@ -4538,8 +4620,10 @@ public final class SessionOverviewController {
 
     /**
      * Visual state captured from a hovered card at the instant a closing selection starts.
-     * A hover animation can still be in flight on release, so geometry and alpha must be frozen
-     * together; re-reading the live view would let the expansion start from a different scale.
+     * A hover animation can still be in flight on release, so geometry must be frozen together;
+     * re-reading the live view would let the expansion start from a different scale. Opacity is
+     * always full: hover selection does not dim the card, and the opening flight must not start
+     * from a translucent preview.
      */
     private static final class LiftStart {
         final Rect previewRect;

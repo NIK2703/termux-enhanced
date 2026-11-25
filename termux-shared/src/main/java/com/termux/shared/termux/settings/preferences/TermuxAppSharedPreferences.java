@@ -128,6 +128,19 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_HIDE_EXTRA_KEYS_WITH_KEYBOARD, value);
     }
 
+    /**
+     * Whether the extra keys are always shown in portrait orientation but only while the keyboard
+     * is open in landscape orientation.
+     */
+    public boolean isExtraKeysKeyboardOnlyInLandscape() {
+        return getBooleanByKey(TERMUX_APP.KEY_EXTRA_KEYS_KEYBOARD_LANDSCAPE,
+            TERMUX_APP.DEFAULT_VALUE_EXTRA_KEYS_KEYBOARD_LANDSCAPE);
+    }
+
+    public void setExtraKeysKeyboardOnlyInLandscape(boolean value) {
+        setGenericBoolean(TERMUX_APP.KEY_EXTRA_KEYS_KEYBOARD_LANDSCAPE, value);
+    }
+
     public boolean shouldTextInputAppendEnter() {
         return getBooleanByKey(TERMUX_APP.KEY_TEXT_INPUT_APPEND_ENTER, TERMUX_APP.DEFAULT_VALUE_TEXT_INPUT_APPEND_ENTER);
     }
@@ -616,12 +629,49 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         setGenericBoolean(TERMUX_APP.KEY_USE_CTRL_SPACE_WORKAROUND, value);
     }
 
+    /**
+     * The selected fullscreen mode. A mode explicitly picked in Settings wins; otherwise the
+     * legacy boolean is used, so installs upgraded from the old on/off switch keep their choice.
+     */
+    public String getFullScreenMode() {
+        String mode = getStringByKey(TERMUX_APP.KEY_FULLSCREEN_MODE);
+        if (TERMUX_APP.FULLSCREEN_MODE_OFF.equals(mode)
+                || TERMUX_APP.FULLSCREEN_MODE_LANDSCAPE.equals(mode)
+                || TERMUX_APP.FULLSCREEN_MODE_ON.equals(mode))
+            return mode;
+
+        if (isKeyPresentByKey(TERMUX_APP.KEY_USE_FULLSCREEN))
+            return getBooleanByKey(TERMUX_APP.KEY_USE_FULLSCREEN, TERMUX_APP.DEFAULT_VALUE_USE_FULLSCREEN)
+                ? TERMUX_APP.FULLSCREEN_MODE_ON : TERMUX_APP.FULLSCREEN_MODE_OFF;
+
+        return TERMUX_APP.DEFAULT_VALUE_FULLSCREEN_MODE;
+    }
+
+    public void setFullScreenMode(String value) {
+        final String mode;
+        if (TERMUX_APP.FULLSCREEN_MODE_LANDSCAPE.equals(value))
+            mode = TERMUX_APP.FULLSCREEN_MODE_LANDSCAPE;
+        else if (TERMUX_APP.FULLSCREEN_MODE_ON.equals(value))
+            mode = TERMUX_APP.FULLSCREEN_MODE_ON;
+        else
+            mode = TERMUX_APP.FULLSCREEN_MODE_OFF;
+        setGenericString(TERMUX_APP.KEY_FULLSCREEN_MODE, mode);
+    }
+
+    /** Whether fullscreen should be on for a window of the given orientation. */
+    public boolean shouldUseFullScreen(boolean isLandscape) {
+        String mode = getFullScreenMode();
+        return TERMUX_APP.FULLSCREEN_MODE_ON.equals(mode)
+            || (TERMUX_APP.FULLSCREEN_MODE_LANDSCAPE.equals(mode) && isLandscape);
+    }
+
+    /** Kept for callers that only care whether fullscreen is unconditionally enabled. */
     public boolean isUsingFullScreen() {
-        return getBooleanByKey(TERMUX_APP.KEY_USE_FULLSCREEN, TERMUX_APP.DEFAULT_VALUE_USE_FULLSCREEN);
+        return TERMUX_APP.FULLSCREEN_MODE_ON.equals(getFullScreenMode());
     }
 
     public void setFullScreen(boolean value) {
-        setGenericBoolean(TERMUX_APP.KEY_USE_FULLSCREEN, value);
+        setFullScreenMode(value ? TERMUX_APP.FULLSCREEN_MODE_ON : TERMUX_APP.FULLSCREEN_MODE_OFF);
     }
 
     public boolean isExtendIntoCutout() {

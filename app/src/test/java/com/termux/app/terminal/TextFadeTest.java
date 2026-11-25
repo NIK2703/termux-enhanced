@@ -48,15 +48,19 @@ public class TextFadeTest {
     }
 
     @Test
-    public void headFadeIsTheMirrorOfTheTail() {
+    public void headFadeUses15To45Percent() {
+        assertEquals(38, TextFade.headAlphaForStep(1));
+        assertEquals(77, TextFade.headAlphaForStep(2));
+        assertEquals(115, TextFade.headAlphaForStep(3));
+
         final SpannableString text = new SpannableString("abcdef");
         TextFade.fadeHead(text, 0, text.length());
 
         final List<FadeSpan> fades = fades(text);
         assertEquals(3, fades.size());
-        assertFade(fades.get(0), 0, 1, 64);
-        assertFade(fades.get(1), 1, 2, 128);
-        assertFade(fades.get(2), 2, 3, 191);
+        assertFade(fades.get(0), 0, 1, 38);
+        assertFade(fades.get(1), 1, 2, 77);
+        assertFade(fades.get(2), 2, 3, 115);
     }
 
     @Test
@@ -78,9 +82,9 @@ public class TextFadeTest {
 
         final List<FadeSpan> fades = fades(faded);
         assertEquals(3, fades.size());
-        assertFade(fades.get(0), 0, 1, 64);
-        assertFade(fades.get(1), 1, 2, 128);
-        assertFade(fades.get(2), 3, 4, 191);
+        assertFade(fades.get(0), 0, 1, 38);
+        assertFade(fades.get(1), 1, 2, 77);
+        assertFade(fades.get(2), 3, 4, 115);
     }
 
     @Test

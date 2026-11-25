@@ -250,6 +250,7 @@
     <string name="termux_tab_height_mode_title">分頁高度</string>
     <string name="termux_tab_height_mode_single">單行</string>
     <string name="termux_tab_height_mode_double">兩行</string>
+    <string name="termux_tab_height_mode_double_landscape_single">兩行，橫向時一行</string>
     <string name="termux_tab_panel_position_title">分頁面板位置</string>
     <string name="termux_tab_panel_position_top">頂部</string>
     <string name="termux_tab_panel_position_bottom">底部</string>
@@ -296,6 +297,7 @@
     <string name="extra_keys_visibility_title">顯示額外按鈕面板</string>
     <string name="extra_keys_visibility_always">總是顯示</string>
     <string name="extra_keys_visibility_keyboard">僅鍵盤開啟時</string>
+    <string name="extra_keys_visibility_keyboard_landscape">始終顯示，僅在橫向且鍵盤開啟時</string>
     <string name="extra_keys_visibility_never">從不顯示</string>
 
     
@@ -426,6 +428,9 @@
     <string name="terminal_onclick_url_open_title">輕觸開啟連結</string>
 
     <string name="fullscreen_title">全螢幕</string>
+    <string name="fullscreen_mode_entry_off">停用</string>
+    <string name="fullscreen_mode_entry_landscape">在橫向模式啟用</string>
+    <string name="fullscreen_mode_entry_on">啟用</string>
     <string name="extend_into_cutout_title">延伸至瀏海區域</string>
     <string name="bubble_on_background_title">背景氣泡</string>
     <string name="bubble_on_background_summary">進入背景時顯示氣泡，以便在其他應用程式上方快速存取終端機</string>

@@ -126,6 +126,9 @@ public final class TermuxPropertyConstants {
     /** Defines the key for whether to use fullscreen */
     public static final String KEY_USE_FULLSCREEN =  "fullscreen";
 
+    /** Defines the key for the fullscreen mode: "off", "landscape" or "on". */
+    public static final String KEY_FULLSCREEN_MODE = "fullscreen-mode";
+
     /* int */
 
     /** Defines the key for the bell behaviour */
@@ -420,6 +423,7 @@ public final class TermuxPropertyConstants {
         KEY_SHORTCUT_RENAME_SESSION,
         KEY_COLOR_SCHEME_DARK,
         KEY_COLOR_SCHEME_LIGHT,
+        KEY_FULLSCREEN_MODE,
         KEY_MONET_VARIANT,
         KEY_MONET_BACKGROUND,
         KEY_MONET_ACCENT_SOURCE,

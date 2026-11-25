@@ -246,9 +246,13 @@
             app:defaultValue="sensor"
             app:iconSpaceReserved="false" />
 
-        <SwitchPreferenceCompat
-            app:key="fullscreen"
+        <ListPreference
+            app:key="fullscreen-mode"
             app:title="@string/fullscreen_title"
+            app:useSimpleSummaryProvider="true"
+            app:entries="@array/fullscreen_mode_entries"
+            app:entryValues="@array/fullscreen_mode_values"
+            app:defaultValue="off"
             app:iconSpaceReserved="false" />
 
         <!-- The window always takes the cutout, otherwise that strip shows as a black gap. This

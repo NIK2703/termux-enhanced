@@ -90,6 +90,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     private String mLastExtraKeysSessionName;
 
     /**
+     * Session selected in the overview whose extra-keys profile was applied before the panel
+     * returned. The pager still points at the session being left, so title refreshes must keep
+     * targeting this session until {@link #onSessionPageSelected(TerminalSession)} commits the
+     * switch. Cleared on commit or when the overview selection is cancelled.
+     */
+    @Nullable
+    private TerminalSession mPendingExtraKeysSession;
+
+    /**
      * Key describing everything {@link #applyTerminalColorScheme} actually depends on:
      * night mode, the resolved colour-scheme file and the font file. When the key is unchanged the
      * (expensive) scheme application is skipped.
@@ -332,9 +341,13 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (tabs != null) tabs.refreshTabAppearance(service.getTermuxSessions());
         mActivity.onSessionOverviewTitlesChanged();
         // For unnamed sessions the (animated) title doubles as the session name for the
-        // extra-keys profile match; the reloadMap=false variant never touches disk.
-        TerminalSession current = mActivity.getCurrentSession();
-        if (current != null) applySessionExtraKeys(current, false);
+        // extra-keys profile match; the reloadMap=false variant never touches disk. While an
+        // overview selection is in flight the pager still points at the old session, but the
+        // profile already belongs to the target — keep refreshing the target's name instead of
+        // letting the old title put the panel back on the old profile.
+        TerminalSession profileSession = (mPendingExtraKeysSession != null)
+                ? mPendingExtraKeysSession : mActivity.getCurrentSession();
+        if (profileSession != null) applySessionExtraKeys(profileSession, false);
     }
 
     /**
@@ -586,6 +599,11 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     public void onSessionPageSelected(TerminalSession session) {
         if (session == null) return;
 
+        // The overview may have applied this session's profile while the panel was still hidden.
+        // The real page selection now owns the profile, including any title change that happened
+        // during the closing flight.
+        mPendingExtraKeysSession = null;
+
         // Re-apply the terminal font/color scheme after the session is attached. This is required
         // after a hot theme swap (recreate / system day-night change): the previously-attached
         // session is re-bound to a brand-new TerminalView here, and a checkForFontAndColors() that
@@ -712,6 +730,31 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
     /** Convenience overload of {@link #applySessionExtraKeys(TerminalSession, boolean)} with {@code reloadMap = true}. */
     private void applySessionExtraKeys(@NonNull TerminalSession session) {
         applySessionExtraKeys(session, true);
+    }
+
+    /**
+     * Apply a session's extra-keys profile before the overview slides the panel back in.
+     *
+     * <p>The overview moves the pager only after its closing flight, but the panel starts
+     * returning at the start of that flight. Applying here keeps the whole return on the target
+     * profile. The page is still the one being left, so the target is remembered here as well:
+     * title refreshes during the flight must not put the hidden panel back on the old profile.
+     * The real {@link #onSessionPageSelected(TerminalSession)} clears the override.</p>
+     */
+    public void prepareSessionExtraKeysForOverview(@NonNull TerminalSession session) {
+        mPendingExtraKeysSession = session;
+        applySessionExtraKeys(session, true);
+    }
+
+    /**
+     * Undo a pending overview profile when its selection is cancelled. The current session has
+     * not changed, so its profile is restored while the panel is still hidden.
+     */
+    public void cancelSessionExtraKeysForOverview() {
+        if (mPendingExtraKeysSession == null) return;
+        mPendingExtraKeysSession = null;
+        TerminalSession current = mActivity.getCurrentSession();
+        if (current != null) applySessionExtraKeys(current, false);
     }
 
     /**

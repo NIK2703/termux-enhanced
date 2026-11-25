@@ -232,6 +232,7 @@
     <string name="termux_tab_height_mode_title">Hauteur de l\'onglet</string>
     <string name="termux_tab_height_mode_single">Ligne unique</string>
     <string name="termux_tab_height_mode_double">Deux lignes</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Deux lignes, une ligne en orientation paysage</string>
     <string name="termux_tab_panel_position_title">Position du panneau d\'onglets</string>
     <string name="termux_tab_panel_position_top">Haut</string>
     <string name="termux_tab_panel_position_bottom">Bas</string>
@@ -278,6 +279,7 @@
     <string name="extra_keys_visibility_title">Afficher le panneau de boutons supplémentaires</string>
     <string name="extra_keys_visibility_always">Toujours</string>
     <string name="extra_keys_visibility_keyboard">Uniquement quand le clavier est ouvert</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Toujours, uniquement avec le clavier ouvert en orientation paysage</string>
     <string name="extra_keys_visibility_never">Jamais</string>
 
     
@@ -392,6 +394,9 @@
 
     
     <string name="fullscreen_title">Plein écran</string>
+    <string name="fullscreen_mode_entry_off">Désactiver</string>
+    <string name="fullscreen_mode_entry_landscape">Activer en orientation paysage</string>
+    <string name="fullscreen_mode_entry_on">Activer</string>
     <string name="extend_into_cutout_title">Étendre dans l\'encoche</string>
     <string name="bubble_on_background_title">Bulle en arrière-plan</string>
     <string name="bubble_on_background_summary">Afficher une bulle lorsque l’application passe en arrière-plan pour accéder rapidement au terminal par-dessus les autres applications</string>

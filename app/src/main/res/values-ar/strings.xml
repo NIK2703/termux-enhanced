@@ -189,6 +189,7 @@
     <string name="termux_tab_height_mode_title">ارتفاع علامة التبويب</string>
     <string name="termux_tab_height_mode_single">سطر واحد</string>
     <string name="termux_tab_height_mode_double">سطران</string>
+    <string name="termux_tab_height_mode_double_landscape_single">سطران، سطر واحد في الوضع الأفقي</string>
     <string name="termux_tab_panel_position_title">موضع لوحة علامات التبويب</string>
     <string name="termux_tab_panel_position_top">أعلى</string>
     <string name="termux_tab_panel_position_bottom">أسفل</string>
@@ -296,6 +297,7 @@
     <string name="extra_keys_visibility_title">إظهار لوحة الأزرار الإضافية</string>
     <string name="extra_keys_visibility_always">دائمًا</string>
     <string name="extra_keys_visibility_keyboard">فقط عند فتح لوحة المفاتيح</string>
+    <string name="extra_keys_visibility_keyboard_landscape">دائمًا، فقط عند فتح لوحة المفاتيح في الوضع الأفقي</string>
     <string name="extra_keys_visibility_never">أبدًا</string>
 
     
@@ -400,6 +402,9 @@
     <string name="scroll_on_new_output_title">التمرير التلقائي عند المخرجات الجديدة</string>
     <string name="terminal_onclick_url_open_title">فتح الروابط عند النقر</string>
     <string name="fullscreen_title">ملء الشاشة</string>
+    <string name="fullscreen_mode_entry_off">تعطيل</string>
+    <string name="fullscreen_mode_entry_landscape">تفعيل في الوضع الأفقي</string>
+    <string name="fullscreen_mode_entry_on">تفعيل</string>
     <string name="extend_into_cutout_title">الامتداد إلى فتحة الكاميرا</string>
     <string name="bubble_on_background_title">فقاعة عند الانتقال إلى الخلفية</string>
     <string name="bubble_on_background_summary">إظهار فقاعة عند انتقال التطبيق إلى الخلفية للوصول السريع إلى الطرفية فوق التطبيقات الأخرى</string>

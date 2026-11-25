@@ -223,11 +223,10 @@ public class SessionOverviewCardView extends FrameLayout {
     }
 
     /**
-     * Animate the same lift used by reorder drag and swipe-to-delete: scale, translation Z and a
-     * slight alpha loss. The alpha is what makes the system shadow visible through a translucent
-     * preview; elevation alone would only draw it outside the card and leave a hard rectangle.
-     * This is the committed behaviour: every lift parameter, including the view alpha that dims
-     * the elevation shadow, matches the last commit.
+     * Animate the selection lift: scale, translation Z and shadow fade, with a single 254/255
+     * alpha step for transparency. Horizontal swipe and long-press reorder keep the full 0.82
+     * lift dimming; hover-to-select is effectively opaque so the card that opens a terminal
+     * starts the flight without a visible fade.
      */
     public void setHoverHighlight(boolean highlighted) {
         if (mHoverHighlighted == highlighted) return;
@@ -240,7 +239,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float targetScale = highlighted
                 ? FloatingShadow.OVERVIEW_CARD_LIFT_SCALE : 1f;
         final float targetAlpha = highlighted
-                ? FloatingShadow.OVERVIEW_CARD_LIFT_ALPHA : 1f;
+                ? FloatingShadow.OVERVIEW_CARD_HOVER_ALPHA : 1f;
         final float targetShadow = highlighted ? 1f : 0f;
         if (highlighted) restoreShadowColor();
         final float fromZ = getTranslationZ();

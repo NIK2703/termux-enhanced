@@ -159,6 +159,7 @@
 <string name="termux_tab_height_mode_title">Tinggi tab</string>
 <string name="termux_tab_height_mode_single">Satu baris</string>
 <string name="termux_tab_height_mode_double">Dua baris</string>
+<string name="termux_tab_height_mode_double_landscape_single">Dua baris, satu baris dalam orientasi lanskap</string>
 <string name="termux_tab_panel_position_title">Posisi panel tab</string>
 <string name="termux_tab_panel_position_top">Atas</string>
 <string name="termux_tab_panel_position_bottom">Bawah</string>
@@ -262,6 +263,7 @@
     <string name="extra_keys_visibility_title">Tampilkan panel tombol tambahan</string>
     <string name="extra_keys_visibility_always">Selalu</string>
     <string name="extra_keys_visibility_keyboard">Hanya saat keyboard terbuka</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Selalu, hanya saat keyboard terbuka dalam orientasi lanskap</string>
     <string name="extra_keys_visibility_never">Tidak pernah</string>
 
     
@@ -402,6 +404,9 @@
 
     
     <string name="fullscreen_title">Layar penuh</string>
+    <string name="fullscreen_mode_entry_off">Nonaktifkan</string>
+    <string name="fullscreen_mode_entry_landscape">Aktifkan dalam orientasi lanskap</string>
+    <string name="fullscreen_mode_entry_on">Aktifkan</string>
     <string name="extend_into_cutout_title">Perpanjang ke area cutout</string>
     <string name="bubble_on_background_title">Gelembung di latar belakang</string>
     <string name="bubble_on_background_summary">Tampilkan gelembung saat aplikasi masuk ke latar belakang untuk akses cepat ke terminal di atas aplikasi lain</string>

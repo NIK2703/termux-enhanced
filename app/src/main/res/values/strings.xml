@@ -195,6 +195,7 @@
                 <string name="termux_tab_height_mode_title">Tab height</string>
                 <string name="termux_tab_height_mode_single">Single line</string>
                 <string name="termux_tab_height_mode_double">Two lines</string>
+                <string name="termux_tab_height_mode_double_landscape_single">Two lines, one line in landscape orientation</string>
 
                 <!-- Extra keys special button mode -->
                 <string name="extra_keys_special_button_mode_title">Special keys behavior</string>
@@ -560,6 +561,9 @@
     <string name="terminal_onclick_url_open_title">Open links on tap</string>
 
     <string name="fullscreen_title">Fullscreen</string>
+    <string name="fullscreen_mode_entry_off">Disable</string>
+    <string name="fullscreen_mode_entry_landscape">Enable in landscape orientation</string>
+    <string name="fullscreen_mode_entry_on">Enable</string>
     <string name="extend_into_cutout_title">Extend into display cutout</string>
     <string name="bubble_on_background_title">Background bubble</string>
     <string name="bubble_on_background_summary">Show a bubble when the app goes to the background for quick access to the terminal over other apps</string>
@@ -621,6 +625,7 @@
     <!-- Extra keys visibility entries -->
     <string name="extra_keys_visibility_always">Always</string>
     <string name="extra_keys_visibility_keyboard">Only when the keyboard is open</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Always, only when the keyboard is open in landscape orientation</string>
     <string name="extra_keys_visibility_never">Never</string>
 
     <!-- Extra keys editor signal entries -->

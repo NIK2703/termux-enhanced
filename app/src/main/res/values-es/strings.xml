@@ -174,6 +174,7 @@
     <string name="termux_tab_height_mode_title">Altura de la pestaña</string>
     <string name="termux_tab_height_mode_single">Una línea</string>
     <string name="termux_tab_height_mode_double">Dos líneas</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Dos líneas, una línea en orientación horizontal</string>
     <string name="termux_tab_panel_position_title">Posición del panel de pestañas</string>
     <string name="termux_tab_panel_position_top">Arriba</string>
     <string name="termux_tab_panel_position_bottom">Abajo</string>
@@ -280,6 +281,7 @@
     <string name="extra_keys_visibility_title">Mostrar panel de botones adicionales</string>
     <string name="extra_keys_visibility_always">Siempre</string>
     <string name="extra_keys_visibility_keyboard">Solo cuando el teclado está abierto</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Siempre, solo con el teclado abierto en orientación horizontal</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     
@@ -359,6 +361,9 @@
     <string name="extra_keys_editor_remove_signal">Eliminar %s</string>
     <string name="extra_keys_dynamic_font_size_title">Tamaño de fuente dinámico</string>
     <string name="fullscreen_title">Pantalla completa</string>
+    <string name="fullscreen_mode_entry_off">Desactivar</string>
+    <string name="fullscreen_mode_entry_landscape">Activar en orientación horizontal</string>
+    <string name="fullscreen_mode_entry_on">Activar</string>
     <string name="extend_into_cutout_title">Ampliar hasta la muesca</string>
     <string name="bubble_on_background_title">Burbuja en segundo plano</string>
     <string name="bubble_on_background_summary">Mostrar la burbuja cuando la aplicación pase a segundo plano para acceder rápidamente a la terminal encima de otras aplicaciones</string>

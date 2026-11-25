@@ -250,6 +250,7 @@
     <string name="termux_tab_height_mode_title">标签页高度</string>
     <string name="termux_tab_height_mode_single">单行</string>
     <string name="termux_tab_height_mode_double">两行</string>
+    <string name="termux_tab_height_mode_double_landscape_single">两行，横屏时一行</string>
     <string name="termux_tab_panel_position_title">标签页面板位置</string>
     <string name="termux_tab_panel_position_top">顶部</string>
     <string name="termux_tab_panel_position_bottom">底部</string>
@@ -296,6 +297,7 @@
     <string name="extra_keys_visibility_title">显示额外按钮面板</string>
     <string name="extra_keys_visibility_always">始终显示</string>
     <string name="extra_keys_visibility_keyboard">仅键盘打开时</string>
+    <string name="extra_keys_visibility_keyboard_landscape">始终显示，仅在横屏且键盘打开时</string>
     <string name="extra_keys_visibility_never">从不显示</string>
 
     
@@ -426,6 +428,9 @@
     <string name="terminal_onclick_url_open_title">点按打开链接</string>
 
     <string name="fullscreen_title">全屏</string>
+    <string name="fullscreen_mode_entry_off">禁用</string>
+    <string name="fullscreen_mode_entry_landscape">横屏时启用</string>
+    <string name="fullscreen_mode_entry_on">启用</string>
     <string name="extend_into_cutout_title">延伸至刘海区域</string>
     <string name="bubble_on_background_title">后台气泡</string>
     <string name="bubble_on_background_summary">进入后台时显示气泡，以便在其他应用之上快速访问终端</string>

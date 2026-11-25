@@ -53,6 +53,7 @@
     <string-array name="tab_height_mode_entries">
         <item>@string/termux_tab_height_mode_single</item>
         <item>@string/termux_tab_height_mode_double</item>
+        <item>@string/termux_tab_height_mode_double_landscape_single</item>
     </string-array>
 
     <string-array name="extra_keys_special_button_mode_entries">
@@ -113,6 +114,7 @@
     <string-array name="extra_keys_visibility_entries">
         <item>@string/extra_keys_visibility_always</item>
         <item>@string/extra_keys_visibility_keyboard</item>
+        <item>@string/extra_keys_visibility_keyboard_landscape</item>
         <item>@string/extra_keys_visibility_never</item>
     </string-array>
 

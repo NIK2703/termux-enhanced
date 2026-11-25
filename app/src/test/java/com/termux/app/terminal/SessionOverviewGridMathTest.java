@@ -39,7 +39,11 @@ public class SessionOverviewGridMathTest {
                     if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
                         Assert.assertFalse(layout.isScrollable());
                         Assert.assertTrue(layout.gridHeight <= height);
-                        Assert.assertEquals(layout.gap, layout.top);
+                        final int cardsHeight = layout.rows * layout.cardHeight
+                                + (layout.rows - 1) * layout.gap;
+                        final int bottomSpace = height - layout.top - cardsHeight;
+                        Assert.assertTrue("grid must be vertically centred",
+                                Math.abs(layout.top - bottomSpace) <= 1);
                     } else {
                         Assert.assertTrue(layout.isScrollable());
                         Assert.assertTrue(layout.gridHeight > height);
@@ -78,7 +82,7 @@ public class SessionOverviewGridMathTest {
     }
 
     @Test
-    public void topAndBottomEdgeGapsMatchTheInterCardGap() {
+    public void shortGridIsCentredAndScrollingGridKeepsItsOuterGutters() {
         for (int count = 1; count <= 8; count++) {
             for (int width : WIDTHS) {
                 for (int height : HEIGHTS) {
@@ -90,15 +94,18 @@ public class SessionOverviewGridMathTest {
                     final int lastRowBottom = layout.top
                             + lastRow * (layout.cardHeight + layout.gap)
                             + layout.cardHeight;
-                    Assert.assertEquals(layout.gap, layout.top);
                     Assert.assertEquals(layout.gap, layout.gridHeight - lastRowBottom);
 
                     if (layout.rows <= SessionOverviewGridMath.VISIBLE_ROWS) {
-                        // Both outer gaps are part of the visible viewport, not extra scroll
-                        // range that only appears after the user pulls the grid.
+                        // The remaining height is split equally, so the empty strip above the
+                        // first card matches the one below the last card.
+                        final int cardsHeight = layout.rows * layout.cardHeight
+                                + (layout.rows - 1) * layout.gap;
+                        final int bottomSpace = layout.availableHeight - layout.top - cardsHeight;
+                        Assert.assertTrue(Math.abs(layout.top - bottomSpace) <= 1);
                         Assert.assertTrue(layout.gridHeight <= layout.availableHeight);
-                        Assert.assertTrue(lastRowBottom
-                                <= layout.availableHeight - layout.gap);
+                    } else {
+                        Assert.assertEquals(layout.gap, layout.top);
                     }
                 }
             }
@@ -118,6 +125,7 @@ public class SessionOverviewGridMathTest {
         Assert.assertEquals(3, five.rows);
         Assert.assertTrue(five.gridHeight > five.availableHeight);
         Assert.assertEquals(five.gap, five.top);
+        Assert.assertTrue(four.top > four.gap);
         Assert.assertFalse(four.isScrollable());
         Assert.assertTrue(five.isScrollable());
     }
@@ -255,6 +263,30 @@ public class SessionOverviewGridMathTest {
         Assert.assertEquals(0, layout.rows);
         Assert.assertEquals(0, layout.emptySlots);
         Assert.assertFalse(layout.hasCards());
+    }
+
+    @Test
+    public void recenteringUsesTheVisibleViewportNotTheStableSizingHeight() {
+        SessionOverviewGridMath.Layout sized =
+                SessionOverviewGridMath.compute(4, 1080, 1920, 24);
+        SessionOverviewGridMath.Layout visible =
+                SessionOverviewGridMath.recenter(sized, 1000);
+
+        Assert.assertEquals(sized.cardWidth, visible.cardWidth);
+        Assert.assertEquals(sized.cardHeight, visible.cardHeight);
+        Assert.assertEquals(sized.rows, visible.rows);
+        Assert.assertEquals(sized.gap, visible.gap);
+
+        final int baseHeight = visible.rows * visible.cardHeight
+                + visible.gap * (visible.rows + 1);
+        final int expectedCentring = Math.max(0, 1000 - baseHeight) / 2;
+        Assert.assertEquals(visible.gap + expectedCentring, visible.top);
+        Assert.assertEquals(baseHeight + expectedCentring, visible.gridHeight);
+
+        SessionOverviewGridMath.Layout restored =
+                SessionOverviewGridMath.recenter(sized, 1920);
+        Assert.assertEquals(sized.top, restored.top);
+        Assert.assertEquals(sized.gridHeight, restored.gridHeight);
     }
 
     @Test

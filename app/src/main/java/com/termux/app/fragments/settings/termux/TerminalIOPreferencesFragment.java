@@ -413,7 +413,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case "extra_keys_visibility":
                 if (mPreferences == null) return "keyboard";
                 if (!mPreferences.shouldShowTerminalToolbar()) return "never";
-                return mPreferences.shouldHideExtraKeysWithKeyboard() ? "keyboard" : "always";
+                if (mPreferences.shouldHideExtraKeysWithKeyboard()) return "keyboard";
+                return mPreferences.isExtraKeysKeyboardOnlyInLandscape()
+                    ? "keyboard_landscape" : "always";
             case "text_input_action_on_send":
                 return mPreferences != null ? mPreferences.getTextInputActionOnSend() : "hide_keyboard";
             case "soft-keyboard-toggle-behaviour":
@@ -442,9 +444,15 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 } else if ("keyboard".equals(value)) {
                     mPreferences.setShowTerminalToolbar(true);
                     mPreferences.setHideExtraKeysWithKeyboard(true);
+                    mPreferences.setExtraKeysKeyboardOnlyInLandscape(false);
+                } else if ("keyboard_landscape".equals(value)) {
+                    mPreferences.setShowTerminalToolbar(true);
+                    mPreferences.setHideExtraKeysWithKeyboard(false);
+                    mPreferences.setExtraKeysKeyboardOnlyInLandscape(true);
                 } else {
                     mPreferences.setShowTerminalToolbar(true);
                     mPreferences.setHideExtraKeysWithKeyboard(false);
+                    mPreferences.setExtraKeysKeyboardOnlyInLandscape(false);
                 }
                 TermuxActivity.updateTermuxActivityStyling(mContext, true);
                 break;

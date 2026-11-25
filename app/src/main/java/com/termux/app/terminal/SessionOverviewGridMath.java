@@ -36,12 +36,14 @@ public final class SessionOverviewGridMath {
         public final int cardHeight;
         public final int gridWidth;
         /**
-         * Total content height, including the gaps above the first row and below the last row;
-         * may be larger than {@link #availableHeight}.
+         * Total content height, from the content top through the gap below the last row. When
+         * the grid is shorter than the viewport, half of the unused height is added above the
+         * first row and recorded here, so the block sits in the vertical centre. May be larger
+         * than {@link #availableHeight} once extra rows need scrolling.
          */
         public final int gridHeight;
         public final int left;
-        /** Offset of the first row from the content top; equal to the outer gutter. */
+        /** Offset of the first row from the content top, including the centring space. */
         public final int top;
         public final int emptySlots;
 
@@ -125,15 +127,39 @@ public final class SessionOverviewGridMath {
         // grow taller than the viewport by taking a larger gap from the width arithmetic.
         final int gap = safeGap;
         final int gridWidth = cardsWidth + gap * (columns - 1);
-        // Equal gutters above the first row and below the last row. The top gutter is also the
-        // offset of the first row; gridHeight includes both outer gutters so it remains the
-        // full content height the scroll view needs.
-        final int gridHeight = totalRows * cardHeight + gap * (totalRows + 1);
+        // The gutter on each side of the rows is always at least the inter-card gap. When the
+        // grid is shorter than the viewport, split the remaining height evenly: half moves the
+        // first row down, the other half stays below the last row. The scrollable content height
+        // then includes the extra top space as well, so its bottom edge still lines up.
+        final int baseHeight = totalRows * cardHeight + gap * (totalRows + 1);
+        final int centring = Math.max(0, safeHeight - baseHeight) / 2;
+        final int gridHeight = baseHeight + centring;
+        final int top = gap + centring;
         final int slack = Math.max(0, safeWidth - gridWidth);
         final int left = slack / 2;
         return new Layout(sessionCount, columns, totalRows, gap,
                 safeWidth, safeHeight, cardWidth, cardHeight,
-                gridWidth, gridHeight, left, gap);
+                gridWidth, gridHeight, left, top);
+    }
+
+    /**
+     * Recompute only the vertical placement for the viewport that is actually visible.
+     *
+     * <p>Card sizing uses the keyboard-stable height so opening the IME does not resize every
+     * thumbnail. Centring is a purely visual decision and must use the current viewport: reusing
+     * a stale larger height here pushes a short grid towards the bottom edge.</p>
+     */
+    public static Layout recenter(Layout layout, int visibleHeightPx) {
+        if (!layout.hasCards()) return layout;
+        final int baseHeight = layout.rows * layout.cardHeight
+                + layout.gap * (layout.rows + 1);
+        final int centring = Math.max(0, visibleHeightPx - baseHeight) / 2;
+        final int top = layout.gap + centring;
+        final int gridHeight = baseHeight + centring;
+        if (layout.top == top && layout.gridHeight == gridHeight) return layout;
+        return new Layout(layout.sessionCount, layout.columns, layout.rows, layout.gap,
+                layout.availableWidth, layout.availableHeight, layout.cardWidth, layout.cardHeight,
+                layout.gridWidth, gridHeight, layout.left, top);
     }
 
     /**
@@ -152,9 +178,10 @@ public final class SessionOverviewGridMath {
      *
      * <p>The card size is based on the two visible rows, not on the total row count. Adding a
      * fifth session therefore adds a scrollable row instead of shrinking every card. The block is
-     * horizontally centered and keeps the same gap above the first row as below the last one.
-     * Both outer gutters match the gap between cards, so a short grid neither starts flush with
-     * the status bar nor ends flush with the bottom edge.</p>
+     * horizontally centered. When it does not fill the viewport, the unused vertical space is
+     * split equally above the first row and below the last one, so a short grid is centred
+     * rather than pinned to the status bar. Scrolling grids keep one inter-card gutter at both
+     * ends.</p>
      *
      * @param sessionCount number of live sessions; values below 1 produce an empty layout
      * @param availableWidth measured content width, excluding padding
@@ -184,9 +211,8 @@ public final class SessionOverviewGridMath {
         // between two thumbnails; when height caps the cards, the remaining width is split
         // evenly so both gutters stay equal and at least one gap wide.
         final int totalGapX = effectiveGap * (columns + 1);
-        // Reserve one gap above the first visible row, one between the rows and one below the
-        // second row. All three match the inter-card gap, so the grid has the same breathing
-        // room at the top and the bottom when height limits the cards.
+        // Reserve one outer gutter at each end of the two visible rows plus the gap between
+        // them. Any height still left over is split by buildLayout() to centre the block.
         final int totalGapYVisible = effectiveGap * (visibleRows + 1);
 
         if (safeWidth <= 0 || safeHeight <= 0

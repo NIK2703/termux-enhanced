@@ -68,9 +68,9 @@ public class AutoCompleteTextRendererTest {
 
         List<FadeSpan> fades = fades(rendered);
         assertEquals(3, fades.size());
-        assertFade(fades.get(0), 0, 1, 64);
-        assertFade(fades.get(1), 1, 2, 128);
-        assertFade(fades.get(2), 2, 3, 191);
+        assertFade(fades.get(0), 0, 1, 38);
+        assertFade(fades.get(1), 1, 2, 77);
+        assertFade(fades.get(2), 2, 3, 115);
     }
 
     @Test
@@ -87,9 +87,9 @@ public class AutoCompleteTextRendererTest {
 
         List<FadeSpan> fades = fades(rendered);
         assertEquals(3, fades.size());
-        assertFade(fades.get(0), 0, 1, 64);
-        assertFade(fades.get(1), 1, 2, 128);
-        assertFade(fades.get(2), 2, 3, 191);
+        assertFade(fades.get(0), 0, 1, 38);
+        assertFade(fades.get(1), 1, 2, 77);
+        assertFade(fades.get(2), 2, 3, 115);
     }
 
     @Test
@@ -121,9 +121,9 @@ public class AutoCompleteTextRendererTest {
         assertEquals("out main", rendered.toString());
         List<FadeSpan> fades = fades(rendered);
         assertEquals(3, fades.size());
-        assertFade(fades.get(0), 0, 1, 64);
-        assertFade(fades.get(1), 1, 2, 128);
-        assertFade(fades.get(2), 2, 3, 191);
+        assertFade(fades.get(0), 0, 1, 38);
+        assertFade(fades.get(1), 1, 2, 77);
+        assertFade(fades.get(2), 2, 3, 115);
 
         StyleSpan bold = boldSpan(rendered);
         assertNotNull(bold);

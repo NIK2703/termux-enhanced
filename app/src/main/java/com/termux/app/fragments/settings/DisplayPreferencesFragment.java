@@ -123,8 +123,23 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         }
 
         // --- Window: fullscreen ---
-        configureSwitch("fullscreen", prefs != null && prefs.isUsingFullScreen(),
-            value -> { if (prefs != null) prefs.setFullScreen(value); }, true);
+        final ListPreference fullScreenPref =
+            findPreference(TermuxPreferenceConstants.TERMUX_APP.KEY_FULLSCREEN_MODE);
+        if (fullScreenPref != null) {
+            fullScreenPref.setPersistent(false);
+            fullScreenPref.setValue(prefs != null
+                ? prefs.getFullScreenMode()
+                : TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_FULLSCREEN_MODE);
+            fullScreenPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                if (prefs != null) prefs.setFullScreenMode((String) newValue);
+                updateStyling();
+                // The mode applies to this window too, which the terminal-only styling reload
+                // does not reach.
+                if (getActivity() instanceof SettingsActivity)
+                    getActivity().recreate();
+                return true;
+            });
+        }
 
         // --- Window: extend into the display cutout ---
         configureSwitch("extend-into-cutout", prefs != null && prefs.isExtendIntoCutout(),
@@ -142,7 +157,9 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
 
         // --- Tabs ---
         configureTabListPrefWithBroadcast(TermuxAppConstants.Preferences.TAB_PANEL_POSITION, "top", TermuxAppConstants.Broadcasts.TAB_PANEL_POSITION_CHANGED);
-        configureTabListPrefWithBroadcast(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE, "single", TermuxAppConstants.Broadcasts.TAB_HEIGHT_MODE_CHANGED);
+        configureTabListPrefWithBroadcast(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE,
+            TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_SINGLE,
+            TermuxAppConstants.Broadcasts.TAB_HEIGHT_MODE_CHANGED);
         configureTermuxPrefsSwitch(TermuxAppConstants.Preferences.SWIPE_RIGHTMOST_NEW_TAB, true);
         configureTermuxPrefsSwitch(TermuxAppConstants.Preferences.GESTURE_DIRECTORY_HISTORY_ENABLED, true);
         configureTermuxPrefsSwitch("restore_sessions", false);

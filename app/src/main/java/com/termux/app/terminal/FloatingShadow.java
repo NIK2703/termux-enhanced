@@ -31,7 +31,13 @@ final class FloatingShadow {
      * when its content is translucent too.
      */
     static final float OVERVIEW_CARD_LIFT_SCALE = 1.05f;
+    /** Full lift dimming, kept only for horizontal swipe and long-press reorder. */
     static final float OVERVIEW_CARD_LIFT_ALPHA = 0.82f;
+    /**
+     * Hover-to-select dims the card by one 8-bit alpha step: 254/255. That keeps the selection
+     * lift visually opaque while making its entrance into the opening flight continuous.
+     */
+    static final float OVERVIEW_CARD_HOVER_ALPHA = 254f / 255f;
 
     private FloatingShadow() {
     }

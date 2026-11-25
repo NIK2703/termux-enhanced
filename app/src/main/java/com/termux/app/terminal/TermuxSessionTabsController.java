@@ -6,6 +6,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.LayoutTransition;
 import android.animation.ObjectAnimator;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
@@ -158,11 +159,39 @@ public class TermuxSessionTabsController {
         return state;
     }
 
+    /**
+     * Whether the tabs are drawn on one line for the given preference value and window shape.
+     *
+     * <p>{@code double} always uses two lines; the landscape-aware mode uses two lines in
+     * portrait and one in landscape; every other value (including {@code single} and a missing
+     * preference) uses one line.
+     */
+    public static boolean isSingleLineMode(@Nullable Configuration configuration, String mode) {
+        if (TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_DOUBLE.equals(mode))
+            return false;
+        if (TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_DOUBLE_LANDSCAPE_SINGLE.equals(mode))
+            return configuration != null
+                && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE;
+        return true;
+    }
+
     /** Resolve and cache the strip metrics / preference values. Cheap no-op after the first call. */
     private void ensureDimens() {
+        ensureDimens(null);
+    }
+
+    /**
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to read
+     *                      the activity's own configuration.
+     */
+    private void ensureDimens(@Nullable Configuration changedConfig) {
         if (mDimensCached) return;
         mDimensCached = true;
-        mSingleLineMode = !"double".equals(mPrefs.getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE, "single"));
+        Configuration configuration = changedConfig != null
+            ? changedConfig : mActivity.getResources().getConfiguration();
+        mSingleLineMode = isSingleLineMode(configuration,
+            mPrefs.getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE,
+                TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_SINGLE));
         android.content.res.Resources r = mActivity.getResources();
         mTabHeightPx = Math.round(r.getDimension(mSingleLineMode
                 ? R.dimen.terminal_tab_height_single
@@ -364,12 +393,20 @@ public class TermuxSessionTabsController {
 
     /** Re-apply height, max-lines, side padding and title layout to existing tabs. */
     public void applyTabHeightMode() {
+        applyTabHeightMode(null);
+    }
+
+    /**
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to read
+     *                      the activity's own configuration.
+     */
+    public void applyTabHeightMode(@Nullable Configuration changedConfig) {
         if (mTabsContainer == null) return;
         // A geometry change under a drag would invalidate the slots the finger is using.
         mDragController.cancel();
-        // The tab-height preference just changed — the cached metrics are stale.
+        // The tab-height preference or the orientation just changed — the cached metrics are stale.
         invalidateDimens();
-        ensureDimens();
+        ensureDimens(changedConfig);
         final int heightPx = mTabHeightPx;
         final boolean singleLine = mSingleLineMode;
         for (int i = 0, n = getTabCount(); i < n; i++) {

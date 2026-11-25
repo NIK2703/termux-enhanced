@@ -178,6 +178,7 @@
     <string name="termux_tab_height_mode_title">Sekme yüksekliği</string>
     <string name="termux_tab_height_mode_single">Tek satır</string>
     <string name="termux_tab_height_mode_double">İki satır</string>
+    <string name="termux_tab_height_mode_double_landscape_single">İki satır, yatay yönde tek satır</string>
     <string name="termux_tab_panel_position_title">Sekme paneli konumu</string>
     <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
@@ -286,6 +287,7 @@
     <string name="extra_keys_visibility_title">Ek düğmeler panelini göster</string>
     <string name="extra_keys_visibility_always">Her zaman</string>
     <string name="extra_keys_visibility_keyboard">Yalnızca klavye açıkken</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Her zaman, yalnızca yatay yönde klavye açıkken</string>
     <string name="extra_keys_visibility_never">Asla</string>
 
     
@@ -426,6 +428,9 @@
 
     
     <string name="fullscreen_title">Tam ekran</string>
+    <string name="fullscreen_mode_entry_off">Devre dışı bırak</string>
+    <string name="fullscreen_mode_entry_landscape">Yatay yönde etkinleştir</string>
+    <string name="fullscreen_mode_entry_on">Etkinleştir</string>
     <string name="extend_into_cutout_title">Çentik alanına genişletme</string>
     <string name="bubble_on_background_title">Arka planda baloncuk</string>
     <string name="bubble_on_background_summary">Uygulama arka plana geçtiğinde diğer uygulamaların üzerinde terminale hızlı erişim için baloncuk göster</string>

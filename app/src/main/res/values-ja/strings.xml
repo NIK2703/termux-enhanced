@@ -167,6 +167,7 @@
 <string name="termux_tab_height_mode_title">タブの高さ</string>
 <string name="termux_tab_height_mode_single">1行</string>
 <string name="termux_tab_height_mode_double">2行</string>
+<string name="termux_tab_height_mode_double_landscape_single">2行、横向きのときは1行</string>
 <string name="termux_tab_panel_position_title">タブパネルの位置</string>
 <string name="termux_tab_panel_position_top">上</string>
 <string name="termux_tab_panel_position_bottom">下</string>
@@ -277,6 +278,7 @@
     <string name="extra_keys_visibility_title">拡張ボタンパネルを表示</string>
     <string name="extra_keys_visibility_always">常に表示</string>
     <string name="extra_keys_visibility_keyboard">キーボード表示時のみ</string>
+    <string name="extra_keys_visibility_keyboard_landscape">常に表示、横向きではキーボード表示時のみ</string>
     <string name="extra_keys_visibility_never">表示しない</string>
 
     
@@ -424,6 +426,9 @@
 
     
     <string name="fullscreen_title">全画面</string>
+    <string name="fullscreen_mode_entry_off">無効にする</string>
+    <string name="fullscreen_mode_entry_landscape">横向きのときに有効にする</string>
+    <string name="fullscreen_mode_entry_on">有効にする</string>
     <string name="extend_into_cutout_title">ノッチ領域まで拡張</string>
     <string name="bubble_on_background_title">バックグラウンドでバブル</string>
     <string name="bubble_on_background_summary">アプリがバックグラウンドに移行したときに、他のアプリの上からターミナルにすばやくアクセスできるようバブルを表示します</string>

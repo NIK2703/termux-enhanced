@@ -10,8 +10,15 @@ public class ExtraKeysVisibilityPolicyTest {
 
     private static boolean visible(boolean toolbar, boolean hideWithKeyboard,
                                    boolean keyboard, boolean panel, boolean panelOverTerminal) {
+        return visible(toolbar, hideWithKeyboard, false, false, keyboard, panel, panelOverTerminal);
+    }
+
+    private static boolean visible(boolean toolbar, boolean hideWithKeyboard,
+                                   boolean keyboardOnlyInLandscape, boolean landscape,
+                                   boolean keyboard, boolean panel, boolean panelOverTerminal) {
         return ExtraKeysVisibilityPolicy.isExtraKeysVisible(
-            toolbar, hideWithKeyboard, keyboard, panel, panelOverTerminal);
+            toolbar, hideWithKeyboard, keyboardOnlyInLandscape, landscape,
+            keyboard, panel, panelOverTerminal);
     }
 
     @Test
@@ -55,10 +62,20 @@ public class ExtraKeysVisibilityPolicyTest {
     }
 
     @Test
+    public void landscapeAwareModeKeepsThePanelInPortraitAndTracksTheKeyboardInLandscape() {
+        Assert.assertTrue(visible(true, false, true, false, false, false, false));
+        Assert.assertFalse(visible(true, false, true, true, false, false, false));
+        Assert.assertTrue(visible(true, false, true, true, true, false, false));
+        Assert.assertFalse(visible(false, false, true, false, false, false, false));
+    }
+
+    @Test
     public void overviewAnimatesOnlyTheAlwaysOnPanel() {
-        Assert.assertTrue(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, false));
-        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, true));
-        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(false, false));
-        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(false, true));
+        Assert.assertTrue(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, false, false, false));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, true, false, false));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(false, false, false, false));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(false, true, false, false));
+        Assert.assertTrue(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, false, true, false));
+        Assert.assertFalse(ExtraKeysVisibilityPolicy.isExtraKeysAlwaysMode(true, false, true, true));
     }
 }

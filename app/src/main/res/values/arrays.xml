@@ -28,6 +28,18 @@
         <item>landscape</item>
     </string-array>
 
+    <string-array name="fullscreen_mode_entries">
+        <item>@string/fullscreen_mode_entry_off</item>
+        <item>@string/fullscreen_mode_entry_landscape</item>
+        <item>@string/fullscreen_mode_entry_on</item>
+    </string-array>
+
+    <string-array name="fullscreen_mode_values">
+        <item>off</item>
+        <item>landscape</item>
+        <item>on</item>
+    </string-array>
+
     <string-array name="locale_override_entries">
         <item>@string/locale_override_entry_system</item>
         <item>@string/locale_override_entry_english</item>
@@ -75,10 +87,12 @@
     <string-array name="tab_height_mode_entries">
         <item>@string/termux_tab_height_mode_single</item>
         <item>@string/termux_tab_height_mode_double</item>
+        <item>@string/termux_tab_height_mode_double_landscape_single</item>
     </string-array>
     <string-array name="tab_height_mode_values">
         <item>single</item>
         <item>double</item>
+        <item>double_landscape_single</item>
     </string-array>
 
     <string-array name="extra_keys_special_button_mode_entries">
@@ -223,11 +237,13 @@
     <string-array name="extra_keys_visibility_entries">
         <item>@string/extra_keys_visibility_always</item>
         <item>@string/extra_keys_visibility_keyboard</item>
+        <item>@string/extra_keys_visibility_keyboard_landscape</item>
         <item>@string/extra_keys_visibility_never</item>
     </string-array>
     <string-array name="extra_keys_visibility_values">
         <item>always</item>
         <item>keyboard</item>
+        <item>keyboard_landscape</item>
         <item>never</item>
     </string-array>
 

@@ -166,6 +166,7 @@
     <string name="termux_tab_height_mode_title">Altura da aba</string>
     <string name="termux_tab_height_mode_single">Linha única</string>
     <string name="termux_tab_height_mode_double">Duas linhas</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Duas linhas, uma linha na orientação horizontal</string>
     <string name="termux_tab_panel_position_title">Posição do painel de abas</string>
     <string name="termux_tab_panel_position_top">Superior</string>
     <string name="termux_tab_panel_position_bottom">Inferior</string>
@@ -287,6 +288,7 @@
     <string name="extra_keys_visibility_title">Mostrar painel de botões extras</string>
     <string name="extra_keys_visibility_always">Sempre</string>
     <string name="extra_keys_visibility_keyboard">Apenas quando o teclado estiver aberto</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Sempre, apenas com o teclado aberto na orientação horizontal</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     
@@ -434,6 +436,9 @@
     <string name="scroll_on_new_output_title">Rolar ao receber nova saída</string>
     <string name="terminal_onclick_url_open_title">Abrir links ao tocar</string>
     <string name="fullscreen_title">Tela cheia</string>
+    <string name="fullscreen_mode_entry_off">Desativar</string>
+    <string name="fullscreen_mode_entry_landscape">Ativar na orientação horizontal</string>
+    <string name="fullscreen_mode_entry_on">Ativar</string>
     <string name="extend_into_cutout_title">Estender até o notch</string>
     <string name="bubble_on_background_title">Bolha em segundo plano</string>
     <string name="bubble_on_background_summary">Mostrar a bolha quando o aplicativo for para o segundo plano, permitindo acessar rapidamente o terminal por cima de outros aplicativos</string>
