@@ -58,6 +58,7 @@ import com.termux.app.terminal.TermuxSessionSnapshotManager;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
 import com.termux.app.terminal.BottomStripAnchors;
 import com.termux.app.terminal.SessionPagerManager;
+import com.termux.app.terminal.TerminalContentViewport;
 import com.termux.app.terminal.SessionOverviewController;
 import com.termux.app.terminal.SessionOverviewTransitionMath;
 import com.termux.app.terminal.OverviewAppearanceAnimation;
@@ -5845,41 +5846,86 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
-     * Current normal terminal viewport height for the overview's window grid.
+     * Current normal terminal content viewport for the overview's glyph grid.
      *
-     * <p>The controller turns this height into the glyph grid the cards are sized for and
-     * republishes to stale sessions. The IME inset is added straight from the latest insets
-     * dispatch instead of a visibility boolean: during a keyboard animation height and inset
-     * move together, so their sum is stable, while a boolean threshold could report one frame
-     * of the compressed height with the inset already gone. No height from an earlier window
-     * shape is involved.</p>
+     * <p>The pager is full-bleed, but {@code terminal-margin-*} are layout margins on each
+     * page's {@link TerminalView}. The live terminal therefore lays out its glyph grid in
+     * {@code pager size - margins}, not in the pager itself. Subtracting the margins here keeps
+     * the overview's columns/rows, card aspect and preview bitmap on the same grid.</p>
+     *
+     * <p>The IME inset is added straight from the latest insets dispatch instead of a visibility
+     * boolean: during a keyboard animation height and inset move together, so their sum is
+     * stable, while a boolean threshold could report one frame of the compressed height with the
+     * inset already gone. No height from an earlier window shape is involved.</p>
+     *
+     * @return packed {@code {width, height}}; both zero when no terminal viewport is measurable
      */
-    public int getTerminalViewportHeightForOverview() {
-        // The pager is the page container, so its height is the terminal viewport even while the
-        // active page itself has not been laid out yet (rotation, page swap, IME transition).
+    public int[] getTerminalContentViewportForOverview() {
+        // The pager knows the new window shape before the active page has been re-laid out
+        // (rotation, page swap, IME transition). Its margins are configured independently of
+        // the current page, so this path works even when the active TerminalView is absent.
         final android.view.View pager = getTerminalPager();
-        int height = pager != null ? pager.getHeight() : 0;
-        if (height <= 0) {
-            final TerminalView terminal = getActiveTerminalView();
-            height = terminal != null ? terminal.getHeight() : 0;
+        final int pagerWidth = pager != null ? pager.getWidth() : 0;
+        final int pagerHeight = pager != null ? pager.getHeight() : 0;
+        if (pagerWidth > 0 && pagerHeight > 0) {
+            final int[] margins = getTerminalMarginsPxForOverview();
+            final int[] content = TerminalContentViewport.fromPager(
+                    pagerWidth, pagerHeight,
+                    margins[0], margins[1], margins[2], margins[3],
+                    mLastImeBottomPx);
+            if (content[0] > 0 && content[1] > 0) return content;
         }
-        if (height <= 0) return 0;
-        return height + Math.max(0, mLastImeBottomPx);
+
+        // A laid-out page already excludes the margins; it is the fallback when the pager has
+        // not been measured yet or the margins leave no usable pager rectangle.
+        final TerminalView terminal = getActiveTerminalView();
+        if (terminal != null) {
+            final int[] content = TerminalContentViewport.fromView(
+                    terminal.getWidth(), terminal.getHeight(), mLastImeBottomPx);
+            if (content[0] > 0 && content[1] > 0) return content;
+        }
+        return new int[]{0, 0};
     }
 
     /**
-     * Current normal terminal viewport width for the overview's window grid. Mirrors
-     * {@link #getTerminalViewportHeightForOverview()}: the pager knows the new window shape
-     * before the active terminal page has been re-laid out.
+     * @return the terminal margins in pixels, left/top/right/bottom, exactly as the active page
+     *         is laid out. Reading the page's {@link ViewGroup.MarginLayoutParams} keeps the
+     *         overview correct after a density change, when the configured dp values have not
+     *         been re-applied to already-bound pages yet. Falls back to the adapter's configured
+     *         values when no page is bound.
+     */
+    private int[] getTerminalMarginsPxForOverview() {
+        final TerminalView terminal = getActiveTerminalView();
+        if (terminal != null
+                && terminal.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            final ViewGroup.MarginLayoutParams params =
+                    (ViewGroup.MarginLayoutParams) terminal.getLayoutParams();
+            return new int[]{
+                    params.leftMargin, params.topMargin,
+                    params.rightMargin, params.bottomMargin
+            };
+        }
+        return mSessionPagerManager != null
+                ? mSessionPagerManager.getTerminalMarginsPx()
+                : new int[4];
+    }
+
+    /**
+     * Current normal terminal content viewport height for the overview's window grid.
+     *
+     * @see #getTerminalContentViewportForOverview()
+     */
+    public int getTerminalViewportHeightForOverview() {
+        return getTerminalContentViewportForOverview()[1];
+    }
+
+    /**
+     * Current normal terminal content viewport width for the overview's window grid.
+     *
+     * @see #getTerminalContentViewportForOverview()
      */
     public int getTerminalViewportWidthForOverview() {
-        final android.view.View pager = getTerminalPager();
-        int width = pager != null ? pager.getWidth() : 0;
-        if (width <= 0) {
-            final TerminalView terminal = getActiveTerminalView();
-            width = terminal != null ? terminal.getWidth() : 0;
-        }
-        return Math.max(0, width);
+        return getTerminalContentViewportForOverview()[0];
     }
 
     public androidx.viewpager2.widget.ViewPager2 getTerminalPager() {

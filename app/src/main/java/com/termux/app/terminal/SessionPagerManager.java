@@ -455,6 +455,17 @@ public final class SessionPagerManager {
     }
 
     /**
+     * @return the terminal margins currently applied to each page, in pixels, in
+     *         left/top/right/bottom order. Zero before the adapter exists.
+     */
+    @NonNull
+    public int[] getTerminalMarginsPx() {
+        return mTerminalPagerAdapter != null
+                ? mTerminalPagerAdapter.getTerminalMarginsPx()
+                : new int[4];
+    }
+
+    /**
      * Push the terminal background transparency (0 = opaque, 50 = maximum) to every page.
      *
      * @param percent transparency percentage.

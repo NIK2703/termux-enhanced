@@ -27,11 +27,11 @@ import static org.junit.Assert.assertTrue;
 /**
  * Pixel-level check that a terminal preview keeps every glyph on its cell.
  *
- * <p>The preview renderer scales the emulator's glyph grid into the card bitmap with
- * {@link TerminalPreviewRenderer#render}. Giving the bitmap the grid's own aspect ratio removes
- * margins, so the visible cell pitch is exactly {@code bitmap.width / columns}. A row of identical
- * glyphs is the simplest way to expose a cumulative spacing error; varying the bitmap width makes
- * that pitch fractional.</p>
+ * <p>The card bitmap has the exact {@code ceil(columns*advance)} grid size, but its pixels come
+ * from the ordinary full-size renderer scaled uniformly into that bitmap. The visible cell pitch
+ * is the full-size advance times that uniform scale. A row of identical glyphs is the simplest
+ * way to expose a cumulative spacing error; varying the bitmap width makes the pitch fractional
+ * across the whole range.</p>
  *
  * <p>This is an instrumentation test because it needs real Skia rasterisation. The Robolectric
  * runtime available to the JVM tests does not provide native graphics on Android/arm64.</p>
@@ -188,15 +188,21 @@ public class TerminalPreviewGlyphSpacingTest {
                 TerminalPreviewRenderer.emulatorGrid(emulator, TEXT_SIZE, TYPEFACE);
         assertNotNull(grid);
         final int height = Math.max(1, (int) Math.round(width / grid.aspect()));
-        final TerminalPreviewRenderer.PreviewCellGeometry geometry =
-                TerminalPreviewRenderer.cellGeometry(COLUMNS, ROWS, width, height,
+        final TerminalPreviewRenderer.GridRaster raster =
+                TerminalPreviewRenderer.fitGridRaster(COLUMNS, ROWS, width, height,
                         TEXT_SIZE, TYPEFACE);
-        assertNotNull(geometry);
-        final Bitmap bitmap = Bitmap.createBitmap(geometry.cardWidth(), geometry.cardHeight(),
-                Bitmap.Config.ARGB_8888);
+        assertNotNull(raster);
+        final Bitmap bitmap = Bitmap.createBitmap(raster.widthFor(COLUMNS),
+                raster.heightFor(ROWS), Bitmap.Config.ARGB_8888);
         bitmap.eraseColor(Color.BLACK);
-        TerminalPreviewRenderer.render(emulator, bitmap, geometry, 0, 0);
-        return new Preview(bitmap, geometry.cellWidth);
+        TerminalPreviewRenderer.render(emulator, bitmap, TEXT_SIZE, TYPEFACE, 0, 0);
+        // Reproduce the renderer's uniform scale to get the pitch in bitmap pixels.
+        final TerminalRenderer reference = new TerminalRenderer(TEXT_SIZE, TYPEFACE);
+        final float gridWidth = COLUMNS * reference.getFontWidth();
+        final float gridHeight = ROWS * reference.getFontLineSpacing();
+        final float scale = Math.min(bitmap.getWidth() / gridWidth,
+                bitmap.getHeight() / gridHeight);
+        return new Preview(bitmap, reference.getFontWidth() * scale);
     }
 
     /**

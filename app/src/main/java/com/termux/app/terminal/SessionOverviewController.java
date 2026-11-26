@@ -54,7 +54,7 @@ import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalPreviewRenderer;
-import com.termux.view.TerminalPreviewRenderer.PreviewCellGeometry;
+import com.termux.view.TerminalPreviewRenderer.GridRaster;
 import com.termux.view.TerminalPreviewRenderer.ViewportGrid;
 import com.termux.view.TerminalView;
 
@@ -254,9 +254,9 @@ public final class SessionOverviewController {
     private long mLastPreviewRenderStartMs;
     private int mCardWidth;
     private int mCardHeight;
-    /** Integer cell pitch shared by every preview in this overview. */
+    /** Natural-metric raster shared by every preview in this overview. */
     @Nullable
-    private PreviewCellGeometry mCellGeometry;
+    private GridRaster mGridRaster;
     /** Card currently under the finger of the gesture that opened the overview. */
     @Nullable
     private Card mHoverCard;
@@ -433,8 +433,8 @@ public final class SessionOverviewController {
             mGrid.addOnLayoutChangeListener((view, left, top, right, bottom,
                                              oldLeft, oldTop, oldRight, oldBottom) -> {
                 if (!mShowing || mActivityStopped) return;
-                // The slot size is known only after the first layout pass. Recompute the integer
-                // cell pitch instead of keeping the aspect fallback forever.
+                // The slot size is known only after the first layout pass. Recompute the
+                // natural-metric raster instead of keeping the aspect fallback forever.
                 updateGridAspect();
                 markResizedPreviewsDirty();
                 requestPreviewRender();
@@ -1350,6 +1350,12 @@ public final class SessionOverviewController {
         // back to the scheme colour after the content is restored, never before: a transparent
         // overview over live content would flash the terminal through the grid.
         restoreLiveContentAfterOverview();
+        // The overview may have published the normal content grid while this page was not laid
+        // out again (the keyboard was already hidden, so onSizeChanged never fired). Republish
+        // the view's own geometry before it becomes interactive; updateSize() is a no-op when
+        // the pty already matches.
+        final TerminalView activeTerminal = mActivity.getActiveTerminalView();
+        if (activeTerminal != null) activeTerminal.reassertSessionSize();
         mActivity.showExtraKeysPanelAfterOverview();
         mAnimatedExtraKeysPanel = null;
         mActivity.applySchemeColors();
@@ -1433,9 +1439,9 @@ public final class SessionOverviewController {
      * <p>{@link #onConfigurationChanged(Configuration)} runs before the window traversal, so the
      * pager can still report the previous orientation for one or more frames. Sampling on
      * animation frames and stopping only after the viewport repeats makes the update follow the
-     * real window shape. {@link #currentGridViewport()} also keeps the dispatched configuration
-     * as an orientation guard, so even a viewport that never updates cannot keep the old
-     * orientation.</p>
+     * real window shape. {@link #currentGridViewport()} uses the measured overlay as the primary
+     * orientation guard and the dispatched configuration only while the overlay has no size, so
+     * even a viewport that never updates cannot keep the old orientation.</p>
      */
     private void refreshGridAspectAfterLayout(int attemptsLeft) {
         if (!mShowing || mGrid == null) return;
@@ -5484,58 +5490,62 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Viewport the card grid should be sized for.
+     * Viewport the card grid should be sized for: the terminal's glyph-grid viewport, not the
+     * full-bleed pager.
      *
-     * <p>The pager is the exact terminal viewport, so it is the primary source. Before the first
-     * layout it has no size; the overview overlay is already full-window, so it fills that gap.
-     * The configuration is the final orientation guard: both views can still describe the old
-     * orientation during a rotation, while {@code screenWidthDp/screenHeightDp} already describe
-     * the new window. Comparing orientation, not exact pixels, keeps the pager's accurate height
-     * (it excludes the tab strip and toolbar) on every ordinary pass.</p>
+     * <p>{@link TermuxActivity#getTerminalContentViewportForOverview()} subtracts the per-page
+     * {@code terminal-margin-*} layout margins and adds the IME inset back. The overlay and the
+     * dispatched configuration are used only as orientation guards: after a rotation the pager
+     * (and the active page) can still describe the previous shape for a frame. Do not invent
+     * exact dimensions from them; the overlay includes the tab strip, toolbar and system bars,
+     * and {@code screenWidthDp/screenHeightDp} describe the whole window, so either would give
+     * the cards the wrong aspect. Returning zero lets {@link #updateGridAspect()} fall back to
+     * the active emulator until layout catches up.</p>
      *
      * @return packed {@code {width, height}}, either axis may be zero before the first layout
      */
     private int[] currentGridViewport() {
-        int width = mActivity.getTerminalViewportWidthForOverview();
-        int height = mActivity.getTerminalViewportHeightForOverview();
-        if (mScrollView != null && mGrid != null) {
-            final int overlayWidth = Math.max(0, mScrollView.getWidth()
-                    - mGrid.getPaddingLeft() - mGrid.getPaddingRight());
-            final int overlayHeight = Math.max(0, mScrollView.getHeight()
-                    - mGrid.getPaddingTop() - mGrid.getPaddingBottom());
+        final int[] viewport = mActivity.getTerminalContentViewportForOverview();
+        final int width = viewport[0];
+        final int height = viewport[1];
+        if (width <= 0 || height <= 0) return new int[]{0, 0};
+
+        // The overlay is this window's actual surface. Its orientation is authoritative in
+        // split-screen and floating windows, where the activity's Configuration orientation can
+        // disagree with the window's aspect.
+        if (mScrollView != null && mGrid != null && width != height) {
+            final int overlayWidth = mScrollView.getWidth()
+                    - mGrid.getPaddingLeft() - mGrid.getPaddingRight();
+            final int overlayHeight = mScrollView.getHeight()
+                    - mGrid.getPaddingTop() - mGrid.getPaddingBottom();
             if (overlayWidth > 0 && overlayHeight > 0) {
-                // The overlay is the surface the cards actually live on. If the pager still
-                // reports the previous orientation, the overlay's shape is the current one.
-                final boolean pagerValid = width > 0 && height > 0;
-                if (!pagerValid || (width > height) != (overlayWidth > overlayHeight)) {
-                    width = overlayWidth;
-                    height = overlayHeight;
-                }
+                if ((width > height) != (overlayWidth > overlayHeight)) return new int[]{0, 0};
+                return viewport;
             }
         }
 
+        // No measured overlay yet (cold start). Configuration is a weaker guard, but it is only
+        // used while the window surface cannot answer for itself.
         final Configuration config = mLastConfiguration != null
                 ? mLastConfiguration
                 : mActivity.getResources().getConfiguration();
-        final float density = mActivity.getResources().getDisplayMetrics().density;
-        final int configWidth = Math.round(config.screenWidthDp * density);
-        final int configHeight = Math.round(config.screenHeightDp * density);
-        if (configWidth > 0 && configHeight > 0
-                && (width <= 0 || height <= 0
-                    || (width > height) != (configWidth > configHeight))) {
-            width = configWidth;
-            height = configHeight;
+        if (width != height
+                && (config.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    || config.orientation == Configuration.ORIENTATION_PORTRAIT)) {
+            final boolean landscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE;
+            if ((width > height) != landscape) return new int[]{0, 0};
         }
-        return new int[]{width, height};
+        return viewport;
     }
 
     /**
      * Choose the glyph grid the overview uses for every card and publish it to stale sessions.
      *
-     * <p>The grid is computed once: the pager's viewport with the IME height added back, or the
-     * active emulator's own grid when there is no measurable view yet. Both entry points return
-     * the same {@link ViewportGrid}, so the aspect the cards are sized for and the columns and
-     * rows the sessions are resized to cannot disagree.</p>
+     * <p>The grid is computed once from the terminal content viewport (pager minus the
+     * per-page margins, with the IME height added back), or from the active emulator's own grid
+     * when there is no measurable view yet. Both entry points return the same
+     * {@link ViewportGrid}, so the columns and rows the sessions are resized to and the
+     * reference grid the shared raster is fitted for cannot disagree.</p>
      */
     private void updateGridAspect() {
         if (mGrid == null) return;
@@ -5546,11 +5556,11 @@ public final class SessionOverviewController {
         final int viewportHeight = viewport[1];
         final TerminalSession session = mActivity.getCurrentSession();
         final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
-        final PreviewCellGeometry previousGeometry = mCellGeometry;
+        final GridRaster previousRaster = mGridRaster;
 
-        // The pager reports the new window shape before the active terminal page has been laid
-        // out, so the window viewport is the primary source. The active emulator remains a
-        // fallback for the first frames of a cold start, when neither view has a size yet.
+        // The content viewport knows the new window shape before the active terminal page has
+        // been laid out. The active emulator remains a fallback for the first frames of a cold
+        // start, when neither view has a size yet.
         ViewportGrid grid = viewportWidth > 0 && viewportHeight > 0
                 ? TerminalPreviewRenderer.viewportGrid(
                         viewportWidth, viewportHeight, textSize, typeface)
@@ -5561,22 +5571,26 @@ public final class SessionOverviewController {
         if (grid != null) {
             refreshSessionSizesToCurrentWindow(grid);
             final int[] slot = mGrid.getMaxCardSlotSize();
-            mCellGeometry = TerminalPreviewRenderer.cellGeometry(grid.columns, grid.rows,
+            mGridRaster = TerminalPreviewRenderer.fitGridRaster(grid.columns, grid.rows,
                     slot[0], slot[1], textSize, typeface);
+            if (mGridRaster != null) {
+                mGrid.setCardSize(mGridRaster.widthFor(grid.columns),
+                        mGridRaster.heightFor(grid.rows));
+            } else {
+                // Degenerate metrics: fall back to the aspect path, which renders uniformly.
+                mGrid.setCardSize(0, 0);
+                mGrid.setCardAspect(grid.aspect());
+            }
         } else {
-            mCellGeometry = null;
-        }
-        if (mCellGeometry != null) {
-            mGrid.setCardSize(mCellGeometry.cardWidth(), mCellGeometry.cardHeight());
-        } else {
+            mGridRaster = null;
             mGrid.setCardSize(0, 0);
-            mGrid.setCardAspect(grid != null ? grid.aspect() : 0);
+            mGrid.setCardAspect(0);
         }
-        // Cell geometry is cached by its inputs, so a different instance means the glyph pitch
+        // The raster is cached by its inputs, so a different instance means the glyph pitch
         // changed. The card may keep the same pixel size (for example when the width limits both
         // orientations), which would leave markResizedPreviewsDirty() with nothing to mark; every
         // preview still has to be repainted with the new pitch.
-        if (mCellGeometry != previousGeometry) {
+        if (mGridRaster != previousRaster) {
             for (Card card : mCards) card.previewDirty = true;
         }
     }
@@ -5624,21 +5638,18 @@ public final class SessionOverviewController {
             return false;
         }
 
-        // The bitmap must have exactly the size of the view that displays it. The card uses
-        // ScaleType.MATRIX, so any difference would be drawn at two different scale factors:
-        // a card narrower than its bitmap compresses every glyph, and a wider one stretches the
-        // grid to the card edge and opens gaps between cells. That is independent of the font's
-        // own cell calibration and is the only place a whole preview can be distorted.
+        // The raster fixes only the bitmap rectangle. The ImageView is CENTER, so a card whose
+        // grid is smaller than the reference slot is centred at 1:1, never stretched to the card
+        // edges. TerminalPreviewRenderer paints at the user's integer ppem with one uniform
+        // canvas scale: no width-derived textScaleX and no fractional-size subpixel glyph edges,
+        // which is what produced hairline gaps between neighbouring cells.
+        final GridRaster raster = mGridRaster;
         final int viewWidth = card.preview.getWidth();
         final int viewHeight = card.preview.getHeight();
-        final int gridWidth = mCellGeometry != null
-                ? mCellGeometry.widthFor(emulator.mColumns) : mCardWidth;
-        final int gridHeight = mCellGeometry != null
-                ? mCellGeometry.heightFor(emulator.mRows) : mCardHeight;
-        final boolean exactGrid = mCellGeometry != null
-                && viewWidth == gridWidth && viewHeight == gridHeight;
-        final int bitmapWidth = viewWidth > 0 ? viewWidth : gridWidth;
-        final int bitmapHeight = viewHeight > 0 ? viewHeight : gridHeight;
+        final int bitmapWidth = raster != null
+                ? raster.widthFor(emulator.mColumns) : (viewWidth > 0 ? viewWidth : mCardWidth);
+        final int bitmapHeight = raster != null
+                ? raster.heightFor(emulator.mRows) : (viewHeight > 0 ? viewHeight : mCardHeight);
         if (bitmapWidth <= 0 || bitmapHeight <= 0) return false;
 
         final int backgroundTransparency = previewBackgroundTransparency();
@@ -5656,16 +5667,10 @@ public final class SessionOverviewController {
         final boolean newBitmap = oldBitmap != card.bitmap;
 
         final int topRow = scrollTopRow(card.session);
-        if (exactGrid) {
-            // Bitmap and view are the same integer cell pitch: no scaling of any kind.
-            TerminalPreviewRenderer.render(emulator, card.bitmap, mCellGeometry, topRow,
-                    backgroundTransparency);
-        } else {
-            // Stale session grid, or a card trimmed by the grid layout. Fit the emulator into the
-            // bitmap uniformly; never let the ImageView scale one axis differently from the other.
-            TerminalPreviewRenderer.renderForFlight(emulator, card.bitmap,
-                    textSize, typeface, topRow, backgroundTransparency);
-        }
+        // One uniform scale for every card, the same path the flight snapshots use. The bitmap
+        // already has the raster's exact grid size, so the ImageView never scales it again.
+        TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface, topRow,
+                backgroundTransparency);
         // Keep the old preview visible until the replacement has been fully rendered. Clearing
         // the ImageView first would expose a blank card for a frame whenever the grid aspect
         // changes, for example after closing the active session.
@@ -5696,20 +5701,22 @@ public final class SessionOverviewController {
 
     /** Mark a stale bitmap dirty after a layout pass; the throttle agent reuses this flag. */
     private void markResizedPreviewsDirty() {
+        final GridRaster raster = mGridRaster;
         for (Card card : mCards) {
             final Bitmap bitmap = card.bitmap;
             final TerminalEmulator emulator = card.session.getEmulator();
-            // The view is the authority for the bitmap size, not the emulator grid: a resized
-            // card must be repainted even when the session's columns have not changed, otherwise
-            // the old bitmap stays on screen and gets stretched to the new view size.
-            final int width = card.preview.getWidth() > 0
-                    ? card.preview.getWidth()
-                    : (mCellGeometry != null && emulator != null
-                        ? mCellGeometry.widthFor(emulator.mColumns) : 0);
-            final int height = card.preview.getHeight() > 0
-                    ? card.preview.getHeight()
-                    : (mCellGeometry != null && emulator != null
-                        ? mCellGeometry.heightFor(emulator.mRows) : 0);
+            // With a raster the bitmap is the exact natural-metric grid, not the view rectangle.
+            // A smaller session is centred in its card by the ImageView, so comparing it to the
+            // view size would mark every such card dirty on every pass.
+            final int width;
+            final int height;
+            if (raster != null && emulator != null) {
+                width = raster.widthFor(emulator.mColumns);
+                height = raster.heightFor(emulator.mRows);
+            } else {
+                width = card.preview.getWidth();
+                height = card.preview.getHeight();
+            }
             if (width <= 0 || height <= 0) continue;
             if (bitmap == null || bitmap.getWidth() != width || bitmap.getHeight() != height) {
                 card.previewDirty = true;

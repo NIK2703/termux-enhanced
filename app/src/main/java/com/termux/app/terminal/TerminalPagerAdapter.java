@@ -279,6 +279,21 @@ public final class TerminalPagerAdapter extends RecyclerView.Adapter<TerminalPag
         forEachPageTerminalView(this::applyTerminalMargins);
     }
 
+    /**
+     * @return the configured terminal margins in pixels, in left/top/right/bottom order. Uses the
+     *         same dp-to-px conversion as {@link #applyTerminalMargins}, so callers can subtract
+     *         exactly what the page layout subtracts.
+     */
+    @NonNull
+    public int[] getTerminalMarginsPx() {
+        return new int[]{
+                (int) ViewUtils.dpToPx(mActivity, mMarginLeftDp),
+                (int) ViewUtils.dpToPx(mActivity, mMarginTopDp),
+                (int) ViewUtils.dpToPx(mActivity, mMarginRightDp),
+                (int) ViewUtils.dpToPx(mActivity, mMarginBottomDp)
+        };
+    }
+
     /** Apply the configured margins to one page's TerminalView (safe when null/not yet bound). */
     private void applyTerminalMargins(@androidx.annotation.Nullable TerminalView terminalView) {
         if (terminalView == null) return;

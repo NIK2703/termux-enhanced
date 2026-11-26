@@ -66,7 +66,7 @@ public class SessionOverviewGridViewTest {
     }
 
     @Test
-    public void shortGridSticksToTheTopBelowItsPadding() {
+    public void shortGridKeepsTheOuterGapBelowItsPadding() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         SessionOverviewGridView grid = newGrid(activity, 1);
         final int statusBarInset = 96;
@@ -78,10 +78,10 @@ public class SessionOverviewGridViewTest {
 
         SessionOverviewGridMath.Layout layout = grid.getGridLayout();
         Assert.assertNotNull(layout);
-        Assert.assertEquals(0, layout.top);
-        // The grid padding is the status-bar strip the overlay extends into; cards start directly
-        // below it instead of being centered in the remaining window.
-        Assert.assertEquals(statusBarInset, grid.getChildAt(0).getTop());
+        // The grid padding is the status-bar strip the overlay extends into. The outer gutter
+        // then keeps the first card clear of that strip instead of centring it in the window.
+        Assert.assertTrue(layout.top >= layout.outerGap);
+        Assert.assertEquals(statusBarInset + layout.top, grid.getChildAt(0).getTop());
     }
 
     @Test
@@ -107,7 +107,7 @@ public class SessionOverviewGridViewTest {
     }
 
     @Test
-    public void bottomGapMatchesTheGapBetweenCards() {
+    public void bottomGapMatchesTheOuterGap() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         for (int count : new int[]{4, 5}) {
             SessionOverviewGridView grid = newGrid(activity, count);
@@ -122,7 +122,7 @@ public class SessionOverviewGridViewTest {
             SessionOverviewGridMath.Layout layout = grid.getGridLayout();
             Assert.assertNotNull(layout);
             View lastCard = grid.getChildAt(count - 1);
-            Assert.assertEquals(layout.gap,
+            Assert.assertEquals(layout.outerGap,
                     grid.getMeasuredHeight() - lastCard.getBottom(), 1);
         }
     }
@@ -145,7 +145,7 @@ public class SessionOverviewGridViewTest {
             Assert.assertEquals(0.5, card.getWidth() / (double) card.getHeight(), 0.01);
         }
         Assert.assertTrue(layout.gridHeight <= HEIGHT);
-        Assert.assertEquals(0, layout.top);
+        Assert.assertEquals(layout.outerGap, layout.top);
     }
 
     @Test
