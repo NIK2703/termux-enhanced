@@ -134,6 +134,17 @@ final class SessionOverviewDragController {
         return mState != TermuxAppConstants.Overview.STATE_IDLE;
     }
 
+    /**
+     * True while a drag or a post-drop/removal settle owns the cards.
+     *
+     * <p>{@link #isActive()} only describes the gesture itself. A removal settle starts after
+     * the gesture state has returned to idle, but the cards are still moving and their previews
+     * should keep up with live output until they land.</p>
+     */
+    boolean isAnimating() {
+        return isActive() || mSettleCards != null;
+    }
+
     boolean onTouch(@NonNull SessionOverviewCardView card, @NonNull MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:

@@ -3856,6 +3856,21 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Bring the floating pencil back after the add button was consumed by a terminal morph.
+     * The overlay is already gone and the live terminal is current; this only owns the short
+     * fade from zero alpha.
+     */
+    public void fadeInFloatingControlsAfterConsumedAddButton() {
+        fadeInOverviewFloatingControls();
+    }
+
+    /** Whether the opening pencil-to-plus morph still owns the toggle or the add button. */
+    public boolean isOverviewAddButtonMorphActive() {
+        return !mOverviewAddButtonMorphReturning
+                && (mOverviewAddButtonMorphPending || mOverviewAddButtonMorphAnimator != null);
+    }
+
+    /**
      * Where the floating pencil will sit once {@code targetSession} is current.
      *
      * <p>The overview can close into a different session than the one it was opened from. The
@@ -6162,6 +6177,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Runs even without a value change: a repeated signal is the only way to repair a view
         // left stale by a recreate or another writer.
         applyExtraKeysToKeyboardVisibility();
+
+        // The overview may be waiting for this exact IME hand-off before it captures the
+        // terminal frame. The controller ignores the callback unless that wait is active.
+        if (mSessionOverviewController != null) {
+            mSessionOverviewController.onImeVisibilityChangedForOverview(imeVisible);
+        }
     }
 
     /**
@@ -6457,6 +6478,16 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * with the keyboard down does not pop the keyboard merely because the overview was opened.</p>
      */
     public void restoreTextInputPanelAfterOverview() {
+        restoreTextInputPanelAfterOverview(true);
+    }
+
+    /**
+     * As {@link #restoreTextInputPanelAfterOverview()}, but optionally leaves the controls at
+     * their current alpha. The add-button-to-terminal close uses this so its own post-overlay
+     * fade is the only one: restoring the panel and immediately fading it in here, then fading it
+     * again after the pager settles, would flash the panel at zero alpha twice.
+     */
+    public void restoreTextInputPanelAfterOverview(boolean fadeControls) {
         final View container = findViewById(R.id.terminal_toolbar_text_input_container);
         if (container == null || !isTextInputEnabled()) return;
         // The current session owns the answer: it may have changed while the overview was open.
@@ -6467,7 +6498,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setTextInputPanelVisible(true);
         restoreTextInputForSession(session);
         updateToggleTextInputButtonIcon();
-        fadeInOverviewFloatingControls();
+        if (fadeControls) fadeInOverviewFloatingControls();
     }
 
     /**

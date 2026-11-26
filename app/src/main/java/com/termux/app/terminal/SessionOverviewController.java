@@ -29,6 +29,7 @@ import android.view.ViewPropertyAnimator;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.animation.PathInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -95,7 +96,7 @@ public final class SessionOverviewController {
     @Nullable
     private final SessionOverviewDragController mDragController;
     private int mTabCornerRadius;
-    /** Card stroke shared by resting cards and flying snapshots. */
+    /** Card stroke shared by resting cards and flying terminal frames. */
     private int mCardStrokeWidth;
     private int mCardStrokeColor;
 
@@ -228,6 +229,20 @@ public final class SessionOverviewController {
     /** Guard inside {@link #cancelAddTabFlightAfterTimeout()} against reentrancy. */
     private static final long ADD_TAB_FLIGHT_TIMEOUT_MS = 500L;
 
+    // ── Release over the "+" button → new terminal ──────────────────────────
+    /** Hover lift of the add button; the same 160 ms family as a card. */
+    @Nullable private ValueAnimator mAddButtonHoverAnimator;
+    private boolean mAddButtonHovered;
+    /** Owns the source ghost and the new card between release and the closing hand-off. */
+    @Nullable private TerminalAddFlight mTerminalAddFlight;
+    private final Runnable mTerminalAddTimeout = this::cancelTerminalAddFlightAfterTimeout;
+    private static final long TERMINAL_ADD_FLIGHT_TIMEOUT_MS = 500L;
+    /** True only for the hide() that finishes a consumed add-button expansion. */
+    private boolean mTerminalAddConsumedClose;
+    /** Reused capture geometry; the release path is rare enough to keep these off the heap. */
+    private final RectF mAddButtonSourceVisual = new RectF();
+    private final int[] mAddButtonSourceLocation = new int[2];
+
     /**
      * Mirrors {@code TermuxActivity.OVERVIEW_FLOATING_CONTROLS_FADE_MS} plus one frame. The
      * opening tab ghost waits the same amount as the pencil morph so both leave together.
@@ -281,6 +296,23 @@ public final class SessionOverviewController {
      * animation frame start from the wrong alpha.
      */
     private boolean mOpeningBackgroundPending;
+    /**
+     * True after {@link #show()} has asked the IME to hide and before the terminal view has
+     * reported the resulting full-size layout. The overview does not exist yet for the user: the
+     * live terminal stays visible and is allowed to grow under the disappearing keyboard. The
+     * opening frame is created only after this phase ends, so the flight never starts from the
+     * compressed view and then jumps when the keyboard is gone.
+     */
+    private boolean mOpeningPreparationPending;
+    /** Terminal content viewport captured before the IME was dismissed. */
+    private int mOpeningTargetWidth;
+    private int mOpeningTargetHeight;
+    /** Terminal view used for the one-shot full-size layout hand-off. */
+    @Nullable
+    private TerminalView mOpeningPreparationTerminal;
+    private final View.OnLayoutChangeListener mOpeningPreparationLayoutListener =
+            (view, left, top, right, bottom,
+             oldLeft, oldTop, oldRight, oldBottom) -> tryFinishOpeningPreparation();
     /** True between activity stop and resume while the overview stays open in the background. */
     private boolean mActivityStopped;
     private boolean mRenderPosted;
@@ -302,6 +334,10 @@ public final class SessionOverviewController {
     /** Last hover point, reused after every auto-scroll step. */
     private float mHoverRawX;
     private float mHoverRawY;
+    /** Finger release that arrived while the opening was still waiting for the full terminal. */
+    private boolean mPendingGestureRelease;
+    private float mPendingGestureReleaseX;
+    private float mPendingGestureReleaseY;
     /** Edge auto-scroll of the grid while the drop finger is parked near its top/bottom. */
     private boolean mAutoScrollPosted;
     /** Timestamp of the previous scroll frame, for vsync-independent step sizing. */
@@ -502,14 +538,15 @@ public final class SessionOverviewController {
 
                 @Override
                 public void onOverviewGestureCancelled() {
+                    if (mOpeningPreparationPending) cancelOpeningPreparation(true);
                     disarmGestureSelection();
                     stopAutoScroll();
-                    clearGestureHover();
+                    resetGestureHover();
                 }
 
                 @Override
                 public void onOverviewGestureReleased(float rawX, float rawY) {
-                    selectCardUnderFinger(rawX, rawY);
+                    selectTargetUnderFinger(rawX, rawY);
                 }
             });
         }
@@ -623,6 +660,10 @@ public final class SessionOverviewController {
     private void updateAddButtonForSessionLimit() {
         if (!mShowing || mAddButton == null) return;
         if (isAtSessionLimit()) {
+            // A session can appear from another path while the finger is over the button. Drop
+            // the hover and stop the edge loop before the button shrinks away.
+            resetAddButtonHover();
+            stopAutoScroll();
             if (mAddButtonHiding) return;
             if (mAddButton.getVisibility() == View.VISIBLE) {
                 hideAddButtonWithAppearance(false);
@@ -844,6 +885,10 @@ public final class SessionOverviewController {
 
     /** Start the 300 ms morph once the real card is laid out and rendered. */
     private void beginAddTabFlight(@NonNull Card card) {
+        if (mTerminalAddFlight != null && !mTerminalAddFlight.handedOff) {
+            beginTerminalAddFlight(card);
+            return;
+        }
         if (mAddTabFlightCard != card || mAddTabFlightAnimator != null
                 || mAddTabFlightGhost == null || mGhostLayer == null) {
             return;
@@ -1068,6 +1113,246 @@ public final class SessionOverviewController {
         if (ghost.getParent() instanceof ViewGroup) {
             ((ViewGroup) ghost.getParent()).removeView(ghost);
         }
+    }
+
+    // ── Release over the add button → new terminal ──────────────────────────
+
+    /** True while the source ghost is waiting for the new card or the closing hand-off. */
+    private boolean isTerminalAddFlightActive() {
+        return mTerminalAddFlight != null;
+    }
+
+    /** Cancel whichever add-card flight owns {@code flightCard}. */
+    private void cancelCardFlight(boolean restoreButton, boolean animateRestore) {
+        if (mTerminalAddFlight != null) {
+            cancelTerminalAddFlight(restoreButton, animateRestore);
+        } else {
+            cancelAddTabFlight(restoreButton, animateRestore);
+        }
+    }
+
+    /**
+     * Create a session from a release over the add button and install the exact source ghost.
+     * The new card stays hidden; {@link #beginTerminalAddFlight(Card)} hands it to the closing
+     * expansion once it is laid out.
+     */
+    private void selectAddButtonUnderFinger() {
+        if (!isAddButtonHoverTarget() || isAtSessionLimit()
+                || mTerminalAddFlight != null || isAddTabFlightActive()) {
+            resetAddButtonHover();
+            return;
+        }
+        final TermuxTerminalSessionActivityClient client =
+                mActivity.getTermuxTerminalSessionClient();
+        if (client == null) {
+            resetAddButtonHover();
+            return;
+        }
+        final AddButtonSource source = captureAddButtonSource();
+        if (source == null) {
+            resetAddButtonHover();
+            return;
+        }
+        final OverviewAddTabGhostView ghost = installAddButtonSourceGhost(source);
+        if (ghost == null) {
+            resetAddButtonHover();
+            return;
+        }
+        final TermuxService service = mActivity.getTermuxService();
+        final int before = service != null ? service.getTermuxSessionsSize() : 0;
+        mTerminalAddFlight = new TerminalAddFlight(source, ghost, before);
+
+        // The real button is now owned by the flight. Reset its transform first so a fallback
+        // restore never leaves it mid-hover, then keep it measured but invisible.
+        resetAddButtonHover();
+        if (mAddButton != null) {
+            mAddButton.setEnabled(false);
+            mAddButton.setVisibility(View.INVISIBLE);
+        }
+        try {
+            client.addNewSession(false, null);
+        } catch (RuntimeException ignored) {
+            cancelTerminalAddFlight(true, true);
+            return;
+        }
+        finishTerminalAddRequest();
+    }
+
+    /** Capture the real button's visual state, including a hover that has not finished yet. */
+    @Nullable
+    private AddButtonSource captureAddButtonSource() {
+        if (mAddButton == null) return null;
+        final int[] origin = contentOrigin(mScratchOrigin);
+        if (origin == null) return null;
+        mAddButton.getLocationInWindow(mAddButtonSourceLocation);
+        final float scaleX = mAddButton.getScaleX();
+        final float scaleY = mAddButton.getScaleY();
+        SessionOverviewAddButtonTerminalMath.visualRect(mAddButtonSourceVisual,
+                mAddButtonSourceLocation[0] - origin[0],
+                mAddButtonSourceLocation[1] - origin[1],
+                mAddButton.getWidth(), mAddButton.getHeight(),
+                mAddButton.getPivotX(), mAddButton.getPivotY(), scaleX, scaleY);
+        if (mAddButtonSourceVisual.isEmpty()) return null;
+
+        final Resources res = mActivity.getResources();
+        final float scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2f;
+        final float strokeWidth = Math.max(0f,
+                res.getDimension(R.dimen.terminal_text_input_stroke) * scale);
+        final int padding = mAddButton.getPaddingLeft() + mAddButton.getPaddingRight();
+        final float iconSize = SessionOverviewAddButtonTerminalMath.scaledContentSize(
+                mAddButton.getWidth(), mAddButton.getHeight(), padding, scale);
+        final Drawable plus = cloneDrawable(
+                mAddButton.getDrawable(), mAddButton.getImageTintList());
+        if (plus != null) plus.setColorFilter(mAddButton.getColorFilter());
+
+        final int elevation = Math.max(0, Math.round(mAddButton.getZ()));
+        final int fallbackElevation = FloatingShadow.elevationPx(res);
+        final int shadowColor;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            final int ambient = mAddButton.getOutlineAmbientShadowColor();
+            shadowColor = Color.alpha(ambient) > 0 ? ambient
+                    : FloatingShadow.overviewCardShadowColor(
+                            res, mActivity.isCachedSchemeLight());
+        } else {
+            shadowColor = FloatingShadow.color(res, mActivity.isCachedSchemeLight(),
+                    R.fraction.floating_shadow_alpha);
+        }
+        final Rect visual = new Rect(
+                Math.round(mAddButtonSourceVisual.left),
+                Math.round(mAddButtonSourceVisual.top),
+                Math.round(mAddButtonSourceVisual.right),
+                Math.round(mAddButtonSourceVisual.bottom));
+        if (visual.isEmpty()) return null;
+        return new AddButtonSource(visual, scaleX, scaleY,
+                mAddButton.getAlpha(), mAddButton.getImageAlpha() / 255f,
+                SessionOverviewAddButtonTerminalMath.sourceRadius(
+                        visual.width(), visual.height()),
+                strokeWidth,
+                mActivity.getFloatingButtonFill(), mActivity.getFloatingButtonStroke(),
+                plus, iconSize,
+                elevation > 0 ? elevation : fallbackElevation, shadowColor);
+    }
+
+    /** Install a full-overlay copy of the real button above the terminal ghost. */
+    @Nullable
+    private OverviewAddTabGhostView installAddButtonSourceGhost(@NonNull AddButtonSource source) {
+        final OverviewAddTabGhostView ghost = new OverviewAddTabGhostView(mActivity);
+        ghost.setStroke(source.strokeWidth, source.strokeColor);
+        ghost.setFlightShadow(source.elevationPx, source.shadowColor);
+        ghost.setPlusIcon(source.plusIcon, source.plusIconSize);
+        ghost.setFlightFrame(source.visualRect.left, source.visualRect.top,
+                source.visualRect.right, source.visualRect.bottom,
+                source.radius, source.fillColor, source.imageAlpha, 0f);
+        ghost.setAlpha(source.buttonAlpha);
+        mOverlay.addView(ghost, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        ghost.bringToFront();
+        return ghost;
+    }
+
+    /** Called after the synchronous session-creation call. */
+    private void finishTerminalAddRequest() {
+        final TerminalAddFlight flight = mTerminalAddFlight;
+        if (flight == null || flight.handedOff) return;
+        if (mAddTabFlightCard != null) {
+            postTerminalAddTimeout();
+            return;
+        }
+        final TermuxService service = mActivity.getTermuxService();
+        final int after = service != null ? service.getTermuxSessionsSize() : 0;
+        if (after > flight.sessionCountBefore) {
+            // The callback has not appended the card yet; wait for onSessionsChanged().
+            postTerminalAddTimeout();
+            return;
+        }
+        cancelTerminalAddFlight(true, true);
+    }
+
+    private void postTerminalAddTimeout() {
+        removeTerminalAddTimeout();
+        mOverlay.postDelayed(mTerminalAddTimeout, TERMINAL_ADD_FLIGHT_TIMEOUT_MS);
+    }
+
+    private void removeTerminalAddTimeout() {
+        mOverlay.removeCallbacks(mTerminalAddTimeout);
+    }
+
+    private void cancelTerminalAddFlightAfterTimeout() {
+        final TerminalAddFlight flight = mTerminalAddFlight;
+        if (flight == null || flight.handedOff) return;
+        cancelTerminalAddFlight(true, true);
+    }
+
+    /**
+     * Hand the laid-out new card to the normal closing expansion. The source ghost stays in the
+     * overlay, above the terminal ghost, until the first quarter of the flight has elapsed.
+     */
+    private void beginTerminalAddFlight(@NonNull Card card) {
+        final TerminalAddFlight flight = mTerminalAddFlight;
+        if (flight == null || flight.handedOff || mAddTabFlightCard != card) return;
+        if (!card.root.isAttachedToWindow() || card.root.getWidth() <= 0
+                || card.root.getHeight() <= 0 || !mCards.contains(card)) {
+            cancelTerminalAddFlight(true, true);
+            return;
+        }
+        removeTerminalAddTimeout();
+        flight.card = card;
+        mAddTabFlightCard = null;
+        mAddTabFlightArmed = false;
+        mAddTabFlightButtonRevealed = false;
+
+        final LiftStart liftStart = new LiftStart(
+                flight.source.visualRect, flight.source.scaleX, flight.source.buttonAlpha,
+                flight.source.elevationPx, flight.source.shadowColor, flight.source);
+        flight.handedOff = true;
+        if (!selectSession(card.session, liftStart)) {
+            flight.handedOff = false;
+            cancelTerminalAddFlight(true, true);
+        }
+    }
+
+    /**
+     * Drop the source flight and, unless the closing expansion now owns the button, restore it.
+     *
+     * @param restoreButton false when the window is stopping or the closing expansion is finishing
+     * @param animateRestore true for the normal grow-in, false for a stable button under a morph
+     */
+    private void cancelTerminalAddFlight(boolean restoreButton, boolean animateRestore) {
+        removeTerminalAddTimeout();
+        final TerminalAddFlight flight = mTerminalAddFlight;
+        mTerminalAddFlight = null;
+        if (flight != null) {
+            if (flight.overlayGhost.getParent() instanceof ViewGroup) {
+                ((ViewGroup) flight.overlayGhost.getParent()).removeView(flight.overlayGhost);
+            }
+            if (flight.card != null && mCards.contains(flight.card)) {
+                finishCardAppearance(flight.card);
+                flight.card.root.setEnabled(true);
+                flight.card.root.setTranslationX(0f);
+                flight.card.root.setTranslationY(0f);
+            }
+            if (mAddTabFlightCard == flight.card) mAddTabFlightCard = null;
+            mAddTabFlightArmed = false;
+            mAddTabFlightButtonRevealed = false;
+            applyOverviewBackgroundAfterReveal();
+            schedulePreviewRender();
+        }
+        if (!restoreButton || !mShowing || mAddButton == null) return;
+        if (isAtSessionLimit()) {
+            resetAddButtonHover();
+            setAddButtonVisible(false);
+            return;
+        }
+        if (!animateRestore) {
+            cancelAddButtonHideAnimation();
+            resetAddButtonHover();
+            mAddButton.setVisibility(View.VISIBLE);
+            mAddButton.setEnabled(true);
+            OverviewAppearanceAnimation.reset(mAddButton);
+            return;
+        }
+        resetAddButtonHover();
+        showAddButtonWithAppearance();
     }
 
     @Nullable
@@ -1461,7 +1746,7 @@ public final class SessionOverviewController {
      *
      * <p>Alpha, not visibility, is used deliberately: the strip must stay {@link View#isShown()}
      * and laid out for the closing tab flight, and the active terminal must still be drawable
-     * for the expansion snapshot.</p>
+     * for the closing frame.</p>
      *
      * <p>The always-on extra-keys panel is the one exception: its hide is a slide-and-fade
      * owned by the activity, so it is left out of this all-at-once pass. Its own animation
@@ -1508,7 +1793,8 @@ public final class SessionOverviewController {
      * views are not available (e.g. during an interrupted activity start).
      */
     public boolean show() {
-        if (mShowing || mOverlay == null || mGrid == null) return false;
+        if (mShowing || mOpeningPreparationPending
+                || mOverlay == null || mGrid == null) return false;
         mActivityStopped = false;
         refreshPreviewThrottleInterval();
         TermuxService service = mActivity.getTermuxService();
@@ -1517,9 +1803,153 @@ public final class SessionOverviewController {
         mPreviousFocus = mActivity.getCurrentFocus();
         mHadIme = mActivity.computeImeVisibility();
 
-        // Snapshot the terminal and the visible tab rectangles before the keyboard starts
-        // disappearing: those are the pixels the user was looking at, and they are the only
-        // honest source for the flight. The grid targets are read later, every frame.
+        if (mHadIme && beginOpeningPreparation()) return true;
+        return showNow(service);
+    }
+
+    /**
+     * Hide the IME before the source pixels are captured.
+     *
+     * <p>While the keyboard is up, an {@code adjustResize} window gives the terminal a shorter
+     * view. The overview grid, however, is sized for the window without the keyboard. Capturing
+     * the flight at that point animates a compressed terminal into a full-size card, and the live
+     * terminal then jumps when the keyboard is gone. This phase keeps the live terminal visible,
+     * asks the IME to hide, and waits for the real layout that follows. Only then does
+     * {@link #showNow(TermuxService)} create the opening frame.</p>
+     *
+     * <p>The wait is event-driven: a layout listener on the active terminal and the activity's
+     * IME callback both call {@link #tryFinishOpeningPreparation()}. There is no timer and no
+     * arbitrary delay.</p>
+     *
+     * @return true when the opening is pending and the terminal is not full size yet
+     */
+    private boolean beginOpeningPreparation() {
+        final TerminalView terminal = mActivity.getActiveTerminalView();
+        final int[] target = mActivity.getTerminalContentViewportForOverview();
+        if (terminal == null || !terminal.isAttachedToWindow()
+                || target[0] <= 0 || target[1] <= 0) {
+            return false;
+        }
+
+        mOpeningPreparationPending = true;
+        mOpeningTargetWidth = target[0];
+        mOpeningTargetHeight = target[1];
+        mOpeningPreparationTerminal = terminal;
+        terminal.addOnLayoutChangeListener(mOpeningPreparationLayoutListener);
+
+        // Mark the overview as showing before dismissing popups or hiding the keyboard. Those
+        // calls produce focus/IME churn, and the activity must treat that churn as part of this
+        // transition instead of as a user closing the input panel. The live terminal remains
+        // visible during the wait; only the frame is deferred.
+        mOpeningBackgroundPending = true;
+        mShowing = true;
+        cancelAddButtonHideAnimation();
+        mActivity.dismissAutoCompleteSuggestions();
+        mActivity.dismissMessageHistoryPopup();
+        final View focused = mActivity.getCurrentFocus();
+        KeyboardUtils.hideSoftKeyboard(mActivity, focused != null ? focused : mOverlay);
+        // The keyboard may already have finished hiding while this method was running. Check the
+        // settled state once instead of waiting for a layout callback that has already fired.
+        // This call may even complete the opening immediately; the request was accepted either
+        // way, and the caller must arm gesture selection for the grid it is about to show.
+        tryFinishOpeningPreparation();
+        return true;
+    }
+
+    /**
+     * Continue the opening as soon as the IME is gone and the active terminal has the full
+     * viewport captured before the keyboard was dismissed.
+     */
+    private void tryFinishOpeningPreparation() {
+        if (!mOpeningPreparationPending) return;
+        if (mActivity.computeImeVisibility()) return;
+
+        final TerminalView terminal = mOpeningPreparationTerminal;
+        if (terminal == null || !terminal.isAttachedToWindow() || !terminal.isShown()
+                || terminal.getWidth() <= 0 || terminal.getHeight() <= 0) {
+            return;
+        }
+        // On API 30+ the target includes the IME inset, so this is the exact full terminal.
+        // On older APIs the target is the compressed pager rectangle; the view has already
+        // grown past it when the frame detector reports the IME hidden, so "at least" is the
+        // correct comparison for both cases.
+        if (terminal.getWidth() < mOpeningTargetWidth - 1
+                || terminal.getHeight() < mOpeningTargetHeight - 1) {
+            return;
+        }
+
+        // Make the active emulator match the view before the frame is drawn. This is
+        // synchronous; the renderer reads the same emulator the view uses.
+        final TerminalSession session = mActivity.getCurrentSession();
+        final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
+        final ViewportGrid grid = TerminalPreviewRenderer.viewportGrid(
+                terminal.getWidth(), terminal.getHeight(), previewTextSize(), previewTypeface());
+        if (grid != null && emulator != null && !grid.matches(emulator)) {
+            session.updateSize(grid.columns, grid.rows, grid.cellWidthPx, grid.cellHeightPx);
+        }
+
+        finishOpeningPreparation();
+    }
+
+    private void finishOpeningPreparation() {
+        if (!mOpeningPreparationPending) return;
+        mOpeningPreparationPending = false;
+        releaseOpeningPreparationTerminal();
+        final TermuxService service = mActivity.getTermuxService();
+        if (service == null || service.getTermuxSessionsSize() == 0 || mActivityStopped) {
+            cancelOpeningPreparation(true);
+            return;
+        }
+        showNow(service);
+    }
+
+    private void releaseOpeningPreparationTerminal() {
+        if (mOpeningPreparationTerminal != null) {
+            mOpeningPreparationTerminal.removeOnLayoutChangeListener(
+                    mOpeningPreparationLayoutListener);
+            mOpeningPreparationTerminal = null;
+        }
+    }
+
+    /**
+     * Activity callback for the IME hand-off that runs while {@link #show()} waits for the
+     * terminal's full-size layout. The layout listener covers the size change; this covers the
+     * case where the terminal was already laid out and only the inset state changed.
+     */
+    public void onImeVisibilityChangedForOverview(boolean imeVisible) {
+        if (!imeVisible) tryFinishOpeningPreparation();
+    }
+
+    /**
+     * Abort an opening that has not reached {@link #showNow(TermuxService)} yet. Nothing of the
+     * overview has been shown or moved in this phase, so there is no grid state to unwind; only
+     * the focus/IME hand-off has to be reversed.
+     */
+    private void cancelOpeningPreparation(boolean restoreFocus) {
+        if (!mOpeningPreparationPending && !mShowing) return;
+        mOpeningPreparationPending = false;
+        releaseOpeningPreparationTerminal();
+        mOpeningTargetWidth = 0;
+        mOpeningTargetHeight = 0;
+        disarmGestureSelection();
+        mPendingGestureRelease = false;
+        resetGestureHover();
+        mShowing = false;
+        mOpeningBackgroundPending = false;
+        mActivity.applySchemeColors();
+        if (restoreFocus) {
+            restorePreviousFocus();
+        } else {
+            mPreviousFocus = null;
+            mHadIme = false;
+        }
+    }
+
+    private boolean showNow(@NonNull TermuxService service) {
+        // Create the live terminal frame and capture the visible tab rectangles after the
+        // keyboard has been dismissed: those are the pixels the user will see when the overview
+        // starts, and they are the only honest source for the flight. The grid targets are read
+        // later, every frame.
         final Transition transition = prepareTransition(service);
 
         // Mark the overview as showing before dismissing popups or hiding the keyboard. Those
@@ -1563,7 +1993,7 @@ public final class SessionOverviewController {
         applyOverviewBackground();
         if (transition != null) {
             // Restore the live tint for the first frame. The hole installed with the ghost
-            // removes it exactly under the terminal snapshot, which already carries the same
+            // removes it exactly under the terminal frame, which already carries the same
             // alpha itself.
             mActivity.applyWindowBackgroundColor(backgroundStart);
             transition.backgroundStart = backgroundStart;
@@ -1575,6 +2005,8 @@ public final class SessionOverviewController {
         if (mCards.isEmpty()) {
             mOpeningBackgroundPending = false;
             mShowing = false;
+            mPendingGestureRelease = false;
+            disarmGestureSelection();
             releaseCards();
             discardTransition(transition);
             mActivity.cancelExtraKeysPanelOverview();
@@ -1637,6 +2069,21 @@ public final class SessionOverviewController {
         // well covers a reopening with the same session count, where the grid's cached geometry
         // means the listener may not fire again.
         mGrid.post(this::scrollToActiveCard);
+        // The opening gesture can outlive the keyboard hand-off. If the finger was already old
+        // enough for recognition when it lifted, select now that the cards have bounds. If it is
+        // still down, apply the hover point that was collected while the grid did not exist.
+        if (mPendingGestureRelease) {
+            final float rawX = mPendingGestureReleaseX;
+            final float rawY = mPendingGestureReleaseY;
+            mPendingGestureRelease = false;
+            mGrid.post(() -> {
+                if (mShowing && !mOpeningPreparationPending) {
+                    selectTargetUnderFinger(rawX, rawY);
+                }
+            });
+        } else if (mGestureSelectionArmed) {
+            mGrid.post(this::applyHoverTarget);
+        }
         mGrid.removeCallbacks(mPreviewRefreshRunnable);
         mGrid.postDelayed(mPreviewRefreshRunnable, 500L);
 
@@ -1691,17 +2138,31 @@ public final class SessionOverviewController {
      */
     private void hide(boolean restoreFocus, boolean animateAddButton,
                       @Nullable TerminalSession returnTargetSession) {
+        if (mOpeningPreparationPending) {
+            // The overview never became visible. Undo the focus/IME hand-off and leave the live
+            // content untouched; none of the normal close path has any state to unwind.
+            cancelOpeningPreparation(restoreFocus);
+            return;
+        }
         if (!mShowing) return;
         mOpeningBackgroundPending = false;
+        final boolean consumedAddButton = mTerminalAddConsumedClose;
         // A flight into a window that is about to stop drawing would only be cancelled by
         // onStop; put the real tab button back before the live content is restored.
         if (!animateAddButton) cancelTabAddButtonFlight();
         // Drop any add-session flight; restore the button instantly so the existing closing
         // pencil morph can use it (no 160 ms grow competing with it). No grow when not animating.
-        cancelAddTabFlight(animateAddButton, false);
+        // The consumed add-button close has no button to restore: the terminal owns its pixels.
+        if (consumedAddButton) {
+            cancelTerminalAddFlight(false, false);
+            cancelAddTabFlight(false, false);
+        } else {
+            cancelTerminalAddFlight(true, false);
+            cancelAddTabFlight(animateAddButton, false);
+        }
         disarmGestureSelection();
         stopAutoScroll();
-        clearGestureHover();
+        resetGestureHover();
         cancelCardCloseAnimation();
 
         // Keep the position the user left. If the opening restore has not run yet, the previous
@@ -1745,17 +2206,17 @@ public final class SessionOverviewController {
         // An early return flight is already running with the closing expansion. Do not cancel
         // it here, and do not start a second one after the expansion: the add button must stay
         // in the air until it reaches the pencil. A normal close starts the flight below.
-        final boolean addButtonAlreadyReturning = animateAddButton
+        final boolean addButtonAlreadyReturning = !consumedAddButton && animateAddButton
                 && mActivity.isOverviewAddButtonReturnMorphActive();
         if (!addButtonAlreadyReturning && !mAddButtonHiding) {
             // Leave a running add-button hide alone: it already owns the button's alpha and
             // scale, and resetting those values here would make it flash at full size.
             mActivity.cancelOverviewAddButtonMorph();
         }
-        mActivity.restoreTextInputPanelAfterOverview();
+        mActivity.restoreTextInputPanelAfterOverview(!consumedAddButton);
         if (mOverlay != null) mOverlay.setVisibility(View.GONE);
         restoreOverlayFromSystemBars();
-        if (animateAddButton) {
+        if (animateAddButton && !consumedAddButton) {
             // A quick close can interrupt the opening flight. Replace it with the reverse
             // before the strip becomes visible again. A closing flight that already belongs to
             // this exit (started by the expansion) is left alone.
@@ -1788,11 +2249,15 @@ public final class SessionOverviewController {
         // close is switching to and derives the pencil's horizontal position from that session's
         // scrollbar state; the live toggle still belongs to the leaving session until the pager
         // lands. Only activity teardown suppresses the flight.
-        final boolean addButtonReturning = animateAddButton
+        final boolean addButtonReturning = !consumedAddButton && animateAddButton
                 && (addButtonAlreadyReturning
                         || mActivity.startOverviewAddButtonReturnMorph(mAddButton,
                                 returnTargetSession));
-        if (!addButtonReturning) {
+        if (consumedAddButton) {
+            // The source button became the terminal. Leave only the pencil for the activity's
+            // post-overlay fade-in.
+            setAddButtonVisible(false);
+        } else if (!addButtonReturning) {
             if (animateAddButton) {
                 // No pencil to fly back to. Use the same shrink-and-fade as the add button at
                 // the session limit, whether the hide already started with the exit animation
@@ -1804,7 +2269,7 @@ public final class SessionOverviewController {
                 setAddButtonVisible(false);
             }
         }
-        if (animateAddButton) startTabAddButtonClosingFlight();
+        if (animateAddButton && !consumedAddButton) startTabAddButtonClosingFlight();
 
         if (restoreFocus) {
             restorePreviousFocus();
@@ -2064,11 +2529,13 @@ public final class SessionOverviewController {
     /**
      * @param liftStart visual state of a hovered card, so the expansion starts from the lifted
      *                  thumbnail instead of jumping back to its resting size first
+     * @return true when the selection was accepted (including a fallback hide), false when a
+     *         transition already owns the screen and the caller must restore its own source
      */
-    private void selectSession(@NonNull TerminalSession session,
-                               @Nullable LiftStart liftStart) {
+    private boolean selectSession(@NonNull TerminalSession session,
+                                  @Nullable LiftStart liftStart) {
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null
-                || mClosingCardAnimation != null) return;
+                || mClosingCardAnimation != null) return false;
 
         // Apply the target profile now, while the overview still hides the panel. Doing it at
         // selection time also lets the following layout pass size the panel before the closing
@@ -2094,9 +2561,10 @@ public final class SessionOverviewController {
             positionTabStripForSession(session);
             hide(false, true, session);
             switchToSession(session);
-            return;
+            return true;
         }
         beginClosingSelection(card, liftStart);
+        return true;
     }
 
     /**
@@ -2106,6 +2574,10 @@ public final class SessionOverviewController {
      * or scrolled out of view.
      */
     private void beginClosingSelection(@NonNull Card card, @Nullable LiftStart liftStart) {
+        // selectSession() may have just cleaned up the opening flight, which restores every
+        // card to its resting alpha. The add-button source needs its new card invisible again
+        // until the closing expansion owns it.
+        if (liftStart != null && liftStart.addButtonSource != null) prepareFlightCard(card);
         final TermuxService service = mActivity.getTermuxService();
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         final int index = service != null ? service.getIndexOfSession(card.session) : -1;
@@ -2119,6 +2591,9 @@ public final class SessionOverviewController {
             if (mPendingClosingCard != card || !mShowing) return;
             if (mClosingTransition != null) {
                 mPendingClosingCard = null;
+                if (liftStart != null && liftStart.addButtonSource != null) {
+                    cancelTerminalAddFlight(true, true);
+                }
                 restoreTabSelectionToCurrentSession();
                 return;
             }
@@ -2138,6 +2613,11 @@ public final class SessionOverviewController {
         if (!mShowing || mClosingTransition != null) return;
         final ClosingTransition closing = prepareClosingTransition(card, liftStart);
         if (closing == null) {
+            if (liftStart != null && liftStart.addButtonSource != null) {
+                // The expansion could not be prepared. Put the real button and the new card
+                // back, then use the ordinary close so the pencil morph still owns the exit.
+                cancelTerminalAddFlight(true, false);
+            }
             hide(false, true, card.session);
             switchToSession(card.session);
             return;
@@ -2310,7 +2790,13 @@ public final class SessionOverviewController {
         // X-button fade: the card must finish fading before its slot is removed.
         if (mClosingTransition != null || mPendingClosingCard != null
                 || mClosingCardAnimation != null) {
-            cancelAddTabFlight(true, true);
+            // The add-button source is owned by the closing flight; restoring it here would make
+            // it reappear over the expanding terminal. Only a card-add flight needs unwinding.
+            if (mClosingTransition != null) {
+                if (isAddTabFlightActive()) cancelAddTabFlight(false, false);
+            } else if (isAddTabFlightActive()) {
+                cancelAddTabFlight(true, true);
+            }
             return;
         }
         TermuxService service = mActivity.getTermuxService();
@@ -2321,7 +2807,9 @@ public final class SessionOverviewController {
         // The add button follows the same session list: hide with the card-close animation at
         // the limit, grow it back with the reverse as soon as any tab is closed. While an
         // add-session flight owns the button, defer this until the flight finishes.
-        if (!isAddTabFlightActive()) updateAddButtonForSessionLimit();
+        if (!isAddTabFlightActive() && !isTerminalAddFlightActive()) {
+            updateAddButtonForSessionLimit();
+        }
 
         final List<TermuxSession> sessions = service.getTermuxSessions();
         // Session-list callbacks also fire for non-structural updates (for example when a tab is
@@ -2350,7 +2838,7 @@ public final class SessionOverviewController {
         // instantly. The surviving views and their preview bitmaps are kept: rebuilding the
         // whole grid would clear every thumbnail and force it through an empty frame.
         final boolean pureRemoval = isPureRemoval(sessions);
-        // An opening flight still owns the cards and the terminal snapshot. Do not mix retained
+        // An opening flight still owns the cards and the terminal frame. Do not mix retained
         // cards with that transient state; cancel the flight first and fall back to a rebuild.
         final boolean reuseCards = pureRemoval
                 && mTransition == null
@@ -2372,6 +2860,25 @@ public final class SessionOverviewController {
         if (!pureRemoval) {
             final List<Card> added = appendCardsForPureAddition(sessions);
             if (added != null) {
+                if (mTerminalAddFlight != null && !mTerminalAddFlight.handedOff) {
+                    if (added.size() == 1) {
+                        final Card flightCard = added.get(0);
+                        mTerminalAddFlight.card = flightCard;
+                        mAddTabFlightArmed = false;
+                        mAddTabFlightCard = flightCard;
+                        prepareFlightCard(flightCard);
+                        // The grid's own layout listener re-fits the integer glyph pitch once the
+                        // new child has been measured. Doing it here would resize every bitmap a
+                        // frame early.
+                        refreshTitles();
+                        mGrid.requestLayout();
+                        animateAddedCards(added, oldCenters, flightCard);
+                        schedulePreviewRender();
+                        postTerminalAddTimeout();
+                        return;
+                    }
+                    cancelTerminalAddFlight(true, true);
+                }
                 if (mAddTabFlightArmed && added.size() == 1) {
                     final Card flightCard = added.get(0);
                     mAddTabFlightArmed = false;
@@ -2398,6 +2905,9 @@ public final class SessionOverviewController {
             if (mAddTabFlightArmed) cancelAddTabFlight(true, true);
         } else if (mAddTabFlightArmed) {
             cancelAddTabFlight(true, true);
+        }
+        if (mTerminalAddFlight != null && !mTerminalAddFlight.handedOff) {
+            cancelTerminalAddFlight(true, true);
         }
 
         // Only a removal, reorder or rebuild needs to re-target the backdrop right now. For an
@@ -2627,7 +3137,7 @@ public final class SessionOverviewController {
                                    @NonNull Map<TerminalSession, float[]> oldCenters,
                                    @Nullable Card flightCard) {
         if (mGrid == null || cards.isEmpty() || mCards.isEmpty()) {
-            if (flightCard != null) cancelAddTabFlight(true, true);
+            if (flightCard != null) cancelCardFlight(true, true);
             return;
         }
         final SessionOverviewGridView grid = mGrid;
@@ -2644,7 +3154,7 @@ public final class SessionOverviewController {
             if (listener[0] != null) grid.removeOnLayoutChangeListener(listener[0]);
             if (!mShowing || grid.getChildCount() != count) {
                 if (flightCard != null) {
-                    cancelAddTabFlight(true, true);
+                    cancelCardFlight(true, true);
                 } else {
                     for (Card card : cards) finishCardAppearance(card);
                     applyOverviewBackgroundAfterReveal();
@@ -2839,6 +3349,14 @@ public final class SessionOverviewController {
 
     /** Repaint the card preview when a session produces output while the overview is open. */
     public void onSessionTextChanged(@NonNull TerminalSession session) {
+        final Transition opening = mTransition;
+        if (opening != null && opening.frame != null && opening.session == session) {
+            opening.frame.markDirty();
+        }
+        final ClosingTransition closing = mClosingTransition;
+        if (closing != null && closing.frame != null && closing.session == session) {
+            closing.frame.markDirty();
+        }
         if (!mShowing || mActivityStopped || mGrid == null) return;
         final Card card = findCard(session);
         if (card == null) return;
@@ -2849,8 +3367,25 @@ public final class SessionOverviewController {
         final int viewportHeight = mScrollView != null ? mScrollView.getHeight() : 0;
         final int gridTop = mGrid.getTop();
         if (isCardPreviewVisible(card, scrollY, viewportHeight, gridTop)) {
-            requestPreviewRender(true);
+            requestPreviewRender(!isCardAnimationActive());
         }
+    }
+
+    /**
+     * Whether a short card animation currently owns the grid. During these flights an output
+     * update should be visible on the next frame instead of waiting for the global preview
+     * interval; the posted pass still coalesces every dirty card into one frame.
+     */
+    private boolean isCardAnimationActive() {
+        if (mCardCloseAnimator != null || mAddTabFlightCard != null
+                || mAddTabFlightAnimator != null) {
+            return true;
+        }
+        if (mDragController != null && mDragController.isAnimating()) return true;
+        for (Card card : mCards) {
+            if (card.appearing) return true;
+        }
+        return false;
     }
 
     /** Cheap refresh for high-frequency OSC title updates. */
@@ -2889,11 +3424,19 @@ public final class SessionOverviewController {
      * repaint them without rebuilding or replaying the opening flight.</p>
      */
     public void onActivityStopped() {
+        if (mOpeningPreparationPending) {
+            cancelOpeningPreparation(false);
+            return;
+        }
         cancelTabAddButtonFlight();
         cancelAddTabFlight(false, false);
+        // The closing transition owns the source ghost once it starts; only a flight that has
+        // not handed off can be dropped here without pulling pixels out from under it.
+        if (mClosingTransition == null) cancelTerminalAddFlight(false, false);
         if (!mShowing) return;
         mActivityStopped = true;
         disarmGestureSelection();
+        resetAddButtonHover();
         mActivity.cancelOverviewAddButtonMorph();
 
         cancelCardCloseAnimation();
@@ -2939,6 +3482,10 @@ public final class SessionOverviewController {
         // the window that is actually on screen; replace a snapshot taken before that rotation so
         // it cannot override the correct viewport.
         mLastConfiguration = new Configuration(mActivity.getResources().getConfiguration());
+        // An opening that is still waiting for the full terminal has not shown the overlay yet.
+        // Its layout/IME callbacks will finish it; the normal resume path must not reveal the
+        // grid early.
+        if (mOpeningPreparationPending) return;
         if (!mShowing || mOverlay == null) return;
         refreshPreviewThrottleInterval();
 
@@ -2978,6 +3525,7 @@ public final class SessionOverviewController {
     public void onActivityDestroyed() {
         cancelTabAddButtonFlight();
         cancelAddTabFlight(false, false);
+        if (mClosingTransition == null) cancelTerminalAddFlight(false, false);
         if (!mShowing) return;
         onActivityStopped();
         clearScrollRestoreAfterLayout();
@@ -3020,48 +3568,29 @@ public final class SessionOverviewController {
         if (terminal != null && terminal.isAttachedToWindow() && terminal.isShown()
                 && terminal.getWidth() > 0 && terminal.getHeight() > 0
                 && terminal.getTerminalContentBounds(terminalContent)) {
-            Bitmap full = null;
-            try {
-                final int backgroundTransparency = previewBackgroundTransparency();
-                final TerminalSession activeSession = mActivity.getCurrentSession();
-                final TerminalEmulator activeEmulator = activeSession != null
-                        ? activeSession.getEmulator() : null;
-                if (backgroundTransparency > 0 && activeEmulator != null) {
-                    // The snapshot carries the terminal background at the configured alpha.
-                    // clipFlightRectToBitmap() shortens the flight rect to the painted bitmap
-                    // height so no second translucent layer sits below it during the hand-off.
-                    transition.terminalBitmap = Bitmap.createBitmap(
+            final TerminalSession activeSession = mActivity.getCurrentSession();
+            final TerminalEmulator activeEmulator = activeSession != null
+                    ? activeSession.getEmulator() : null;
+            if (activeEmulator != null) {
+                try {
+                    // The live source owns the same glyph-grid raster as the cards, so output
+                    // produced during the flight is painted without a new bitmap allocation.
+                    transition.frame = new TerminalFrameSource(activeSession,
                             terminalContent.width(), terminalContent.height(),
-                            Bitmap.Config.ARGB_8888);
-                    TerminalPreviewRenderer.renderForFlight(activeEmulator,
-                            transition.terminalBitmap, previewTextSize(), previewTypeface(),
-                            scrollTopRow(activeSession), backgroundTransparency);
-                } else {
-                    // A transparent terminal must keep its alpha: the overview shows the window
-                    // background directly, and flattening the snapshot to RGB would turn the
-                    // wallpaper visible through the terminal into an opaque sheet during the
-                    // flight.
-                    final Bitmap.Config config = terminal.isOpaque()
-                            ? Bitmap.Config.RGB_565 : Bitmap.Config.ARGB_8888;
-                    full = Bitmap.createBitmap(terminal.getWidth(), terminal.getHeight(), config);
-                    terminal.draw(new Canvas(full));
-
-                    // Fly the glyph grid, not the whole TerminalView. The background bands
-                    // around the grid are not part of the card preview; including them makes the
-                    // terminal shrink with margins and jump when the preview replaces it at the
-                    // end.
-                    transition.terminalBitmap = cropToGrid(full, terminalContent);
-                    full = null;
+                            previewTextSize(), previewTypeface(),
+                            previewBackgroundTransparency(),
+                            () -> scrollTopRow(activeSession));
+                    transition.session = activeSession;
+                    transition.terminalSource = windowRectOf(terminal, terminalContent);
+                } catch (RuntimeException ignored) {
+                    // A terminal that cannot be drawn (e.g. mid-detach) simply does not fly.
+                    transition.frame = null;
                 }
-                transition.terminalSource = windowRectOf(terminal, terminalContent);
-            } catch (RuntimeException ignored) {
-                // A terminal that cannot be drawn (e.g. mid-detach) simply does not fly.
-                recycleBitmap(full);
             }
         }
 
         // Capture the scrollbar thumb with the terminal pixels, before the keyboard and panel
-        // hide can resize the view. The thumb is a sibling View, not part of the snapshot.
+        // hide can resize the view. The thumb is a sibling View, not part of the live frame.
         captureOpeningScrollbarThumbSource(transition, terminal);
 
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
@@ -3164,19 +3693,6 @@ public final class SessionOverviewController {
                 location[0] + localBounds.right, location[1] + localBounds.bottom);
     }
 
-    /** Crop a full TerminalView snapshot down to the glyph grid the thumbnail represents. */
-    @NonNull
-    private static Bitmap cropToGrid(@NonNull Bitmap full, @NonNull Rect grid) {
-        if (grid.left == 0 && grid.top == 0
-                && grid.width() == full.getWidth() && grid.height() == full.getHeight()) {
-            return full;
-        }
-        final Bitmap cropped = Bitmap.createBitmap(
-                full, grid.left, grid.top, grid.width(), grid.height());
-        if (cropped != full) full.recycle();
-        return cropped;
-    }
-
     private static Rect offsetRect(@NonNull Rect source, @NonNull int[] origin) {
         return new Rect(source.left - origin[0], source.top - origin[1],
                 source.right - origin[0], source.bottom - origin[1]);
@@ -3223,21 +3739,23 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Height the width-scaled flight bitmap actually covers in {@code viewHeight}.
+     * Height the width-scaled source actually covers in {@code viewHeight}.
      *
      * <p>The card aspect is the terminal aspect rounded to integers, so this differs from the
      * view height by at most a pixel. Clipping the flight rect to this height removes the empty
      * bottom strip instead of painting a second translucent layer under it.</p>
      */
     private static float paintedTerminalHeight(int viewWidth, int viewHeight,
-                                               @Nullable Bitmap bitmap) {
-        if (bitmap == null || bitmap.getWidth() <= 0 || viewWidth <= 0) return viewHeight;
-        return Math.min(viewHeight, bitmap.getHeight() * ((float) viewWidth / bitmap.getWidth()));
+                                               @Nullable TerminalFrameSource frame) {
+        if (frame == null || frame.getWidth() <= 0 || viewWidth <= 0) return viewHeight;
+        return Math.min(viewHeight,
+                frame.getHeight() * ((float) viewWidth / frame.getWidth()));
     }
 
-    /** Shorten a flight rect to the bitmap's last fully covered pixel row. */
-    private static void clipFlightRectToBitmap(@NonNull Rect rect, @Nullable Bitmap bitmap) {
-        final float painted = paintedTerminalHeight(rect.width(), rect.height(), bitmap);
+    /** Shorten a flight rect to the live source's last fully covered pixel row. */
+    private static void clipFlightRectToSource(@NonNull Rect rect,
+                                               @Nullable TerminalFrameSource frame) {
+        final float painted = paintedTerminalHeight(rect.width(), rect.height(), frame);
         final int usable = Math.max(1, (int) Math.floor(painted));
         if (usable < rect.height()) rect.bottom = rect.top + usable;
     }
@@ -3273,7 +3791,7 @@ public final class SessionOverviewController {
      * <p>{@code anchorTab} is the tab's resting rect in content coordinates; the card is
      * translated relative to that rect. Sources and targets must be measured without the card's
      * own translation, otherwise next frame would feed the movement back into the path.
-     * Terminals that own the terminal snapshot (the active card on opening, the selected card
+     * Terminals that own the terminal frame (the active card on opening, the selected card
      * on closing) are deliberately not moved by this helper.</p>
      */
     private static void moveCardWithTab(@NonNull View cardRoot, @NonNull Rect anchorTab,
@@ -3298,7 +3816,7 @@ public final class SessionOverviewController {
      * <p>While the tab and its card thumbnail are both visible they belong to the grid and pass
      * under the shrinking or expanding terminal window. A tab moving alone — before its
      * thumbnail has started to fade in or after it has faded out — stays above the terminal, as
-     * it did before. The terminal snapshot has zero Z and the ghosts are appended after it, so
+     * it did before. The terminal frame has zero Z and the ghosts are appended after it, so
      * the paired tab needs a negative Z to actually be drawn below it.</p>
      */
     private static void applyTabGhostZ(@NonNull View tabGhost, @Nullable View closeGhost,
@@ -3381,12 +3899,12 @@ public final class SessionOverviewController {
         final int[] origin = contentOrigin(mScratchOrigin);
         if (origin == null) return;
 
-        if (transition.terminalBitmap != null && transition.terminalSource != null) {
+        if (transition.frame != null && transition.terminalSource != null) {
             final Card active = findCard(mActivity.getCurrentSession());
             if (active != null) {
                 transition.activeCard = active;
-                // The snapshot, not the card sitting in its final slot, owns the visual for the
-                // duration of the flight.
+                // The live source, not the card sitting in its final slot, owns the visual for
+                // the duration of the flight.
                 setCardOutlineSuppressed(active, true);
                 active.preview.setAlpha(0f);
                 active.preview.setVisibility(View.INVISIBLE);
@@ -3394,7 +3912,7 @@ public final class SessionOverviewController {
                 final TopCropImageView ghost = new TopCropImageView(mActivity);
                 ghost.setImportantForAccessibility(
                         View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                ghost.setImageBitmap(transition.terminalBitmap);
+                ghost.setImageDrawable(new LiveTerminalDrawable(transition.frame));
                 // At progress zero this is the live terminal, which is square and has no
                 // outline. The radius grows with the flight toward the card.
                 transition.terminalOutline = new RoundedOutlineProvider(0f);
@@ -3406,14 +3924,13 @@ public final class SessionOverviewController {
                 mGhostLayer.addView(ghost);
                 transition.terminalGhost = ghost;
                 // The flight may not have painted its first frame yet. Cut the hole now so the
-                // restored live decor never sits under the already-installed snapshot.
+                // restored live decor never sits under the already-installed frame.
                 if (mBackdropHole != null) {
                     mBackdropHole.setContent(transition.terminalSourceLocal, 0f,
                             mOverlayBackgroundColor, 0);
                 }
             } else {
-                recycleBitmap(transition.terminalBitmap);
-                transition.terminalBitmap = null;
+                releaseFrame(transition);
             }
         }
 
@@ -3421,7 +3938,7 @@ public final class SessionOverviewController {
         // has a real layout, so the set of cards that will be visible is not known yet. Removing
         // a tab from this snapshot before its target is known would make it vanish prematurely.
         installOpeningTabPanelGhost(transition, origin);
-        // The scrollbar thumb is a sibling of the terminal, not part of its snapshot. Give it a
+        // The scrollbar thumb is a sibling of the terminal, not part of its live frame. Give it a
         // flying copy above that snapshot so it slides out and fades with the opening flight
         // instead of disappearing in the frame the live content is hidden.
         installOpeningScrollbarThumbGhost(transition, origin);
@@ -3432,13 +3949,13 @@ public final class SessionOverviewController {
         }
 
         // The live terminal, strip and controls are already transparent (see
-        // hideLiveContentForOverview()). The captured terminal and strip snapshots are therefore
-        // the only copies of those surfaces while the window background stays visible.
+        // hideLiveContentForOverview()). The live terminal frame and strip snapshots are
+        // therefore the only copies of those surfaces while the window background stays visible.
         applyOpeningCardAlpha(0f);
     }
 
     /**
-     * Capture the live scrollbar thumb at the same moment as the terminal snapshot. The thumb is
+     * Capture the live scrollbar thumb at the same moment as the terminal frame. The thumb is
      * a sibling View, not part of the bitmap, and the keyboard/panel hide that follows can resize
      * the terminal before the flight is installed. Keeping the window rectangle and the drag
      * state here makes the opening copy match the pixels that were on screen, not whatever the
@@ -3476,10 +3993,10 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Copy the captured scrollbar thumb into the opening flight. The terminal snapshot never
+     * Copy the captured scrollbar thumb into the opening flight. The terminal frame never
      * contains the sibling thumb View, so without this copy the handle would vanish in the frame
-     * the live content is hidden. The copy sits above that snapshot and slides right and fades
-     * out over exactly the opening animation.
+     * the live content is hidden. The copy sits above that frame and slides right and fades out
+     * over exactly the opening animation.
      */
     private void installOpeningScrollbarThumbGhost(@NonNull Transition transition,
                                                    @NonNull int[] origin) {
@@ -3899,10 +4416,12 @@ public final class SessionOverviewController {
         Rect hole = null;
         float holeCornerRadius = 0f;
 
+        if (transition.frame != null) transition.frame.syncTransientState();
+
         if (transition.terminalGhost != null && transition.activeCard != null && origin != null) {
-            // The active card's preview is the terminal snapshot's destination, not a companion
+            // The active card's preview is the terminal flight's destination, not a companion
             // of the active tab. Read it without the card's temporary translation so the
-            // snapshot always lands in the resting grid slot.
+            // ghost always lands in the resting grid slot.
             final boolean targetReady = cardChildTarget(
                     transition.activeCard, transition.activeCard.preview, origin,
                     mScratchTargetRect);
@@ -3910,11 +4429,11 @@ public final class SessionOverviewController {
                 lerpRect(mScratchGhostRect, transition.terminalSourceLocal,
                         mScratchTargetRect, p);
                 hole = mScratchGhostRect;
-                if (p < 1f) clipFlightRectToBitmap(hole, transition.terminalBitmap);
+                if (p < 1f) clipFlightRectToSource(hole, transition.frame);
                 layoutTerminalGhost(transition.terminalGhost, hole);
             }
-            // The snapshot starts square and grows into the rounded card. The card's own outline
-            // stays suppressed until the snapshot lands, so there is never a second outline
+            // The frame starts square and grows into the rounded card. The card's own outline
+            // stays suppressed until the frame lands, so there is never a second outline
             // parked in the grid slot.
             holeCornerRadius = SessionOverviewTransitionMath.lerp(
                     0f, transition.activeCard.thumbnailCornerRadius, p);
@@ -3967,7 +4486,7 @@ public final class SessionOverviewController {
                 ghost.targetApplied = applyOpeningTabTarget(ghost, origin);
             }
 
-            // The active card belongs to the terminal snapshot, which is already shrinking into
+            // The active card belongs to the terminal frame, which is already shrinking into
             // its final slot. A card that is visible in the viewport follows its tab so the
             // thumbnail moves with it. An off-screen card stays in its slot: only its tab flies
             // to that slot, so an unseen thumbnail can never be dragged into view.
@@ -4068,13 +4587,20 @@ public final class SessionOverviewController {
     private void finishTransition(@NonNull Transition transition) {
         if (mTransition != transition) return;
         applyTransitionProgress(transition, 1f);
+        final Card active = transition.activeCard;
         cleanupTransition(transition);
+        // The live ghost may have shown output that the card bitmap did not have yet. Repaint
+        // the slot from the same emulator now that the card is visible again.
+        if (active != null && mCards.contains(active)) {
+            active.previewDirty = true;
+            requestPreviewRender(true);
+        }
     }
 
     /**
      * Fade the grid as one group instead of issuing an alpha change for every card. The active
      * card draws nothing during the flight: its preview, pill and border are suppressed while
-     * the terminal snapshot owns its slot, so a single group alpha is visually identical to
+     * the terminal frame owns its slot, so a single group alpha is visually identical to
      * fading only its neighbours.
      */
     private void applyOpeningCardAlpha(float progress) {
@@ -4138,8 +4664,7 @@ public final class SessionOverviewController {
         }
         if (mGhostLayer != null) mGhostLayer.removeAllViews();
         mBackdropHole = null;
-        recycleBitmap(transition.terminalBitmap);
-        transition.terminalBitmap = null;
+        releaseFrame(transition);
         transition.terminalGhost = null;
         transition.terminalOutline = null;
         recycleBitmap(transition.tabPanelBitmap);
@@ -4153,11 +4678,17 @@ public final class SessionOverviewController {
     /** Release sources captured for a transition that was never installed. */
     private static void discardTransition(@Nullable Transition transition) {
         if (transition == null) return;
-        recycleBitmap(transition.terminalBitmap);
-        transition.terminalBitmap = null;
+        releaseFrame(transition);
         recycleBitmap(transition.tabPanelBitmap);
         transition.tabPanelBitmap = null;
         transition.tabSources.clear();
+    }
+
+    private static void releaseFrame(@Nullable Transition transition) {
+        if (transition == null || transition.frame == null) return;
+        transition.frame.release();
+        transition.frame = null;
+        transition.session = null;
     }
 
     // ── Closing transition ─────────────────────────────────────────────────
@@ -4168,14 +4699,13 @@ public final class SessionOverviewController {
      *
      * <p>Both ends of the flight are the glyph grid, not the whole {@link TerminalView}. The
      * view's background margins are absent from the card, so including them would make the
-     * expansion change aspect ratio and jump when the live terminal takes over. With background
-     * transparency on, the snapshot paints the terminal background at the configured alpha,
-     * matching the cards. The decor cut-out keeps the fading overview colour behind it from
-     * stacking a second layer. At 0% the visible
-     * session's grid is cropped from a {@link View#draw(Canvas)} snapshot instead, so the first
-     * and last frames match the terminal pixels exactly. A background session has no attached
-     * terminal view, so its emulator is rendered through {@link TerminalPreviewRenderer} at the
-     * grid size; no second TerminalView is created and no PTY is resized.</p>
+     * expansion change aspect ratio and jump when the live terminal takes over. The frame is a
+     * fixed-size {@link TerminalFrameSource} painted through {@link TerminalPreviewRenderer},
+     * which keeps the terminal background at the configured alpha and lets output, cursor and
+     * grid changes repaint the flight. The decor cut-out keeps the fading overview colour behind
+     * it from stacking a second layer. A background session has no attached terminal view, so its
+     * emulator is used directly; no second TerminalView is created and no bitmap fallback is
+     * kept.</p>
      */
     @Nullable
     private ClosingTransition prepareClosingTransition(@NonNull Card card,
@@ -4203,44 +4733,41 @@ public final class SessionOverviewController {
         final Rect terminalTarget = offsetRect(targetWindow, origin);
         if (terminalTarget.isEmpty()) return null;
 
-        final TerminalEmulator emulator = card.session.getEmulator();
-        if (emulator == null) return null;
+        final TerminalEmulator targetEmulator = card.session.getEmulator();
+        if (targetEmulator == null) return null;
 
-        // Flight snapshots carry the terminal background at the configured alpha; the flight
-        // rect is shortened to the painted bitmap height so no uncovered strip is composited.
-        // At 0% the visible terminal is copied straight from its view.
-        final int transparency = previewBackgroundTransparency();
-        final Bitmap.Config bitmapConfig = transparency > 0
-                ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
-
-        Bitmap bitmap = null;
-        Bitmap full = null;
-        try {
-            if (transparency > 0) {
-                bitmap = Bitmap.createBitmap(terminalTarget.width(), terminalTarget.height(),
-                        Bitmap.Config.ARGB_8888);
-                TerminalPreviewRenderer.renderForFlight(emulator, bitmap, previewTextSize(),
-                        previewTypeface(), scrollTopRow(card.session), transparency);
-            } else if (hasTerminalContent && terminal.getCurrentSession() == card.session) {
-                full = Bitmap.createBitmap(terminal.getWidth(), terminal.getHeight(),
-                        bitmapConfig);
-                terminal.draw(new Canvas(full));
-                bitmap = cropToGrid(full, terminalContent);
-                full = null;
-            } else {
-                bitmap = Bitmap.createBitmap(terminalTarget.width(), terminalTarget.height(),
-                        bitmapConfig);
-                TerminalPreviewRenderer.renderForFlight(emulator, bitmap, previewTextSize(),
-                        previewTypeface(), scrollTopRow(card.session), transparency);
+        // A background page keeps the grid it had when it was last active. Bring it to the
+        // viewport it is about to occupy before the source is created, so the live raster and
+        // the terminal that takes over at progress 1 share one cell grid. This is the same
+        // updateSize() the pager would run after the switch; doing it while the overview still
+        // covers the terminal only removes the one-frame aspect jump at the hand-off.
+        if (hasTerminalContent && terminal != null && card.session.isRunning()) {
+            final ViewportGrid targetGrid = TerminalPreviewRenderer.viewportGrid(
+                    terminal.getWidth(), terminal.getHeight(),
+                    previewTextSize(), previewTypeface());
+            if (targetGrid != null && !targetGrid.matches(targetEmulator)) {
+                card.session.updateSize(targetGrid.columns, targetGrid.rows,
+                        targetGrid.cellWidthPx, targetGrid.cellHeightPx);
             }
+        }
+
+        // The target terminal is live even when its page is not current. Output arriving during
+        // the expansion repaints this raster through onSessionTextChanged(), and the fixed size
+        // keeps the flight geometry stable.
+        TerminalFrameSource frame;
+        try {
+            frame = new TerminalFrameSource(card.session,
+                    terminalTarget.width(), terminalTarget.height(),
+                    previewTextSize(), previewTypeface(),
+                    previewBackgroundTransparency(),
+                    () -> scrollTopRow(card.session));
         } catch (RuntimeException ignored) {
-            recycleBitmap(full);
-            recycleBitmap(bitmap);
             return null;
         }
 
-        final ClosingTransition transition = new ClosingTransition(card, bitmap,
+        final ClosingTransition transition = new ClosingTransition(card, frame,
                 cardStart, terminalTarget);
+        transition.startCornerRadius = card.thumbnailCornerRadius;
         if (liftStart != null) {
             transition.liftedStart = true;
             transition.startAlpha = liftStart.alpha;
@@ -4249,12 +4776,25 @@ public final class SessionOverviewController {
             transition.shadowColor = liftStart.shadowColor;
             final android.content.res.Resources res = mActivity.getResources();
             transition.startElevationPx = FloatingShadow.overviewCardElevationPx(res);
+            if (liftStart.addButtonSource != null) {
+                final TerminalAddFlight flight = mTerminalAddFlight;
+                if (flight == null || flight.overlayGhost.getParent() == null) {
+                    transition.frame.release();
+                    transition.frame = null;
+                    return null;
+                }
+                transition.addButtonSource = liftStart.addButtonSource;
+                transition.addButtonSourceGhost = flight.overlayGhost;
+                transition.startCornerRadius = liftStart.addButtonSource.radius;
+                transition.startElevationPx = liftStart.addButtonSource.elevationPx;
+            }
         }
         if (!installClosingVisuals(transition)) {
-            recycleBitmap(bitmap);
+            transition.frame.release();
+            transition.frame = null;
             return null;
         }
-        // The terminal snapshot has no thumb; reverse the opening copy above it during the
+        // The terminal frame has no thumb; reverse the opening copy above it during the
         // expansion. A target without a scrollbar has no thumb to bring back.
         installClosingScrollbarThumbGhost(transition, origin);
         // Install the flying pills first: each one hides its real target tab, so the panel
@@ -4262,14 +4802,20 @@ public final class SessionOverviewController {
         // drawing the returning tabs twice. The ghosts are brought back above the snapshot below.
         installClosingTabVisuals(transition, origin);
         // Hide the strip + before the panel snapshot, exactly like a returning tab: the ghost
-        // is the only copy until it lands in the empty slot.
-        prepareTabAddButtonFlight(true);
+        // is the only copy until it lands in the empty slot. The add-button source has already
+        // consumed the button, so the strip + stays in the panel snapshot instead.
+        if (transition.addButtonSource == null) prepareTabAddButtonFlight(true);
         installClosingTabPanelGhost(transition, origin);
         for (ClosingTabGhost ghost : transition.tabGhosts) {
             ghost.view.bringToFront();
         }
         for (ClosingTabGhost ghost : transition.tabGhosts) {
             if (ghost.closeGhost != null) ghost.closeGhost.bringToFront();
+        }
+        if (transition.addButtonSourceGhost != null) {
+            // The source button owns the bottom-right corner for the first quarter. The thumb
+            // ghost is a later direct child of the overlay, so bring the button back above it.
+            transition.addButtonSourceGhost.bringToFront();
         }
         return transition;
     }
@@ -4281,12 +4827,21 @@ public final class SessionOverviewController {
 
         final TopCropImageView ghost = new TopCropImageView(mActivity);
         ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ghost.setImageBitmap(transition.terminalBitmap);
-        ghost.setAlpha(0f);
-        // The card's own outline is suppressed while this snapshot expands; the snapshot starts
-        // with the card's rounded shape so the hand-off at progress zero is invisible.
+        ghost.setImageDrawable(new LiveTerminalDrawable(transition.frame));
+        final boolean addButtonSource = transition.addButtonSource != null;
+        // The add-button source is square while the terminal frame has its own aspect. Cover the
+        // square with the image so no transparent strip appears below it during the hand-off; the
+        // scale converges to an exact fit when the ghost reaches the terminal rect.
+        ghost.setCenterCrop(addButtonSource);
+        // The terminal image is invisible on the first add-button frame; the source ghost owns
+        // the pixels. The view itself stays opaque so the elevation shadow is already present.
+        ghost.setAlpha(addButtonSource ? 1f : 0f);
+        if (addButtonSource) ghost.setImageAlpha(0);
+        // The card's own outline is suppressed while this frame expands; the frame starts
+        // with the card's rounded shape so the hand-off at progress zero is invisible. The add
+        // button source uses its own circular radius.
         transition.terminalOutline = new RoundedOutlineProvider(
-                transition.card.thumbnailCornerRadius);
+                transition.startCornerRadius);
         ghost.setOutlineProvider(transition.terminalOutline);
         ghost.setClipToOutline(true);
         layoutTerminalGhost(ghost, transition.cardStartLocal);
@@ -4303,6 +4858,26 @@ public final class SessionOverviewController {
 
         mGhostLayer.addView(ghost);
         transition.terminalGhost = ghost;
+        if (addButtonSource) {
+            // The source ghost is a sibling above the whole ghost layer for the crossfade. Keep
+            // its shadow until the terminal ghost is laid out; if that happens before the first
+            // frame, applyClosingProgress hands the shadow over in the same synchronous pass, so
+            // the first drawn frame still has exactly one shadow.
+            transition.addButtonSourceGhost.bringToFront();
+            // The animator callback runs before the traversal that lays the ghost out, so the
+            // next applyClosingProgress() can still see isLaidOut()==false. Hand the shadow over
+            // from the layout callback instead: it runs after layout and before the first draw,
+            // which is the only moment where both shadows could otherwise be painted together.
+            ghost.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    if (ghost.getWidth() <= 0 || ghost.getHeight() <= 0) return;
+                    ghost.removeOnLayoutChangeListener(this);
+                    handOffAddButtonSourceShadow(transition);
+                }
+            });
+        }
         // Do not cut the decor yet: the ghost is still transparent until the first progress
         // frame, and CLEAR would erase the card preview underneath it for one frame.
         setCardOutlineSuppressed(transition.card, true);
@@ -4380,12 +4955,15 @@ public final class SessionOverviewController {
         if (mGhostLayer == null) return;
         final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
         if (tabs == null) return;
-        // One pixel above the terminal ghost so returning tabs stay over the expanding snapshot.
+        // One pixel above the terminal ghost so returning tabs stay over the expanding frame.
         final float terminalZ = transition.liftedStart ? transition.startLiftZ + 1f : 0f;
         final float fallbackTextSize = mActivity.getResources()
                 .getDimensionPixelSize(R.dimen.terminal_tab_text_size);
 
         for (Card card : mCards) {
+            // The add-button source has no card tab in flight: the new tab is already selected
+            // and scrolled into the strip snapshot, so it must stay visible there.
+            if (transition.addButtonSource != null && card == transition.card) continue;
             // The tab always flies; this only decides whether its thumbnail travels with it.
             final boolean cardVisible = isCardThumbnailVisible(card, origin);
             // A card selected from the opening gesture is still lifted. Its tab ghost must start
@@ -4539,19 +5117,30 @@ public final class SessionOverviewController {
         // Bring the always-on extra-keys panel back with the expanding terminal instead of
         // leaving an empty bottom strip until the overlay is removed.
         mActivity.showExtraKeysPanelAfterOverview();
-        // The plus travels home during the expansion, not after it. This makes the toggle
-        // layout-ready while keeping it unpainted, so the return flight has its destination
-        // from the first frame of the exit animation. With no pencil to return to, the plus
-        // shrinks and fades away over the same exit instead of lingering until the overlay is
-        // removed.
-        if (!mActivity.startOverviewAddButtonReturnMorphEarly(mAddButton, transition.session)) {
-            hideAddButtonWithAppearance(true);
+        final boolean addButtonSource = transition.addButtonSource != null;
+        if (addButtonSource) {
+            // The source ghost now belongs to the transition, not to the pending add flight.
+            removeTerminalAddTimeout();
+            mTerminalAddFlight = null;
+            // The button is already invisible and its pixels are owned by the source ghost.
+            // Do not start the pencil return or the strip-plus flight: the source becomes the
+            // terminal, and the strip plus is part of the panel snapshot.
+            mAddButtonHovered = false;
+        } else {
+            // The plus travels home during the expansion, not after it. This makes the toggle
+            // layout-ready while keeping it unpainted, so the return flight has its destination
+            // from the first frame of the exit animation. With no pencil to return to, the plus
+            // shrinks and fades away over the same exit instead of lingering until the overlay is
+            // removed.
+            if (!mActivity.startOverviewAddButtonReturnMorphEarly(mAddButton, transition.session)) {
+                hideAddButtonWithAppearance(true);
+            }
+            startTabAddButtonClosingFlight();
         }
-        startTabAddButtonClosingFlight();
         updateOverviewBackdropAlpha();
         // The decor fades from the +20-point overview alpha back to the terminal's alpha while
-        // the snapshot expands. The cut-out under the ghost keeps the fading colour away
-        // from the terminal itself, which already carries that alpha in its own bitmap.
+        // the frame expands. The cut-out under the ghost keeps the fading colour away from the
+        // terminal itself, which already carries that alpha in its own live raster.
         transition.backgroundStart = overviewBackdropColor(
                 mActivity.getWindowBackgroundColor());
         transition.backgroundEnd = mActivity.getSchemeWindowBackgroundColor();
@@ -4599,6 +5188,7 @@ public final class SessionOverviewController {
         // disappearing in the frame the ghost is installed.
         transition.card.root.setBorderAlpha(
                 SessionOverviewTransitionMath.clamp01(1f - p / 0.5f));
+        if (transition.frame != null) transition.frame.syncTransientState();
         final int[] origin = contentOrigin(mScratchOrigin);
         if (origin == null) return;
 
@@ -4622,26 +5212,39 @@ public final class SessionOverviewController {
         // unscaled thumbnail on the very first frame.
         final Rect start = transition.cardStartLocal;
         final Rect target = closingTerminalTarget(origin, transition.terminalTargetLocal);
+        final boolean addButtonSource = transition.addButtonSource != null;
         Rect hole = null;
-        float holeCornerRadius = 0f;
+        float holeCornerRadius = transition.startCornerRadius;
         if (terminalGhostReady && target != null) {
             lerpRect(mScratchGhostRect, start, target, p);
             hole = mScratchGhostRect;
-            if (p < 1f) clipFlightRectToBitmap(hole, transition.terminalBitmap);
+            // The normal card source already has the terminal's aspect. The add-button source is
+            // square and covers the image, so clipping it to the painted height would shrink the
+            // shadow away from the source circle on the first frame.
+            if (p < 1f && !addButtonSource) clipFlightRectToSource(hole, transition.frame);
             layoutTerminalGhost(transition.terminalGhost, hole);
-            // Reverse of the opening: the rounded snapshot expands and becomes square by the
+            // Reverse of the opening: the rounded frame expands and becomes square by the
             // time it reaches the live terminal. The card's own outline stays suppressed for the
             // whole flight. The hole follows the same radius so the corners keep the decor tint.
+            // The add-button source starts from its own circular radius instead of the card's.
             holeCornerRadius = SessionOverviewTransitionMath.lerp(
-                    transition.card.thumbnailCornerRadius, 0f, p);
+                    transition.startCornerRadius, 0f, p);
             if (transition.terminalOutline != null) {
                 transition.terminalOutline.setRadius(holeCornerRadius);
                 if (transition.terminalGhost != null) {
                     transition.terminalGhost.invalidateOutline();
                 }
             }
-            applyFlightBorder(transition.terminalGhost, holeCornerRadius,
-                    SessionOverviewTransitionMath.clamp01(1f - p / 0.5f));
+            if (transition.addButtonSource != null) {
+                applyFlightBorder(transition.terminalGhost,
+                        SessionOverviewAddButtonTerminalMath.strokeWidth(p,
+                                transition.addButtonSource.strokeWidth, mCardStrokeWidth),
+                        holeCornerRadius,
+                        SessionOverviewAddButtonTerminalMath.terminalBorderAlpha(p));
+            } else {
+                applyFlightBorder(transition.terminalGhost, holeCornerRadius,
+                        SessionOverviewTransitionMath.clamp01(1f - p / 0.5f));
+            }
         }
         if (mBackdropHole != null) {
             final int fillAlpha = Math.round(255f
@@ -4655,10 +5258,21 @@ public final class SessionOverviewController {
         // A layout pass can give the ghost a size between two animator callbacks; if its alpha
         // had already been raised, it would draw over the still-visible preview and stack two
         // translucent terminal backgrounds for that frame.
-        final float ghostAlpha = terminalGhostReady
-                ? SessionOverviewTransitionMath.closingHoverAlpha(transition.startAlpha, p) : 0f;
+        final float ghostAlpha = addButtonSource
+                ? 1f
+                : terminalGhostReady
+                        ? SessionOverviewTransitionMath.closingHoverAlpha(
+                                transition.startAlpha, p)
+                        : 0f;
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setAlpha(ghostAlpha);
+            if (addButtonSource) {
+                // The terminal image starts fully transparent while the source button owns the
+                // pixels, then becomes opaque exactly when the source disappears.
+                ((TopCropImageView) transition.terminalGhost).setImageAlpha(
+                        Math.round(255f
+                                * SessionOverviewAddButtonTerminalMath.terminalContentAlpha(p)));
+            }
         }
         if (transition.liftedStart) {
             // The ghost carries the inherited hover shadow. Fade the colour's alpha, not its
@@ -4677,9 +5291,18 @@ public final class SessionOverviewController {
                 transition.card.root.setTranslationZ(0f);
             }
         }
+        if (addButtonSource && terminalGhostReady) {
+            handOffAddButtonSourceShadow(transition);
+        }
 
-        final float previewAlpha = terminalGhostReady
-                ? SessionOverviewTransitionMath.closingPreviewAlpha(p) : 1f;
+        if (addButtonSource) {
+            applyAddButtonSourceProgress(transition, hole, holeCornerRadius, p);
+        }
+
+        final float previewAlpha = addButtonSource
+                ? 0f
+                : terminalGhostReady
+                        ? SessionOverviewTransitionMath.closingPreviewAlpha(p) : 1f;
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
                 ? View.INVISIBLE : View.VISIBLE);
@@ -4691,8 +5314,8 @@ public final class SessionOverviewController {
                 ghost.card.tab.setVisibility(View.INVISIBLE);
                 ghost.card.close.setVisibility(View.INVISIBLE);
             }
-            // One pixel above the terminal ghost so returning tabs stay over the expanding snapshot.
-        final float terminalZ = transition.liftedStart ? transition.startLiftZ + 1f : 0f;
+            // One pixel above the terminal ghost so returning tabs stay over the expanding frame.
+            final float terminalZ = transition.liftedStart ? transition.startLiftZ + 1f : 0f;
             applyClosingTabProgress(transition, ghost, origin, p, terminalZ);
             if (ghost.card == transition.card) selectedTabHasGhost = true;
         }
@@ -4703,8 +5326,52 @@ public final class SessionOverviewController {
     }
 
     /**
+     * Drop the source ghost's shadow once the terminal ghost paints the same elevation at the
+     * same rect. Idempotent because the layout callback and the progress callback can both reach
+     * this during the first frame.
+     */
+    private void handOffAddButtonSourceShadow(@NonNull ClosingTransition transition) {
+        if (transition.addButtonSource == null
+                || transition.addButtonSourceShadowHandedOff) return;
+        if (transition.addButtonSourceGhost != null) {
+            transition.addButtonSourceGhost.setShadowAlpha(0f);
+        }
+        transition.addButtonSourceShadowHandedOff = true;
+    }
+
+    /**
+     * Drive the source-button ghost for the first quarter of the expansion. It stays in the
+     * overlay above the terminal ghost; its shadow already belongs to the terminal, so only the
+     * body, plus and stroke are animated here.
+     */
+    private void applyAddButtonSourceProgress(@NonNull ClosingTransition transition,
+                                             @Nullable Rect frame, float radius, float p) {
+        final OverviewAddTabGhostView ghost = transition.addButtonSourceGhost;
+        final AddButtonSource source = transition.addButtonSource;
+        if (ghost == null || source == null) return;
+        final float alpha = SessionOverviewAddButtonTerminalMath.sourceAlpha(
+                source.buttonAlpha, p);
+        if (alpha <= 0f) {
+            if (ghost.getParent() instanceof ViewGroup) {
+                ((ViewGroup) ghost.getParent()).removeView(ghost);
+            }
+            transition.addButtonSourceGhost = null;
+            return;
+        }
+        final Rect bounds = frame != null ? frame : source.visualRect;
+        ghost.setStroke(SessionOverviewAddButtonTerminalMath.strokeWidth(
+                        p, source.strokeWidth, mCardStrokeWidth),
+                source.strokeColor);
+        ghost.setFlightFrame(bounds.left, bounds.top, bounds.right, bounds.bottom,
+                radius, source.fillColor,
+                SessionOverviewAddButtonTerminalMath.sourcePlusAlpha(source.imageAlpha, p),
+                0f);
+        ghost.setAlpha(alpha);
+    }
+
+    /**
      * Fade the grid as one group while the selected terminal expands. The selected card is owned
-     * by the expanding snapshot (its preview, pill and border are suppressed), so fading the
+     * by the expanding frame (its preview, pill and border are suppressed), so fading the
      * group is visually identical to fading only its neighbours.
      *
      * <p>Called only once the ghost is laid out: before that the real card is still visible and
@@ -4736,8 +5403,8 @@ public final class SessionOverviewController {
         // its tab, and the expanding terminal window covers both. Once the thumbnail has faded
         // out the returning tab travels alone and keeps the old above-terminal z-order. A tab
         // whose card was never visible travels alone from its off-screen grid slot for the whole
-        // flight, so the terminal snapshot never hides it. The selected card's own tab is the
-        // terminal snapshot's partner and is left untouched.
+        // flight, so the terminal frame never hides it. The selected card's own tab is the
+        // terminal frame's partner and is left untouched.
         final boolean companion = SessionOverviewTransitionMath.tabCarriesCard(
                 ghost.cardVisible, ghost.card == transition.card);
         final boolean thumbnailVisible = companion
@@ -4775,7 +5442,7 @@ public final class SessionOverviewController {
             }
         }
 
-        // The selected card owns the expanding terminal snapshot, so it stays out of this
+        // The selected card owns the expanding terminal frame, so it stays out of this
         // coupling. A visible thumbnail travels with its returning tab so it does not stay
         // behind while the tab fades out; an off-screen card stays in its slot.
         if (companion && ghost.targetBounds != null) {
@@ -4857,22 +5524,36 @@ public final class SessionOverviewController {
         if (mClosingTransition != transition) return;
         applyClosingProgress(transition, 1f);
         final TerminalSession session = transition.session;
+        final boolean consumedAddButton = transition.addButtonSource != null;
         cleanupClosingTransition(transition);
 
         // The tab strip was already selected and scrolled behind the overview before the
         // expansion started. Only the visible hand-off is left. Pass the target session so a
         // return flight that has to start here still uses its scrollbar state, not the leaving
         // session's.
+        if (consumedAddButton) mTerminalAddConsumedClose = true;
         hide(false, true, session);
         switchToSession(session);
+        if (consumedAddButton) {
+            mTerminalAddConsumedClose = false;
+            // The add button was consumed by the morph; the pencil is the only floating control
+            // left and must fade in after the overlay has stopped painting.
+            mActivity.fadeInFloatingControlsAfterConsumedAddButton();
+        }
     }
 
     /** Abort the expansion and put the card's own preview and tab back in place. */
     private void cancelClosingTransition() {
         final ClosingTransition transition = mClosingTransition;
         if (transition == null) return;
+        final boolean addButtonSource = transition.addButtonSource != null;
         cancelTabAddButtonFlight();
         cleanupClosingTransition(transition);
+        if (addButtonSource) {
+            // A cancelled add-button expansion returns to the overview. The new session is
+            // already current, but the button must be visible again for the next gesture.
+            restoreAddButtonAfterTerminalAdd();
+        }
         // The cancelled flight may have left the decor halfway to the app background. The
         // overview is still open, so put its terminal backdrop back before restoring the strip.
         applyOverviewBackground();
@@ -4883,6 +5564,20 @@ public final class SessionOverviewController {
         // leave the highlight on the session that is still current.
         restoreTabSelectionToCurrentSession();
         requestPreviewRender();
+    }
+
+    /** Put the real add button back after a cancelled or failed terminal-add flight. */
+    private void restoreAddButtonAfterTerminalAdd() {
+        if (mAddButton == null) return;
+        cancelAddButtonHideAnimation();
+        resetAddButtonHover();
+        if (isAtSessionLimit()) {
+            setAddButtonVisible(false);
+            return;
+        }
+        setAddButtonVisible(true);
+        mAddButton.setEnabled(true);
+        OverviewAppearanceAnimation.reset(mAddButton);
     }
 
     private void cleanupClosingTransition(@NonNull ClosingTransition transition) {
@@ -4909,6 +5604,14 @@ public final class SessionOverviewController {
         transition.card.close.setAlpha(transition.closeBaseAlpha);
         transition.card.tab.setVisibility(View.VISIBLE);
         transition.card.close.setVisibility(View.VISIBLE);
+        if (transition.addButtonSource != null) {
+            // The new card was armed and hidden by the add flight; cleanup must leave it in a
+            // normal, interactive resting state for a cancelled expansion.
+            transition.card.appearing = false;
+            transition.card.root.setEnabled(true);
+            transition.card.root.setTranslationX(0f);
+            transition.card.root.setTranslationY(0f);
+        }
         for (ClosingTabGhost ghost : transition.tabGhosts) {
             if (ghost.card != transition.card) {
                 ghost.card.tab.setAlpha(ghost.tabBaseAlpha);
@@ -4920,7 +5623,17 @@ public final class SessionOverviewController {
         }
         transition.tabGhosts.clear();
 
+        if (transition.addButtonSourceGhost != null) {
+            final OverviewAddTabGhostView sourceGhost = transition.addButtonSourceGhost;
+            transition.addButtonSourceGhost = null;
+            if (sourceGhost.getParent() instanceof ViewGroup) {
+                ((ViewGroup) sourceGhost.getParent()).removeView(sourceGhost);
+            }
+        }
         if (transition.terminalGhost != null) {
+            // The live drawable is released below; reset the image alpha so a reused view cannot
+            // keep the add-button hand-off's zero opacity.
+            ((TopCropImageView) transition.terminalGhost).setImageAlpha(255);
             transition.terminalGhost.setImageDrawable(null);
         }
         if (transition.tabPanelGhost != null) {
@@ -4928,8 +5641,10 @@ public final class SessionOverviewController {
         }
         if (mGhostLayer != null) mGhostLayer.removeAllViews();
         mBackdropHole = null;
-        recycleBitmap(transition.terminalBitmap);
-        transition.terminalBitmap = null;
+        if (transition.frame != null) {
+            transition.frame.release();
+            transition.frame = null;
+        }
         transition.terminalGhost = null;
         transition.terminalOutline = null;
         recycleBitmap(transition.tabPanelBitmap);
@@ -5018,16 +5733,54 @@ public final class SessionOverviewController {
      * cannot be used. Screen coordinates and {@link View#getGlobalVisibleRect} keep the hit-test
      * correct with window insets, card translations during the opening flight and RTL layouts.</p>
      */
-    private void selectCardUnderFinger(float rawX, float rawY) {
-        if (!mShowing || mActivityStopped) return;
+    private void selectTargetUnderFinger(float rawX, float rawY) {
+        if (mActivityStopped) return;
+        if (mOpeningPreparationPending) {
+            // The finger can lift while the keyboard is still hiding. Remember the point only
+            // if the normal recognition delay had already elapsed; otherwise this is the same
+            // quick flick that would not select in the immediately-shown overview either.
+            if (mGestureSelectionArmed) {
+                mPendingGestureRelease = true;
+                mPendingGestureReleaseX = rawX;
+                mPendingGestureReleaseY = rawY;
+                if (mGrid != null) {
+                    mGrid.removeCallbacks(mArmGestureSelectionRunnable);
+                }
+            } else {
+                disarmGestureSelection();
+                mPendingGestureRelease = false;
+            }
+            return;
+        }
+        if (!mShowing) return;
         // Capture the state before clearing it: disarmGestureSelection() sets the flag to false,
         // so testing the field afterwards would reject every legitimate selection.
         final boolean armed = mGestureSelectionArmed;
         // The gesture is over whether or not recognition had begun. Cancel a pending arm so a
         // fast flick cannot produce a hover shadow (or a selection) after the finger is gone.
         disarmGestureSelection();
-        if (!armed || mClosingTransition != null
-                || mPendingClosingCard != null || mClosingCardAnimation != null) return;
+        if (!armed) return;
+        if (mClosingTransition != null
+                || mPendingClosingCard != null || mClosingCardAnimation != null) {
+            resetGestureHover();
+            return;
+        }
+        // The button paints above the grid, so it wins the hit-test even when a card lies
+        // underneath it. The hover flag also accepts a release a pixel outside the layout
+        // bounds after the finger has already lifted the button.
+        final boolean addTarget = isAddButtonHoverTarget()
+                && (mAddButtonHovered || findAddButtonAtScreenPoint(rawX, rawY));
+        if (addTarget) {
+            stopAutoScroll();
+            if (mHoverCard != null) {
+                final Card previous = mHoverCard;
+                mHoverCard = null;
+                previous.root.setHoverHighlight(false);
+            }
+            selectAddButtonUnderFinger();
+            return;
+        }
+        if (mAddButtonHovered) resetAddButtonHover();
         final Card hit = mHoverCard != null ? mHoverCard : findCardAtScreenPoint(rawX, rawY);
         stopAutoScroll();
         // A lift from the opening gesture can still be animating at release. Stop it without
@@ -5068,7 +5821,7 @@ public final class SessionOverviewController {
         if (!mShowing) return;
         mGestureSelectionArmed = true;
         // The finger may have been stationary during the delay; hit-test the last point now.
-        applyHoverCard();
+        applyHoverTarget();
     }
 
     /** Drop any pending or active recognition of the gesture that opened the overview. */
@@ -5080,18 +5833,34 @@ public final class SessionOverviewController {
     /** Track the finger, highlight the drop target and scroll the list at its edges. */
     private void updateGestureHover(float rawX, float rawY) {
         if (!mShowing || mActivityStopped || mClosingTransition != null
-                || mPendingClosingCard != null) return;
+                || mPendingClosingCard != null || mClosingCardAnimation != null) return;
         // Remember the point even while recognition is delayed, so the first eligible frame can
         // highlight the card the finger is actually over.
         mHoverRawX = rawX;
         mHoverRawY = rawY;
+        // The grid does not exist yet while the terminal is growing. Keep the point; showNow()
+        // applies it once the cards have been laid out.
+        if (mOpeningPreparationPending) return;
         if (!mGestureSelectionArmed) return;
         updateAutoScrollEdge(rawX, rawY);
-        applyHoverCard();
+        applyHoverTarget();
     }
 
     /** Re-run only the hit-test after the grid has moved under a stationary finger. */
-    private void applyHoverCard() {
+    private void applyHoverTarget() {
+        // The button is painted above the grid, so it is the first target. Its hover stops edge
+        // auto-scroll: the button is fixed in the corner and must not slide under the finger.
+        if (findAddButtonAtScreenPoint(mHoverRawX, mHoverRawY)) {
+            if (mHoverCard != null) {
+                final Card previous = mHoverCard;
+                mHoverCard = null;
+                previous.root.setHoverHighlight(false);
+            }
+            setAddButtonHovered(true);
+            stopAutoScroll();
+            return;
+        }
+        setAddButtonHovered(false);
         final Card card = findCardAtScreenPoint(mHoverRawX, mHoverRawY);
         if (card == mHoverCard) return;
         clearGestureHover();
@@ -5107,10 +5876,135 @@ public final class SessionOverviewController {
     }
 
     /**
+     * True when the add button can be the drop target right now. The checks mirror the card
+     * hover path and exclude every flight that already owns the button's pixels.
+     */
+    private boolean isAddButtonHoverTarget() {
+        return mShowing
+                && !mActivityStopped
+                && !mOpeningPreparationPending
+                && mAddButton != null
+                && mAddButton.getVisibility() == View.VISIBLE
+                && mAddButton.isShown()
+                && mAddButton.isEnabled()
+                && mAddButton.isLaidOut()
+                && mAddButton.getWidth() > 0
+                && mAddButton.getHeight() > 0
+                && !mAddButtonHiding
+                && !isAtSessionLimit()
+                && !isAddTabFlightActive()
+                && !isTerminalAddFlightActive()
+                && !mActivity.isOverviewAddButtonMorphActive()
+                && !mActivity.isOverviewAddButtonReturnMorphActive();
+    }
+
+    /** True when the finger is inside the add button's visible, clipped bounds. */
+    private boolean findAddButtonAtScreenPoint(float rawX, float rawY) {
+        return isAddButtonHoverTarget() && containsScreenPoint(mAddButton, rawX, rawY);
+    }
+
+    /**
+     * Lift the add button exactly like a card: 1.05 scale, 16 dp total shadow and the same
+     * 254/255 opacity, over 160 ms. The animator starts from the current values so an interrupted
+     * reveal or a quick reversal never snaps.
+     */
+    private void setAddButtonHovered(boolean hovered) {
+        if (mAddButtonHovered == hovered) return;
+        mAddButtonHovered = hovered;
+        if (mAddButton == null) return;
+        final ImageButton button = mAddButton;
+        cancelAddButtonHoverAnimator();
+        button.animate().cancel();
+
+        final Resources res = mActivity.getResources();
+        final float fromZ = button.getTranslationZ();
+        final float fromScale = button.getScaleX();
+        final float fromAlpha = button.getAlpha();
+        final float targetZ = hovered
+                ? Math.max(0f, FloatingShadow.overviewCardElevationPx(res)
+                        - button.getElevation())
+                : 0f;
+        final float targetScale = hovered ? FloatingShadow.OVERVIEW_CARD_LIFT_SCALE : 1f;
+        final float targetAlpha = hovered ? FloatingShadow.OVERVIEW_CARD_HOVER_ALPHA : 1f;
+        final int hoverShadow = FloatingShadow.overviewCardShadowColor(
+                res, mActivity.isCachedSchemeLight());
+        final int restShadow = FloatingShadow.color(
+                res, mActivity.isCachedSchemeLight(), R.fraction.floating_shadow_alpha);
+        if (hovered) FloatingShadow.setShadowColors(button, hoverShadow);
+
+        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        mAddButtonHoverAnimator = animator;
+        animator.setDuration(FloatingShadow.OVERVIEW_SHADOW_ANIM_MS);
+        animator.setInterpolator(new DecelerateInterpolator());
+        animator.addUpdateListener(animation -> {
+            final float f = (float) animation.getAnimatedValue();
+            button.setTranslationZ(fromZ + (targetZ - fromZ) * f);
+            button.setScaleX(fromScale + (targetScale - fromScale) * f);
+            button.setScaleY(fromScale + (targetScale - fromScale) * f);
+            button.setAlpha(fromAlpha + (targetAlpha - fromAlpha) * f);
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mAddButtonHoverAnimator != animation) return;
+                mAddButtonHoverAnimator = null;
+                if (!mAddButtonHovered) FloatingShadow.setShadowColors(button, restShadow);
+            }
+        });
+        animator.start();
+        if (hovered && mGestureSelectionArmed) {
+            button.performHapticFeedback(HOVER_FEEDBACK);
+        }
+    }
+
+    private void cancelAddButtonHoverAnimator() {
+        final ValueAnimator animator = mAddButtonHoverAnimator;
+        mAddButtonHoverAnimator = null;
+        if (animator == null) return;
+        animator.removeAllUpdateListeners();
+        animator.removeAllListeners();
+        animator.cancel();
+    }
+
+    /** Return the add button to its resting transform and shadow without touching visibility. */
+    private void resetAddButtonHover() {
+        cancelAddButtonHoverAnimator();
+        mAddButtonHovered = false;
+        if (mAddButton == null || mAddButtonHiding) return;
+        final ImageButton button = mAddButton;
+        button.setTranslationZ(0f);
+        button.setScaleX(1f);
+        button.setScaleY(1f);
+        button.setAlpha(1f);
+        FloatingShadow.setShadowColors(button, FloatingShadow.color(
+                mActivity.getResources(), mActivity.isCachedSchemeLight(),
+                R.fraction.floating_shadow_alpha));
+    }
+
+    /** Cancel both hover targets instantly; used when the overlay closes or is torn down. */
+    private void resetGestureHover() {
+        resetAddButtonHover();
+        clearCardHover();
+    }
+
+    private void clearCardHover() {
+        if (mHoverCard == null) return;
+        final Card previous = mHoverCard;
+        mHoverCard = null;
+        previous.root.setHoverHighlight(false);
+    }
+
+    /**
      * Start the edge auto-scroll loop at most once per gesture. The loop decides on every frame
      * whether the finger is still inside an edge band, exactly like the input-history popup.
      */
     private void updateAutoScrollEdge(float rawX, float rawY) {
+        // The button is fixed in the corner and paints above the grid; scrolling the grid under
+        // it would move the drop target out from under the finger.
+        if (findAddButtonAtScreenPoint(rawX, rawY)) {
+            stopAutoScroll();
+            return;
+        }
         if (mScrollView == null || !mScrollView.isAttachedToWindow()
                 || mScrollView.getHeight() <= 0) {
             stopAutoScroll();
@@ -5134,6 +6028,10 @@ public final class SessionOverviewController {
             stopAutoScroll();
             return;
         }
+        if (findAddButtonAtScreenPoint(mHoverRawX, mHoverRawY)) {
+            stopAutoScroll();
+            return;
+        }
 
         mScrollView.getLocationOnScreen(mScratchLocation);
         final int viewportHeight = mScrollView.getHeight();
@@ -5151,7 +6049,7 @@ public final class SessionOverviewController {
         }
 
         mScrollView.scrollBy(0, step);
-        applyHoverCard();
+        applyHoverTarget();
         mScrollView.postOnAnimation(mAutoScrollRunnable);
     }
 
@@ -5161,12 +6059,10 @@ public final class SessionOverviewController {
         mAutoScrollLastTimeMs = 0L;
     }
 
-    /** Restore the normal outline of the previously hovered card. */
+    /** Animate the add button back to rest and restore the previously hovered card. */
     private void clearGestureHover() {
-        if (mHoverCard == null) return;
-        final Card previous = mHoverCard;
-        mHoverCard = null;
-        previous.root.setHoverHighlight(false);
+        setAddButtonHovered(false);
+        clearCardHover();
     }
 
     /**
@@ -5459,6 +6355,10 @@ public final class SessionOverviewController {
         // The add-session source was captured in the old geometry; drop the ghost and reveal
         // the card normally in the new layout.
         cancelAddTabFlight(true, true);
+        cancelTerminalAddFlight(true, true);
+        // A closing expansion also captured old geometry. Cancel it before the new window
+        // shape is applied, so the overview stays open with a real button and real cards.
+        cancelClosingTransition();
         if (!mShowing) return;
         applyOverviewBackground();
         updateGridAspect();
@@ -5513,7 +6413,7 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Cards carry no fill of their own: the terminal snapshot is the card, with the compact tab
+     * Cards carry no fill of their own: the terminal frame is the card, with the compact tab
      * floating over its top edge. Removing the background and press ripple keeps the thumbnail
      * from pulsing under the tab when the card is tapped. A card outline in the floating
      * controls' colour is the only chrome; the thumbnail itself casts no shadow.
@@ -5524,7 +6424,7 @@ public final class SessionOverviewController {
             card.root.setForeground(null);
         }
         // Clipping is owned by applyThumbnailCornerRadius(): the root outline is the same
-        // rounded rectangle as the preview, so both the snapshot and the tab stay inside the
+        // rounded rectangle as the preview, so both the frame and the tab stay inside the
         // card's corners. Do not reset it to BOUNDS or disable clipping here.
         // The outline is installed by applyTabMetrics() so the stroke follows the thumbnail's
         // rounded corners. Do not replace it with BOUNDS here; this method also runs when only
@@ -5547,17 +6447,23 @@ public final class SessionOverviewController {
         card.preview.setBackground(null);
     }
 
-    /** Drive the outline painted on the flying snapshot itself, so it stays visible over the grid. */
+    /** Drive the outline painted on the flying frame itself, so it stays visible over the grid. */
     private void applyFlightBorder(@Nullable ImageView ghost, float radius, float alpha) {
+        applyFlightBorder(ghost, mCardStrokeWidth, radius, alpha);
+    }
+
+    /** Width-aware variant for the add-button source, whose hairline grows into the card stroke. */
+    private void applyFlightBorder(@Nullable ImageView ghost, float width,
+                                   float radius, float alpha) {
         if (ghost instanceof TopCropImageView) {
             ((TopCropImageView) ghost).setFlightBorder(
-                    mCardStrokeWidth, mCardStrokeColor, radius, alpha);
+                    width, mCardStrokeColor, radius, alpha);
         }
     }
 
     /**
-     * Hide the card's outline while its terminal snapshot is in flight, and show it again once
-     * the snapshot has landed or the transition is cancelled. Otherwise the empty grid slot would
+     * Hide the card's outline while its terminal frame is in flight, and show it again once
+     * the frame has landed or the transition is cancelled. Otherwise the empty grid slot would
      * keep a stationary outline while the thumbnail is somewhere between the terminal and the card.
      */
     private void setCardOutlineSuppressed(@Nullable Card card, boolean suppressed) {
@@ -5909,7 +6815,7 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Background transparency used by every overview thumbnail and flight snapshot.
+     * Background transparency used by every overview thumbnail and flight frame.
      *
      * <p>The overview backdrop is only slightly opaque, so each thumbnail still paints the
      * terminal background itself at the same alpha the live terminal uses. At 0% the historical
@@ -5976,6 +6882,12 @@ public final class SessionOverviewController {
      * now and published to stale sessions before the cards are measured again.</p>
      */
     public void onTerminalViewportChanged() {
+        if (mOpeningPreparationPending) {
+            // Do not build the grid from a viewport that is still growing. The same callback
+            // is the event that tells the opening phase when the terminal layout is final.
+            tryFinishOpeningPreparation();
+            return;
+        }
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null) return;
         updateGridAspect();
         markResizedPreviewsDirty();
@@ -6160,7 +7072,7 @@ public final class SessionOverviewController {
         final boolean newBitmap = oldBitmap != card.bitmap;
 
         final int topRow = scrollTopRow(card.session);
-        // One uniform scale for every card, the same path the flight snapshots use. The bitmap
+        // One uniform scale for every card, the same path the flight frames use. The bitmap
         // already has the raster's exact grid size, so the ImageView never scales it again.
         TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface, topRow,
                 backgroundTransparency);
@@ -6227,10 +7139,11 @@ public final class SessionOverviewController {
 
     private void releaseCards() {
         cancelAddTabFlight(false, false);
+        cancelTerminalAddFlight(false, false);
         mPendingRevealCard = null;
         disarmGestureSelection();
         stopAutoScroll();
-        clearGestureHover();
+        resetGestureHover();
         if (mDragController != null) mDragController.cancelForModelChange();
         if (mGrid != null) {
             mGrid.removeCallbacks(mRenderPreviewsRunnable);
@@ -6422,6 +7335,64 @@ public final class SessionOverviewController {
     }
 
     /**
+     * Visual state captured from the overview "+" button at release. The source ghost and the
+     * closing transition both start from these exact values, including a hover that has not
+     * finished yet.
+     */
+    private static final class AddButtonSource {
+        final Rect visualRect;
+        final float scaleX;
+        final float scaleY;
+        final float buttonAlpha;
+        final float imageAlpha;
+        final float radius;
+        final float strokeWidth;
+        final int fillColor;
+        final int strokeColor;
+        @Nullable final Drawable plusIcon;
+        final float plusIconSize;
+        final int elevationPx;
+        final int shadowColor;
+
+        AddButtonSource(@NonNull Rect visualRect, float scaleX, float scaleY,
+                        float buttonAlpha, float imageAlpha, float radius,
+                        float strokeWidth, int fillColor, int strokeColor,
+                        @Nullable Drawable plusIcon, float plusIconSize,
+                        int elevationPx, int shadowColor) {
+            this.visualRect = new Rect(visualRect);
+            this.scaleX = scaleX;
+            this.scaleY = scaleY;
+            this.buttonAlpha = buttonAlpha;
+            this.imageAlpha = imageAlpha;
+            this.radius = radius;
+            this.strokeWidth = strokeWidth;
+            this.fillColor = fillColor;
+            this.strokeColor = strokeColor;
+            this.plusIcon = plusIcon;
+            this.plusIconSize = plusIconSize;
+            this.elevationPx = elevationPx;
+            this.shadowColor = shadowColor;
+        }
+    }
+
+    /** Source ghost and the pending new card between release and the closing hand-off. */
+    private static final class TerminalAddFlight {
+        final AddButtonSource source;
+        final OverviewAddTabGhostView overlayGhost;
+        final int sessionCountBefore;
+        @Nullable Card card;
+        boolean handedOff;
+
+        TerminalAddFlight(@NonNull AddButtonSource source,
+                          @NonNull OverviewAddTabGhostView overlayGhost,
+                          int sessionCountBefore) {
+            this.source = source;
+            this.overlayGhost = overlayGhost;
+            this.sessionCountBefore = sessionCountBefore;
+        }
+    }
+
+    /**
      * Visual state captured from a hovered card at the instant a closing selection starts.
      * A hover animation can still be in flight on release, so geometry must be frozen together;
      * re-reading the live view would let the expansion start from a different scale. Opacity is
@@ -6434,14 +7405,22 @@ public final class SessionOverviewController {
         final float alpha;
         final float liftZ;
         final int shadowColor;
+        /** Non-null when the source is the overview "+" button, not a card. */
+        @Nullable final AddButtonSource addButtonSource;
 
         LiftStart(@NonNull Rect previewRect, float scale, float alpha, float liftZ,
                   int shadowColor) {
+            this(previewRect, scale, alpha, liftZ, shadowColor, null);
+        }
+
+        LiftStart(@NonNull Rect previewRect, float scale, float alpha, float liftZ,
+                  int shadowColor, @Nullable AddButtonSource addButtonSource) {
             this.previewRect = previewRect;
             this.scale = scale;
             this.alpha = alpha;
             this.liftZ = liftZ;
             this.shadowColor = shadowColor;
+            this.addButtonSource = addButtonSource;
         }
     }
 
@@ -6449,7 +7428,7 @@ public final class SessionOverviewController {
     private static final class ClosingTransition {
         final Card card;
         final TerminalSession session;
-        Bitmap terminalBitmap;
+        @Nullable TerminalFrameSource frame;
         final Rect cardStartLocal;
         final Rect terminalTargetLocal;
         ImageView terminalGhost;
@@ -6473,17 +7452,24 @@ public final class SessionOverviewController {
         /** Elevation hung on the ghost itself for the whole hover-handoff flight. */
         int startElevationPx;
         int shadowColor;
+        /** Non-null when the expansion starts from the overview "+" button. */
+        @Nullable AddButtonSource addButtonSource;
+        float startCornerRadius;
+        /** The exact source ghost installed at release; it lives in the overlay above the terminal. */
+        @Nullable OverviewAddTabGhostView addButtonSourceGhost;
+        /** True once the source shadow has been handed to the terminal ghost. */
+        boolean addButtonSourceShadowHandedOff;
         float tabBaseAlpha;
         float closeBaseAlpha;
         /** Flying copy of the target scrollbar thumb; slides back and fades in with the expansion. */
         @Nullable View scrollbarThumbGhost;
         int scrollbarThumbShiftPx;
 
-        ClosingTransition(Card card, Bitmap terminalBitmap,
+        ClosingTransition(Card card, @Nullable TerminalFrameSource frame,
                          @NonNull Rect cardStartLocal, @NonNull Rect terminalTargetLocal) {
             this.card = card;
             this.session = card.session;
-            this.terminalBitmap = terminalBitmap;
+            this.frame = frame;
             this.cardStartLocal = new Rect(cardStartLocal);
             this.terminalTargetLocal = new Rect(terminalTargetLocal);
         }
@@ -6491,7 +7477,8 @@ public final class SessionOverviewController {
 
     /** Everything owned by one opening flight, released as a unit. */
     private static final class Transition {
-        Bitmap terminalBitmap;
+        @Nullable TerminalFrameSource frame;
+        @Nullable TerminalSession session;
         Rect terminalSource;
         Rect terminalSourceLocal;
         ImageView terminalGhost;
@@ -6519,7 +7506,7 @@ public final class SessionOverviewController {
         /** Flying copy of the live scrollbar thumb; slides right and fades out with the opening. */
         @Nullable View scrollbarThumbGhost;
         int scrollbarThumbShiftPx;
-        /** Thumb capsule captured with the terminal snapshot, in window coordinates. */
+        /** Thumb capsule captured with the terminal frame, in window coordinates. */
         @Nullable Rect scrollbarThumbSourceWindow;
         boolean scrollbarThumbDragging;
     }
@@ -6561,7 +7548,7 @@ public final class SessionOverviewController {
         int tabBackgroundColor;
         /** Effective radius of the compact tab, reused by the thumbnail and its outline. */
         float thumbnailCornerRadius;
-        /** True while the terminal snapshot owns the visual during an opening/closing flight. */
+        /** True while the terminal frame owns the visual during an opening/closing flight. */
         boolean outlineSuppressed;
         String fullTitle = "";
         boolean selected;

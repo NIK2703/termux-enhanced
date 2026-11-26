@@ -20,7 +20,7 @@ import androidx.annotation.Nullable;
  * remaining space was spread around the image. This view instead scales the bitmap only by width:
  * the top edge stays pinned to the view's top, a shorter image leaves the bottom empty, and a
  * taller image is clipped at the bottom. The overview uses the same rule for rendered previews and
- * for the terminal snapshots that fly in and out of the grid, so the hand-off between them cannot
+ * for the terminal frames that fly in and out of the grid, so the hand-off between them cannot
  * change the glyph aspect ratio or move the first row.</p>
  *
  * <p>The view clips its own drawing rectangle because the ghost layer deliberately does not clip
@@ -32,7 +32,9 @@ public final class TopCropImageView extends ImageView {
     /** Reused bounds for the rectangular clip; flying ghosts resize every animation frame. */
     private final Rect mClipRect = new Rect();
     private boolean mSkipClipBounds;
-    /** Optional card outline drawn over the snapshot while it is flying. */
+    /** Cover the view instead of width-filling it; used by the square add-button source. */
+    private boolean mCenterCrop;
+    /** Optional card outline drawn over the frame while it is flying. */
     private final Paint mBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private float mBorderWidth;
     private float mBorderRadius;
@@ -72,6 +74,18 @@ public final class TopCropImageView extends ImageView {
         }
     }
 
+    /**
+     * Fill the whole view instead of width-filling and top-cropping. The add-button morph starts
+     * from a square source, so a width-filled portrait terminal would leave a transparent strip
+     * at the bottom until the frame reaches the terminal's own aspect. Cover-scaling keeps the
+     * square filled with undistorted glyphs and converges to an exact fit at the target rect.
+     */
+    void setCenterCrop(boolean centerCrop) {
+        if (mCenterCrop == centerCrop) return;
+        mCenterCrop = centerCrop;
+        updateScaleMatrix();
+    }
+
     private Rect widthBounds() {
         mClipRect.set(0, 0, getWidth(), getHeight());
         return mClipRect;
@@ -82,6 +96,11 @@ public final class TopCropImageView extends ImageView {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
         setClipBounds(!mSkipClipBounds && width > 0 && height > 0
                 ? widthBounds() : null);
+        updateScaleMatrix();
+    }
+
+    /** Refresh the image matrix when a live source changed its intrinsic size. */
+    void refreshDrawableGeometry() {
         updateScaleMatrix();
     }
 
@@ -101,10 +120,23 @@ public final class TopCropImageView extends ImageView {
 
         final Drawable drawable = getDrawable();
         final int drawableWidth = drawable != null ? drawable.getIntrinsicWidth() : -1;
+        final int drawableHeight = drawable != null ? drawable.getIntrinsicHeight() : -1;
         final int availableWidth = Math.max(0,
                 getWidth() - getPaddingLeft() - getPaddingRight());
-        if (drawableWidth <= 0 || availableWidth <= 0 || getHeight() <= 0) {
+        final int availableHeight = Math.max(0,
+                getHeight() - getPaddingTop() - getPaddingBottom());
+        if (drawableWidth <= 0 || availableWidth <= 0 || availableHeight <= 0) {
             mScaleMatrix.reset();
+            setImageMatrix(mScaleMatrix);
+            return;
+        }
+        if (mCenterCrop && drawableHeight > 0) {
+            final float scale = Math.max(availableWidth / (float) drawableWidth,
+                    availableHeight / (float) drawableHeight);
+            final float dx = (availableWidth - drawableWidth * scale) / 2f;
+            final float dy = (availableHeight - drawableHeight * scale) / 2f;
+            mScaleMatrix.setScale(scale, scale);
+            mScaleMatrix.postTranslate(dx, dy);
             setImageMatrix(mScaleMatrix);
             return;
         }
@@ -115,7 +147,7 @@ public final class TopCropImageView extends ImageView {
     }
 
     /**
-     * Draw the same rounded stroke as a resting overview card on the flying snapshot. The flight
+     * Draw the same rounded stroke as a resting overview card on the flying frame. The flight
      * owns this outline so it can fade it independently of the card hidden underneath it.
      */
     void setFlightBorder(float width, int color, float radius, float alpha) {
