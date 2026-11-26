@@ -257,6 +257,28 @@ public class AutoCompleteControllerTest {
     }
 
     @Test
+    public void newSentenceAfterAFullEntryDoesNotOfferTheFirstSentenceRollback() {
+        history.addToMessageHistory("First sentence. Second long sentence.", HOME);
+        type("First sentence. Second long sentence. Sec");
+
+        assertFalse("a sentence already typed must not trigger the first-sentence rollback",
+                suggestions().contains("First sentence."));
+        assertTrue("the active sentence still completes",
+                suggestions().contains("Second long sentence."));
+    }
+
+    @Test
+    public void divergingEntryDoesNotOfferTheRollbackForAMatchingLaterSentence() {
+        history.addToMessageHistory("First. Other. Third long sentence.", HOME);
+        type("First. Second. Thi");
+
+        assertFalse("an entry that diverges before the active sentence must not roll back",
+                suggestions().contains("First."));
+        assertTrue("its later sentence still completes the active sentence",
+                suggestions().contains("Third long sentence."));
+    }
+
+    @Test
     public void typingAfterRestoringShorterTextRecomputesBases() {
         history.addToMessageHistory("echo restored", HOME);
 
@@ -763,7 +785,7 @@ public class AutoCompleteControllerTest {
     }
 
     @Test
-    public void changedBoldPrefixResetsRow() {
+    public void changedTypedPrefixResetsRow() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Sec");
         String suggestion = suggestions().get(0);
@@ -775,7 +797,7 @@ public class AutoCompleteControllerTest {
 
         type("First sentence. Seco");
         controller.rebindSuggestionTextView(row, suggestion, "First sentence. Seco");
-        assertEquals("a longer bold prefix must reset the row",
+        assertEquals("a longer typed prefix must reset the row",
                 2, row.setTextCalls);
     }
 

@@ -131,6 +131,7 @@
 <string name="input_history_cleared">Riwayat input dihapus</string>
 <string name="input_history_empty">Tidak ada riwayat input</string>
 <string name="input_history_max_title">Jumlah maksimum riwayat input</string>
+<string name="input_history_max_popup_limit_summary">Hanya %1$d entri pertama yang ditampilkan di popup riwayat input; sisanya tersedia melalui pelengkapan otomatis.</string>
 <string name="msg_terminal_panel_disabling">Menonaktifkan panel terminal</string>
 <string name="msg_terminal_panel_enabling">Mengaktifkan panel terminal</string>
 <string name="msg_extra_keys_create_failed">Gagal membuat tombol tambahan bawaan</string>
@@ -159,10 +160,11 @@
 <string name="termux_tab_height_mode_title">Tinggi tab</string>
 <string name="termux_tab_height_mode_single">Satu baris</string>
 <string name="termux_tab_height_mode_double">Dua baris</string>
-<string name="termux_tab_height_mode_double_landscape_single">Dua baris, satu baris dalam orientasi lanskap</string>
+<string name="termux_tab_height_mode_double_landscape_single">Dua baris, satu baris dalam mode lanskap</string>
 <string name="termux_tab_panel_position_title">Posisi panel tab</string>
 <string name="termux_tab_panel_position_top">Atas</string>
 <string name="termux_tab_panel_position_bottom">Bawah</string>
+<string name="termux_tab_panel_position_bottom_landscape_top">Bawah, atas dalam mode lanskap</string>
 <string name="tab_close_description">Tutup tab</string>
 <string name="termux_api_preferences_summary">Pengaturan aplikasi Termux:API</string>
 <string name="termux_button_bg_active_alpha_title" formatted="false">Opasitas latar belakang elemen aktif</string>
@@ -226,6 +228,8 @@
     </plurals>
 <string name="locale_override_title">Bahasa aplikasi</string>
     <string name="locale_override_entry_system">Sistem</string>
+<string name="autocomplete_sentences_enabled_title">Pelengkapan otomatis kalimat</string>
+<string name="autocomplete_sentences_enabled_summary">Tawarkan pelengkapan otomatis kalimat dari riwayat input saat mengetik.</string>
 <string name="suggestions_max_count_title">Jumlah maksimum saran pelengkapan otomatis</string>
 <string name="extra_keys_special_button_mode_title">Perilaku tombol khusus</string>
 <string name="extra_keys_special_button_mode_sticky">Lengket (beralih/terkunci)</string>
@@ -248,6 +252,9 @@
 <string name="backup_restore_preferences_summary">Kontainer Termux, pengaturan aplikasi</string>
 <string name="plugin_logging_category_title">Pencatatan log</string>
 <string name="tabs_category_title">Tab</string>
+<string name="session_overview_preview_throttle_title">Laju penyegaran terminal maksimum dalam mode ringkasan</string>
+<string name="session_overview_preview_throttle_unit">fps</string>
+<string name="session_overview_preview_throttle_off_value">NONAKTIF</string>
 <string name="input_preferences_summary">Tombol tambahan, panel input, keyboard, pintasan, tombol sistem</string>
 <string name="window_category_title">Jendela</string>
 <string name="theme_mode_entry_dark">Gelap</string>
@@ -263,7 +270,7 @@
     <string name="extra_keys_visibility_title">Tampilkan panel tombol tambahan</string>
     <string name="extra_keys_visibility_always">Selalu</string>
     <string name="extra_keys_visibility_keyboard">Hanya saat keyboard terbuka</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Selalu, hanya saat keyboard terbuka dalam orientasi lanskap</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Selalu, dalam mode lanskap hanya saat keyboard terbuka</string>
     <string name="extra_keys_visibility_never">Tidak pernah</string>
 
     
@@ -401,11 +408,13 @@
 
     
     <string name="terminal_onclick_url_open_title">Buka URL saat diklik</string>
+    <string name="title_open_url">Buka tautan</string>
+    <string name="action_open">Buka</string>
 
     
     <string name="fullscreen_title">Layar penuh</string>
     <string name="fullscreen_mode_entry_off">Nonaktifkan</string>
-    <string name="fullscreen_mode_entry_landscape">Aktifkan dalam orientasi lanskap</string>
+    <string name="fullscreen_mode_entry_landscape">Aktifkan dalam mode lanskap</string>
     <string name="fullscreen_mode_entry_on">Aktifkan</string>
     <string name="extend_into_cutout_title">Perpanjang ke area cutout</string>
     <string name="bubble_on_background_title">Gelembung di latar belakang</string>
@@ -536,6 +545,10 @@
 
     <!-- Session list -->
     <string name="session_default_title">Terminal</string>
+    <string name="session_overview_description">Semua sesi terminal</string>
+    <string name="session_overview_session_description">%1$s, sesi terminal</string>
+    <string name="session_overview_session_selected_description">%1$s, sesi terminal, dipilih</string>
+    <string name="session_overview_close_session_description">Tutup sesi %1$s</string>
     <string name="session_null_title">Sesi null</string>
 
     <!-- Message history clear OK button -->

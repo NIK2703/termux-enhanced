@@ -18,6 +18,16 @@ import java.util.Set;
  */
 public class SuggestionEngineTest {
 
+    /** Real history entry used for the reported full-entry-then-new-sentence case. */
+    private static final String HISTORY_ENTRY_2648 =
+            "исправь отработку мини-карты: при проведении по миникарте пальцем нормально "
+                    + "откликается только зона примерно на уровне нижней части 50-60% миникарты "
+                    + "и когда ведёшь палец вверх для перемещения камеры на верхнюю часть "
+                    + "минимума она упирается в невидимый барьер примерно на 60% а когда ты "
+                    + "тапаешь и водишь пальцем с верхней части миникарты  там уже работают "
+                    + "жесты как для области игрового мира. исследуй логи , текущую реализацию "
+                    + "и выясни в чем проблема";
+
     private static HistorySnapshot snap(String... entries) {
         return HistorySnapshot.build(1, Arrays.asList(entries));
     }
@@ -318,6 +328,61 @@ public class SuggestionEngineTest {
     }
 
     @Test
+    public void rollbackIsNotOfferedForAnAlreadyTypedSentencePosition() {
+        List<SuggestionEngine.Candidate> out = scan(
+                snap("First sentence. Second long sentence."),
+                "First sentence. Second long sentence. Sec", 4);
+        assertEquals(1, out.size());
+        assertEquals("Second long sentence.", out.get(0).text);
+        assertFalse(out.get(0).isFirstSentence);
+    }
+
+    @Test
+    public void rollbackIsNotOfferedFromAnotherEntryAtAnAlreadyTypedPosition() {
+        List<SuggestionEngine.Candidate> out = scan(
+                snap("First sentence. Second long sentence.",
+                        "First sentence. Third long sentence."),
+                "First sentence. Second long sentence. Thi", 4);
+        assertEquals(1, out.size());
+        assertEquals("Third long sentence.", out.get(0).text);
+        assertFalse(out.get(0).isFirstSentence);
+    }
+
+    @Test
+    public void rollbackIsNotOfferedWhenAnEarlierTypedSentenceDiffers() {
+        // The entry shares the first sentence and contains a matching third
+        // sentence, but its second sentence is not what the user typed. Rolling
+        // back would silently drop the typed "Second.".
+        List<SuggestionEngine.Candidate> out = scan(
+                snap("First. Other. Third long sentence."),
+                "First. Second. Thi", 4);
+        assertEquals(1, out.size());
+        assertEquals("Third long sentence.", out.get(0).text);
+        assertFalse(out.get(0).isFirstSentence);
+    }
+
+    @Test
+    public void realHistoryEntryDoesNotRollBackAfterAFullEntryAndNewSentence() {
+        String typed = HISTORY_ENTRY_2648 + ". текущую реализацию";
+        List<SuggestionEngine.Candidate> out = scan(snap(HISTORY_ENTRY_2648), typed, 4);
+        assertTrue(out.isEmpty());
+    }
+
+    @Test
+    public void rollbackIsStillOfferedForTheNextSentenceAfterTwoTypedSentences() {
+        List<SuggestionEngine.Candidate> out = scan(
+                snap("First. Second. Third long sentence."),
+                "First. Second. Thi", 4);
+        assertEquals(3, out.size());
+        assertEquals("First. Second. Third long sentence.", out.get(0).text);
+        assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
+        assertEquals("First.", out.get(1).text);
+        assertTrue(out.get(1).isFirstSentence);
+        assertEquals("Third long sentence.", out.get(2).text);
+        assertFalse(out.get(2).isFirstSentence);
+    }
+
+    @Test
     public void activeSentenceStartsAfterTheLastNewline() {
         String text = "one\ntwo\nthree";
         assertEquals(8, SuggestionEngine.activeSentenceStart(text, text.length()));
@@ -337,6 +402,16 @@ public class SuggestionEngineTest {
         assertEquals(6, SuggestionEngine.activeSentenceStart("Wait… N", 7));
         assertEquals(6, SuggestionEngine.activeSentenceStart("First.", 6));
         assertEquals(0, SuggestionEngine.activeSentenceStart("First", 5));
+    }
+
+    @Test
+    public void activeSentenceIndexCountsCompletedSentences() {
+        assertEquals(0, SuggestionEngine.activeSentenceIndex("First", 0, 0));
+        assertEquals(1, SuggestionEngine.activeSentenceIndex("First. Sec", 0, 7));
+        assertEquals(2, SuggestionEngine.activeSentenceIndex("First. Second. Third", 0, 15));
+        assertEquals(2, SuggestionEngine.activeSentenceIndex("Wow! Really? Yes", 0, 13));
+        assertEquals(1, SuggestionEngine.activeSentenceIndex("Wait… N", 0, 6));
+        assertEquals(0, SuggestionEngine.activeSentenceIndex("1.2.3", 0, 0));
     }
 
     @Test

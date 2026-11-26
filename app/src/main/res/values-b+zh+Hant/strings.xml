@@ -135,6 +135,7 @@
     <string name="color_scheme_dark_summary">深色應用程式主題下使用的配色方案</string>
 
     <string name="input_history_max_title">輸入紀錄的最大項目數</string>
+    <string name="input_history_max_popup_limit_summary">輸入紀錄彈出視窗中僅顯示前 %1$d 筆項目，其餘項目可透過自動補全使用。</string>
     <string name="per_directory_input_history_title">依目錄分別儲存輸入紀錄</string>
     <string name="per_directory_input_history_summary">為每個工作目錄分別儲存輸入紀錄。關閉後，所有工作階段共用同一個全域紀錄。</string>
     <string name="text_input_append_enter_title">傳送時附加 Enter</string>
@@ -184,6 +185,10 @@
     <string name="error_settings_restore_open_input">無法開啟要讀取的檔案</string>
     <string name="tab_close_description">關閉分頁</string>
     <string name="session_default_title">終端機</string>
+    <string name="session_overview_description">所有終端機工作階段</string>
+    <string name="session_overview_session_description">%1$s，終端機工作階段</string>
+    <string name="session_overview_session_selected_description">%1$s，終端機工作階段，已選取</string>
+    <string name="session_overview_close_session_description">關閉工作階段 %1$s</string>
     <string name="text_input_toggle_button_title">輸入面板切換按鈕</string>
     <string name="text_input_over_terminal_title">輸入面板置於終端機之上</string>
 
@@ -254,8 +259,11 @@
     <string name="termux_tab_panel_position_title">分頁面板位置</string>
     <string name="termux_tab_panel_position_top">頂部</string>
     <string name="termux_tab_panel_position_bottom">底部</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">底部，橫向時頂部</string>
 
     
+    <string name="autocomplete_sentences_enabled_title">句子自動補全</string>
+    <string name="autocomplete_sentences_enabled_summary">輸入時從輸入紀錄中提供句子自動補全建議。</string>
     <string name="suggestions_max_count_title">自動補全建議的最大數量</string>
 
     <string name="appearance_category_title">外觀</string>
@@ -282,6 +290,9 @@
     <string name="extra_keys_text_all_caps_title">按鈕標籤全大寫</string>
     <string name="window_category_title">視窗</string>
     <string name="tabs_category_title">分頁</string>
+    <string name="session_overview_preview_throttle_title">總覽模式下終端機的最大重新整理頻率</string>
+    <string name="session_overview_preview_throttle_unit">幀/秒</string>
+    <string name="session_overview_preview_throttle_off_value">關閉</string>
     <string name="input_panel_title">輸入面板</string>
 
     <string name="theme_mode_entry_dark">深色</string>
@@ -297,7 +308,7 @@
     <string name="extra_keys_visibility_title">顯示額外按鈕面板</string>
     <string name="extra_keys_visibility_always">總是顯示</string>
     <string name="extra_keys_visibility_keyboard">僅鍵盤開啟時</string>
-    <string name="extra_keys_visibility_keyboard_landscape">始終顯示，僅在橫向且鍵盤開啟時</string>
+    <string name="extra_keys_visibility_keyboard_landscape">總是顯示，橫向時僅在鍵盤開啟時顯示</string>
     <string name="extra_keys_visibility_never">從不顯示</string>
 
     
@@ -426,10 +437,12 @@
     <string name="scroll_on_new_output_title">新輸出時自動捲動</string>
 
     <string name="terminal_onclick_url_open_title">輕觸開啟連結</string>
+    <string name="title_open_url">開啟連結</string>
+    <string name="action_open">開啟</string>
 
     <string name="fullscreen_title">全螢幕</string>
     <string name="fullscreen_mode_entry_off">停用</string>
-    <string name="fullscreen_mode_entry_landscape">在橫向模式啟用</string>
+    <string name="fullscreen_mode_entry_landscape">橫向時啟用</string>
     <string name="fullscreen_mode_entry_on">啟用</string>
     <string name="extend_into_cutout_title">延伸至瀏海區域</string>
     <string name="bubble_on_background_title">背景氣泡</string>

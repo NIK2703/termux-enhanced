@@ -51,6 +51,28 @@ final class SessionOverviewScrollMath {
         return preferred;
     }
 
+    /**
+     * Pick the scroll offset for a newly appended card.
+     *
+     * <p>When the card is below the viewport, {@link #scrollForActiveCard} stops as soon as its
+     * bottom edge is flush with the viewport. The grid always keeps one gap below its last row,
+     * so that stop leaves the gutter offscreen and the new card looks pinned to the edge. This
+     * variant continues by {@code bottomGap} in the same downward direction, but never past the
+     * content end. A card that is already fully visible, or one that has to be scrolled up to
+     * clear the top inset, gets no extra travel.</p>
+     *
+     * @param bottomGap outer gutter below the last card, in pixels
+     */
+    static int scrollForAppendedCard(int preferredScroll, int viewportHeight, int topInset,
+                                     int maxScroll, int cardTop, int cardBottom, int bottomGap) {
+        final int safeMax = Math.max(0, maxScroll);
+        final int preferred = clamp(preferredScroll, 0, safeMax);
+        final int target = scrollForActiveCard(preferred, viewportHeight, topInset, safeMax,
+                cardTop, cardBottom);
+        if (target <= preferred) return target;
+        return clamp(target + Math.max(0, bottomGap), 0, safeMax);
+    }
+
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }

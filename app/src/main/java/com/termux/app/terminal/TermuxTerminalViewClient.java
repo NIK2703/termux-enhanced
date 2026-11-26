@@ -339,7 +339,7 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
 
             if (!urlSet.isEmpty()) {
                 String url = (String) urlSet.iterator().next();
-                ShareUtils.openUrl(mActivity, url);
+                showOpenUrlDialog(url);
                 return;
             }
         }
@@ -347,6 +347,16 @@ public class TermuxTerminalViewClient extends TermuxTerminalViewClientBase {
         if (!term.isMouseTrackingActive() && !e.isFromSource(InputDevice.SOURCE_MOUSE)) {
             showSoftKeyboardForTerminalTap(terminalView);
         }
+    }
+
+    private void showOpenUrlDialog(String url) {
+        MessageDialogUtils.showMessage(mActivity,
+            mActivity.getString(R.string.title_open_url),
+            url,
+            mActivity.getString(R.string.action_open),
+            (dialog, which) -> ShareUtils.openUrl(mActivity, url),
+            mActivity.getString(com.termux.shared.R.string.action_cancel),
+            null, null);
     }
 
     @Override

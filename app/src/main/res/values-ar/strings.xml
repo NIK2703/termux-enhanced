@@ -140,6 +140,7 @@
     <string name="input_history_cleared">تم مسح سجل الإدخال</string>
     <string name="input_history_empty">سجل الإدخال فارغ</string>
     <string name="input_history_max_title">الحد الأقصى لعناصر سجل الإدخال</string>
+    <string name="input_history_max_popup_limit_summary">تُعرض أول %1$d من عناصر سجل الإدخال فقط في النافذة المنبثقة؛ ويمكن الوصول إلى الباقي عبر الإكمال التلقائي.</string>
     <string name="msg_add_termux_debug_info">إضافة معلومات تصحيح Termux إلى التقرير؟</string>
     <string name="msg_terminal_panel_disabling">جارٍ تعطيل لوحة الطرفية</string>
     <string name="msg_terminal_panel_enabling">جارٍ تمكين لوحة الطرفية</string>
@@ -179,6 +180,10 @@
     <string name="screen_orientation_title">اتجاه الشاشة</string>
 
     <string name="session_default_title">الطرفية</string>
+    <string name="session_overview_description">جميع الجلسات الطرفية</string>
+    <string name="session_overview_session_description">%1$s، جلسة طرفية</string>
+    <string name="session_overview_session_selected_description">%1$s، جلسة طرفية، محددة</string>
+    <string name="session_overview_close_session_description">إغلاق الجلسة %1$s</string>
     <string name="session_null_title">جلسة فارغة (null)</string>
     <string name="new_tab_placeholder_hint">جلسة جديدة</string>
     <string name="swipe_rightmost_new_tab_title">اسحب علامة التبويب الأخيرة لجلسة جديدة</string>
@@ -193,6 +198,7 @@
     <string name="termux_tab_panel_position_title">موضع لوحة علامات التبويب</string>
     <string name="termux_tab_panel_position_top">أعلى</string>
     <string name="termux_tab_panel_position_bottom">أسفل</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">أسفل، أعلى في الوضع الأفقي</string>
     <string name="termux_api_preferences_summary">تفضيلات تطبيق Termux:API</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">عتامة خلفية العناصر النشطة</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">عتامة خلفية العناصر غير النشطة</string>
@@ -257,6 +263,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">الإكمال التلقائي للجمل</string>
+    <string name="autocomplete_sentences_enabled_summary">اقتراح إكمال تلقائي للجمل من سجل الإدخال أثناء الكتابة.</string>
     <string name="suggestions_max_count_title">الحد الأقصى لاقتراحات الإكمال التلقائي</string>
 
     <string name="appearance_category_title">المظهر</string>
@@ -282,6 +290,9 @@
     <string name="input_preferences_title">الإدخال</string>
     <string name="plugin_logging_category_title">التسجيل</string>
     <string name="tabs_category_title">علامات التبويب</string>
+    <string name="session_overview_preview_throttle_title">أقصى معدل تحديث للطرفية في وضع النظرة العامة</string>
+    <string name="session_overview_preview_throttle_unit">إطار/ث</string>
+    <string name="session_overview_preview_throttle_off_value">إيقاف</string>
     <string name="window_category_title">نافذة</string>
 
     <string name="theme_mode_entry_dark">داكن</string>
@@ -297,7 +308,7 @@
     <string name="extra_keys_visibility_title">إظهار لوحة الأزرار الإضافية</string>
     <string name="extra_keys_visibility_always">دائمًا</string>
     <string name="extra_keys_visibility_keyboard">فقط عند فتح لوحة المفاتيح</string>
-    <string name="extra_keys_visibility_keyboard_landscape">دائمًا، فقط عند فتح لوحة المفاتيح في الوضع الأفقي</string>
+    <string name="extra_keys_visibility_keyboard_landscape">دائمًا، وفي الوضع الأفقي فقط عند فتح لوحة المفاتيح</string>
     <string name="extra_keys_visibility_never">أبدًا</string>
 
     
@@ -401,6 +412,8 @@
     <string name="disable_hardware_keyboard_shortcuts_title">تعطيل اختصارات لوحة المفاتيح الفعلية</string>
     <string name="scroll_on_new_output_title">التمرير التلقائي عند المخرجات الجديدة</string>
     <string name="terminal_onclick_url_open_title">فتح الروابط عند النقر</string>
+    <string name="title_open_url">فتح الرابط</string>
+    <string name="action_open">فتح</string>
     <string name="fullscreen_title">ملء الشاشة</string>
     <string name="fullscreen_mode_entry_off">تعطيل</string>
     <string name="fullscreen_mode_entry_landscape">تفعيل في الوضع الأفقي</string>

@@ -28,6 +28,8 @@ public class SessionOverviewGridView extends ViewGroup {
     }
 
     private int mGapPx;
+    /** Larger breathing space above the first row and below the last row. */
+    private int mOuterGapPx;
     private int mViewportHeight;
     /**
      * Largest viewport this grid has been measured with at the current width. The keyboard
@@ -56,6 +58,8 @@ public class SessionOverviewGridView extends ViewGroup {
     public SessionOverviewGridView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         mGapPx = Math.round(getResources().getDimension(R.dimen.session_overview_gap));
+        mOuterGapPx = Math.round(
+                getResources().getDimension(R.dimen.session_overview_outer_gap));
         setClipChildren(false);
         setClipToPadding(false);
     }
@@ -64,6 +68,8 @@ public class SessionOverviewGridView extends ViewGroup {
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         mGapPx = Math.round(getResources().getDimension(R.dimen.session_overview_gap));
+        mOuterGapPx = Math.round(
+                getResources().getDimension(R.dimen.session_overview_outer_gap));
         requestLayout();
     }
 
@@ -131,7 +137,7 @@ public class SessionOverviewGridView extends ViewGroup {
         final int maxWidth = Math.max(0,
                 (availableWidth - mGapPx * (columns + 1)) / columns);
         final int maxHeight = Math.max(0,
-                (availableHeight - mGapPx * (visibleRows + 1)) / visibleRows);
+                (availableHeight - (mGapPx * (visibleRows - 1) + mOuterGapPx * 2)) / visibleRows);
         return new int[]{maxWidth, maxHeight};
     }
 
@@ -140,10 +146,10 @@ public class SessionOverviewGridView extends ViewGroup {
         final SessionOverviewGridMath.Layout layout;
         if (mExactCardWidth > 0 && mExactCardHeight > 0) {
             layout = SessionOverviewGridMath.compute(sessionCount, availableWidth,
-                    stableHeight, mGapPx, mExactCardWidth, mExactCardHeight);
+                    stableHeight, mGapPx, mOuterGapPx, mExactCardWidth, mExactCardHeight);
         } else {
             layout = SessionOverviewGridMath.compute(sessionCount, availableWidth,
-                    stableHeight, mGapPx, mCardAspect);
+                    stableHeight, mGapPx, mOuterGapPx, mCardAspect);
         }
         return SessionOverviewGridMath.recenter(layout, visibleHeight);
     }

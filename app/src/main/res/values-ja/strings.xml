@@ -112,6 +112,7 @@
 <string name="color_scheme_dark_title">ターミナルのカラースキーム（ダークテーマ）</string>
 <string name="color_scheme_dark_summary">アプリのテーマがダークの場合に適用されるカラースキーム</string>
 <string name="input_history_max_title">入力履歴の最大件数</string>
+<string name="input_history_max_popup_limit_summary">入力履歴のポップアップには最初の %1$d 件のみ表示され、残りはオートコンプリートから利用できます。</string>
 <string name="per_directory_input_history_title">ディレクトリごとの入力履歴</string>
 <string name="per_directory_input_history_summary">作業ディレクトリごとに個別の入力履歴を保持します。無効にすると、すべてのセッションで1つのグローバル履歴を共有します。</string>
 <string name="text_input_append_enter_title">送信時にEnterを追加</string>
@@ -160,6 +161,10 @@
 <string name="error_settings_restore_open_input">入力ファイルを開けませんでした</string>
 <string name="tab_close_description">タブを閉じる</string>
 <string name="session_default_title">ターミナル</string>
+<string name="session_overview_description">すべてのターミナルセッション</string>
+<string name="session_overview_session_description">%1$s、ターミナルセッション</string>
+<string name="session_overview_session_selected_description">%1$s、ターミナルセッション、選択中</string>
+<string name="session_overview_close_session_description">セッション %1$s を閉じる</string>
 <string name="new_tab_placeholder_hint">新しいセッション</string>
 <string name="swipe_rightmost_new_tab_title">最右端のタブを右にスワイプして新規セッション</string>
 <string name="gesture_directory_history_title">スワイプ操作でディレクトリ履歴を表示</string>
@@ -171,6 +176,7 @@
 <string name="termux_tab_panel_position_title">タブパネルの位置</string>
 <string name="termux_tab_panel_position_top">上</string>
 <string name="termux_tab_panel_position_bottom">下</string>
+<string name="termux_tab_panel_position_bottom_landscape_top">下、横向きでは上</string>
 <string name="text_input_toggle_button_title">入力パネル切り替えボタン</string>
 <string name="text_input_over_terminal_title">入力パネルをターミナル上へ</string>
 
@@ -240,6 +246,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">文のオートコンプリート</string>
+    <string name="autocomplete_sentences_enabled_summary">入力中に、入力履歴から文のオートコンプリート候補を表示します。</string>
     <string name="suggestions_max_count_title">オートコンプリート候補の最大数</string>
 <string name="appearance_category_title">外観</string>
 <string name="backup_restore_preferences_title">バックアップと復元</string>
@@ -264,6 +272,9 @@
 <string name="input_panel_title">入力パネル</string>
 <string name="plugin_logging_category_title">ログ記録</string>
 <string name="tabs_category_title">タブ</string>
+<string name="session_overview_preview_throttle_title">概要モードでのターミナルの最大更新頻度</string>
+<string name="session_overview_preview_throttle_unit">fps</string>
+<string name="session_overview_preview_throttle_off_value">オフ</string>
 <string name="window_category_title">ウィンドウ</string>
     <string name="theme_mode_entry_dark">ダーク</string>
     <string name="theme_mode_entry_light">ライト</string>
@@ -423,6 +434,8 @@
 
     
     <string name="terminal_onclick_url_open_title">クリックでURLを開く</string>
+    <string name="title_open_url">リンクを開く</string>
+    <string name="action_open">開く</string>
 
     
     <string name="fullscreen_title">全画面</string>

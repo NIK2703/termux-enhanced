@@ -190,6 +190,7 @@
                 <string name="termux_tab_panel_position_title">Tab panel position</string>
                 <string name="termux_tab_panel_position_top">Top</string>
                 <string name="termux_tab_panel_position_bottom">Bottom</string>
+                <string name="termux_tab_panel_position_bottom_landscape_top">Bottom, top in landscape orientation</string>
 
                 <!-- Tab height mode -->
                 <string name="termux_tab_height_mode_title">Tab height</string>
@@ -559,6 +560,8 @@
     <string name="scroll_on_new_output_title">Scroll on new output</string>
 
     <string name="terminal_onclick_url_open_title">Open links on tap</string>
+    <string name="title_open_url">Open link</string>
+    <string name="action_open">Open</string>
 
     <string name="fullscreen_title">Fullscreen</string>
     <string name="fullscreen_mode_entry_off">Disable</string>

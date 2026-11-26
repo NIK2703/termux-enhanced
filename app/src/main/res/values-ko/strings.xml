@@ -136,6 +136,7 @@
     <string name="input_history_cleared">입력 기록이 지워졌습니다</string>
     <string name="input_history_empty">입력 기록이 없습니다</string>
     <string name="input_history_max_title">입력 기록의 최대 항목 수</string>
+    <string name="input_history_max_popup_limit_summary">입력 기록 팝업에는 처음 %1$d개 항목만 표시되며, 나머지는 자동 완성에서 사용할 수 있습니다.</string>
     <string name="msg_add_termux_debug_info">Termux 디버그 정보를 보고서에 추가할까요?</string>
     <string name="msg_terminal_panel_disabling">터미널 패널을 비활성화하는 중…</string>
     <string name="msg_terminal_panel_enabling">터미널 패널을 활성화하는 중…</string>
@@ -166,6 +167,10 @@
     <string name="restore_tabs_title">시작 시 탭 복원</string>
     <string name="screen_orientation_title">화면 방향</string>
     <string name="session_default_title">터미널</string>
+    <string name="session_overview_description">모든 터미널 세션</string>
+    <string name="session_overview_session_description">%1$s, 터미널 세션</string>
+    <string name="session_overview_session_selected_description">%1$s, 터미널 세션, 선택됨</string>
+    <string name="session_overview_close_session_description">세션 %1$s 닫기</string>
     <string name="session_null_title">null 세션</string>
     <string name="shared_user_label">Termux 공유 사용자</string>
     <string name="tab_close_description">탭 닫기</string>
@@ -176,6 +181,7 @@
     <string name="termux_tab_panel_position_title">탭 패널 위치</string>
     <string name="termux_tab_panel_position_top">위</string>
     <string name="termux_tab_panel_position_bottom">아래</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">아래, 가로 방향에서는 위</string>
     <string name="termux_api_preferences_summary">Termux:API 앱 설정</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">활성 요소 배경 불투명도</string>
     <string name="termux_button_bg_inactive_alpha_title" formatted="false">비활성 요소 배경 불투명도</string>
@@ -241,6 +247,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">문장 자동 완성</string>
+    <string name="autocomplete_sentences_enabled_summary">입력하는 동안 입력 기록에서 문장 자동 완성 제안을 표시합니다.</string>
     <string name="suggestions_max_count_title">자동 완성 제안 최대 개수</string>
 
     <string name="appearance_category_title">모양</string>
@@ -267,6 +275,9 @@
     <string name="extra_keys_text_all_caps_title">모두 대문자 표시</string>
     <string name="window_category_title">창</string>
     <string name="tabs_category_title">탭</string>
+    <string name="session_overview_preview_throttle_title">개요 모드에서 터미널의 최대 새로 고침 빈도</string>
+    <string name="session_overview_preview_throttle_unit">fps</string>
+    <string name="session_overview_preview_throttle_off_value">사용 안 함</string>
     <string name="input_panel_title">입력 패널</string>
     <string name="theme_mode_entry_dark">어두운</string>
     <string name="theme_mode_entry_light">밝은</string>
@@ -381,6 +392,8 @@
 
     
     <string name="terminal_onclick_url_open_title">탭하여 링크 열기</string>
+    <string name="title_open_url">링크 열기</string>
+    <string name="action_open">열기</string>
 
     
     <string name="volume_keys_summary">볼륨 다운/업 버튼을 길게 누르면 각각 Ctrl 또는 Fn을 누른 상태로 처리합니다. 이 모드에서 볼륨 패널을 열려면 Fn + v를 사용하세요.</string>

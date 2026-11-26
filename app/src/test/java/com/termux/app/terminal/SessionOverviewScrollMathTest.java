@@ -65,6 +65,32 @@ public class SessionOverviewScrollMathTest {
     }
 
     @Test
+    public void appendedCardScrollsPastItsBottomEdgeByTheOuterGutter() {
+        // The card needs 200 px to become visible; the 20 px bottom gutter is added on top.
+        Assert.assertEquals(220, SessionOverviewScrollMath.scrollForAppendedCard(
+                0, 1000, 100, 500, 900, 1200, 20));
+    }
+
+    @Test
+    public void appendedCardGutterNeverExceedsTheContentEnd() {
+        // The card alone would already stop at the 500 px content end.
+        Assert.assertEquals(500, SessionOverviewScrollMath.scrollForAppendedCard(
+                0, 1000, 100, 500, 1200, 1500, 20));
+    }
+
+    @Test
+    public void alreadyVisibleAppendedCardGetsNoExtraScroll() {
+        Assert.assertEquals(120, SessionOverviewScrollMath.scrollForAppendedCard(
+                120, 1000, 100, 500, 250, 600, 20));
+    }
+
+    @Test
+    public void scrollingUpToClearTheStatusBarGetsNoBottomGutter() {
+        Assert.assertEquals(50, SessionOverviewScrollMath.scrollForAppendedCard(
+                200, 1000, 100, 500, 150, 500, 20));
+    }
+
+    @Test
     public void clampCausedByAShorterGridProducesTheSettleDistance() {
         // Removing the last row takes the maximum from 900 to 600; the content must slide 300 px.
         Assert.assertEquals(300, SessionOverviewScrollMath.shrinkSettleDistance(900, 600));

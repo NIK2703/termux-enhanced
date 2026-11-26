@@ -210,7 +210,7 @@
     <string name="color_scheme_dark_summary">Цветовая схема, применяемая при тёмной теме приложения</string>
 
     <string name="input_history_max_title">Максимум элементов в истории ввода</string>
-    <string name="input_history_max_popup_limit_summary">В контекстном окне истории ввода будут отображены только первые %1$d элементов, доступ к остальным осуществляется через автодополнение</string>
+    <string name="input_history_max_popup_limit_summary">В окне истории ввода отображаются только первые %1$d элементов; остальные доступны через автодополнение.</string>
     <string name="per_directory_input_history_title">История ввода по директориям</string>
     <string name="per_directory_input_history_summary">Вести отдельную историю ввода для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
 
@@ -285,6 +285,10 @@
 
     <string name="tab_close_description">Закрыть вкладку</string>
     <string name="session_default_title">Терминал</string>
+    <string name="session_overview_description">Все сеансы терминала</string>
+    <string name="session_overview_session_description">%1$s, сеанс терминала</string>
+    <string name="session_overview_session_selected_description">%1$s, сеанс терминала, выбран</string>
+    <string name="session_overview_close_session_description">Закрыть сеанс %1$s</string>
     <string name="new_tab_placeholder_hint">Новый сеанс</string>
     <string name="swipe_rightmost_new_tab_title">Смахните последнюю вкладку для нового сеанса</string>
     <string name="gesture_directory_history_title">Показывать историю директорий при смахивании</string>
@@ -292,10 +296,11 @@
     <string name="termux_tab_height_mode_title">Высота вкладки</string>
     <string name="termux_tab_height_mode_single">Одна строка</string>
     <string name="termux_tab_height_mode_double">Две строки</string>
-    <string name="termux_tab_height_mode_double_landscape_single">Две строки, одна строка в ландшафтной ориентации</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Две строки, в ландшафтной ориентации одна строка</string>
     <string name="termux_tab_panel_position_title">Положение панели вкладок</string>
     <string name="termux_tab_panel_position_top">Сверху</string>
     <string name="termux_tab_panel_position_bottom">Снизу</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">Снизу, в ландшафтной ориентации сверху</string>
 
     
     <string name="text_input_toggle_button_title">Кнопка переключения панели ввода</string>
@@ -369,7 +374,7 @@
 
     
     <string name="autocomplete_sentences_enabled_title">Автодополнение предложений</string>
-    <string name="autocomplete_sentences_enabled_summary">Предлагать при вводе предложений автодополнение из истории ввода</string>
+    <string name="autocomplete_sentences_enabled_summary">Предлагать автодополнение предложений из истории ввода при наборе текста.</string>
     <string name="suggestions_max_count_title">Максимум предложений автодополнения</string>
 
     
@@ -476,6 +481,8 @@
     <string name="scroll_on_new_output_title">Автопрокрутка при новом выводе</string>
 
     <string name="terminal_onclick_url_open_title">Открывать ссылки по нажатию</string>
+    <string name="title_open_url">Открыть ссылку</string>
+    <string name="action_open">Открыть</string>
 
     <string name="fullscreen_title">Полноэкранный режим</string>
     <string name="fullscreen_mode_entry_off">Отключить</string>
@@ -566,7 +573,7 @@
     
     <string name="extra_keys_visibility_always">Всегда</string>
     <string name="extra_keys_visibility_keyboard">Только при открытой клавиатуре</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Всегда, только при открытой клавиатуре в ландшафтной ориентации</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Всегда; в ландшафтной ориентации — только при открытой клавиатуре</string>
     <string name="extra_keys_visibility_never">Никогда</string>
 
     

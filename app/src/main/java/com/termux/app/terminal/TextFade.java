@@ -20,6 +20,9 @@ public final class TextFade {
     /** Number of visible code points that fade at a cut edge. */
     public static final int FADE_CHARS = 3;
 
+    /** Constant 50% opacity used for a leading context word. */
+    public static final int HALF_ALPHA = 128;
+
     private TextFade() {}
 
     /**
@@ -92,6 +95,15 @@ public final class TextFade {
             }
             spanStart = spanEnd;
         }
+    }
+
+    /** Applies one constant alpha span over {@code text[start, endExclusive)}. */
+    public static void applyAlpha(@NonNull Spannable text, int start, int endExclusive,
+                                  int alpha) {
+        final int from = Math.max(0, start);
+        final int to = Math.min(endExclusive, text.length());
+        if (to <= from) return;
+        text.setSpan(new AlphaSpan(alpha), from, to, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     }
 
     /** True when both sequences carry the same alpha-fade spans. */

@@ -24,6 +24,21 @@ public class SessionOverviewGridMathTest {
     }
 
     @Test
+    public void outerGuttersAreIndependentOfTheCardGap() {
+        // A scrollable grid keeps the larger outer gutter at both ends; the space between rows
+        // stays at the tighter card gap.
+        SessionOverviewGridMath.Layout layout =
+                SessionOverviewGridMath.compute(6, 1080, 1920, 4, 16, 0d);
+        Assert.assertEquals(4, layout.gap);
+        Assert.assertEquals(16, layout.outerGap);
+        Assert.assertEquals(3, layout.rows);
+        Assert.assertEquals(16, layout.top);
+        final int cardsHeight = layout.rows * layout.cardHeight
+                + (layout.rows - 1) * layout.gap;
+        Assert.assertEquals(cardsHeight + 2 * layout.outerGap, layout.gridHeight);
+    }
+
+    @Test
     public void firstTwoRowsFitTheViewportAndExtraRowsScroll() {
         for (int count = 1; count <= 8; count++) {
             for (int width : WIDTHS) {
@@ -105,7 +120,9 @@ public class SessionOverviewGridMathTest {
                         Assert.assertTrue(Math.abs(layout.top - bottomSpace) <= 1);
                         Assert.assertTrue(layout.gridHeight <= layout.availableHeight);
                     } else {
-                        Assert.assertEquals(layout.gap, layout.top);
+                        // The outer gutter is always reserved; a short block can still be
+                        // centred inside a tall viewport, adding space above it.
+                        Assert.assertTrue(layout.top >= layout.gap);
                     }
                 }
             }

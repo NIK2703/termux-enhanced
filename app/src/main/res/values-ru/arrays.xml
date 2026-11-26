@@ -48,6 +48,7 @@
     <string-array name="tab_panel_position_entries">
         <item>@string/termux_tab_panel_position_top</item>
         <item>@string/termux_tab_panel_position_bottom</item>
+        <item>@string/termux_tab_panel_position_bottom_landscape_top</item>
     </string-array>
 
     <string-array name="tab_height_mode_entries">
@@ -113,8 +114,8 @@
 
     <string-array name="extra_keys_visibility_entries">
         <item>@string/extra_keys_visibility_always</item>
-        <item>@string/extra_keys_visibility_keyboard</item>
         <item>@string/extra_keys_visibility_keyboard_landscape</item>
+        <item>@string/extra_keys_visibility_keyboard</item>
         <item>@string/extra_keys_visibility_never</item>
     </string-array>
 

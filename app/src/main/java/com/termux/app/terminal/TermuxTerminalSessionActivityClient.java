@@ -1690,6 +1690,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             }
         }
 
+        // The overview's add-session button is the pencil's twin and must follow the same live
+        // terminal colours and shadow while the grid is open.
+        ImageButton overviewAddButton =
+                mActivity.findViewById(R.id.session_overview_add_button);
+        if (overviewAddButton != null) {
+            applyFloatingButtonStyle(overviewAddButton, fill, stroke, strokePx, textColor,
+                shadowElevationPx, controlShadowColor);
+        }
+
         // The floating panel follows the live terminal background too, with its own opacity pair;
         // otherwise it is an ordinary panel painted by applyPanelColors().
         final View panel = mActivity.findViewById(R.id.terminal_toolbar_text_input_container);
@@ -1786,6 +1795,9 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             new android.graphics.drawable.StateListDrawable();
         states.addState(new int[]{ android.R.attr.state_pressed }, active);
         states.addState(new int[]{ android.R.attr.state_focused }, active);
+        // The add-session buttons hold the active fill with state_selected for the whole swipe,
+        // including the frames after the finger has left the button's bounds.
+        states.addState(new int[]{ android.R.attr.state_selected }, active);
         states.addState(new int[]{}, createOvalDrawable(fill, strokePx, stroke));
         applyCircleButtonStyle(button, states, textColor);
         FloatingShadow.apply(button, elevationPx, shadowColor);

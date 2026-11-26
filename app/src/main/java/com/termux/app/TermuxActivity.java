@@ -1,5 +1,8 @@
 package com.termux.app;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
@@ -34,6 +37,7 @@ import android.view.animation.PathInterpolator;
 import android.widget.PopupWindow;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
@@ -56,6 +60,7 @@ import com.termux.app.terminal.BottomStripAnchors;
 import com.termux.app.terminal.SessionPagerManager;
 import com.termux.app.terminal.SessionOverviewController;
 import com.termux.app.terminal.SessionOverviewTransitionMath;
+import com.termux.app.terminal.OverviewAppearanceAnimation;
 import com.termux.app.terminal.io.TermuxTerminalExtraKeys;
 import com.termux.shared.activities.ReportActivity;
 import com.termux.shared.activity.ActivityUtils;
@@ -487,6 +492,22 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private int mOverviewExtraKeysPanelSlidePx;
     /** Invalidates end actions from a panel animation that has been superseded. */
     private int mOverviewExtraKeysAnimationGeneration;
+
+    /** Cached overview add-session button; the content view is inflated once per activity. */
+    @Nullable private ImageButton mOverviewAddButton;
+    /**
+     * Snapshot of the floating pencil while the overview opening morph owns it. A pending
+     * morph keeps the toggle out of the normal 50 ms floating-control fade; the add button
+     * then travels from this position while its glyph changes from the pencil to the plus.
+     */
+    private boolean mOverviewAddButtonMorphPending;
+    /** True while the add button is returning to the pencil as the overview closes. */
+    private boolean mOverviewAddButtonMorphReturning;
+    private int mOverviewAddButtonMorphStartX;
+    private int mOverviewAddButtonMorphStartY;
+    @Nullable private Drawable mOverviewAddButtonMorphIcon;
+    @Nullable private ImageView mOverviewAddButtonMorphGhost;
+    @Nullable private ValueAnimator mOverviewAddButtonMorphAnimator;
     /** The session whose text the shared input field currently displays. Set ONLY by
      * restoreTextInputForSession() — the single authority that re-points the field.
      * Invariant: the field is always the live buffer of the CURRENT session; every
@@ -1010,6 +1031,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 mMessageHistoryCtrl, mColorSchemeManager);
 
         setToggleTextInputButtonView();
+        setOverviewAddSessionButtonView();
 
         setToggleKeyboardView();
 
@@ -1137,6 +1159,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         updateExtraKeysCompaction(newConfig);
         // "Fullscreen in landscape" flips with the same rotation, and there is no recreate here.
         setFullScreenFlags(newConfig);
+        // The landscape-aware tab-panel position flips here too, before the strip is measured.
+        applyTabPanelPosition(newConfig);
         // The landscape-aware tab-height mode flips here too. Pass the dispatched configuration:
         // the activity's resources can still describe the previous orientation at this point.
         applyTabHeightMode(newConfig);
@@ -1466,11 +1490,15 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 if (isChangingConfigurations() && mSessionOverviewController.isShowing()) {
                     SessionOverviewController.saveForActivityRecreate(mSessionOverviewController);
                 }
-                mSessionOverviewController.hide(false);
+                mSessionOverviewController.hideForActivityStop();
             } else {
                 mSessionOverviewController.onActivityStopped();
             }
         }
+        // A closing add-button flight must not keep animating after the window stops drawing.
+        // If it was already returning, this restores the real toggle instead of leaving the
+        // add button frozen halfway between its two homes.
+        cancelOverviewAddButtonMorph();
 
         Logger.logDebug(LOG_TAG, "onStop");
 
@@ -2297,84 +2325,140 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 return true;
             });
 
-            // A swipe-up (drag off the button) opens the directory-history popup,
-            // mirroring the pencil button's gesture. We return false from the
-            // touch listener until a swipe is actually detected, so a plain tap or
-            // long-press still reaches the click / long-click listeners above.
-            final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
-            final float[] downXY = new float[2];
-            final boolean[] gestureActive = { false };
-            final boolean[] swipeConsumed = { false };
+            // The button keeps the strip's own gesture: swipe towards the terminal to open the
+            // directory-history popup, while a plain tap or long-press still reaches the click
+            // and long-click listeners above.
+            attachDirectoryHistorySwipeGesture(newSessionTabButton, null);
+        }
+    }
 
-            newSessionTabButton.setOnTouchListener((v, event) -> {
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        downXY[0] = event.getRawX();
-                        downXY[1] = event.getRawY();
-                        gestureActive[0] = true;
-                        swipeConsumed[0] = false;
-                        // Show the active background immediately on touch-down and keep it
-                        // lit for the whole gesture (tap or swipe). state_pressed is not
-                        // reliable here because the button lives in a HorizontalScrollView
-                        // that can send ACTION_CANCEL, so we drive state_selected ourselves.
-                        v.setSelected(true);
-                        // Stop the parent HorizontalScrollView from intercepting the touch
-                        // stream (which would send ACTION_CANCEL and clear the active state
-                        // / dismiss the popup). Must target the scrolling ancestor, not the
-                        // immediate LinearLayout parent, since the disallow flag only affects
-                        // the ancestor that actually intercepts.
-                        disallowTabScrollIntercept(v, true);
-                        return false;   // let click / long-press proceed
-                    case MotionEvent.ACTION_MOVE: {
-                        if (!gestureActive[0]) return false;
-                        // Popup already open: track the finger to highlight items.
-                        if (mDirectoryHistoryPopupCtrl.isShowing()) {
-                            mDirectoryHistoryPopupCtrl.updateHighlight(event.getRawX(), event.getRawY());
-                            return true;
-                        }
-                        float dy = event.getRawY() - downXY[1];
-                        float dx = event.getRawX() - downXY[0];
-                        boolean swipeUp = dy < -touchSlop;
-                        boolean swipeDown = dy > touchSlop;
-                        // Re-read the preference every move so a settings change
-                        // takes effect without restarting the activity.
-                        boolean triggered = !isTabPanelAtBottom() ? swipeDown : swipeUp;
-                        if (triggered && Math.abs(dy) > Math.abs(dx)
-                                && mDirectoryHistoryPopupCtrl.shouldShow()) {
-                            v.setSelected(true);   // keep the active background lit
-                            v.cancelLongPress();   // cancel pending long-press before it fires
-                            swipeConsumed[0] = true;
-                            mDirectoryHistoryPopupCtrl.show(v);
-                            return true;   // consume: cancels pending click/long-press
-                        }
-                        return false;
+    /**
+     * Wire the directory-history swipe onto an add-session button, leaving a plain tap or
+     * long-press to the button's own click listeners.
+     *
+     * <p>A drag counts only when it dominates vertically. The popup opens on the side the
+     * button faces — above a bottom-pinned button, below a top one — and the finger is tracked
+     * across the rows while it is held. The tab strip's button follows the strip's configured
+     * position; the overview's button is pinned to the bottom of the screen, so it always swipes
+     * up.</p>
+     *
+     * @param forcedUpward {@code null} to follow the tab-panel position, otherwise the fixed
+     *                     direction: {@code true} for an upward swipe, {@code false} downward
+     */
+    private void attachDirectoryHistorySwipeGesture(@NonNull ImageButton button,
+                                                    @Nullable Boolean forcedUpward) {
+        final DirectoryHistoryPopupController popup = mDirectoryHistoryPopupCtrl;
+        if (popup == null) return;
+
+        final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
+        final float[] downXY = new float[2];
+        final boolean[] gestureActive = { false };
+        // True once a swipe has opened the popup. Kept for the whole gesture so lifting after
+        // the popup closed early still counts as a swipe and cannot turn into a stray click.
+        final boolean[] gestureConsumed = { false };
+        // Guards the deferred selected-state clear against a new press arriving first.
+        final int[] gestureGeneration = { 0 };
+
+        button.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    downXY[0] = event.getRawX();
+                    downXY[1] = event.getRawY();
+                    gestureActive[0] = true;
+                    gestureConsumed[0] = false;
+                    gestureGeneration[0]++;
+                    // Show the active background immediately on touch-down and keep it lit for
+                    // the whole gesture (tap or swipe). state_pressed is not reliable for the
+                    // strip button because it lives in a HorizontalScrollView that can send
+                    // ACTION_CANCEL, so the selected state is driven explicitly.
+                    v.setSelected(true);
+                    // Stop the tabs' HorizontalScrollView from intercepting the touch stream
+                    // (which would send ACTION_CANCEL and clear the active state / dismiss the
+                    // popup). This is a no-op for the overview button, which has no scrolling
+                    // ancestor.
+                    disallowTabScrollIntercept(v, true);
+                    return false;   // let click / long-press proceed
+                case MotionEvent.ACTION_MOVE: {
+                    if (!gestureActive[0]) return false;
+                    // Popup already open: track the finger to highlight items.
+                    if (popup.isShowing()) {
+                        popup.updateHighlight(event.getRawX(), event.getRawY());
+                        return true;
                     }
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL: {
-                        boolean wasPopup = mDirectoryHistoryPopupCtrl.isShowing();
-                        if (wasPopup) {
-                            int selected = mDirectoryHistoryPopupCtrl.getHighlightIndex();
-                            mDirectoryHistoryPopupCtrl.dismiss();
-                            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                                if (selected == DirectoryHistoryPopupController.CLEAR_ALL_TAG) {
-                                    mDirectoryHistoryPopupCtrl.confirmClear();
-                                } else if (selected >= 0) {
-                                    mDirectoryHistoryPopupCtrl.pick(selected);
-                                }
+                    final float dy = event.getRawY() - downXY[1];
+                    final float dx = event.getRawX() - downXY[0];
+                    // Re-read the preference every move so a settings change takes effect
+                    // without restarting the activity. A fixed direction is used by the
+                    // overview's bottom-pinned button.
+                    final boolean upward = forcedUpward != null
+                            ? forcedUpward : isTabPanelAtBottom();
+                    final boolean triggered = upward ? dy < -touchSlop : dy > touchSlop;
+                    if (triggered && Math.abs(dy) > Math.abs(dx) && popup.shouldShow()) {
+                        gestureConsumed[0] = true;
+                        v.setSelected(true);   // keep the active background lit
+                        v.cancelLongPress();   // cancel pending long-press before it fires
+                        popup.show(v, upward);
+                        return true;   // consume: cancels pending click/long-press
+                    }
+                    return false;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    final boolean wasPopup = popup.isShowing();
+                    if (wasPopup) {
+                        final int selected = popup.getHighlightIndex();
+                        popup.dismiss();
+                        if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                            if (selected == DirectoryHistoryPopupController.CLEAR_ALL_TAG) {
+                                popup.confirmClear();
+                            } else if (selected >= 0) {
+                                popup.pick(selected);
                             }
                         }
-                        // Always clear the active visual state and release the scroll lock
-                        // on finger release (tap and swipe alike).
-                        gestureActive[0] = false;
+                    }
+                    final boolean consume = wasPopup || gestureConsumed[0];
+                    gestureActive[0] = false;
+                    disallowTabScrollIntercept(v, false);
+                    if (consume) {
                         v.setSelected(false);
                         v.setPressed(false);
-                        disallowTabScrollIntercept(v, false);
-                        return wasPopup;   // swipe -> consume; plain tap -> allow onClick
+                        return true;
                     }
+                    if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        // Do NOT clear the selected state synchronously here: View.setSelected(false)
+                        // calls resetPressedState(), and View.onTouchEvent() only performs the
+                        // click while PFLAG_PRESSED is still set. Clearing it before returning
+                        // false swallowed every plain tap on the add button. Leave pressed alone
+                        // for onTouchEvent(), then clear selected once the click has been posted.
+                        final int generation = gestureGeneration[0];
+                        v.post(() -> {
+                            if (gestureGeneration[0] == generation) v.setSelected(false);
+                        });
+                        return false;   // let onTouchEvent() decide tap vs long-press
+                    }
+                    // ACTION_CANCEL: there is no click to protect.
+                    v.setSelected(false);
+                    v.setPressed(false);
+                    return false;
                 }
-                return false;
-            });
-        }
+            }
+            return false;
+        });
+    }
+
+    /**
+     * The overview's floating add-session button. It is the pencil's visual twin and shares the
+     * tab strip's "+" gesture: a tap opens a default session, an upward swipe opens the
+     * directory-history popup above the button.
+     */
+    private void setOverviewAddSessionButtonView() {
+        final ImageButton addButton = findViewById(R.id.session_overview_add_button);
+        if (addButton == null) return;
+        addButton.setOnClickListener(v -> {
+            if (mTermuxTerminalSessionActivityClient != null)
+                mTermuxTerminalSessionActivityClient.addNewSession(false, null);
+        });
+        attachDirectoryHistorySwipeGesture(addButton, true);
     }
 
     /**
@@ -2809,11 +2893,20 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /**
      * Move the session tabs panel (session_tabs_container) to the top or bottom of the
-     * screen. The terminal toolbar (extra keys + text input) always stays at the bottom;
+     * screen. The bottom/landscape-top mode is decided from the current orientation.
+     * The terminal toolbar (extra keys + text input) always stays at the bottom;
      * only the tab strip moves. The ViewPager2 fills whatever space remains between them.
      */
     public void applyTabPanelPosition() {
-        String position = getTabPanelPosition();
+        applyTabPanelPosition(null);
+    }
+
+    /**
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to use
+     *                      the last dispatched orientation (see {@link #isLandscape(Configuration)}).
+     */
+    public void applyTabPanelPosition(@Nullable Configuration changedConfig) {
+        final boolean atBottom = isTabPanelAtBottom(changedConfig);
         LinearLayout tabsContainer = findViewById(R.id.session_tabs_container);
         androidx.viewpager2.widget.ViewPager2 pager = findViewById(R.id.terminal_view_pager);
         if (tabsContainer == null || pager == null) return;
@@ -2828,7 +2921,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         tabsLp.removeRule(RelativeLayout.ABOVE);
         pagerLp.removeRule(RelativeLayout.BELOW);
 
-        if ("bottom".equals(position)) {
+        if (atBottom) {
             // Tabs right above the bottom strip; ViewPager fills above the tabs.
             // Keep the gap below the strip (screen edge), drop the one above it
             // so the terminal touches the tabs.
@@ -2852,7 +2945,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // (possibly changed) tab panel position, so a swipe on the new-tab
         // button behaves correctly after the setting is toggled via broadcast.
         if (mDirectoryHistoryPopupCtrl != null) {
-            mDirectoryHistoryPopupCtrl.setInverted(!"bottom".equals(position));
+            mDirectoryHistoryPopupCtrl.setInverted(!atBottom);
         }
 
         // The pager's bottom edge, the tabs' bottom edge and both the input panel and the button
@@ -2864,7 +2957,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // When the tab panel is at the top the panel is flush at the screen bottom.
         ExtraKeysView extraKeysView = getExtraKeysView();
         if (extraKeysView != null) {
-            extraKeysView.setTopMarginEnabled("bottom".equals(position));
+            extraKeysView.setTopMarginEnabled(atBottom);
         }
     }
 
@@ -2974,7 +3067,18 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** Whether the session tabs panel is configured to sit at the bottom of the screen. */
     public boolean isTabPanelAtBottom() {
-        return "bottom".equals(getTabPanelPosition());
+        return isTabPanelAtBottom(null);
+    }
+
+    /**
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to use
+     *                      the last dispatched orientation (see {@link #isLandscape(Configuration)}).
+     */
+    public boolean isTabPanelAtBottom(@Nullable Configuration changedConfig) {
+        final String position = getTabPanelPosition();
+        if (TermuxAppConstants.Preferences.TAB_PANEL_POSITION_BOTTOM_LANDSCAPE_TOP.equals(position))
+            return !isLandscape(changedConfig);
+        return "bottom".equals(position);
     }
 
     /**
@@ -3184,7 +3288,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
             updateFloatingButtonMargin();
 
-            // Apply the configured tab panel position (top/bottom).
+            // Apply the configured tab panel position (top/bottom, or bottom/top in landscape).
             applyTabPanelPosition();
 
             // Apply the configured tab height mode (single-line / two-line).
@@ -3503,13 +3607,27 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final boolean panelOwnsTheButtonSpot = isVisible && isTextInputPanelOverTerminal();
         // The overview owns the whole content area. Its floating controls must not punch through
         // the opaque scrim through their elevation, so the pencil is gone while it is showing.
+        // The opening morph is the exception: before it starts, the real pencil must stay on
+        // screen until the add button has its final layout and can take it over without a blank
+        // frame. Once the animator runs, the ghost owns the glyph and the real button stays gone.
+        final boolean morphOwnsPencil = overviewShowing && mOverviewAddButtonMorphPending
+                && !mOverviewAddButtonMorphReturning
+                && mOverviewAddButtonMorphAnimator == null;
+        // The closing flight is the mirror image: the add button itself is still visible and is
+        // travelling back, so the real toggle must keep its layout but not paint underneath it.
+        final boolean returnMorphOwnsToggle = isOverviewAddButtonReturnMorphActive();
         toggleTextInputButton.setVisibility(
-                overviewShowing || panelOwnsTheButtonSpot || !isTextInputEnabled()
-                        ? View.GONE : View.VISIBLE);
-        toggleTextInputButton.setImageResource(isVisible
-                ? R.drawable.ic_keyboard_hide
-                : R.drawable.ic_keyboard_show);
-        toggleTextInputButton.setContentDescription(getString(R.string.action_toggle_text_input));
+                returnMorphOwnsToggle ? View.INVISIBLE
+                        : morphOwnsPencil ? View.VISIBLE
+                                : overviewShowing || panelOwnsTheButtonSpot || !isTextInputEnabled()
+                                        ? View.GONE : View.VISIBLE);
+        if (!returnMorphOwnsToggle) {
+            toggleTextInputButton.setImageResource(isVisible
+                    ? R.drawable.ic_keyboard_hide
+                    : R.drawable.ic_keyboard_show);
+            toggleTextInputButton.setContentDescription(
+                    getString(R.string.action_toggle_text_input));
+        }
         // Over the terminal the pencil is gone; drop its reserved slot so the row ends where the
         // pencil would have.
         updateInputPanelActionsEndMargin(toggleTextInputButton);
@@ -3520,6 +3638,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * layout until the 50 ms fade ends, then the existing visibility rules run as before.
      */
     private void fadeOutOverviewFloatingControls(@Nullable Runnable onEnd) {
+        final int generation = ++mOverviewFloatingControlsFadeGeneration;
         final View[] views = {
                 findViewById(R.id.terminal_toolbar_text_input_container),
                 mInputPanelActions != null
@@ -3528,20 +3647,37 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         };
         for (final View view : views) {
             if (view == null || view.getVisibility() != View.VISIBLE) continue;
+            if (view.getId() == R.id.toggle_text_input_button
+                    && mOverviewAddButtonMorphPending
+                    && !mOverviewAddButtonMorphReturning
+                    && mOverviewAddButtonMorphAnimator == null) {
+                // The overview add-button morph owns the pencil. Keep its full opacity until
+                // the overlay and the add button are laid out, then it is hidden in the same
+                // frame that places the moving add button over it.
+                view.animate().cancel();
+                view.setAlpha(1f);
+                continue;
+            }
             view.animate().cancel();
             view.animate().alpha(0f)
                     .setDuration(OVERVIEW_FLOATING_CONTROLS_FADE_MS)
                     .withEndAction(() -> {
+                        if (generation != mOverviewFloatingControlsFadeGeneration) return;
                         view.setVisibility(View.GONE);
                         view.setAlpha(1f);
                     })
                     .start();
         }
-        if (onEnd != null) mMainHandler.postDelayed(onEnd, OVERVIEW_FLOATING_CONTROLS_FADE_MS);
+        if (onEnd != null) {
+            mMainHandler.postDelayed(() -> {
+                if (generation == mOverviewFloatingControlsFadeGeneration) onEnd.run();
+            }, OVERVIEW_FLOATING_CONTROLS_FADE_MS);
+        }
     }
 
     /** Bring the floating controls back from zero alpha over 50 ms. */
     private void fadeInOverviewFloatingControls() {
+        mOverviewFloatingControlsFadeGeneration++;
         final View[] views = {
                 findViewById(R.id.terminal_toolbar_text_input_container),
                 mInputPanelActions != null
@@ -3561,6 +3697,565 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     /** Fade for the floating controls that sit over the terminal when the overview opens/closes. */
     private static final long OVERVIEW_FLOATING_CONTROLS_FADE_MS = 50L;
+    /** Invalidates end actions from an overview fade that a newer fade has superseded. */
+    private int mOverviewFloatingControlsFadeGeneration;
+
+    /** The overview add button, resolved once because the content view is inflated once. */
+    @Nullable
+    private ImageButton getOverviewAddButton() {
+        if (mOverviewAddButton == null) {
+            mOverviewAddButton = findViewById(R.id.session_overview_add_button);
+        }
+        return mOverviewAddButton;
+    }
+
+    /**
+     * The overview add button keeps a small, symmetric 6dp inset on both the bottom and the right.
+     * The XML declares 28dp so the pencil can clear a terminal scrollbar; the resting translation
+     * hands most of that back, independent of the pencil's own scrollbar offset. This keeps the
+     * corner fixed while the pencil flies into it from wherever the scrollbar put it.
+     */
+    private int getOverviewAddButtonRestTranslationX() {
+        final ImageButton addButton = getOverviewAddButton();
+        if (addButton == null) return 0;
+        final ViewGroup.LayoutParams lp = addButton.getLayoutParams();
+        final int baseMargin = lp instanceof ViewGroup.MarginLayoutParams
+                ? ((ViewGroup.MarginLayoutParams) lp).getMarginEnd() : 0;
+        return baseMargin - dpToPx(6);
+    }
+
+    /**
+     * Pin the overview add button to the bottom-right corner of the content area. It is NOT the
+     * pencil's rest position: the pencil can be shifted left by the terminal scrollbar, while this
+     * button keeps its symmetric small corner inset. The opening morph therefore flies from the
+     * pencil into that fixed corner.
+     */
+    public void prepareOverviewAddButtonForOverview() {
+        final ImageButton addButton = getOverviewAddButton();
+        if (addButton == null) return;
+        final ViewGroup.LayoutParams rawParams = addButton.getLayoutParams();
+        if (!(rawParams instanceof RelativeLayout.LayoutParams)) return;
+        final RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) rawParams;
+        params.removeRule(RelativeLayout.ABOVE);
+        params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        addButton.setLayoutParams(params);
+    }
+
+    /**
+     * Capture the floating pencil before the overview hides it. Called while the input panel
+     * button is still on screen; the actual move starts only after the add button has its final
+     * layout. A disabled input panel or an already-hidden pencil leaves the add button in its
+     * normal state.
+     */
+    public void prepareOverviewAddButtonMorph() {
+        cancelOverviewAddButtonMorph();
+
+        final ImageButton toggle = getFloatingButton();
+        if (toggle == null || !isTextInputEnabled()
+                || toggle.getVisibility() != View.VISIBLE || !toggle.isShown()) {
+            return;
+        }
+
+        final int[] location = new int[2];
+        toggle.getLocationInWindow(location);
+        mOverviewAddButtonMorphStartX = location[0];
+        mOverviewAddButtonMorphStartY = location[1];
+        mOverviewAddButtonMorphIcon = toggle.getDrawable();
+        mOverviewAddButtonMorphPending = true;
+
+        // The morph, not the normal 50 ms fade, owns the pencil from here. Keep it at full
+        // opacity until the add button has been laid out, then hide it in the same frame that
+        // places the moving add button over its position.
+        toggle.animate().cancel();
+        toggle.setAlpha(1f);
+
+        final ImageButton addButton = getOverviewAddButton();
+        if (addButton != null) {
+            // Keep the add button laid out but invisible, and untouchable, until the morph can
+            // start from the captured pencil position. Disabled also keeps the swipe listener
+            // from seeing a touch-down and leaving the button selected.
+            addButton.setAlpha(0f);
+            addButton.setImageAlpha(0);
+            addButton.setEnabled(false);
+            addButton.setPressed(false);
+            addButton.setSelected(false);
+            addButton.setTranslationX(getOverviewAddButtonRestTranslationX());
+            addButton.setTranslationY(0f);
+        }
+    }
+
+    /**
+     * Start the pencil-to-plus morph once the controller has made the add button visible.
+     * The shell is the real add button, so the destination pixels are exactly the button's
+     * final layout; the pencil lives on a short-lived transparent overlay image above it.
+     *
+     * @return false when there is no pencil to take over, in which case the controller reveals
+     * the resting add button with its ordinary appearance animation.
+     */
+    public boolean startOverviewAddButtonMorph(@Nullable ImageButton addButton) {
+        if (!mOverviewAddButtonMorphPending) return false;
+        if (addButton == null) {
+            cancelOverviewAddButtonMorph();
+            return false;
+        }
+        addButton.setVisibility(View.VISIBLE);
+        addButton.setAlpha(0f);
+        addButton.setImageAlpha(0);
+        // If the input panel is still on screen, it owns the bottom strip until its 50 ms fade
+        // ends and the extra-keys strip may change height. Wait for that layout before reading
+        // the add button's final position, or the move would jump when the strip resizes.
+        final View inputPanel = findViewById(R.id.terminal_toolbar_text_input_container);
+        final boolean waitForPanelFade = inputPanel != null
+                && inputPanel.getVisibility() == View.VISIBLE;
+        final Runnable start = () -> startOverviewAddButtonMorphWhenLaidOut(addButton, 20);
+        if (waitForPanelFade) {
+            addButton.postDelayed(start, OVERVIEW_FLOATING_CONTROLS_FADE_MS + 16L);
+        } else {
+            addButton.post(start);
+        }
+        return true;
+    }
+
+    /** Whether a closing flight currently owns the toggle's pixels (pending or running). */
+    public boolean isOverviewAddButtonReturnMorphActive() {
+        return mOverviewAddButtonMorphReturning
+                && (mOverviewAddButtonMorphPending || mOverviewAddButtonMorphAnimator != null);
+    }
+
+    /**
+     * Where the floating pencil will sit once {@code targetSession} is current.
+     *
+     * <p>The overview can close into a different session than the one it was opened from. The
+     * pager applies that session only after the closing animation, so the live toggle still
+     * carries the leaving session's scrollbar offset during the flight. Reading the target
+     * session's own scrollbar state keeps the destination on the corner the pencil will actually
+     * occupy, instead of landing on the old offset and teleporting at the hand-off.</p>
+     */
+    private float getFloatingButtonTargetX(@NonNull ImageButton toggle,
+                                           @Nullable TerminalSession targetSession) {
+        if (targetSession == null) return toggle.getX();
+        final int marginEnd = computeSettledFloatingButtonMarginEndForSession(targetSession);
+        return toggle.getLeft() + getFloatingButtonLayoutMarginEnd(toggle) - marginEnd;
+    }
+
+    /**
+     * Start the return flight while the overview's own exit animation is still running.
+     *
+     * <p>The toggle is normally GONE for the whole overview, so the early start first makes it
+     * INVISIBLE: that keeps it out of the painted frame but puts it back through layout, which
+     * gives the flight a real destination before the closing expansion ends. The flight then
+     * runs alongside that expansion instead of starting after it.</p>
+     *
+     * @param targetSession session the overview is switching to, or null for the current one
+     */
+    public boolean startOverviewAddButtonReturnMorphEarly(@Nullable ImageButton addButton,
+                                                          @Nullable TerminalSession targetSession) {
+        return startOverviewAddButtonReturnMorph(addButton, true, targetSession);
+    }
+
+    /**
+     * Animate the visible add button back into the floating pencil as the overview closes.
+     *
+     * <p>The caller must leave the add button visible when this returns true: the flight hides
+     * it and reveals the real toggle in the same frame at the end. A false return means there is
+     * no useful destination, so the caller should hide the add button immediately.</p>
+     *
+     * @param targetSession session the overview is switching to, or null for the current one
+     */
+    public boolean startOverviewAddButtonReturnMorph(@Nullable ImageButton addButton,
+                                                     @Nullable TerminalSession targetSession) {
+        return startOverviewAddButtonReturnMorph(addButton, false, targetSession);
+    }
+
+    private boolean startOverviewAddButtonReturnMorph(@Nullable ImageButton addButton,
+                                                       boolean early,
+                                                       @Nullable TerminalSession targetSession) {
+        if (addButton == null || mOverviewAddButtonMorphAnimator != null
+                || mOverviewAddButtonMorphPending
+                || addButton.getVisibility() != View.VISIBLE
+                || addButton.getWidth() <= 0 || addButton.getHeight() <= 0) {
+            return false;
+        }
+        final ImageButton toggle = getFloatingButton();
+        if (toggle == null || !isTextInputEnabled()
+                || toggle.getParent() != addButton.getParent()) {
+            return false;
+        }
+        // A normal close can only fly into a pencil that was on screen. The early start runs
+        // while the overview still hides it as GONE, so accept the already-measured bounds it
+        // kept from before the overview opened. A panel floating over the terminal owns that
+        // spot; there is no pencil to land on then, even though the old bounds still exist.
+        if (!early && toggle.getVisibility() != View.VISIBLE) return false;
+        if (early && isTextInputVisible() && isTextInputPanelOverTerminal()) return false;
+        if (early && toggle.getVisibility() == View.GONE && !toggle.isLaidOut()) return false;
+        final Drawable icon = toggle.getDrawable();
+        if (icon == null) return false;
+
+        // A closing overview can be switching sessions. Resolve the target now: the live toggle
+        // still belongs to the leaving session until the pager lands, so using its current
+        // scrollbar offset would park the flight on the old position and then jump at hand-off.
+        final TerminalSession returnTarget = targetSession != null
+                ? targetSession : getCurrentSession();
+
+        mOverviewAddButtonMorphPending = true;
+        mOverviewAddButtonMorphReturning = true;
+        mOverviewAddButtonMorphIcon = icon;
+        // The real pencil keeps its final layout but must not paint while the add button is
+        // still travelling toward it. INVISIBLE (not GONE) keeps measured bounds available for
+        // the destination, including a restored extra-keys strip that is sliding back in.
+        toggle.animate().cancel();
+        toggle.setAlpha(0f);
+        toggle.setVisibility(View.INVISIBLE);
+        addButton.setEnabled(false);
+        final Runnable start = () -> startOverviewAddButtonReturnMorphWhenLaidOut(
+                addButton, toggle, returnTarget, 20);
+        if (early) {
+            // Wait for the next frame: making the toggle INVISIBLE requests the layout that
+            // gives this flight its destination.
+            addButton.postOnAnimation(start);
+        } else {
+            addButton.post(start);
+        }
+        return true;
+    }
+
+    private void startOverviewAddButtonReturnMorphWhenLaidOut(
+            @NonNull ImageButton addButton, @NonNull ImageButton toggle,
+            @Nullable TerminalSession targetSession, int attemptsLeft) {
+        if (!mOverviewAddButtonMorphPending || !mOverviewAddButtonMorphReturning
+                || mOverviewAddButtonMorphAnimator != null) {
+            return;
+        }
+        final boolean addReady = addButton.getVisibility() == View.VISIBLE
+                && addButton.getWidth() > 0 && addButton.getHeight() > 0
+                && addButton.isLaidOut();
+        final boolean toggleReady = toggle.getVisibility() == View.INVISIBLE
+                && toggle.getWidth() > 0 && toggle.getHeight() > 0
+                && toggle.isLaidOut()
+                && toggle.getParent() == addButton.getParent();
+        if (addReady && toggleReady) {
+            startOverviewAddButtonReturnMorphNow(addButton, toggle, targetSession);
+        } else if (attemptsLeft > 0) {
+            addButton.postOnAnimation(() -> startOverviewAddButtonReturnMorphWhenLaidOut(
+                    addButton, toggle, targetSession, attemptsLeft - 1));
+        } else {
+            cancelOverviewAddButtonMorph();
+        }
+    }
+
+    private void startOverviewAddButtonReturnMorphNow(@NonNull ImageButton addButton,
+                                                      @NonNull ImageButton toggle,
+                                                      @Nullable TerminalSession targetSession) {
+        if (!mOverviewAddButtonMorphPending || !mOverviewAddButtonMorphReturning
+                || mOverviewAddButtonMorphAnimator != null) {
+            return;
+        }
+        final float startTranslationX = addButton.getTranslationX();
+        final float startTranslationY = addButton.getTranslationY();
+        final float endTranslationX = getFloatingButtonTargetX(toggle, targetSession)
+                - addButton.getLeft();
+        final float endTranslationY = toggle.getY() - addButton.getTop();
+        startOverviewAddButtonFlight(addButton, toggle, true, targetSession,
+                startTranslationX, startTranslationY, endTranslationX, endTranslationY);
+    }
+
+    private void startOverviewAddButtonMorphWhenLaidOut(@NonNull ImageButton addButton,
+                                                        int attemptsLeft) {
+        // A delayed start from an earlier opening can outlive a quick close/reopen. The animator
+        // guard also makes sure two queued starts cannot install two ghosts.
+        if (!mOverviewAddButtonMorphPending || mOverviewAddButtonMorphReturning
+                || mOverviewAddButtonMorphAnimator != null) return;
+        if (addButton.getWidth() > 0 && addButton.getHeight() > 0 && addButton.isLaidOut()) {
+            startOverviewAddButtonMorphNow(addButton);
+        } else if (attemptsLeft > 0) {
+            addButton.postOnAnimation(
+                    () -> startOverviewAddButtonMorphWhenLaidOut(addButton, attemptsLeft - 1));
+        } else {
+            cancelOverviewAddButtonMorph();
+        }
+    }
+
+    private void startOverviewAddButtonMorphNow(@NonNull ImageButton addButton) {
+        if (!mOverviewAddButtonMorphPending || mOverviewAddButtonMorphReturning
+                || mOverviewAddButtonMorphAnimator != null) return;
+        // If a panel-fade delay let the bottom strip settle, start from the pencil's CURRENT
+        // position and glyph rather than the pre-delay snapshot.
+        final ImageButton toggle = getFloatingButton();
+        if (toggle != null && toggle.getVisibility() == View.VISIBLE && toggle.isShown()) {
+            final int[] location = new int[2];
+            toggle.getLocationInWindow(location);
+            mOverviewAddButtonMorphStartX = location[0];
+            mOverviewAddButtonMorphStartY = location[1];
+            mOverviewAddButtonMorphIcon = toggle.getDrawable();
+        }
+        final ViewParent rawParent = addButton.getParent();
+        if (!(rawParent instanceof ViewGroup) || mOverviewAddButtonMorphIcon == null) {
+            cancelOverviewAddButtonMorph();
+            return;
+        }
+        final ViewGroup parent = (ViewGroup) rawParent;
+        // The add button rests in its symmetric small corner; the saved pencil position is the
+        // source, so a scrollbar-shifted pencil flies up-right into it.
+        final int[] parentLocation = new int[2];
+        parent.getLocationInWindow(parentLocation);
+        final float startX = mOverviewAddButtonMorphStartX - parentLocation[0];
+        final float startY = mOverviewAddButtonMorphStartY - parentLocation[1];
+        final float startTranslationX = startX - addButton.getLeft();
+        final float startTranslationY = startY - addButton.getTop();
+        final float endTranslationX = addButton.getTranslationX();
+        final float endTranslationY = addButton.getTranslationY();
+        startOverviewAddButtonFlight(addButton, toggle, false, null,
+                startTranslationX, startTranslationY, endTranslationX, endTranslationY);
+    }
+
+    /**
+     * The one add-button flight. The real add button supplies the oval and its glyph; a short-lived
+     * transparent ghost above it supplies the pencil. At progress zero the shell sits at the start
+     * point, and it is moved every frame together with the ghost, so a late strip/IME layout shift
+     * cannot separate them.
+     *
+     * <p>Forward (opening): pencil fades out over the first half, plus fades in over the second.
+     * Returning (closing): plus fades out over the first half, pencil fades in over the second.
+     * The return destination follows the target session's scrollbar state, so the flight lands on
+     * the corner the pencil will occupy after the pager switches, not on the leaving session's
+     * offset.</p>
+     */
+    private void startOverviewAddButtonFlight(@NonNull ImageButton addButton,
+                                              @Nullable ImageButton toggle,
+                                              boolean returning,
+                                              @Nullable TerminalSession returnTargetSession,
+                                              float startTranslationX,
+                                              float startTranslationY,
+                                              float endTranslationX,
+                                              float endTranslationY) {
+        final ViewParent rawParent = addButton.getParent();
+        final Drawable icon = mOverviewAddButtonMorphIcon;
+        if (!(rawParent instanceof ViewGroup) || icon == null) {
+            cancelOverviewAddButtonMorph();
+            return;
+        }
+        final ViewGroup parent = (ViewGroup) rawParent;
+
+        final ImageView ghost = new ImageView(this);
+        ghost.setImageDrawable(icon);
+        ghost.setBackground(null);
+        ghost.setClickable(false);
+        ghost.setFocusable(false);
+        ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        if (toggle != null) {
+            ghost.setScaleType(toggle.getScaleType());
+            ghost.setImageTintList(toggle.getImageTintList());
+            // The floating-button style tints its icon with a ColorFilter, not an ImageTintList,
+            // so copy that too or the ghost would show the vector's fallback white.
+            ghost.setColorFilter(toggle.getColorFilter());
+            ghost.setPadding(toggle.getPaddingLeft(), toggle.getPaddingTop(),
+                    toggle.getPaddingRight(), toggle.getPaddingBottom());
+        } else {
+            final int padding = dpToPx(12);
+            ghost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            ghost.setPadding(padding, padding, padding, padding);
+        }
+        ghost.setAlpha(returning ? 0f : 1f);
+        // The add button carries the floating-control elevation and would otherwise be drawn
+        // after this zero-elevation ghost, covering the pencil with its opaque oval.
+        ghost.setZ(addButton.getZ() + 1f);
+        parent.addView(ghost, new RelativeLayout.LayoutParams(
+                addButton.getWidth(), addButton.getHeight()));
+
+        final int plusStartAlpha = returning ? addButton.getImageAlpha() : 0;
+        mOverviewAddButtonMorphPending = false;
+        mOverviewAddButtonMorphReturning = returning;
+        mOverviewAddButtonMorphGhost = ghost;
+
+        addButton.animate().cancel();
+        addButton.setVisibility(View.VISIBLE);
+        addButton.setAlpha(1f);
+        addButton.setImageAlpha(plusStartAlpha);
+        addButton.setEnabled(!returning);
+        addButton.setTranslationX(startTranslationX);
+        addButton.setTranslationY(startTranslationY);
+        ghost.setX(addButton.getX());
+        ghost.setY(addButton.getY());
+        if (toggle != null) {
+            toggle.animate().cancel();
+            toggle.setAlpha(returning ? 0f : 1f);
+            toggle.setVisibility(returning ? View.INVISIBLE : View.GONE);
+        }
+
+        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        mOverviewAddButtonMorphAnimator = animator;
+        animator.setDuration(SessionOverviewTransitionMath.DURATION_MS);
+        animator.setInterpolator(new PathInterpolator(0.4f, 0f, 0.2f, 1f));
+        animator.addUpdateListener(animation -> {
+            final float progress = (float) animation.getAnimatedValue();
+            // On the way back, keep following the destination. Y still tracks the live toggle
+            // (the keyboard or extra-keys strip can move it); X comes from the target session's
+            // scrollbar state, because the live toggle still belongs to the leaving session
+            // until the pager lands after this flight.
+            final float targetTranslationX = returning && toggle != null
+                    ? getFloatingButtonTargetX(toggle, returnTargetSession)
+                            - addButton.getLeft()
+                    : endTranslationX;
+            final float targetTranslationY = returning && toggle != null
+                    ? toggle.getY() - addButton.getTop() : endTranslationY;
+            addButton.setTranslationX(
+                    startTranslationX + (targetTranslationX - startTranslationX) * progress);
+            addButton.setTranslationY(
+                    startTranslationY + (targetTranslationY - startTranslationY) * progress);
+            ghost.setX(addButton.getX());
+            ghost.setY(addButton.getY());
+            if (returning) {
+                addButton.setImageAlpha(Math.round(
+                        plusStartAlpha * (progress <= 0.5f ? 1f - progress * 2f : 0f)));
+                ghost.setAlpha(progress <= 0.5f ? 0f : (progress - 0.5f) * 2f);
+            } else {
+                ghost.setAlpha(progress <= 0.5f ? 1f - progress * 2f : 0f);
+                addButton.setImageAlpha(Math.round(
+                        (progress <= 0.5f ? 0f : (progress - 0.5f) * 2f) * 255f));
+            }
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mOverviewAddButtonMorphAnimator != animation) return;
+                final float finalEndTranslationX = returning && toggle != null
+                        ? getFloatingButtonTargetX(toggle, returnTargetSession)
+                                - addButton.getLeft()
+                        : endTranslationX;
+                final float finalEndTranslationY = returning && toggle != null
+                        ? toggle.getY() - addButton.getTop() : endTranslationY;
+                finishOverviewAddButtonMorph(addButton, ghost,
+                        finalEndTranslationX, finalEndTranslationY, returning,
+                        returnTargetSession);
+            }
+        });
+        animator.start();
+    }
+
+    private void finishOverviewAddButtonMorph(@NonNull ImageButton addButton,
+                                              @NonNull ImageView ghost,
+                                              float endTranslationX, float endTranslationY,
+                                              boolean returning,
+                                              @Nullable TerminalSession returnTargetSession) {
+        mOverviewAddButtonMorphAnimator = null;
+        mOverviewAddButtonMorphPending = false;
+        mOverviewAddButtonMorphReturning = false;
+        mOverviewAddButtonMorphIcon = null;
+        addButton.setTranslationX(endTranslationX);
+        addButton.setTranslationY(endTranslationY);
+        addButton.setImageAlpha(255);
+        addButton.setAlpha(1f);
+        addButton.setEnabled(true);
+        addButton.setPressed(false);
+        addButton.setSelected(false);
+        if (ghost.getParent() instanceof ViewGroup) {
+            ((ViewGroup) ghost.getParent()).removeView(ghost);
+        }
+        mOverviewAddButtonMorphGhost = null;
+
+        if (returning) {
+            addButton.setVisibility(View.GONE);
+            final ImageButton toggle = getFloatingButton();
+            if (toggle != null) {
+                // The pager may not have applied the target session yet. Put the toggle on the
+                // destination the flight used, so revealing it here cannot teleport it a frame
+                // later when the switch recomputes the same margin.
+                if (returnTargetSession != null) {
+                    applyFloatingButtonMarginEnd(
+                            computeSettledFloatingButtonMarginEndForSession(returnTargetSession));
+                }
+                toggle.setAlpha(1f);
+            }
+            // This also applies the normal visibility and glyph for the restored panel state.
+            updateToggleTextInputButtonIcon();
+            return;
+        }
+        // Keep the resting add button in its fixed symmetric corner after the opening flight.
+        syncOverviewAddButtonTranslation();
+    }
+
+    /**
+     * Drop a pending or running opening/closing flight without leaving a ghost over the
+     * overview. Used when the overview closes or fails to open, and when the activity stops
+     * before the flight finishes.
+     */
+    public void cancelOverviewAddButtonMorph() {
+        final boolean wasMorph = mOverviewAddButtonMorphPending
+                || mOverviewAddButtonMorphAnimator != null;
+        final boolean wasReturning = mOverviewAddButtonMorphReturning
+                && (mOverviewAddButtonMorphPending || mOverviewAddButtonMorphAnimator != null);
+        mOverviewAddButtonMorphPending = false;
+        mOverviewAddButtonMorphReturning = false;
+        mOverviewAddButtonMorphIcon = null;
+
+        final ValueAnimator animator = mOverviewAddButtonMorphAnimator;
+        mOverviewAddButtonMorphAnimator = null;
+        if (animator != null) {
+            animator.removeAllUpdateListeners();
+            animator.removeAllListeners();
+            animator.cancel();
+        }
+
+        final ImageView ghost = mOverviewAddButtonMorphGhost;
+        mOverviewAddButtonMorphGhost = null;
+        if (ghost != null && ghost.getParent() instanceof ViewGroup) {
+            ((ViewGroup) ghost.getParent()).removeView(ghost);
+        }
+
+        final ImageButton addButton = getOverviewAddButton();
+        if (addButton != null) {
+            addButton.animate().cancel();
+            OverviewAppearanceAnimation.reset(addButton);
+            addButton.setImageAlpha(255);
+            addButton.setEnabled(true);
+            addButton.setPressed(false);
+            addButton.setSelected(false);
+            addButton.setTranslationX(getOverviewAddButtonRestTranslationX());
+            addButton.setTranslationY(0f);
+            syncOverviewAddButtonIconFromToggle();
+        }
+
+        if (wasReturning) {
+            final ImageButton toggle = getFloatingButton();
+            if (toggle != null) toggle.setAlpha(1f);
+            if (!isSessionOverviewShowing() && addButton != null) {
+                addButton.setVisibility(View.GONE);
+            }
+            updateToggleTextInputButtonIcon();
+            return;
+        }
+
+        // A canceled pending morph may have kept the pencil visible on top of the overview.
+        // Re-run the normal visibility rule now that the morph no longer owns it.
+        if (wasMorph && isSessionOverviewShowing()) updateToggleTextInputButtonIcon();
+    }
+
+    /**
+     * Keep the overview add button in its symmetric small corner regardless of the pencil's
+     * scrollbar offset. Used after a resume and whenever the add button is shown without a morph.
+     */
+    public void syncOverviewAddButtonTranslation() {
+        if (mOverviewAddButtonMorphAnimator != null) return;
+        final ImageButton addButton = getOverviewAddButton();
+        if (addButton == null) return;
+        addButton.setTranslationX(getOverviewAddButtonRestTranslationX());
+        addButton.setTranslationY(0f);
+        syncOverviewAddButtonIconFromToggle();
+    }
+
+    /**
+     * Paint the overview plus with the exact tint, colour filter and opacity of the floating
+     * pencil. Both drawables now share the same white-fill/vector-tint construction; copying the
+     * ImageView state as well keeps the colour identical even after a palette or tint change.
+     */
+    private void syncOverviewAddButtonIconFromToggle() {
+        final ImageButton toggle = getFloatingButton();
+        final ImageButton addButton = getOverviewAddButton();
+        if (toggle == null || addButton == null) return;
+        addButton.setImageTintList(toggle.getImageTintList());
+        addButton.setColorFilter(toggle.getColorFilter());
+        addButton.setImageAlpha(toggle.getImageAlpha());
+    }
 
     /** Gap between the quick-action row and the pencil when both are visible. */
     private static final int INPUT_PANEL_ACTIONS_TOGGLE_GAP_DP = 6;
@@ -3581,7 +4276,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
         final int toggleMarginEnd = getFloatingButtonLayoutMarginEnd(toggleButton);
         int wantedMarginEnd = toggleMarginEnd;
-        if (toggleButton.getVisibility() == View.VISIBLE) {
+        // During the closing flight the toggle is INVISIBLE so the add button can own the
+        // pixels, but it still occupies its slot. Keep the quick-action row clear of that slot
+        // until the real pencil is shown again, otherwise the row jumps at hand-off.
+        if (toggleButton.getVisibility() == View.VISIBLE
+                || isOverviewAddButtonReturnMorphActive()) {
             wantedMarginEnd += toggleButton.getLayoutParams().width
                 + dpToPx(INPUT_PANEL_ACTIONS_TOGGLE_GAP_DP);
         }
@@ -3652,7 +4351,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     public static int computeFloatingButtonMarginEnd(TerminalView view, android.content.res.Resources resources) {
-        boolean hasScrollbar = hasScrollbar(view);
+        return computeFloatingButtonMarginEnd(hasScrollbar(view), resources);
+    }
+
+    private static int computeFloatingButtonMarginEnd(boolean hasScrollbar,
+                                                      android.content.res.Resources resources) {
         float density = resources.getDisplayMetrics().density;
         return hasScrollbar ? Math.max((int)(30 * density + 0.5f) - 2, 0) : (int)(6 * density + 0.5f);
     }
@@ -3741,12 +4444,30 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * reintroduce a jump at the seam where the scroll hands the margin back to the settled state.
      */
     public int computeSettledFloatingButtonMarginEnd(@Nullable TerminalView view) {
-        int marginEnd = computeFloatingButtonMarginEnd(view, getResources());
+        return computeSettledFloatingButtonMarginEnd(hasScrollbar(view));
+    }
+
+    /**
+     * The settled margin for a session that may not have a bound {@link TerminalView} yet.
+     *
+     * <p>A closing overview knows which session it is switching to, but that session's page can
+     * still be unbound while the add button flies home. Reading the scrollbar state from the
+     * session's own emulator gives the flight the same destination it will have after the pager
+     * lands, instead of the leaving session's scrollbar offset.</p>
+     */
+    public int computeSettledFloatingButtonMarginEndForSession(@Nullable TerminalSession session) {
+        final boolean hasScrollbar = session != null && session.getEmulator() != null
+                && session.getEmulator().getScreen().getActiveTranscriptRows() > 0;
+        return computeSettledFloatingButtonMarginEnd(hasScrollbar);
+    }
+
+    private int computeSettledFloatingButtonMarginEnd(boolean hasScrollbar) {
+        int marginEnd = computeFloatingButtonMarginEnd(hasScrollbar, getResources());
         // The terminal's own right inset only pushes the button further in when this
         // page actually shows a scrollbar — that is when the button must clear the
         // terminal edge/scrollbar. Without a scrollbar the button keeps its standard
         // margin, independent of the terminal margins.
-        if (hasScrollbar(view)) {
+        if (hasScrollbar) {
             marginEnd += getTerminalRightInsetPx();
         }
         return marginEnd;
@@ -3824,6 +4545,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (toggleButton == null) return;
         final float translationX = getFloatingButtonLayoutMarginEnd(toggleButton) - marginEndPx;
         toggleButton.setTranslationX(translationX);
+        // The overview add button deliberately does not follow this offset: it keeps its small
+        // symmetric corner inset and the opening morph flies from the pencil into it.
         // Carry the same translation to the row so the gap to the pencil stays exact while the
         // button dodges the scrollbar.
         if (mInputPanelActions == null) mInputPanelActions = findViewById(R.id.input_panel_actions);
@@ -5115,11 +5838,31 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * shape is involved.</p>
      */
     public int getTerminalViewportHeightForOverview() {
-        final TerminalView terminal = getActiveTerminalView();
-        if (terminal == null) return 0;
-        final int height = terminal.getHeight();
+        // The pager is the page container, so its height is the terminal viewport even while the
+        // active page itself has not been laid out yet (rotation, page swap, IME transition).
+        final android.view.View pager = getTerminalPager();
+        int height = pager != null ? pager.getHeight() : 0;
+        if (height <= 0) {
+            final TerminalView terminal = getActiveTerminalView();
+            height = terminal != null ? terminal.getHeight() : 0;
+        }
         if (height <= 0) return 0;
         return height + Math.max(0, mLastImeBottomPx);
+    }
+
+    /**
+     * Current normal terminal viewport width for the overview's window grid. Mirrors
+     * {@link #getTerminalViewportHeightForOverview()}: the pager knows the new window shape
+     * before the active terminal page has been re-laid out.
+     */
+    public int getTerminalViewportWidthForOverview() {
+        final android.view.View pager = getTerminalPager();
+        int width = pager != null ? pager.getWidth() : 0;
+        if (width <= 0) {
+            final TerminalView terminal = getActiveTerminalView();
+            width = terminal != null ? terminal.getWidth() : 0;
+        }
+        return Math.max(0, width);
     }
 
     public androidx.viewpager2.widget.ViewPager2 getTerminalPager() {

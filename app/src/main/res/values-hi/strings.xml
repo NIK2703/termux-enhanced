@@ -133,6 +133,7 @@
     <string name="input_history_cleared">इनपुट इतिहास साफ़ कर दिया गया</string>
     <string name="input_history_empty">कोई इनपुट इतिहास नहीं</string>
     <string name="input_history_max_title">इतिहास में अधिकतम सहेजे गए इनपुट की संख्या</string>
+    <string name="input_history_max_popup_limit_summary">इनपुट इतिहास पॉपअप में केवल पहली %1$d प्रविष्टियाँ दिखाई जाती हैं; बाकी ऑटोकम्प्लीट के माध्यम से उपलब्ध हैं।</string>
     <string name="msg_add_termux_debug_info">रिपोर्ट में Termux डीबग जानकारी जोड़ें?</string>
     <string name="msg_terminal_panel_disabling">टर्मिनल पैनल अक्षम हो रहा है</string>
     <string name="msg_terminal_panel_enabling">टर्मिनल पैनल सक्षम हो रहा है</string>
@@ -155,6 +156,10 @@
     <string name="restore_tabs_title">लॉन्च पर टैब पुनर्स्थापित करें</string>
     <string name="screen_orientation_title">स्क्रीन अभिमुखता</string>
     <string name="session_default_title">टर्मिनल</string>
+    <string name="session_overview_description">सभी टर्मिनल सत्र</string>
+    <string name="session_overview_session_description">%1$s, टर्मिनल सत्र</string>
+    <string name="session_overview_session_selected_description">%1$s, टर्मिनल सत्र, चयनित</string>
+    <string name="session_overview_close_session_description">सत्र %1$s बंद करें</string>
     <string name="session_null_title">नामहीन सत्र</string>
     <string name="new_tab_placeholder_hint">नया सत्र</string>
     <string name="swipe_rightmost_new_tab_title">नए सत्र के लिए अंतिम टैब पर स्वाइप करें</string>
@@ -189,10 +194,11 @@
     <string name="termux_tab_height_mode_title">टैब ऊँचाई</string>
     <string name="termux_tab_height_mode_single">एक लाइन</string>
     <string name="termux_tab_height_mode_double">दो लाइनें</string>
-    <string name="termux_tab_height_mode_double_landscape_single">दो पंक्तियाँ, लैंडस्केप ओरिएंटेशन में एक पंक्ति</string>
+    <string name="termux_tab_height_mode_double_landscape_single">दो पंक्तियाँ, लैंडस्केप में एक पंक्ति</string>
     <string name="termux_tab_panel_position_title">टैब पैनल स्थिति</string>
     <string name="termux_tab_panel_position_top">शीर्ष</string>
     <string name="termux_tab_panel_position_bottom">नीचे</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">नीचे, लैंडस्केप में शीर्ष</string>
     <string name="termux_widget_preferences_summary">Termux:Widget ऐप के लिए प्राथमिकताएँ</string>
     <string name="text_input_append_enter_title">भेजते समय Enter जोड़ें</string>
     <string name="text_input_toggle_button_title">इनपुट पैनल टॉगल बटन</string>
@@ -240,6 +246,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">वाक्य ऑटोकम्प्लीट</string>
+    <string name="autocomplete_sentences_enabled_summary">टाइप करते समय इनपुट इतिहास से वाक्य ऑटोकम्प्लीट सुझाएँ।</string>
     <string name="suggestions_max_count_title">ऑटोकम्प्लीट सुझावों की अधिकतम संख्या</string>
 
     <string name="appearance_category_title">दिखावट</string>
@@ -264,6 +272,9 @@
     <string name="extra_keys_style_none">कोई नहीं</string>
     <string name="extra_keys_text_all_caps_title">लेबल बड़े अक्षरों में</string>
     <string name="tabs_category_title">टैब</string>
+    <string name="session_overview_preview_throttle_title">अवलोकन मोड में टर्मिनल की अधिकतम रीफ़्रेश दर</string>
+    <string name="session_overview_preview_throttle_unit">fps</string>
+    <string name="session_overview_preview_throttle_off_value">बंद</string>
     <string name="input_panel_title">इनपुट पैनल</string>
     <string name="window_category_title">विंडो</string>
 
@@ -280,7 +291,7 @@
     <string name="extra_keys_visibility_title">अतिरिक्त बटन पैनल दिखाएँ</string>
     <string name="extra_keys_visibility_always">हमेशा</string>
     <string name="extra_keys_visibility_keyboard">केवल जब कीबोर्ड खुला हो</string>
-    <string name="extra_keys_visibility_keyboard_landscape">हमेशा, केवल लैंडस्केप ओरिएंटेशन में कीबोर्ड खुला होने पर</string>
+    <string name="extra_keys_visibility_keyboard_landscape">हमेशा, लैंडस्केप में केवल कीबोर्ड खुला होने पर</string>
     <string name="extra_keys_visibility_never">कभी नहीं</string>
 
     
@@ -385,9 +396,11 @@
     <string name="disable_hardware_keyboard_shortcuts_title">हार्डवेयर कीबोर्ड शॉर्टकट अक्षम करें</string>
     <string name="scroll_on_new_output_title">नए आउटपुट पर स्क्रॉल करें</string>
     <string name="terminal_onclick_url_open_title">टैप पर URL खोलें</string>
+    <string name="title_open_url">लिंक खोलें</string>
+    <string name="action_open">खोलें</string>
     <string name="fullscreen_title">पूर्ण स्क्रीन</string>
     <string name="fullscreen_mode_entry_off">अक्षम करें</string>
-    <string name="fullscreen_mode_entry_landscape">लैंडस्केप ओरिएंटेशन में सक्षम करें</string>
+    <string name="fullscreen_mode_entry_landscape">लैंडस्केप में सक्षम करें</string>
     <string name="fullscreen_mode_entry_on">सक्षम करें</string>
     <string name="extend_into_cutout_title">कटआउट में विस्तार करें</string>
     <string name="bubble_on_background_title">पृष्ठभूमि में बबल</string>

@@ -349,4 +349,56 @@ public class SessionOverviewTransitionMathTest {
             previous = preview;
         }
     }
+
+    @Test
+    public void scrollbarThumbOpeningSlidesRightAndFadesOut() {
+        final float shift = 16f;
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.openingScrollbarThumbTranslation(0f, shift), EPS);
+        Assert.assertEquals(shift,
+                SessionOverviewTransitionMath.openingScrollbarThumbTranslation(1f, shift), EPS);
+        Assert.assertEquals(shift / 2f,
+                SessionOverviewTransitionMath.openingScrollbarThumbTranslation(0.5f, shift), EPS);
+        // Out-of-range progress is clamped.
+        Assert.assertEquals(shift,
+                SessionOverviewTransitionMath.openingScrollbarThumbTranslation(2f, shift), EPS);
+
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.openingScrollbarThumbAlpha(0f), EPS);
+        Assert.assertEquals(0.5f,
+                SessionOverviewTransitionMath.openingScrollbarThumbAlpha(0.5f), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.openingScrollbarThumbAlpha(1f), EPS);
+    }
+
+    @Test
+    public void scrollbarThumbClosingIsTheExactReverseOfOpening() {
+        final float shift = 16f;
+        for (int step = 0; step <= 100; step++) {
+            final float progress = step / 100f;
+            final float p = 1f - progress;
+            // Opening at (1-p) lands on the same shifted/faded pose as closing at p.
+            Assert.assertEquals(
+                    SessionOverviewTransitionMath.openingScrollbarThumbTranslation(p, shift),
+                    SessionOverviewTransitionMath.closingScrollbarThumbTranslation(progress, shift),
+                    EPS);
+            Assert.assertEquals(
+                    SessionOverviewTransitionMath.openingScrollbarThumbAlpha(p),
+                    SessionOverviewTransitionMath.closingScrollbarThumbAlpha(progress),
+                    EPS);
+        }
+    }
+
+    @Test
+    public void scrollbarThumbClosingSlidesBackLeftAndFadesIn() {
+        final float shift = 16f;
+        Assert.assertEquals(shift,
+                SessionOverviewTransitionMath.closingScrollbarThumbTranslation(0f, shift), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingScrollbarThumbTranslation(1f, shift), EPS);
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.closingScrollbarThumbAlpha(0f), EPS);
+        Assert.assertEquals(1f,
+                SessionOverviewTransitionMath.closingScrollbarThumbAlpha(1f), EPS);
+    }
 }

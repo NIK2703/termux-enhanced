@@ -1173,7 +1173,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         tv.setClickable(true);
     }
 
-    /** Rebind a row's text, bold prefix, description and colours. */
+    /** Rebind a row's text, alpha spans, description and colours. */
     private void rebindSuggestionTextViewInternal(@NonNull TextView tv,
             @NonNull String suggestion, @NonNull String input,
             @Nullable SuggestionEngine.Candidate candidate, boolean useCachedPrefix) {
@@ -1212,7 +1212,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         }
         SpannableString ss = AutoCompleteTextRenderer.buildSuggestionSpannable(
                 suggestion, typed, wordStart, availWidth, tv.getPaint());
-        // Skip setText when the row's characters and bold range are unchanged.
+        // Skip setText when the row's characters and alpha spans are unchanged.
         if (!AutoCompleteTextRenderer.sameRendering(tv.getText(), ss)) {
             tv.setText(ss, TextView.BufferType.SPANNABLE);
         }

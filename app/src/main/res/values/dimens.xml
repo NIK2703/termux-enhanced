@@ -16,9 +16,10 @@
     <dimen name="terminal_tab_close_gap">4dp</dimen>
     <dimen name="terminal_tab_close_size">20dp</dimen>
 
-    <!-- Session overview grid. One value drives the gap between cards and the grid's outer
-         gutter reserve; halving it tightens both at once. -->
+    <!-- Session overview grid. The tight value is the gap between neighbouring cards; the top
+         and bottom of the block get a larger, independent breathing space. -->
     <dimen name="session_overview_gap">4dp</dimen>
+    <dimen name="session_overview_outer_gap">16dp</dimen>
     <!-- Card outline width is independent of the thin text-input stroke: the thumbnail edge
          sits over arbitrary terminal content and needs a little more weight to stay visible. -->
     <dimen name="session_overview_card_stroke">1dp</dimen>

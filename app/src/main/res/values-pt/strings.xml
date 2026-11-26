@@ -134,6 +134,7 @@
     <string name="input_history_cleared">Histórico de entrada limpo</string>
     <string name="input_history_empty">Nenhum histórico de entrada</string>
     <string name="input_history_max_title">Máx. de itens no histórico de entrada</string>
+    <string name="input_history_max_popup_limit_summary">Apenas as primeiras %1$d entradas são exibidas na janela do histórico de entrada; o restante fica disponível pelo autocompletar.</string>
     <string name="msg_add_termux_debug_info">Adicionar informações de depuração do Termux ao relatório?</string>
     <string name="msg_terminal_panel_disabling">Desativando o painel do terminal</string>
     <string name="msg_terminal_panel_enabling">Ativando o painel do terminal</string>
@@ -157,6 +158,10 @@
     <string name="screen_orientation_title">Orientação da tela</string>
     <string name="session_null_title">Sessão nula</string>
     <string name="session_default_title">Terminal</string>
+    <string name="session_overview_description">Todas as sessões de terminal</string>
+    <string name="session_overview_session_description">%1$s, sessão de terminal</string>
+    <string name="session_overview_session_selected_description">%1$s, sessão de terminal, selecionada</string>
+    <string name="session_overview_close_session_description">Fechar a sessão %1$s</string>
     <string name="shared_user_label">Usuário do Termux</string>
     <string name="tab_close_description">Fechar aba</string>
     <string name="new_tab_placeholder_hint">Nova sessão</string>
@@ -166,10 +171,11 @@
     <string name="termux_tab_height_mode_title">Altura da aba</string>
     <string name="termux_tab_height_mode_single">Linha única</string>
     <string name="termux_tab_height_mode_double">Duas linhas</string>
-    <string name="termux_tab_height_mode_double_landscape_single">Duas linhas, uma linha na orientação horizontal</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Duas linhas, uma linha no modo paisagem</string>
     <string name="termux_tab_panel_position_title">Posição do painel de abas</string>
     <string name="termux_tab_panel_position_top">Superior</string>
     <string name="termux_tab_panel_position_bottom">Inferior</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">Inferior, superior no modo paisagem</string>
     <string name="termux_api_preferences_title">Termux:API</string>
     <string name="termux_api_preferences_summary">Preferências para o aplicativo Termux:API</string>
     <string name="termux_button_bg_active_alpha_title" formatted="false">Opacidade do fundo dos elementos ativos</string>
@@ -246,6 +252,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">Autocompletar frases</string>
+    <string name="autocomplete_sentences_enabled_summary">Oferecer autocompletar frases do histórico de entrada enquanto você digita.</string>
     <string name="suggestions_max_count_title">Máximo de sugestões de autocompletar</string>
 
     <string name="extra_keys_category_title">Botões extras</string>
@@ -271,6 +279,9 @@
     <string name="backup_restore_preferences_summary">Contêiner do Termux, configurações do aplicativo</string>
     <string name="appearance_category_title">Aparência</string>
     <string name="tabs_category_title">Abas</string>
+    <string name="session_overview_preview_throttle_title">Taxa máxima de atualização do terminal no modo de visão geral</string>
+    <string name="session_overview_preview_throttle_unit">fps</string>
+    <string name="session_overview_preview_throttle_off_value">DESATIVADO</string>
     <string name="window_category_title">Janela</string>
     <string name="plugin_logging_category_title">Registro de log</string>
     <string name="addons_category_title">Complementos</string>
@@ -288,7 +299,7 @@
     <string name="extra_keys_visibility_title">Mostrar painel de botões extras</string>
     <string name="extra_keys_visibility_always">Sempre</string>
     <string name="extra_keys_visibility_keyboard">Apenas quando o teclado estiver aberto</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Sempre, apenas com o teclado aberto na orientação horizontal</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Sempre, no modo paisagem apenas com o teclado aberto</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     
@@ -435,9 +446,11 @@
     <string name="disable_hardware_keyboard_shortcuts_title">Desativar atalhos de teclado físico</string>
     <string name="scroll_on_new_output_title">Rolar ao receber nova saída</string>
     <string name="terminal_onclick_url_open_title">Abrir links ao tocar</string>
+    <string name="title_open_url">Abrir link</string>
+    <string name="action_open">Abrir</string>
     <string name="fullscreen_title">Tela cheia</string>
     <string name="fullscreen_mode_entry_off">Desativar</string>
-    <string name="fullscreen_mode_entry_landscape">Ativar na orientação horizontal</string>
+    <string name="fullscreen_mode_entry_landscape">Ativar no modo paisagem</string>
     <string name="fullscreen_mode_entry_on">Ativar</string>
     <string name="extend_into_cutout_title">Estender até o notch</string>
     <string name="bubble_on_background_title">Bolha em segundo plano</string>

@@ -43,6 +43,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.OverScroller;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
@@ -2978,6 +2979,42 @@ public final class TerminalView extends View {
     }
 
     /**
+     * Bounds the scrollbar thumb would occupy in this view for {@code emulator}'s transcript and
+     * the given scroll position, in this view's coordinates.
+     *
+     * <p>The view's own emulator is not touched: this lets a closing overview resolve the
+     * destination thumb of a page that is not bound yet, using the same size, density and
+     * scrollbar geometry the page will have after it lands. The proportional remap of
+     * {@link #applyScrollRestore(int, int)} is applied when the saved transcript size differs
+     * from the live one, so the result matches the thumb after the page restores its scroll
+     * position. Pass {@code 0} for {@code savedTranscriptRows} when {@code topRow} is already
+     * live.</p>
+     *
+     * @return false when the emulator has no transcript to scroll or this view has no size.
+     */
+    public boolean computeScrollbarThumbBounds(@Nullable TerminalEmulator emulator,
+                                               int topRow, int savedTranscriptRows,
+                                               @NonNull RectF out) {
+        out.setEmpty();
+        if (emulator == null || getWidth() <= 0 || getHeight() <= 0) return false;
+        final int liveRows = emulator.getScreen().getActiveTranscriptRows();
+        if (liveRows <= 0) return false;
+
+        final int row = resolveRestoredTopRow(topRow, savedTranscriptRows, liveRows);
+        final float viewWidth = getWidth();
+        final float viewHeight = getHeight();
+        final float trackLeft = viewWidth - mScrollbarWidth;
+        final float thumbWidth = mScrollbarWidth - 4; // 2px inset on each side
+        final float restHeight = ScrollbarThumbGeometry.restHeight(
+                mScrollbarThumbSizePx, viewHeight);
+        final float scrollFraction = (liveRows + row) / (float) liveRows;
+        final float thumbTop = ScrollbarThumbGeometry.top(
+                scrollFraction, viewHeight, restHeight);
+        out.set(trackLeft + 2, thumbTop, trackLeft + 2 + thumbWidth, thumbTop + restHeight);
+        return !out.isEmpty();
+    }
+
+    /**
      * Queue a scroll position to be restored as soon as the emulator and the view
      * size are ready. Safe to call before attach/layout: the value is applied in
      * updateSize() when the emulator is (re)created. Applying is idempotent.
@@ -3018,6 +3055,21 @@ public final class TerminalView extends View {
             updateScrollbarThumbView();
             return;
         }
+        mTopRow = resolveRestoredTopRow(topRow, savedTranscriptRows, liveRows);
+        // Same contract as doScroll(): scrolled away from the bottom disables
+        // follow-to-bottom so incoming output does not snap the restored position.
+        mEmulator.setAutoScrollDisabled(mTopRow != 0);
+        updateScrollbarThumbView();
+        invalidate();
+    }
+
+    /**
+     * Map a stored scroll position onto the live transcript, the exact rule used by
+     * {@link #applyScrollRestore(int, int)}. A different transcript size keeps the same relative
+     * depth in the history, so the thumb lands where the restored view will show it.
+     */
+    private static int resolveRestoredTopRow(int topRow, int savedTranscriptRows, int liveRows) {
+        if (liveRows <= 0 || topRow >= 0) return 0;
         int target;
         if (savedTranscriptRows > 0 && savedTranscriptRows != liveRows) {
             // Proportional remap: keep the same relative depth in the history.
@@ -3027,13 +3079,7 @@ public final class TerminalView extends View {
         } else {
             target = topRow;
         }
-        target = Math.max(-liveRows, Math.min(0, target));
-        mTopRow = target;
-        // Same contract as doScroll(): scrolled away from the bottom disables
-        // follow-to-bottom so incoming output does not snap the restored position.
-        mEmulator.setAutoScrollDisabled(mTopRow != 0);
-        updateScrollbarThumbView();
-        invalidate();
+        return Math.max(-liveRows, Math.min(0, target));
     }
 
     public float getGridOffsetX() {

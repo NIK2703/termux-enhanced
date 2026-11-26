@@ -29,6 +29,8 @@ public final class SessionOverviewGridMath {
         /** Total rows, including rows below the viewport. */
         public final int rows;
         public final int gap;
+        /** Breathing space above the first row and below the last row, in pixels. */
+        public final int outerGap;
         public final int availableWidth;
         /** Height of the visible viewport, not of the whole scrollable content. */
         public final int availableHeight;
@@ -47,7 +49,7 @@ public final class SessionOverviewGridMath {
         public final int top;
         public final int emptySlots;
 
-        Layout(int sessionCount, int columns, int rows, int gap,
+        Layout(int sessionCount, int columns, int rows, int gap, int outerGap,
                int availableWidth, int availableHeight,
                int cardWidth, int cardHeight,
                int gridWidth, int gridHeight, int left, int top) {
@@ -55,6 +57,7 @@ public final class SessionOverviewGridMath {
             this.columns = columns;
             this.rows = rows;
             this.gap = gap;
+            this.outerGap = outerGap;
             this.availableWidth = availableWidth;
             this.availableHeight = availableHeight;
             this.cardWidth = cardWidth;
@@ -84,32 +87,46 @@ public final class SessionOverviewGridMath {
      */
     public static Layout compute(int sessionCount, int availableWidth, int availableHeight,
                                  int gap, int cardWidth, int cardHeight) {
+        return compute(sessionCount, availableWidth, availableHeight,
+                gap, gap, cardWidth, cardHeight);
+    }
+
+    public static Layout compute(int sessionCount, int availableWidth, int availableHeight,
+                                 int gap, int outerGap, int cardWidth, int cardHeight) {
         final int safeWidth = Math.max(0, availableWidth);
         final int safeHeight = Math.max(0, availableHeight);
         final int safeGap = Math.max(0, gap);
+        final int safeOuterGap = Math.max(0, outerGap);
         if (sessionCount <= 0) {
-            return new Layout(0, 0, 0, safeGap, safeWidth, safeHeight,
+            return new Layout(0, 0, 0, safeGap, safeOuterGap, safeWidth, safeHeight,
                     0, 0, 0, 0, 0, 0);
         }
         final int columns = COLUMNS;
         final int visibleRows = VISIBLE_ROWS;
         final int totalRows = Math.max(visibleRows, (sessionCount + columns - 1) / columns);
         final int effectiveGap = Math.max(1, safeGap);
+        final int minVisibleHeight = effectiveGap * (visibleRows - 1) + safeOuterGap * 2;
         if (safeWidth <= effectiveGap * (columns + 1)
-                || safeHeight <= effectiveGap * (visibleRows + 1)
+                || safeHeight <= minVisibleHeight
                 || cardWidth <= 0 || cardHeight <= 0) {
-            return new Layout(sessionCount, columns, totalRows, effectiveGap,
+            return new Layout(sessionCount, columns, totalRows, effectiveGap, safeOuterGap,
                     safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
         }
         // Three horizontal gutters — two edges and the inter-card gap — must fit at their
-        // configured width. Trim an oversized exact card instead of shrinking the gutters.
+        // configured width. Trim an oversized exact card instead of shrinking the gutters. Both
+        // axes must shrink by the same factor: trimming width alone changes the card's aspect,
+        // and a bitmap fitted into that card would have to be scaled differently on X and Y.
         final int maxCardWidth = (safeWidth - effectiveGap * (columns + 1)) / columns;
         if (maxCardWidth < 1) {
-            return new Layout(sessionCount, columns, totalRows, effectiveGap,
+            return new Layout(sessionCount, columns, totalRows, effectiveGap, safeOuterGap,
                     safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
         }
-        cardWidth = Math.min(cardWidth, maxCardWidth);
-        return buildLayout(sessionCount, columns, totalRows, effectiveGap,
+        if (cardWidth > maxCardWidth) {
+            final float trim = (float) maxCardWidth / cardWidth;
+            cardHeight = Math.max(1, (int) Math.floor(cardHeight * trim));
+            cardWidth = maxCardWidth;
+        }
+        return buildLayout(sessionCount, columns, totalRows, effectiveGap, safeOuterGap,
                 safeWidth, safeHeight, cardWidth, cardHeight);
     }
 
@@ -118,26 +135,26 @@ public final class SessionOverviewGridMath {
      * cannot drift apart.
      */
     private static Layout buildLayout(int sessionCount, int columns, int totalRows, int safeGap,
-                                      int safeWidth, int safeHeight,
+                                      int safeOuterGap, int safeWidth, int safeHeight,
                                       int cardWidth, int cardHeight) {
         final int cardsWidth = columns * cardWidth;
-        // Both callers trim cardWidth until three gutters of this size fit. The inter-card gap
-        // stays fixed; only the leftover width is split between the two outer gutters. That keeps
-        // the vertical gap identical to the horizontal one, so a height-limited grid can never
-        // grow taller than the viewport by taking a larger gap from the width arithmetic.
+        // Both callers trim cardWidth until three horizontal gutters fit. The inter-card gap
+        // stays fixed; only the leftover width is split between the two outer gutters. The top
+        // and bottom of the block use their own, larger gutter so the cards breathe vertically.
         final int gap = safeGap;
+        final int outerGap = safeOuterGap;
         final int gridWidth = cardsWidth + gap * (columns - 1);
-        // The gutter on each side of the rows is always at least the inter-card gap. When the
-        // grid is shorter than the viewport, split the remaining height evenly: half moves the
-        // first row down, the other half stays below the last row. The scrollable content height
-        // then includes the extra top space as well, so its bottom edge still lines up.
-        final int baseHeight = totalRows * cardHeight + gap * (totalRows + 1);
+        // When the grid is shorter than the viewport, split the remaining height evenly: half
+        // moves the first row down, the other half stays below the last row. The scrollable
+        // content height includes that extra top space so its bottom edge still lines up.
+        final int baseHeight = totalRows * cardHeight
+                + gap * (totalRows - 1) + outerGap * 2;
         final int centring = Math.max(0, safeHeight - baseHeight) / 2;
         final int gridHeight = baseHeight + centring;
-        final int top = gap + centring;
+        final int top = outerGap + centring;
         final int slack = Math.max(0, safeWidth - gridWidth);
         final int left = slack / 2;
-        return new Layout(sessionCount, columns, totalRows, gap,
+        return new Layout(sessionCount, columns, totalRows, gap, outerGap,
                 safeWidth, safeHeight, cardWidth, cardHeight,
                 gridWidth, gridHeight, left, top);
     }
@@ -152,12 +169,13 @@ public final class SessionOverviewGridMath {
     public static Layout recenter(Layout layout, int visibleHeightPx) {
         if (!layout.hasCards()) return layout;
         final int baseHeight = layout.rows * layout.cardHeight
-                + layout.gap * (layout.rows + 1);
+                + layout.gap * (layout.rows - 1) + layout.outerGap * 2;
         final int centring = Math.max(0, visibleHeightPx - baseHeight) / 2;
-        final int top = layout.gap + centring;
+        final int top = layout.outerGap + centring;
         final int gridHeight = baseHeight + centring;
         if (layout.top == top && layout.gridHeight == gridHeight) return layout;
-        return new Layout(layout.sessionCount, layout.columns, layout.rows, layout.gap,
+        return new Layout(layout.sessionCount, layout.columns, layout.rows,
+                layout.gap, layout.outerGap,
                 layout.availableWidth, layout.availableHeight, layout.cardWidth, layout.cardHeight,
                 layout.gridWidth, gridHeight, layout.left, top);
     }
@@ -170,7 +188,7 @@ public final class SessionOverviewGridMath {
      * letterboxed inside its card.</p>
      */
     public static Layout compute(int sessionCount, int availableWidth, int availableHeight, int gap) {
-        return compute(sessionCount, availableWidth, availableHeight, gap, 0);
+        return compute(sessionCount, availableWidth, availableHeight, gap, gap, 0d);
     }
 
     /**
@@ -180,24 +198,33 @@ public final class SessionOverviewGridMath {
      * fifth session therefore adds a scrollable row instead of shrinking every card. The block is
      * horizontally centered. When it does not fill the viewport, the unused vertical space is
      * split equally above the first row and below the last one, so a short grid is centred
-     * rather than pinned to the status bar. Scrolling grids keep one inter-card gutter at both
-     * ends.</p>
+     * rather than pinned to the status bar. Scrolling grids keep the larger outer gutter at both
+     * ends and the tighter inter-card gap between rows.</p>
      *
      * @param sessionCount number of live sessions; values below 1 produce an empty layout
      * @param availableWidth measured content width, excluding padding
      * @param availableHeight measured viewport height, excluding padding
-     * @param gap gap between cards in pixels
+     * @param gap gap between neighbouring cards in pixels
      * @param cardAspect width/height of the terminal grid the card shows; values at or below
      *                   zero (or non-finite values) fall back to the content-area aspect
      */
     public static Layout compute(int sessionCount, int availableWidth, int availableHeight,
                                  int gap, double cardAspect) {
+        return compute(sessionCount, availableWidth, availableHeight, gap, gap, cardAspect);
+    }
+
+    /**
+     * Same as {@link #compute(int, int, int, int, double)}, with a separate outer gutter.
+     */
+    public static Layout compute(int sessionCount, int availableWidth, int availableHeight,
+                                 int gap, int outerGap, double cardAspect) {
         final int safeWidth = Math.max(0, availableWidth);
         final int safeHeight = Math.max(0, availableHeight);
         final int safeGap = Math.max(0, gap);
+        final int safeOuterGap = Math.max(0, outerGap);
 
         if (sessionCount <= 0) {
-            return new Layout(0, 0, 0, safeGap, safeWidth, safeHeight,
+            return new Layout(0, 0, 0, safeGap, safeOuterGap, safeWidth, safeHeight,
                     0, 0, 0, 0, 0, 0);
         }
 
@@ -211,13 +238,13 @@ public final class SessionOverviewGridMath {
         // between two thumbnails; when height caps the cards, the remaining width is split
         // evenly so both gutters stay equal and at least one gap wide.
         final int totalGapX = effectiveGap * (columns + 1);
-        // Reserve one outer gutter at each end of the two visible rows plus the gap between
-        // them. Any height still left over is split by buildLayout() to centre the block.
-        final int totalGapYVisible = effectiveGap * (visibleRows + 1);
+        // Reserve the outer gutter at each end of the two visible rows and the inter-card gaps
+        // between them. Any height still left over is split by buildLayout() to centre the block.
+        final int totalGapYVisible = effectiveGap * (visibleRows - 1) + safeOuterGap * 2;
 
         if (safeWidth <= 0 || safeHeight <= 0
                 || safeWidth <= totalGapX || safeHeight <= totalGapYVisible) {
-            return new Layout(sessionCount, columns, totalRows, effectiveGap,
+            return new Layout(sessionCount, columns, totalRows, effectiveGap, safeOuterGap,
                     safeWidth, safeHeight, 0, 0, 0, 0, 0, 0);
         }
 
@@ -253,7 +280,7 @@ public final class SessionOverviewGridMath {
 
         // Both overloads now publish the same gap and place cards in the same way, so a measured
         // grid height always matches what onLayout draws.
-        return buildLayout(sessionCount, columns, totalRows, effectiveGap,
+        return buildLayout(sessionCount, columns, totalRows, effectiveGap, safeOuterGap,
                 safeWidth, safeHeight, cardWidth, cardHeight);
     }
 }

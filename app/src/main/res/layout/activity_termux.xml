@@ -241,6 +241,29 @@
              the transparent system bar (the root view stops clipping its padding for that). -->
         <include layout="@layout/view_session_overview" />
 
+        <!-- Add-session button for the all-sessions overview. It belongs to the bottom-right
+             corner of the screen, not to the input-toggle's bottom strip: it keeps the same small
+             symmetric inset on the bottom and right, regardless of the pencil's scrollbar offset.
+             The opening morph flies from the pencil into it. It is declared after the overview so
+             it paints above the grid, and it stays inside the content area so the navigation bar
+             inset keeps it on screen. The controller shows it only while the overview is open;
+             the activity owns its tap and swipe-up gestures. -->
+        <ImageButton
+            android:id="@+id/session_overview_add_button"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="28dp"
+            android:layout_marginBottom="6dp"
+            android:background="@drawable/floating_button_background"
+            android:contentDescription="@string/action_new_session"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_add"
+            android:tint="?attr/colorOnSurface"
+            android:visibility="gone" />
+
     </RelativeLayout>
 
 </com.termux.app.terminal.TermuxActivityRootView>

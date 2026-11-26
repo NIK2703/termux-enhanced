@@ -130,6 +130,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="input_history_clear_question">Eingabeverlauf löschen?</string>
     <string name="input_history_empty">Kein Eingabeverlauf</string>
     <string name="input_history_max_title">Maximal gespeicherte Eingaben</string>
+    <string name="input_history_max_popup_limit_summary">Im Pop-up für den Eingabeverlauf werden nur die ersten %1$d Einträge angezeigt; der Rest ist über die Autovervollständigung verfügbar.</string>
     <string name="msg_add_termux_debug_info">Termux-Debug-Informationen zum Bericht hinzufügen?</string>
     <string name="msg_terminal_panel_disabling">Terminalleiste wird deaktiviert</string>
     <string name="msg_terminal_panel_enabling">Terminalleiste wird aktiviert</string>
@@ -163,6 +164,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="termux_tab_panel_position_title">Position der Tableiste</string>
     <string name="termux_tab_panel_position_top">Oben</string>
     <string name="termux_tab_panel_position_bottom">Unten</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">Unten, im Querformat oben</string>
     <string name="shared_user_label">Termux-Benutzer</string>
     <string name="tab_close_description">Tab schließen</string>
     <string name="termux_api_preferences_summary">Einstellungen für die Termux:API-App</string>
@@ -240,6 +242,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
 
     
+    <string name="autocomplete_sentences_enabled_title">Autovervollständigung für Sätze</string>
+    <string name="autocomplete_sentences_enabled_summary">Beim Tippen Satzvervollständigungen aus dem Eingabeverlauf vorschlagen.</string>
     <string name="suggestions_max_count_title">Max. Autovervollständigungsvorschläge</string>
     <string name="appearance_category_title">Erscheinungsbild</string>
     <string name="input_preferences_title">Eingabe</string>
@@ -278,7 +282,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_visibility_title">Zusatztastenleiste anzeigen</string>
     <string name="extra_keys_visibility_always">Immer</string>
     <string name="extra_keys_visibility_keyboard">Nur bei geöffneter Tastatur</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Immer, nur bei geöffneter Tastatur im Querformat</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Immer, im Querformat nur bei geöffneter Tastatur</string>
     <string name="extra_keys_visibility_never">Nie</string>
 
     
@@ -405,6 +409,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="scroll_on_new_output_title">Automatisch bei neuer Ausgabe scrollen</string>
 
     <string name="terminal_onclick_url_open_title">Links durch Antippen öffnen</string>
+    <string name="title_open_url">Link öffnen</string>
+    <string name="action_open">Öffnen</string>
 
     <string name="fullscreen_title">Vollbildmodus</string>
     <string name="fullscreen_mode_entry_off">Deaktivieren</string>
@@ -519,7 +525,14 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="application_name">TermuxEnhanced</string>
     <string name="terminal_category_title">Terminal</string>
     <string name="tabs_category_title">Tabs</string>
+    <string name="session_overview_preview_throttle_title">Maximale Terminal-Aktualisierungsrate im Übersichtsmodus</string>
+    <string name="session_overview_preview_throttle_unit">fps</string>
+    <string name="session_overview_preview_throttle_off_value">AUS</string>
     <string name="session_default_title">Terminal</string>
+    <string name="session_overview_description">Alle Terminalsitzungen</string>
+    <string name="session_overview_session_description">%1$s, Terminalsitzung</string>
+    <string name="session_overview_session_selected_description">%1$s, Terminalsitzung, ausgewählt</string>
+    <string name="session_overview_close_session_description">Sitzung %1$s schließen</string>
 
     <!-- Terminal Sidebar and Shortcuts -->
     <string name="action_failsafe_mode">Abgesicherter Modus</string>

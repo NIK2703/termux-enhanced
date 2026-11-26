@@ -88,6 +88,16 @@ public class TextFadeTest {
     }
 
     @Test
+    public void constantAlphaCoversTheWholeRangeWithOneSpan() {
+        final SpannableString text = new SpannableString("abcdef");
+        TextFade.applyAlpha(text, 1, 4, TextFade.HALF_ALPHA);
+
+        final List<FadeSpan> fades = fades(text);
+        assertEquals(1, fades.size());
+        assertFade(fades.get(0), 1, 4, 128);
+    }
+
+    @Test
     public void sameFadesComparesPositionsAndAlpha() {
         final SpannableString left = new SpannableString("abcdef");
         final SpannableString right = new SpannableString("abcdef");

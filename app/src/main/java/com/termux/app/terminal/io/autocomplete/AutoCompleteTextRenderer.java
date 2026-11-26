@@ -1,13 +1,11 @@
 package com.termux.app.terminal.io.autocomplete;
 
-import android.graphics.Typeface;
 import android.os.Build;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.StaticLayout;
 import android.text.Layout;
 import android.text.TextPaint;
-import android.text.style.StyleSpan;
 import android.util.LruCache;
 
 import androidx.annotation.NonNull;
@@ -17,7 +15,7 @@ import com.termux.app.terminal.TextFade;
 
 /**
  * Pure text-rendering helpers for auto-complete suggestion rows: drawing only
- * (truncation, bold prefix, line-fitting).
+ * (truncation, alpha spans, line-fitting).
  *
  * <p>Truncation uses the same alpha fade as tab titles. A leading cut keeps only the last
  * three letters of the typed word and fades them in; a trailing cut fades the last visible
@@ -26,8 +24,6 @@ import com.termux.app.terminal.TextFade;
 final class AutoCompleteTextRenderer {
 
     private AutoCompleteTextRenderer() {}
-
-    private static final StyleSpan BOLD_SPAN = new StyleSpan(Typeface.BOLD);
 
     /** Suggestion rows always use two lines. */
     private static final int MAX_LINES = 2;
@@ -120,12 +116,13 @@ final class AutoCompleteTextRenderer {
     /**
      * Build the display {@link SpannableString} for an auto-complete suggestion.
      *
-     * <p>When the match starts mid-word, only the last three letters of the truncated word
-     * are kept and faded in; the omitted words are not replaced by {@code "... "}. While the
-     * next word is being typed, that word stays readable and the previous word is the one
-     * reduced to its last three letters. When the text is too tall for {@code maxLines}, the
-     * tail is cut and its last three visible code points fade out, exactly like a truncated
-     * tab title.</p>
+     * <p>When the match starts mid-word, the leading context word is shown in full at a
+     * constant 50% opacity instead of an ellipsis. If there is a word before that context
+     * word, its last three letters are shown with the softer 15/30/45 head fade. While the
+     * next word is being typed, the context word is the previous one. The letters already
+     * typed of that word are dimmed to 50% instead of being bold. When the text is too tall
+     * for {@code maxLines}, the tail is cut and its
+     * last three visible code points fade out, exactly like a truncated tab title.</p>
      *
      * <p>Manual truncation instead of {@code TextView.setEllipsize(END)}: on Android (API 21-28
      * in particular) {@code ellipsize=end} is only reliably honored for single-line text — with
@@ -160,9 +157,9 @@ final class AutoCompleteTextRenderer {
             lastWordEnd--;
         }
 
-        // If the suggestion keeps going inside the word the user is typing, that word must
-        // stay readable: fade the tail of the previous word instead and put the typed word
-        // to its right. A completed word is truncated the usual way.
+        // The word in front of the continuation is shown in full at a constant 50% opacity.
+        // While the next word is being typed, that word is the previous one; otherwise it is
+        // the last word the user typed.
         int suggestionWordEnd = wordStart;
         while (suggestionWordEnd < displaySuggestion.length()
                 && !isWordSeparator(displaySuggestion.charAt(suggestionWordEnd))) {
@@ -170,8 +167,8 @@ final class AutoCompleteTextRenderer {
         }
         final boolean midWord = suggestionWordEnd > lastWordEnd;
 
-        int visibleStart;
-        int fadeEnd;
+        int contextStart = 0;
+        int contextLen = 0;
         int boldStart;
         int boldEnd;
         if (midWord && wordStart > 0) {
@@ -180,29 +177,41 @@ final class AutoCompleteTextRenderer {
                 prevEnd--;
             }
             final int prevStart = wordStartOffset(matchStr.substring(0, prevEnd));
-            final int prevLen = prevEnd - prevStart;
-            if (prevLen > 0) {
-                visibleStart = prevStart + Math.max(0, prevLen - TextFade.FADE_CHARS);
-                fadeEnd = prevEnd - visibleStart;
-                boldStart = wordStart - visibleStart;
-                boldEnd = lastWordEnd - visibleStart;
-            } else {
-                visibleStart = 0;
-                fadeEnd = 0;
-                boldStart = 0;
-                boldEnd = lastWordEnd;
+            if (prevEnd > prevStart) {
+                contextStart = prevStart;
+                contextLen = prevEnd - prevStart;
             }
+            boldStart = wordStart;
+            boldEnd = lastWordEnd;
         } else if (wordStart > 0) {
-            final int lastWordLen = lastWordEnd - wordStart;
-            visibleStart = wordStart + Math.max(0, lastWordLen - TextFade.FADE_CHARS);
-            fadeEnd = lastWordEnd - visibleStart;
-            boldStart = 0;
-            boldEnd = fadeEnd;
+            contextStart = wordStart;
+            contextLen = lastWordEnd - wordStart;
+            boldStart = wordStart;
+            boldEnd = lastWordEnd;
         } else {
-            visibleStart = 0;
-            fadeEnd = 0;
             boldStart = 0;
             boldEnd = lastWordEnd;
+        }
+
+        // A word before the context word, if there is one, contributes only its last three
+        // letters with the softer 15/30/45 head fade.
+        int visibleStart;
+        int gradientEnd = 0;
+        if (contextLen > 0) {
+            int beforeEnd = contextStart;
+            while (beforeEnd > 0 && isWordSeparator(matchStr.charAt(beforeEnd - 1))) {
+                beforeEnd--;
+            }
+            final int beforeStart = wordStartOffset(matchStr.substring(0, beforeEnd));
+            final int beforeLen = beforeEnd - beforeStart;
+            if (beforeLen > 0) {
+                visibleStart = beforeStart + Math.max(0, beforeLen - TextFade.FADE_CHARS);
+                gradientEnd = beforeEnd - visibleStart;
+            } else {
+                visibleStart = contextStart;
+            }
+        } else {
+            visibleStart = 0;
         }
 
         final String raw = displaySuggestion.substring(visibleStart);
@@ -222,36 +231,40 @@ final class AutoCompleteTextRenderer {
         }
 
         SpannableString ss = new SpannableString(displayText);
-        // The kept tail of the truncated word fades in from the left, mirroring the faded
-        // tail of a truncated tab title.
-        if (fadeEnd > 0) {
-            TextFade.fadeHead(ss, 0, Math.min(fadeEnd, displayText.length()));
+        // Optional tail of the word before the context word: 15/30/45 from the left.
+        if (gradientEnd > 0) {
+            TextFade.fadeHead(ss, 0, Math.min(gradientEnd, displayText.length()));
+        }
+        // The context word itself is complete but dimmed to a constant 50%.
+        final int contextFrom = contextStart - visibleStart;
+        final int contextTo = Math.min(contextFrom + contextLen, displayText.length());
+        if (contextLen > 0) {
+            TextFade.applyAlpha(ss, contextFrom, contextTo, TextFade.HALF_ALPHA);
         }
         // A manual end cut has no ellipsis; its last visible letters fade out.
         if (displayText.length() < raw.length()) {
             TextFade.fadeTail(ss, displayText.length());
         }
 
-        final int boldFrom = Math.min(boldStart, displayText.length());
-        final int boldTo = Math.min(boldEnd, displayText.length());
-        if (boldTo > boldFrom
+        // The letters the user typed of the next word are dimmed too, not bolded.
+        final int typedFrom = Math.min(boldStart - visibleStart, displayText.length());
+        final int typedTo = Math.min(boldEnd - visibleStart, displayText.length());
+        if (typedTo > typedFrom
+                && !(typedFrom >= contextFrom && typedTo <= contextTo)
                 && displaySuggestion.regionMatches(true, 0, matchStr, 0, matchStr.length())) {
-            ss.setSpan(BOLD_SPAN, boldFrom, boldTo, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+            TextFade.applyAlpha(ss, typedFrom, typedTo, TextFade.HALF_ALPHA);
         }
         return ss;
     }
 
-    /** True when {@code old} already has {@code next}'s characters, bold range and fades. */
+    /** True when {@code old} already has {@code next}'s characters and alpha spans. */
     static boolean sameRendering(@Nullable CharSequence old, @NonNull SpannableString next) {
         if (old == null || old.length() != next.length()) return false;
         for (int i = 0; i < next.length(); i++) {
             if (old.charAt(i) != next.charAt(i)) return false;
         }
         if (!(old instanceof Spanned)) return false;
-        Spanned spanned = (Spanned) old;
-        return spanned.getSpanStart(BOLD_SPAN) == next.getSpanStart(BOLD_SPAN)
-                && spanned.getSpanEnd(BOLD_SPAN) == next.getSpanEnd(BOLD_SPAN)
-                && TextFade.sameFades(spanned, next);
+        return TextFade.sameFades((Spanned) old, next);
     }
 
     /**

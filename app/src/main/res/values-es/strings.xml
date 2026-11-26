@@ -120,6 +120,7 @@
     <string name="color_scheme_dark_title">Esquema de colores del terminal (tema oscuro)</string>
     <string name="color_scheme_dark_summary">Esquema de colores aplicado cuando el tema de la aplicación es oscuro</string>
     <string name="input_history_max_title">Número máximo de elementos del historial de entrada</string>
+    <string name="input_history_max_popup_limit_summary">En la ventana emergente del historial de entrada solo se muestran las primeras %1$d entradas; el resto está disponible mediante el autocompletado.</string>
     <string name="per_directory_input_history_title">Historial de entrada por directorio</string>
     <string name="per_directory_input_history_summary">Mantener un historial de entrada separado para cada directorio de trabajo. Si está desactivado, todas las sesiones comparten un historial global.</string>
     <string name="text_input_append_enter_title">Añadir Enter al enviar</string>
@@ -174,10 +175,11 @@
     <string name="termux_tab_height_mode_title">Altura de la pestaña</string>
     <string name="termux_tab_height_mode_single">Una línea</string>
     <string name="termux_tab_height_mode_double">Dos líneas</string>
-    <string name="termux_tab_height_mode_double_landscape_single">Dos líneas, una línea en orientación horizontal</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Dos líneas, una línea en horizontal</string>
     <string name="termux_tab_panel_position_title">Posición del panel de pestañas</string>
     <string name="termux_tab_panel_position_top">Arriba</string>
     <string name="termux_tab_panel_position_bottom">Abajo</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">Abajo, arriba en horizontal</string>
     <string name="text_input_toggle_button_title">Botón para alternar el panel de entrada</string>
     <string name="text_input_over_terminal_title">Panel de entrada sobre el terminal</string>
 
@@ -242,6 +244,8 @@
     
 
     
+    <string name="autocomplete_sentences_enabled_title">Autocompletado de frases</string>
+    <string name="autocomplete_sentences_enabled_summary">Ofrecer autocompletado de frases del historial de entrada mientras se escribe.</string>
     <string name="suggestions_max_count_title">Número máximo de sugerencias de autocompletado</string>
 
     <string name="appearance_category_title">Apariencia</string>
@@ -267,6 +271,9 @@
     <string name="extra_keys_text_all_caps_title">Texto de etiquetas en mayúsculas</string>
     <string name="window_category_title">Ventana</string>
     <string name="tabs_category_title">Pestañas</string>
+    <string name="session_overview_preview_throttle_title">Frecuencia máxima de actualización del terminal en el modo de vista general</string>
+    <string name="session_overview_preview_throttle_unit">fps</string>
+    <string name="session_overview_preview_throttle_off_value">DESACTIVADO</string>
     <string name="input_panel_title">Panel de entrada</string>
     <string name="theme_mode_entry_dark">Oscuro</string>
     <string name="theme_mode_entry_light">Claro</string>
@@ -281,7 +288,7 @@
     <string name="extra_keys_visibility_title">Mostrar panel de botones adicionales</string>
     <string name="extra_keys_visibility_always">Siempre</string>
     <string name="extra_keys_visibility_keyboard">Solo cuando el teclado está abierto</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Siempre, solo con el teclado abierto en orientación horizontal</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Siempre, en horizontal solo con el teclado abierto</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     
@@ -362,7 +369,7 @@
     <string name="extra_keys_dynamic_font_size_title">Tamaño de fuente dinámico</string>
     <string name="fullscreen_title">Pantalla completa</string>
     <string name="fullscreen_mode_entry_off">Desactivar</string>
-    <string name="fullscreen_mode_entry_landscape">Activar en orientación horizontal</string>
+    <string name="fullscreen_mode_entry_landscape">Activar en horizontal</string>
     <string name="fullscreen_mode_entry_on">Activar</string>
     <string name="extend_into_cutout_title">Ampliar hasta la muesca</string>
     <string name="bubble_on_background_title">Burbuja en segundo plano</string>
@@ -406,6 +413,8 @@
     <string name="terminal_background_blur_radius_summary">Puede aumentar el consumo de energía con fondos dinámicos y un radio de desenfoque alto. Con fondos estáticos, el impacto en el consumo es insignificante.</string>
 
     <string name="terminal_onclick_url_open_title">Abrir enlaces al tocar</string>
+    <string name="title_open_url">Abrir enlace</string>
+    <string name="action_open">Abrir</string>
     <string name="terminal_toolbar_scale_title">Escala del panel</string>
     <string name="terminal_transcript_rows_summary">Número de líneas que se conservan en el búfer de desplazamiento.</string>
     <string name="terminal_transcript_rows_title">Número de líneas en el búfer de desplazamiento</string>
@@ -507,6 +516,10 @@
 
     <!-- Session default title -->
     <string name="session_default_title">Terminal</string>
+    <string name="session_overview_description">Todas las sesiones de terminal</string>
+    <string name="session_overview_session_description">%1$s, sesión de terminal</string>
+    <string name="session_overview_session_selected_description">%1$s, sesión de terminal, seleccionada</string>
+    <string name="session_overview_close_session_description">Cerrar la sesión %1$s</string>
     <string name="terminal_category_title">Terminal</string>
 
     <!-- Termux App Preferences (titles with entity references) -->

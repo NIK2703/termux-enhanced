@@ -135,6 +135,7 @@
     <string name="color_scheme_dark_summary">深色应用主题下使用的配色方案</string>
 
     <string name="input_history_max_title">输入历史的最大条目数</string>
+    <string name="input_history_max_popup_limit_summary">输入历史弹窗中仅显示前 %1$d 条记录，其余记录可通过自动补全使用。</string>
     <string name="per_directory_input_history_title">按目录分别保存输入历史</string>
     <string name="per_directory_input_history_summary">为每个工作目录分别保存输入历史。关闭后，所有会话共享同一个全局历史。</string>
     <string name="text_input_append_enter_title">发送时附加 Enter</string>
@@ -184,6 +185,10 @@
     <string name="error_settings_restore_open_input">无法打开要读取的文件</string>
     <string name="tab_close_description">关闭标签页</string>
     <string name="session_default_title">终端</string>
+    <string name="session_overview_description">所有终端会话</string>
+    <string name="session_overview_session_description">%1$s，终端会话</string>
+    <string name="session_overview_session_selected_description">%1$s，终端会话，已选中</string>
+    <string name="session_overview_close_session_description">关闭会话 %1$s</string>
     <string name="text_input_toggle_button_title">输入面板切换按钮</string>
     <string name="text_input_over_terminal_title">输入面板置于终端之上</string>
 
@@ -254,8 +259,11 @@
     <string name="termux_tab_panel_position_title">标签页面板位置</string>
     <string name="termux_tab_panel_position_top">顶部</string>
     <string name="termux_tab_panel_position_bottom">底部</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">底部，横屏时顶部</string>
 
     
+    <string name="autocomplete_sentences_enabled_title">句子自动补全</string>
+    <string name="autocomplete_sentences_enabled_summary">输入时从输入历史中提供句子自动补全建议。</string>
     <string name="suggestions_max_count_title">自动补全建议的最大数量</string>
 
     <string name="appearance_category_title">外观</string>
@@ -282,6 +290,9 @@
     <string name="extra_keys_text_all_caps_title">按钮标签全大写</string>
     <string name="window_category_title">窗口</string>
     <string name="tabs_category_title">标签页</string>
+    <string name="session_overview_preview_throttle_title">概览模式下终端的最大刷新率</string>
+    <string name="session_overview_preview_throttle_unit">帧/秒</string>
+    <string name="session_overview_preview_throttle_off_value">关闭</string>
     <string name="input_panel_title">输入面板</string>
 
     <string name="theme_mode_entry_dark">深色</string>
@@ -297,7 +308,7 @@
     <string name="extra_keys_visibility_title">显示额外按钮面板</string>
     <string name="extra_keys_visibility_always">始终显示</string>
     <string name="extra_keys_visibility_keyboard">仅键盘打开时</string>
-    <string name="extra_keys_visibility_keyboard_landscape">始终显示，仅在横屏且键盘打开时</string>
+    <string name="extra_keys_visibility_keyboard_landscape">始终显示，横屏时仅在键盘打开时显示</string>
     <string name="extra_keys_visibility_never">从不显示</string>
 
     
@@ -426,6 +437,8 @@
     <string name="scroll_on_new_output_title">新输出时自动滚动</string>
 
     <string name="terminal_onclick_url_open_title">点按打开链接</string>
+    <string name="title_open_url">打开链接</string>
+    <string name="action_open">打开</string>
 
     <string name="fullscreen_title">全屏</string>
     <string name="fullscreen_mode_entry_off">禁用</string>

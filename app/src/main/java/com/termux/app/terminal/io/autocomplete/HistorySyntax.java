@@ -62,6 +62,26 @@ final class HistorySyntax {
         return sentenceStart;
     }
 
+    /**
+     * Zero-based index of the sentence starting at {@code sentenceStart} on the
+     * line starting at {@code lineStart}: the number of sentence boundaries in
+     * between. A terminator counts only when it is followed by whitespace or the
+     * end of the text, matching {@link #activeSentenceStart}.
+     */
+    static int activeSentenceIndex(@NonNull CharSequence text, int lineStart, int sentenceStart) {
+        final int end = Math.min(sentenceStart, text.length());
+        final int start = Math.max(0, lineStart);
+        int count = 0;
+        for (int i = start; i < end; i++) {
+            final char c = text.charAt(i);
+            if (isSentenceEnd(c)
+                    && (i + 1 >= text.length() || isWhitespace(text.charAt(i + 1)))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static int clampCaret(@NonNull CharSequence text, int caret) {
         if (caret < 0) return 0;
         if (caret > text.length()) return text.length();
@@ -69,7 +89,7 @@ final class HistorySyntax {
     }
 
     /** Exclusive end of the sentence starting at {@code start}. */
-    static int findSentenceEnd(@NonNull String entry, int start, int end) {
+    static int findSentenceEnd(@NonNull CharSequence entry, int start, int end) {
         for (int i = start; i < end; i++) {
             char c = entry.charAt(i);
             if (isSentenceEnd(c) && (i + 1 == end || isWhitespace(entry.charAt(i + 1)))) {

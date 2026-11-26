@@ -126,6 +126,7 @@
 <string name="color_scheme_dark_title">Terminal renk şeması (koyu tema)</string>
 <string name="color_scheme_dark_summary">Uygulama teması koyuyken uygulanan renk şeması</string>
 <string name="input_history_max_title">Geçmişte tutulacak en fazla giriş sayısı</string>
+<string name="input_history_max_popup_limit_summary">Giriş geçmişi açılır penceresinde yalnızca ilk %1$d giriş gösterilir; geri kalanına otomatik tamamlama yoluyla ulaşılabilir.</string>
 <string name="per_directory_input_history_title">Dizin başına giriş geçmişi</string>
 <string name="per_directory_input_history_summary">Her çalışma dizini için ayrı bir giriş geçmişi tutun. Kapalıyken tüm oturumlar ortak bir geçmiş kullanır.</string>
 <string name="text_input_append_enter_title">Gönderirken Enter ekle</string>
@@ -182,6 +183,7 @@
     <string name="termux_tab_panel_position_title">Sekme paneli konumu</string>
     <string name="termux_tab_panel_position_top">Üst</string>
     <string name="termux_tab_panel_position_bottom">Alt</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">Alt, yatay yönde üst</string>
     <string name="text_input_toggle_button_title">Giriş panelini aç/kapat düğmesi</string>
     <string name="text_input_over_terminal_title">Giriş panelini terminalin üstünde</string>
 
@@ -249,6 +251,8 @@
 
 
     
+    <string name="autocomplete_sentences_enabled_title">Cümle otomatik tamamlama</string>
+    <string name="autocomplete_sentences_enabled_summary">Yazarken giriş geçmişinden cümle otomatik tamamlama öner.</string>
     <string name="suggestions_max_count_title">En fazla otomatik tamamlama önerisi</string>
 <string name="appearance_category_title">Görünüm</string>
 <string name="input_preferences_title">Giriş</string>
@@ -273,6 +277,9 @@
 <string name="extra_keys_text_all_caps_title">Etiket metinleri büyük harf</string>
 <string name="window_category_title">Pencere</string>
 <string name="tabs_category_title">Sekmeler</string>
+    <string name="session_overview_preview_throttle_title">Genel bakış modunda en yüksek terminal yenileme hızı</string>
+    <string name="session_overview_preview_throttle_unit">fps</string>
+    <string name="session_overview_preview_throttle_off_value">KAPALI</string>
     <string name="action_failsafe_mode">Güvenli mod</string>
     <string name="theme_mode_entry_dark">Koyu</string>
     <string name="theme_mode_entry_light">Açık</string>
@@ -287,7 +294,7 @@
     <string name="extra_keys_visibility_title">Ek düğmeler panelini göster</string>
     <string name="extra_keys_visibility_always">Her zaman</string>
     <string name="extra_keys_visibility_keyboard">Yalnızca klavye açıkken</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Her zaman, yalnızca yatay yönde klavye açıkken</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Her zaman, yatay modda yalnızca klavye açıkken</string>
     <string name="extra_keys_visibility_never">Asla</string>
 
     
@@ -425,6 +432,8 @@
 
     
     <string name="terminal_onclick_url_open_title">Bağlantılara dokununca aç</string>
+    <string name="title_open_url">Bağlantıyı aç</string>
+    <string name="action_open">Aç</string>
 
     
     <string name="fullscreen_title">Tam ekran</string>
@@ -555,6 +564,10 @@
 
     <!-- Session tabs -->
     <string name="session_default_title">Terminal</string>
+    <string name="session_overview_description">Tüm terminal oturumları</string>
+    <string name="session_overview_session_description">%1$s, terminal oturumu</string>
+    <string name="session_overview_session_selected_description">%1$s, terminal oturumu, seçili</string>
+    <string name="session_overview_close_session_description">%1$s oturumunu kapat</string>
 
     <string name="terminal_category_title">Terminal</string>
 

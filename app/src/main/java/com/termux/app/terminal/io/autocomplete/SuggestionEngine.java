@@ -158,6 +158,8 @@ final class SuggestionEngine {
         // the entry's first sentence as a rollback candidate.
         final String[] entries = snap.entries;
         final boolean typingLaterSentence = lineStart == 0 && sentenceStart > 0;
+        // Lazily computed only when a rollback candidate is about to be emitted.
+        int completedSentenceCount = -1;
         // Full candidates form a prefix of out; count them instead of allocating a flag array.
         int fullCount = 0;
         while (fullCount < out.size() && out.get(fullCount).kind == Kind.FULL) {
@@ -186,8 +188,53 @@ final class SuggestionEngine {
                     rollbackEnd = firstEnd;
                 }
             }
+            final boolean firstSentenceMatched = rollbackEnd > 0;
+            // The rollback is only safe when the entry agrees with every sentence
+            // already typed on the line. Sharing the first sentence alone is not
+            // enough: a later sentence of a different entry must not discard the
+            // text the user already typed.
+            if (rollbackEnd > 0) {
+                if (completedSentenceCount < 0) {
+                    completedSentenceCount = HistorySyntax.activeSentenceIndex(
+                            text, lineStart, sentenceStart);
+                }
+                if (!entryMatchesTypedPrefix(snap, e, text, lineStart, sentenceStart,
+                        foldedLine, completedSentenceCount)) {
+                    rollbackEnd = -1;
+                }
+            }
+            // Emit the rollback before the sentence loop so it keeps priority over
+            // sentence candidates, but only when a sentence at or after the active
+            // position matches. A match on an already typed sentence must not roll
+            // the line back over that text.
+            if (rollbackEnd > 0) {
+                final int firstCandidate = Math.max(startSentence,
+                        Math.max(1, completedSentenceCount));
+                for (int s = firstCandidate; s < sentenceCount; s++) {
+                    if (snap.isSentenceDismissed(e, s)) continue;
+                    final int windowStart = snap.sentenceStart(e, s);
+                    final int windowEnd = snap.sentenceEnd(e, s);
+                    if (sentenceLen > 0 && windowEnd - windowStart >= sentenceLen
+                            && foldedMatches(snap.fold(e), windowStart,
+                                    foldedSentence, foldedSentenceStart, sentenceLen)) {
+                        if (seen.add(new String(snap.fold(e),
+                                rollbackStart, rollbackEnd - rollbackStart))) {
+                            final String first = entries[e].substring(rollbackStart, rollbackEnd);
+                            out.add(new Candidate(first, Kind.SENTENCE, e, snap.entryId(e), 0,
+                                    rollbackStart, rollbackEnd, true));
+                            if (out.size() >= maxCount) {
+                                pos.entry = e;
+                                pos.sentence = s;
+                                pos.atEnd = false;
+                                return;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
             for (int s = startSentence; s < sentenceCount; s++) {
-                if (s == 0 && (rollbackEnd > 0 || fullShown)) continue;
+                if (s == 0 && (firstSentenceMatched || fullShown)) continue;
                 if (snap.isSentenceDismissed(e, s)) continue;
                 final int windowStart = snap.sentenceStart(e, s);
                 final int windowEnd = snap.sentenceEnd(e, s);
@@ -196,22 +243,6 @@ final class SuggestionEngine {
                         || !foldedMatches(snap.fold(e), windowStart,
                                 foldedSentence, foldedSentenceStart, sentenceLen)) {
                     continue;
-                }
-                if (rollbackEnd > 0) {
-                    final int firstStart = rollbackStart;
-                    final int firstEnd = rollbackEnd;
-                    rollbackEnd = -1;
-                    if (seen.add(new String(snap.fold(e), firstStart, firstEnd - firstStart))) {
-                        final String first = entries[e].substring(firstStart, firstEnd);
-                        out.add(new Candidate(first, Kind.SENTENCE, e, snap.entryId(e), 0,
-                                firstStart, firstEnd, true));
-                        if (out.size() >= maxCount) {
-                            pos.entry = e;
-                            pos.sentence = s;
-                            pos.atEnd = false;
-                            return;
-                        }
-                    }
                 }
                 // An exact match is only useful as the rollback trigger above.
                 if (windowLen <= sentenceLen) continue;
@@ -263,6 +294,39 @@ final class SuggestionEngine {
         final int windowEnd = snap.firstLineEnd(entryIndex);
         return lineLen > 0 && windowEnd > lineLen
                 && foldedMatches(snap.fold(entryIndex), 0, foldedLine, 0, lineLen);
+    }
+
+    /**
+     * Whether the history entry's first {@code count} sentences match the typed
+     * line's first {@code count} sentences, ignoring case and edge whitespace.
+     * The rollback is only safe when the entry agrees with every sentence already
+     * typed on the line; sharing just the first sentence is not enough.
+     */
+    private static boolean entryMatchesTypedPrefix(@NonNull HistorySnapshot snap, int entryIndex,
+            @NonNull CharSequence text, int lineStart, int sentenceStart,
+            @NonNull char[] foldedLine, int count) {
+        if (count <= 0) return true;
+        if (snap.sentenceCount(entryIndex) < count) return false;
+
+        int typedStart = lineStart;
+        for (int i = 0; i < count; i++) {
+            while (typedStart < sentenceStart
+                    && HistorySyntax.isWhitespace(text.charAt(typedStart))) {
+                typedStart++;
+            }
+            final int typedEnd = HistorySyntax.findSentenceEnd(text, typedStart, sentenceStart);
+            if (typedEnd <= typedStart) return false;
+            final int entryStart = snap.sentenceStart(entryIndex, i);
+            final int entryEnd = snap.sentenceEnd(entryIndex, i);
+            final int len = entryEnd - entryStart;
+            if (len != typedEnd - typedStart) return false;
+            if (!foldedMatches(snap.fold(entryIndex), entryStart,
+                    foldedLine, typedStart - lineStart, len)) {
+                return false;
+            }
+            typedStart = typedEnd;
+        }
+        return true;
     }
 
     /** Fold a typed prefix once so the hot comparisons are plain char reads. */
@@ -319,5 +383,10 @@ final class SuggestionEngine {
      */
     static int activeSentenceStart(@NonNull CharSequence text, int caret) {
         return HistorySyntax.activeSentenceStart(text, caret);
+    }
+
+    /** Zero-based index of the active sentence on its line. */
+    static int activeSentenceIndex(@NonNull CharSequence text, int lineStart, int sentenceStart) {
+        return HistorySyntax.activeSentenceIndex(text, lineStart, sentenceStart);
     }
 }

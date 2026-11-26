@@ -78,6 +78,8 @@ public final class TermuxAppConstants {
         /** Two lines in portrait, one line in landscape. */
         public static final String TAB_HEIGHT_MODE_DOUBLE_LANDSCAPE_SINGLE = "double_landscape_single";
         public static final String TAB_PANEL_POSITION = "tab_panel_position";
+        /** Bottom in portrait, top in landscape. */
+        public static final String TAB_PANEL_POSITION_BOTTOM_LANDSCAPE_TOP = "bottom_landscape_top";
         public static final String SCREEN_ORIENTATION = "screen_orientation";
         public static final String SWIPE_RIGHTMOST_NEW_TAB = "swipe_rightmost_new_tab";
         public static final String NEW_TAB_IN_ACTIVE_SESSION_DIRECTORY = "new_tab_in_active_session_directory";

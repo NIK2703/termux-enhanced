@@ -9,11 +9,14 @@
     <!-- The root casts no shadow. SessionOverviewCardView draws the card outline in the floating
          controls' stroke colour; its preview and compact tab remain chrome-free. -->
 
+    <!-- MATRIX draws the preview 1:1. fitXY used to stretch a stale or trimmed bitmap to the
+         card, which widened glyphs and opened gaps between cells; the controller now always
+         renders the bitmap at the view's own size. -->
     <ImageView
         android:id="@+id/session_overview_preview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="fitXY"
+        android:scaleType="matrix"
         android:importantForAccessibility="no" />
 
     <!-- A compact clone of a tab-strip tab. It sits over the preview, inset from the card's

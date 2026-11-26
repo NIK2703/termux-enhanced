@@ -15,6 +15,13 @@ public final class SessionOverviewTransitionMath {
     public static final long DURATION_MS = 300L;
 
     /**
+     * The reveal is the exact time reverse of the X-button close: same duration and scale
+     * endpoint, played from transparent/small to opaque/full size.
+     */
+    public static final long ADD_APPEAR_DURATION_MS = 160L;
+    public static final float ADD_APPEAR_START_SCALE = 0.92f;
+
+    /**
      * Progress by which the copy of a flying tab at its source has fully faded out. The fade
      * covers the first third of the flight, so the tab disappears after travelling 33% of its
      * path and crosses the remaining sixth of the line — one third of the source half —
@@ -196,6 +203,34 @@ public final class SessionOverviewTransitionMath {
      */
     public static float closingCardAlpha(float progress) {
         return tabSourceAlpha(progress);
+    }
+
+    /**
+     * Rightward shift of the scrollbar thumb while the overview fades it out. The thumb belongs
+     * to the live terminal, which the overview hides in one frame; a flying copy follows this
+     * offset so the hand-off reads as the handle sliding out from under the terminal instead of
+     * blinking away.
+     */
+    public static final float SCROLLBAR_THUMB_SHIFT_DP = 6f;
+
+    /** Opening thumb offset: from the resting position to the right by {@code shiftPx}. */
+    public static float openingScrollbarThumbTranslation(float progress, float shiftPx) {
+        return clamp01(progress) * shiftPx;
+    }
+
+    /** Opening thumb opacity: fully visible at the start, fully transparent at the end. */
+    public static float openingScrollbarThumbAlpha(float progress) {
+        return 1f - clamp01(progress);
+    }
+
+    /** Closing thumb offset: the exact reverse, from the shifted position back to rest. */
+    public static float closingScrollbarThumbTranslation(float progress, float shiftPx) {
+        return (1f - clamp01(progress)) * shiftPx;
+    }
+
+    /** Closing thumb opacity: the exact reverse, from transparent back to fully visible. */
+    public static float closingScrollbarThumbAlpha(float progress) {
+        return clamp01(progress);
     }
 
     public static int lerp(int start, int end, float progress) {

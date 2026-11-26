@@ -128,11 +128,35 @@ public final class DirectoryHistoryPopupController {
     }
 
     /**
-     * Build and show the directory-history popup anchored above the new-tab
-     * button. Newest-at-bottom, a top "CLEAR HISTORY…" row wipes the whole list.
-     * Picking a directory opens a fresh session starting in that directory.
+     * Build and show the directory-history popup on the side of the anchor selected by
+     * {@link #setInverted(boolean)}. Newest-at-bottom, a top "CLEAR HISTORY…" row wipes the whole
+     * list. Picking a directory opens a fresh session starting in that directory.
      */
     public void show(@NonNull View anchor) {
+        show(anchor, !mInverted);
+    }
+
+    /**
+     * Show the popup on an explicit side of the anchor for this call.
+     *
+     * <p>The default side follows the tab strip: below a top strip, above a bottom one. The
+     * overview's add button always sits at the bottom of the screen, so it has to ask for the
+     * "above" placement regardless of where the tab strip is configured to sit. The per-controller
+     * preference is restored afterwards, so the next tab-strip swipe keeps its own direction.</p>
+     *
+     * @param aboveAnchor true to open above the anchor, false to open below it
+     */
+    public void show(@NonNull View anchor, boolean aboveAnchor) {
+        final boolean previousInverted = mInverted;
+        mInverted = !aboveAnchor;
+        try {
+            showInternal(anchor);
+        } finally {
+            mInverted = previousInverted;
+        }
+    }
+
+    private void showInternal(@NonNull View anchor) {
         dismiss();
         mItemViews.clear();
         mHighlightIndex = -1;

@@ -121,6 +121,7 @@
     <string name="color_scheme_dark_title">Jeu de couleurs du terminal (Thème sombre)</string>
     <string name="color_scheme_dark_summary">Jeu de couleurs appliqué lorsque le thème de l\'application est sombre</string>
     <string name="input_history_max_title">Nombre maximal d\'éléments dans l\'historique de saisie</string>
+    <string name="input_history_max_popup_limit_summary">Seules les %1$d premières entrées sont affichées dans la fenêtre de l’historique de saisie ; les autres sont accessibles via la saisie semi-automatique.</string>
     <string name="per_directory_input_history_title">Historique de saisie par répertoire</string>
     <string name="per_directory_input_history_summary">Conserver un historique de saisie distinct pour chaque répertoire de travail. Lorsque l\'option est désactivée, toutes les sessions partagent un historique commun.</string>
     <string name="text_input_append_enter_title">Ajouter la touche Entrée lors de l\'envoi</string>
@@ -232,14 +233,17 @@
     <string name="termux_tab_height_mode_title">Hauteur de l\'onglet</string>
     <string name="termux_tab_height_mode_single">Ligne unique</string>
     <string name="termux_tab_height_mode_double">Deux lignes</string>
-    <string name="termux_tab_height_mode_double_landscape_single">Deux lignes, une ligne en orientation paysage</string>
+    <string name="termux_tab_height_mode_double_landscape_single">Deux lignes, une ligne en mode paysage</string>
     <string name="termux_tab_panel_position_title">Position du panneau d\'onglets</string>
     <string name="termux_tab_panel_position_top">Haut</string>
     <string name="termux_tab_panel_position_bottom">Bas</string>
+    <string name="termux_tab_panel_position_bottom_landscape_top">Bas, en haut en mode paysage</string>
 
     
 
     
+    <string name="autocomplete_sentences_enabled_title">Saisie semi-automatique des phrases</string>
+    <string name="autocomplete_sentences_enabled_summary">Proposer des complétions de phrases à partir de l’historique de saisie pendant la frappe.</string>
     <string name="suggestions_max_count_title">Nombre maximal de suggestions de saisie semi-automatique</string>
     <string name="appearance_category_title">Apparence</string>
     <string name="input_preferences_title">Saisie</string>
@@ -265,6 +269,9 @@
     <string name="extra_keys_style_none">Aucun</string>
     <string name="extra_keys_text_all_caps_title">Libellés en majuscules</string>
     <string name="tabs_category_title">Onglets</string>
+    <string name="session_overview_preview_throttle_title">Fréquence de rafraîchissement maximale du terminal en mode aperçu</string>
+    <string name="session_overview_preview_throttle_unit">i/s</string>
+    <string name="session_overview_preview_throttle_off_value">DÉSACTIVÉ</string>
     <string name="input_panel_title">Panneau de saisie</string>
     <string name="window_category_title">Fenêtre</string>
     <string name="theme_mode_entry_dark">Sombre</string>
@@ -279,7 +286,7 @@
     <string name="extra_keys_visibility_title">Afficher le panneau de boutons supplémentaires</string>
     <string name="extra_keys_visibility_always">Toujours</string>
     <string name="extra_keys_visibility_keyboard">Uniquement quand le clavier est ouvert</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Toujours, uniquement avec le clavier ouvert en orientation paysage</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Toujours, en mode paysage uniquement avec le clavier ouvert</string>
     <string name="extra_keys_visibility_never">Jamais</string>
 
     
@@ -395,7 +402,7 @@
     
     <string name="fullscreen_title">Plein écran</string>
     <string name="fullscreen_mode_entry_off">Désactiver</string>
-    <string name="fullscreen_mode_entry_landscape">Activer en orientation paysage</string>
+    <string name="fullscreen_mode_entry_landscape">Activer en mode paysage</string>
     <string name="fullscreen_mode_entry_on">Activer</string>
     <string name="extend_into_cutout_title">Étendre dans l\'encoche</string>
     <string name="bubble_on_background_title">Bulle en arrière-plan</string>
@@ -462,6 +469,8 @@
 
     
     <string name="terminal_onclick_url_open_title">Ouvrir les liens par appui</string>
+    <string name="title_open_url">Ouvrir le lien</string>
+    <string name="action_open">Ouvrir</string>
 
     
     <string name="termux_api_debugging_title">Débogage Termux:API</string>
@@ -538,6 +547,10 @@
 
     <!-- Session default title -->
     <string name="session_default_title">Terminal</string>
+    <string name="session_overview_description">Toutes les sessions de terminal</string>
+    <string name="session_overview_session_description">%1$s, session de terminal</string>
+    <string name="session_overview_session_selected_description">%1$s, session de terminal, sélectionnée</string>
+    <string name="session_overview_close_session_description">Fermer la session %1$s</string>
 
     <!-- Message history OK -->
     <string name="input_history_clear_ok">OK</string>
