@@ -299,7 +299,7 @@
     <string name="extra_keys_visibility_title">Mostrar painel de botões extras</string>
     <string name="extra_keys_visibility_always">Sempre</string>
     <string name="extra_keys_visibility_keyboard">Apenas quando o teclado estiver aberto</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Sempre, no modo paisagem apenas com o teclado aberto</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Sempre; no modo paisagem, apenas quando o teclado estiver aberto</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     

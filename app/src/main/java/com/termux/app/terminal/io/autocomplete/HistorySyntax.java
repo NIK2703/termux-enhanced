@@ -99,9 +99,21 @@ final class HistorySyntax {
         return end;
     }
 
-    /** Parse line and trimmed sentence offsets for one entry. */
+    /**
+     * Parse only the data the full-entry tier needs: the end of the first line and
+     * the case-folded entry. Sentence offsets are parsed lazily, and only while
+     * sentence suggestions are enabled.
+     */
     @NonNull
-    static HistorySnapshot.Spans parseSpans(@NonNull String entry) {
+    static HistorySnapshot.Spans parseFullSpans(@NonNull String entry) {
+        final int newline = entry.indexOf('\n');
+        final int firstLineEnd = newline < 0 ? entry.length() : newline;
+        return new HistorySnapshot.Spans(firstLineEnd, fold(entry));
+    }
+
+    /** Parse the trimmed sentence offsets for one entry. */
+    @NonNull
+    static HistorySnapshot.SentenceSpans parseSentences(@NonNull String entry) {
         int lines = 1;
         for (int j = 0; j < entry.length(); j++) {
             if (entry.charAt(j) == '\n') lines++;
@@ -143,12 +155,17 @@ final class HistorySyntax {
                 pos = next;
             }
         }
+        return new HistorySnapshot.SentenceSpans(sStarts, sEnds, count);
+    }
+
+    /** Case-folded copy of {@code entry}, matching the per-character fold used by the engine. */
+    @NonNull
+    private static char[] fold(@NonNull String entry) {
         char[] fold = new char[entry.length()];
         for (int i = 0; i < entry.length(); i++) {
             fold[i] = Character.toLowerCase(entry.charAt(i));
         }
-        int firstLineEnd = lines > 1 ? starts[1] - 1 : entry.length();
-        return new HistorySnapshot.Spans(starts, sStarts, sEnds, count, firstLineEnd, fold);
+        return fold;
     }
 
     private static int lineEnd(String entry, int[] starts, int line) {

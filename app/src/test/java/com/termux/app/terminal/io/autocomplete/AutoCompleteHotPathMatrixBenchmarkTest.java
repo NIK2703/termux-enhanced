@@ -196,7 +196,9 @@ public class AutoCompleteHotPathMatrixBenchmarkTest {
             mBench.measureBatch("syntax", "activeSentenceStart", n, 20000, 7, 2,
                     () -> SuggestionEngine.activeSentenceStart(typed, typed.length()));
             mBench.measureBatch("syntax", "parseSpans", n, 1000, 7, 2,
-                    () -> HistorySnapshot.parseSpans(history.get(0)).sentenceCount);
+                    () -> HistorySnapshot.parseSpans(history.get(0)).firstLineEnd);
+            mBench.measureBatch("syntax", "parseSentences", n, 1000, 7, 2,
+                    () -> HistorySnapshot.parseSentences(history.get(0)).count);
 
             final SuggestionEngine.ScanPos pos = new SuggestionEngine.ScanPos();
             final List<SuggestionEngine.Candidate> out = new ArrayList<>();

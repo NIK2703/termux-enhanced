@@ -190,6 +190,10 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
                 mSuggestionNormalBg, colorSchemeManager.getHistoryHighlightFill());
         mSuggestionTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         readPreferences();
+        // Keep the history index in the same mode as this controller. The history
+        // controller is a process-wide singleton and may have loaded before the
+        // activity applied the preference.
+        mMessageHistoryCtrl.setSentenceIndexEnabled(mSentenceSuggestionsEnabled);
         Resources res = context.getResources();
         mPopupCornerRadiusPx = res.getDimensionPixelSize(R.dimen.autocomplete_popup_corner_radius);
         mPopupElevationPx = res.getDimensionPixelSize(R.dimen.autocomplete_popup_elevation);
@@ -352,7 +356,10 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     /** Re-read the auto-complete settings and discard the current popup state. */
     public void reloadPreferences() {
         readPreferences();
+        mMessageHistoryCtrl.setSentenceIndexEnabled(mSentenceSuggestionsEnabled);
         mLastBuiltHistoryVersion = -1;
+        mSnapshot = null;
+        mSnapshotVersion = -1;
         mForceRescanOnNextUpdate = true;
         mForceFullRescan = true;
         mAutoCompletePrevLen = -1;
@@ -370,8 +377,14 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (newCaret >= 0) {
             mTypedLineStart = SuggestionEngine.activeLineStart(mInputField.getText(), newCaret);
             mTypedLineLen = newCaret - mTypedLineStart;
-            mTypedTailStart = SuggestionEngine.activeSentenceStart(mInputField.getText(), newCaret);
-            mTypedTailLen = newCaret - mTypedTailStart;
+            if (mSentenceSuggestionsEnabled) {
+                mTypedTailStart = SuggestionEngine.activeSentenceStart(
+                        mInputField.getText(), newCaret);
+                mTypedTailLen = newCaret - mTypedTailStart;
+            } else {
+                mTypedTailStart = mTypedLineStart;
+                mTypedTailLen = mTypedLineLen;
+            }
             mPendingTerminator = -1;
             mTailCandidateStart = -1;
             mBasesValid = true;
@@ -603,6 +616,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
 
         // Full entries match after the last newline; sentences match after the last
         // sentence boundary. The single-character append path updates both in O(1).
+        // With sentence suggestions off, the line is the only base: sentence state
+        // and its incremental updates are skipped entirely.
         final boolean endAppendOne = textChanged && prevLen >= 0 && changeBefore == 0
                 && changeCount == 1 && changeStart == prevLen;
         final int prevLineStart = mTypedLineStart;
@@ -631,7 +646,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             } else {
                 lineStart = prevLineStart;
                 lineLen = prevLineLen + 1;
-                if (HistorySnapshot.isSentenceEnd(c)) {
+                if (!mSentenceSuggestionsEnabled) {
+                    tailStart = lineStart;
+                    tailLen = lineLen;
+                    mPendingTerminator = -1;
+                    mTailCandidateStart = -1;
+                    mBoundaryRun = false;
+                } else if (HistorySnapshot.isSentenceEnd(c)) {
                     mTailCandidateStart = (mPendingTerminator >= 0)
                             ? mTailCandidateStart : prevTailStart;
                     mPendingTerminator = caret - 1;
@@ -666,8 +687,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         } else {
             lineStart = SuggestionEngine.activeLineStart(text, caret);
             lineLen = caret - lineStart;
-            tailStart = SuggestionEngine.activeSentenceStart(text, caret);
-            tailLen = caret - tailStart;
+            if (mSentenceSuggestionsEnabled) {
+                tailStart = SuggestionEngine.activeSentenceStart(text, caret);
+                tailLen = caret - tailStart;
+            } else {
+                tailStart = lineStart;
+                tailLen = lineLen;
+            }
             mPendingTerminator = -1;
             mTailCandidateStart = -1;
             mBoundaryRun = false;
@@ -680,34 +706,45 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         // The popup rebinds up to displayMax rows, so compute both prefixes and their
         // word starts once per update.
         mRowLinePrefix = text.subSequence(lineStart, textLen).toString();
-        mRowTail = text.subSequence(tailStart, textLen).toString();
         mRowLineWordStart = AutoCompleteTextRenderer.wordStartOffset(mRowLinePrefix);
-        mRowTailWordStart = AutoCompleteTextRenderer.wordStartOffset(mRowTail);
-        if (textChanged || lineStart != prevLineStart || lineLen != prevLineLen
-                || tailStart != prevTailStart || tailLen != prevTailLen) {
+        if (mSentenceSuggestionsEnabled) {
+            mRowTail = text.subSequence(tailStart, textLen).toString();
+            mRowTailWordStart = AutoCompleteTextRenderer.wordStartOffset(mRowTail);
+        } else {
+            // No sentence suggestions: the row highlight follows the whole line.
+            mRowTail = mRowLinePrefix;
+            mRowTailWordStart = mRowLineWordStart;
+        }
+        final boolean lineBaseChanged = textChanged
+                || lineStart != prevLineStart || lineLen != prevLineLen;
+        final boolean tailBaseChanged = mSentenceSuggestionsEnabled
+                && (tailStart != prevTailStart || tailLen != prevTailLen);
+        if (lineBaseChanged || tailBaseChanged) {
             mPrefixVersion++;
         }
-        if (tailLen < mMinPrefix) {
+        final int scanLen = mSentenceSuggestionsEnabled ? tailLen : lineLen;
+        if (scanLen < mMinPrefix) {
             dismissAutoCompleteSuggestions();
             resetCandidates();
             return;
         }
 
         // A new line or sentence boundary invalidates the old candidate set.
-        final boolean structural =
-                (lineStart != prevLineStart || tailStart != prevTailStart);
+        final boolean structural = lineStart != prevLineStart
+                || (mSentenceSuggestionsEnabled && tailStart != prevTailStart);
         if (structural) {
             resetCandidates();
             dismissAutoCompleteSuggestions();
         }
 
-        // Additive append within the same sentence.
+        // Additive append within the same sentence (or line, when sentences are off).
         boolean additive = false;
         if (!structural && endAppendOne
                 && !mCandidates.isEmpty()
                 && mSnapshot != null
                 && lineStart == prevLineStart && lineLen == prevLineLen + 1
-                && tailStart == prevTailStart && tailLen == prevTailLen + 1) {
+                && (!mSentenceSuggestionsEnabled
+                        || (tailStart == prevTailStart && tailLen == prevTailLen + 1))) {
             additive = true;
         }
         // A swipe changes text arbitrarily, so the filter does not apply.
@@ -720,7 +757,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (!additive && !structural && !mCandidates.isEmpty()
                 && deletion
                 && lineStart == prevLineStart && lineLen < prevLineLen
-                && tailStart == prevTailStart && tailLen < prevTailLen) {
+                && (!mSentenceSuggestionsEnabled
+                        || (tailStart == prevTailStart && tailLen < prevTailLen))) {
             rebuildCandidates(text, lineStart, lineLen, tailStart, tailLen, maxCount);
             mLastBuiltHistoryVersion = mMessageHistoryCtrl.getHistoryVersion();
             if (!revealAfterSwipeIfExpanded(candidateCountBefore)) return;
@@ -748,7 +786,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         // subset of the current ones, so this costs O(maxCount) with no allocations.
         final char newChar = text.charAt(caret - 1);
         final int beforeFilter = mCandidates.size();
-        SuggestionEngine.filter(mCandidates, mSnapshot, prevLineLen, prevTailLen, newChar);
+        SuggestionEngine.filter(mCandidates, mSnapshot, prevLineLen,
+                mSentenceSuggestionsEnabled ? prevTailLen : prevLineLen, newChar);
         final boolean listChanged = mCandidates.size() != beforeFilter;
         mTypedLineLen = lineLen;
         mTypedTailLen = tailLen;
@@ -762,8 +801,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             for (int i = 0; i < mCandidates.size(); i++) {
                 mSeenSet.add(SuggestionEngine.foldedKey(mCandidates.get(i).text));
             }
-            SuggestionEngine.scan(mSnapshot, text, lineStart, lineLen, tailStart, tailLen,
-                    mSentenceSuggestionsEnabled, maxCount, mScanPos, mCandidates, mSeenSet);
+            if (mSentenceSuggestionsEnabled) {
+                SuggestionEngine.scan(mSnapshot, text, lineStart, lineLen, tailStart, tailLen,
+                        maxCount, mScanPos, mCandidates, mSeenSet);
+            } else {
+                SuggestionEngine.scanFullOnly(mSnapshot, text, lineStart, lineLen,
+                        maxCount, mScanPos, mCandidates, mSeenSet);
+            }
             mScannedAll = mScanPos.atEnd;
         }
         final boolean topUpAdded = mCandidates.size() != beforeTopUp;
@@ -800,8 +844,13 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         mTypedTailStart = tailStart;
         mTypedTailLen = tailLen;
         mSeenSet.clear();
-        SuggestionEngine.scan(mSnapshot, text, lineStart, lineLen, tailStart, tailLen,
-                mSentenceSuggestionsEnabled, maxCount, mScanPos, mCandidates, mSeenSet);
+        if (mSentenceSuggestionsEnabled) {
+            SuggestionEngine.scan(mSnapshot, text, lineStart, lineLen, tailStart, tailLen,
+                    maxCount, mScanPos, mCandidates, mSeenSet);
+        } else {
+            SuggestionEngine.scanFullOnly(mSnapshot, text, lineStart, lineLen,
+                    maxCount, mScanPos, mCandidates, mSeenSet);
+        }
         mScannedAll = mScanPos.atEnd;
         rebuildSuggestionStrings();
     }
@@ -862,6 +911,24 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (mSnapshotVersion != mLastBuiltHistoryVersion
                 || mSnapshotVersion != mMessageHistoryCtrl.getHistoryVersion()) {
             return false;
+        }
+        if (!mSentenceSuggestionsEnabled) {
+            // Only full entries are shown, so the line prefix is the whole base.
+            final boolean cached = caret == text.length() && mBasesValid;
+            final int start = cached
+                    ? mTypedLineStart : SuggestionEngine.activeLineStart(text, caret);
+            final int len = caret - start;
+            if (len < 1) return false;
+            final char[] folded = SuggestionEngine.fold(text, start, len);
+            for (int i = 0; i < mCandidates.size(); i++) {
+                final SuggestionEngine.Candidate c = mCandidates.get(i);
+                if (c.kind != SuggestionEngine.Kind.FULL
+                        || !SuggestionEngine.matchesFull(
+                                mSnapshot, c.entryIndex, folded, len)) {
+                    return false;
+                }
+            }
+            return true;
         }
         // At the end of unchanged text the incrementally maintained bases are exact;
         // otherwise (caret inside the text) recompute from the text.
@@ -1153,7 +1220,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         // dismissal anchors on the candidate's stable record id, not on its position.
         ensureSnapshot();
         if (mSnapshot != null) {
-            mMessageHistoryCtrl.dismissSuggestion(candidate, mSnapshot);
+            mMessageHistoryCtrl.dismissSuggestion(
+                    candidate, mSnapshot, mSentenceSuggestionsEnabled);
         }
         // The snapshot's BitSets are live, so a later scan over the same history sees
         // the new flags without a rebuild. Keep it: consecutive swipes can still map

@@ -2,6 +2,7 @@ package com.termux.app.terminal.io.autocomplete;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
@@ -156,6 +157,23 @@ public class AutoCompleteControllerTest {
         type("git");
         assertEquals(1, suggestions().size());
         assertEquals("git two", suggestions().get(0));
+    }
+
+    @Test
+    public void sentenceSpansAreNotIndexedWhileTheSwitchIsOff() {
+        prefs.edit().putBoolean("autocomplete_sentences_enabled", false).commit();
+        controller.reloadPreferences();
+
+        history.addToMessageHistory("x\ngit two", HOME);
+        HistorySnapshot.Spans spans = history.getSpansCache().get("x\ngit two");
+        assertNotNull(spans);
+        assertFalse("OFF must not parse sentence offsets", spans.hasSentences());
+
+        prefs.edit().putBoolean("autocomplete_sentences_enabled", true).commit();
+        controller.reloadPreferences();
+        HistorySnapshot.Spans warmed = history.getSpansCache().get("x\ngit two");
+        assertNotNull(warmed);
+        assertTrue("ON must warm sentence offsets before typing", warmed.hasSentences());
     }
 
     @Test
@@ -586,6 +604,23 @@ public class AutoCompleteControllerTest {
     }
 
     @Test
+    public void deletingAFullEntryWhileOffStillHidesItsSentences() {
+        history.addToMessageHistory("git status\nsecond line", HOME);
+        prefs.edit().putBoolean("autocomplete_sentences_enabled", false).commit();
+        controller.reloadPreferences();
+
+        type("git s");
+        assertEquals(1, suggestions().size());
+        assertTrue(controller.deleteSuggestion(controller.getCandidate(0)));
+
+        prefs.edit().putBoolean("autocomplete_sentences_enabled", true).commit();
+        controller.reloadPreferences();
+        type("git status\nsec");
+        assertTrue("full-entry dismissal bit hides every sentence of the record",
+                suggestions().isEmpty());
+    }
+
+    @Test
     public void deletingAFullEntryHidesTheSameTextAsASentenceElsewhere() {
         history.addToMessageHistory("git status", HOME);
         history.addToMessageHistory("x\ngit status", HOME);
@@ -748,6 +783,24 @@ public class AutoCompleteControllerTest {
         TextView row = controller.buildSuggestionTextView(suggestions().get(0), "cd ./pro");
         assertTrue(row.performClick());
         assertEquals("cd ./project", input.getText().toString());
+    }
+
+    @Test
+    public void minPrefixUsesTheLineWhenSentencesAreOff() {
+        prefs.edit()
+                .putInt("autocomplete_min_prefix", 2)
+                .putBoolean("autocomplete_sentences_enabled", false)
+                .commit();
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        input = new EditText(activity);
+        controller = new AutoCompleteController(activity, input, history,
+                TermuxColorSchemeManager.shared());
+
+        history.addToMessageHistory("First. Second", HOME);
+        type("First. S");
+        assertEquals("the line prefix is long enough even though the sentence is not",
+                1, suggestions().size());
+        assertEquals("First. Second", suggestions().get(0));
     }
 
     @Test

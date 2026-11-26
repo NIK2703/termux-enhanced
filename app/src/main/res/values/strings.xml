@@ -484,7 +484,7 @@
     <!-- Text input auto-complete -->
     <string name="autocomplete_sentences_enabled_title">Sentence autocomplete</string>
     <string name="autocomplete_sentences_enabled_summary">Offer sentence autocomplete from the input history while typing.</string>
-    <string name="suggestions_max_count_title">Maximum auto-complete suggestions</string>
+    <string name="suggestions_max_count_title">Maximum autocomplete suggestions</string>
 
     <!-- Terminal preferences -->
     <string name="terminal_advanced_title">Advanced</string>
@@ -628,7 +628,7 @@
     <!-- Extra keys visibility entries -->
     <string name="extra_keys_visibility_always">Always</string>
     <string name="extra_keys_visibility_keyboard">Only when the keyboard is open</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Always, only when the keyboard is open in landscape orientation</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Always; in landscape orientation — only when the keyboard is open</string>
     <string name="extra_keys_visibility_never">Never</string>
 
     <!-- Extra keys editor signal entries -->

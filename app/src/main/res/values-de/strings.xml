@@ -243,7 +243,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
 
     
     <string name="autocomplete_sentences_enabled_title">Autovervollständigung für Sätze</string>
-    <string name="autocomplete_sentences_enabled_summary">Beim Tippen Satzvervollständigungen aus dem Eingabeverlauf vorschlagen.</string>
+    <string name="autocomplete_sentences_enabled_summary">Beim Tippen Autovervollständigungen für Sätze aus dem Eingabeverlauf vorschlagen.</string>
     <string name="suggestions_max_count_title">Max. Autovervollständigungsvorschläge</string>
     <string name="appearance_category_title">Erscheinungsbild</string>
     <string name="input_preferences_title">Eingabe</string>
@@ -282,7 +282,7 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="extra_keys_visibility_title">Zusatztastenleiste anzeigen</string>
     <string name="extra_keys_visibility_always">Immer</string>
     <string name="extra_keys_visibility_keyboard">Nur bei geöffneter Tastatur</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Immer, im Querformat nur bei geöffneter Tastatur</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Immer; im Querformat nur bei geöffneter Tastatur</string>
     <string name="extra_keys_visibility_never">Nie</string>
 
     

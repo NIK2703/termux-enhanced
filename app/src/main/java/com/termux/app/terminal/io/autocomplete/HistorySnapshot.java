@@ -9,9 +9,11 @@ import java.util.Map;
 
 /**
  * Read-only per-history-version view of the message history: the entries themselves
- * (no copies) plus the line/sentence offsets needed to address a single sentence
- * without splitting the entry on every keystroke. Entry text and offsets are
- * immutable; the dismissal bits are live and owned by {@link SuggestionDismissals}.
+ * (no copies) plus the offsets needed to address a first line or a single sentence
+ * without splitting the entry on every keystroke. The first-line offset and the folded
+ * copy are parsed once; sentence offsets are materialized lazily and only while
+ * sentence suggestions are enabled. Entry text and offsets are immutable; the
+ * dismissal bits are live and owned by {@link SuggestionDismissals}.
  *
  * <p>A <b>sentence</b> is a line segment that ends at a newline or at an ordinary
  * sentence terminator ({@code .}, {@code !}, {@code ?}, {@code …}) followed by
@@ -20,9 +22,10 @@ import java.util.Map;
  * newline. A terminator followed by a non-whitespace character (for example the dot
  * in {@code ./}, {@code .git} or {@code 1.2}) is not a boundary.
  *
- * <p>The offsets are parsed once per entry (see {@link #parseSpans}) and cached by
- * {@link MessageHistoryController}; {@link #build(int, List, Map)} only references
- * the cached {@link Spans}, so a snapshot rebuild is O(N) and no entry is parsed
+ * <p>The full-entry offsets are parsed once per entry (see {@link #parseSpans}) and
+ * cached by {@link MessageHistoryController}; sentence offsets are parsed on first
+ * use and cached inside the same {@link Spans}. {@link #build(int, List, Map)} only
+ * references the cached spans, so a snapshot rebuild is O(N) and no entry is parsed
  * twice.
  */
 final class HistorySnapshot {
@@ -42,15 +45,11 @@ final class HistorySnapshot {
     final int sentenceModel;
 
     /**
-     * Line/sentence offsets of one history entry. The arrays are owned by the
-     * snapshot/cache and must be treated as read-only.
+     * Offsets of one history entry. The full-entry tier only needs {@link #firstLineEnd}
+     * and {@link #fold}; sentence arrays are materialized on first use and published
+     * through a volatile field so a background history write cannot race the first read.
      */
     static final class Spans {
-        /** {@code lineStarts[line]} is the index of the first character of the line. */
-        @NonNull final int[] lineStarts;
-        @NonNull final int[] sentenceStarts;
-        @NonNull final int[] sentenceEnds;
-        final int sentenceCount;
         /** Exclusive end of the first line; cached because the full-tier scan reads it per entry. */
         final int firstLineEnd;
         /**
@@ -59,16 +58,44 @@ final class HistorySnapshot {
          * {@code toLowerCase}/{@code toUpperCase}.
          */
         @NonNull final char[] fold;
+        /** Lazily parsed sentence offsets, or null while only full-entry data is needed. */
+        private volatile SentenceSpans mSentences;
 
-        Spans(@NonNull int[] lineStarts, @NonNull int[] sentenceStarts,
-                @NonNull int[] sentenceEnds, int sentenceCount, int firstLineEnd,
-                @NonNull char[] fold) {
-            this.lineStarts = lineStarts;
-            this.sentenceStarts = sentenceStarts;
-            this.sentenceEnds = sentenceEnds;
-            this.sentenceCount = sentenceCount;
+        Spans(int firstLineEnd, @NonNull char[] fold) {
             this.firstLineEnd = firstLineEnd;
             this.fold = fold;
+        }
+
+        @NonNull
+        SentenceSpans sentences(@NonNull String entry) {
+            SentenceSpans sentences = mSentences;
+            if (sentences == null) {
+                synchronized (this) {
+                    sentences = mSentences;
+                    if (sentences == null) {
+                        sentences = HistorySyntax.parseSentences(entry);
+                        mSentences = sentences;
+                    }
+                }
+            }
+            return sentences;
+        }
+
+        boolean hasSentences() {
+            return mSentences != null;
+        }
+    }
+
+    /** Trimmed sentence windows of one entry. The arrays are read-only after construction. */
+    static final class SentenceSpans {
+        @NonNull final int[] starts;
+        @NonNull final int[] ends;
+        final int count;
+
+        SentenceSpans(@NonNull int[] starts, @NonNull int[] ends, int count) {
+            this.starts = starts;
+            this.ends = ends;
+            this.count = count;
         }
     }
 
@@ -89,10 +116,10 @@ final class HistorySnapshot {
     }
 
     /**
-     * Build a snapshot against a cache of parsed entries. Missing entries are
-     * parsed once and stored in the cache; entries already present are referenced
-     * directly. The cache is keyed by the entry text, which fully determines the
-     * offsets.
+     * Build a snapshot against a cache of parsed entries. Missing entries get their
+     * full-entry offsets parsed once and stored in the cache; entries already present
+     * are referenced directly. Sentence offsets stay lazy. The cache is keyed by the
+     * entry text, which fully determines the offsets.
      */
     @NonNull
     static HistorySnapshot build(int version, @NonNull List<String> history,
@@ -168,10 +195,16 @@ final class HistorySnapshot {
         return ids[entry];
     }
 
-    /** Parse one entry's line/sentence offsets. */
+    /** Parse one entry's full-entry offsets; sentence offsets stay lazy. */
     @NonNull
     static Spans parseSpans(@NonNull String entry) {
-        return HistorySyntax.parseSpans(entry);
+        return HistorySyntax.parseFullSpans(entry);
+    }
+
+    /** Parse one entry's sentence offsets (used by tests and the lazy span). */
+    @NonNull
+    static SentenceSpans parseSentences(@NonNull String entry) {
+        return HistorySyntax.parseSentences(entry);
     }
 
     /** Exclusive end of the first line, i.e. the window used by a full-entry candidate. */
@@ -179,16 +212,22 @@ final class HistorySnapshot {
         return spans[entry].firstLineEnd;
     }
 
+    /** Lazily parsed sentence offsets for {@code entry}. */
+    @NonNull
+    SentenceSpans sentences(int entry) {
+        return spans[entry].sentences(entries[entry]);
+    }
+
     int sentenceCount(int entry) {
-        return spans[entry].sentenceCount;
+        return sentences(entry).count;
     }
 
     int sentenceStart(int entry, int sentence) {
-        return spans[entry].sentenceStarts[sentence];
+        return sentences(entry).starts[sentence];
     }
 
     int sentenceEnd(int entry, int sentence) {
-        return spans[entry].sentenceEnds[sentence];
+        return sentences(entry).ends[sentence];
     }
 
     /** Case-folded entry text, used by the hot scan. */

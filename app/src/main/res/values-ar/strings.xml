@@ -140,7 +140,7 @@
     <string name="input_history_cleared">تم مسح سجل الإدخال</string>
     <string name="input_history_empty">سجل الإدخال فارغ</string>
     <string name="input_history_max_title">الحد الأقصى لعناصر سجل الإدخال</string>
-    <string name="input_history_max_popup_limit_summary">تُعرض أول %1$d من عناصر سجل الإدخال فقط في النافذة المنبثقة؛ ويمكن الوصول إلى الباقي عبر الإكمال التلقائي.</string>
+    <string name="input_history_max_popup_limit_summary">لا تُعرض في النافذة المنبثقة إلا أول %1$d من عناصر سجل الإدخال؛ ويمكن الوصول إلى الباقي عبر الإكمال التلقائي.</string>
     <string name="msg_add_termux_debug_info">إضافة معلومات تصحيح Termux إلى التقرير؟</string>
     <string name="msg_terminal_panel_disabling">جارٍ تعطيل لوحة الطرفية</string>
     <string name="msg_terminal_panel_enabling">جارٍ تمكين لوحة الطرفية</string>
@@ -183,7 +183,7 @@
     <string name="session_overview_description">جميع الجلسات الطرفية</string>
     <string name="session_overview_session_description">%1$s، جلسة طرفية</string>
     <string name="session_overview_session_selected_description">%1$s، جلسة طرفية، محددة</string>
-    <string name="session_overview_close_session_description">إغلاق الجلسة %1$s</string>
+    <string name="session_overview_close_session_description">إغلاق جلسة %1$s</string>
     <string name="session_null_title">جلسة فارغة (null)</string>
     <string name="new_tab_placeholder_hint">جلسة جديدة</string>
     <string name="swipe_rightmost_new_tab_title">اسحب علامة التبويب الأخيرة لجلسة جديدة</string>
@@ -292,7 +292,7 @@
     <string name="tabs_category_title">علامات التبويب</string>
     <string name="session_overview_preview_throttle_title">أقصى معدل تحديث للطرفية في وضع النظرة العامة</string>
     <string name="session_overview_preview_throttle_unit">إطار/ث</string>
-    <string name="session_overview_preview_throttle_off_value">إيقاف</string>
+    <string name="session_overview_preview_throttle_off_value">معطّل</string>
     <string name="window_category_title">نافذة</string>
 
     <string name="theme_mode_entry_dark">داكن</string>
@@ -308,7 +308,7 @@
     <string name="extra_keys_visibility_title">إظهار لوحة الأزرار الإضافية</string>
     <string name="extra_keys_visibility_always">دائمًا</string>
     <string name="extra_keys_visibility_keyboard">فقط عند فتح لوحة المفاتيح</string>
-    <string name="extra_keys_visibility_keyboard_landscape">دائمًا، وفي الوضع الأفقي فقط عند فتح لوحة المفاتيح</string>
+    <string name="extra_keys_visibility_keyboard_landscape">دائمًا؛ وفي الوضع الأفقي، فقط عند فتح لوحة المفاتيح</string>
     <string name="extra_keys_visibility_never">أبدًا</string>
 
     

@@ -288,7 +288,7 @@
     <string name="extra_keys_visibility_title">Mostrar panel de botones adicionales</string>
     <string name="extra_keys_visibility_always">Siempre</string>
     <string name="extra_keys_visibility_keyboard">Solo cuando el teclado está abierto</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Siempre, en horizontal solo con el teclado abierto</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Siempre; en horizontal, solo cuando el teclado está abierto</string>
     <string name="extra_keys_visibility_never">Nunca</string>
 
     

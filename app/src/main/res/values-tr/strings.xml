@@ -294,7 +294,7 @@
     <string name="extra_keys_visibility_title">Ek düğmeler panelini göster</string>
     <string name="extra_keys_visibility_always">Her zaman</string>
     <string name="extra_keys_visibility_keyboard">Yalnızca klavye açıkken</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Her zaman, yatay modda yalnızca klavye açıkken</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Her zaman; yatay yönde, yalnızca klavye açıkken</string>
     <string name="extra_keys_visibility_never">Asla</string>
 
     

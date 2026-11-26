@@ -97,6 +97,12 @@ public final class MessageHistoryController {
 
     private boolean mPerDirectoryMessageHistory = false;
 
+    /**
+     * Whether sentence offsets are materialized for autocomplete. When false, adding
+     * and loading history only parses the first line and the folded text.
+     */
+    private boolean mSentenceIndexEnabled = true;
+
     private final SharedPreferences mPrefs;
 
     private MessageHistoryController(@NonNull SharedPreferences prefs) {
@@ -117,6 +123,8 @@ public final class MessageHistoryController {
     private void applyStoredSettings() {
         mMessageHistoryMax = clampMaxSize(mPrefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
         mPerDirectoryMessageHistory = mPrefs.getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false);
+        mSentenceIndexEnabled = mPrefs.getBoolean(
+                TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, true);
     }
 
     // ── Persistence ──
@@ -205,6 +213,21 @@ public final class MessageHistoryController {
         return mPerDirectoryMessageHistory;
     }
 
+    /**
+     * Enable or disable materializing sentence offsets. Switching modes rebuilds the
+     * span cache; the history version is unchanged because entries and dismissals are
+     * unchanged.
+     */
+    public void setSentenceIndexEnabled(boolean enabled) {
+        if (mSentenceIndexEnabled == enabled) return;
+        mSentenceIndexEnabled = enabled;
+        if (mLoaded) rebuildSpansCache();
+    }
+
+    public boolean isSentenceIndexEnabled() {
+        return mSentenceIndexEnabled;
+    }
+
     /** Set the retention limit; lowering it trims every stored list immediately. */
     public void setMaxSize(int max) {
         mMessageHistoryMax = clampMaxSize(max);
@@ -249,12 +272,24 @@ public final class MessageHistoryController {
      */
     boolean dismissSuggestion(@NonNull SuggestionEngine.Candidate candidate,
             @NonNull HistorySnapshot snapshot) {
+        return dismissSuggestion(candidate, snapshot, true);
+    }
+
+    /**
+     * Hide a clicked window and its duplicates. With {@code includeSentences = false}
+     * the sentence windows are not walked; a full-entry dismissal still hides every
+     * sentence of that record through dismissal bit 0.
+     */
+    boolean dismissSuggestion(@NonNull SuggestionEngine.Candidate candidate,
+            @NonNull HistorySnapshot snapshot, boolean includeSentences) {
         int marked = 0;
 
         // Anchor first: this is the window the user actually swiped.
         if (mDismissals.mark(candidate.entryId, candidate.dismissalBit())) marked++;
 
         final String folded = SuggestionEngine.foldedKey(candidate.text);
+        final boolean scanSentences =
+                includeSentences || candidate.kind == SuggestionEngine.Kind.SENTENCE;
         for (int e = 0; e < snapshot.entries.length; e++) {
             final long id = snapshot.entryId(e);
             if (id <= 0) continue;
@@ -264,10 +299,11 @@ public final class MessageHistoryController {
                     && mDismissals.mark(id, 0)) {
                 marked++;
             }
-            final int sentenceCount = snapshot.sentenceCount(e);
-            for (int s = 0; s < sentenceCount; s++) {
-                final int start = snapshot.sentenceStart(e, s);
-                final int end = snapshot.sentenceEnd(e, s);
+            if (!scanSentences) continue;
+            final HistorySnapshot.SentenceSpans sentences = snapshot.sentences(e);
+            for (int s = 0; s < sentences.count; s++) {
+                final int start = sentences.starts[s];
+                final int end = sentences.ends[s];
                 if (end > start
                         && SuggestionEngine.foldedEquals(fold, start, end - start, folded)
                         && mDismissals.mark(id, s + 1)) {
@@ -317,11 +353,17 @@ public final class MessageHistoryController {
         return mSpansCache;
     }
 
-    /** Parse and cache one entry's offsets. */
+    /**
+     * Parse and cache one entry's offsets. Sentence offsets are materialized only
+     * while sentence suggestions are enabled; otherwise they stay lazy and unused.
+     */
     private void cacheSpans(@NonNull String entry) {
-        if (!mSpansCache.containsKey(entry)) {
-            mSpansCache.put(entry, HistorySnapshot.parseSpans(entry));
+        HistorySnapshot.Spans spans = mSpansCache.get(entry);
+        if (spans == null) {
+            spans = HistorySnapshot.parseSpans(entry);
+            mSpansCache.put(entry, spans);
         }
+        if (mSentenceIndexEnabled) spans.sentences(entry);
     }
 
     /** Re-parse the current list after a load or directory switch. */

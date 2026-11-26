@@ -194,7 +194,7 @@
     <string name="termux_tab_height_mode_title">टैब ऊँचाई</string>
     <string name="termux_tab_height_mode_single">एक लाइन</string>
     <string name="termux_tab_height_mode_double">दो लाइनें</string>
-    <string name="termux_tab_height_mode_double_landscape_single">दो पंक्तियाँ, लैंडस्केप में एक पंक्ति</string>
+    <string name="termux_tab_height_mode_double_landscape_single">दो लाइनें, लैंडस्केप में एक लाइन</string>
     <string name="termux_tab_panel_position_title">टैब पैनल स्थिति</string>
     <string name="termux_tab_panel_position_top">शीर्ष</string>
     <string name="termux_tab_panel_position_bottom">नीचे</string>
@@ -291,7 +291,7 @@
     <string name="extra_keys_visibility_title">अतिरिक्त बटन पैनल दिखाएँ</string>
     <string name="extra_keys_visibility_always">हमेशा</string>
     <string name="extra_keys_visibility_keyboard">केवल जब कीबोर्ड खुला हो</string>
-    <string name="extra_keys_visibility_keyboard_landscape">हमेशा, लैंडस्केप में केवल कीबोर्ड खुला होने पर</string>
+    <string name="extra_keys_visibility_keyboard_landscape">हमेशा; लैंडस्केप में केवल जब कीबोर्ड खुला हो</string>
     <string name="extra_keys_visibility_never">कभी नहीं</string>
 
     

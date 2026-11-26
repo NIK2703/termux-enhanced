@@ -61,6 +61,33 @@ public class SuggestionEngineTest {
         assertEquals("git one", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
         assertTrue(pos.atEnd);
+        assertFalse("full-only scan must not parse sentence spans",
+                snapshot.spans[0].hasSentences());
+        assertFalse("full-only scan must not parse sentence spans",
+                snapshot.spans[1].hasSentences());
+    }
+
+    @Test
+    public void disabledSentenceTierScanResumesFromSavedPosition() {
+        HistorySnapshot snapshot = snap("aa1", "aa2", "aa3");
+        SuggestionEngine.ScanPos pos = new SuggestionEngine.ScanPos();
+        Set<String> seen = new HashSet<>();
+        List<SuggestionEngine.Candidate> out = new ArrayList<>();
+
+        SuggestionEngine.scan(snapshot, "aa", 0, 2, 0, 2, false, 1, pos, out, seen);
+        assertEquals(1, out.size());
+        assertEquals("aa1", out.get(0).text);
+        assertFalse(pos.atEnd);
+
+        SuggestionEngine.scan(snapshot, "aa", 0, 2, 0, 2, false, 2, pos, out, seen);
+        assertEquals(2, out.size());
+        assertEquals("aa2", out.get(1).text);
+        assertFalse(pos.atEnd);
+
+        SuggestionEngine.scan(snapshot, "aa", 0, 2, 0, 2, false, 4, pos, out, seen);
+        assertEquals(3, out.size());
+        assertEquals("aa3", out.get(2).text);
+        assertTrue(pos.atEnd);
     }
 
     @Test
@@ -73,6 +100,7 @@ public class SuggestionEngineTest {
 
         assertTrue(out.isEmpty());
         assertTrue(pos.atEnd);
+        assertFalse(snapshot.spans[0].hasSentences());
     }
 
     @Test

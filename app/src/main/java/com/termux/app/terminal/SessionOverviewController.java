@@ -292,7 +292,10 @@ public final class SessionOverviewController {
     private ViewTreeObserver mScrollRestoreObserver;
     @Nullable
     private ViewTreeObserver.OnGlobalLayoutListener mScrollRestoreLayoutListener;
-    /** Last pager viewport used by the post-rotation grid refresh; -1 means no sample yet. */
+    /** Latest configuration dispatched to the activity; authoritative during a rotation. */
+    @Nullable
+    private Configuration mLastConfiguration;
+    /** Last viewport sampled by the post-rotation refresh; -1 means no sample yet. */
     private int mLastAspectRefreshWidth = -1;
     private int mLastAspectRefreshHeight = -1;
 
@@ -1430,9 +1433,9 @@ public final class SessionOverviewController {
      * <p>{@link #onConfigurationChanged(Configuration)} runs before the window traversal, so the
      * pager can still report the previous orientation for one or more frames. Sampling on
      * animation frames and stopping only after the viewport repeats makes the update follow the
-     * real window shape instead of guessing from stale bounds. Dirty marking is required because
-     * a card whose bitmap happens to keep the same pixel size would otherwise keep a preview
-     * rendered for the old grid.</p>
+     * real window shape. {@link #currentGridViewport()} also keeps the dispatched configuration
+     * as an orientation guard, so even a viewport that never updates cannot keep the old
+     * orientation.</p>
      */
     private void refreshGridAspectAfterLayout(int attemptsLeft) {
         if (!mShowing || mGrid == null) return;
@@ -2140,6 +2143,19 @@ public final class SessionOverviewController {
     }
 
     /**
+     * Adopt a background change that arrived while a new card was revealing.
+     *
+     * <p>{@link #onTerminalBackgroundChanged()} deliberately leaves the window alone during the
+     * reveal so the backdrop cannot flash under the fading card. The change must not be lost,
+     * though: the new session is already current and its palette is what the overview should show
+     * once the reveal settles.</p>
+     */
+    private void applyOverviewBackgroundAfterReveal() {
+        if (!mShowing || hasAppearingCards()) return;
+        applyOverviewBackground();
+    }
+
+    /**
      * Reveal newly appended cards and hold the surviving cards at their old visual centres while
      * the grid reflows.
      *
@@ -2165,6 +2181,7 @@ public final class SessionOverviewController {
             if (listener[0] != null) grid.removeOnLayoutChangeListener(listener[0]);
             if (!mShowing || grid.getChildCount() != count) {
                 for (Card card : cards) finishCardAppearance(card);
+                applyOverviewBackgroundAfterReveal();
                 return;
             }
 
@@ -2209,7 +2226,10 @@ public final class SessionOverviewController {
                 // Surviving cards were already restored to rest by cancelForModelChange();
                 // only the new ones need their opacity and size to animate.
                 if (card.appearing) {
-                    animator.withEndAction(() -> finishCardAppearance(card));
+                    animator.withEndAction(() -> {
+                        finishCardAppearance(card);
+                        applyOverviewBackgroundAfterReveal();
+                    });
                 }
                 animator.start();
             }
@@ -2444,6 +2464,10 @@ public final class SessionOverviewController {
      */
     public void onActivityResumed() {
         mActivityStopped = false;
+        // A rotation can finish while the activity is stopped. On resume the resources describe
+        // the window that is actually on screen; replace a snapshot taken before that rotation so
+        // it cannot override the correct viewport.
+        mLastConfiguration = new Configuration(mActivity.getResources().getConfiguration());
         if (!mShowing || mOverlay == null) return;
         refreshPreviewThrottleInterval();
 
@@ -2471,6 +2495,7 @@ public final class SessionOverviewController {
             // The window shape or terminal viewport can have changed while stopped (multi-window,
             // a rotated device, an external display). Keep the cards matched to the new shape.
             updateGridAspect();
+            markResizedPreviewsDirty();
             mGrid.requestLayout();
             mGrid.removeCallbacks(mPreviewRefreshRunnable);
             mGrid.postDelayed(mPreviewRefreshRunnable, 500L);
@@ -4925,6 +4950,10 @@ public final class SessionOverviewController {
      * the few remaining milliseconds.</p>
      */
     public void onConfigurationChanged(@NonNull Configuration config) {
+        // This is the authoritative new shape. Resources and view bounds can still describe the
+        // previous orientation for one or more frames, so remember the dispatched value before
+        // any callback below can read them.
+        mLastConfiguration = new Configuration(config);
         reloadDimensions();
         // Do not cancel the add-button morph here. A keyboardHidden configuration change is part
         // of the opening transition itself, and the morph's layout listener follows any bottom-
@@ -4960,8 +4989,8 @@ public final class SessionOverviewController {
     public void onTerminalBackgroundChanged() {
         if (!mShowing) return;
         // A newly created session reports its palette before the reveal has finished. Repainting
-        // the window here would flash the backdrop under the fading card; the deferred callback
-        // after the reveal settles applies the same colour without cutting the animation.
+        // the window here would flash the backdrop under the fading card; the reveal end action
+        // applies the final colour without cutting the animation.
         if (!hasAppearingCards()) applyOverviewBackground();
         for (Card card : mCards) {
             applyCardAppearance(card);
@@ -5457,11 +5486,12 @@ public final class SessionOverviewController {
     /**
      * Viewport the card grid should be sized for.
      *
-     * <p>The pager is the normal source. During a rotation it can still report the previous
-     * orientation for a frame while the overview overlay has already been measured with the new
-     * one; in that case the overlay's own viewport wins. Comparing orientation, not exact pixels,
-     * keeps the pager's accurate terminal height (it excludes the tab strip and toolbar) for
-     * every ordinary layout pass.</p>
+     * <p>The pager is the exact terminal viewport, so it is the primary source. Before the first
+     * layout it has no size; the overview overlay is already full-window, so it fills that gap.
+     * The configuration is the final orientation guard: both views can still describe the old
+     * orientation during a rotation, while {@code screenWidthDp/screenHeightDp} already describe
+     * the new window. Comparing orientation, not exact pixels, keeps the pager's accurate height
+     * (it excludes the tab strip and toolbar) on every ordinary pass.</p>
      *
      * @return packed {@code {width, height}}, either axis may be zero before the first layout
      */
@@ -5474,12 +5504,27 @@ public final class SessionOverviewController {
             final int overlayHeight = Math.max(0, mScrollView.getHeight()
                     - mGrid.getPaddingTop() - mGrid.getPaddingBottom());
             if (overlayWidth > 0 && overlayHeight > 0) {
+                // The overlay is the surface the cards actually live on. If the pager still
+                // reports the previous orientation, the overlay's shape is the current one.
                 final boolean pagerValid = width > 0 && height > 0;
                 if (!pagerValid || (width > height) != (overlayWidth > overlayHeight)) {
                     width = overlayWidth;
                     height = overlayHeight;
                 }
             }
+        }
+
+        final Configuration config = mLastConfiguration != null
+                ? mLastConfiguration
+                : mActivity.getResources().getConfiguration();
+        final float density = mActivity.getResources().getDisplayMetrics().density;
+        final int configWidth = Math.round(config.screenWidthDp * density);
+        final int configHeight = Math.round(config.screenHeightDp * density);
+        if (configWidth > 0 && configHeight > 0
+                && (width <= 0 || height <= 0
+                    || (width > height) != (configWidth > configHeight))) {
+            width = configWidth;
+            height = configHeight;
         }
         return new int[]{width, height};
     }
@@ -5501,6 +5546,7 @@ public final class SessionOverviewController {
         final int viewportHeight = viewport[1];
         final TerminalSession session = mActivity.getCurrentSession();
         final TerminalEmulator emulator = session != null ? session.getEmulator() : null;
+        final PreviewCellGeometry previousGeometry = mCellGeometry;
 
         // The pager reports the new window shape before the active terminal page has been laid
         // out, so the window viewport is the primary source. The active emulator remains a
@@ -5525,6 +5571,13 @@ public final class SessionOverviewController {
         } else {
             mGrid.setCardSize(0, 0);
             mGrid.setCardAspect(grid != null ? grid.aspect() : 0);
+        }
+        // Cell geometry is cached by its inputs, so a different instance means the glyph pitch
+        // changed. The card may keep the same pixel size (for example when the width limits both
+        // orientations), which would leave markResizedPreviewsDirty() with nothing to mark; every
+        // preview still has to be repainted with the new pitch.
+        if (mCellGeometry != previousGeometry) {
+            for (Card card : mCards) card.previewDirty = true;
         }
     }
 

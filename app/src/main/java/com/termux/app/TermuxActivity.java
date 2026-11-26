@@ -2206,6 +2206,29 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     }
 
     /**
+     * Paint the normal terminal window surface unless the overview owns it.
+     *
+     * <p>The overview deliberately uses a more transparent backdrop than the live terminal
+     * (see {@link com.termux.app.terminal.SessionOverviewController}). A normal terminal update
+     * arriving while the grid is visible — most visibly the page-selected callback that follows
+     * the overview's add-session button — would otherwise make the whole grid more opaque for a
+     * frame or until the next overview callback. Notify the controller instead; it either paints
+     * its backdrop immediately or defers the colour until the new card's reveal ends.</p>
+     */
+    public void applyTerminalWindowBackground(int background) {
+        if (isSessionOverviewShowing()) {
+            if (mSessionOverviewController != null) {
+                mSessionOverviewController.onTerminalBackgroundChanged();
+            }
+            return;
+        }
+        final Window window = getWindow();
+        if (window == null) return;
+        applySystemBarColors(window, background, isCachedSchemeLight(),
+                getEffectiveBackgroundTransparency());
+    }
+
+    /**
      * Set only the decor fill while the overview crossfades its backdrop. The status bars are
      * already transparent and edge-to-edge, so changing the colour here must not reapply their
      * flags on every animation frame. The colour is used as-is, including its alpha: the
@@ -4912,20 +4935,14 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      * {@link TermuxColorSchemeManager} colours.
      */
     public void applySchemeColors() {
-        TermuxColorSchemeManager csm = mColorSchemeManager;
-        int schemeBg = csm.getSchemeBackground();
-        boolean isLight = csm.isSchemeLight();
-
         // Window surface follows the scheme; the status and navigation bars are transparent so the
         // scheme background shows through, with matching icon/text appearance (dark on a light
         // scheme, light on a dark one) — the bars never stand out from or darken the terminal.
-        Window window = getWindow();
-        if (window != null) {
-            // Effective, not configured: when blur is requested but unavailable the terminal is
-            // made more opaque, and the decor view must follow it or the bars would show a
-            // different blend than the terminal area.
-            applySystemBarColors(window, schemeBg, isLight, getEffectiveBackgroundTransparency());
-        }
+        // Effective, not configured: when blur is requested but unavailable the terminal is made
+        // more opaque, and the decor view must follow it or the bars would show a different blend
+        // than the terminal area. applyTerminalWindowBackground() keeps the overview's more
+        // transparent backdrop in charge while the grid is visible.
+        applyTerminalWindowBackground(mColorSchemeManager.getSchemeBackground());
     }
 
     /**

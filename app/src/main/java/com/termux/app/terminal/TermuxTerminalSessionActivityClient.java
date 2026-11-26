@@ -1833,10 +1833,15 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             if (mActivity.getColorSchemeManager().refreshFloatingColorsForBackground(bg)) {
                 applyFloatingControlColors(ColorSchemeUtils.isColorLight(bg));
             }
-            TermuxActivity.applySystemBarColors(mActivity.getWindow(), bg, mActivity.isCachedSchemeLight(),
-                mActivity.getEffectiveBackgroundTransparency());
-        }
-        if (mActivity.getSessionOverviewController() != null) {
+            // The overview owns the window surface while it is visible. Its backdrop uses a
+            // deliberately higher transparency than the terminal, so a normal terminal paint
+            // here would make the grid briefly more opaque on every session switch, including
+            // the switch that follows the overview's add-session button.
+            mActivity.applyTerminalWindowBackground(bg);
+        } else if (mActivity.isSessionOverviewShowing()
+                && mActivity.getSessionOverviewController() != null) {
+            // No emulator to read a colour from, but the overview still needs to re-bake its
+            // cards and fall back to the scheme background.
             mActivity.getSessionOverviewController().onTerminalBackgroundChanged();
         }
     }

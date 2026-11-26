@@ -3,6 +3,7 @@ package com.termux.app.terminal.io.autocomplete;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -632,6 +633,37 @@ public class MessageHistoryControllerTest {
         assertTrue(ctrl.getSpansCache().containsKey("a. b"));
         ctrl.removeMessage("a. b");
         assertFalse(ctrl.getSpansCache().containsKey("a. b"));
+    }
+
+    @Test
+    public void sentenceSpansStayLazyWhileSentenceSuggestionsAreOff() {
+        ctrl.setSentenceIndexEnabled(false);
+        ctrl.addToMessageHistory("First sentence. Second one", HOME);
+
+        HistorySnapshot.Spans spans = ctrl.getSpansCache().get("First sentence. Second one");
+        assertNotNull(spans);
+        assertFalse(spans.hasSentences());
+
+        int version = ctrl.getHistoryVersion();
+        ctrl.setSentenceIndexEnabled(true);
+        assertEquals("toggling the index mode must not change history",
+                version, ctrl.getHistoryVersion());
+        HistorySnapshot.Spans warmed = ctrl.getSpansCache().get("First sentence. Second one");
+        assertNotNull(warmed);
+        assertTrue(warmed.hasSentences());
+    }
+
+    @Test
+    public void sentenceIndexPreferenceIsAppliedOnConstruction() throws Exception {
+        prefs.edit().putBoolean("autocomplete_sentences_enabled", false).commit();
+        MessageHistoryController off = newController();
+        off.load(HOME);
+        assertFalse(off.isSentenceIndexEnabled());
+
+        off.addToMessageHistory("First sentence. Second one", HOME);
+        HistorySnapshot.Spans spans = off.getSpansCache().get("First sentence. Second one");
+        assertNotNull(spans);
+        assertFalse(spans.hasSentences());
     }
 
     // Record identity

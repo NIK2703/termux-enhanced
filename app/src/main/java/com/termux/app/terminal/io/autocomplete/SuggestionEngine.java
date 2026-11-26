@@ -105,6 +105,10 @@ final class SuggestionEngine {
         if (maxCount <= 0 || out.size() >= maxCount) {
             return;
         }
+        if (!includeSentences) {
+            scanFullOnly(snap, text, lineStart, lineLen, maxCount, pos, out, seen);
+            return;
+        }
 
         // Fold the line prefix once. The active sentence is always a suffix of the
         // active line prefix, so the sentence tier can reuse the same folded array
@@ -135,12 +139,6 @@ final class SuggestionEngine {
             pos.sentence = 0;
         }
 
-        // With sentences disabled, tier 1 is the whole scan.
-        if (!includeSentences) {
-            pos.atEnd = true;
-            return;
-        }
-
         // Reuse the folded line when the sentence is a suffix of it.
         final int sentenceOffset = sentenceStart - lineStart;
         final char[] foldedSentence;
@@ -166,7 +164,8 @@ final class SuggestionEngine {
             fullCount++;
         }
         for (int e = pos.entry; e < entries.length; e++) {
-            final int sentenceCount = snap.sentenceCount(e);
+            final HistorySnapshot.SentenceSpans sentences = snap.sentences(e);
+            final int sentenceCount = sentences.count;
             final int startSentence = (e == pos.entry) ? pos.sentence : 0;
             boolean fullShown = false;
             for (int i = 0; i < fullCount; i++) {
@@ -179,8 +178,8 @@ final class SuggestionEngine {
             int rollbackEnd = -1;
             if (startSentence == 0 && typingLaterSentence && sentenceCount > 1
                     && !snap.isSentenceDismissed(e, 0)) {
-                final int firstStart = snap.sentenceStart(e, 0);
-                final int firstEnd = snap.sentenceEnd(e, 0);
+                final int firstStart = sentences.starts[0];
+                final int firstEnd = sentences.ends[0];
                 final int firstLen = firstEnd - firstStart;
                 if (firstLen > 0 && firstLen < lineLen
                         && foldedMatches(snap.fold(e), firstStart, foldedLine, 0, firstLen)) {
@@ -212,8 +211,8 @@ final class SuggestionEngine {
                         Math.max(1, completedSentenceCount));
                 for (int s = firstCandidate; s < sentenceCount; s++) {
                     if (snap.isSentenceDismissed(e, s)) continue;
-                    final int windowStart = snap.sentenceStart(e, s);
-                    final int windowEnd = snap.sentenceEnd(e, s);
+                    final int windowStart = sentences.starts[s];
+                    final int windowEnd = sentences.ends[s];
                     if (sentenceLen > 0 && windowEnd - windowStart >= sentenceLen
                             && foldedMatches(snap.fold(e), windowStart,
                                     foldedSentence, foldedSentenceStart, sentenceLen)) {
@@ -236,8 +235,8 @@ final class SuggestionEngine {
             for (int s = startSentence; s < sentenceCount; s++) {
                 if (s == 0 && (firstSentenceMatched || fullShown)) continue;
                 if (snap.isSentenceDismissed(e, s)) continue;
-                final int windowStart = snap.sentenceStart(e, s);
-                final int windowEnd = snap.sentenceEnd(e, s);
+                final int windowStart = sentences.starts[s];
+                final int windowEnd = sentences.ends[s];
                 final int windowLen = windowEnd - windowStart;
                 if (sentenceLen <= 0 || windowLen < sentenceLen
                         || !foldedMatches(snap.fold(e), windowStart,
@@ -258,6 +257,45 @@ final class SuggestionEngine {
                 }
             }
         }
+        pos.atEnd = true;
+    }
+
+    /**
+     * Scan only the full-entry tier. This is the whole scan while sentence
+     * suggestions are disabled: no sentence span is parsed or touched, and the typed
+     * line prefix is folded once.
+     */
+    static void scanFullOnly(@NonNull HistorySnapshot snap, @NonNull CharSequence text,
+            int lineStart, int lineLen, int maxCount, @NonNull ScanPos pos,
+            @NonNull List<Candidate> out, @NonNull Set<String> seen) {
+        if (pos.tier != 0) {
+            pos.atEnd = true;
+            return;
+        }
+        if (maxCount <= 0 || out.size() >= maxCount) {
+            return;
+        }
+
+        final char[] foldedLine = fold(text, lineStart, lineLen);
+        final String[] entries = snap.entries;
+        for (int e = pos.entry; e < entries.length; e++) {
+            final int windowEnd = snap.firstLineEnd(e);
+            if (snap.isFullDismissed(e)) continue;
+            if (matchesFull(snap, e, foldedLine, lineLen)) {
+                if (!seen.add(new String(snap.fold(e)))) continue;
+                out.add(new Candidate(entries[e], Kind.FULL, e, snap.entryId(e), -1,
+                        0, windowEnd, false));
+                if (out.size() >= maxCount) {
+                    pos.entry = e + 1;
+                    pos.sentence = 0;
+                    pos.atEnd = false;
+                    return;
+                }
+            }
+        }
+        pos.tier = 1;
+        pos.entry = entries.length;
+        pos.sentence = 0;
         pos.atEnd = true;
     }
 
@@ -306,7 +344,8 @@ final class SuggestionEngine {
             @NonNull CharSequence text, int lineStart, int sentenceStart,
             @NonNull char[] foldedLine, int count) {
         if (count <= 0) return true;
-        if (snap.sentenceCount(entryIndex) < count) return false;
+        final HistorySnapshot.SentenceSpans sentences = snap.sentences(entryIndex);
+        if (sentences.count < count) return false;
 
         int typedStart = lineStart;
         for (int i = 0; i < count; i++) {
@@ -316,8 +355,8 @@ final class SuggestionEngine {
             }
             final int typedEnd = HistorySyntax.findSentenceEnd(text, typedStart, sentenceStart);
             if (typedEnd <= typedStart) return false;
-            final int entryStart = snap.sentenceStart(entryIndex, i);
-            final int entryEnd = snap.sentenceEnd(entryIndex, i);
+            final int entryStart = sentences.starts[i];
+            final int entryEnd = sentences.ends[i];
             final int len = entryEnd - entryStart;
             if (len != typedEnd - typedStart) return false;
             if (!foldedMatches(snap.fold(entryIndex), entryStart,
