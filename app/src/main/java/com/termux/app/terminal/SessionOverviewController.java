@@ -7,8 +7,8 @@ import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorFilter;
 import android.graphics.Outline;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -65,7 +65,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Owns the all-sessions overview: lifecycle, card construction, preview snapshots, selection and
+ * Owns the all-sessions overview: lifecycle, card construction, preview rendering, selection and
  * focus/IME hand-off.
  *
  * <p>The overview is a sibling view inside the activity's content area, not a dialog, so it follows
@@ -179,13 +179,12 @@ public final class SessionOverviewController {
     private boolean mAddButtonHideForOverview;
 
     /**
-     * Snapshot of the tab-strip + that travels between the strip and the overview add button.
-     * It lives in the content area rather than the overlay's ghost layer: a close without an
-     * expansion removes the overlay immediately, while this flight still has to land on the
-     * restored strip.
+     * Direct ghost of the tab-strip + that travels between the strip and the overview add
+     * button. It lives in the content area rather than the overlay's ghost layer: a close
+     * without an expansion removes the overlay immediately, while this flight still has to land
+     * on the restored strip.
      */
     @Nullable private ImageView mTabAddButtonFlightGhost;
-    @Nullable private Bitmap mTabAddButtonFlightBitmap;
     @Nullable private ValueAnimator mTabAddButtonFlightAnimator;
     @Nullable private View mTabAddButtonFlightTabButton;
     /** Fixed window-space start of the flight; the destination is read live every frame. */
@@ -202,7 +201,6 @@ public final class SessionOverviewController {
 
     // ── Add-session flight from the overview "+" button ──────────────────────
     @Nullable private OverviewAddTabGhostView mAddTabFlightGhost;
-    @Nullable private Bitmap mAddTabFlightBitmap;
     @Nullable private ValueAnimator mAddTabFlightAnimator;
     @Nullable private Card mAddTabFlightCard;
     /** Fixed window-space source of the add button; rebased to ghost-layer space each frame. */
@@ -237,6 +235,14 @@ public final class SessionOverviewController {
     @Nullable private TerminalAddFlight mTerminalAddFlight;
     private final Runnable mTerminalAddTimeout = this::cancelTerminalAddFlightAfterTimeout;
     private static final long TERMINAL_ADD_FLIGHT_TIMEOUT_MS = 500L;
+    /**
+     * True while the add-button closing holds every surviving card at its pre-add centre.
+     *
+     * <p>The new card never lands in the grid, so the closing flight treats the grid as a
+     * static backdrop. The post-add settle must not slide the old centred rows into the new
+     * top-aligned slots under the fading terminal.</p>
+     */
+    private boolean mTerminalAddGridHeld;
     /** True only for the hide() that finishes a consumed add-button expansion. */
     private boolean mTerminalAddConsumedClose;
     /** Reused capture geometry; the release path is rare enough to keep these off the heap. */
@@ -906,16 +912,10 @@ public final class SessionOverviewController {
         if (ghost == null || mAddTabFlightAnimator != null || mAddTabFlightCard != card) return;
 
         removeAddTabFlightTimeout();
-        // The ghost owns the outline: capture the card without its border, then draw one
-        // continuous stroke that starts as the button's hairline and ends as the card's outline.
-        final boolean borderSuppressed = card.outlineSuppressed;
-        card.root.setBorderSuppressed(true);
-        try {
-            mAddTabFlightBitmap = captureViewBitmap(card.root);
-        } finally {
-            card.root.setBorderSuppressed(borderSuppressed);
-        }
-        ghost.setCardBitmap(mAddTabFlightBitmap);
+        // The ghost owns the outline. Build an ordinary card copy without its border and draw
+        // one continuous stroke that starts as the button's hairline and ends as the card's
+        // outline. The preview keeps the same emulator raster the real card already owns.
+        ghost.setCardContent(createCardGhostContent(card));
 
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         mAddTabFlightAnimator = animator;
@@ -932,6 +932,64 @@ public final class SessionOverviewController {
         });
         applyAddTabFlightProgress(0f);
         animator.start();
+    }
+
+    /**
+     * Direct card copy for the add morph. This is the same layout and binding as a real card,
+     * with interaction and the card's own chrome removed because the morph container draws the
+     * moving outline and shadow.
+     */
+    @Nullable
+    private View createCardGhostContent(@NonNull Card card) {
+        if (card.bitmap == null && card.session.getEmulator() != null) {
+            renderCard(card, previewTextSize(), previewTypeface());
+        }
+        final SessionOverviewCardView root =
+                (SessionOverviewCardView) mInflater.inflate(
+                        R.layout.item_session_overview_card, mGhostLayer, false);
+        final ImageView preview = root.findViewById(R.id.session_overview_preview);
+        final SessionOverviewTabTitleView tab =
+                root.findViewById(R.id.session_overview_tab);
+        final ImageButton close = root.findViewById(R.id.session_overview_close);
+        final Card ghostCard = new Card(root, preview, tab, close, card.session);
+        applyTabMetrics(ghostCard);
+        applyCardAppearance(ghostCard);
+        bindTab(ghostCard, card.session == mActivity.getCurrentSession());
+
+        preview.setScaleType(card.preview.getScaleType());
+        preview.setImageBitmap(card.bitmap);
+        preview.setAlpha(card.preview.getAlpha());
+        // The morph container owns the rounded clip, border and elevation. Disable the card's
+        // copies so the moving frame does not paint a second outline or shadow.
+        root.setBorderSuppressed(true);
+        root.setHoverShadow(0, Color.TRANSPARENT);
+        root.setTranslationZ(0f);
+        root.setOutlineProvider(null);
+        root.setClipToOutline(false);
+        preview.setOutlineProvider(null);
+        preview.setClipToOutline(false);
+        root.setClickable(false);
+        root.setFocusable(false);
+        root.setEnabled(false);
+        root.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        tab.setClickable(false);
+        tab.setFocusable(false);
+        tab.setEnabled(false);
+        tab.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        close.setClickable(false);
+        close.setFocusable(false);
+        close.setEnabled(false);
+        close.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        preview.setEnabled(false);
+
+        final int width = card.root.getWidth() > 0 ? card.root.getWidth() : mCardWidth;
+        final int height = card.root.getHeight() > 0 ? card.root.getHeight() : mCardHeight;
+        if (width <= 0 || height <= 0) return null;
+        root.setLayoutParams(new FrameLayout.LayoutParams(width, height));
+        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, width, height);
+        return root;
     }
 
     private void applyAddTabFlightProgress(float progress) {
@@ -959,7 +1017,7 @@ public final class SessionOverviewController {
                 p, mAddTabFlightSourceRadius, card.thumbnailCornerRadius);
         final float content = SessionOverviewAddTabMath.contentAlpha(p);
         final float plus = SessionOverviewAddTabMath.plusAlpha(p);
-        // Preserve the button fill's own 50% alpha; the card snapshot supplies the opacity that
+        // Preserve the button fill's own 50% alpha; the card copy supplies the opacity that
         // grows to fully opaque. Scaling the whole alpha to 255 here made the first frame much
         // more solid than the real button.
         final int fillColor = FloatingShadow.withAlphaFraction(
@@ -1022,8 +1080,6 @@ public final class SessionOverviewController {
         mAddTabFlightCard = null;
         mAddTabFlightArmed = false;
         removeAddTabFlightGhost();
-        recycleBitmap(mAddTabFlightBitmap);
-        mAddTabFlightBitmap = null;
         mAddTabFlightGeneration++;
 
         if (card != null && mCards.contains(card)) {
@@ -1067,8 +1123,6 @@ public final class SessionOverviewController {
         mAddTabFlightCard = null;
         mAddTabFlightArmed = false;
         removeAddTabFlightGhost();
-        recycleBitmap(mAddTabFlightBitmap);
-        mAddTabFlightBitmap = null;
         mAddTabFlightGeneration++;
 
         if (card != null) {
@@ -1109,7 +1163,7 @@ public final class SessionOverviewController {
         final OverviewAddTabGhostView ghost = mAddTabFlightGhost;
         mAddTabFlightGhost = null;
         if (ghost == null) return;
-        ghost.clearCardBitmap();
+        ghost.clearCardContent();
         if (ghost.getParent() instanceof ViewGroup) {
             ((ViewGroup) ghost.getParent()).removeView(ghost);
         }
@@ -1337,6 +1391,13 @@ public final class SessionOverviewController {
             applyOverviewBackgroundAfterReveal();
             schedulePreviewRender();
         }
+        // The closing transition owns the held grid once it starts; its cleanup resets the
+        // cards. Before that point an aborted flight must put the survivors back into the
+        // post-add layout, otherwise the grid would stay offset and the next touch would use
+        // stale visual positions.
+        if (mClosingTransition == null) {
+            releaseTerminalAddGridHold(animateRestore && mShowing);
+        }
         if (!restoreButton || !mShowing || mAddButton == null) return;
         if (isAtSessionLimit()) {
             resetAddButtonHover();
@@ -1355,6 +1416,34 @@ public final class SessionOverviewController {
         showAddButtonWithAppearance();
     }
 
+    /**
+     * Release the pre-add card centres held for the add-button closing.
+     *
+     * <p>The grid's layout has already reflowed to the post-add slot geometry; only the card
+     * translations keep the old snapshot on screen. The closing cleanup resets those
+     * translations while the grid is invisible. If the flight is aborted while the overview
+     * is still visible, settle them into the new layout so the grid stays interactive.</p>
+     */
+    private void releaseTerminalAddGridHold(boolean settle) {
+        if (!mTerminalAddGridHeld) return;
+        mTerminalAddGridHeld = false;
+        for (Card card : mCards) {
+            card.root.animate().cancel();
+            if (!settle) {
+                card.root.setTranslationX(0f);
+                card.root.setTranslationY(0f);
+                continue;
+            }
+            if (card.root.getTranslationX() == 0f && card.root.getTranslationY() == 0f) {
+                continue;
+            }
+            OverviewAppearanceAnimation.animator(card.root)
+                    .translationX(0f)
+                    .translationY(0f)
+                    .start();
+        }
+    }
+
     @Nullable
     private static Drawable cloneDrawable(@Nullable Drawable source, @Nullable ColorStateList tint) {
         if (source == null) return null;
@@ -1368,8 +1457,37 @@ public final class SessionOverviewController {
     }
 
     /**
+     * Direct replacement for a captured tab-strip + bitmap: copy the button's drawable,
+     * background, tint, padding and alpha into a plain {@link ImageView}.
+     */
+    @Nullable
+    private ImageView createDirectTabPlusGhost(@NonNull ImageView source) {
+        final ImageView ghost = new ImageView(mActivity);
+        ghost.setScaleType(source.getScaleType());
+        ghost.setImageDrawable(cloneDrawable(source.getDrawable(), source.getImageTintList()));
+        ghost.setImageAlpha(source.getImageAlpha());
+        final ColorFilter filter = source.getColorFilter();
+        if (filter != null) ghost.setColorFilter(filter);
+        final Drawable background = source.getBackground();
+        if (background != null) {
+            final Drawable backgroundClone = cloneDrawable(background, null);
+            if (backgroundClone != null) {
+                backgroundClone.setState(source.getDrawableState());
+                ghost.setBackground(backgroundClone);
+            }
+        }
+        ghost.setPadding(source.getPaddingLeft(), source.getPaddingTop(),
+                source.getPaddingRight(), source.getPaddingBottom());
+        ghost.setAlpha(source.getAlpha());
+        ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        ghost.setClickable(false);
+        ghost.setFocusable(false);
+        return ghost;
+    }
+
+    /**
      * Prepare the tab-strip + for the overview transition. The button is replaced by a ghost in
-     * the content area immediately, so the strip snapshot can leave its slot empty without the
+     * the content area immediately, so the strip copy can leave its slot empty without the
      * real button blinking out first.
      *
      * @param returning true when the flight goes from the overview add button back to the strip
@@ -1405,27 +1523,27 @@ public final class SessionOverviewController {
             return false;
         }
 
-        final Bitmap bitmap = captureViewBitmap(tabButton);
-        if (bitmap == null) return false;
+        final ImageView sourceButton = tabButton instanceof ImageView
+                ? (ImageView) tabButton : null;
+        if (sourceButton == null) return false;
         final Rect source = returning ? windowRectOf(mAddButton) : windowRectOf(tabButton);
-        if (source.isEmpty()) {
-            recycleBitmap(bitmap);
-            return false;
-        }
+        if (source.isEmpty()) return false;
 
         final ViewGroup parent = (ViewGroup) mContentArea;
         final int[] parentLocation = mTabAddButtonFlightParentLocation;
         parent.getLocationInWindow(parentLocation);
-        final int ghostWidth = Math.max(1, source.width());
-        final int ghostHeight = Math.max(1, source.height());
-        final ImageView ghost = new ImageView(mActivity);
-        ghost.setScaleType(ImageView.ScaleType.FIT_XY);
-        ghost.setImageBitmap(bitmap);
-        ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ghost.setClickable(false);
-        ghost.setFocusable(false);
+        // Lay the ghost out at the copied button's size, not at the flight rect. The flight
+        // scales the whole ghost to that rect, so the plus icon keeps the same proportion to
+        // its background as in the strip. Laying it out at the destination size instead made
+        // the returning icon shrink with the view and land visibly smaller than the real one.
+        final int ghostWidth = Math.max(1, sourceButton.getWidth());
+        final int ghostHeight = Math.max(1, sourceButton.getHeight());
+        final ImageView ghost = createDirectTabPlusGhost(sourceButton);
+        if (ghost == null) return false;
         ghost.setPivotX(0f);
         ghost.setPivotY(0f);
+        ghost.setScaleX(source.width() / (float) ghostWidth);
+        ghost.setScaleY(source.height() / (float) ghostHeight);
         // Above the overlay and bottom strip, but below the floating add button and the
         // pencil ghost, so the two pluses hand off instead of stacking.
         ghost.setZ(Math.max(0f, mAddButton.getZ() - 1f));
@@ -1444,13 +1562,12 @@ public final class SessionOverviewController {
         ghost.setY(source.top - parentLocation[1]);
 
         mTabAddButtonFlightGhost = ghost;
-        mTabAddButtonFlightBitmap = bitmap;
         mTabAddButtonFlightTabButton = tabButton;
         mTabAddButtonFlightSource.set(source);
         mTabAddButtonFlightGhostWidth = ghostWidth;
         mTabAddButtonFlightGhostHeight = ghostHeight;
         mTabAddButtonFlightReturning = returning;
-        // The strip and closing-panel snapshots are captured after this point, so their add
+        // The strip copies are built after this point, so their add
         // slot must stay empty until the ghost lands.
         tabButton.setVisibility(View.INVISIBLE);
         return true;
@@ -1621,12 +1738,10 @@ public final class SessionOverviewController {
 
     private void finishTabAddButtonFlight() {
         final ImageView ghost = mTabAddButtonFlightGhost;
-        final Bitmap bitmap = mTabAddButtonFlightBitmap;
         final View tabButton = mTabAddButtonFlightTabButton;
 
         mTabAddButtonFlightAnimator = null;
         mTabAddButtonFlightGhost = null;
-        mTabAddButtonFlightBitmap = null;
         mTabAddButtonFlightTabButton = null;
         mTabAddButtonFlightReturning = false;
         mTabAddButtonFlightStartPosted = false;
@@ -1637,11 +1752,11 @@ public final class SessionOverviewController {
 
         if (ghost != null) {
             ghost.setImageDrawable(null);
+            ghost.setBackground(null);
             if (ghost.getParent() instanceof ViewGroup) {
                 ((ViewGroup) ghost.getParent()).removeView(ghost);
             }
         }
-        recycleBitmap(bitmap);
         restoreTabAddButtonVisibility(tabButton);
     }
 
@@ -1979,7 +2094,7 @@ public final class SessionOverviewController {
         mActivity.prepareOverviewAddButtonForOverview();
         mActivity.prepareOverviewAddButtonMorph();
         // Replace the visible strip + with a ghost before the live strip is faded out. Its slot
-        // is then empty in the strip snapshots and only the flying copy paints.
+        // is then empty in the strip copies and only the flying copy paints.
         prepareTabAddButtonFlight(false);
         mActivity.hideTextInputPanelForOverview();
         KeyboardUtils.hideSoftKeyboard(mActivity,
@@ -2116,6 +2231,24 @@ public final class SessionOverviewController {
     /** Close without restoring focus, used while switching sessions or leaving the activity. */
     public void hide(boolean restoreFocus) {
         hide(restoreFocus, true);
+    }
+
+    /**
+     * Close the overview because the user pressed Back. Back returns to the terminal that is
+     * still active, so it uses the same card-to-terminal expansion as tapping that card in the
+     * grid; snapping the grid away would make the two exits feel unrelated. The instant close
+     * remains the fallback for states that cannot animate: the opening preparation before the
+     * grid exists, an add-session flight that owns a card and the add button, a selection that
+     * already owns the screen, and a current session with no card.
+     */
+    public void hideFromBack() {
+        if (mOpeningPreparationPending || isAddTabFlightActive() || isTerminalAddFlightActive()) {
+            hide();
+            return;
+        }
+        final TerminalSession current = mActivity.getCurrentSession();
+        if (current != null && selectSession(current, null)) return;
+        hide();
     }
 
     /**
@@ -2611,8 +2744,26 @@ public final class SessionOverviewController {
     /** Start the expansion after the strip is already in its final state behind the overview. */
     private void beginClosingExpansion(@NonNull Card card, @Nullable LiftStart liftStart) {
         if (!mShowing || mClosingTransition != null) return;
-        final ClosingTransition closing = prepareClosingTransition(card, liftStart);
+        // prepareSelectionForOverview() has already applied the final selection and scroll.
+        // Freeze the strip before the panel copy so a late OSC title, scheme or session
+        // update cannot invalidate the copy and the target tab ghosts.
+        final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
+        if (tabs != null) {
+            // prepareSelectionForOverview() already did this on the normal path. Repeat it here
+            // for the fallback path that starts an expansion without that preparation, and to
+            // drop any pin-release callback that could still scroll the strip mid-copy.
+            tabs.finishOpenAnimationsForOverview();
+            tabs.beginOverviewClosingFreeze();
+        }
+        final ClosingTransition closing;
+        try {
+            closing = prepareClosingTransition(card, liftStart);
+        } catch (RuntimeException e) {
+            if (tabs != null) tabs.endOverviewClosingFreeze();
+            throw e;
+        }
         if (closing == null) {
+            if (tabs != null) tabs.endOverviewClosingFreeze();
             if (liftStart != null && liftStart.addButtonSource != null) {
                 // The expansion could not be prepared. Put the real button and the new card
                 // back, then use the ordinary close so the pencil morph still owns the exit.
@@ -2624,6 +2775,12 @@ public final class SessionOverviewController {
         }
         mClosingTransition = closing;
         startClosingTransition(closing);
+    }
+
+    /** End the strip freeze once the closing copy is no longer visible. */
+    private void endClosingStripFreeze() {
+        final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
+        if (tabs != null) tabs.endOverviewClosingFreeze();
     }
 
     /** Abort a selection that is still waiting for the strip's final layout. */
@@ -2872,7 +3029,13 @@ public final class SessionOverviewController {
                         // frame early.
                         refreshTitles();
                         mGrid.requestLayout();
-                        animateAddedCards(added, oldCenters, flightCard);
+                        // The new terminal is flying out of the add button, not into this card
+                        // slot. Scrolling the grid to reveal the hidden card would move the
+                        // overview under the closing animation for no visible benefit. Keep the
+                        // survivors at their pre-add centres too: the closing flight fades the
+                        // grid as a snapshot, so settling it to the new top-aligned layout here
+                        // would read as the grid being pulled to the top.
+                        animateAddedCards(added, oldCenters, flightCard, false, true);
                         schedulePreviewRender();
                         postTerminalAddTimeout();
                         return;
@@ -2888,7 +3051,7 @@ public final class SessionOverviewController {
                     // child has been measured. Doing it here would resize every bitmap a frame early.
                     refreshTitles();
                     mGrid.requestLayout();
-                    animateAddedCards(added, oldCenters, flightCard);
+                    animateAddedCards(added, oldCenters, flightCard, true, false);
                     schedulePreviewRender();
                     postAddTabFlightTimeout();
                     return;
@@ -2898,7 +3061,7 @@ public final class SessionOverviewController {
                 // child has been measured. Doing it here would resize every bitmap a frame early.
                 refreshTitles();
                 mGrid.requestLayout();
-                animateAddedCards(added, oldCenters, null);
+                animateAddedCards(added, oldCenters, null, true, false);
                 schedulePreviewRender();
                 return;
             }
@@ -3083,7 +3246,7 @@ public final class SessionOverviewController {
      *
      * <p>Alpha and scale are set here rather than in the reveal listener so there is no frame
      * in which the view is laid out at its full size while still opaque. The pivot is set to the
-     * measured centre in {@link #animateAddedCards(List, Map, Card)} just before the first drawn frame.
+     * measured centre in {@link #animateAddedCards(List, Map, Card, boolean, boolean)} just before the first drawn frame.
      */
     private static void armCardAppearance(@NonNull Card card) {
         card.appearing = true;
@@ -3129,13 +3292,24 @@ public final class SessionOverviewController {
      * its translation stays at zero because its old and target centres are the same.</p>
      *
      * <p>When {@code flightCard} is non-null it stays hidden; the add-session ghost owns its
-     * reveal. Surviving cards still animate from old centres, its preview is still rendered for
-     * the snapshot, scrolling to it still runs, but no reveal animator is started for it. The
-     * flight starts after survivors are armed.</p>
+     * reveal. Surviving cards still start from their old centres, its preview is still rendered
+     * for the copy, and no reveal animator is started for it. The flight starts after survivors
+     * are armed.</p>
+     *
+     * <p>{@code revealNewest} scrolls the grid to the appended card. The tab-tap flight and an
+     * ordinary add both want that. The add-button-to-terminal flight does not: its card never
+     * lands in the grid, so any scroll would only move the backdrop under the closing expansion.</p>
+     *
+     * <p>{@code holdSurvivors} is set only by the add-button-to-terminal flight. That closing
+     * fades the grid as a static snapshot of the pre-add overview, so the survivors keep the
+     * seeded centres and their settle animator is not started. The hold is released when the
+     * closing transition finishes or the add flight is cancelled.</p>
      */
     private void animateAddedCards(@NonNull List<Card> cards,
                                    @NonNull Map<TerminalSession, float[]> oldCenters,
-                                   @Nullable Card flightCard) {
+                                   @Nullable Card flightCard,
+                                   boolean revealNewest,
+                                   boolean holdSurvivors) {
         if (mGrid == null || cards.isEmpty() || mCards.isEmpty()) {
             if (flightCard != null) cancelCardFlight(true, true);
             return;
@@ -3162,6 +3336,11 @@ public final class SessionOverviewController {
                 return;
             }
 
+            // The add-button flight may already have been cancelled between arming this
+            // runnable and the layout pass. In that case there is no closing snapshot to hold
+            // for; fall through to the ordinary settle so the grid does not stay offset.
+            final boolean hold = holdSurvivors && mTerminalAddFlight != null;
+
             final float[] fromX = new float[count];
             final float[] fromY = new float[count];
             final float[] targetX = new float[count];
@@ -3183,6 +3362,7 @@ public final class SessionOverviewController {
                     OverviewAppearanceAnimation.pivotToCenter(root);
                 }
             }
+            if (hold) mTerminalAddGridHeld = true;
 
             // Paint the new thumbnail before its first visible frame; the throttled preview
             // pass may still be a few frames away.
@@ -3192,11 +3372,22 @@ public final class SessionOverviewController {
 
             // A fifth and later tab starts below the viewport. Reveal the newest one with the
             // platform's smooth scroll so the grid glides instead of snapping to the new row.
-            smoothScrollToCard(cards.get(cards.size() - 1));
+            if (revealNewest) smoothScrollToCard(cards.get(cards.size() - 1));
 
             for (int i = 0; i < count; i++) {
                 final Card card = mCards.get(i);
                 if (card == flightCard) continue;
+                if (hold) {
+                    // The closing expansion owns the grid from the next frame and fades it as
+                    // one snapshot. Settling the survivors into the new top-aligned slots now
+                    // would pull the old centred rows upward while the terminal is still
+                    // expanding. Finish an in-flight reveal without touching the translation.
+                    if (card.appearing) {
+                        card.appearing = false;
+                        OverviewAppearanceAnimation.reset(card.root);
+                    }
+                    continue;
+                }
                 final ViewPropertyAnimator animator =
                         OverviewAppearanceAnimation.animator(card.root)
                                 .translationX(0f)
@@ -3789,9 +3980,11 @@ public final class SessionOverviewController {
      * the tab for the whole flight.
      *
      * <p>{@code anchorTab} is the tab's resting rect in content coordinates; the card is
-     * translated relative to that rect. Sources and targets must be measured without the card's
-     * own translation, otherwise next frame would feed the movement back into the path.
-     * Terminals that own the terminal frame (the active card on opening, the selected card
+     * translated relative to that rect. The source rect may include a temporary translation the
+     * card already carried (for example the add-reflow hold); subtracting the resting anchor
+     * preserves that offset on the first frame instead of collapsing it to zero. All rects are
+     * captured once, so re-reading the card's current translation never feeds back into the
+     * path. Terminals that own the terminal frame (the active card on opening, the selected card
      * on closing) are deliberately not moved by this helper.</p>
      */
     private static void moveCardWithTab(@NonNull View cardRoot, @NonNull Rect anchorTab,
@@ -3801,13 +3994,11 @@ public final class SessionOverviewController {
         final boolean rtl = cardRoot.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
         final float sourceStart = rtl ? sourceTab.right : sourceTab.left;
         final float targetStart = rtl ? targetTab.right : targetTab.left;
-        final float currentStart = SessionOverviewTransitionMath.lerp(
-                sourceStart, targetStart, f);
-        final float currentCenterY = sourceTab.centerY()
-                + (targetTab.centerY() - sourceTab.centerY()) * f;
         final float anchorStart = rtl ? anchorTab.right : anchorTab.left;
-        cardRoot.setTranslationX(currentStart - anchorStart);
-        cardRoot.setTranslationY(currentCenterY - anchorTab.centerY());
+        cardRoot.setTranslationX(SessionOverviewTransitionMath.cardCompanionTranslation(
+                anchorStart, sourceStart, targetStart, f));
+        cardRoot.setTranslationY(SessionOverviewTransitionMath.cardCompanionTranslation(
+                anchorTab.centerY(), sourceTab.centerY(), targetTab.centerY(), f));
     }
 
     /**
@@ -3936,10 +4127,10 @@ public final class SessionOverviewController {
 
         // Keep every tab in the first frame. The opening scroll is restored only after the grid
         // has a real layout, so the set of cards that will be visible is not known yet. Removing
-        // a tab from this snapshot before its target is known would make it vanish prematurely.
-        installOpeningTabPanelGhost(transition, origin);
+        // a tab from this copy before its target is known would make it vanish prematurely.
+        installOpeningTabStripGhost(transition, origin);
         // The scrollbar thumb is a sibling of the terminal, not part of its live frame. Give it a
-        // flying copy above that snapshot so it slides out and fades with the opening flight
+        // flying copy above that copy so it slides out and fades with the opening flight
         // instead of disappearing in the frame the live content is hidden.
         installOpeningScrollbarThumbGhost(transition, origin);
         if (transition.activeCard != null) {
@@ -3949,7 +4140,7 @@ public final class SessionOverviewController {
         }
 
         // The live terminal, strip and controls are already transparent (see
-        // hideLiveContentForOverview()). The live terminal frame and strip snapshots are
+        // hideLiveContentForOverview()). The live terminal frame and strip copies are
         // therefore the only copies of those surfaces while the window background stays visible.
         applyOpeningCardAlpha(0f);
     }
@@ -4137,20 +4328,13 @@ public final class SessionOverviewController {
                 source.tabView.setVisibility(View.INVISIBLE);
                 transition.hiddenTabs.add(source.tabView);
             }
-            // Replace the all-tabs snapshot with one that has holes for the flying tabs. The
-            // ghosts are inserted at the same source rectangles, so the swap is pixel-for-pixel.
-            if (!installOpeningTabPanelGhost(transition, origin)) {
-                // Keep the static all-tabs snapshot rather than drawing those tabs twice.
-                for (SourceTab source : flying) {
-                    source.tabView.setVisibility(View.VISIBLE);
-                    transition.hiddenTabs.remove(source.tabView);
-                }
-                transition.tabFlightsInstalled = true;
-                return;
-            }
+            // The direct strip copy keeps every non-flying tab. Remove only the copies whose
+            // flying ghost is about to be added, so the source slot never draws twice.
+            final SessionOverviewTabStripGhostView strip = transition.tabPanelGhost;
             for (SourceTab source : flying) {
                 final Card card = findCard(source.session);
                 if (card == null) continue;
+                if (strip != null) strip.removeTab(source.tabView);
                 addOpeningTabGhost(transition, source, card, origin);
                 hideCardPill(transition, card);
             }
@@ -4267,54 +4451,172 @@ public final class SessionOverviewController {
     }
 
     /**
-     * Draw or replace a snapshot of the tab strip and fade it out with the opening flight. The
-     * live strip is transparent while the overview is open, so without this copy the panel would
-     * disappear on the first frame. The first call keeps every tab; the second call, after the
-     * overview scroll is settled, removes only the tabs that are about to fly.
+     * Build the direct tab-strip copy for an opening flight. The live strip is transparent while
+     * the overview is open, so without this copy the panel would disappear on the first frame.
+     * Flying tabs are removed from this copy individually when their own ghost is installed.
      *
-     * @return true when the snapshot was captured and installed
+     * @return true when the copy was installed
      */
-    private boolean installOpeningTabPanelGhost(@NonNull Transition transition,
+    private boolean installOpeningTabStripGhost(@NonNull Transition transition,
                                                 @NonNull int[] origin) {
         if (mGhostLayer == null || mTabPanel == null) return false;
         final Rect panelWindow = windowRectOf(mTabPanel);
         if (panelWindow.isEmpty()) return false;
-        final Bitmap bitmap = captureViewBitmap(mTabPanel);
-        if (bitmap == null) return false;
+        final SessionOverviewTabStripGhostView ghost =
+                createStripGhostContainer(panelWindow, origin);
+        if (ghost == null) return false;
 
-        final ImageView previous = transition.tabPanelGhost;
-        if (previous != null) {
-            mGhostLayer.removeView(previous);
-            previous.setImageDrawable(null);
+        for (SourceTab source : transition.tabSources) {
+            final Rect bounds = new Rect(source.bounds);
+            bounds.offset(-panelWindow.left, -panelWindow.top);
+            final Rect closeBounds = source.closeBounds != null
+                    ? new Rect(source.closeBounds) : null;
+            if (closeBounds != null) {
+                closeBounds.offset(-panelWindow.left, -panelWindow.top);
+            }
+            addStripTabGhost(ghost, source.tabView, bounds, closeBounds,
+                    source.backgroundColor, source.cornerRadius);
         }
-        recycleBitmap(transition.tabPanelBitmap);
-        transition.tabPanelBitmap = null;
-        transition.tabPanelSourceLocal = null;
-
-        final ImageView ghost = new ImageView(mActivity);
-        ghost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ghost.setImageBitmap(bitmap);
-        transition.tabPanelSourceLocal = offsetRect(panelWindow, origin);
-        ghost.setLayoutParams(frameParams(transition.tabPanelSourceLocal));
+        addStripPlusGhost(ghost, mActivity.findViewById(R.id.new_session_tab_button),
+                panelWindow);
         ghost.setAlpha(1f);
-        mGhostLayer.addView(ghost);
         transition.tabPanelGhost = ghost;
-        transition.tabPanelBitmap = bitmap;
         return true;
     }
 
+    /** Create the clipped strip container and place it over the real panel. */
     @Nullable
-    private static Bitmap captureViewBitmap(@NonNull View view) {
-        if (view.getWidth() <= 0 || view.getHeight() <= 0) return null;
-        try {
-            final Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(),
-                    Bitmap.Config.ARGB_8888);
-            view.draw(new Canvas(bitmap));
-            return bitmap;
-        } catch (RuntimeException ignored) {
-            return null;
+    private SessionOverviewTabStripGhostView createStripGhostContainer(
+            @NonNull Rect panelWindow, @NonNull int[] origin) {
+        if (mGhostLayer == null || mTabPanel == null) return null;
+        final Rect panelLocal = offsetRect(panelWindow, origin);
+        if (panelLocal.isEmpty()) return null;
+        final SessionOverviewTabStripGhostView ghost =
+                new SessionOverviewTabStripGhostView(mActivity);
+        ghost.setLayoutParams(frameParams(panelLocal));
+        final View scroll = mTabPanel.findViewById(R.id.session_tabs_scroll);
+        Rect clip = null;
+        if (scroll != null && scroll.getWidth() > 0 && scroll.getHeight() > 0) {
+            clip = windowRectOf(scroll);
+            if (!clip.isEmpty()) {
+                clip.offset(-panelWindow.left, -panelWindow.top);
+            } else {
+                clip = null;
+            }
         }
+        if (clip == null) {
+            clip = new Rect(0, 0, panelLocal.width(), panelLocal.height());
+        }
+        ghost.setClipRect(clip);
+        mGhostLayer.addView(ghost);
+        return ghost;
+    }
+
+    /** Add one direct tab copy to the strip ghost. */
+    private void addStripTabGhost(@NonNull SessionOverviewTabStripGhostView strip,
+                                  @NonNull View sourceTab, @NonNull Rect tabBounds,
+                                  @Nullable Rect closeBounds, int backgroundColor,
+                                  int cornerRadius) {
+        strip.addTab(sourceTab, createStripTabGhostView(sourceTab, tabBounds, closeBounds,
+                backgroundColor, cornerRadius));
+    }
+
+    /**
+     * Build one direct tab copy. The title borrows the source's rendered text, so soft breaks
+     * and fade spans stay identical without a second layout decision. The copy is also used as
+     * the standalone ghost for the newly added tab, which keeps its final frame exactly aligned
+     * with the strip copy.
+     */
+    @NonNull
+    private FrameLayout createStripTabGhostView(@NonNull View sourceTab,
+                                                @NonNull Rect tabBounds,
+                                                @Nullable Rect closeBounds,
+                                                int backgroundColor, int cornerRadius) {
+        final FrameLayout tab = new FrameLayout(mActivity);
+        tab.setClipChildren(false);
+        tab.setClickable(false);
+        tab.setFocusable(false);
+        tab.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        tab.setLayoutParams(frameParams(tabBounds));
+
+        final TextView sourceTitle = sourceTab.findViewById(R.id.session_tab_title);
+        if (sourceTitle != null) {
+            final SessionOverviewTabTitleView title =
+                    new SessionOverviewTabTitleView(mActivity);
+            title.setMaxLines(sourceTitle.getMaxLines());
+            title.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            title.setIncludeFontPadding(sourceTitle.getIncludeFontPadding());
+            title.setTextSize(TypedValue.COMPLEX_UNIT_PX, sourceTitle.getTextSize());
+            title.setTextColor(sourceTitle.getCurrentTextColor());
+            title.setPaintFlags(sourceTitle.getPaintFlags());
+            title.setPaddingRelative(sourceTab.getPaddingStart(), sourceTab.getPaddingTop(),
+                    sourceTab.getPaddingEnd(), sourceTab.getPaddingBottom());
+            applyTitleInsets(title, sourceTab, sourceTitle,
+                    title.getPaddingLeft(), title.getPaddingTop(),
+                    title.getPaddingRight(), title.getPaddingBottom());
+            copyRenderedTitle(title, sourceTitle);
+            title.setBackground(tabBackground(backgroundColor, cornerRadius));
+            title.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            tab.addView(title, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+        } else {
+            tab.setBackground(tabBackground(backgroundColor, cornerRadius));
+        }
+
+        if (closeBounds != null) {
+            final View sourceClose = sourceTab.findViewById(R.id.session_tab_close);
+            final ImageView close = new ImageView(mActivity);
+            close.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            close.setImageResource(R.drawable.ic_close);
+            final ColorFilter closeFilter = sourceClose instanceof ImageView
+                    ? ((ImageView) sourceClose).getColorFilter() : null;
+            if (closeFilter != null) {
+                close.setColorFilter(closeFilter);
+            } else {
+                int tint = sourceTitle != null ? sourceTitle.getCurrentTextColor() : Color.WHITE;
+                if (sourceClose instanceof ImageButton) {
+                    final ColorStateList tintList =
+                            ((ImageButton) sourceClose).getImageTintList();
+                    if (tintList != null) tint = tintList.getDefaultColor();
+                }
+                close.setImageTintList(ColorStateList.valueOf(tint));
+            }
+            close.setAlpha(sourceClose != null ? sourceClose.getAlpha() : 0.7f);
+            close.setClickable(false);
+            close.setFocusable(false);
+            close.setEnabled(false);
+            close.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            final Rect localClose = new Rect(closeBounds);
+            localClose.offset(-tabBounds.left, -tabBounds.top);
+            tab.addView(close, frameParams(localClose));
+        }
+        return tab;
+    }
+
+    /** Add the strip + as a direct drawable copy; it has no separate flight slot to remove. */
+    private void addStripPlusGhost(@NonNull SessionOverviewTabStripGhostView strip,
+                                   @Nullable View plus, @NonNull Rect panelWindow) {
+        if (!(plus instanceof ImageView) || plus.getVisibility() != View.VISIBLE
+                || plus.getWidth() <= 0 || plus.getHeight() <= 0) {
+            return;
+        }
+        final Rect bounds = windowRectOf(plus);
+        if (bounds.isEmpty()) return;
+        bounds.offset(-panelWindow.left, -panelWindow.top);
+        final ImageView ghost = createDirectTabPlusGhost((ImageView) plus);
+        if (ghost == null) return;
+        ghost.setLayoutParams(frameParams(bounds));
+        strip.addView(ghost);
+    }
+
+    @NonNull
+    private GradientDrawable tabBackground(int color, int cornerRadius) {
+        final GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setColor(color);
+        background.setCornerRadius(cornerRadius);
+        return background;
     }
 
     private boolean transitionTargetsReady(@NonNull Transition transition) {
@@ -4659,18 +4961,12 @@ public final class SessionOverviewController {
         if (transition.terminalGhost != null) {
             transition.terminalGhost.setImageDrawable(null);
         }
-        if (transition.tabPanelGhost != null) {
-            transition.tabPanelGhost.setImageDrawable(null);
-        }
         if (mGhostLayer != null) mGhostLayer.removeAllViews();
         mBackdropHole = null;
         releaseFrame(transition);
         transition.terminalGhost = null;
         transition.terminalOutline = null;
-        recycleBitmap(transition.tabPanelBitmap);
-        transition.tabPanelBitmap = null;
         transition.tabPanelGhost = null;
-        transition.tabPanelSourceLocal = null;
         removeScrollbarThumbGhost(transition.scrollbarThumbGhost);
         transition.scrollbarThumbGhost = null;
     }
@@ -4679,8 +4975,6 @@ public final class SessionOverviewController {
     private static void discardTransition(@Nullable Transition transition) {
         if (transition == null) return;
         releaseFrame(transition);
-        recycleBitmap(transition.tabPanelBitmap);
-        transition.tabPanelBitmap = null;
         transition.tabSources.clear();
     }
 
@@ -4798,19 +5092,26 @@ public final class SessionOverviewController {
         // expansion. A target without a scrollbar has no thumb to bring back.
         installClosingScrollbarThumbGhost(transition, origin);
         // Install the flying pills first: each one hides its real target tab, so the panel
-        // snapshot taken afterwards has an empty slot for every ghost to land in instead of
-        // drawing the returning tabs twice. The ghosts are brought back above the snapshot below.
+        // copy built afterwards has an empty slot for every ghost to land in instead of
+        // drawing the returning tabs twice. The ghosts are brought back above the copy below.
         installClosingTabVisuals(transition, origin);
-        // Hide the strip + before the panel snapshot, exactly like a returning tab: the ghost
+        // The add-button source has no card-tab flight, so its new strip tab needs its own
+        // target-phase ghost. Install it after the other ghosts (which hide their real target
+        // tabs) and before the panel copy, so the copy has an empty slot for it too.
+        installClosingNewTabGhost(transition, origin);
+        // Hide the strip + before the panel copy, exactly like a returning tab: the ghost
         // is the only copy until it lands in the empty slot. The add-button source has already
-        // consumed the button, so the strip + stays in the panel snapshot instead.
+        // consumed the button, so the strip + stays in the panel copy instead.
         if (transition.addButtonSource == null) prepareTabAddButtonFlight(true);
-        installClosingTabPanelGhost(transition, origin);
+        installClosingTabStripGhost(transition, origin);
         for (ClosingTabGhost ghost : transition.tabGhosts) {
             ghost.view.bringToFront();
         }
         for (ClosingTabGhost ghost : transition.tabGhosts) {
             if (ghost.closeGhost != null) ghost.closeGhost.bringToFront();
+        }
+        if (transition.newTabGhost != null) {
+            transition.newTabGhost.view.bringToFront();
         }
         if (transition.addButtonSourceGhost != null) {
             // The source button owns the bottom-right corner for the first quarter. The thumb
@@ -4911,30 +5212,58 @@ public final class SessionOverviewController {
     /**
      * Draw the final tab strip over the overview so it can fade in during the expansion.
      *
-     * <p>The strip was already selected and scrolled behind the overlay before this snapshot was
-     * taken, so the first visible frame after the overlay disappears matches it exactly. Every
-     * returning target tab is hidden by {@link #installClosingTabVisuals} before this capture;
-     * those slots are intentionally empty so the flying pills are the only copies drawn there
-     * until they land.</p>
+     * <p>The strip was already selected and scrolled behind the overlay before this copy was
+     * built, so the first visible frame after the overlay disappears matches it exactly. Every
+     * returning target tab is hidden by {@link #installClosingTabVisuals} before this point;
+     * those slots stay empty so the flying pills are the only copies drawn there until they
+     * land.</p>
      */
-    private void installClosingTabPanelGhost(@NonNull ClosingTransition transition,
+    private void installClosingTabStripGhost(@NonNull ClosingTransition transition,
                                              @NonNull int[] origin) {
         if (mGhostLayer == null || mTabPanel == null) return;
         final Rect panelWindow = windowRectOf(mTabPanel);
         if (panelWindow.isEmpty()) return;
-        final Bitmap bitmap = captureViewBitmap(mTabPanel);
-        if (bitmap == null) return;
+        final SessionOverviewTabStripGhostView ghost =
+                createStripGhostContainer(panelWindow, origin);
+        if (ghost == null) return;
 
-        final ImageView ghost = new ImageView(mActivity);
-        ghost.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        ghost.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ghost.setImageBitmap(bitmap);
-        final Rect panelLocal = offsetRect(panelWindow, origin);
-        ghost.setLayoutParams(frameParams(panelLocal));
+        final ViewGroup tabs = mTabPanel.findViewById(R.id.session_tabs);
+        final TermuxSessionTabsController tabsController =
+                mActivity.getTermuxSessionTabsController();
+        if (tabs != null) {
+            for (int i = 0; i < tabs.getChildCount(); i++) {
+                final View child = tabs.getChildAt(i);
+                if (child.getVisibility() != View.VISIBLE
+                        || child.getWidth() <= 0 || child.getHeight() <= 0) {
+                    continue;
+                }
+                if (child.getId() == R.id.new_session_tab_button) {
+                    addStripPlusGhost(ghost, child, panelWindow);
+                    continue;
+                }
+                if (child.getId() != R.id.session_tab_root || tabsController == null) {
+                    continue;
+                }
+                final Rect bounds = windowRectOf(child);
+                if (bounds.isEmpty()) continue;
+                bounds.offset(-panelWindow.left, -panelWindow.top);
+                final View close = child.findViewById(R.id.session_tab_close);
+                Rect closeBounds = null;
+                if (close != null && close.getVisibility() == View.VISIBLE) {
+                    closeBounds = windowRectOf(close);
+                    if (!closeBounds.isEmpty()) {
+                        closeBounds.offset(-panelWindow.left, -panelWindow.top);
+                    } else {
+                        closeBounds = null;
+                    }
+                }
+                addStripTabGhost(ghost, child, bounds, closeBounds,
+                        tabsController.getTabBackgroundColor(child),
+                        tabsController.getTabCornerRadiusPx());
+            }
+        }
         ghost.setAlpha(0f);
-        mGhostLayer.addView(ghost);
         transition.tabPanelGhost = ghost;
-        transition.tabPanelBitmap = bitmap;
     }
 
     /**
@@ -4948,7 +5277,7 @@ public final class SessionOverviewController {
      *
      * <p>Each ghost moves and fades out on its card, is transformed once while invisible, then
      * moves into its strip slot and fades in. All target tabs are hidden before the panel
-     * snapshot is taken, so the snapshot and the ghosts never draw the same tab at once.</p>
+     * copy is built, so the copy and the ghosts never draw the same tab at once.</p>
      */
     private void installClosingTabVisuals(@NonNull ClosingTransition transition,
                                           @NonNull int[] origin) {
@@ -4962,7 +5291,7 @@ public final class SessionOverviewController {
 
         for (Card card : mCards) {
             // The add-button source has no card tab in flight: the new tab is already selected
-            // and scrolled into the strip snapshot, so it must stay visible there.
+            // and scrolled into the strip copy, so it must stay visible there.
             if (transition.addButtonSource != null && card == transition.card) continue;
             // The tab always flies; this only decides whether its thumbnail travels with it.
             final boolean cardVisible = isCardThumbnailVisible(card, origin);
@@ -4974,6 +5303,17 @@ public final class SessionOverviewController {
                     ? visualChildRect(card, card.tab, origin)
                     : localRect(card.tab, origin);
             if (startBounds == null || startBounds.isEmpty()) continue;
+
+            // moveCardWithTab() translates the card relative to its resting tab slot, not
+            // relative to the captured visual start. A card that still carries the add-reflow
+            // translation must keep it on the first closing frame, otherwise the path delta
+            // would zero it and the whole grid would snap to its new top-aligned slots. The
+            // ghost starts at the visual rect; the card path is anchored to the layout slot.
+            final Rect anchorBounds = new Rect();
+            if (!cardChildTarget(card, card.tab, origin, anchorBounds)
+                    || anchorBounds.isEmpty()) {
+                anchorBounds.set(startBounds);
+            }
 
             final View targetTab = tabs.findTabForSession(card.session);
             if (targetTab == null || !targetTab.isShown()) continue;
@@ -5089,7 +5429,8 @@ public final class SessionOverviewController {
             }
 
             final ClosingTabGhost tabGhost = new ClosingTabGhost(card, ghost, background,
-                    startBounds, targetTextSize, targetTextColor, targetBackgroundColor,
+                    startBounds, anchorBounds, targetTextSize, targetTextColor,
+                    targetBackgroundColor,
                     targetCornerRadius, targetPadStart, targetPadTop, targetPadEnd,
                     targetPadBottom,
                     targetTitle != null ? targetTitle.getPaintFlags() : card.tab.getPaintFlags(),
@@ -5104,11 +5445,78 @@ public final class SessionOverviewController {
             // The real compact pill is hidden on the first animated frame, not here: a ghost has
             // not been measured yet at progress zero, so hiding the real pill now would leave the
             // card's top edge empty for one frame. Keep the strip slot hidden now, though — the
-            // panel snapshot taken afterwards must have an empty landing spot for this ghost. The panel snapshot
+            // panel copy taken afterwards must have an empty landing spot for this ghost. The panel copy
             // taken after this method therefore has a gap at every landing spot, and cleanup
             // restores all of them before the overlay is removed.
             targetTab.setVisibility(View.INVISIBLE);
         }
+    }
+
+    /**
+     * Reserve and animate the strip slot of the tab created by the add-button release.
+     *
+     * <p>The add-button source has no card-tab flight: its new card is the terminal source and
+     * is hidden. The tab is already selected and scrolled into the final strip geometry before
+     * the copy. This ghost occupies the empty slot in that copy and appears with the
+     * same target fade as the returning tabs, so the strip reads as one coordinated return
+     * rather than a static tab fading in with the panel.</p>
+     *
+     * <p>If the tab is not fully visible or not laid out, leave it in the copy. A ghost
+     * drawn outside the panel would be worse than the ordinary hand-off.</p>
+     */
+    private void installClosingNewTabGhost(@NonNull ClosingTransition transition,
+                                           @NonNull int[] origin) {
+        if (mGhostLayer == null || mTabPanel == null
+                || transition.addButtonSource == null) return;
+        final TermuxSessionTabsController tabs = mActivity.getTermuxSessionTabsController();
+        if (tabs == null) return;
+
+        final View targetTab = tabs.findTabForSession(transition.session);
+        if (targetTab == null || !targetTab.isLaidOut() || !targetTab.isShown()
+                || targetTab.getWidth() <= 0 || targetTab.getHeight() <= 0) return;
+        final Rect targetBounds = localRect(targetTab, origin);
+        if (targetBounds == null || targetBounds.isEmpty()) return;
+        // Check the scroll viewport, not just the panel. A tab can be inside the panel but
+        // clipped by the horizontal scroll container; a ghost drawn there would not match the
+        // panel copy's clipped edge.
+        final View tabsScroll = mTabPanel.findViewById(R.id.session_tabs_scroll);
+        final View clip = tabsScroll != null ? tabsScroll : mTabPanel;
+        final Rect clipWindow = windowRectOf(clip);
+        if (clipWindow.isEmpty()) return;
+        final Rect clipLocal = offsetRect(clipWindow, origin);
+        if (!clipLocal.contains(targetBounds)) return;
+
+        final View targetClose = targetTab.findViewById(R.id.session_tab_close);
+        final boolean closeVisible = targetClose != null
+                && targetClose.getVisibility() == View.VISIBLE;
+        Rect closeBounds = null;
+        if (closeVisible) {
+            closeBounds = localRect(targetClose, origin);
+            // A title-only ghost would lose the cross at progress 1. Leave the real tab in the
+            // copy instead of accepting a visibly incomplete final frame.
+            if (closeBounds == null || closeBounds.isEmpty()) return;
+        }
+
+        final float terminalZ = transition.liftedStart
+                ? SessionOverviewTransitionMath.tabGhostZ(transition.startLiftZ + 1f)
+                : SessionOverviewTransitionMath.tabGhostZ(0f);
+
+        // Reuse the direct strip-tab copy. Scaling one container keeps the title, pill and cross
+        // rigid around the same centre, and makes the p=1 frame exactly the strip copy.
+        final FrameLayout ghost = createStripTabGhostView(targetTab, targetBounds, closeBounds,
+                tabs.getTabBackgroundColor(targetTab), tabs.getTabCornerRadiusPx());
+        ghost.setPivotX(targetBounds.width() / 2f);
+        ghost.setPivotY(targetBounds.height() / 2f);
+        ghost.setScaleX(SessionOverviewTransitionMath.NEW_TAB_REVEAL_SCALE);
+        ghost.setScaleY(SessionOverviewTransitionMath.NEW_TAB_REVEAL_SCALE);
+        ghost.setAlpha(0f);
+        ghost.setTranslationZ(terminalZ);
+        mGhostLayer.addView(ghost);
+
+        final int targetTabVisibility = targetTab.getVisibility();
+        targetTab.setVisibility(View.INVISIBLE);
+        transition.newTabGhost = new ClosingNewTabGhost(ghost, targetTab,
+                targetTabVisibility);
     }
 
     private void startClosingTransition(@NonNull ClosingTransition transition) {
@@ -5124,7 +5532,7 @@ public final class SessionOverviewController {
             mTerminalAddFlight = null;
             // The button is already invisible and its pixels are owned by the source ghost.
             // Do not start the pencil return or the strip-plus flight: the source becomes the
-            // terminal, and the strip plus is part of the panel snapshot.
+            // terminal, and the strip plus is part of the panel copy.
             mAddButtonHovered = false;
         } else {
             // The plus travels home during the expansion, not after it. This makes the toggle
@@ -5254,7 +5662,7 @@ public final class SessionOverviewController {
                     mOverlayBackgroundColor, fillAlpha);
         }
 
-        // Keep the snapshot transparent until it can replace the card in the same frame.
+        // Keep the copy transparent until it can replace the card in the same frame.
         // A layout pass can give the ghost a size between two animator callbacks; if its alpha
         // had already been raised, it would draw over the still-visible preview and stack two
         // translucent terminal backgrounds for that frame.
@@ -5318,6 +5726,9 @@ public final class SessionOverviewController {
             final float terminalZ = transition.liftedStart ? transition.startLiftZ + 1f : 0f;
             applyClosingTabProgress(transition, ghost, origin, p, terminalZ);
             if (ghost.card == transition.card) selectedTabHasGhost = true;
+        }
+        if (transition.newTabGhost != null) {
+            applyClosingNewTabProgress(transition.newTabGhost, p);
         }
         if (!selectedTabHasGhost) {
             transition.card.tab.setAlpha(transition.tabBaseAlpha * previewAlpha);
@@ -5446,9 +5857,20 @@ public final class SessionOverviewController {
         // coupling. A visible thumbnail travels with its returning tab so it does not stay
         // behind while the tab fades out; an off-screen card stays in its slot.
         if (companion && ghost.targetBounds != null) {
-            moveCardWithTab(ghost.card.root, ghost.startBounds, ghost.startBounds,
+            moveCardWithTab(ghost.card.root, ghost.anchorBounds, ghost.startBounds,
                     ghost.targetBounds, ghost.targetApplied ? targetPath : sourcePath);
         }
+    }
+
+    /**
+     * Apply the target-phase reveal to the newly added tab. The target geometry and style were
+     * captured once while the strip was frozen; only opacity and a small shared scale change.
+     */
+    private void applyClosingNewTabProgress(@NonNull ClosingNewTabGhost ghost, float p) {
+        ghost.view.setAlpha(SessionOverviewTransitionMath.tabTargetAlpha(p));
+        final float scale = SessionOverviewTransitionMath.newTabRevealScale(p);
+        ghost.view.setScaleX(scale);
+        ghost.view.setScaleY(scale);
     }
 
     /**
@@ -5533,7 +5955,12 @@ public final class SessionOverviewController {
         // session's.
         if (consumedAddButton) mTerminalAddConsumedClose = true;
         hide(false, true, session);
+        // Move the pager first. The strip is still frozen, so the landing cannot move or repaint
+        // it; the pre-applied target selection and scroll stay exactly as the copy captured
+        // them. Once the target is current, reconcile deferred updates so updateTabs() resolves
+        // the target (not the page being left) as the selected tab.
         switchToSession(session);
+        endClosingStripFreeze();
         if (consumedAddButton) {
             mTerminalAddConsumedClose = false;
             // The add button was consumed by the morph; the pencil is the only floating control
@@ -5549,6 +5976,9 @@ public final class SessionOverviewController {
         final boolean addButtonSource = transition.addButtonSource != null;
         cancelTabAddButtonFlight();
         cleanupClosingTransition(transition);
+        // Restore the strip's live updates before putting the highlight back; otherwise the
+        // restore selection would be swallowed by the closing freeze.
+        endClosingStripFreeze();
         if (addButtonSource) {
             // A cancelled add-button expansion returns to the overview. The new session is
             // already current, but the button must be visible again for the next gesture.
@@ -5592,6 +6022,11 @@ public final class SessionOverviewController {
             if (animator.isRunning()) animator.cancel();
         }
 
+        // The add-button closing held the survivors at their pre-add centres. The closing
+        // owns the grid only while it is on screen; drop that snapshot before restoring the
+        // final card geometry. The reset below then leaves the grid in its post-add layout.
+        releaseTerminalAddGridHold(false);
+
         transition.card.preview.setAlpha(1f);
         transition.card.preview.setVisibility(View.VISIBLE);
         for (Card card : mCards) {
@@ -5622,6 +6057,11 @@ public final class SessionOverviewController {
             ghost.targetTabView.setVisibility(ghost.targetTabVisibility);
         }
         transition.tabGhosts.clear();
+        if (transition.newTabGhost != null) {
+            transition.newTabGhost.targetTabView.setVisibility(
+                    transition.newTabGhost.targetTabVisibility);
+            transition.newTabGhost = null;
+        }
 
         if (transition.addButtonSourceGhost != null) {
             final OverviewAddTabGhostView sourceGhost = transition.addButtonSourceGhost;
@@ -5636,9 +6076,6 @@ public final class SessionOverviewController {
             ((TopCropImageView) transition.terminalGhost).setImageAlpha(255);
             transition.terminalGhost.setImageDrawable(null);
         }
-        if (transition.tabPanelGhost != null) {
-            transition.tabPanelGhost.setImageDrawable(null);
-        }
         if (mGhostLayer != null) mGhostLayer.removeAllViews();
         mBackdropHole = null;
         if (transition.frame != null) {
@@ -5647,8 +6084,6 @@ public final class SessionOverviewController {
         }
         transition.terminalGhost = null;
         transition.terminalOutline = null;
-        recycleBitmap(transition.tabPanelBitmap);
-        transition.tabPanelBitmap = null;
         transition.tabPanelGhost = null;
         removeScrollbarThumbGhost(transition.scrollbarThumbGhost);
         transition.scrollbarThumbGhost = null;
@@ -6148,6 +6583,13 @@ public final class SessionOverviewController {
      */
     private void smoothScrollToCard(@NonNull Card card) {
         if (mScrollView == null || mGrid == null || !mShowing) return;
+        // The closing snapshot already captured the viewport. A pending reveal that fires
+        // after the snapshot would scroll the grid under the expanding terminal.
+        if (mClosingTransition != null || mPendingClosingCard != null) return;
+        // The add-button release opens a terminal outside the grid. Keep the viewport exactly
+        // where the gesture left it until the expansion owns the screen; a reveal scroll here
+        // would move the whole grid in the first frames of the closing animation.
+        if (mTerminalAddFlight != null) return;
         if (mRestoreScrollOnOpen) {
             // The opening restore still owns scrollY. Remember the target and reveal it as soon
             // as that restore finishes; without this the new row can stay only partly on screen.
@@ -6224,6 +6666,10 @@ public final class SessionOverviewController {
                 || mScrollView == null || mGrid == null || !mGrid.isLaidOut()) {
             return;
         }
+        // The add-button release opens a terminal that never occupies a grid slot. Keep the
+        // viewport frozen under the source ghost; the closing expansion starts from the button,
+        // so a reveal scroll here would read as the grid jumping in the first animation frame.
+        if (mTerminalAddFlight != null) return;
         // A newly appended card owns the scroll until its reveal has finished. A layout pass in
         // that window (the new session's terminal geometry can resize every card) would otherwise
         // call scrollTo() and teleport the grid to the active card in one frame.
@@ -6749,6 +7195,9 @@ public final class SessionOverviewController {
         boolean renderedAny = false;
         for (int i = first; i < end; i++) {
             final Card card = mCards.get(i);
+            // The add morph borrows this card's bitmap for its direct preview copy. Replacing
+            // the bitmap here would recycle the pixels the ghost is still drawing.
+            if (card == mAddTabFlightCard) continue;
             if (!card.previewDirty || !isCardPreviewVisible(card, scrollY, viewportHeight,
                     gridTop)) {
                 continue;
@@ -7140,6 +7589,7 @@ public final class SessionOverviewController {
     private void releaseCards() {
         cancelAddTabFlight(false, false);
         cancelTerminalAddFlight(false, false);
+        mTerminalAddGridHeld = false;
         mPendingRevealCard = null;
         disarmGestureSelection();
         stopAutoScroll();
@@ -7272,6 +7722,8 @@ public final class SessionOverviewController {
         final SessionOverviewTabTitleView view;
         final GradientDrawable background;
         final Rect startBounds;
+        /** Resting tab rect in content coordinates, excluding the card's temporary translation. */
+        final Rect anchorBounds;
         final float targetTextSize;
         final int targetTextColor;
         final int targetBackgroundColor;
@@ -7303,7 +7755,7 @@ public final class SessionOverviewController {
         float closeBaseAlpha = 1f;
 
         ClosingTabGhost(Card card, SessionOverviewTabTitleView view,
-                        GradientDrawable background, Rect startBounds,
+                        GradientDrawable background, Rect startBounds, Rect anchorBounds,
                         float targetTextSize, int targetTextColor, int targetBackgroundColor,
                         int targetCornerRadius, int targetPadStart, int targetPadTop,
                         int targetPadEnd, int targetPadBottom, int targetPaintFlags,
@@ -7315,6 +7767,7 @@ public final class SessionOverviewController {
             this.view = view;
             this.background = background;
             this.startBounds = new Rect(startBounds);
+            this.anchorBounds = new Rect(anchorBounds);
             this.targetTextSize = targetTextSize;
             this.targetTextColor = targetTextColor;
             this.targetBackgroundColor = targetBackgroundColor;
@@ -7331,6 +7784,25 @@ public final class SessionOverviewController {
             this.targetCloseBounds = targetCloseBounds != null
                     ? new Rect(targetCloseBounds) : null;
             this.targetCloseTint = targetCloseTint;
+        }
+    }
+
+    /**
+     * The target-phase ghost for the strip tab created by the add-button release. Unlike the
+     * other returning tabs it has no card source: the slot is already reserved in the panel
+     * copy and the ghost only materialises there during the last third of the flight.
+     */
+    private static final class ClosingNewTabGhost {
+        final FrameLayout view;
+        final View targetTabView;
+        final int targetTabVisibility;
+
+        ClosingNewTabGhost(@NonNull FrameLayout view,
+                           @NonNull View targetTabView,
+                           int targetTabVisibility) {
+            this.view = view;
+            this.targetTabView = targetTabView;
+            this.targetTabVisibility = targetTabVisibility;
         }
     }
 
@@ -7438,9 +7910,9 @@ public final class SessionOverviewController {
         int backgroundStart;
         int backgroundEnd;
         boolean backgroundTransition;
-        Bitmap tabPanelBitmap;
-        ImageView tabPanelGhost;
+        SessionOverviewTabStripGhostView tabPanelGhost;
         final List<ClosingTabGhost> tabGhosts = new ArrayList<>();
+        @Nullable ClosingNewTabGhost newTabGhost;
         ValueAnimator animator;
         boolean started;
         /** True when the expansion was selected from a lifted card. */
@@ -7488,9 +7960,7 @@ public final class SessionOverviewController {
         int backgroundStart;
         int backgroundEnd;
         boolean backgroundTransition;
-        Bitmap tabPanelBitmap;
-        Rect tabPanelSourceLocal;
-        ImageView tabPanelGhost;
+        SessionOverviewTabStripGhostView tabPanelGhost;
         Card activeCard;
         final List<SourceTab> tabSources = new ArrayList<>();
         final List<TabGhost> tabGhosts = new ArrayList<>();

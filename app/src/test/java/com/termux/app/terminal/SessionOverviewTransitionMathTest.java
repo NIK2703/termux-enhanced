@@ -413,4 +413,25 @@ public class SessionOverviewTransitionMathTest {
         Assert.assertEquals(1f,
                 SessionOverviewTransitionMath.closingScrollbarThumbAlpha(1f), EPS);
     }
+
+    @Test
+    public void companionCardPreservesItsExistingOffsetOnTheFirstFrame() {
+        // Anchor 100 is the resting slot; 150 is the visual start with a 50 px reflow hold.
+        Assert.assertEquals(50f,
+                SessionOverviewTransitionMath.cardCompanionTranslation(100f, 150f, 200f, 0f),
+                EPS);
+        Assert.assertEquals(75f,
+                SessionOverviewTransitionMath.cardCompanionTranslation(100f, 150f, 200f, 0.5f),
+                EPS);
+        Assert.assertEquals(100f,
+                SessionOverviewTransitionMath.cardCompanionTranslation(100f, 150f, 200f, 1f),
+                EPS);
+    }
+
+    @Test
+    public void companionCardAtRestDoesNotJumpOnTheFirstFrame() {
+        Assert.assertEquals(0f,
+                SessionOverviewTransitionMath.cardCompanionTranslation(100f, 100f, 200f, 0f),
+                EPS);
+    }
 }

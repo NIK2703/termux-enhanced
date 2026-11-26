@@ -4,8 +4,8 @@ package com.termux.app.terminal;
  * Pure timing and interpolation math for the overview opening and closing transitions.
  *
  * <p>The controller feeds the animator's 0..1 progress through these functions so the visual
- * rules (the opening snapshot stays opaque until the final frame, and the closing snapshot is
- * opaque from the first frame) are testable without a running view hierarchy.</p>
+ * rules (the opening strip copy stays opaque until the final frame, and the closing strip copy
+ * is opaque from the first frame) are testable without a running view hierarchy.</p>
  */
 public final class SessionOverviewTransitionMath {
 
@@ -45,11 +45,11 @@ public final class SessionOverviewTransitionMath {
      * <p>Every tab flies, including tabs whose cards are scrolled outside the overview viewport.
      * An off-screen card stays in its slot and only the tab ghost travels to or from that slot;
      * moving the card itself could drag an unseen thumbnail into view. A card that owns the
-     * terminal snapshot is never carried by its tab, because that snapshot already animates the
+     * terminal frame is never carried by its tab, because that frame already animates the
      * terminal.</p>
      */
-    public static boolean tabCarriesCard(boolean cardVisible, boolean ownsTerminalSnapshot) {
-        return cardVisible && !ownsTerminalSnapshot;
+    public static boolean tabCarriesCard(boolean cardVisible, boolean ownsTerminalFrame) {
+        return cardVisible && !ownsTerminalFrame;
     }
 
     /** Progress by which a closing ghost that inherited a hover lift is fully opaque. */
@@ -103,6 +103,18 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
+     * Scale of the newly added tab when it starts materialising in its reserved strip slot.
+     * The reveal is deliberately subtle: the slot is already final, so a large grow would read
+     * as a second layout rather than the tab settling into place.
+     */
+    public static final float NEW_TAB_REVEAL_SCALE = 0.96f;
+
+    /** Scale of the newly added tab's target-phase reveal. */
+    public static float newTabRevealScale(float progress) {
+        return lerp(NEW_TAB_REVEAL_SCALE, 1f, tabTargetAlpha(progress));
+    }
+
+    /**
      * Fraction of the source-to-target centre line covered by the source copy of a flying tab.
      * It advances linearly from 0 to {@link #TAB_MOTION_SPLIT} over the first half of the flight.
      * The fade ends at one third of that line; the remaining sixth of the path — one third of
@@ -128,22 +140,22 @@ public final class SessionOverviewTransitionMath {
 
     /**
      * Final terminal preview opacity. The opening flight keeps the card preview hidden until
-     * the snapshot has landed, so the flying terminal disappears in one step at the very end
+     * the frame has landed, so the flying terminal disappears in one step at the very end
      * instead of dissolving into the thumbnail.
      */
     public static float previewAlpha(float progress) {
         return clamp01(progress) >= 1f ? 1f : 0f;
     }
 
-    /** Flying terminal snapshot opacity, the exact inverse of {@link #previewAlpha(float)}. */
+    /** Flying terminal frame opacity, the exact inverse of {@link #previewAlpha(float)}. */
     public static float ghostAlpha(float progress) {
         return 1f - previewAlpha(progress);
     }
 
     /**
-     * Expanding terminal snapshot opacity for the closing flight.
+     * Expanding terminal frame opacity for the closing flight.
      *
-     * <p>The snapshot is fully opaque on the first frame: the selected thumbnail starts growing
+     * <p>The frame is fully opaque on the first frame: the selected thumbnail starts growing
      * immediately instead of fading in over the card preview. The preview is hidden for the
      * whole flight, so the expansion reads as one continuous resize from the card to the
      * terminal.</p>
@@ -179,9 +191,9 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Strip snapshot opacity while the terminal and its tab fly into the grid.
+     * Strip copy opacity while the terminal and its tab fly into the grid.
      *
-     * <p>The strip is behind the overview backdrop. A snapshot of it is drawn above the
+     * <p>The strip is behind the overview backdrop. A copy of it is drawn above the
      * backdrop and follows this fade, so the panel does not simply vanish on the first frame.</p>
      */
     public static float openingTabPanelAlpha(float progress) {
@@ -189,7 +201,7 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Strip snapshot opacity while the selected terminal expands back out.
+     * Strip copy opacity while the selected terminal expands back out.
      *
      * <p>This is the reverse of {@link #openingTabPanelAlpha(float)}: the final strip, already
      * scrolled and with the target tab selected, fades in behind the flying tab.</p>
@@ -203,7 +215,7 @@ public final class SessionOverviewTransitionMath {
      * invisible until 67% of the path, then visible over the last third. A card outside the
      * viewport stays in its slot while only its tab flies to that slot, but its appearance must
      * still coincide with the cards that travel together with their tabs. The active card is
-     * represented by the terminal snapshot and stays out of this fade.
+     * represented by the terminal frame and stays out of this fade.
      */
     public static float openingCardAlpha(float progress) {
         return tabTargetAlpha(progress);
@@ -214,7 +226,7 @@ public final class SessionOverviewTransitionMath {
      * visible at the start, gone by 33% of the path. A card outside the viewport stays in its
      * slot while only its tab flies back from that slot, but its disappearance must still
      * coincide with the cards that travel together with their tabs. The selected card is
-     * represented by the expanding terminal snapshot and stays out of this fade.
+     * represented by the expanding terminal frame and stays out of this fade.
      */
     public static float closingCardAlpha(float progress) {
         return tabSourceAlpha(progress);
@@ -259,11 +271,24 @@ public final class SessionOverviewTransitionMath {
     }
 
     /**
-     * Translation Z for a flying tab that is travelling above the terminal snapshot. Child Z
+     * Translation of a card that follows its flying tab.
+     *
+     * <p>{@code anchor} is the card's resting tab coordinate, while {@code source} is the
+     * tab's visual starting coordinate. Subtracting the anchor keeps any temporary offset the
+     * card already carried at the source (for example the add-reflow hold) instead of
+     * collapsing it to zero on the first transition frame.</p>
+     */
+    public static float cardCompanionTranslation(float anchor, float source, float target,
+                                                 float progress) {
+        return lerp(source, target, progress) - anchor;
+    }
+
+    /**
+     * Translation Z for a flying tab that is travelling above the terminal frame. Child Z
      * order wins over insertion order, so a tab with the default Z could disappear under a
-     * snapshot carrying elevation even when it is added later. Keeping the tab one pixel above
-     * the snapshot's maximum elevation makes it stay on top for the whole flight. Overview
-     * snapshots pass zero because they cast no shadow.
+     * frame carrying elevation even when it is added later. Keeping the tab one pixel above
+     * the frame's maximum elevation makes it stay on top for the whole flight. Overview
+     * copies pass zero because they cast no shadow.
      */
     public static float tabGhostZ(float terminalElevation) {
         final float elevation = Float.isNaN(terminalElevation) ? 0f : terminalElevation;

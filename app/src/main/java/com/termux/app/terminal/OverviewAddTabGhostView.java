@@ -1,7 +1,6 @@
 package com.termux.app.terminal;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Outline;
@@ -12,6 +11,7 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewOutlineProvider;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -19,15 +19,16 @@ import androidx.annotation.Nullable;
 /**
  * Full-screen, non-interactive ghost for the add-session flight.
  *
- * <p>One {@link View} draws the whole morph: the button's exact fill and stroke, a fixed "+"
- * icon that fades out, and a snapshot of the real card that fades in. The view's outline follows
- * the current rounded rectangle, so the platform elevation shadow starts as the button's circular
- * shadow and fades out with the flight instead of staying a hard rectangle.</p>
+ * <p>One container draws the whole morph: the button's exact fill and stroke, a fixed "+"
+ * icon that fades out, and an optional direct copy of the real card that fades in. The card copy
+ * is ordinary views, not a bitmap, so the preview keeps the same raster the live card owns and
+ * the tab title does not need a second layout pass. The view's outline follows the current
+ * rounded rectangle, so the platform elevation shadow starts as the button's circular shadow and
+ * fades out with the flight instead of staying a hard rectangle.</p>
  */
-public final class OverviewAddTabGhostView extends View {
+public final class OverviewAddTabGhostView extends FrameLayout {
 
     private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mBitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF mRect = new RectF();
     private final Path mClipPath = new Path();
@@ -38,7 +39,7 @@ public final class OverviewAddTabGhostView extends View {
     private float mContentAlpha;
     private int mStrokeColor = Color.TRANSPARENT;
     private float mStrokeWidthPx;
-    @Nullable private Bitmap mCardBitmap;
+    @Nullable private View mCardContent;
     @Nullable private Drawable mPlusIcon;
     private float mPlusIconSizePx;
     private int mShadowElevationPx;
@@ -88,16 +89,31 @@ public final class OverviewAddTabGhostView extends View {
         invalidate();
     }
 
-    public void setCardBitmap(@Nullable Bitmap bitmap) {
-        if (mCardBitmap == bitmap) return;
-        mCardBitmap = bitmap;
+    /**
+     * Install the direct card copy. The caller gives it the card's measured size; this container
+     * scales that copy into the current morph rectangle on every frame.
+     */
+    public void setCardContent(@Nullable View content) {
+        if (mCardContent == content) return;
+        if (mCardContent != null && mCardContent.getParent() == this) {
+            removeView(mCardContent);
+        }
+        mCardContent = content;
+        if (content != null) {
+            content.setClickable(false);
+            content.setFocusable(false);
+            content.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            if (content.getLayoutParams() != null) {
+                addView(content, content.getLayoutParams());
+            } else {
+                addView(content);
+            }
+        }
         invalidate();
     }
 
-    public void clearCardBitmap() {
-        if (mCardBitmap == null) return;
-        mCardBitmap = null;
-        invalidate();
+    public void clearCardContent() {
+        setCardContent(null);
     }
 
     /**
@@ -136,38 +152,56 @@ public final class OverviewAddTabGhostView extends View {
     }
 
     @Override
-    protected void onDraw(@NonNull Canvas canvas) {
-        super.onDraw(canvas);
-        if (mRect.isEmpty() || mRect.width() <= 0f || mRect.height() <= 0f) return;
+    protected void dispatchDraw(@NonNull Canvas canvas) {
+        if (mRect.isEmpty() || mRect.width() <= 0f || mRect.height() <= 0f) {
+            super.dispatchDraw(canvas);
+            return;
+        }
 
         final float radius = Math.min(mRadius, Math.min(mRect.width(), mRect.height()) / 2f);
         mFillPaint.setColor(mFillColor);
         canvas.drawRoundRect(mRect, radius, radius, mFillPaint);
 
-        final Bitmap bitmap = mCardBitmap;
-        if (bitmap != null && !bitmap.isRecycled() && mContentAlpha > 0f) {
-            mBitmapPaint.setAlpha(Math.round(mContentAlpha * 255f));
+        if (mCardContent != null && mContentAlpha > 0f) {
+            layoutContentInFrame();
+            mCardContent.setAlpha(mContentAlpha);
             canvas.save();
             mClipPath.reset();
             mClipPath.addRoundRect(mRect, radius, radius, Path.Direction.CW);
             canvas.clipPath(mClipPath);
-            canvas.drawBitmap(bitmap, null, mRect, mBitmapPaint);
+            super.dispatchDraw(canvas);
             canvas.restore();
         }
 
         drawStroke(canvas, radius);
+        drawPlus(canvas);
+    }
 
+    /** Place the card copy at its natural size, then scale it into the current flight frame. */
+    private void layoutContentInFrame() {
+        final View content = mCardContent;
+        if (content == null || content.getWidth() <= 0 || content.getHeight() <= 0) return;
+        final float scaleX = mRect.width() / content.getWidth();
+        final float scaleY = mRect.height() / content.getHeight();
+        content.setPivotX(0f);
+        content.setPivotY(0f);
+        content.setScaleX(scaleX);
+        content.setScaleY(scaleY);
+        content.setTranslationX(mRect.left);
+        content.setTranslationY(mRect.top);
+    }
+
+    private void drawPlus(@NonNull Canvas canvas) {
         final Drawable plus = mPlusIcon;
-        if (plus != null && mPlusAlpha > 0f) {
-            final int size = Math.max(1, Math.round(mPlusIconSizePx));
-            final float cx = mRect.centerX();
-            final float cy = mRect.centerY();
-            final int left = Math.round(cx - size / 2f);
-            final int top = Math.round(cy - size / 2f);
-            plus.setBounds(left, top, left + size, top + size);
-            plus.setAlpha(Math.round(mPlusAlpha * 255f));
-            plus.draw(canvas);
-        }
+        if (plus == null || mPlusAlpha <= 0f) return;
+        final int size = Math.max(1, Math.round(mPlusIconSizePx));
+        final float cx = mRect.centerX();
+        final float cy = mRect.centerY();
+        final int left = Math.round(cx - size / 2f);
+        final int top = Math.round(cy - size / 2f);
+        plus.setBounds(left, top, left + size, top + size);
+        plus.setAlpha(Math.round(mPlusAlpha * 255f));
+        plus.draw(canvas);
     }
 
     /**

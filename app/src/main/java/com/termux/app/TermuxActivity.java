@@ -5137,9 +5137,10 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     @Override
     public void onBackPressed() {
         // The overview is the innermost surface while it is open: Back closes it before closing
-        // the input panel or leaving the activity.
+        // the input panel or leaving the activity. It leaves through the same card-to-terminal
+        // expansion as tapping the active card, not the instant hide used for internal fallbacks.
         if (mSessionOverviewController != null && mSessionOverviewController.isShowing()) {
-            mSessionOverviewController.hide();
+            mSessionOverviewController.hideFromBack();
             return;
         }
 

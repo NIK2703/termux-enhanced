@@ -91,6 +91,25 @@ public class TermuxSessionTabsController {
     /** A title refresh arrived mid-drag; replay it once the gesture releases the strip. */
     private boolean mTitleRefreshDeferred;
 
+    /**
+     * The overview is closing and has captured this strip in a panel snapshot. Until the
+     * overlay is removed, the real tabs must not move or repaint: the snapshot and the flying
+     * tab ghosts are the only visible copies, and a late title, colour or selection update
+     * would make them disagree with the strip revealed at progress 1.
+     *
+     * <p>This is a mutation gate, not a delay. It does not wait for the opening width
+     * animation; {@link #finishOpenAnimationsForOverview()} cancels that animation before the
+     * freeze begins.</p>
+     */
+    private boolean mOverviewClosingFrozen;
+    @Nullable private List<TermuxSession> mFrozenSessions;
+    private boolean mFrozenSessionsDirty;
+    private boolean mFrozenSelectionDirty;
+    private int mFrozenSelectionIndex = -1;
+    private boolean mFrozenSchemeDirty;
+    private boolean mFrozenAddButtonDirty;
+    private int mFrozenAddButtonCount = -1;
+
     /** Backing preference store for the tab-strip settings (tab height mode). */
     private final android.content.SharedPreferences mPrefs;
 
@@ -444,6 +463,12 @@ public class TermuxSessionTabsController {
 
     public void updateTabs(List<TermuxSession> sessions) {
         if (mTabsContainer == null) return;
+        if (mOverviewClosingFrozen) {
+            // Keep the last model for one reconciliation after the overlay is gone. The strip
+            // itself is already in the final state the closing snapshot captured.
+            deferFrozenSessions(sessions);
+            return;
+        }
 
         // Defer cosmetic updates for the same session order. A structural change aborts the drag;
         // the pager sync that follows owns re-enabling it.
@@ -537,6 +562,10 @@ public class TermuxSessionTabsController {
      */
     public void refreshTabAppearance(List<TermuxSession> sessions) {
         if (mTabsContainer == null) return;
+        if (mOverviewClosingFrozen) {
+            deferFrozenSessions(sessions);
+            return;
+        }
         // A title change can resize a tab; defer it until the drag releases the strip.
         if (mDragController.isActive()) {
             mTitleRefreshDeferred = true;
@@ -605,6 +634,11 @@ public class TermuxSessionTabsController {
      */
     public void updateAddButtonVisibility(int sessionCount) {
         if (mTabsContainer == null) return;
+        if (mOverviewClosingFrozen) {
+            mFrozenAddButtonDirty = true;
+            mFrozenAddButtonCount = sessionCount;
+            return;
+        }
         View addBtn = mTabsContainer.findViewById(R.id.new_session_tab_button);
         if (addBtn == null) return;
         // GONE releases the button's width and margin. If it hides while pinned, the layout
@@ -1478,6 +1512,7 @@ public class TermuxSessionTabsController {
      * maxScroll while the tab grows, so the (+) button never leaves the viewport.
      */
     public void scrollStripToEnd() {
+        if (mOverviewClosingFrozen) return;
         if (!isStripReady()) return;
         // A late title callback must not re-pin after the user took over.
         if (!mEndScrollActive && !mPinRightEdge) return;
@@ -1493,6 +1528,7 @@ public class TermuxSessionTabsController {
 
     /** Moves scrollX to maxScroll while the pin is active. */
     private void pinStripToEnd() {
+        if (mOverviewClosingFrozen) return;
         if (!mPinRightEdge || !isStripReady()) return;
         final int viewport = mTabsScroll.getWidth();
         if (viewport <= 0) return;
@@ -1616,6 +1652,7 @@ public class TermuxSessionTabsController {
      * only after the terminal had already expanded.</p>
      */
     public void scrollToTabIndexImmediately(int index) {
+        if (mOverviewClosingFrozen) return;
         if (!isStripReady()) return;
         mEndScrollActive = false;
         mPinRightEdge = false;
@@ -1654,6 +1691,141 @@ public class TermuxSessionTabsController {
     }
 
     /**
+     * Finish the hidden width animation of a just-added tab at its natural width and drop the
+     * add pin before the overview closing snapshot is taken.
+     *
+     * <p>The strip is fully covered by the overview, so the 150 ms reveal has nothing to show.
+     * Waiting for it would delay the closing; cancelling it leaves the next layout pass with the
+     * final width. This is not a timed wait: the caller still waits only for that layout.</p>
+     */
+    public void finishOpenAnimationsForOverview() {
+        if (mTabsContainer == null) return;
+        mTabsContainer.removeCallbacks(mReleaseInactivePin);
+        mEndScrollActive = false;
+        mPinRightEdge = false;
+        mPinnedTabIndex = -1;
+        mScrollSeqPending = -1;
+        cancelCentreScroll();
+        cancelScrollAnim();
+        if (mTabsScroll != null) mTabsScroll.removeCallbacks(mScrollRunnable);
+
+        for (int i = 0, n = getTabCount(); i < n; i++) {
+            final View tabView = getTabAt(i);
+            if (tabView == null) continue;
+            final Object tag = tabView.getTag(R.id.session_tab_open_anim_tag);
+            if (!(tag instanceof Animator)) continue;
+            cancelTabOpenAnimation(tabView);
+            final ViewGroup.LayoutParams lp = tabView.getLayoutParams();
+            if (lp != null) {
+                lp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+                tabView.setLayoutParams(lp);
+            }
+        }
+        // cancelTabOpenAnimation() normally reaches zero by itself. Keep the counter exact even
+        // if a view was detached between the animator start and this pass.
+        mOpenAnimationsRunning = 0;
+    }
+
+    /**
+     * Stop the real strip from changing while the overview closing transition owns a snapshot
+     * of it. The target selection and scroll must already be final; the caller invokes this
+     * immediately before capturing the panel.
+     */
+    public void beginOverviewClosingFreeze() {
+        if (mOverviewClosingFrozen) return;
+        mOverviewClosingFrozen = true;
+        // No pending width change may animate under the snapshot or after the overlay leaves.
+        // endOverviewClosingFreeze() re-enables this after the first layout that consumes the
+        // deferred updates (or the new tab's open animation does when it owns the switch).
+        setChangingTransitionEnabled(false);
+        resetFrozenState();
+    }
+
+    private void deferFrozenSessions(@androidx.annotation.NonNull List<TermuxSession> sessions) {
+        mFrozenSessions = new java.util.ArrayList<>(sessions);
+        mFrozenSessionsDirty = true;
+    }
+
+    private void resetFrozenState() {
+        mFrozenSessions = null;
+        mFrozenSessionsDirty = false;
+        mFrozenSelectionDirty = false;
+        mFrozenSelectionIndex = -1;
+        mFrozenSchemeDirty = false;
+        mFrozenAddButtonDirty = false;
+        mFrozenAddButtonCount = -1;
+    }
+
+    /**
+     * Reconcile the strip with updates that arrived while it was frozen. This runs after the
+     * overlay has been removed; the last closing frame therefore always matches the real strip
+     * it was captured from, and a late title/colour/plus update is a separate post-hand-off
+     * change instead of a mid-animation jump.
+     */
+    public void endOverviewClosingFreeze() {
+        if (!mOverviewClosingFrozen) return;
+        mOverviewClosingFrozen = false;
+
+        final List<TermuxSession> sessions = mFrozenSessions;
+        final boolean sessionsDirty = mFrozenSessionsDirty;
+        final boolean selectionDirty = mFrozenSelectionDirty;
+        final int selectionIndex = mFrozenSelectionIndex;
+        final boolean schemeDirty = mFrozenSchemeDirty;
+        final boolean addButtonDirty = mFrozenAddButtonDirty;
+        final int addButtonCount = mFrozenAddButtonCount;
+
+        resetFrozenState();
+
+        if (mTabsContainer == null) return;
+
+        // beginOverviewClosingFreeze() already disabled CHANGING. Re-assert it here because a
+        // detached tab animation can still deliver its end callback while the snapshot owns
+        // the strip; every deferred width change below must land without a second animation.
+        setChangingTransitionEnabled(false);
+
+        boolean layoutChangePending = false;
+        if (sessionsDirty && sessions != null) {
+            // A deferred title change can alter a tab's width.
+            updateTabs(sessions);
+            layoutChangePending = true;
+        } else {
+            // updateTabs() already recomputes selection and (+) visibility from the latest
+            // session list, so only apply the standalone updates when there was no list.
+            if (selectionDirty && selectionIndex >= 0) {
+                setCurrentSession(selectionIndex);
+                layoutChangePending = true;
+            }
+            if (addButtonDirty && addButtonCount >= 0) {
+                // Showing or hiding the (+) changes the row's remaining width.
+                updateAddButtonVisibility(addButtonCount);
+                layoutChangePending = true;
+            }
+        }
+
+        if (schemeDirty) {
+            applySchemeColorsToTabs(mSchemeTextColor, mSchemeBg, mSchemeBgActive);
+        }
+
+        if (mOpenAnimationsRunning == 0) {
+            if (!layoutChangePending) {
+                // Nothing pending can change a tab's width; re-enable immediately instead of
+                // leaving the strip without its normal close/reorder animation for a frame.
+                setChangingTransitionEnabled(true);
+            } else {
+                // Re-enable CHANGING only after the first layout that consumes every deferred
+                // width change. A new tab's open animation owns the flag itself and re-enables
+                // it when it ends.
+                runAfterNextLayout(() -> {
+                    if (mTabsContainer != null && !mOverviewClosingFrozen
+                            && mOpenAnimationsRunning == 0) {
+                        setChangingTransitionEnabled(true);
+                    }
+                });
+            }
+        }
+    }
+
+    /**
      * Apply a selection while an opaque overlay still covers the strip, wait for the selected
      * tab's width to settle, put the strip at the final position without animation, then run
      * {@code done}.
@@ -1669,14 +1841,10 @@ public class TermuxSessionTabsController {
             done.run();
             return;
         }
-        // The selection is ours, not an add: drop the pin and any queued/running centre scroll.
-        mEndScrollActive = false;
-        mPinRightEdge = false;
-        mPinnedTabIndex = -1;
-        mScrollSeqPending = -1;
-        cancelCentreScroll();
-        cancelScrollAnim();
-        if (mTabsScroll != null) mTabsScroll.removeCallbacks(mScrollRunnable);
+        // The strip is hidden under the overview. Land the new tab's width now instead of
+        // letting it grow under the closing snapshot. This also drops the add pin and every
+        // queued/running centre scroll; the selection below is the only scroll owner left.
+        finishOpenAnimationsForOverview();
 
         // The pager is still on the old page; the caller hides the overlay and moves the pager
         // only after the selection has settled.
@@ -1711,6 +1879,9 @@ public class TermuxSessionTabsController {
         mTabsContainer.requestLayout();
 
         runAfterNextLayout(() -> {
+            // A closing snapshot owns the strip. A stale layout callback from an earlier
+            // selection must not scroll it after the snapshot was taken.
+            if (mOverviewClosingFrozen) return;
             if (mOpenAnimationsRunning == 0) setChangingTransitionEnabled(true);
             applyImmediateCentreScroll(index, true);
             if (done != null) done.run();
@@ -1755,6 +1926,7 @@ public class TermuxSessionTabsController {
      * fully settled before measuring. Used for normal tab switches (not tab addition).
      */
     public void scrollToTabIndex(int index) {
+        if (mOverviewClosingFrozen) return;
         if (!isStripReady()) return;
         // A tab switch takes ownership: drop the add pin and any pending scroll.
         mEndScrollActive = false;
@@ -1799,6 +1971,10 @@ public class TermuxSessionTabsController {
         mSchemeApplied = true;
 
         if (mTabsContainer == null) return;
+        if (mOverviewClosingFrozen) {
+            mFrozenSchemeDirty = true;
+            return;
+        }
         Boolean errorTag = Boolean.TRUE;
         for (int i = 0, n = getTabCount(); i < n; i++) {
             View tabView = getTabAt(i);
@@ -1841,6 +2017,7 @@ public class TermuxSessionTabsController {
      * centre requests leave the strip alone. Cleared on touch, pager drag, tab switch, or close.
      */
     public void setEndScrollReserved(boolean reserved) {
+        if (mOverviewClosingFrozen) return;
         mEndScrollActive = reserved;
         // A reservation change cancels queued and running centre scrolls.
         mScrollSeqPending = -1;
@@ -1950,6 +2127,7 @@ public class TermuxSessionTabsController {
     /** Drop the highlight from every tab. Used when there is no active session to highlight. */
     public void clearSelection() {
         if (mTabsContainer == null) return;
+        if (mOverviewClosingFrozen) return;
         applyTabSelectionState(-1);
         mCurrentSessionIndex = -1;
     }
@@ -1957,6 +2135,15 @@ public class TermuxSessionTabsController {
     public void setCurrentSession(int index) {
         if (mTabsContainer == null) return;
         if (index < 0 || index >= mTabsContainer.getChildCount() - 1) return;
+        if (mOverviewClosingFrozen) {
+            // The closing hand-off has already applied the target selection. The pager landing
+            // reports that same index; only a genuinely different selection is deferred.
+            if (index != mCurrentSessionIndex) {
+                mFrozenSelectionIndex = index;
+                mFrozenSelectionDirty = true;
+            }
+            return;
+        }
 
         applyTabSelectionState(index);
 
@@ -1988,6 +2175,7 @@ public class TermuxSessionTabsController {
      *                       page fully visible)
      */
     public void onPageScrolled(int position, float positionOffset) {
+        if (mOverviewClosingFrozen) return;
         if (!isStripReady()) return;
         if (!mSchemeApplied) return;
         // The right-edge pin owns the strip during an add.
