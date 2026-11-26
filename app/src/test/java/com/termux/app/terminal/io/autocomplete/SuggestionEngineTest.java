@@ -135,19 +135,15 @@ public class SuggestionEngineTest {
     }
 
     @Test
-    public void firstSentenceIsOfferedAsRollbackWhenTypingASecondSentence() {
+    public void firstSentenceIsNotOfferedWhenTypingASecondSentence() {
         List<SuggestionEngine.Candidate> out =
                 scan(snap("First sentence. Second long sentence."),
                         "First sentence. Sec", 4);
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         assertEquals("First sentence. Second long sentence.", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
-        assertEquals("First sentence.", out.get(1).text);
+        assertEquals("Second long sentence.", out.get(1).text);
         assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
-        assertTrue(out.get(1).isFirstSentence);
-        assertEquals("Second long sentence.", out.get(2).text);
-        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(2).kind);
-        assertFalse(out.get(2).isFirstSentence);
     }
 
     @Test
@@ -344,70 +340,59 @@ public class SuggestionEngineTest {
     }
 
     @Test
-    public void rollbackUsesTheTrimmedFirstSentenceWindow() {
+    public void leadingSpacesDoNotCreateAFirstSentenceSuggestion() {
         List<SuggestionEngine.Candidate> out =
                 scan(snap("  First sentence. Second long sentence."),
                         "First sentence. Sec", 4);
-        assertEquals(2, out.size());
-        assertEquals("First sentence.", out.get(0).text);
-        assertTrue(out.get(0).isFirstSentence);
-        assertEquals("Second long sentence.", out.get(1).text);
-        assertFalse(out.get(1).isFirstSentence);
+        assertEquals(1, out.size());
+        assertEquals("Second long sentence.", out.get(0).text);
     }
 
     @Test
-    public void rollbackIsNotOfferedForAnAlreadyTypedSentencePosition() {
+    public void sentenceIsStillSuggestedAtAnAlreadyTypedSentencePosition() {
         List<SuggestionEngine.Candidate> out = scan(
                 snap("First sentence. Second long sentence."),
                 "First sentence. Second long sentence. Sec", 4);
         assertEquals(1, out.size());
         assertEquals("Second long sentence.", out.get(0).text);
-        assertFalse(out.get(0).isFirstSentence);
     }
 
     @Test
-    public void rollbackIsNotOfferedFromAnotherEntryAtAnAlreadyTypedPosition() {
+    public void matchingSentenceFromAnotherEntryIsStillSuggested() {
         List<SuggestionEngine.Candidate> out = scan(
                 snap("First sentence. Second long sentence.",
                         "First sentence. Third long sentence."),
                 "First sentence. Second long sentence. Thi", 4);
         assertEquals(1, out.size());
         assertEquals("Third long sentence.", out.get(0).text);
-        assertFalse(out.get(0).isFirstSentence);
     }
 
     @Test
-    public void rollbackIsNotOfferedWhenAnEarlierTypedSentenceDiffers() {
-        // The entry shares the first sentence and contains a matching third
-        // sentence, but its second sentence is not what the user typed. Rolling
-        // back would silently drop the typed "Second.".
+    public void matchingLaterSentenceIsSuggestedEvenWhenEarlierTextDiffers() {
         List<SuggestionEngine.Candidate> out = scan(
                 snap("First. Other. Third long sentence."),
                 "First. Second. Thi", 4);
         assertEquals(1, out.size());
         assertEquals("Third long sentence.", out.get(0).text);
-        assertFalse(out.get(0).isFirstSentence);
     }
 
     @Test
-    public void realHistoryEntryDoesNotRollBackAfterAFullEntryAndNewSentence() {
+    public void realHistoryEntryDoesNotSuggestAnUnrelatedNextSentence() {
         String typed = HISTORY_ENTRY_2648 + ". текущую реализацию";
         List<SuggestionEngine.Candidate> out = scan(snap(HISTORY_ENTRY_2648), typed, 4);
         assertTrue(out.isEmpty());
     }
 
     @Test
-    public void rollbackIsStillOfferedForTheNextSentenceAfterTwoTypedSentences() {
+    public void thirdSentenceIsSuggestedAfterTwoTypedSentences() {
         List<SuggestionEngine.Candidate> out = scan(
                 snap("First. Second. Third long sentence."),
                 "First. Second. Thi", 4);
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         assertEquals("First. Second. Third long sentence.", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
-        assertEquals("First.", out.get(1).text);
-        assertTrue(out.get(1).isFirstSentence);
-        assertEquals("Third long sentence.", out.get(2).text);
-        assertFalse(out.get(2).isFirstSentence);
+        assertEquals("Third long sentence.", out.get(1).text);
+        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
     }
 
     @Test
@@ -463,27 +448,20 @@ public class SuggestionEngineTest {
     public void sentenceAfterPeriodOnTheSameLineMatches() {
         List<SuggestionEngine.Candidate> out =
                 scan(snap("First sentence. Second long sentence."), "First sentence. Sec", 4);
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         assertEquals("First sentence. Second long sentence.", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
-        assertEquals("First sentence.", out.get(1).text);
+        assertEquals("Second long sentence.", out.get(1).text);
         assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
-        assertTrue(out.get(1).isFirstSentence);
-        assertEquals("Second long sentence.", out.get(2).text);
-        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(2).kind);
-        assertFalse(out.get(2).isFirstSentence);
     }
 
     @Test
     public void sentenceAfterPeriodMatchesAcrossLineBreak() {
         List<SuggestionEngine.Candidate> out =
                 scan(snap("First sentence.\nSecond long sentence."), "First sentence. Sec", 4);
-        assertEquals(2, out.size());
-        assertEquals("First sentence.", out.get(0).text);
+        assertEquals(1, out.size());
+        assertEquals("Second long sentence.", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(0).kind);
-        assertTrue(out.get(0).isFirstSentence);
-        assertEquals("Second long sentence.", out.get(1).text);
-        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
     }
 
     @Test
@@ -515,57 +493,43 @@ public class SuggestionEngineTest {
     @Test
     public void sentenceAfterExclamationAndQuestionMarks() {
         List<SuggestionEngine.Candidate> out = scan(snap("Wow! Really? Yes."), "Wow! Re", 4);
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         assertEquals("Wow! Really? Yes.", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
-        assertEquals("Wow!", out.get(1).text);
+        assertEquals("Really?", out.get(1).text);
         assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
-        assertTrue(out.get(1).isFirstSentence);
-        assertEquals("Really?", out.get(2).text);
-        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(2).kind);
     }
 
     @Test
     public void ellipsisIsASentenceBoundary() {
         List<SuggestionEngine.Candidate> out = scan(snap("Wait… Next"), "Wait… N", 4);
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         assertEquals("Wait… Next", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.FULL, out.get(0).kind);
-        assertEquals("Wait…", out.get(1).text);
+        assertEquals("Next", out.get(1).text);
         assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
-        assertTrue(out.get(1).isFirstSentence);
-        assertEquals("Next", out.get(2).text);
-        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(2).kind);
     }
 
     @Test
     public void sentenceAfterPeriodAtEndOfLine() {
         List<SuggestionEngine.Candidate> out = scan(snap("First.\nSecond"), "First. Sec", 4);
-        assertEquals(2, out.size());
-        assertEquals("First.", out.get(0).text);
+        assertEquals(1, out.size());
+        assertEquals("Second", out.get(0).text);
         assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(0).kind);
-        assertTrue(out.get(0).isFirstSentence);
-        assertEquals("Second", out.get(1).text);
-        assertEquals(SuggestionEngine.Kind.SENTENCE, out.get(1).kind);
     }
 
     @Test
     public void filterDropsExactFullAndSentence() {
         HistorySnapshot snapshot = snap("First. Second");
         List<SuggestionEngine.Candidate> out = scan(snapshot, "First. Sec", 4);
-        assertEquals(3, out.size());
-        assertEquals("First.", out.get(1).text);
-        assertTrue(out.get(1).isFirstSentence);
+        assertEquals(2, out.size());
 
         SuggestionEngine.filter(out, snapshot, 10, 3, 'o');
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         SuggestionEngine.filter(out, snapshot, 11, 4, 'n');
-        assertEquals(3, out.size());
+        assertEquals(2, out.size());
         SuggestionEngine.filter(out, snapshot, 12, 5, 'd');
-        // The exact full entry and the exact second sentence are gone; the
-        // first-sentence rollback stays available.
-        assertEquals(1, out.size());
-        assertEquals("First.", out.get(0).text);
-        assertTrue(out.get(0).isFirstSentence);
+        // Both the full entry and the sentence are now exact matches.
+        assertTrue(out.isEmpty());
     }
 }

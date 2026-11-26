@@ -955,12 +955,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         for (int i = 0; i < mCandidates.size(); i++) {
             final SuggestionEngine.Candidate c = mCandidates.get(i);
             final boolean matches;
-            if (c.isFirstSentence) {
-                // The rollback is a prefix of the typed line, not of the active sentence.
-                matches = lineLen > c.text.length()
-                        && SuggestionEngine.foldedMatches(mSnapshot.fold(c.entryIndex),
-                                c.windowStart, foldedLine, 0, c.text.length());
-            } else if (c.kind == SuggestionEngine.Kind.FULL) {
+            if (c.kind == SuggestionEngine.Kind.FULL) {
                 matches = SuggestionEngine.matchesFull(mSnapshot, c.entryIndex,
                         foldedLine, lineLen);
             } else {
@@ -1061,9 +1056,8 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
             }
 
             // Rightward word restore. rightOnly leaves leftward motion to the delete
-            // gesture below; a rollback row has no word-swipe base at all.
-            if (!deleteEngaged[0] && (!deleteRejected[0] || gestureEnd)
-                    && !touchCandidate.isFirstSentence) {
+            // gesture below.
+            if (!deleteEngaged[0] && (!deleteRejected[0] || gestureEnd)) {
                 final int baseMode =
                         touchCandidate.kind == SuggestionEngine.Kind.FULL
                                 ? AutoCompleteSwipeHandler.BASE_FULL
@@ -1265,10 +1259,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         final boolean fullRow = candidate != null && candidate.kind == SuggestionEngine.Kind.FULL;
         final String typed;
         final int wordStart;
-        if (candidate != null && candidate.isFirstSentence) {
-            typed = candidate.text;
-            wordStart = 0;
-        } else if (useCachedPrefix) {
+        if (useCachedPrefix) {
             typed = fullRow ? mRowLinePrefix : mRowTail;
             wordStart = fullRow ? mRowLineWordStart : mRowTailWordStart;
         } else {
@@ -1305,15 +1296,14 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
     @NonNull
     private String typedPrefixFor(@Nullable SuggestionEngine.Candidate candidate,
             @NonNull CharSequence text, int lineStart, int tailStart) {
-        if (candidate != null && candidate.isFirstSentence) return candidate.text;
         final int start = (candidate != null && candidate.kind == SuggestionEngine.Kind.FULL)
                 ? lineStart : tailStart;
         return text.subSequence(start, text.length()).toString();
     }
 
     /**
-     * Replace the typed base with the chosen candidate. Full entries and rollback rows
-     * replace the line prefix; sentences replace the active sentence.
+     * Replace the typed base with the chosen candidate. Full entries replace the line
+     * prefix; sentences replace only the active sentence.
      */
     private void insertCandidate(@NonNull String candidate) {
         if (mInputField == null) return;
@@ -1328,7 +1318,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         }
         int caret = mInputField.getSelectionStart();
         if (caret < 0 || caret > editable.length()) caret = editable.length();
-        final boolean lineBase = c.isFirstSentence || c.kind == SuggestionEngine.Kind.FULL;
+        final boolean lineBase = c.kind == SuggestionEngine.Kind.FULL;
         final int replaceStart = lineBase
                 ? SuggestionEngine.activeLineStart(editable, caret)
                 : SuggestionEngine.activeSentenceStart(editable, caret);

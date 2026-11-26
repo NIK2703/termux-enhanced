@@ -287,6 +287,18 @@ public class SessionOverviewTransitionMathTest {
     }
 
     @Test
+    public void offscreenCardTabsFlyWithoutCarryingTheirThumbnail() {
+        // Every tab flies, even when its card is outside the viewport. Only a visible card
+        // follows its tab; an off-screen card stays in its slot so the flight cannot drag an
+        // unseen thumbnail into view.
+        Assert.assertFalse(SessionOverviewTransitionMath.tabCarriesCard(false, false));
+        Assert.assertFalse(SessionOverviewTransitionMath.tabCarriesCard(false, true));
+        Assert.assertTrue(SessionOverviewTransitionMath.tabCarriesCard(true, false));
+        // The card that owns the terminal snapshot is animated by that snapshot instead.
+        Assert.assertFalse(SessionOverviewTransitionMath.tabCarriesCard(true, true));
+    }
+
+    @Test
     public void overviewCardsShareTheTabFadeSchedule() {
         // Every non-active opening card shares the tab's target fade. This includes cards
         // whose tab was not visible in the strip: they do not move, but they must not appear

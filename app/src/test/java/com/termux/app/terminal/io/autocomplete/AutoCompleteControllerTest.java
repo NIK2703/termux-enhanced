@@ -261,37 +261,32 @@ public class AutoCompleteControllerTest {
         input.getText().append(" ");
         assertTrue(suggestions().isEmpty());
 
-        // The second sentence starts: full entry + first-sentence rollback + sentence.
+        // The second sentence starts: full entry + matching sentence.
         input.getText().append("S");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
         assertEquals("First sentence. Second long sentence.", suggestions().get(0));
-        assertEquals("First sentence.", suggestions().get(1));
-        assertEquals("Second long sentence.", suggestions().get(2));
+        assertEquals("Second long sentence.", suggestions().get(1));
 
         input.getText().append("e");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
         input.getText().append("c");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
     }
 
     @Test
-    public void newSentenceAfterAFullEntryDoesNotOfferTheFirstSentenceRollback() {
+    public void newSentenceAfterAFullEntryCompletesTheActiveSentence() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Second long sentence. Sec");
 
-        assertFalse("a sentence already typed must not trigger the first-sentence rollback",
-                suggestions().contains("First sentence."));
         assertTrue("the active sentence still completes",
                 suggestions().contains("Second long sentence."));
     }
 
     @Test
-    public void divergingEntryDoesNotOfferTheRollbackForAMatchingLaterSentence() {
+    public void divergingEntryStillCompletesItsLaterSentence() {
         history.addToMessageHistory("First. Other. Third long sentence.", HOME);
         type("First. Second. Thi");
 
-        assertFalse("an entry that diverges before the active sentence must not roll back",
-                suggestions().contains("First."));
         assertTrue("its later sentence still completes the active sentence",
                 suggestions().contains("Third long sentence."));
     }
@@ -373,27 +368,26 @@ public class AutoCompleteControllerTest {
     public void sentenceAfterPeriodIsSuggestedAndInserted() {
         history.addToMessageHistory("First sentence.\nSecond long sentence.", HOME);
         type("First sentence. Sec");
-        assertEquals(2, suggestions().size());
-        assertEquals("First sentence.", suggestions().get(0));
-        assertEquals("Second long sentence.", suggestions().get(1));
+        assertEquals(1, suggestions().size());
+        assertEquals("Second long sentence.", suggestions().get(0));
 
-        TextView row = controller.buildSuggestionTextView(suggestions().get(1), "Sec");
+        TextView row = controller.buildSuggestionTextView(suggestions().get(0), "Sec");
         assertTrue(row.performClick());
         assertEquals("First sentence. Second long sentence.", input.getText().toString());
     }
 
     @Test
-    public void firstSentenceRollbackReplacesTheWholeLine() {
+    public void noFirstSentenceRollbackIsOffered() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Sec");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
         assertEquals("First sentence. Second long sentence.", suggestions().get(0));
-        assertEquals("First sentence.", suggestions().get(1));
-        assertEquals("Second long sentence.", suggestions().get(2));
+        assertEquals("Second long sentence.", suggestions().get(1));
+        assertFalse(suggestions().contains("First sentence."));
 
         TextView row = controller.buildSuggestionTextView(suggestions().get(1), "Sec");
         assertTrue(row.performClick());
-        assertEquals("First sentence.", input.getText().toString());
+        assertEquals("First sentence. Second long sentence.", input.getText().toString());
     }
 
     @Test
@@ -434,7 +428,7 @@ public class AutoCompleteControllerTest {
     public void deletingAWholeEntryAlsoHidesItsOwnSentenceWindows() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Sec");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
         SuggestionEngine.Candidate full = controller.getCandidate(0);
         assertEquals(SuggestionEngine.Kind.FULL, full.kind);
 
@@ -442,30 +436,30 @@ public class AutoCompleteControllerTest {
 
         controller.invalidateHistoryVersion();
         type("First sentence. Sec");
-        assertTrue("the rollback and sentence windows of the deleted full entry are hidden",
+        assertTrue("the sentence windows of the deleted full entry are hidden",
                 suggestions().isEmpty());
         assertEquals("[First sentence. Second long sentence.]",
                 String.valueOf(history.getHistoryList()));
     }
 
     @Test
-    public void deletedFirstSentenceRollbackStaysHiddenWhileLaterSentenceRemains() {
+    public void deletedSentenceStaysHiddenWhileFullEntryRemains() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Sec");
-        assertEquals(3, suggestions().size());
-        SuggestionEngine.Candidate rollback = controller.getCandidate(1);
-        assertTrue(rollback.isFirstSentence);
+        assertEquals(2, suggestions().size());
+        SuggestionEngine.Candidate sentence = controller.getCandidate(1);
+        assertEquals("Second long sentence.", sentence.text);
 
-        assertTrue(controller.deleteSuggestion(rollback));
-        assertFalse(suggestions().contains("First sentence."));
-        assertTrue(suggestions().contains("Second long sentence."));
+        assertTrue(controller.deleteSuggestion(sentence));
+        assertFalse(suggestions().contains("Second long sentence."));
+        assertTrue(suggestions().contains("First sentence. Second long sentence."));
         assertEquals("[First sentence. Second long sentence.]",
                 String.valueOf(history.getHistoryList()));
 
         controller.invalidateHistoryVersion();
         type("First sentence. Sec");
-        assertFalse(suggestions().contains("First sentence."));
-        assertTrue(suggestions().contains("Second long sentence."));
+        assertFalse(suggestions().contains("Second long sentence."));
+        assertTrue(suggestions().contains("First sentence. Second long sentence."));
     }
 
     @Test
@@ -739,12 +733,11 @@ public class AutoCompleteControllerTest {
     public void singleLineHistoryOffersFullEntryAndSentenceAfterPeriod() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Sec");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
         assertEquals("First sentence. Second long sentence.", suggestions().get(0));
-        assertEquals("First sentence.", suggestions().get(1));
-        assertEquals("Second long sentence.", suggestions().get(2));
+        assertEquals("Second long sentence.", suggestions().get(1));
 
-        TextView row = controller.buildSuggestionTextView(suggestions().get(2), "Sec");
+        TextView row = controller.buildSuggestionTextView(suggestions().get(1), "Sec");
         assertTrue(row.performClick());
         assertEquals("First sentence. Second long sentence.", input.getText().toString());
     }
@@ -753,7 +746,7 @@ public class AutoCompleteControllerTest {
     public void fullEntryAfterPeriodInsertsWholeEntry() {
         history.addToMessageHistory("First sentence. Second long sentence.", HOME);
         type("First sentence. Sec");
-        assertEquals(3, suggestions().size());
+        assertEquals(2, suggestions().size());
 
         TextView row = controller.buildSuggestionTextView(
                 suggestions().get(0), "First sentence. Sec");
@@ -816,9 +809,8 @@ public class AutoCompleteControllerTest {
         assertTrue(suggestions().isEmpty());
 
         type("First. Se");
-        assertEquals(2, suggestions().size());
-        assertEquals("First.", suggestions().get(0));
-        assertEquals("Second", suggestions().get(1));
+        assertEquals(1, suggestions().size());
+        assertEquals("Second", suggestions().get(0));
     }
 
     @Test

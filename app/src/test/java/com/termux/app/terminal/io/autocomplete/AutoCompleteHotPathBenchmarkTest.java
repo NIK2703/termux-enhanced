@@ -135,11 +135,7 @@ public class AutoCompleteHotPathBenchmarkTest {
         for (int i = 0; i < candidates.size(); i++) {
             final SuggestionEngine.Candidate c = candidates.get(i);
             final boolean matches;
-            if (c.isFirstSentence) {
-                matches = lineLen > c.text.length()
-                        && SuggestionEngine.foldedMatches(snap.fold(c.entryIndex),
-                                0, foldedLine, 0, c.text.length());
-            } else if (c.kind == SuggestionEngine.Kind.FULL) {
+            if (c.kind == SuggestionEngine.Kind.FULL) {
                 matches = SuggestionEngine.matchesFull(snap, c.entryIndex, foldedLine, lineLen);
             } else {
                 matches = c.windowEnd - c.windowStart > tailLen

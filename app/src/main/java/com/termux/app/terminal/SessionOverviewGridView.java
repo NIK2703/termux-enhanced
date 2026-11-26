@@ -41,7 +41,7 @@ public class SessionOverviewGridView extends ViewGroup {
     private int mLastMeasuredWidth = -1;
     /** Terminal-grid aspect; 0 falls back to the content-area aspect. */
     private double mCardAspect;
-    /** Exact card size derived from the natural-metric raster; ≤0 uses the aspect path. */
+    /** Exact card size derived from the integer-column raster; ≤0 uses the aspect path. */
     private int mExactCardWidth = -1;
     private int mExactCardHeight = -1;
     private SessionOverviewGridMath.Layout mLayout;
@@ -108,7 +108,7 @@ public class SessionOverviewGridView extends ViewGroup {
     /**
      * Use an exact card size instead of deriving one from the terminal aspect.
      *
-     * <p>The caller has already fitted the natural-metric raster to the slot returned by
+     * <p>The caller has already fitted the integer-column raster to the slot returned by
      * {@link #getMaxCardSlotSize()}, so no further rounding happens here.</p>
      */
     public void setCardSize(int widthPx, int heightPx) {

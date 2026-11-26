@@ -82,7 +82,7 @@ public final class SessionOverviewGridMath {
     /**
      * Compute the grid position for an already known, exact card size.
      *
-     * <p>The overview derives {@code cardWidth/cardHeight} from the natural-metric preview
+     * <p>The overview derives {@code cardWidth/cardHeight} from the integer-column preview
      * raster; this overload only places those cards, so no aspect arithmetic or rounding is
      * involved.</p>
      */

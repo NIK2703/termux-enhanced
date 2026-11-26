@@ -43,11 +43,9 @@ final class SuggestionEngine {
         final int windowStart;
         /** Exclusive end of the matched window. */
         final int windowEnd;
-        /** First sentence of an entry, offered as a rollback while typing a later sentence. */
-        final boolean isFirstSentence;
 
         Candidate(@NonNull String text, @NonNull Kind kind, int entryIndex, long entryId,
-                int sentenceIndex, int windowStart, int windowEnd, boolean isFirstSentence) {
+                int sentenceIndex, int windowStart, int windowEnd) {
             this.text = text;
             this.kind = kind;
             this.entryIndex = entryIndex;
@@ -55,7 +53,6 @@ final class SuggestionEngine {
             this.sentenceIndex = sentenceIndex;
             this.windowStart = windowStart;
             this.windowEnd = windowEnd;
-            this.isFirstSentence = isFirstSentence;
         }
 
         /** Bit in the record's dismissal set: 0 full, {@code sentence + 1} sentence. */
@@ -125,7 +122,7 @@ final class SuggestionEngine {
                     // Dedup keys are shared by both tiers.
                     if (!seen.add(new String(snap.fold(e)))) continue;
                     out.add(new Candidate(entries[e], Kind.FULL, e, snap.entryId(e), -1,
-                            0, windowEnd, false));
+                            0, windowEnd));
                     if (out.size() >= maxCount) {
                         pos.entry = e + 1;
                         pos.sentence = 0;
@@ -151,13 +148,9 @@ final class SuggestionEngine {
             foldedSentenceStart = 0;
         }
 
-        // Tier 2: individual sentences. The first sentence of a shown entry is skipped.
-        // While the user types a later sentence, a matching later sentence also adds
-        // the entry's first sentence as a rollback candidate.
+        // Tier 2: individual sentences. The first sentence of a shown full entry is
+        // skipped so it does not duplicate the full candidate.
         final String[] entries = snap.entries;
-        final boolean typingLaterSentence = lineStart == 0 && sentenceStart > 0;
-        // Lazily computed only when a rollback candidate is about to be emitted.
-        int completedSentenceCount = -1;
         // Full candidates form a prefix of out; count them instead of allocating a flag array.
         int fullCount = 0;
         while (fullCount < out.size() && out.get(fullCount).kind == Kind.FULL) {
@@ -174,66 +167,8 @@ final class SuggestionEngine {
                     break;
                 }
             }
-            int rollbackStart = -1;
-            int rollbackEnd = -1;
-            if (startSentence == 0 && typingLaterSentence && sentenceCount > 1
-                    && !snap.isSentenceDismissed(e, 0)) {
-                final int firstStart = sentences.starts[0];
-                final int firstEnd = sentences.ends[0];
-                final int firstLen = firstEnd - firstStart;
-                if (firstLen > 0 && firstLen < lineLen
-                        && foldedMatches(snap.fold(e), firstStart, foldedLine, 0, firstLen)) {
-                    rollbackStart = firstStart;
-                    rollbackEnd = firstEnd;
-                }
-            }
-            final boolean firstSentenceMatched = rollbackEnd > 0;
-            // The rollback is only safe when the entry agrees with every sentence
-            // already typed on the line. Sharing the first sentence alone is not
-            // enough: a later sentence of a different entry must not discard the
-            // text the user already typed.
-            if (rollbackEnd > 0) {
-                if (completedSentenceCount < 0) {
-                    completedSentenceCount = HistorySyntax.activeSentenceIndex(
-                            text, lineStart, sentenceStart);
-                }
-                if (!entryMatchesTypedPrefix(snap, e, text, lineStart, sentenceStart,
-                        foldedLine, completedSentenceCount)) {
-                    rollbackEnd = -1;
-                }
-            }
-            // Emit the rollback before the sentence loop so it keeps priority over
-            // sentence candidates, but only when a sentence at or after the active
-            // position matches. A match on an already typed sentence must not roll
-            // the line back over that text.
-            if (rollbackEnd > 0) {
-                final int firstCandidate = Math.max(startSentence,
-                        Math.max(1, completedSentenceCount));
-                for (int s = firstCandidate; s < sentenceCount; s++) {
-                    if (snap.isSentenceDismissed(e, s)) continue;
-                    final int windowStart = sentences.starts[s];
-                    final int windowEnd = sentences.ends[s];
-                    if (sentenceLen > 0 && windowEnd - windowStart >= sentenceLen
-                            && foldedMatches(snap.fold(e), windowStart,
-                                    foldedSentence, foldedSentenceStart, sentenceLen)) {
-                        if (seen.add(new String(snap.fold(e),
-                                rollbackStart, rollbackEnd - rollbackStart))) {
-                            final String first = entries[e].substring(rollbackStart, rollbackEnd);
-                            out.add(new Candidate(first, Kind.SENTENCE, e, snap.entryId(e), 0,
-                                    rollbackStart, rollbackEnd, true));
-                            if (out.size() >= maxCount) {
-                                pos.entry = e;
-                                pos.sentence = s;
-                                pos.atEnd = false;
-                                return;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
             for (int s = startSentence; s < sentenceCount; s++) {
-                if (s == 0 && (firstSentenceMatched || fullShown)) continue;
+                if (s == 0 && fullShown) continue;
                 if (snap.isSentenceDismissed(e, s)) continue;
                 final int windowStart = sentences.starts[s];
                 final int windowEnd = sentences.ends[s];
@@ -243,12 +178,12 @@ final class SuggestionEngine {
                                 foldedSentence, foldedSentenceStart, sentenceLen)) {
                     continue;
                 }
-                // An exact match is only useful as the rollback trigger above.
+                // An exact match has no remainder, so it is not a suggestion.
                 if (windowLen <= sentenceLen) continue;
                 if (!seen.add(new String(snap.fold(e), windowStart, windowLen))) continue;
                 final String sentence = entries[e].substring(windowStart, windowEnd);
                 out.add(new Candidate(sentence, Kind.SENTENCE, e, snap.entryId(e), s,
-                        windowStart, windowEnd, false));
+                        windowStart, windowEnd));
                 if (out.size() >= maxCount) {
                     pos.entry = e;
                     pos.sentence = s + 1;
@@ -284,7 +219,7 @@ final class SuggestionEngine {
             if (matchesFull(snap, e, foldedLine, lineLen)) {
                 if (!seen.add(new String(snap.fold(e)))) continue;
                 out.add(new Candidate(entries[e], Kind.FULL, e, snap.entryId(e), -1,
-                        0, windowEnd, false));
+                        0, windowEnd));
                 if (out.size() >= maxCount) {
                     pos.entry = e + 1;
                     pos.sentence = 0;
@@ -311,9 +246,6 @@ final class SuggestionEngine {
         final char foldedNew = Character.toLowerCase(newChar);
         for (int i = candidates.size() - 1; i >= 0; i--) {
             final Candidate c = candidates.get(i);
-            // The first-sentence rollback is not a completion of the active sentence:
-            // keep it while the user keeps typing the later sentence.
-            if (c.isFirstSentence) continue;
             final int oldLen = (c.kind == Kind.FULL) ? oldLineLen : oldSentenceLen;
             if (c.windowEnd - c.windowStart <= oldLen + 1) {
                 candidates.remove(i);
@@ -332,40 +264,6 @@ final class SuggestionEngine {
         final int windowEnd = snap.firstLineEnd(entryIndex);
         return lineLen > 0 && windowEnd > lineLen
                 && foldedMatches(snap.fold(entryIndex), 0, foldedLine, 0, lineLen);
-    }
-
-    /**
-     * Whether the history entry's first {@code count} sentences match the typed
-     * line's first {@code count} sentences, ignoring case and edge whitespace.
-     * The rollback is only safe when the entry agrees with every sentence already
-     * typed on the line; sharing just the first sentence is not enough.
-     */
-    private static boolean entryMatchesTypedPrefix(@NonNull HistorySnapshot snap, int entryIndex,
-            @NonNull CharSequence text, int lineStart, int sentenceStart,
-            @NonNull char[] foldedLine, int count) {
-        if (count <= 0) return true;
-        final HistorySnapshot.SentenceSpans sentences = snap.sentences(entryIndex);
-        if (sentences.count < count) return false;
-
-        int typedStart = lineStart;
-        for (int i = 0; i < count; i++) {
-            while (typedStart < sentenceStart
-                    && HistorySyntax.isWhitespace(text.charAt(typedStart))) {
-                typedStart++;
-            }
-            final int typedEnd = HistorySyntax.findSentenceEnd(text, typedStart, sentenceStart);
-            if (typedEnd <= typedStart) return false;
-            final int entryStart = sentences.starts[i];
-            final int entryEnd = sentences.ends[i];
-            final int len = entryEnd - entryStart;
-            if (len != typedEnd - typedStart) return false;
-            if (!foldedMatches(snap.fold(entryIndex), entryStart,
-                    foldedLine, typedStart - lineStart, len)) {
-                return false;
-            }
-            typedStart = typedEnd;
-        }
-        return true;
     }
 
     /** Fold a typed prefix once so the hot comparisons are plain char reads. */

@@ -920,7 +920,12 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
 
                     @Override
                     public void onDirectoryPicked(@NonNull String directory) {
+                        if (mTermuxTerminalSessionActivityClient == null) return;
+                        final boolean flight = mSessionOverviewController != null
+                                && mSessionOverviewController.prepareAddTabFlight();
                         mTermuxTerminalSessionActivityClient.addNewSessionInDirectory(directory);
+                        if (flight && mSessionOverviewController != null)
+                            mSessionOverviewController.finishAddTabRequest();
                     }
 
                     @Override
@@ -2479,8 +2484,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         final ImageButton addButton = findViewById(R.id.session_overview_add_button);
         if (addButton == null) return;
         addButton.setOnClickListener(v -> {
-            if (mTermuxTerminalSessionActivityClient != null)
-                mTermuxTerminalSessionActivityClient.addNewSession(false, null);
+            if (mTermuxTerminalSessionActivityClient == null) return;
+            final boolean flight = mSessionOverviewController != null
+                    && mSessionOverviewController.prepareAddTabFlight();
+            mTermuxTerminalSessionActivityClient.addNewSession(false, null);
+            if (flight && mSessionOverviewController != null)
+                mSessionOverviewController.finishAddTabRequest();
         });
         attachDirectoryHistorySwipeGesture(addButton, true);
     }

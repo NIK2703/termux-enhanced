@@ -39,6 +39,19 @@ public final class SessionOverviewTransitionMath {
     /** Fraction of the path at which the source copy hands over to the target copy. */
     public static final float TAB_MOTION_SPLIT = 0.5f;
 
+    /**
+     * Whether a flying tab carries its card thumbnail along the same path.
+     *
+     * <p>Every tab flies, including tabs whose cards are scrolled outside the overview viewport.
+     * An off-screen card stays in its slot and only the tab ghost travels to or from that slot;
+     * moving the card itself could drag an unseen thumbnail into view. A card that owns the
+     * terminal snapshot is never carried by its tab, because that snapshot already animates the
+     * terminal.</p>
+     */
+    public static boolean tabCarriesCard(boolean cardVisible, boolean ownsTerminalSnapshot) {
+        return cardVisible && !ownsTerminalSnapshot;
+    }
+
     /** Progress by which a closing ghost that inherited a hover lift is fully opaque. */
     public static final float CLOSING_HOVER_HANDOFF_END = 0.25f;
 
@@ -187,9 +200,10 @@ public final class SessionOverviewTransitionMath {
 
     /**
      * Opacity of every non-active opening card. All cards use the flying tab's target fade:
-     * invisible until 67% of the path, then visible over the last third. A card without a
-     * visible tab does not move, but its appearance must still coincide with the cards that do.
-     * The active card is represented by the terminal snapshot and stays out of this fade.
+     * invisible until 67% of the path, then visible over the last third. A card outside the
+     * viewport stays in its slot while only its tab flies to that slot, but its appearance must
+     * still coincide with the cards that travel together with their tabs. The active card is
+     * represented by the terminal snapshot and stays out of this fade.
      */
     public static float openingCardAlpha(float progress) {
         return tabTargetAlpha(progress);
@@ -197,8 +211,9 @@ public final class SessionOverviewTransitionMath {
 
     /**
      * Opacity of every unselected closing card. All cards use the flying tab's source fade:
-     * visible at the start, gone by 33% of the path. A card without a visible tab does not move,
-     * but its disappearance must still coincide with the cards that do. The selected card is
+     * visible at the start, gone by 33% of the path. A card outside the viewport stays in its
+     * slot while only its tab flies back from that slot, but its disappearance must still
+     * coincide with the cards that travel together with their tabs. The selected card is
      * represented by the expanding terminal snapshot and stays out of this fade.
      */
     public static float closingCardAlpha(float progress) {
