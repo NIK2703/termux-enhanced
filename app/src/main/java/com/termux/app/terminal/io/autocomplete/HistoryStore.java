@@ -166,6 +166,23 @@ final class HistoryStore {
         return index < 0 ? null : mCurrent.remove(index);
     }
 
+    /**
+     * Remove current-list entries that are short variants of {@code text}. Called
+     * before an add when the "absorb prefixes" setting is on, so the expanded
+     * command replaces the prefixes it grew from instead of accumulating both.
+     */
+    @NonNull
+    List<HistoryEntry> removeCurrentPrefixes(@NonNull String text) {
+        return removePrefixes(mCurrent, text);
+    }
+
+    /** Same as {@link #removeCurrentPrefixes}, for a directory that is not attached. */
+    @NonNull
+    List<HistoryEntry> removeDirectoryPrefixes(@Nullable String cwd, @NonNull String text) {
+        ArrayList<HistoryEntry> list = cwd == null ? null : mDirectories.get(cwd);
+        return list == null ? Collections.<HistoryEntry>emptyList() : removePrefixes(list, text);
+    }
+
     /** @return entries dropped from the tail so callers can prune spans/flags. */
     @NonNull
     List<HistoryEntry> trimCurrent(int max) {
@@ -391,6 +408,18 @@ final class HistoryStore {
         }
         list.add(0, new HistoryEntry(mNextId++, text));
         return true;
+    }
+
+    @NonNull
+    private static List<HistoryEntry> removePrefixes(@NonNull ArrayList<HistoryEntry> list,
+            @NonNull String text) {
+        ArrayList<HistoryEntry> removed = null;
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (!HistoryText.isAbsorbablePrefix(list.get(i).text, text)) continue;
+            if (removed == null) removed = new ArrayList<>();
+            removed.add(list.remove(i));
+        }
+        return removed != null ? removed : Collections.<HistoryEntry>emptyList();
     }
 
     @NonNull

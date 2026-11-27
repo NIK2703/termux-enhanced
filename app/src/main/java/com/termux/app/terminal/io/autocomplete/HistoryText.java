@@ -35,4 +35,26 @@ final class HistoryText {
     static boolean isEdgeWhitespace(char c) {
         return HistorySyntax.isWhitespace(c);
     }
+
+    /**
+     * Whether {@code shorter} is a proper word-prefix of {@code expanded}, i.e. a
+     * short variant that the history may absorb when {@code expanded} is added.
+     *
+     * <p>The boundary check keeps {@code git} from swallowing {@code github}: the
+     * prefix must end at a shell-word boundary. A right swipe on a history row
+     * enters words delimited by whitespace and {@code '/'}, so those are the
+     * boundaries a shorter variant can legitimately stop at. A prefix that itself
+     * ends with {@code '/'} (for example {@code cd /data/}) is a boundary too,
+     * because the next path segment continues it.
+     */
+    static boolean isAbsorbablePrefix(@NonNull String shorter, @NonNull String expanded) {
+        if (shorter.isEmpty() || shorter.length() >= expanded.length()) return false;
+        if (!expanded.startsWith(shorter)) return false;
+        if (isWordBoundary(shorter.charAt(shorter.length() - 1))) return true;
+        return isWordBoundary(expanded.charAt(shorter.length()));
+    }
+
+    private static boolean isWordBoundary(char c) {
+        return c == '/' || HistorySyntax.isWhitespace(c);
+    }
 }

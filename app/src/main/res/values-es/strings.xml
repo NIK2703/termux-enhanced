@@ -123,6 +123,8 @@
     <string name="input_history_max_popup_limit_summary">En la ventana emergente del historial de entrada solo se muestran las primeras %1$d entradas; el resto está disponible mediante el autocompletado.</string>
     <string name="per_directory_input_history_title">Historial de entrada por directorio</string>
     <string name="per_directory_input_history_summary">Mantener un historial de entrada separado para cada directorio de trabajo. Si está desactivado, todas las sesiones comparten un historial global.</string>
+    <string name="input_history_absorb_prefixes_title">Absorber prefijos al añadir al historial de entrada</string>
+    <string name="input_history_absorb_prefixes_summary">Al añadir al historial de entrada un elemento ampliado de los ya existentes, eliminar la variante corta. Para introducir un prefijo, desliza a la derecha sobre un elemento en la ventana de historial/autocompletado.</string>
     <string name="text_input_append_enter_title">Añadir Enter al enviar</string>
     <string name="directory_history_max_title">Número máximo de directorios de trabajo en el historial</string>
     <string name="restore_tabs_title">Restaurar pestañas al inicio</string>

@@ -317,6 +317,9 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
             case TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY:
                 getTermuxPrefs().edit().putBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, value).apply();
                 break;
+            case TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES:
+                getTermuxPrefs().edit().putBoolean(TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES, value).apply();
+                break;
             case TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED:
                 getTermuxPrefs().edit().putBoolean(TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, value).apply();
                 notifyAutoCompleteSettingsChanged();
@@ -379,6 +382,8 @@ class TerminalIOPreferencesDataStore extends PreferenceDataStore {
                 return mPreferences != null && mPreferences.shouldTextInputAppendEnter();
             case TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY:
                 return getTermuxPrefs().getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false);
+            case TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES:
+                return getTermuxPrefs().getBoolean(TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES, false);
             case TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED:
                 return getTermuxPrefs().getBoolean(TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, true);
             default:

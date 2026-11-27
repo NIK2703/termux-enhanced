@@ -138,6 +138,8 @@
     <string name="input_history_max_popup_limit_summary">输入历史弹窗中仅显示前 %1$d 条记录，其余记录可通过自动补全使用。</string>
     <string name="per_directory_input_history_title">按目录分别保存输入历史</string>
     <string name="per_directory_input_history_summary">为每个工作目录分别保存输入历史。关闭后，所有会话共享同一个全局历史。</string>
+    <string name="input_history_absorb_prefixes_title">添加到输入历史时吸收前缀</string>
+    <string name="input_history_absorb_prefixes_summary">向输入历史添加已有项的扩展项时，删除较短版本。要输入前缀，请在历史/自动补全窗口中向右滑动某个项。</string>
     <string name="text_input_append_enter_title">发送时附加 Enter</string>
     <string name="directory_history_max_title">工作目录历史的最大条目数</string>
     <string name="restore_tabs_title">启动时恢复标签页</string>

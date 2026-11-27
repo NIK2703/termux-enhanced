@@ -290,6 +290,8 @@
     <string name="input_history_max_popup_limit_summary">Only the first %1$d entries are shown in the input history popup; the rest are available through autocomplete.</string>
     <string name="per_directory_input_history_title">Per-directory input history</string>
     <string name="per_directory_input_history_summary">Keep a separate input history for each working directory. When off, all sessions share one global history.</string>
+    <string name="input_history_absorb_prefixes_title">Absorb prefixes when adding to input history</string>
+    <string name="input_history_absorb_prefixes_summary">When an expanded item from the existing ones is added to the input history, delete its shorter variant. To enter a prefix, swipe right on an item in the history/autocomplete window.</string>
 
     <!-- Text input preferences -->
     <string name="input_panel_title">Input panel</string>

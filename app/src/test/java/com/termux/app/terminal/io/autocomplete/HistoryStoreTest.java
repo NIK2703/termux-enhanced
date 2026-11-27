@@ -129,6 +129,59 @@ public class HistoryStoreTest {
     }
 
     @Test
+    public void absorbingPrefixesRemovesOnlyProperWordPrefixes() {
+        HistoryStore store = new HistoryStore();
+        store.addCurrent("git");
+        store.addCurrent("git status");
+        store.addCurrent("github");
+        store.addCurrent("git status -s");
+        store.addCurrent("cd /data");
+        store.addCurrent("cd /data/");
+        store.addCurrent("echo foo");
+        store.addCurrent("echo foobar");
+        store.addCurrent("git status --short");
+
+        List<HistoryEntry> removed = store.removeCurrentPrefixes("git status --short");
+
+        assertEquals(2, removed.size());
+        assertEquals("git", removed.get(0).text);
+        assertEquals("git status", removed.get(1).text);
+        assertEquals("[git status --short, echo foobar, echo foo, cd /data/, cd /data, "
+                + "git status -s, github]", String.valueOf(HistoryStore.textView(store.current())));
+
+        removed = store.removeCurrentPrefixes("cd /data/bin");
+        assertEquals(2, removed.size());
+        assertEquals("[git status --short, echo foobar, echo foo, git status -s, github]",
+                String.valueOf(HistoryStore.textView(store.current())));
+
+        removed = store.removeCurrentPrefixes("echo foobar baz");
+        assertEquals(1, removed.size());
+        assertEquals("echo foobar", removed.get(0).text);
+
+        assertTrue(store.removeCurrentPrefixes("github").isEmpty());
+        assertTrue(store.removeCurrentPrefixes("git").isEmpty());
+    }
+
+    @Test
+    public void directoryPrefixesAreRemovedOnlyInThatDirectory() {
+        HistoryStore store = new HistoryStore();
+        store.useDirectory(HOME);
+        store.addCurrent("git");
+        store.useDirectory(LOG);
+        store.addCurrent("git");
+        store.addCurrent("git status -s");
+
+        List<HistoryEntry> removed = store.removeDirectoryPrefixes(LOG, "git status --short");
+
+        assertEquals(1, removed.size());
+        assertEquals("git", removed.get(0).text);
+        assertEquals("[git status -s]",
+                String.valueOf(HistoryStore.textView(store.directory(LOG))));
+        assertEquals("[git]",
+                String.valueOf(HistoryStore.textView(store.directory(HOME))));
+    }
+
+    @Test
     public void snapshotCopiesListsSoTheWriterNeverSeesMutation() {
         HistoryStore store = new HistoryStore();
         store.useDirectory(HOME);

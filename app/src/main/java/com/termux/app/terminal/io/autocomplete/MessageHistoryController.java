@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,6 +99,12 @@ public final class MessageHistoryController {
     private boolean mPerDirectoryMessageHistory = false;
 
     /**
+     * Whether adding an expanded entry removes the shorter variants it grew from.
+     * Off by default; see {@link TermuxAppConstants.Preferences#MESSAGE_HISTORY_ABSORB_PREFIXES}.
+     */
+    private boolean mAbsorbPrefixes = false;
+
+    /**
      * Whether sentence offsets are materialized for autocomplete. When false, adding
      * and loading history only parses the first line and the folded text.
      */
@@ -123,6 +130,8 @@ public final class MessageHistoryController {
     private void applyStoredSettings() {
         mMessageHistoryMax = clampMaxSize(mPrefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
         mPerDirectoryMessageHistory = mPrefs.getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false);
+        mAbsorbPrefixes = mPrefs.getBoolean(
+                TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES, false);
         mSentenceIndexEnabled = mPrefs.getBoolean(
                 TermuxAppConstants.Preferences.AUTOCOMPLETE_SENTENCES_ENABLED, true);
     }
@@ -211,6 +220,19 @@ public final class MessageHistoryController {
 
     public boolean isPerDirectoryEnabled() {
         return mPerDirectoryMessageHistory;
+    }
+
+    /**
+     * Apply the "absorb prefixes" setting to subsequent adds. Enabling it does not
+     * rewrite existing history; only an add of the expanded entry removes its
+     * shorter variants.
+     */
+    public void setAbsorbPrefixes(boolean enabled) {
+        mAbsorbPrefixes = enabled;
+    }
+
+    public boolean isAbsorbPrefixesEnabled() {
+        return mAbsorbPrefixes;
     }
 
     /**
@@ -512,11 +534,18 @@ public final class MessageHistoryController {
         ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
+        List<HistoryEntry> absorbed = mAbsorbPrefixes
+                ? mStore.removeCurrentPrefixes(normalized)
+                : Collections.<HistoryEntry>emptyList();
         boolean changed = mStore.addCurrent(normalized);
+        dropSpans(absorbed);
         cacheSpans(normalized);
         boolean trimmed = trimCurrent();
-        if (!changed && !trimmed) return;
+        if (!changed && !trimmed && absorbed.isEmpty()) return;
 
+        if (!absorbed.isEmpty() && !trimmed) {
+            mDismissals.retainIds(mStore.allIds());
+        }
         schedulePersist();
         mHistoryVersion++;
     }
@@ -536,11 +565,18 @@ public final class MessageHistoryController {
             return;
         }
 
+        List<HistoryEntry> absorbed = mAbsorbPrefixes
+                ? mStore.removeDirectoryPrefixes(cwd, normalized)
+                : Collections.<HistoryEntry>emptyList();
         boolean changed = mStore.addToDirectory(cwd, normalized);
+        dropSpans(absorbed);
         cacheSpans(normalized);
         boolean trimmed = trimDirectory(cwd);
-        if (!changed && !trimmed) return;
+        if (!changed && !trimmed && absorbed.isEmpty()) return;
 
+        if (!absorbed.isEmpty() && !trimmed) {
+            mDismissals.retainIds(mStore.allIds());
+        }
         schedulePersist();
         mHistoryVersion++;
     }
@@ -557,10 +593,18 @@ public final class MessageHistoryController {
         ensureLoaded(cwd);
         snapshotCurrentDirectoryIfChanged(cwd);
 
-        if (!mStore.addNewOnTopCurrent(normalized)) return;
+        List<HistoryEntry> absorbed = mAbsorbPrefixes
+                ? mStore.removeCurrentPrefixes(normalized)
+                : Collections.<HistoryEntry>emptyList();
+        boolean added = mStore.addNewOnTopCurrent(normalized);
+        if (!added && absorbed.isEmpty()) return;
 
+        dropSpans(absorbed);
         cacheSpans(normalized);
-        trimCurrent();
+        boolean trimmed = trimCurrent();
+        if (!absorbed.isEmpty() && !trimmed) {
+            mDismissals.retainIds(mStore.allIds());
+        }
         schedulePersist();
         mHistoryVersion++;
     }

@@ -161,6 +161,8 @@
     </plurals>
     <string name="per_directory_input_history_summary">각 디렉터리마다 별도의 입력 기록을 유지합니다. 비활성화하면 모든 세션이 하나의 전역 기록을 공유합니다.</string>
     <string name="per_directory_input_history_title">디렉터리별 입력 기록</string>
+    <string name="input_history_absorb_prefixes_title">입력 기록에 추가할 때 접두사 흡수</string>
+    <string name="input_history_absorb_prefixes_summary">기존 항목에서 확장된 항목을 입력 기록에 추가할 때 더 짧은 버전을 삭제합니다. 접두사를 입력하려면 기록/자동 완성 창의 항목을 오른쪽으로 스와이프하세요.</string>
     <string name="permission_run_command_description">Termux 환경에서 임의의 명령을 실행하고 파일에 접근할 수 있습니다</string>
     <string name="permission_run_command_label">Termux 환경에서 명령 실행</string>
     <string name="restore_preference_title">Termux 컨테이너 복원</string>

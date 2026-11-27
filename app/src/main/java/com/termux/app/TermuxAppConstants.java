@@ -70,6 +70,7 @@ public final class TermuxAppConstants {
         public static final String TEXT_INPUT_ENABLED = "text_input_enabled";
         public static final String MESSAGE_HISTORY_MAX = "message_history_max";
         public static final String PER_DIRECTORY_MESSAGE_HISTORY = "per_directory_message_history";
+        public static final String MESSAGE_HISTORY_ABSORB_PREFIXES = "message_history_absorb_prefixes";
         public static final String AUTOCOMPLETE_SENTENCES_ENABLED = "autocomplete_sentences_enabled";
         public static final String DIRECTORY_HISTORY_MAX = "directory_history_max";
         public static final String TAB_HEIGHT_MODE = "tab_height_mode";

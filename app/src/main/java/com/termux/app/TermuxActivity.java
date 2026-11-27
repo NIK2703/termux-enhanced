@@ -846,6 +846,9 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
                         prefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
                     // Lowering the limit deletes the oldest entries immediately.
                     onMessageHistoryChanged();
+                } else if (TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES.equals(key)) {
+                    mMessageHistoryCtrl.setAbsorbPrefixes(
+                        prefs.getBoolean(TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES, false));
                 }
             };
 
@@ -3315,6 +3318,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             // Load the persisted sent-message history once.
             mMessageHistoryCtrl.setMaxSize(prefs.getInt(TermuxAppConstants.Preferences.MESSAGE_HISTORY_MAX, TermuxAppConstants.History.MESSAGE_MAX_DEFAULT));
             mMessageHistoryCtrl.setPerDirectoryEnabled(prefs.getBoolean(TermuxAppConstants.Preferences.PER_DIRECTORY_MESSAGE_HISTORY, false));
+            mMessageHistoryCtrl.setAbsorbPrefixes(prefs.getBoolean(TermuxAppConstants.Preferences.MESSAGE_HISTORY_ABSORB_PREFIXES, false));
             loadMessageHistory();
 
             // Apply history mode and retention changes without recreating the activity.

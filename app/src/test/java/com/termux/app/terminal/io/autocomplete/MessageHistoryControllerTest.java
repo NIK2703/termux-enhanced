@@ -317,6 +317,85 @@ public class MessageHistoryControllerTest {
         assertEquals("[]", String.valueOf(ctrl.getHistoryList()));
     }
 
+    // Absorbing prefixes
+
+    @Test
+    public void prefixAbsorptionIsOffByDefault() {
+        ctrl.addToMessageHistory("git", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+
+        assertEquals("[git status, git]", String.valueOf(ctrl.getHistoryList()));
+
+        ctrl.save();
+        assertEquals("[\"git status\",\"git\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void prefixAbsorptionRemovesShorterVariantsAndPersists() {
+        ctrl.setAbsorbPrefixes(true);
+        ctrl.addToMessageHistory("git", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.addToMessageHistory("github", HOME);
+        ctrl.addToMessageHistory("git status --short", HOME);
+
+        assertEquals("[git status --short, github]", String.valueOf(ctrl.getHistoryList()));
+
+        ctrl.save();
+        assertEquals("[\"git status --short\",\"github\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void enablingAbsorptionDoesNotRewriteExistingHistory() {
+        ctrl.addToMessageHistory("git", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+
+        ctrl.setAbsorbPrefixes(true);
+
+        assertEquals("[git status, git]", String.valueOf(ctrl.getHistoryList()));
+        ctrl.save();
+        assertEquals("[\"git status\",\"git\"]", String.valueOf(stored(HOME)));
+    }
+
+    @Test
+    public void absorbingPrefixesForAnExistingExpandedEntryStillUpdatesHistory() {
+        ctrl.setAbsorbPrefixes(true);
+        ctrl.addToMessageHistory("git", HOME);
+        ctrl.addToMessageHistory("git status", HOME);
+        ctrl.addToMessageHistory("git", HOME);
+        assertEquals("[git, git status]", String.valueOf(ctrl.getHistoryList()));
+
+        int version = ctrl.getHistoryVersion();
+        ctrl.addNewOnTop("git status", HOME);
+
+        assertEquals("[git status]", String.valueOf(ctrl.getHistoryList()));
+        assertTrue(ctrl.getHistoryVersion() > version);
+    }
+
+    @Test
+    public void prefixAbsorptionStaysInsideTheTargetDirectory() {
+        ctrl.setAbsorbPrefixes(true);
+        ctrl.addToMessageHistory("git", HOME);
+        ctrl.addToMessageHistoryInDirectory("git", LOG_DIR);
+        ctrl.addToMessageHistoryInDirectory("git status", LOG_DIR);
+
+        assertEquals("[git]", String.valueOf(ctrl.getHistoryList()));
+        ctrl.save();
+        assertEquals("[\"git\"]", String.valueOf(stored(HOME)));
+        assertEquals("[\"git status\"]", String.valueOf(stored(LOG_DIR)));
+    }
+
+    @Test
+    public void prefixAbsorptionSettingIsReadOnAColdStart() throws Exception {
+        prefs.edit().putBoolean("message_history_absorb_prefixes", true).commit();
+        MessageHistoryController cold = rawController();
+
+        cold.addToMessageHistory("git", null);
+        cold.addToMessageHistory("git status", null);
+        cold.save();
+
+        assertEquals("[\"git status\"]", String.valueOf(globalStore()));
+    }
+
     // A reply that cold-starts the process
 
     @Test

@@ -115,6 +115,14 @@
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
+            app:key="message_history_absorb_prefixes"
+            app:dependency="text_input_enabled"
+            app:title="@string/input_history_absorb_prefixes_title"
+            app:summary="@string/input_history_absorb_prefixes_summary"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
             app:key="autocomplete_sentences_enabled"
             app:dependency="text_input_enabled"
             app:title="@string/autocomplete_sentences_enabled_title"

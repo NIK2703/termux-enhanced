@@ -115,6 +115,8 @@
 <string name="input_history_max_popup_limit_summary">入力履歴のポップアップには最初の %1$d 件のみ表示され、残りはオートコンプリートで利用できます。</string>
 <string name="per_directory_input_history_title">ディレクトリごとの入力履歴</string>
 <string name="per_directory_input_history_summary">作業ディレクトリごとに個別の入力履歴を保持します。無効にすると、すべてのセッションで1つのグローバル履歴を共有します。</string>
+<string name="input_history_absorb_prefixes_title">入力履歴への追加時にプレフィックスを吸収</string>
+<string name="input_history_absorb_prefixes_summary">既存の項目から拡張した項目を入力履歴に追加するとき、短いバージョンを削除します。プレフィックスを入力するには、履歴/オートコンプリートウィンドウの項目を右にスワイプします。</string>
 <string name="text_input_append_enter_title">送信時にEnterを追加</string>
 <string name="directory_history_max_title">最大記憶ディレクトリ数</string>
 <string name="restore_tabs_title">起動時にタブを復元</string>
