@@ -455,7 +455,8 @@ public final class TermuxPreferenceConstants {
 
         /**
          * Maximum number of session-overview preview passes per second. A value of {@code 0}
-         * disables throttling; {@code 1..20} limits previews to that many passes per second.
+         * means no limit (throttling is disabled); {@code 1..20} limits previews to that many
+         * passes per second.
          */
         public static final String KEY_SESSION_OVERVIEW_PREVIEW_FPS = "session-overview-preview-fps";
         public static final int DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS = 5;

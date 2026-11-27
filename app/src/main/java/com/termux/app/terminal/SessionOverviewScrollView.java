@@ -6,10 +6,10 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.animation.PathInterpolator;
 import android.widget.ScrollView;
 
@@ -34,6 +34,12 @@ import com.termux.view.ElasticOverdrag;
  * structural transition, which folds it into the same card/scroll animation. {@link
  * #settleScrollTo(int)} remains for an opening restore or an active-card reveal, using the same
  * 250 ms decelerating curve.</p>
+ *
+ * <p>A grid with four or fewer cards fills the viewport without needing to scroll, but it still
+ * has the same two ends as a longer grid. Its drag is therefore fed to the elastic layer as well:
+ * {@link #canScrollVertically(int)} reports the fitted grid as scrollable while a touch is down,
+ * which is what makes {@link ScrollView} run its normal drag tracking and call {@link
+ * #overScrollBy}; the zero scroll range then turns the whole delta into a pull.</p>
  */
 public class SessionOverviewScrollView extends ScrollView {
 
@@ -78,6 +84,21 @@ public class SessionOverviewScrollView extends ScrollView {
     /** Decelerating curve shared by programmatic reveal scrolls; stateless. */
     private static final PathInterpolator SCROLL_SETTLE_INTERPOLATOR =
             new PathInterpolator(0f, 0f, 0.2f, 1f);
+
+    /** Touch slop for deciding a fitted grid's gesture is vertical before ScrollView takes it. */
+    private final int mTouchSlop;
+
+    /**
+     * True from {@code ACTION_DOWN} until the matching up/cancel. A fitted grid is reported as
+     * scrollable only while a touch is down; at rest it keeps the honest "nothing to scroll"
+     * state.
+     */
+    private boolean mTouchGestureActive;
+
+    /** Down position of the primary pointer; keeps horizontal card swipes from being stolen. */
+    private float mTouchDownX;
+    private float mTouchDownY;
+    private int mTouchDownPointerId = MotionEvent.INVALID_POINTER_ID;
 
     /** Accumulated (undamped) finger travel past the top / bottom end, in px. Never negative. */
     private float mTopRawPx;
@@ -195,6 +216,7 @@ public class SessionOverviewScrollView extends ScrollView {
         setHorizontalScrollBarEnabled(false);
         setVerticalFadingEdgeEnabled(false);
         setHorizontalFadingEdgeEnabled(false);
+        mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
     }
 
     /** Set the listener for real scroll changes; pass {@code null} to detach it. */
@@ -334,10 +356,8 @@ public class SessionOverviewScrollView extends ScrollView {
 
     @Override
     protected void onScrollChanged(int left, int top, int oldLeft, int oldTop) {
-        Trace.beginSection("overview.scroll.changed");
         super.onScrollChanged(left, top, oldLeft, oldTop);
         if (mOnScrollListener != null) mOnScrollListener.onScrollChanged(top);
-        Trace.endSection();
     }
 
     @Override
@@ -353,42 +373,105 @@ public class SessionOverviewScrollView extends ScrollView {
     // ── gesture input ──────────────────────────────────────────────────────────────────────
 
     /**
+     * {@inheritDoc}
+     *
+     * <p>{@link ScrollView} refuses to start a drag when it has nowhere to scroll. A grid that
+     * fits the viewport is exactly that case, but it still needs the drag for its elastic pull.
+     * Reporting it as scrollable only for the duration of a touch lets ScrollView keep owning the
+     * gesture plumbing; {@link #overScrollBy} then sees a zero range and treats the whole delta as
+     * an end pull. At rest the view keeps reporting the truth, so accessibility and focus code see
+     * a grid with nothing to scroll.</p>
+     */
+    @Override
+    public boolean canScrollVertically(int direction) {
+        if (super.canScrollVertically(direction)) return true;
+        return direction != 0 && mTouchGestureActive && !hasScrollableContent();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>On a fitted grid the vertical drag belongs to the elastic layer, but a horizontal card
+     * swipe must still reach the card. ScrollView's own interception test looks only at vertical
+     * distance, so a diagonal swipe would be stolen before the card could start its drag. Track
+     * the primary pointer and refuse interception until vertical movement dominates; once it
+     * does, ScrollView runs its normal path with the zero-range delta handled by
+     * {@link #overScrollBy}.</p>
+     */
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (!hasScrollableContent()) {
+            final int action = ev.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                mTouchDownX = ev.getX();
+                mTouchDownY = ev.getY();
+                mTouchDownPointerId = ev.getPointerId(0);
+            } else if (action == MotionEvent.ACTION_MOVE) {
+                final int index = ev.findPointerIndex(mTouchDownPointerId);
+                if (index >= 0) {
+                    final float dx = Math.abs(ev.getX(index) - mTouchDownX);
+                    final float dy = Math.abs(ev.getY(index) - mTouchDownY);
+                    if (dy <= mTouchSlop || dx > dy) return false;
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                mTouchDownPointerId = MotionEvent.INVALID_POINTER_ID;
+            }
+        }
+        return super.onInterceptTouchEvent(ev);
+    }
+
+    /** True when the grid is taller than the viewport, i.e. the scroll range is non-zero. */
+    private boolean hasScrollableContent() {
+        final View child = getChildAt(0);
+        if (child == null) return false;
+        return child.getHeight() > getHeight() - getPaddingTop() - getPaddingBottom();
+    }
+
+    /**
      * The single hook into the grid's own scrolling. Called with the delta the widget is about to
      * apply, before it is clamped — the only moment the unconsumed part is still visible.
      * {@code maxOverScrollY} is ignored: with {@link #OVER_SCROLL_NEVER} the framework forces it
      * to 0, so honouring a non-zero margin here would let the framework scroll past the end and
      * count it as finger travel as well.
      *
-     * <p>A grid with four or fewer cards fits the viewport, so {@code scrollRangeY} is 0 and the
-     * elastic layer stays off: there is no end to pull away from. Runtime rather than one-off at
-     * attach time because the range changes as sessions come and go.</p>
+     * <p>A grid with four or fewer cards fits the viewport, so {@code scrollRangeY} is 0. A touch
+     * frame then has no real scroll offset to consume and the whole delta is finger travel past
+     * an end, which feeds the same pull curve as a longer grid. Non-touch frames (a fling) stay
+     * off in that case: with no range there is no arrival speed to absorb. Runtime rather than
+     * one-off at attach time because the range changes as sessions come and go.</p>
      */
     @Override
     protected boolean overScrollBy(int deltaX, int deltaY, int scrollX, int scrollY,
                                    int scrollRangeX, int scrollRangeY,
                                    int maxOverScrollX, int maxOverScrollY, boolean isTouchEvent) {
-        Trace.beginSection("overview.scroll.overScroll");
-        if (deltaY != 0 && scrollRangeY > 0) {
-            final int wanted = scrollY + deltaY;
-            final int clamped = Math.max(0, Math.min(scrollRangeY, wanted));
-            // Where the grid will actually stop. The difference is finger travel it had nowhere
-            // to put — the over-pull — and the rest is travel it absorbed, i.e. real scroll.
-            final int unconsumedPx = Math.abs(wanted - clamped);
-            final int consumedPx = Math.abs(deltaY) - unconsumedPx;
-            // Direction from the delta (direction of travel), not from where the frame ends up:
-            // a clamped fling finishes with `wanted` exactly on an end, and a sign test on
-            // `wanted` would read a fling into the top as a bottom-end pull.
-            final int direction = deltaY < 0 ? DIRECTION_TOP : DIRECTION_BOTTOM;
-            if (isTouchEvent) {
-                if (unconsumedPx > 0) onDragDelta(direction, consumedPx, unconsumedPx);
-                else bleedIntoScroll(consumedPx);
-            } else {
-                onFlingFrame(direction, Math.abs(deltaY), consumedPx, clamped, scrollRangeY);
+        if (deltaY != 0) {
+            if (scrollRangeY > 0) {
+                final int wanted = scrollY + deltaY;
+                final int clamped = Math.max(0, Math.min(scrollRangeY, wanted));
+                // Where the grid will actually stop. The difference is finger travel it had
+                // nowhere to put — the over-pull — and the rest is travel it absorbed, i.e. real
+                // scroll.
+                final int unconsumedPx = Math.abs(wanted - clamped);
+                final int consumedPx = Math.abs(deltaY) - unconsumedPx;
+                // Direction from the delta (direction of travel), not from where the frame ends
+                // up: a clamped fling finishes with `wanted` exactly on an end, and a sign test
+                // on `wanted` would read a fling into the top as a bottom-end pull.
+                final int direction = deltaY < 0 ? DIRECTION_TOP : DIRECTION_BOTTOM;
+                if (isTouchEvent) {
+                    if (unconsumedPx > 0) onDragDelta(direction, consumedPx, unconsumedPx);
+                    else bleedIntoScroll(consumedPx);
+                } else {
+                    onFlingFrame(direction, Math.abs(deltaY), consumedPx, clamped, scrollRangeY);
+                }
+            } else if (isTouchEvent && scrollY == 0) {
+                // The grid fits the viewport: there is no real scroll offset to consume, so every
+                // pixel of the frame is finger travel past an end. Feed it to the same pull curve.
+                final int direction = deltaY < 0 ? DIRECTION_TOP : DIRECTION_BOTTOM;
+                onEdgePull(direction, Math.abs(deltaY));
             }
         }
         final boolean handled = super.overScrollBy(deltaX, deltaY, scrollX, scrollY,
                 scrollRangeX, scrollRangeY, maxOverScrollX, maxOverScrollY, isTouchEvent);
-        Trace.endSection();
         return handled;
     }
 
@@ -460,15 +543,20 @@ public class SessionOverviewScrollView extends ScrollView {
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         final int action = ev.getActionMasked();
-        if (action == MotionEvent.ACTION_DOWN && mOnTouchDownListener != null) {
-            // A tap on a card never reaches onTouchEvent, so finish the structural transition
-            // here before the card/drag controller sees the gesture.
-            mOnTouchDownListener.onTouchDown();
+        if (action == MotionEvent.ACTION_DOWN) {
+            mTouchGestureActive = true;
+            if (mOnTouchDownListener != null) {
+                // A tap on a card never reaches onTouchEvent, so finish the structural transition
+                // here before the card/drag controller sees the gesture.
+                mOnTouchDownListener.onTouchDown();
+            }
         }
         final boolean handled = super.dispatchTouchEvent(ev);
         if (action == MotionEvent.ACTION_DOWN) {
             mDragPullAbsorbed = false;
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            mTouchGestureActive = false;
+            mTouchDownPointerId = MotionEvent.INVALID_POINTER_ID;
             if (action == MotionEvent.ACTION_CANCEL) {
                 reset();
             } else {
@@ -530,6 +618,8 @@ public class SessionOverviewScrollView extends ScrollView {
         cancelScrollSettleAnimator();
         mScrollSettlePx = 0f;
         mProgrammaticOffsetPx = 0f;
+        mTouchGestureActive = false;
+        mTouchDownPointerId = MotionEvent.INVALID_POINTER_ID;
         reset();
         super.onDetachedFromWindow();
     }
@@ -682,11 +772,9 @@ public class SessionOverviewScrollView extends ScrollView {
         // An unchanged translation must not dirty the RenderNode. Every settle/reset ends here,
         // and most of them are writing a value that is already on screen.
         if (px == mContentTranslationPx) return;
-        Trace.beginSection("overview.scroll.translate");
         mContentTranslationPx = px;
         View content = getChildAt(0);
         if (content != null) content.setTranslationY(px);
-        Trace.endSection();
     }
 
     /**

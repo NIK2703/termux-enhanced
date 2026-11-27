@@ -4,7 +4,6 @@ import com.termux.app.TermuxAppConstants;
 
 import android.animation.ValueAnimator;
 import android.os.SystemClock;
-import android.os.Trace;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
@@ -414,7 +413,6 @@ final class SessionOverviewDragController {
     private void autoScrollFrame() {
         mAutoScrollPosted = false;
         if (mState != TermuxAppConstants.Overview.STATE_DRAGGING || mScroll == null) return;
-        Trace.beginSection("overview.grid.dragAutoScroll");
 
         mScroll.getLocationOnScreen(mScrollLocation);
         final float pointerY = mLastRawY - mScrollLocation[1];
@@ -428,7 +426,6 @@ final class SessionOverviewDragController {
                 pointerY, mScroll.getHeight(), mAutoScrollBand, mAutoScrollMaxStep, frameRatio);
         if (step == 0) {
             stopAutoScroll();
-            Trace.endSection();
             return;
         }
 
@@ -437,7 +434,6 @@ final class SessionOverviewDragController {
         if (mScroll.getScrollY() == before) {
             // At the end of the content; the next MOVE will start the loop again if needed.
             stopAutoScroll();
-            Trace.endSection();
             return;
         }
 
@@ -447,7 +443,6 @@ final class SessionOverviewDragController {
         updatePreviewOrder();
         mAutoScrollPosted = true;
         mScroll.postOnAnimation(mAutoScrollRunnable);
-        Trace.endSection();
     }
 
     private void drop() {

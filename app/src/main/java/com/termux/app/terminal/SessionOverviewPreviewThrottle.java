@@ -5,9 +5,10 @@ import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 /**
  * Timing math for the session-overview preview throttle.
  *
- * <p>The user-facing setting is a maximum pass rate in frames per second. {@code 0} disables
- * throttling; {@code 1..20} spaces preview passes by {@code 1000 / fps} milliseconds. The slider
- * uses the same numbers: 0 is off, 1 is 1 FPS and 20 is 20 FPS.</p>
+ * <p>The user-facing setting is a maximum pass rate in frames per second. {@code 0} means no
+ * limit (the throttle is disabled); {@code 1..20} spaces preview passes by
+ * {@code 1000 / fps} milliseconds. The slider uses the same numbers: 0 is no limit, 1 is
+ * 1 FPS and 20 is 20 FPS.</p>
  */
 public final class SessionOverviewPreviewThrottle {
 
@@ -24,8 +25,9 @@ public final class SessionOverviewPreviewThrottle {
     /**
      * Interval between two preview passes, in milliseconds.
      *
-     * @param fps maximum passes per second; {@code 0} disables throttling.
-     * @return {@code 0} when throttling is off, otherwise a positive interval in milliseconds.
+     * @param fps maximum passes per second; {@code 0} means no limit.
+     * @return {@code 0} when throttling is disabled (no limit), otherwise a positive interval
+     *         in milliseconds.
      */
     public static long intervalMs(int fps) {
         final int clamped = clampFps(fps);
@@ -38,7 +40,8 @@ public final class SessionOverviewPreviewThrottle {
      * @param lastRenderStartMs start of the last pass that actually rendered a card;
      *                          {@code 0} means no pass has rendered yet.
      * @param nowMs             current {@code SystemClock.uptimeMillis()}.
-     * @param intervalMs        interval from {@link #intervalMs(int)}; {@code 0} disables the gate.
+     * @param intervalMs        interval from {@link #intervalMs(int)}; {@code 0} disables the gate
+     *                          (no limit).
      * @return {@code 0} when the next pass may start immediately, otherwise the remaining delay.
      */
     public static long remainingDelayMs(long lastRenderStartMs, long nowMs, long intervalMs) {

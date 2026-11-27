@@ -776,7 +776,8 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
     }
 
     /**
-     * Maximum session-overview preview passes per second. {@code 0} disables throttling.
+     * Maximum session-overview preview passes per second. {@code 0} means no limit
+     * (throttling is disabled).
      */
     public int getSessionOverviewPreviewFps() {
         return DataUtils.clamp(

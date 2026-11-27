@@ -271,19 +271,6 @@ public class TermuxSessionTabsController {
         mDimensCached = false;
     }
 
-    /**
-     * Drop all cached per-tab render state so the next populateTabView pass re-applies every
-     * attribute unconditionally. Called after changes applied OUTSIDE the diff
-     * ({@link #applySchemeColorsToTabs} / {@link #applyTabHeightMode}), keeping the cache
-     * honest without teaching those two paths about the diff internals.
-     */
-    private void invalidateRenderStateCache() {
-        if (mTabsContainer == null) return;
-        for (int i = 0; i < mTabsContainer.getChildCount(); i++) {
-            mTabsContainer.getChildAt(i).setTag(R.id.session_tab_render_state_tag, null);
-        }
-    }
-
     public TermuxSessionTabsController(TermuxActivity activity) {
         this.mActivity = activity;
         this.mPrefs = activity.getSharedPreferences(TermuxAppConstants.Preferences.FILE_NAME, android.content.Context.MODE_PRIVATE);
@@ -468,22 +455,38 @@ public class TermuxSessionTabsController {
         for (int i = 0, n = getTabCount(); i < n; i++) {
             View tabView = getTabAt(i);
             if (tabView == null) continue;
-            ViewGroup.LayoutParams lp = tabView.getLayoutParams();
-            if (lp == null) continue;
-            lp.height = heightPx;
-            tabView.setLayoutParams(lp);
+            applyTabHeight(tabView, heightPx);
             TabRenderState state = getRenderState(tabView);
             boolean closeVisible = state.closeButton != null
                     && state.closeButton.getVisibility() == View.VISIBLE;
             applyTabSidePadding(tabView, state, closeVisible);
             if (state.titleView != null) {
-                state.titleView.setMaxLines(singleLine ? 1 : 2);
+                // Keep the per-tab cache in step with the view instead of invalidating it.
+                // A recreated state has no full title, so applyTitleLayout() would return early
+                // and the previous mode's one-line/two-line text would stay inside a pill of the
+                // new height until some unrelated title refresh happened to run.
+                final int maxLines = singleLine ? 1 : 2;
+                if (state.maxLines != maxLines) {
+                    state.maxLines = maxLines;
+                    state.titleView.setMaxLines(maxLines);
+                }
+                // The full title survives only in the state. Recover it from the accessibility
+                // description if a state was recreated elsewhere, so the title is re-wrapped
+                // for the new line count instead of keeping the old render.
+                if (state.title == null && state.titleView.getContentDescription() != null) {
+                    state.title = state.titleView.getContentDescription().toString();
+                }
                 applyTitleLayout(state, closeVisible);
             }
         }
-        // The populateTabView diff cache holds values applied under the previous height/mode;
-        // drop it so the next refresh re-applies every attribute with the new settings.
-        invalidateRenderStateCache();
+    }
+
+    /** Apply a tab's pixel height, touching the layout params only when it actually changes. */
+    private static void applyTabHeight(@androidx.annotation.NonNull View tabView, int heightPx) {
+        ViewGroup.LayoutParams lp = tabView.getLayoutParams();
+        if (lp == null || lp.height == heightPx) return;
+        lp.height = heightPx;
+        tabView.setLayoutParams(lp);
     }
 
     /** Apply start/end insets; inactive tabs mirror the start inset on the end. */
@@ -691,9 +694,7 @@ public class TermuxSessionTabsController {
 
         // Apply the configured tab height (compact single-line vs tall two-line).
         ensureDimens();
-        ViewGroup.LayoutParams lp = tabView.getLayoutParams();
-        lp.height = mTabHeightPx;
-        tabView.setLayoutParams(lp);
+        applyTabHeight(tabView, mTabHeightPx);
 
         // populateTabView() binds the click listeners itself; setting them here would be
         // immediately overwritten anyway.
@@ -831,6 +832,11 @@ public class TermuxSessionTabsController {
      */
     private void populateTabView(View tabView, TermuxSession termuxSession, int position, boolean isSelected) {
         ensureDimens();
+        // The window shape can change between two populate passes (a bubble resize has no
+        // configuration callback). ensureDimens() then flips mSingleLineMode / mTabHeightPx;
+        // re-assert the height here so a tab can never keep the previous mode's pill height
+        // while its title is re-wrapped for the new line count.
+        applyTabHeight(tabView, mTabHeightPx);
         final boolean freshState = tabView.getTag(R.id.session_tab_render_state_tag) == null;
         TabRenderState state = getRenderState(tabView);
         // Resolved once, in the TabRenderState constructor — never findViewById again.

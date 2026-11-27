@@ -4,7 +4,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.os.Trace;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -152,14 +151,12 @@ final class TerminalFrameSource {
      */
     void draw(@NonNull Canvas canvas, int alpha) {
         if (alpha <= 0 || mReleased || mFront == null || mFront.isRecycled()) return;
-        Trace.beginSection("overview.frame.draw");
         renderIfDirty();
         // Match the filtering of the BitmapDrawable used by resting cards, otherwise the
         // downscaled glyphs would visibly change at the opening and closing hand-offs.
         final Bitmap front = mFront;
         mAlphaPaint.setAlpha(alpha);
         canvas.drawBitmap(front, 0f, 0f, mAlphaPaint);
-        Trace.endSection();
     }
 
     /**
@@ -170,14 +167,11 @@ final class TerminalFrameSource {
         final TerminalEmulator emulator = mSession.getEmulator();
         if (emulator == null || mFront == null) return;
         final int topRow = mTopRowProvider.getTopRow();
-        Trace.beginSection("overview.frame.render");
         try {
             TerminalPreviewRenderer.render(emulator, mFront, mTextSizePx, mTypeface,
                     topRow, mBackgroundTransparencyPercent);
         } catch (RuntimeException ignored) {
             // A terminal that cannot be drawn leaves the freshly allocated bitmap blank.
-        } finally {
-            Trace.endSection();
         }
         recordTransientState(emulator, topRow);
         mDirty = false;
@@ -204,11 +198,9 @@ final class TerminalFrameSource {
         mDirty = false;
         mInFlight = true;
         final int generation = ++mGeneration;
-        Trace.beginSection("overview.frame.submit");
         mRasterizer.submitFrame(snapshot, target, mTextSizePx, mTypeface,
                 mBackgroundTransparencyPercent, generation,
                 completedGeneration -> onFrameRendered(target, completedGeneration));
-        Trace.endSection();
     }
 
     /** Select an offscreen buffer that is neither the bitmap on screen nor already in flight. */
@@ -240,22 +232,17 @@ final class TerminalFrameSource {
 
     /** Called on main when the background raster has finished. Rotate buffers and redraw. */
     private void onFrameRendered(@NonNull Bitmap target, int generation) {
-        Trace.beginSection("overview.frame.attach");
-        try {
-            if (mReleased || generation != mGeneration || mBack != target || mFront == target) {
-                if (target != mFront && target != mSpare) recycleBitmap(target);
-                return;
-            }
-            final Bitmap oldFront = mFront;
-            mFront = target;
-            mBack = mSpare;
-            mSpare = oldFront;
-            mInFlight = false;
-            final Runnable callback = mInvalidationCallback;
-            if (callback != null) callback.run();
-        } finally {
-            Trace.endSection();
+        if (mReleased || generation != mGeneration || mBack != target || mFront == target) {
+            if (target != mFront && target != mSpare) recycleBitmap(target);
+            return;
         }
+        final Bitmap oldFront = mFront;
+        mFront = target;
+        mBack = mSpare;
+        mSpare = oldFront;
+        mInFlight = false;
+        final Runnable callback = mInvalidationCallback;
+        if (callback != null) callback.run();
     }
 
     private void recordTransientState(@NonNull TerminalEmulator emulator, int topRow) {

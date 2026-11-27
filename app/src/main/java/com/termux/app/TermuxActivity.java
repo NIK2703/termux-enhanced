@@ -1211,7 +1211,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             mSessionOverviewController.onConfigurationChanged(newConfig);
 
         // The dispatched Configuration is authoritative, but some ROMs deliver a rotation with
-        // screen dimensions that still describe the previous window. Re-check the measured root
+        // screen dimensions that still describe the previous window. Re-check the measured window
         // once layout has settled; this is the first rotation after start where that stale value
         // used to pin the strip to the wrong mode until the next rotation.
         scheduleTabHeightWindowShapeCheck();
@@ -3206,12 +3206,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      */
     public void applyTabHeightMode(@Nullable Configuration changedConfig) {
         // A call without a dispatched configuration (startup, resume, settings) refreshes the
-        // remembered shape from resources before the controller reads it. Calls made from
-        // onConfigurationChanged() keep the dispatched value, which is authoritative even while
-        // resources still describe the previous window.
+        // remembered shape from the window that is actually drawn. Resources can still describe
+        // the previous orientation while a rotation is being applied, so they are only the
+        // fallback on platforms without window metrics.
         if (changedConfig == null) {
-            mLastWindowLandscape = TermuxSessionTabsController.isWindowLandscape(
-                    getResources().getConfiguration());
+            mLastWindowLandscape = measureWindowLandscape();
         }
 
         // Update all existing tab views via the tabs controller.
@@ -3243,9 +3242,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *
      * <p>Runs before the next draw after a configuration change or a resume, and after every
      * root layout. It corrects a first rotation whose dispatched Configuration still carried the
-     * previous screen dimensions: by then {@link #getResources()} has the new window size (or
-     * the bubble has been laid out). Idempotent: when the remembered shape already matches,
-     * nothing is applied.</p>
+     * previous screen dimensions: by then the window metrics describe the new window (or the
+     * bubble has been laid out). Idempotent: when the remembered shape already matches, nothing
+     * is applied.</p>
      */
     private void scheduleTabHeightWindowShapeCheck() {
         final View root = mTermuxActivityRootView;
@@ -3257,40 +3256,78 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     private void reconcileTabHeightWithWindowShape() {
         if (isFinishing() || isDestroyed()) return;
 
-        // A bubble's measured decor is the window the user sees; its Resources configuration can
-        // still describe the display. For the full-screen activity the configuration's screen
-        // dimensions describe the window without the IME (the root view shrinks with the
-        // keyboard), so they are the correct late-arriving source there.
-        final View bubbleDecor;
-        final boolean landscape;
-        if (isBubbleWindow()) {
-            bubbleDecor = getWindow() != null ? getWindow().getDecorView() : null;
-            if (bubbleDecor == null
-                    || bubbleDecor.getWidth() <= 0 || bubbleDecor.getHeight() <= 0) return;
-            landscape = bubbleDecor.getWidth() > bubbleDecor.getHeight();
-        } else {
-            bubbleDecor = null;
-            landscape = TermuxSessionTabsController.isWindowLandscape(
-                    getResources().getConfiguration());
-        }
+        // The measured window is the ground truth. Resources can still describe the previous
+        // orientation when this runs, which is exactly the case this reconciliation exists for;
+        // trusting them here could overwrite a correct dispatched mode with the old one.
+        final boolean landscape = measureWindowLandscape();
         if (landscape == mLastWindowLandscape) return;
         mLastWindowLandscape = landscape;
 
         final Configuration configuration =
                 new Configuration(getResources().getConfiguration());
-        if (bubbleDecor != null) {
+        configuration.orientation = landscape
+                ? Configuration.ORIENTATION_LANDSCAPE
+                : Configuration.ORIENTATION_PORTRAIT;
+        // Pass the measured size along as well: the controller derives its mode from these
+        // dimensions, and the resources' screenWidthDp/screenHeightDp may still be stale.
+        final int[] windowSizePx = measureWindowSizePx();
+        if (windowSizePx != null) {
             final float density = getResources().getDisplayMetrics().density;
-            configuration.orientation = landscape
-                    ? Configuration.ORIENTATION_LANDSCAPE
-                    : Configuration.ORIENTATION_PORTRAIT;
             configuration.screenWidthDp =
-                    Math.max(1, Math.round(bubbleDecor.getWidth() / density));
+                    Math.max(1, Math.round(windowSizePx[0] / density));
             configuration.screenHeightDp =
-                    Math.max(1, Math.round(bubbleDecor.getHeight() / density));
+                    Math.max(1, Math.round(windowSizePx[1] / density));
         }
         applyTabHeightMode(configuration);
         if (mSessionOverviewController != null)
             mSessionOverviewController.onWindowShapeCorrected(configuration);
+    }
+
+    /**
+     * Shape of the window the tabs are drawn in: {@code true} when it is wider than it is tall.
+     *
+     * <p>A bubble is measured from its decor, because an embedded activity's resources describe
+     * the host display. Every other window uses {@link WindowManager#getCurrentWindowMetrics()}
+     * on Android 11+, which reports the real window bounds and, unlike the root view, does not
+     * shrink when the keyboard opens. Older platforms fall back to the configuration's screen
+     * dimensions.</p>
+     */
+    private boolean measureWindowLandscape() {
+        if (isBubbleWindow()) {
+            final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
+            if (decorView != null && decorView.getWidth() > 0 && decorView.getHeight() > 0)
+                return decorView.getWidth() > decorView.getHeight();
+            return mLastWindowLandscape;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            final android.graphics.Rect bounds =
+                    getWindowManager().getCurrentWindowMetrics().getBounds();
+            if (bounds.width() > 0 && bounds.height() > 0)
+                return bounds.width() > bounds.height();
+        }
+        return TermuxSessionTabsController.isWindowLandscape(getResources().getConfiguration());
+    }
+
+    /**
+     * Current window size in pixels, or {@code null} when the platform cannot report it yet.
+     * The decor is used for a bubble because its resources describe the host display; Android
+     * 11+ reports the real window bounds for every other window through the window manager.
+     */
+    @Nullable
+    private int[] measureWindowSizePx() {
+        if (isBubbleWindow()) {
+            final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
+            if (decorView == null || decorView.getWidth() <= 0 || decorView.getHeight() <= 0)
+                return null;
+            return new int[]{decorView.getWidth(), decorView.getHeight()};
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            final android.graphics.Rect bounds =
+                    getWindowManager().getCurrentWindowMetrics().getBounds();
+            if (bounds.width() > 0 && bounds.height() > 0)
+                return new int[]{bounds.width(), bounds.height()};
+        }
+        return null;
     }
 
     /**

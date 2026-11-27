@@ -5,7 +5,6 @@ import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
-import android.os.Trace;
 
 import androidx.annotation.NonNull;
 
@@ -53,8 +52,7 @@ final class SessionOverviewRasterizer {
                        int backgroundTransparencyPercent, int generation,
                        @NonNull Completion completion) {
         submit(mPreviewExecutor, snapshot, target, textSizePx, typeface,
-                backgroundTransparencyPercent, generation, completion,
-                "overview.preview.card.render");
+                backgroundTransparencyPercent, generation, completion);
     }
 
     void submitFrame(@NonNull TerminalRenderSnapshot snapshot, @NonNull Bitmap target,
@@ -62,26 +60,23 @@ final class SessionOverviewRasterizer {
                      int backgroundTransparencyPercent, int generation,
                      @NonNull Completion completion) {
         submit(mFrameExecutor, snapshot, target, textSizePx, typeface,
-                backgroundTransparencyPercent, generation, completion,
-                "overview.frame.render");
+                backgroundTransparencyPercent, generation, completion);
     }
 
     private void submit(@NonNull ExecutorService executor,
                         @NonNull TerminalRenderSnapshot snapshot, @NonNull Bitmap target,
                         int textSizePx, @NonNull Typeface typeface,
                         int backgroundTransparencyPercent, int generation,
-                        @NonNull Completion completion, @NonNull String traceSection) {
+                        @NonNull Completion completion) {
         if (mReleased) return;
         try {
             executor.execute(() -> {
-                Trace.beginSection(traceSection);
                 try {
                     TerminalPreviewRenderer.render(snapshot, target, textSizePx, typeface,
                             snapshot.getTopRow(), backgroundTransparencyPercent);
                 } catch (Throwable ignored) {
                     // Keep the previous surface; the completion still releases the in-flight flag.
                 } finally {
-                    Trace.endSection();
                     if (!mReleased) {
                         mMainHandler.post(() -> {
                             if (!mReleased) completion.onRasterComplete(generation);

@@ -4,7 +4,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.os.Trace;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -431,13 +430,8 @@ public final class TerminalPreviewRenderer {
                                            int maxCardWidth, int maxCardHeight,
                                            int preferredTextSizePx,
                                            @NonNull Typeface typeface) {
-        Trace.beginSection("overview.renderer.fitGridRaster");
-        try {
-            return fitGridRasterLocked(columns, rows, maxCardWidth, maxCardHeight,
-                    preferredTextSizePx, typeface);
-        } finally {
-            Trace.endSection();
-        }
+        return fitGridRasterLocked(columns, rows, maxCardWidth, maxCardHeight,
+                preferredTextSizePx, typeface);
     }
 
     @Nullable
@@ -482,13 +476,8 @@ public final class TerminalPreviewRenderer {
     public static void render(@NonNull TerminalRenderSource source, @NonNull Bitmap target,
                               int textSizePx, @NonNull Typeface typeface, int topRow,
                               int backgroundTransparencyPercent) {
-        Trace.beginSection("overview.renderer.render");
-        try {
-            renderLocked(source, target, textSizePx, typeface, topRow,
-                    backgroundTransparencyPercent);
-        } finally {
-            Trace.endSection();
-        }
+        renderLocked(source, target, textSizePx, typeface, topRow,
+                backgroundTransparencyPercent);
     }
 
     private static void renderLocked(@NonNull TerminalRenderSource source, @NonNull Bitmap target,

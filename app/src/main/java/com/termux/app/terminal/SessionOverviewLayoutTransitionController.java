@@ -3,7 +3,6 @@ package com.termux.app.terminal;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
-import android.os.Trace;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
@@ -160,10 +159,8 @@ final class SessionOverviewLayoutTransitionController {
 
     private void begin() {
         if (!mSeeded) return;
-        Trace.beginSection("overview.grid.layoutTransition");
         if (mCards.isEmpty()) {
             finishNow();
-            Trace.endSection();
             return;
         }
         final int count = mCards.size();
@@ -183,7 +180,6 @@ final class SessionOverviewLayoutTransitionController {
             // The seed is posted only after the layout it depends on. A card that still has no
             // bounds cannot be animated safely; apply the final geometry instead of polling.
             finishNow();
-            Trace.endSection();
             return;
         }
         mSeeded = false;
@@ -222,7 +218,6 @@ final class SessionOverviewLayoutTransitionController {
         final boolean hasScroll = offset != 0 || mClamped;
         if (!hasCardMotion && !hasScroll) {
             clear();
-            Trace.endSection();
             return;
         }
 
@@ -231,7 +226,6 @@ final class SessionOverviewLayoutTransitionController {
         animator.setInterpolator(hasScroll ? SCROLL_INTERPOLATOR : CARD_INTERPOLATOR);
         animator.addUpdateListener(animation -> {
             if (mAnimator != animation) return;
-            Trace.beginSection("overview.grid.layoutTransition.frame");
             final float progress = (float) animation.getAnimatedValue();
             for (int i = 0; i < mCards.size(); i++) {
                 final View view = mCards.get(i);
@@ -244,7 +238,6 @@ final class SessionOverviewLayoutTransitionController {
                 mScrollView.setProgrammaticScrollOffsetPx(
                         SessionOverviewLayoutTransitionMath.remaining(offset, progress));
             }
-            Trace.endSection();
         });
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -255,7 +248,6 @@ final class SessionOverviewLayoutTransitionController {
         });
         mAnimator = animator;
         animator.start();
-        Trace.endSection();
     }
 
     /** Apply the final state now: no translation and no visual scroll offset. */
