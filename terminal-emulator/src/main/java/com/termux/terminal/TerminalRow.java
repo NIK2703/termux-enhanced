@@ -100,6 +100,24 @@ public final class TerminalRow {
     }
 
     /**
+     * Copy a row for a {@link TerminalRenderSnapshot}.
+     *
+     * <p>The copy keeps every field the renderer reads, including the maintained blank/uniform and
+     * uniform-suffix flags. Cached scan positions are deliberately reset; they describe the source
+     * row's previous access pattern and would be stale in the copy.</p>
+     */
+    TerminalRow(TerminalRow source) {
+        mColumns = source.mColumns;
+        mText = Arrays.copyOf(source.mText, source.mText.length);
+        mSpaceUsed = source.mSpaceUsed;
+        mLineWrap = source.mLineWrap;
+        mStyle = Arrays.copyOf(source.mStyle, source.mStyle.length);
+        mHasNonOneWidthOrSurrogateChars = source.mHasNonOneWidthOrSurrogateChars;
+        mBlankAndUniform = source.mBlankAndUniform;
+        mStyleUniformFrom = source.mStyleUniformFrom;
+    }
+
+    /**
      * B2/F6: copy {@code length} plain cells from column {@code sourceX} of {@code line} to column
      * {@code destinationX} of this row with two {@link System#arraycopy} calls.
      *

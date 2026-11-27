@@ -8,6 +8,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.os.Trace;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -102,6 +103,7 @@ final class OverviewBackdropHoleView extends View {
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         if (mHole.isEmpty()) return;
+        Trace.beginSection("overview.hole.draw");
 
         if (mCornerRadius <= 0f) {
             canvas.drawRect(mHoleF, mClearPaint);
@@ -116,5 +118,6 @@ final class OverviewBackdropHoleView extends View {
                 canvas.drawPath(mHolePath, mFillPaint);
             }
         }
+        Trace.endSection();
     }
 }

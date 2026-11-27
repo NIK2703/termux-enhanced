@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  * html - document for konsole - accessible!</li>
  * </ul>
  */
-public final class TerminalEmulator {
+public final class TerminalEmulator implements TerminalRenderSource {
 
     /** Log unknown or unimplemented escape sequences received from the shell process. */
     private static final boolean LOG_ESCAPE_SEQUENCES = false;
@@ -403,6 +403,41 @@ public final class TerminalEmulator {
 
     public TerminalBuffer getScreen() {
         return mScreen;
+    }
+
+    @Override
+    public int getColumns() {
+        return mColumns;
+    }
+
+    @Override
+    public int getRows() {
+        return mRows;
+    }
+
+    @Override
+    public int[] getPalette() {
+        return mColors.mCurrentColors;
+    }
+
+    @Override
+    public int getActiveTranscriptRows() {
+        return mScreen.getActiveTranscriptRows();
+    }
+
+    @Override
+    public TerminalRow getLineOrBlank(int externalRow) {
+        return mScreen.getLineOrBlank(externalRow);
+    }
+
+    @Override
+    public boolean isRowDirty(int externalRow) {
+        return mScreen.isRowDirty(externalRow);
+    }
+
+    @Override
+    public void clearRowDirty(int externalRow) {
+        mScreen.clearRowDirty(externalRow);
     }
 
     public boolean isAlternateBufferActive() {

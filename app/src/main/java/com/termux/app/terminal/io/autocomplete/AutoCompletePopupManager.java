@@ -179,12 +179,36 @@ final class AutoCompletePopupManager {
 
     // ── Width / geometry (shared by both windows) ──
 
-    int computePopupWidth(int fieldWidth) {
-        int base = Math.max(fieldWidth, mPopupMinWidthPx);
-        int displayWidth = mContext.getResources().getDisplayMetrics().widthPixels;
-        int maxWidth = (int) (displayWidth * mPopupWidthFraction);
-        maxWidth = Math.min(maxWidth, displayWidth - 2 * mPopupWidthMarginPx);
-        return Math.min(base, maxWidth);
+    /**
+     * Compute the popup width from the input field and the window that contains it.
+     *
+     * <p>The display width is not the window width in split-screen or a freeform bubble. The
+     * popup belongs to the activity window, so its fraction cap and edge clamp must use that
+     * window too. Reading the display here made the cap ineffective in a narrow window and let
+     * the popup grow to the input field's full width.</p>
+     */
+    int computePopupWidth(@Nullable View anchor) {
+        final int fieldWidth = anchor != null ? anchor.getWidth() : 0;
+        return computePopupWidth(fieldWidth, windowWidth(anchor), mPopupMinWidthPx,
+                mPopupWidthMarginPx, mPopupWidthFraction);
+    }
+
+    /** The window width the popup is confined to, falling back to the display before layout. */
+    private int windowWidth(@Nullable View anchor) {
+        if (anchor != null) {
+            final View root = anchor.getRootView();
+            if (root != null && root.getWidth() > 0) return root.getWidth();
+        }
+        return mContext.getResources().getDisplayMetrics().widthPixels;
+    }
+
+    static int computePopupWidth(int fieldWidth, int windowWidth, int minWidthPx,
+                                 int widthMarginPx, float widthFraction) {
+        final int availableWidth = Math.max(0, windowWidth);
+        final int base = Math.max(fieldWidth, minWidthPx);
+        int maxWidth = (int) (availableWidth * widthFraction);
+        maxWidth = Math.min(maxWidth, availableWidth - 2 * widthMarginPx);
+        return Math.max(0, Math.min(base, maxWidth));
     }
 
     private int calcPopupX(@NonNull EditText inputField, int popupWidth) {
@@ -201,9 +225,11 @@ final class AutoCompletePopupManager {
             cursorX = layout.getPrimaryHorizontal(cursorPos);
         }
         int popupX = locX + (int) cursorX - inputField.getScrollX() + mPopupXOffsetPx;
-        int displayWidth = mContext.getResources().getDisplayMetrics().widthPixels;
-        if (popupX + popupWidth > displayWidth - mPopupEdgeMarginPx) {
-            popupX = displayWidth - popupWidth - mPopupEdgeMarginPx;
+        // The popup is a child window of the activity, so its edge is the activity window's
+        // edge, not the display's. In split-screen the two are different.
+        final int availableWidth = windowWidth(inputField);
+        if (popupX + popupWidth > availableWidth - mPopupEdgeMarginPx) {
+            popupX = availableWidth - popupWidth - mPopupEdgeMarginPx;
         }
         if (popupX < mPopupEdgeMarginPx) popupX = mPopupEdgeMarginPx;
         return popupX;
@@ -283,7 +309,7 @@ final class AutoCompletePopupManager {
     }
 
     private void showPopupAtCaret(@NonNull PopupWindow popup, @NonNull EditText inputField) {
-        int w = computePopupWidth(inputField.getWidth());
+        int w = computePopupWidth(inputField);
         int h = 0;
         if (popup.getContentView() instanceof ScrollView) {
             View child = ((ScrollView) popup.getContentView()).getChildAt(0);
@@ -301,7 +327,7 @@ final class AutoCompletePopupManager {
 
     @NonNull
     private PopupWindow buildPopupWindow(@NonNull LinearLayout content) {
-        int sumWidth = computePopupWidth(mData.getInputField() != null ? mData.getInputField().getWidth() : 0);
+        int sumWidth = computePopupWidth(mData.getInputField());
 
         SwipeDownScrollView scroll = new SwipeDownScrollView(mContext, this::onPopupSwipeDown);
         scroll.setVerticalScrollBarEnabled(false);
@@ -362,7 +388,16 @@ final class AutoCompletePopupManager {
         popup.setTouchable(true);
         popup.setFocusable(false);
         popup.setOnDismissListener(() -> {
-            if (popup == mHistoryPopup) { mHistoryPopup = null; mHistoryContent = null; }
+            if (popup == mHistoryPopup) {
+                mHistoryPopup = null;
+                mHistoryContent = null;
+                // Drop the cached geometry even when the system dismisses the window without
+                // going through dismissAutoCompleteSuggestions().
+                mLastPopupWidth = 0;
+                mLastPopupX = 0;
+                mLastPopupY = 0;
+                mLastPopupHeight = 0;
+            }
         });
         return popup;
     }
@@ -399,7 +434,11 @@ final class AutoCompletePopupManager {
             inputField.post(() -> applyPopupGeometry(inputField));
             return;
         }
-        int w = mLastPopupWidth > 0 ? mLastPopupWidth : computePopupWidth(inputField.getWidth());
+        // Recompute from the live field/window instead of reusing the previous popup width. The
+        // window can be resized while the popup is hidden (split-screen, bubble, panel margin),
+        // and the old width would otherwise be applied to the newly shown popup.
+        final int fieldWidth = inputField.getWidth();
+        final int w = fieldWidth > 0 ? computePopupWidth(inputField) : mLastPopupWidth;
         if (w <= 0) {
             return;
         }
@@ -550,6 +589,7 @@ final class AutoCompletePopupManager {
             mHistoryPopup = null;
         }
         mHistoryContent = null;
+        mLastPopupWidth = 0;
         mLastPopupX = 0;
         mLastPopupY = 0;
         mLastPopupHeight = 0;

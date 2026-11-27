@@ -6,6 +6,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
@@ -333,8 +334,10 @@ public class SessionOverviewScrollView extends ScrollView {
 
     @Override
     protected void onScrollChanged(int left, int top, int oldLeft, int oldTop) {
+        Trace.beginSection("overview.scroll.changed");
         super.onScrollChanged(left, top, oldLeft, oldTop);
         if (mOnScrollListener != null) mOnScrollListener.onScrollChanged(top);
+        Trace.endSection();
     }
 
     @Override
@@ -364,6 +367,7 @@ public class SessionOverviewScrollView extends ScrollView {
     protected boolean overScrollBy(int deltaX, int deltaY, int scrollX, int scrollY,
                                    int scrollRangeX, int scrollRangeY,
                                    int maxOverScrollX, int maxOverScrollY, boolean isTouchEvent) {
+        Trace.beginSection("overview.scroll.overScroll");
         if (deltaY != 0 && scrollRangeY > 0) {
             final int wanted = scrollY + deltaY;
             final int clamped = Math.max(0, Math.min(scrollRangeY, wanted));
@@ -382,8 +386,10 @@ public class SessionOverviewScrollView extends ScrollView {
                 onFlingFrame(direction, Math.abs(deltaY), consumedPx, clamped, scrollRangeY);
             }
         }
-        return super.overScrollBy(deltaX, deltaY, scrollX, scrollY, scrollRangeX, scrollRangeY,
-                maxOverScrollX, maxOverScrollY, isTouchEvent);
+        final boolean handled = super.overScrollBy(deltaX, deltaY, scrollX, scrollY,
+                scrollRangeX, scrollRangeY, maxOverScrollX, maxOverScrollY, isTouchEvent);
+        Trace.endSection();
+        return handled;
     }
 
     /**
@@ -676,9 +682,11 @@ public class SessionOverviewScrollView extends ScrollView {
         // An unchanged translation must not dirty the RenderNode. Every settle/reset ends here,
         // and most of them are writing a value that is already on screen.
         if (px == mContentTranslationPx) return;
+        Trace.beginSection("overview.scroll.translate");
         mContentTranslationPx = px;
         View content = getChildAt(0);
         if (content != null) content.setTranslationY(px);
+        Trace.endSection();
     }
 
     /**

@@ -33,20 +33,4 @@ public class SessionOverviewPreviewPolicyTest {
     public void zeroHeightCardIsNotVisibleInALaidOutViewport() {
         assertFalse(SessionOverviewPreviewPolicy.isVisible(100, 100, 0, 500));
     }
-
-    @Test
-    public void cursorBlinkChangeMarksOnlyThatStateAsDifferent() {
-        assertTrue(SessionOverviewPreviewPolicy.previewStateChanged(
-                3, 10, true, 0, 3, 10, false, 0));
-        assertFalse(SessionOverviewPreviewPolicy.previewStateChanged(
-                3, 10, true, 0, 3, 10, true, 0));
-    }
-
-    @Test
-    public void cursorMoveAndScrollChangeAreDetected() {
-        assertTrue(SessionOverviewPreviewPolicy.previewStateChanged(
-                3, 10, true, 0, 4, 10, true, 0));
-        assertTrue(SessionOverviewPreviewPolicy.previewStateChanged(
-                3, 10, true, 0, 3, 10, true, -2));
-    }
 }

@@ -5,6 +5,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.graphics.Bitmap;
+
 import org.junit.Test;
 
 /**
@@ -16,6 +18,13 @@ import org.junit.Test;
  * metric probes stays bounded.</p>
  */
 public class TerminalPreviewGridRasterTest {
+
+    @Test
+    public void previewRastersKeepEightBitChannels() {
+        // RGB_565 rounds neutral greys towards green (#FAFAFA becomes #F7FBF7), so the card
+        // would visibly change colour against the ARGB_8888 live terminal.
+        assertEquals(Bitmap.Config.ARGB_8888, TerminalPreviewRenderer.BITMAP_CONFIG);
+    }
 
     @Test
     public void rasterUsesNaturalAdvanceAndTheLiveGridRowPitch() {

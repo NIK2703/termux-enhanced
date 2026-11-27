@@ -27,21 +27,4 @@ final class SessionOverviewPreviewPolicy {
         if (cardBottom <= cardTop) return false;
         return cardBottom > scrollY && cardTop < scrollY + viewportHeight;
     }
-
-    /**
-     * Whether the cursor or scroll position differs from what the last rendered bitmap holds.
-     *
-     * <p>Text output and palette changes mark a card dirty directly. This comparison is for the
-     * low-rate cursor tick and for cards that just entered the viewport: it avoids repainting a
-     * static card every 500 ms.</p>
-     */
-    static boolean previewStateChanged(int lastCursorRow, int lastCursorCol,
-                                       boolean lastCursorVisible, int lastTopRow,
-                                       int cursorRow, int cursorCol,
-                                       boolean cursorVisible, int topRow) {
-        return lastCursorRow != cursorRow
-                || lastCursorCol != cursorCol
-                || lastCursorVisible != cursorVisible
-                || lastTopRow != topRow;
-    }
 }

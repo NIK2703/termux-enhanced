@@ -121,6 +121,8 @@ public class TermuxSessionTabsController {
      * Invalidated by {@link #invalidateDimens()} (tab-height mode change / styling reload).
      */
     private boolean mDimensCached = false;
+    /** Window shape the cached metrics were resolved for. */
+    private boolean mDimensLandscape;
     private boolean mSingleLineMode = true;
     private int mTabHeightPx = 0;
     private int mPadStartPx = 0;
@@ -181,17 +183,48 @@ public class TermuxSessionTabsController {
     /**
      * Whether the tabs are drawn on one line for the given preference value and window shape.
      *
-     * <p>{@code double} always uses two lines; the landscape-aware mode uses two lines in
-     * portrait and one in landscape; every other value (including {@code single} and a missing
-     * preference) uses one line.
+     * <p>{@code double} always uses two lines; the landscape-aware mode uses two lines in a
+     * portrait-shaped window and one in a landscape-shaped one; every other value (including
+     * {@code single} and a missing preference) uses one line.
+     *
+     * <p>The shape comes from the configuration's screen width and height rather than its
+     * {@link Configuration#orientation}. In split-screen and floating windows the activity's
+     * orientation can disagree with the window's aspect, and the tabs must follow the window
+     * they are actually drawn in.</p>
      */
     public static boolean isSingleLineMode(@Nullable Configuration configuration, String mode) {
+        return isSingleLineMode(isWindowLandscape(configuration), mode);
+    }
+
+    /**
+     * The same decision with the window shape already resolved. The activity uses this overload
+     * so a bubble can answer from its own decor bounds instead of the display orientation.
+     */
+    public static boolean isSingleLineMode(boolean landscape, String mode) {
         if (TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_DOUBLE.equals(mode))
             return false;
         if (TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_DOUBLE_LANDSCAPE_SINGLE.equals(mode))
-            return configuration != null
-                && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE;
+            return landscape;
         return true;
+    }
+
+    /**
+     * Whether the configuration describes a window that is wider than it is tall.
+     *
+     * <p>The screen dimensions describe the whole activity window, including split-screen and
+     * freeform windows. They are preferred over {@link Configuration#orientation}, which can
+     * keep describing the display after the window has already changed shape.</p>
+     */
+    public static boolean isWindowLandscape(@Nullable Configuration configuration) {
+        if (configuration == null) return false;
+        return isWindowLandscape(configuration.screenWidthDp, configuration.screenHeightDp,
+            configuration.orientation);
+    }
+
+    static boolean isWindowLandscape(int screenWidthDp, int screenHeightDp, int orientation) {
+        if (screenWidthDp > 0 && screenHeightDp > 0)
+            return screenWidthDp > screenHeightDp;
+        return orientation == Configuration.ORIENTATION_LANDSCAPE;
     }
 
     /** Resolve and cache the strip metrics / preference values. Cheap no-op after the first call. */
@@ -200,15 +233,19 @@ public class TermuxSessionTabsController {
     }
 
     /**
-     * @param changedConfig the configuration being applied on a rotation, or {@code null} to read
-     *                      the activity's own configuration.
+     * @param changedConfig the configuration being applied on a rotation, or {@code null} to ask
+     *                      the activity for its last dispatched window shape.
      */
     private void ensureDimens(@Nullable Configuration changedConfig) {
-        if (mDimensCached) return;
+        // The cached metrics depend on the window shape, so a cache hit is only valid while the
+        // shape is unchanged. Keying on it also self-heals the case where the first rotation
+        // arrived before this controller existed (or before its tab container was attached):
+        // the controller is built later and can no longer miss that rotation's invalidation.
+        final boolean landscape = mActivity.isWindowLandscape(changedConfig);
+        if (mDimensCached && mDimensLandscape == landscape) return;
         mDimensCached = true;
-        Configuration configuration = changedConfig != null
-            ? changedConfig : mActivity.getResources().getConfiguration();
-        mSingleLineMode = isSingleLineMode(configuration,
+        mDimensLandscape = landscape;
+        mSingleLineMode = isSingleLineMode(landscape,
             mPrefs.getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE,
                 TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_SINGLE));
         android.content.res.Resources r = mActivity.getResources();

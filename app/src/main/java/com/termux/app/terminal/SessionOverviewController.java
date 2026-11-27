@@ -17,6 +17,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.SystemClock;
+import android.os.Trace;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -52,6 +53,7 @@ import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.view.KeyboardUtils;
 import com.termux.terminal.TerminalEmulator;
+import com.termux.terminal.TerminalRenderSnapshot;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TextStyle;
 import com.termux.view.TerminalPreviewRenderer;
@@ -324,11 +326,10 @@ public final class SessionOverviewController {
              oldLeft, oldTop, oldRight, oldBottom) -> tryFinishOpeningPreparation();
     /** True between activity stop and resume while the overview stays open in the background. */
     private boolean mActivityStopped;
-    private boolean mRenderPosted;
-    /** Cached interval between preview passes; 0 disables the throttle. Refreshed on show/resume. */
+    /** Cached per-card interval; 0 disables the throttle. Refreshed on show/resume. */
     private long mPreviewIntervalMs;
-    /** Start time of the last preview pass that actually rendered a card. */
-    private long mLastPreviewRenderStartMs;
+    /** Serializes preview and flight-frame raster work off the main thread. */
+    private final SessionOverviewRasterizer mRasterizer = new SessionOverviewRasterizer();
     private int mCardWidth;
     private int mCardHeight;
     /** Natural-metric raster shared by every preview in this overview. */
@@ -383,27 +384,6 @@ public final class SessionOverviewController {
     private boolean mHadIme;
     /** True while a resume has put the window's IME into the overview's hidden mode. */
     private boolean mSoftKeyboardHiddenForResume;
-
-    private final Runnable mRenderPreviewsRunnable = () -> {
-        mRenderPosted = false;
-        renderPreviews();
-    };
-
-    /**
-     * Repaint previews while the overview is open. Output already marks the affected card dirty;
-     * this low-rate tick exists only because the cursor blinker changes the emulator without a
-     * text event. Cards whose cursor and scroll position did not change are not repainted.
-     */
-    private final Runnable mPreviewRefreshRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!mShowing || mActivityStopped || mGrid == null) return;
-            // Existing dirty cards are included in the result, so a card that stayed dirty while
-            // offscreen is retried as soon as it becomes visible without repainting static cards.
-            if (markChangedCursorPreviewsDirty()) requestPreviewRender(true);
-            mGrid.postDelayed(this, 500L);
-        }
-    };
 
     /**
      * Waits for the first real grid layout, then starts the single flight animator. The grid is
@@ -537,7 +517,7 @@ public final class SessionOverviewController {
                 // natural-metric raster instead of keeping the aspect fallback forever.
                 updateGridAspect();
                 markResizedPreviewsDirty();
-                requestPreviewRender();
+                requestVisibleDirtyPreviews();
             });
         }
 
@@ -964,7 +944,7 @@ public final class SessionOverviewController {
     @Nullable
     private View createCardGhostContent(@NonNull Card card) {
         if (card.bitmap == null && card.session.getEmulator() != null) {
-            renderCard(card, previewTextSize(), previewTypeface());
+            renderCardNow(card, previewTextSize(), previewTypeface());
         }
         final SessionOverviewCardView root =
                 (SessionOverviewCardView) mInflater.inflate(
@@ -2111,6 +2091,7 @@ public final class SessionOverviewController {
     }
 
     private boolean showNow(@NonNull TermuxService service) {
+        Trace.beginSection("overview.open.show");
         // Create the live terminal frame and capture the visible tab rectangles after the
         // keyboard has been dismissed: those are the pixels the user will see when the overview
         // starts, and they are the only honest source for the flight. The grid targets are read
@@ -2186,6 +2167,7 @@ public final class SessionOverviewController {
             mActivity.applySchemeColors();
             // The keyboard was already hidden above; restore the state we interrupted.
             restorePreviousFocus();
+            Trace.endSection();
             return false;
         }
 
@@ -2249,9 +2231,6 @@ public final class SessionOverviewController {
         } else if (mGestureSelectionArmed) {
             mGrid.post(this::applyHoverTarget);
         }
-        mGrid.removeCallbacks(mPreviewRefreshRunnable);
-        mGrid.postDelayed(mPreviewRefreshRunnable, 500L);
-
         if (transition != null) {
             mTransition = transition;
             installTransitionVisuals(transition);
@@ -2270,6 +2249,7 @@ public final class SessionOverviewController {
         // may repaint the overview backdrop; before this point they would have poisoned the
         // first frame with its higher transparency.
         mOpeningBackgroundPending = false;
+        Trace.endSection();
         return true;
     }
 
@@ -2780,11 +2760,14 @@ public final class SessionOverviewController {
             tabs.beginOverviewClosingFreeze();
         }
         final ClosingTransition closing;
+        Trace.beginSection("overview.close.prepare");
         try {
             closing = prepareClosingTransition(card, liftStart);
         } catch (RuntimeException e) {
             if (tabs != null) tabs.endOverviewClosingFreeze();
             throw e;
+        } finally {
+            Trace.endSection();
         }
         if (closing == null) {
             if (tabs != null) tabs.endOverviewClosingFreeze();
@@ -3005,7 +2988,9 @@ public final class SessionOverviewController {
                 updateGridAspect();
             }
             refreshSelection();
-            schedulePreviewRender();
+            // A non-structural list update (selection, rebind, title) does not change terminal
+            // pixels. updateGridAspect() above already marks every card when the glyph pitch
+            // actually changed, and resize callbacks dirty only the sessions they resized.
             return;
         }
 
@@ -3418,7 +3403,7 @@ public final class SessionOverviewController {
             // pass may still be a few frames away.
             final int textSize = previewTextSize();
             final Typeface typeface = previewTypeface();
-            for (Card card : cards) renderCard(card, textSize, typeface);
+            for (Card card : cards) renderCardNow(card, textSize, typeface);
 
             int scrollTarget = mScrollView != null ? mScrollView.getScrollY() : 0;
             if (!hold && revealNewest && mLayoutTransition != null) {
@@ -3639,31 +3624,9 @@ public final class SessionOverviewController {
         final Card card = findCard(session);
         if (card == null) return;
         card.previewDirty = true;
-        // An offscreen card keeps its dirty flag; scroll, layout or the 500 ms tick will request
-        // a pass once it enters the viewport. Avoid empty passes for background output.
-        final int scrollY = mScrollView != null ? mScrollView.getScrollY() : 0;
-        final int viewportHeight = mScrollView != null ? mScrollView.getHeight() : 0;
-        final int gridTop = mGrid.getTop();
-        if (isCardPreviewVisible(card, scrollY, viewportHeight, gridTop)) {
-            requestPreviewRender(!isCardAnimationActive());
-        }
-    }
-
-    /**
-     * Whether a short card animation currently owns the grid. During these flights an output
-     * update should be visible on the next frame instead of waiting for the global preview
-     * interval; the posted pass still coalesces every dirty card into one frame.
-     */
-    private boolean isCardAnimationActive() {
-        if (mCardCloseAnimator != null || mAddTabFlightCard != null
-                || mAddTabFlightAnimator != null) {
-            return true;
-        }
-        if (mDragController != null && mDragController.isAnimating()) return true;
-        for (Card card : mCards) {
-            if (card.appearing) return true;
-        }
-        return false;
+        // Offscreen cards keep their dirty flag. A scroll or layout requests only the cards that
+        // actually entered the viewport.
+        requestCardPreview(card);
     }
 
     /** Cheap refresh for high-frequency OSC title updates. */
@@ -3738,12 +3701,6 @@ public final class SessionOverviewController {
         }
         mActivity.keepExtraKeysPanelHiddenForOverview();
         if (mDragController != null) mDragController.cancelForModelChange();
-
-        if (mGrid != null) {
-            mGrid.removeCallbacks(mRenderPreviewsRunnable);
-            mGrid.removeCallbacks(mPreviewRefreshRunnable);
-        }
-        mRenderPosted = false;
     }
 
     /**
@@ -3765,6 +3722,9 @@ public final class SessionOverviewController {
         // grid early.
         if (mOpeningPreparationPending) return;
         if (!mShowing || mOverlay == null) return;
+        // The strip's tab height may have changed while this activity was stopped. Re-apply it
+        // before the preview refresh so the cards and their tabs use the window's current shape.
+        refreshCardTabMetrics();
         refreshPreviewThrottleInterval();
 
         // The activity may have restored the input panel and the terminal focus while the
@@ -3793,14 +3753,13 @@ public final class SessionOverviewController {
             updateGridAspect();
             markResizedPreviewsDirty();
             mGrid.requestLayout();
-            mGrid.removeCallbacks(mPreviewRefreshRunnable);
-            mGrid.postDelayed(mPreviewRefreshRunnable, 500L);
         }
         schedulePreviewRender();
     }
 
     /** Release overlay state when the activity is destroyed and will not be resumed. */
     public void onActivityDestroyed() {
+        mRasterizer.shutdown();
         cancelTabAddButtonFlight();
         cancelAddTabFlight(false, false);
         if (mClosingTransition == null) cancelTerminalAddFlight(false, false);
@@ -3839,6 +3798,7 @@ public final class SessionOverviewController {
     private Transition prepareTransition(@NonNull TermuxService service) {
         if (mOverlay == null || mGhostLayer == null || mContentArea == null) return null;
 
+        Trace.beginSection("overview.open.prepare");
         final Transition transition = new Transition();
 
         final TerminalView terminal = mActivity.getActiveTerminalView();
@@ -3853,7 +3813,7 @@ public final class SessionOverviewController {
                 try {
                     // The live source owns the same glyph-grid raster as the cards, so output
                     // produced during the flight is painted without a new bitmap allocation.
-                    transition.frame = new TerminalFrameSource(activeSession,
+                    transition.frame = new TerminalFrameSource(activeSession, mRasterizer,
                             terminalContent.width(), terminalContent.height(),
                             previewTextSize(), previewTypeface(),
                             previewBackgroundTransparency(),
@@ -3937,6 +3897,7 @@ public final class SessionOverviewController {
         // The live terminal, strip and controls are transparent while the overview is open. The
         // captured ghosts are the only copies of the terminal and strip during the flight; the
         // window background itself stays visible underneath.
+        Trace.endSection();
         return transition;
     }
 
@@ -4177,6 +4138,7 @@ public final class SessionOverviewController {
         final int[] origin = contentOrigin(mScratchOrigin);
         if (origin == null) return;
 
+        Trace.beginSection("overview.open.install");
         if (transition.frame != null && transition.terminalSource != null) {
             final Card active = findCard(mActivity.getCurrentSession());
             if (active != null) {
@@ -4230,6 +4192,7 @@ public final class SessionOverviewController {
         // hideLiveContentForOverview()). The live terminal frame and strip copies are
         // therefore the only copies of those surfaces while the window background stays visible.
         applyOpeningCardAlpha(0f);
+        Trace.endSection();
     }
 
     /**
@@ -4742,6 +4705,7 @@ public final class SessionOverviewController {
 
     private void startTransition(@NonNull Transition transition) {
         if (mTransition != transition || transition.started) return;
+        Trace.beginSection("overview.open.start");
         transition.started = true;
         if (mGrid != null) mGrid.removeCallbacks(mStartTransitionRunnable);
 
@@ -4770,6 +4734,7 @@ public final class SessionOverviewController {
         });
         transition.animator = animator;
         animator.start();
+        Trace.endSection();
     }
 
     /**
@@ -4779,6 +4744,7 @@ public final class SessionOverviewController {
      */
     private void applyTransitionProgress(@NonNull Transition transition, float progress) {
         if (mTransition != transition) return;
+        Trace.beginSection("overview.open.apply");
         final float p = SessionOverviewTransitionMath.clamp01(progress);
 
         if (transition.backgroundTransition) {
@@ -4805,6 +4771,7 @@ public final class SessionOverviewController {
         Rect hole = null;
         float holeCornerRadius = 0f;
 
+        Trace.beginSection("overview.open.geometry");
         if (transition.frame != null) transition.frame.syncTransientState();
 
         if (transition.terminalGhost != null && transition.activeCard != null && origin != null) {
@@ -4856,7 +4823,12 @@ public final class SessionOverviewController {
             mBackdropHole.setContent(hole, holeCornerRadius,
                     mOverlayBackgroundColor, fillAlpha);
         }
-        if (origin == null) return;
+        Trace.endSection();
+        if (origin == null) {
+            Trace.endSection();
+            return;
+        }
+        Trace.beginSection("overview.open.tabs");
         if (transition.tabPanelGhost != null) {
             transition.tabPanelGhost.setAlpha(
                     SessionOverviewTransitionMath.openingTabPanelAlpha(p));
@@ -4933,6 +4905,8 @@ public final class SessionOverviewController {
                 }
             }
         }
+        Trace.endSection();
+        Trace.endSection();
     }
 
     /**
@@ -4975,6 +4949,7 @@ public final class SessionOverviewController {
 
     private void finishTransition(@NonNull Transition transition) {
         if (mTransition != transition) return;
+        Trace.beginSection("overview.open.finish");
         applyTransitionProgress(transition, 1f);
         final Card active = transition.activeCard;
         cleanupTransition(transition);
@@ -4982,8 +4957,9 @@ public final class SessionOverviewController {
         // the slot from the same emulator now that the card is visible again.
         if (active != null && mCards.contains(active)) {
             active.previewDirty = true;
-            requestPreviewRender(true);
+            requestCardPreview(active);
         }
+        Trace.endSection();
     }
 
     /**
@@ -5009,6 +4985,7 @@ public final class SessionOverviewController {
 
     private void cleanupTransition(@NonNull Transition transition) {
         if (mTransition != transition) return;
+        Trace.beginSection("overview.open.cleanup");
         mTransition = null;
         if (mGrid != null) mGrid.removeCallbacks(mStartTransitionRunnable);
         if (mOverlay != null && transition.startFallback != null) {
@@ -5056,6 +5033,7 @@ public final class SessionOverviewController {
         transition.tabPanelGhost = null;
         removeScrollbarThumbGhost(transition.scrollbarThumbGhost);
         transition.scrollbarThumbGhost = null;
+        Trace.endSection();
     }
 
     /** Release sources captured for a transition that was never installed. */
@@ -5137,7 +5115,7 @@ public final class SessionOverviewController {
         // keeps the flight geometry stable.
         TerminalFrameSource frame;
         try {
-            frame = new TerminalFrameSource(card.session,
+            frame = new TerminalFrameSource(card.session, mRasterizer,
                     terminalTarget.width(), terminalTarget.height(),
                     previewTextSize(), previewTypeface(),
                     previewBackgroundTransparency(),
@@ -5608,6 +5586,7 @@ public final class SessionOverviewController {
 
     private void startClosingTransition(@NonNull ClosingTransition transition) {
         if (mClosingTransition != transition || transition.started) return;
+        Trace.beginSection("overview.close.start");
         transition.started = true;
         // Bring the always-on extra-keys panel back with the expanding terminal instead of
         // leaving an empty bottom strip until the overlay is removed.
@@ -5656,6 +5635,7 @@ public final class SessionOverviewController {
         });
         transition.animator = animator;
         animator.start();
+        Trace.endSection();
     }
 
     /**
@@ -5665,6 +5645,7 @@ public final class SessionOverviewController {
      */
     private void applyClosingProgress(@NonNull ClosingTransition transition, float progress) {
         if (mClosingTransition != transition) return;
+        Trace.beginSection("overview.close.apply");
         final float p = SessionOverviewTransitionMath.clamp01(progress);
 
         if (transition.backgroundTransition) {
@@ -5683,9 +5664,14 @@ public final class SessionOverviewController {
         // disappearing in the frame the ghost is installed.
         transition.card.root.setBorderAlpha(
                 SessionOverviewTransitionMath.clamp01(1f - p / 0.5f));
+        Trace.beginSection("overview.close.geometry");
         if (transition.frame != null) transition.frame.syncTransientState();
         final int[] origin = contentOrigin(mScratchOrigin);
-        if (origin == null) return;
+        if (origin == null) {
+            Trace.endSection();
+            Trace.endSection();
+            return;
+        }
 
         if (transition.tabPanelGhost != null) {
             transition.tabPanelGhost.setAlpha(
@@ -5748,6 +5734,7 @@ public final class SessionOverviewController {
             mBackdropHole.setContent(hole, holeCornerRadius,
                     mOverlayBackgroundColor, fillAlpha);
         }
+        Trace.endSection();
 
         // Keep the copy transparent until it can replace the card in the same frame.
         // A layout pass can give the ghost a size between two animator callbacks; if its alpha
@@ -5801,6 +5788,7 @@ public final class SessionOverviewController {
         transition.card.preview.setAlpha(previewAlpha);
         transition.card.preview.setVisibility(previewAlpha <= 0f
                 ? View.INVISIBLE : View.VISIBLE);
+        Trace.beginSection("overview.close.tabs");
         boolean selectedTabHasGhost = false;
         for (ClosingTabGhost ghost : transition.tabGhosts) {
             if (!ghost.cardChromeHidden && ghost.view.isLaidOut()
@@ -5821,6 +5809,8 @@ public final class SessionOverviewController {
             transition.card.tab.setAlpha(transition.tabBaseAlpha * previewAlpha);
             transition.card.close.setAlpha(transition.closeBaseAlpha * previewAlpha);
         }
+        Trace.endSection();
+        Trace.endSection();
     }
 
     /**
@@ -6031,6 +6021,7 @@ public final class SessionOverviewController {
 
     private void finishClosingTransition(@NonNull ClosingTransition transition) {
         if (mClosingTransition != transition) return;
+        Trace.beginSection("overview.close.finish");
         applyClosingProgress(transition, 1f);
         final TerminalSession session = transition.session;
         final boolean consumedAddButton = transition.addButtonSource != null;
@@ -6054,6 +6045,7 @@ public final class SessionOverviewController {
             // left and must fade in after the overlay has stopped painting.
             mActivity.fadeInFloatingControlsAfterConsumedAddButton();
         }
+        Trace.endSection();
     }
 
     /** Abort the expansion and put the card's own preview and tab back in place. */
@@ -6080,7 +6072,7 @@ public final class SessionOverviewController {
         // The strip was pre-positioned for the target before the flight. A cancelled flight must
         // leave the highlight on the session that is still current.
         restoreTabSelectionToCurrentSession();
-        requestPreviewRender();
+        requestVisibleDirtyPreviews();
     }
 
     /** Put the real add button back after a cancelled or failed terminal-add flight. */
@@ -6099,6 +6091,7 @@ public final class SessionOverviewController {
 
     private void cleanupClosingTransition(@NonNull ClosingTransition transition) {
         if (mClosingTransition != transition) return;
+        Trace.beginSection("overview.close.cleanup");
         mClosingTransition = null;
 
         final ValueAnimator animator = transition.animator;
@@ -6177,6 +6170,7 @@ public final class SessionOverviewController {
         transition.tabPanelGhost = null;
         removeScrollbarThumbGhost(transition.scrollbarThumbGhost);
         transition.scrollbarThumbGhost = null;
+        Trace.endSection();
     }
 
     @Nullable
@@ -6369,8 +6363,10 @@ public final class SessionOverviewController {
         // applies it once the cards have been laid out.
         if (mOpeningPreparationPending) return;
         if (!mGestureSelectionArmed) return;
+        Trace.beginSection("overview.grid.hover");
         updateAutoScrollEdge(windowX, windowY);
         applyHoverTarget();
+        Trace.endSection();
     }
 
     /** Re-run only the hit-test after the grid has moved under a stationary finger. */
@@ -6560,6 +6556,7 @@ public final class SessionOverviewController {
             return;
         }
 
+        Trace.beginSection("overview.grid.autoScroll");
         mScrollView.getLocationInWindow(mScratchLocation);
         final int viewportHeight = mScrollView.getHeight();
         final long now = SystemClock.uptimeMillis();
@@ -6578,6 +6575,7 @@ public final class SessionOverviewController {
         mScrollView.scrollBy(0, step);
         applyHoverTarget();
         mScrollView.postOnAnimation(mAutoScrollRunnable);
+        Trace.endSection();
     }
 
     private void stopAutoScroll() {
@@ -6824,6 +6822,7 @@ public final class SessionOverviewController {
     }
 
     private void buildCards(@NonNull List<TermuxSession> sessions) {
+        Trace.beginSection("overview.grid.build");
         releaseCards();
         for (TermuxSession termuxSession : sessions) {
             if (termuxSession == null) continue;
@@ -6838,6 +6837,7 @@ public final class SessionOverviewController {
         // card its own exact glyph grid and refresh the reference slot.
         updateGridAspect();
         mGrid.requestLayout();
+        Trace.endSection();
     }
 
     /**
@@ -6847,6 +6847,7 @@ public final class SessionOverviewController {
      */
     @NonNull
     private Card createCard(@NonNull TerminalSession session) {
+        Trace.beginSection("overview.grid.createCard");
         final SessionOverviewCardView root =
                 (SessionOverviewCardView) mInflater.inflate(
                         R.layout.item_session_overview_card, mGrid, false);
@@ -6865,6 +6866,7 @@ public final class SessionOverviewController {
         applyTabMetrics(card);
         applyCardAppearance(card);
         bindTab(card, session == mActivity.getCurrentSession());
+        Trace.endSection();
         return card;
     }
 
@@ -6918,6 +6920,18 @@ public final class SessionOverviewController {
         applyOverviewBackground();
         updateGridAspect();
         markResizedPreviewsDirty();
+        refreshCardTabMetrics();
+        schedulePreviewRender();
+    }
+
+    /**
+     * Re-apply the strip's current tab height and line count to every card.
+     *
+     * <p>Used after a configuration change and on resume: a rotation can finish while the
+     * activity is stopped, so the overview may still hold cards measured in the old window
+     * shape even though {@link TermuxActivity#applyTabHeightMode()} has since updated the strip.
+     */
+    private void refreshCardTabMetrics() {
         final TerminalSession current = mActivity.getCurrentSession();
         for (Card card : mCards) {
             applyTabMetrics(card);
@@ -6927,6 +6941,22 @@ public final class SessionOverviewController {
             }
             bindTab(card, card.session == current);
         }
+    }
+
+    /**
+     * Adopt the corrected window shape after the activity's late reconciliation.
+     *
+     * <p>This is the late counterpart to {@link #onConfigurationChanged(Configuration)}: if the
+     * first dispatch carried the old screen dimensions, the viewport guard and the cards were
+     * refreshed from the old strip mode. Keeping the corrected configuration lets the measured
+     * overlay and the card tabs agree without waiting for the next rotation.</p>
+     */
+    public void onWindowShapeCorrected(@NonNull Configuration config) {
+        mLastConfiguration = new Configuration(config);
+        if (!mShowing || mOverlay == null) return;
+        updateGridAspect();
+        markResizedPreviewsDirty();
+        refreshCardTabMetrics();
         schedulePreviewRender();
     }
 
@@ -7216,98 +7246,187 @@ public final class SessionOverviewController {
      * Mark every card for a full preview repaint.
      *
      * <p>This is used for geometry, palette, configuration and session-list changes. Content
-     * updates use the much narrower {@link #onSessionTextChanged} path instead.</p>
+     * updates use the much narrower {@link #onSessionTextChanged} path instead. Each card still
+     * owns its own request, throttle and raster job; this only marks the state that changed.</p>
      */
     private void schedulePreviewRender() {
         if (!mShowing || mActivityStopped || mGrid == null) return;
         for (Card card : mCards) card.previewDirty = true;
-        requestPreviewRender();
+        requestVisibleDirtyPreviews();
     }
 
-    /** Coalesce an immediate preview repaint request. */
-    private void requestPreviewRender() {
-        requestPreviewRender(false);
-    }
-
-    /**
-     * Coalesce a preview repaint request. Visibility is checked when the runnable renders.
-     *
-     * <p>This is one global pass gate, not a per-card budget. The next pass waits for the
-     * configured FPS interval and then renders every dirty visible card; a rarely updated card
-     * waits behind the same gate, but never longer than one interval.</p>
-     *
-     * @param throttled {@code true} for content, cursor and scroll updates that may wait for the
-     *                  configured FPS interval; {@code false} for geometry, palette and
-     *                  session-list changes that must be visible immediately.
-     */
-    private void requestPreviewRender(boolean throttled) {
-        if (!mShowing || mActivityStopped || mGrid == null) return;
-        if (mCardWidth <= 0 || mCardHeight <= 0) return;
-
-        if (mPreviewIntervalMs == 0L) {
-            // With no delay there is nothing to promote: the pending pass runs next frame and
-            // will pick up the new dirty flags.
-            if (mRenderPosted) return;
-            mRenderPosted = true;
-            mGrid.post(mRenderPreviewsRunnable);
-            return;
-        }
-
-        if (mRenderPosted) {
-            if (throttled) return;
-            // An immediate request promotes a pending throttled pass instead of waiting for it.
-            mGrid.removeCallbacks(mRenderPreviewsRunnable);
-            mRenderPosted = false;
-        }
-
-        final long delayMs = SessionOverviewPreviewThrottle.remainingDelayMs(
-            mLastPreviewRenderStartMs, SystemClock.uptimeMillis(), mPreviewIntervalMs);
-        mRenderPosted = true;
-        if (delayMs == 0L) {
-            mGrid.post(mRenderPreviewsRunnable);
-        } else {
-            mGrid.postOnAnimationDelayed(mRenderPreviewsRunnable, delayMs);
-        }
-    }
-
-    private void renderPreviews() {
+    /** Ask every dirty card that intersects the viewport to schedule its own raster. */
+    private void requestVisibleDirtyPreviews() {
         if (!mShowing || mActivityStopped || mGrid == null || mScrollView == null
                 || mCardWidth <= 0 || mCardHeight <= 0) {
             return;
         }
-        // A posted render pass can land in the tap-to-flight gap. Reallocating a bitmap there
-        // would swap the thumbnail under the user just before the closing flight; live output
-        // is picked up by the next pass once the overview is shown again or the flight is cancelled.
+        // A layout/scroll can land in the tap-to-flight gap. Do not swap a thumbnail under the
+        // closing flight; the next output or the post-flight schedule picks it up.
         if (mPendingClosingCard != null || mClosingTransition != null) return;
         final int count = Math.min(mCards.size(), mGrid.getChildCount());
         if (count == 0) return;
-
-        final int textSize = previewTextSize();
-        final Typeface typeface = previewTypeface();
         final int scrollY = mScrollView.getScrollY();
         final int viewportHeight = mScrollView.getHeight();
-        // One arithmetic pass gives the candidate range; the predicate below only narrows it.
         mGrid.getVisibleChildRange(scrollY, viewportHeight, mVisibleChildRange);
         final int first = Math.min(count, mVisibleChildRange[0]);
         final int end = Math.min(count, mVisibleChildRange[1]);
-        if (first >= end) return;
-
-        final int gridTop = mGrid.getTop();
-        final boolean throttled = mPreviewIntervalMs != 0L;
-        final long renderStartMs = throttled ? SystemClock.uptimeMillis() : 0L;
-        boolean renderedAny = false;
         for (int i = first; i < end; i++) {
-            final Card card = mCards.get(i);
-            // The add morph borrows this card's bitmap for its direct preview copy. Replacing
-            // the bitmap here would recycle the pixels the ghost is still drawing.
-            if (card == mAddTabFlightCard) continue;
-            if (!card.previewDirty || !isCardPreviewVisible(card, scrollY, viewportHeight,
-                    gridTop)) {
-                continue;
-            }
-            if (renderCard(card, textSize, typeface)) renderedAny = true;
+            requestCardPreview(mCards.get(i));
         }
-        if (throttled && renderedAny) mLastPreviewRenderStartMs = renderStartMs;
+    }
+
+    /**
+     * Schedule one card's next preview. This is the only entry point that submits preview work;
+     * it never touches another card.
+     */
+    private void requestCardPreview(@NonNull Card card) {
+        if (!mShowing || mActivityStopped || mGrid == null) return;
+        if (!mCards.contains(card) || card.closing) return;
+        // The add morph borrows this card's bitmap for its direct preview copy. A swap would
+        // replace the pixels the ghost is still drawing; wait until the flight has landed.
+        if (card == mAddTabFlightCard) return;
+        if (mPendingClosingCard != null || mClosingTransition != null) return;
+        if (card.previewInFlight) {
+            if (card.previewDirty) card.previewPending = true;
+            return;
+        }
+        if (!card.previewDirty) return;
+        if (!isCardPreviewVisibleNow(card)) return;
+
+        final TerminalEmulator emulator = card.session.getEmulator();
+        if (emulator == null) {
+            card.preview.setImageDrawable(null);
+            releaseBitmap(card);
+            card.previewDirty = false;
+            return;
+        }
+
+        final long now = SystemClock.uptimeMillis();
+        final long delay = SessionOverviewPreviewThrottle.remainingDelayMs(
+                card.previewLastSubmitMs, now, mPreviewIntervalMs);
+        if (delay > 0L) {
+            postCardPreviewRetry(card, delay);
+            return;
+        }
+
+        final int textSize = previewTextSize();
+        final Typeface typeface = previewTypeface();
+        final GridRaster raster = mGridRaster;
+        final int viewWidth = card.preview.getWidth();
+        final int viewHeight = card.preview.getHeight();
+        final int bitmapWidth = raster != null
+                ? raster.widthFor(emulator.mColumns) : (viewWidth > 0 ? viewWidth : mCardWidth);
+        final int bitmapHeight = raster != null
+                ? raster.heightFor(emulator.mRows) : (viewHeight > 0 ? viewHeight : mCardHeight);
+        if (bitmapWidth <= 0 || bitmapHeight <= 0) return;
+
+        final int backgroundTransparency = previewBackgroundTransparency();
+        // Keep 8-bit channels: RGB_565 turns neutral greys green. See
+        // TerminalPreviewRenderer.BITMAP_CONFIG.
+        final Bitmap target = obtainPreviewBack(card, bitmapWidth, bitmapHeight,
+                TerminalPreviewRenderer.BITMAP_CONFIG);
+        if (target == null) return;
+
+        final int topRow = scrollTopRow(card.session);
+        final TerminalRenderSnapshot snapshot;
+        try {
+            snapshot = TerminalRenderSnapshot.capture(emulator, topRow);
+        } catch (RuntimeException ignored) {
+            // The emulator may have been resized between the size read and the copy. The next
+            // output/layout callback will request again.
+            return;
+        }
+
+        card.previewDirty = false;
+        card.previewPending = false;
+        card.previewInFlight = true;
+        card.previewLastSubmitMs = now;
+        final int generation = ++card.previewGeneration;
+        Trace.beginSection("overview.preview.card.submit");
+        mRasterizer.submitPreview(snapshot, target, textSize, typeface,
+                backgroundTransparency, generation,
+                completedGeneration -> onCardPreviewRendered(card, target, completedGeneration));
+        Trace.endSection();
+    }
+
+    private void postCardPreviewRetry(@NonNull Card card, long delayMs) {
+        if (card.previewRetryPosted || mGrid == null) return;
+        card.previewRetryPosted = true;
+        final Runnable retry = () -> {
+            card.previewRetryPosted = false;
+            card.previewRetryRunnable = null;
+            if (mCards.contains(card)) requestCardPreview(card);
+        };
+        card.previewRetryRunnable = retry;
+        mGrid.postDelayed(retry, delayMs);
+    }
+
+    /** Select the offscreen buffer for the next render. It is never the bitmap on screen. */
+    @Nullable
+    private Bitmap obtainPreviewBack(@NonNull Card card, int width, int height,
+                                     @NonNull Bitmap.Config config) {
+        final Bitmap back = card.previewBack;
+        if (back != null && !back.isRecycled()
+                && back.getWidth() == width && back.getHeight() == height
+                && back.getConfig() == config) {
+            return back;
+        }
+        if (back != null && !back.isRecycled()) recycleBitmap(back);
+        try {
+            final Bitmap allocated = Bitmap.createBitmap(width, height, config);
+            card.previewBack = allocated;
+            return allocated;
+        } catch (OutOfMemoryError ignored) {
+            card.previewBack = null;
+            return null;
+        }
+    }
+
+    private void onCardPreviewRendered(@NonNull Card card, @NonNull Bitmap target,
+                                       int generation) {
+        Trace.beginSection("overview.preview.card.attach");
+        try {
+            if (!mCards.contains(card) || card.previewGeneration != generation) {
+                card.previewInFlight = false;
+                if (card.previewBack == target) card.previewBack = null;
+                recycleBitmap(target);
+                return;
+            }
+
+            // The ghost still holds the old front bitmap. Recycle the finished back buffer and
+            // keep the card untouched until the morph has landed.
+            if (card == mAddTabFlightCard) {
+                card.previewInFlight = false;
+                if (card.previewBack == target) card.previewBack = null;
+                recycleBitmap(target);
+                return;
+            }
+
+            final Bitmap oldFront = card.bitmap;
+            card.bitmap = target;
+            card.previewBack = card.previewSpare;
+            card.previewSpare = oldFront;
+            card.previewInFlight = false;
+            if (!card.bitmapAttached || oldFront != target) {
+                card.preview.setImageBitmap(target);
+                card.bitmapAttached = true;
+            } else {
+                card.preview.invalidate();
+            }
+            if (card.previewPending || card.previewDirty) {
+                card.previewPending = false;
+                requestCardPreview(card);
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    private boolean isCardPreviewVisibleNow(@NonNull Card card) {
+        if (mGrid == null || mScrollView == null) return false;
+        return isCardPreviewVisible(card, mScrollView.getScrollY(),
+                mScrollView.getHeight(), mGrid.getTop());
     }
 
     /**
@@ -7315,7 +7434,7 @@ public final class SessionOverviewController {
      *
      * <p>A card without bounds has not been through the current layout pass yet. It is skipped
      * here; the grid's layout-change listener issues another request as soon as the pass assigns
-     * real bounds, and the 500 ms tick is a second safety net.</p>
+     * real bounds.</p>
      */
     private boolean isCardPreviewVisible(@NonNull Card card, int scrollY, int viewportHeight,
                                          int gridTop) {
@@ -7326,44 +7445,12 @@ public final class SessionOverviewController {
                 scrollY, viewportHeight);
     }
 
-    /** A scroll only requests the coalesced pass; offscreen cards are not rasterized. */
+    /** A scroll asks only the visible dirty cards to schedule their own raster. */
     private void onOverviewScrolled() {
         if (!mShowing || mActivityStopped || mGrid == null) return;
-        requestPreviewRender(true);
-    }
-
-    /**
-     * Mark only cards whose cursor or scroll position differs from their last painted bitmap.
-     *
-     * <p>The 500 ms tick used to repaint every card. Background sessions do not run a cursor
-     * blinker, and the active session normally changes only its cursor state, so this comparison
-     * turns the common tick into a no-op.</p>
-     *
-     * @return {@code true} if any visible card is dirty after this scan, including cards that
-     *         were already dirty before it.
-     */
-    private boolean markChangedCursorPreviewsDirty() {
-        if (!mShowing || mActivityStopped || mGrid == null) return false;
-        final int scrollY = mScrollView != null ? mScrollView.getScrollY() : 0;
-        final int viewportHeight = mScrollView != null ? mScrollView.getHeight() : 0;
-        final int gridTop = mGrid.getTop();
-        boolean anyDirty = false;
-        for (Card card : mCards) {
-            final boolean visible = isCardPreviewVisible(card, scrollY, viewportHeight, gridTop);
-            if (visible && card.previewDirty) anyDirty = true;
-            if (card.previewDirty || !visible) continue;
-            final TerminalEmulator emulator = card.session.getEmulator();
-            if (emulator == null) continue;
-            final int topRow = scrollTopRow(card.session);
-            if (SessionOverviewPreviewPolicy.previewStateChanged(
-                    card.lastCursorRow, card.lastCursorCol, card.lastCursorVisible,
-                    card.lastTopRow, emulator.getCursorRow(), emulator.getCursorCol(),
-                    emulator.shouldCursorBeVisible(), topRow)) {
-                card.previewDirty = true;
-                anyDirty = true;
-            }
-        }
-        return anyDirty;
+        Trace.beginSection("overview.grid.scroll");
+        requestVisibleDirtyPreviews();
+        Trace.endSection();
     }
 
     /**
@@ -7523,6 +7610,7 @@ public final class SessionOverviewController {
      */
     private void updateGridAspect() {
         if (mGrid == null) return;
+        Trace.beginSection("overview.grid.raster");
         final int textSize = previewTextSize();
         final Typeface typeface = previewTypeface();
         final int[] viewport = currentGridViewport();
@@ -7567,6 +7655,7 @@ public final class SessionOverviewController {
         if (mGridRaster != previousRaster) {
             for (Card card : mCards) card.previewDirty = true;
         }
+        Trace.endSection();
     }
 
     /**
@@ -7599,15 +7688,11 @@ public final class SessionOverviewController {
         }
     }
 
-    private boolean renderCard(@NonNull Card card, int textSize, @NonNull Typeface typeface) {
+    private boolean renderCardNow(@NonNull Card card, int textSize, @NonNull Typeface typeface) {
         final TerminalEmulator emulator = card.session.getEmulator();
         if (emulator == null) {
             card.preview.setImageDrawable(null);
             releaseBitmap(card);
-            card.lastCursorRow = -1;
-            card.lastCursorCol = -1;
-            card.lastCursorVisible = false;
-            card.lastTopRow = Integer.MIN_VALUE;
             card.previewDirty = false;
             return false;
         }
@@ -7617,6 +7702,7 @@ public final class SessionOverviewController {
         // edges. TerminalPreviewRenderer paints at the user's integer ppem with one uniform
         // canvas scale: no width-derived textScaleX and no fractional-size subpixel glyph edges,
         // which is what produced hairline gaps between neighbouring cells.
+        Trace.beginSection("overview.preview.card");
         final GridRaster raster = mGridRaster;
         final int viewWidth = card.preview.getWidth();
         final int viewHeight = card.preview.getHeight();
@@ -7624,33 +7710,41 @@ public final class SessionOverviewController {
                 ? raster.widthFor(emulator.mColumns) : (viewWidth > 0 ? viewWidth : mCardWidth);
         final int bitmapHeight = raster != null
                 ? raster.heightFor(emulator.mRows) : (viewHeight > 0 ? viewHeight : mCardHeight);
-        if (bitmapWidth <= 0 || bitmapHeight <= 0) return false;
+        if (bitmapWidth <= 0 || bitmapHeight <= 0) {
+            Trace.endSection();
+            return false;
+        }
 
         final int backgroundTransparency = previewBackgroundTransparency();
-        final Bitmap.Config bitmapConfig = backgroundTransparency > 0
-                ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
+        // Same 8-bit format as the async path: RGB_565 gives light greys a green cast.
+        final Bitmap.Config bitmapConfig = TerminalPreviewRenderer.BITMAP_CONFIG;
         final Bitmap oldBitmap = card.bitmap;
         final boolean sizeChanged = oldBitmap != null
                 && (oldBitmap.getWidth() != bitmapWidth
                 || oldBitmap.getHeight() != bitmapHeight);
         final boolean configChanged = oldBitmap != null
                 && oldBitmap.getConfig() != bitmapConfig;
+        Trace.beginSection("overview.preview.alloc");
         if (oldBitmap == null || sizeChanged || configChanged) {
             card.bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, bitmapConfig);
         }
+        Trace.endSection();
         final boolean newBitmap = oldBitmap != card.bitmap;
 
         final int topRow = scrollTopRow(card.session);
         // One uniform scale for every card, the same path the flight frames use. The bitmap
         // already has the raster's exact grid size, so the ImageView never scales it again.
+        Trace.beginSection("overview.preview.render");
         TerminalPreviewRenderer.render(emulator, card.bitmap, textSize, typeface, topRow,
                 backgroundTransparency);
+        Trace.endSection();
         // Keep the old preview visible until the replacement has been fully rendered. Clearing
         // the ImageView first would expose a blank card for a frame whenever the grid aspect
         // changes, for example after closing the active session.
         // setImageBitmap() creates a new BitmapDrawable even for the same Bitmap, so only do it
         // when the bitmap object actually changed. Most repaints reuse the bitmap and only need
         // an invalidation.
+        Trace.beginSection("overview.preview.attach");
         if (!card.bitmapAttached || newBitmap) {
             card.preview.setImageBitmap(card.bitmap);
             card.bitmapAttached = true;
@@ -7660,17 +7754,10 @@ public final class SessionOverviewController {
         if (newBitmap && oldBitmap != null) {
             recycleBitmap(oldBitmap);
         }
-        rememberPreviewState(card, emulator, topRow);
+        Trace.endSection();
         card.previewDirty = false;
+        Trace.endSection();
         return true;
-    }
-
-    private void rememberPreviewState(@NonNull Card card, @NonNull TerminalEmulator emulator,
-                                      int topRow) {
-        card.lastCursorRow = emulator.getCursorRow();
-        card.lastCursorCol = emulator.getCursorCol();
-        card.lastCursorVisible = emulator.shouldCursorBeVisible();
-        card.lastTopRow = topRow;
     }
 
     /** Mark a stale bitmap dirty after a layout pass; the throttle agent reuses this flag. */
@@ -7715,14 +7802,15 @@ public final class SessionOverviewController {
         stopAutoScroll();
         resetGestureHover();
         if (mDragController != null) mDragController.cancelForModelChange();
-        if (mGrid != null) {
-            mGrid.removeCallbacks(mRenderPreviewsRunnable);
-            mGrid.removeCallbacks(mPreviewRefreshRunnable);
-        }
-        mRenderPosted = false;
         for (Card card : mCards) {
             card.root.animate().cancel();
             card.appearing = false;
+            card.previewGeneration++;
+            card.previewRetryPosted = false;
+            if (mGrid != null && card.previewRetryRunnable != null) {
+                mGrid.removeCallbacks(card.previewRetryRunnable);
+            }
+            card.previewRetryRunnable = null;
             card.preview.setImageDrawable(null);
             releaseBitmap(card);
         }
@@ -7731,9 +7819,20 @@ public final class SessionOverviewController {
     }
 
     private static void releaseBitmap(@NonNull Card card) {
-        recycleBitmap(card.bitmap);
+        final Bitmap front = card.bitmap;
+        final Bitmap back = card.previewBack;
+        final Bitmap spare = card.previewSpare;
         card.bitmap = null;
         card.bitmapAttached = false;
+        card.previewBack = null;
+        card.previewSpare = null;
+        // An in-flight raster owns `back` until its completion runs on the main thread. The
+        // generation bump makes that completion discard it and recycle it safely.
+        recycleBitmap(front);
+        if (spare != front) recycleBitmap(spare);
+        if (!card.previewInFlight && back != front && back != spare) recycleBitmap(back);
+        card.previewInFlight = false;
+        card.previewPending = false;
     }
 
     private static void recycleBitmap(@Nullable Bitmap bitmap) {
@@ -8149,12 +8248,23 @@ public final class SessionOverviewController {
         boolean closing;
         /** True while the card is fading and growing into a newly appended slot. */
         boolean appearing;
-        /** True until the current bitmap has been painted for the latest content. */
+        /** True until a snapshot for the latest content has been submitted. */
         boolean previewDirty = true;
-        int lastCursorRow;
-        int lastCursorCol;
-        boolean lastCursorVisible;
-        int lastTopRow;
+        /** True while a snapshot is being rasterized on the preview thread. */
+        boolean previewInFlight;
+        /** New output arrived while the current snapshot was in flight. */
+        boolean previewPending;
+        /** A per-card throttle retry is already posted. */
+        boolean previewRetryPosted;
+        @Nullable Runnable previewRetryRunnable;
+        /** Submission time used by the per-card FPS cap. */
+        long previewLastSubmitMs;
+        /** Invalidates completions after a release or a newer snapshot. */
+        int previewGeneration;
+        /** Target for the next background render; never the bitmap on screen. */
+        @Nullable Bitmap previewBack;
+        /** Third buffer, rotated so a detached front is not reused for at least one render. */
+        @Nullable Bitmap previewSpare;
 
         Card(SessionOverviewCardView root, ImageView preview, SessionOverviewTabTitleView tab,
              ImageButton close, TerminalSession session) {

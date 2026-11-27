@@ -2,6 +2,7 @@ package com.termux.app.terminal;
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
@@ -241,6 +242,7 @@ public class SessionOverviewGridView extends ViewGroup {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        Trace.beginSection("overview.grid.measure");
         final int measuredWidth = resolveSize(MeasureSpec.getSize(widthMeasureSpec), widthMeasureSpec);
         if (measuredWidth != mLastMeasuredWidth) {
             mLastMeasuredWidth = measuredWidth;
@@ -288,12 +290,14 @@ public class SessionOverviewGridView extends ViewGroup {
             measuredHeight = desiredHeight;
         }
         setMeasuredDimension(measuredWidth, measuredHeight);
+        Trace.endSection();
     }
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         final SessionOverviewGridMath.Layout layout = mLayout;
         if (layout == null || !layout.hasCards()) return;
+        Trace.beginSection("overview.grid.layout");
         final boolean rtl = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
 
         for (int i = 0; i < getChildCount(); i++) {
@@ -325,5 +329,6 @@ public class SessionOverviewGridView extends ViewGroup {
                 mOnGridLayoutListener.onGridLayout(layout);
             }
         }
+        Trace.endSection();
     }
 }

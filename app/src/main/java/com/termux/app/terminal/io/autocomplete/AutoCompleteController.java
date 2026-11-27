@@ -1247,7 +1247,7 @@ public final class AutoCompleteController implements AutoCompleteDataProvider {
         if (fieldWidth == mCachedFieldWidth && mCachedAvailWidth >= 0) {
             availWidth = mCachedAvailWidth;
         } else {
-            int popupWidth = mPopupManager.computePopupWidth(fieldWidth);
+            int popupWidth = mPopupManager.computePopupWidth(mInputField);
             availWidth = Math.max(0, popupWidth - 2 * padH);
             mCachedFieldWidth = fieldWidth;
             mCachedAvailWidth = availWidth;

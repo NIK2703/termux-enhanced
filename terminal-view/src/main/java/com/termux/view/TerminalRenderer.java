@@ -11,8 +11,8 @@ import android.graphics.Typeface;
 import android.os.Build;
 import android.util.SparseArray;
 
-import com.termux.terminal.TerminalBuffer;
 import com.termux.terminal.TerminalEmulator;
+import com.termux.terminal.TerminalRenderSource;
 import com.termux.terminal.TerminalRow;
 import com.termux.terminal.TextStyle;
 import com.termux.terminal.WcWidth;
@@ -602,7 +602,7 @@ public final class TerminalRenderer {
      *                  band, margins included, or anything ever painted outside the grid stays
      *                  there forever. See the per-row base fill.
      */
-    public final void render(TerminalEmulator mEmulator, Canvas canvas, int topRow,
+    public final void render(TerminalRenderSource source, Canvas canvas, int topRow,
                              int selectionY1, int selectionY2, int selectionX1, int selectionX2,
                              float xOffset, float yOffset, int viewWidth,
                              Rect dirtyRect, boolean pixelsValid) {
@@ -623,23 +623,22 @@ public final class TerminalRenderer {
         mLastPaintStrike = false;
         mLastPaintForeColorKey = -1L;
 
-        final boolean reverseVideo = mEmulator.isReverseVideo();
+        final boolean reverseVideo = source.isReverseVideo();
         // C1: the view's scroll position can transiently point deeper than the buffer's real
         // history: the emulator switches to/from the alternate screen or clears the transcript
         // during input processing, and a draw can run before the next onScreenUpdated() clamp
         // catches up. getLineOrBlank() throws for external rows < -activeTranscriptRows (crash:
         // "extRow=-243, mScreenRows=48, mActiveTranscriptRows=0"), so clamp the requested scroll
         // offset to the live buffer before deriving the row window from it.
-        final int minTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
+        final int minTopRow = -source.getActiveTranscriptRows();
         if (topRow < minTopRow) topRow = minTopRow;
-        final int endRow = topRow + mEmulator.mRows;
-        final int columns = mEmulator.mColumns;
-        final int cursorCol = mEmulator.getCursorCol();
-        final int cursorRow = mEmulator.getCursorRow();
-        final boolean cursorVisible = mEmulator.shouldCursorBeVisible();
-        final TerminalBuffer screen = mEmulator.getScreen();
-        final int[] palette = mEmulator.mColors.mCurrentColors;
-        final int cursorShape = mEmulator.getCursorStyle();
+        final int endRow = topRow + source.getRows();
+        final int columns = source.getColumns();
+        final int cursorCol = source.getCursorCol();
+        final int cursorRow = source.getCursorRow();
+        final boolean cursorVisible = source.shouldCursorBeVisible();
+        final int[] palette = source.getPalette();
+        final int cursorShape = source.getCursorStyle();
 
         int renderStartRow = topRow;
         int renderEndRow = endRow; // exclusive
@@ -704,7 +703,7 @@ public final class TerminalRenderer {
         if (dirtyRect != null && pixelsValid) {
             boolean anyDirty = false;
             for (int row = renderStartRow; row < renderEndRow; row++) {
-                if (screen.isRowDirty(row)) { anyDirty = true; break; }
+                if (source.isRowDirty(row)) { anyDirty = true; break; }
             }
             forceDraw = !anyDirty;
         }
@@ -736,7 +735,7 @@ public final class TerminalRenderer {
             // page, transparent-scheme change, etc.) and skipping would leave the row transparent
             // — the black-row regression. The view passes {@code pixelsValid=false} in that case,
             // and we draw every visible row (clipped to dirtyRect) to be safe.
-            if (dirtyRect != null && pixelsValid && !forceDraw && !screen.isRowDirty(row)) continue;
+            if (dirtyRect != null && pixelsValid && !forceDraw && !source.isRowDirty(row)) continue;
             final float rowTop = heightOffset - mRenderLineSpacing;
             // F1: on a full repaint drawColor() above has already covered the whole canvas with
             // bgColor, so filling every row again with that same colour over that same area is a
@@ -763,16 +762,16 @@ public final class TerminalRenderer {
             if (dirtyRect != null) {
                 canvas.drawRect(viewLeft, rowTop, viewRight, heightOffset, baseFillPaint);
             }
-            if (dirtyRect != null) screen.clearRowDirty(row);
+            if (dirtyRect != null) source.clearRowDirty(row);
 
             final int cursorX = (row == cursorRow && cursorVisible) ? cursorCol : -1;
             int selx1 = -1, selx2 = -1;
             if (row >= selectionY1 && row <= selectionY2) {
                 if (row == selectionY1) selx1 = selectionX1;
-                selx2 = (row == selectionY2) ? selectionX2 : mEmulator.mColumns;
+                selx2 = (row == selectionY2) ? selectionX2 : columns;
             }
 
-            TerminalRow lineObject = screen.getLineOrBlank(row);
+            TerminalRow lineObject = source.getLineOrBlank(row);
             final char[] line = lineObject.mText;
             final int charsUsedInLine = lineObject.getSpaceUsed();
             // G2: the row-wide flag the tail pre-scan and the combining-char eater both consult.
@@ -981,7 +980,7 @@ public final class TerminalRenderer {
                             charsSinceLastRun = runContentEnd - lastRunStartIndex;
                             textColumnsSinceLastRun = runContentColumn - lastRunStartColumn;
                         }
-                        addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, textColumnsSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
+                        addRun(source, lastRunStartColumn, columnWidthSinceLastRun, textColumnsSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
                             lastRunStyle, lastRunInsideCursor, cursorShape, reverseVideo, lastRunInsideSelection, lastRunFontWidthMismatch,
                             lastRunBlockFill);
                     }
@@ -1060,7 +1059,7 @@ public final class TerminalRenderer {
             }
             // When g3Start == 0 there is nothing to the left of the tail.
             if (!g3 || g3Start > 0) {
-                addRun(mEmulator, lastRunStartColumn, columnWidthSinceLastRun, textColumnsSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
+                addRun(source, lastRunStartColumn, columnWidthSinceLastRun, textColumnsSinceLastRun, lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
                     lastRunStyle, lastRunInsideCursor, cursorShape, reverseVideo, lastRunInsideSelection, lastRunFontWidthMismatch,
                     lastRunBlockFill);
             }
@@ -1072,7 +1071,7 @@ public final class TerminalRenderer {
                 final long tailStyle = lineObject.getStyle(g3Start);
                 final boolean tailNoTrim = (TextStyle.decodeEffect(tailStyle)
                     & (TextStyle.CHARACTER_ATTRIBUTE_UNDERLINE | TextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH)) != 0;
-                addRun(mEmulator, g3Start, tailColumns, tailNoTrim ? tailColumns : 0, currentCharIndex, tailNoTrim ? tailColumns : 0,
+                addRun(source, g3Start, tailColumns, tailNoTrim ? tailColumns : 0, currentCharIndex, tailNoTrim ? tailColumns : 0,
                     tailColumns * mFontWidth, tailStyle, false, cursorShape, reverseVideo, false,
                     false, false);
             }
@@ -1245,11 +1244,11 @@ public final class TerminalRenderer {
         mRunBackColor[to] = mRunBackColor[from];
     }
 
-    private void addRun(TerminalEmulator emulator, int startColumn, int runWidthColumns, int runTextColumns,
+    private void addRun(TerminalRenderSource source, int startColumn, int runWidthColumns, int runTextColumns,
                         int startCharIndex, int runWidthChars, float measuredWidth,
                         long style, boolean insideCursor, int cursorStyle, boolean reverseVideo, boolean insideSelection,
                         boolean fontWidthMismatch, boolean blockFill) {
-        final int cursorColor = insideCursor ? emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_CURSOR] : 0;
+        final int cursorColor = insideCursor ? source.getPalette()[TextStyle.COLOR_INDEX_CURSOR] : 0;
         final boolean invertCursorTextColor = insideCursor && cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK;
         ensureRunCapacity(mRunCount + 1);
         mRunStartColumn[mRunCount] = startColumn;

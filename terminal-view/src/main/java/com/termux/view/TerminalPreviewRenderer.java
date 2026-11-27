@@ -4,11 +4,13 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
+import android.os.Trace;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.termux.terminal.TerminalEmulator;
+import com.termux.terminal.TerminalRenderSource;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,6 +37,17 @@ public final class TerminalPreviewRenderer {
     private static final int RASTER_CACHE_SIZE = 8;
     /** One renderer per distinct font/geometry pair; preview refreshes reuse them. */
     private static final int RENDERER_CACHE_SIZE = 4;
+
+    /**
+     * Pixel format of every preview and flight raster, opaque or not.
+     *
+     * <p>RGB_565 halves the memory, but its 5-6-5 channel split rounds neutral greys towards
+     * green: {@code #FAFAFA} is stored as {@code #F7FBF7}, because green gets six bits while red
+     * and blue get five. The live terminal is ARGB_8888, so a card must be too, otherwise a light
+     * terminal scheme visibly changes colour when the overview opens and the green tone
+     * disappears again during the flight back.</p>
+     */
+    public static final Bitmap.Config BITMAP_CONFIG = Bitmap.Config.ARGB_8888;
 
     private TerminalPreviewRenderer() {}
 
@@ -195,12 +208,12 @@ public final class TerminalPreviewRenderer {
     }
 
     @Nullable
-    public static ViewportGrid emulatorGrid(@NonNull TerminalEmulator emulator,
+    public static ViewportGrid emulatorGrid(@NonNull TerminalRenderSource source,
                                             int textSizePx, @NonNull Typeface typeface) {
-        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return null;
+        if (source.getColumns() <= 0 || source.getRows() <= 0) return null;
         final TerminalRenderer.Metrics metrics = TerminalRenderer.metrics(textSizePx, typeface);
         if (metrics == null) return null;
-        return fromGrid(emulator.mColumns, emulator.mRows,
+        return fromGrid(source.getColumns(), source.getRows(),
                 metrics.fontWidth, metrics.lineSpacing);
     }
 
@@ -371,32 +384,39 @@ public final class TerminalPreviewRenderer {
         }
     }
 
-    private static final Map<RendererKey, TerminalRenderer> sRendererCache =
-            new LinkedHashMap<RendererKey, TerminalRenderer>(RENDERER_CACHE_SIZE, 0.75f, true) {
+    /**
+     * One renderer cache per thread. {@link TerminalRenderer} is stateful, so the UI renderer and
+     * the background overview rasterizer must never share an instance.
+     */
+    private static final ThreadLocal<Map<RendererKey, TerminalRenderer>> sRendererCache =
+            new ThreadLocal<Map<RendererKey, TerminalRenderer>>() {
                 @Override
-                protected boolean removeEldestEntry(Map.Entry<RendererKey, TerminalRenderer> e) {
-                    return size() > RENDERER_CACHE_SIZE;
+                protected Map<RendererKey, TerminalRenderer> initialValue() {
+                    return new LinkedHashMap<RendererKey, TerminalRenderer>(
+                            RENDERER_CACHE_SIZE, 0.75f, true) {
+                        @Override
+                        protected boolean removeEldestEntry(
+                                Map.Entry<RendererKey, TerminalRenderer> e) {
+                            return size() > RENDERER_CACHE_SIZE;
+                        }
+                    };
                 }
             };
 
     /**
-     * Get a full-size renderer for this font. {@link TerminalRenderer#render} resets its transient
-     * paint state on entry, so instances are safe to reuse across consecutive preview passes.
-     * Renderers are stateful and this cache is used from the UI thread only; the synchronized
-     * blocks guard the map itself, not renderer mutation. The implicit constructor keeps
-     * subpixel text off, which is what avoids hairline gaps in the downscaled preview.
+     * Get a full-size renderer for this font on the calling thread. {@link TerminalRenderer#render}
+     * resets its transient paint state on entry, so instances are safe to reuse across consecutive
+     * preview passes on that thread. The implicit constructor keeps subpixel text off, which is
+     * what avoids hairline gaps in the downscaled preview.
      */
     @NonNull
     private static TerminalRenderer rendererFor(int textSizePx, @NonNull Typeface typeface) {
         final RendererKey key = new RendererKey(textSizePx, typeface);
-        synchronized (sRendererCache) {
-            final TerminalRenderer cached = sRendererCache.get(key);
-            if (cached != null) return cached;
-        }
+        final Map<RendererKey, TerminalRenderer> cache = sRendererCache.get();
+        final TerminalRenderer cached = cache.get(key);
+        if (cached != null) return cached;
         final TerminalRenderer renderer = new TerminalRenderer(textSizePx, typeface);
-        synchronized (sRendererCache) {
-            sRendererCache.put(key, renderer);
-        }
+        cache.put(key, renderer);
         return renderer;
     }
 
@@ -411,6 +431,20 @@ public final class TerminalPreviewRenderer {
                                            int maxCardWidth, int maxCardHeight,
                                            int preferredTextSizePx,
                                            @NonNull Typeface typeface) {
+        Trace.beginSection("overview.renderer.fitGridRaster");
+        try {
+            return fitGridRasterLocked(columns, rows, maxCardWidth, maxCardHeight,
+                    preferredTextSizePx, typeface);
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    @Nullable
+    private static GridRaster fitGridRasterLocked(int columns, int rows,
+                                                  int maxCardWidth, int maxCardHeight,
+                                                  int preferredTextSizePx,
+                                                  @NonNull Typeface typeface) {
         if (columns <= 0 || rows <= 0 || maxCardWidth <= 0 || maxCardHeight <= 0
                 || preferredTextSizePx <= 0) {
             return null;
@@ -445,28 +479,40 @@ public final class TerminalPreviewRenderer {
      * Painting at the user's integer ppem and scaling the finished raster keeps glyph edges clean:
      * a fractional text size with subpixel positioning leaves hairline gaps between cells.</p>
      */
-    public static void render(@NonNull TerminalEmulator emulator, @NonNull Bitmap target,
+    public static void render(@NonNull TerminalRenderSource source, @NonNull Bitmap target,
                               int textSizePx, @NonNull Typeface typeface, int topRow,
                               int backgroundTransparencyPercent) {
+        Trace.beginSection("overview.renderer.render");
+        try {
+            renderLocked(source, target, textSizePx, typeface, topRow,
+                    backgroundTransparencyPercent);
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    private static void renderLocked(@NonNull TerminalRenderSource source, @NonNull Bitmap target,
+                                     int textSizePx, @NonNull Typeface typeface, int topRow,
+                                     int backgroundTransparencyPercent) {
         if (target.isRecycled() || target.getWidth() <= 0 || target.getHeight() <= 0) return;
-        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return;
+        if (source.getColumns() <= 0 || source.getRows() <= 0) return;
         final TerminalRenderer renderer = rendererFor(textSizePx, typeface);
         renderer.setBackgroundTransparencyPercent(backgroundTransparencyPercent);
-        final float gridWidth = emulator.mColumns * renderer.mFontWidth;
-        final float gridHeight = emulator.mRows * renderer.mFontLineSpacing;
+        final float gridWidth = source.getColumns() * renderer.mFontWidth;
+        final float gridHeight = source.getRows() * renderer.mFontLineSpacing;
         if (gridWidth <= 0f || gridHeight <= 0f) return;
         final float scale = Math.min(target.getWidth() / gridWidth,
                 target.getHeight() / gridHeight);
         if (!(scale > 0f) || !Float.isFinite(scale)) return;
 
         final int clampedTopRow = Math.min(0, Math.max(topRow,
-                -emulator.getScreen().getActiveTranscriptRows()));
+                -source.getActiveTranscriptRows()));
         final Canvas canvas = new Canvas(target);
         canvas.scale(scale, scale);
         final float xOffset = (target.getWidth() / scale - gridWidth) / 2f;
         final float yOffset = (target.getHeight() / scale - gridHeight) / 2f
                 - renderer.mFontLineSpacingAndAscent;
-        renderer.render(emulator, canvas, clampedTopRow, -1, -1, -1, -1,
+        renderer.render(source, canvas, clampedTopRow, -1, -1, -1, -1,
                 xOffset, yOffset, Math.max(1, (int) Math.ceil(target.getWidth() / scale)),
                 null, false);
     }
@@ -476,10 +522,10 @@ public final class TerminalPreviewRenderer {
      * call sites explicit: the flying grid must fill its bitmap so the scaled glyph pitch matches
      * the card's pitch at progress zero.
      */
-    public static void renderForFlight(@NonNull TerminalEmulator emulator, @NonNull Bitmap target,
+    public static void renderForFlight(@NonNull TerminalRenderSource source, @NonNull Bitmap target,
                                        int textSizePx, @NonNull Typeface typeface, int topRow,
                                        int backgroundTransparencyPercent) {
-        render(emulator, target, textSizePx, typeface, topRow, backgroundTransparencyPercent);
+        render(source, target, textSizePx, typeface, topRow, backgroundTransparencyPercent);
     }
 
 }

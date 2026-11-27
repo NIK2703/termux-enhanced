@@ -7,6 +7,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -152,10 +153,12 @@ public class SessionOverviewCardView extends FrameLayout {
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
+        Trace.beginSection("overview.card.draw");
         super.dispatchDraw(canvas);
         if (mBorderSuppressed || mBorderWidth <= 0f
                 || Color.alpha(mBorderPaint.getColor()) == 0
                 || getWidth() <= mBorderWidth || getHeight() <= mBorderWidth) {
+            Trace.endSection();
             return;
         }
         // Keep the stroke fully inside the rounded outline. The root is clipped to that outline,
@@ -164,6 +167,7 @@ public class SessionOverviewCardView extends FrameLayout {
         final float radius = Math.max(0f, mBorderRadius - inset);
         canvas.drawRoundRect(inset, inset, getWidth() - inset, getHeight() - inset,
                 radius, radius, mBorderPaint);
+        Trace.endSection();
     }
 
     /**

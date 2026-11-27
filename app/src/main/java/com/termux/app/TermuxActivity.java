@@ -443,6 +443,15 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
     private int mLastConfigurationOrientation = Configuration.ORIENTATION_UNDEFINED;
 
     /**
+     * Last known window shape, seeded from resources and updated by
+     * {@link #onConfigurationChanged(Configuration)} and the post-layout reconciliation. This is
+     * the authoritative answer for callbacks that arrive without a Configuration: resources can
+     * still describe the old window for a frame, and {@link Configuration#orientation} can
+     * disagree with the window's aspect in split-screen and freeform windows.
+     */
+    private boolean mLastWindowLandscape;
+
+    /**
      * Re-applies this window's rotation mode when the system rotation lock is toggled while the
      * window is visible. The system lock outranks every app mode, so the request has to be
      * re-resolved instead of waiting for a restart (see TermuxActivityUtils).
@@ -949,6 +958,8 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
         super.onCreate(savedInstanceState);
 
         mLastConfigurationOrientation = getResources().getConfiguration().orientation;
+        mLastWindowLandscape = TermuxSessionTabsController.isWindowLandscape(
+                getResources().getConfiguration());
 
         setContentView(R.layout.activity_termux);
 
@@ -1001,6 +1012,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
                 mTextInputPanel.updatePanelHeight();
                 trackTerminalViewportSize();
             });
+        // A root layout is when a rotation or resize has settled. Re-check the window shape here
+        // as well, so a configuration that arrived with stale screen dimensions is repaired once
+        // the resources catch up, and a bubble resize that produces no configuration is seen.
+        mTermuxActivityRootView.addOnLayoutChangeListener(
+            (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                reconcileTabHeightWithWindowShape());
         mViewHelper = new TermuxActivityViewHelper(this, getLayoutInflater());
 
         // ── Dual IME detection: insets method + visible-frame method ──
@@ -1167,6 +1184,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Remember it before super or any callback below can re-enter the activity: later calls
         // without a Configuration must not fall back to decor bounds from the old orientation.
         mLastConfigurationOrientation = newConfig.orientation;
+        mLastWindowLandscape = TermuxSessionTabsController.isWindowLandscape(newConfig);
         super.onConfigurationChanged(newConfig);
         // The overview reads each emulator's actual grid and the current viewport, so there is
         // no remembered terminal height to reset here. keyboardHidden is one of this activity's
@@ -1176,8 +1194,9 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         setFullScreenFlags(newConfig);
         // The landscape-aware tab-panel position flips here too, before the strip is measured.
         applyTabPanelPosition(newConfig);
-        // The landscape-aware tab-height mode flips here too. Pass the dispatched configuration:
-        // the activity's resources can still describe the previous orientation at this point.
+        // The landscape-aware tab-height mode follows the window's shape, not the display
+        // orientation. Pass the dispatched configuration: the activity's resources can still
+        // describe the previous orientation at this point.
         applyTabHeightMode(newConfig);
         // Rotation and split-screen resize arrive without a recreate, so the strip is re-decided.
         // The new configuration is passed so the landscape-aware visibility mode does not read a
@@ -1187,6 +1206,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // font changes; the grid listener only sees geometry, so ask for a fresh snapshot too.
         if (mSessionOverviewController != null)
             mSessionOverviewController.onConfigurationChanged(newConfig);
+
+        // The dispatched Configuration is authoritative, but some ROMs deliver a rotation with
+        // screen dimensions that still describe the previous window. Re-check the measured root
+        // once layout has settled; this is the first rotation after start where that stale value
+        // used to pin the strip to the wrong mode until the next rotation.
+        scheduleTabHeightWindowShapeCheck();
     }
 
     @Override
@@ -1327,6 +1352,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         updateExtraKeysCompaction();
         // Fullscreen can have been rotated (or changed in Settings) while this window was away.
         setFullScreenFlags();
+
+        // The tab height mode follows the window's shape and can have changed while this window
+        // was away. onConfigurationChanged() may not have run for a stopped window, so re-apply
+        // it here like the fullscreen and extra-keys state above.
+        applyTabHeightMode();
+        scheduleTabHeightWindowShapeCheck();
 
         // Snapshot the remembered focus target BEFORE the terminal view client runs.
         // mTermuxTerminalViewClient.onResume() -> setSoftKeyboardState() calls
@@ -2811,6 +2842,29 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
     }
 
+    /**
+     * Whether this activity's window is currently wider than it is tall.
+     *
+     * <p>This is the shape the tab-height mode must follow. It reads the window's screen
+     * dimensions instead of {@link Configuration#orientation}: in split-screen and freeform
+     * windows the activity can be portrait-shaped while the display orientation is landscape,
+     * and the tabs must match the window they are drawn in. The bubble is the one window whose
+     * measured decor bounds are more reliable than the configuration once it has been laid
+     * out.</p>
+     *
+     * @param changedConfig the configuration being applied on a rotation or resize, or
+     *                      {@code null} to use the last dispatched window shape
+     */
+    public boolean isWindowLandscape(@Nullable Configuration changedConfig) {
+        if (isBubbleWindow() && changedConfig == null) {
+            final View decorView = getWindow() != null ? getWindow().getDecorView() : null;
+            if (decorView != null && decorView.getWidth() > 0 && decorView.getHeight() > 0)
+                return decorView.getWidth() > decorView.getHeight();
+        }
+        if (changedConfig == null) return mLastWindowLandscape;
+        return TermuxSessionTabsController.isWindowLandscape(changedConfig);
+    }
+
     public void toggleTerminalToolbar() {
         final LinearLayout terminalToolbarContainer = getTerminalToolbarContainer();
         if (terminalToolbarContainer == null) return;
@@ -3148,18 +3202,26 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
      *                      the activity's own configuration.
      */
     public void applyTabHeightMode(@Nullable Configuration changedConfig) {
+        // A call without a dispatched configuration (startup, resume, settings) refreshes the
+        // remembered shape from resources before the controller reads it. Calls made from
+        // onConfigurationChanged() keep the dispatched value, which is authoritative even while
+        // resources still describe the previous window.
+        if (changedConfig == null) {
+            mLastWindowLandscape = TermuxSessionTabsController.isWindowLandscape(
+                    getResources().getConfiguration());
+        }
+
         // Update all existing tab views via the tabs controller.
         if (mTermuxSessionTabsController != null)
             mTermuxSessionTabsController.applyTabHeightMode(changedConfig);
 
-        // Also update the add-tab button height. The landscape-aware mode can flip on rotation,
-        // so the decision is taken from the dispatched configuration when there is one.
+        // Also update the add-tab button height. The landscape-aware mode follows the window's
+        // shape, so take that shape from the dispatched configuration when there is one.
         String mode = termuxPrefs()
                 .getString(TermuxAppConstants.Preferences.TAB_HEIGHT_MODE,
                         TermuxAppConstants.Preferences.TAB_HEIGHT_MODE_SINGLE);
-        Configuration configuration = changedConfig != null
-                ? changedConfig : getResources().getConfiguration();
-        boolean singleLine = TermuxSessionTabsController.isSingleLineMode(configuration, mode);
+        boolean singleLine = TermuxSessionTabsController.isSingleLineMode(
+                isWindowLandscape(changedConfig), mode);
         int buttonSizeDp = singleLine ? 24 : 36;
         float density = getResources().getDisplayMetrics().density;
         int buttonSizePx = Math.round(buttonSizeDp * density);
@@ -3171,6 +3233,61 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
             lp.height = buttonSizePx;
             addTabBtn.setLayoutParams(lp);
         }
+    }
+
+    /**
+     * Re-check the tab-height mode once the configuration dispatch has settled.
+     *
+     * <p>Runs before the next draw after a configuration change or a resume, and after every
+     * root layout. It corrects a first rotation whose dispatched Configuration still carried the
+     * previous screen dimensions: by then {@link #getResources()} has the new window size (or
+     * the bubble has been laid out). Idempotent: when the remembered shape already matches,
+     * nothing is applied.</p>
+     */
+    private void scheduleTabHeightWindowShapeCheck() {
+        final View root = mTermuxActivityRootView;
+        if (root == null) return;
+        androidx.core.view.OneShotPreDrawListener.add(root,
+                this::reconcileTabHeightWithWindowShape);
+    }
+
+    private void reconcileTabHeightWithWindowShape() {
+        if (isFinishing() || isDestroyed()) return;
+
+        // A bubble's measured decor is the window the user sees; its Resources configuration can
+        // still describe the display. For the full-screen activity the configuration's screen
+        // dimensions describe the window without the IME (the root view shrinks with the
+        // keyboard), so they are the correct late-arriving source there.
+        final View bubbleDecor;
+        final boolean landscape;
+        if (isBubbleWindow()) {
+            bubbleDecor = getWindow() != null ? getWindow().getDecorView() : null;
+            if (bubbleDecor == null
+                    || bubbleDecor.getWidth() <= 0 || bubbleDecor.getHeight() <= 0) return;
+            landscape = bubbleDecor.getWidth() > bubbleDecor.getHeight();
+        } else {
+            bubbleDecor = null;
+            landscape = TermuxSessionTabsController.isWindowLandscape(
+                    getResources().getConfiguration());
+        }
+        if (landscape == mLastWindowLandscape) return;
+        mLastWindowLandscape = landscape;
+
+        final Configuration configuration =
+                new Configuration(getResources().getConfiguration());
+        if (bubbleDecor != null) {
+            final float density = getResources().getDisplayMetrics().density;
+            configuration.orientation = landscape
+                    ? Configuration.ORIENTATION_LANDSCAPE
+                    : Configuration.ORIENTATION_PORTRAIT;
+            configuration.screenWidthDp =
+                    Math.max(1, Math.round(bubbleDecor.getWidth() / density));
+            configuration.screenHeightDp =
+                    Math.max(1, Math.round(bubbleDecor.getHeight() / density));
+        }
+        applyTabHeightMode(configuration);
+        if (mSessionOverviewController != null)
+            mSessionOverviewController.onWindowShapeCorrected(configuration);
     }
 
     /**
