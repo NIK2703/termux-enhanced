@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="copy_text">Kopieren</string>
+    <string name="copy_text_one_line">In eine Zeile kopieren</string>
     <string name="paste_text">Einfügen</string>
     <string name="text_selection_more">Mehr…</string>
 </resources>

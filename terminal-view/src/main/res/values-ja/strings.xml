@@ -2,5 +2,6 @@
 <resources>
     <string name="paste_text">貼り付け</string>
     <string name="copy_text">コピー</string>
+    <string name="copy_text_one_line">1行にまとめてコピー</string>
     <string name="text_selection_more">その他…</string>
 </resources>

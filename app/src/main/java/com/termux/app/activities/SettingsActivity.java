@@ -38,6 +38,7 @@ import com.termux.shared.view.DisplayCutoutUtils;
 public class SettingsActivity extends AppCompatActivity {
 
     @Nullable private DisplayCutoutUtils.CutoutInsetsListener mCutoutInsetsListener;
+    @Nullable private TermuxActivityUtils.SystemRotationLockObserver mRotationLockObserver;
 
     @Override
     protected void attachBaseContext(@NonNull Context base) {
@@ -52,11 +53,13 @@ public class SettingsActivity extends AppCompatActivity {
         // TermuxActivity locking itself has no effect here. The initial orientation on open is
         // decided by the system before any of our code runs and only the manifest can inform it:
         // android:screenOrientation="behind" (see AndroidManifest.xml) makes the window follow
-        // TermuxActivity below, so there is no rotation on open. This call is the authority for
-        // every other case — launcher shortcut, stale value, the user changing the setting while
-        // this activity is alive, and the bubble, where the preference is "follow the device".
+        // TermuxActivity below, so there is no rotation on open. This call is the app-level
+        // authority for every other case — launcher shortcut, stale value, the user changing the
+        // setting while this activity is alive, and the bubble, where the preference is "follow
+        // the device". The system rotation lock still outranks it (see TermuxActivityUtils).
         // Applied before setContentView() so a change takes effect before the first layout.
         TermuxActivityUtils.applyScreenOrientation(this);
+        mRotationLockObserver = new TermuxActivityUtils.SystemRotationLockObserver(this);
 
         AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);
 
@@ -105,6 +108,22 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         applyWindowStyling();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // The system rotation lock may have been toggled while this screen was in the background,
+        // and it outranks the app mode. Observe first, then re-resolve: a change racing this start
+        // is either observed or read by the explicit apply, never missed.
+        if (mRotationLockObserver != null) mRotationLockObserver.start();
+        TermuxActivityUtils.applyScreenOrientation(this);
+    }
+
+    @Override
+    protected void onStop() {
+        if (mRotationLockObserver != null) mRotationLockObserver.stop();
+        super.onStop();
     }
 
     /**
@@ -163,6 +182,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (mRotationLockObserver != null) mRotationLockObserver.stop();
         // Clear the light status-bar flag so it doesn't leak to other activities.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             getWindow().getDecorView().setSystemUiVisibility(0);

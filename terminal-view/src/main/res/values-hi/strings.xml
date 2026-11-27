@@ -13,6 +13,7 @@
 <resources>
 
     <string name="copy_text">कॉपी करें</string>
+    <string name="copy_text_one_line">एक पंक्ति में कॉपी करें</string>
     <string name="paste_text">चिपकाएँ</string>
     <string name="text_selection_more">और…</string>
 </resources>

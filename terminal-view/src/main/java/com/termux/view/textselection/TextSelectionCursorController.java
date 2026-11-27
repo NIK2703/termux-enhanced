@@ -159,10 +159,12 @@ public class TextSelectionCursorController implements CursorController {
 
                 ClipboardManager clipboard = (ClipboardManager) terminalView.getContext().getSystemService(Context.CLIPBOARD_SERVICE);
                 menu.add(Menu.NONE, ACTION_COPY, Menu.NONE, R.string.copy_text).setShowAsAction(show);
-                menu.add(Menu.NONE, ACTION_COPY_ONE_LINE, Menu.NONE,
-                        R.string.copy_text_one_line).setShowAsAction(show);
                 menu.add(Menu.NONE, ACTION_PASTE, Menu.NONE, R.string.paste_text).setEnabled(clipboard != null && clipboard.hasPrimaryClip()).setShowAsAction(show);
                 menu.add(Menu.NONE, ACTION_MORE, Menu.NONE, R.string.text_selection_more);
+                // Keep the one-line copy in the overflow after "More…", next to the terminal
+                // context-menu entry, instead of taking a separate action-bar slot.
+                menu.add(Menu.NONE, ACTION_COPY_ONE_LINE, Menu.NONE,
+                        R.string.copy_text_one_line);
 
                 // Tint the ActionMode CAB bar + title to follow the active Termux:Style scheme.
                 android.view.View cab = mode.getCustomView();

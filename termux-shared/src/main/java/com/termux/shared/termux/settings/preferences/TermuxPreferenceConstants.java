@@ -74,7 +74,7 @@ package com.termux.shared.termux.settings.preferences;
  *      - Added following to `TERMUX_APP`:
  *          `KEY_SESSION_OVERVIEW_PREVIEW_FPS`, `DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS`,
  *          `MIN_SESSION_OVERVIEW_PREVIEW_FPS` and `MAX_SESSION_OVERVIEW_PREVIEW_FPS`.
- *          A value of `0` disables the throttle; `1..30` caps preview passes per second.
+ *          A value of `0` disables the throttle; `1..20` caps preview passes per second.
  */
 
 import com.termux.shared.shell.command.ExecutionCommand;
@@ -455,12 +455,12 @@ public final class TermuxPreferenceConstants {
 
         /**
          * Maximum number of session-overview preview passes per second. A value of {@code 0}
-         * disables throttling; {@code 1..30} limits previews to that many passes per second.
+         * disables throttling; {@code 1..20} limits previews to that many passes per second.
          */
         public static final String KEY_SESSION_OVERVIEW_PREVIEW_FPS = "session-overview-preview-fps";
-        public static final int DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS = 0;
+        public static final int DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS = 5;
         public static final int MIN_SESSION_OVERVIEW_PREVIEW_FPS = 0;
-        public static final int MAX_SESSION_OVERVIEW_PREVIEW_FPS = 30;
+        public static final int MAX_SESSION_OVERVIEW_PREVIEW_FPS = 20;
 
         public static final String KEY_TERMINAL_CURSOR_STYLE = "terminal-cursor-style";
         public static final int DEFAULT_VALUE_TERMINAL_CURSOR_STYLE = TermuxPropertyConstants.DEFAULT_IVALUE_TERMINAL_CURSOR_STYLE;

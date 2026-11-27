@@ -2,5 +2,6 @@
 <resources>
   <string name="paste_text">貼上</string>
   <string name="copy_text">複製</string>
+  <string name="copy_text_one_line">複製成一行</string>
   <string name="text_selection_more">更多…</string>
 </resources>

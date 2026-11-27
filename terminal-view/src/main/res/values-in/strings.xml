@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="copy_text">Salin</string>
+    <string name="copy_text_one_line">Salin sebagai satu baris</string>
     <string name="paste_text">Tempel</string>
     <string name="text_selection_more">Lainnya…</string>
 </resources>

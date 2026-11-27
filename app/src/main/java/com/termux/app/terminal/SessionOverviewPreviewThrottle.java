@@ -6,15 +6,15 @@ import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
  * Timing math for the session-overview preview throttle.
  *
  * <p>The user-facing setting is a maximum pass rate in frames per second. {@code 0} disables
- * throttling; {@code 1..30} spaces preview passes by {@code 1000 / fps} milliseconds. The slider
- * uses the same numbers: 0 is off, 1 is 1 FPS and 30 is 30 FPS.</p>
+ * throttling; {@code 1..20} spaces preview passes by {@code 1000 / fps} milliseconds. The slider
+ * uses the same numbers: 0 is off, 1 is 1 FPS and 20 is 20 FPS.</p>
  */
 public final class SessionOverviewPreviewThrottle {
 
     private SessionOverviewPreviewThrottle() {
     }
 
-    /** Clamp a stored, user-provided or slider value to the supported {@code 0..30} range. */
+    /** Clamp a stored, user-provided or slider value to the supported {@code 0..20} range. */
     public static int clampFps(int fps) {
         return Math.max(TermuxPreferenceConstants.TERMUX_APP.MIN_SESSION_OVERVIEW_PREVIEW_FPS,
             Math.min(TermuxPreferenceConstants.TERMUX_APP.MAX_SESSION_OVERVIEW_PREVIEW_FPS,

@@ -2,5 +2,6 @@
 <resources>
     <string name="paste_text">Colar</string>
     <string name="copy_text">Copiar</string>
+    <string name="copy_text_one_line">Copiar em uma linha</string>
     <string name="text_selection_more">Mais…</string>
 </resources>

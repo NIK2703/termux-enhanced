@@ -217,13 +217,13 @@
             app:valueUnit="dp"
             app:iconSpaceReserved="false" />
 
-        <!-- 0 is off; 1..30 are FPS. UnitSeekBarPreference renders the label as "N fps" or "OFF". -->
+        <!-- 0 is off; 1..20 are FPS. UnitSeekBarPreference renders the label as "N fps" or "OFF". -->
         <com.termux.app.fragments.settings.UnitSeekBarPreference
             app:key="session-overview-preview-fps"
             app:title="@string/session_overview_preview_throttle_title"
             app:min="0"
-            android:max="30"
-            app:defaultValue="0"
+            android:max="20"
+            app:defaultValue="5"
             app:updatesContinuously="true"
             app:showSeekBarValue="true"
             app:valueUnit="@string/session_overview_preview_throttle_unit"

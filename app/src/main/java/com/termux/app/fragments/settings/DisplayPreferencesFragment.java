@@ -184,7 +184,7 @@ public class DisplayPreferencesFragment extends TermuxPreferenceFragmentBase {
         final int fps = prefs != null
             ? prefs.getSessionOverviewPreviewFps()
             : TermuxPreferenceConstants.TERMUX_APP.DEFAULT_VALUE_SESSION_OVERVIEW_PREVIEW_FPS;
-        // Slider value is the FPS: 0 is off, 1..30 are the supported rates.
+        // Slider value is the FPS: 0 is off, 1..20 are the supported rates.
         pref.setValue(SessionOverviewPreviewThrottle.clampFps(fps));
 
         pref.setOnPreferenceChangeListener((preference, newValue) -> {

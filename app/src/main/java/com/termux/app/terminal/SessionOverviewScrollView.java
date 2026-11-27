@@ -28,12 +28,11 @@ import com.termux.view.ElasticOverdrag;
  * is the vertical one. They share {@link ElasticOverdrag} for the pull curve, cap, spring and
  * fling impulse; only the gesture plumbing and the axis differ.</p>
  *
- * <p>A removal can leave the grid shorter than the current scroll offset. The platform would
- * clamp the scroll in one frame; {@link #armContentShrinkSettle()} instead lets the controller
- * ask for a short settle, in which the grid starts at the old position and slides down to the new
- * end. {@link #settleScrollTo(int)} applies the same 250 ms decelerating settle when a newly
- * appended card needs the grid to travel in the opposite direction, so an add never teleports
- * the viewport.</p>
+ * <p>A structural change can leave the grid shorter than the current scroll offset. The platform
+ * clamps the scroll during layout; {@link OnContentClampListener} reports that clamp to the
+ * structural transition, which folds it into the same card/scroll animation. {@link
+ * #settleScrollTo(int)} remains for an opening restore or an active-card reveal, using the same
+ * 250 ms decelerating curve.</p>
  */
 public class SessionOverviewScrollView extends ScrollView {
 
@@ -42,8 +41,22 @@ public class SessionOverviewScrollView extends ScrollView {
         void onScrollChanged(int scrollY);
     }
 
+    /** Receives scroll-position clamps caused by a layout, before any settle is started. */
+    public interface OnContentClampListener {
+        void onContentClamped(int scrollBefore, int scrollAfter);
+    }
+
+    /** Called before the first touch of a gesture is dispatched to the content. */
+    public interface OnTouchDownListener {
+        void onTouchDown();
+    }
+
     @Nullable
     private OnScrollListener mOnScrollListener;
+    @Nullable
+    private OnContentClampListener mOnContentClampListener;
+    @Nullable
+    private OnTouchDownListener mOnTouchDownListener;
 
     /** The first (top) end: the content is pulled DOWN, so translationY > 0. */
     private static final int DIRECTION_TOP = -1;
@@ -58,11 +71,11 @@ public class SessionOverviewScrollView extends ScrollView {
     private static final long FLING_IDLE_NANOS =
             TermuxAppConstants.Overview.FLING_IDLE_MS * 1_000_000L;
 
-    /** How long the grid takes to slide to the new end after a removal shortened it. */
-    private static final long SHRINK_SETTLE_DURATION_MS = 250L;
+    /** How long a programmatic reveal scroll takes. */
+    private static final long SCROLL_SETTLE_DURATION_MS = 250L;
 
-    /** Decelerating curve for the shrink settle; stateless, so one instance is enough. */
-    private static final PathInterpolator SHRINK_SETTLE_INTERPOLATOR =
+    /** Decelerating curve shared by programmatic reveal scrolls; stateless. */
+    private static final PathInterpolator SCROLL_SETTLE_INTERPOLATOR =
             new PathInterpolator(0f, 0f, 0.2f, 1f);
 
     /** Accumulated (undamped) finger travel past the top / bottom end, in px. Never negative. */
@@ -73,12 +86,6 @@ public class SessionOverviewScrollView extends ScrollView {
     private float mTranslationPx;
 
     /**
-     * Extra downward settle applied on top of the elastic displacement while the grid slides to
-     * the new end after a removal shortened it, in px. Non-negative; zero when idle.
-     */
-    private float mShrinkSettlePx;
-
-    /**
      * Extra content translation used while a programmatic scroll glides to a new position, in px.
      * Positive moves the grid down, negative up. The real scroll position is already at the
      * target, so this offset keeps the first frame exactly where the user was looking and then
@@ -86,14 +93,15 @@ public class SessionOverviewScrollView extends ScrollView {
      */
     private float mScrollSettlePx;
 
-    /** The last {@code translationY} written to the grid, including both settles above. */
+    /**
+     * Structural offset owned by the layout-transition coordinator. Unlike the two settle fields
+     * above, this one has no animator inside the scroll view: one external animator drives card
+     * translations and this offset together.
+     */
+    private float mProgrammaticOffsetPx;
+
+    /** The last {@code translationY} written to the grid, including all offsets above. */
     private float mContentTranslationPx;
-
-    /** True when the next layout pass should smooth out a clamp caused by content shrinking. */
-    private boolean mShrinkSettleArmed;
-
-    @Nullable
-    private ValueAnimator mShrinkSettle;
 
     @Nullable
     private ValueAnimator mScrollSettle;
@@ -193,27 +201,73 @@ public class SessionOverviewScrollView extends ScrollView {
         mOnScrollListener = listener;
     }
 
-    /**
-     * Arm a one-shot settle for the next layout pass.
-     *
-     * <p>A removal can leave the grid shorter than the current scroll offset. The platform then
-     * clamps {@code scrollY} inside {@link #onLayout}, which reads as an instant jump to the new
-     * end. If that clamp actually happens, the content instead slides down to the new end; a
-     * layout that does not clamp consumes the flag and changes nothing.</p>
-     */
-    public void armContentShrinkSettle() {
-        mShrinkSettleArmed = true;
+    /** Set the listener notified when a layout pass clamps the real scroll offset. */
+    public void setOnContentClampListener(@Nullable OnContentClampListener listener) {
+        mOnContentClampListener = listener;
+    }
+
+    /** Set the listener that lands a structural transition before a new touch gesture starts. */
+    public void setOnTouchDownListener(@Nullable OnTouchDownListener listener) {
+        mOnTouchDownListener = listener;
     }
 
     /**
-     * Glide the content to a new scroll offset with the same duration and curve as a removal
-     * settle.
+     * Set the structural offset owned by the one layout-transition animator.
+     *
+     * <p>The real scroll offset is already at its target; this value only keeps the first frame
+     * visually where it was and eases to zero. It is deliberately not animated here.</p>
+     */
+    public void setProgrammaticScrollOffsetPx(float px) {
+        final float value = isFinite(px) ? px : 0f;
+        if (mProgrammaticOffsetPx == value) return;
+        mProgrammaticOffsetPx = value;
+        applyContentTranslation();
+    }
+
+    public float getProgrammaticScrollOffsetPx() {
+        return mProgrammaticOffsetPx;
+    }
+
+    /** Visual displacement currently applied to the grid by every offset source. */
+    public float getContentVisualOffsetPx() {
+        return mTranslationPx + mScrollSettlePx + mProgrammaticOffsetPx;
+    }
+
+    /**
+     * Displacement from settle and structural sources only, excluding the elastic finger pull.
+     * A layout transition folds this into its own offset when it takes ownership of the grid.
+     */
+    float getSettleOffsetPx() {
+        return mScrollSettlePx + mProgrammaticOffsetPx;
+    }
+
+    /** Drop all settle state and the structural offset without animating. */
+    public void finishContentTransition() {
+        cancelScrollSettleAnimator();
+        mScrollSettlePx = 0f;
+        mProgrammaticOffsetPx = 0f;
+        applyContentTranslation();
+    }
+
+    /**
+     * Stop any running scroll settle without moving the grid. The reached displacement is kept as
+     * a static structural offset so a caller can capture the exact visual bounds that are on
+     * screen (selection) before the offset is dropped later.
+     */
+    public void freezeContentTransition() {
+        cancelScrollSettleAnimator();
+        mProgrammaticOffsetPx += mScrollSettlePx;
+        mScrollSettlePx = 0f;
+        applyContentTranslation();
+    }
+
+    /**
+     * Glide the content to a new scroll offset with a 250 ms decelerating curve.
      *
      * <p>The platform's {@link #smoothScrollTo(int, int)} would use a different scroller and can
      * be interrupted by a layout-driven {@code scrollTo}. Here the real offset is moved to the
      * target in one step, then the grid is translated back by the same distance and eased to
-     * zero. The first frame therefore shows exactly what was on screen before, and the content
-     * travels to the target with the removal settle's 250 ms deceleration.</p>
+     * zero. The first frame therefore shows exactly what was on screen before.</p>
      *
      * @param target requested scroll offset; clamped to the current scroll range
      * @return true when an animation was started
@@ -225,14 +279,13 @@ public class SessionOverviewScrollView extends ScrollView {
         final int current = getScrollY();
         // The real offset is already at the target while a scroll settle is running. Do not
         // restart its clock when the add path asks for the same position again a frame later.
-        if (mScrollSettle != null && clamped == current && mShrinkSettle == null) return true;
+        if (mScrollSettle != null && clamped == current) return true;
 
-        // Keep whatever is currently on screen, even if a removal settle is still running, then
-        // hand the combined offset to the scroll settle.
-        final float visualOffset = mScrollSettlePx - mShrinkSettlePx;
-        cancelShrinkSettleAnimator();
-        mShrinkSettlePx = 0f;
+        // Keep whatever is currently on screen, including a structural offset, then hand the
+        // combined displacement to the scroll settle.
+        final float visualOffset = mScrollSettlePx + mProgrammaticOffsetPx;
         cancelScrollSettleAnimator();
+        mProgrammaticOffsetPx = 0f;
         mScrollSettlePx = visualOffset + (clamped - current);
         scrollTo(0, clamped);
         if (mScrollSettlePx == 0f) {
@@ -242,8 +295,8 @@ public class SessionOverviewScrollView extends ScrollView {
         applyContentTranslation();
 
         final ValueAnimator animator = ValueAnimator.ofFloat(mScrollSettlePx, 0f);
-        animator.setDuration(SHRINK_SETTLE_DURATION_MS);
-        animator.setInterpolator(SHRINK_SETTLE_INTERPOLATOR);
+        animator.setDuration(SCROLL_SETTLE_DURATION_MS);
+        animator.setInterpolator(SCROLL_SETTLE_INTERPOLATOR);
         animator.addUpdateListener(animation -> {
             if (mScrollSettle != animation) return;
             mScrollSettlePx = (Float) animation.getAnimatedValue();
@@ -263,36 +316,19 @@ public class SessionOverviewScrollView extends ScrollView {
         return true;
     }
 
-    /** True while a removal or programmatic-scroll settle is moving the grid. */
+    /** True while any settle, including a structural transition, is moving the grid. */
     public boolean isContentSettling() {
-        return mShrinkSettle != null || mScrollSettle != null;
-    }
-
-    /**
-     * Drop a pending or running content settle immediately.
-     *
-     * <p>Used when the overview closes or a closing flight needs the final geometry: the next
-     * frame must start from the real scroll position, not from a translation left halfway
-     * through a settle.</p>
-     */
-    public void cancelContentShrinkSettle() {
-        mShrinkSettleArmed = false;
-        cancelShrinkSettleAnimator();
-        mShrinkSettlePx = 0f;
-        cancelScrollSettleAnimator();
-        mScrollSettlePx = 0f;
-        applyContentTranslation();
+        return mScrollSettle != null || mProgrammaticOffsetPx != 0f;
     }
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         final int before = getScrollY();
         super.onLayout(changed, left, top, right, bottom);
-        if (!mShrinkSettleArmed) return;
-        // One layout owns the flag: a clamp either happened in this pass or it never will.
-        mShrinkSettleArmed = false;
-        final int distance = SessionOverviewScrollMath.shrinkSettleDistance(before, getScrollY());
-        if (distance > 0) startShrinkSettle(distance);
+        final int after = getScrollY();
+        if (mOnContentClampListener != null && before != after) {
+            mOnContentClampListener.onContentClamped(before, after);
+        }
     }
 
     @Override
@@ -418,6 +454,11 @@ public class SessionOverviewScrollView extends ScrollView {
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN && mOnTouchDownListener != null) {
+            // A tap on a card never reaches onTouchEvent, so finish the structural transition
+            // here before the card/drag controller sees the gesture.
+            mOnTouchDownListener.onTouchDown();
+        }
         final boolean handled = super.dispatchTouchEvent(ev);
         if (action == MotionEvent.ACTION_DOWN) {
             mDragPullAbsorbed = false;
@@ -479,13 +520,10 @@ public class SessionOverviewScrollView extends ScrollView {
     @Override
     protected void onDetachedFromWindow() {
         // A view pulled out of the window can no longer be sprung back, and whatever displacement
-        // it was holding must not survive into the next attachment. A shrink settle is dropped
-        // without animation for the same reason.
-        mShrinkSettleArmed = false;
-        cancelShrinkSettleAnimator();
-        mShrinkSettlePx = 0f;
+        // it was holding must not survive into the next attachment.
         cancelScrollSettleAnimator();
         mScrollSettlePx = 0f;
+        mProgrammaticOffsetPx = 0f;
         reset();
         super.onDetachedFromWindow();
     }
@@ -621,18 +659,18 @@ public class SessionOverviewScrollView extends ScrollView {
     }
 
     /**
-     * Write the single {@code translationY} the grid can have: the elastic pull minus the shrink
-     * settle plus the programmatic-scroll settle. Routing every writer through one place keeps a
+     * Write the single {@code translationY} the grid can have: the elastic pull, the programmatic
+     * reveal settle and the structural offset. Routing every writer through one place keeps a
      * settle that is still running from being overwritten by a pull, or the other way round.
      */
     private void applyContentTranslation() {
-        float px = mTranslationPx - mShrinkSettlePx + mScrollSettlePx;
+        float px = mTranslationPx + mScrollSettlePx + mProgrammaticOffsetPx;
         if (!isFinite(px)) {
-            // Both inputs are individually finite; this is belt and braces against a bad animator
+            // Every input is individually finite; this is belt and braces against a bad animator
             // sample poisoning the view's transform.
             mTranslationPx = 0f;
-            mShrinkSettlePx = 0f;
             mScrollSettlePx = 0f;
+            mProgrammaticOffsetPx = 0f;
             px = 0f;
         }
         // An unchanged translation must not dirty the RenderNode. Every settle/reset ends here,
@@ -678,59 +716,6 @@ public class SessionOverviewScrollView extends ScrollView {
 
     private static boolean isFinite(float v) {
         return PagerOverscrollController.isFinite(v);
-    }
-
-    // ── shrink settle ──────────────────────────────────────────────────────────────────────
-
-    /**
-     * Slide the grid from the position the platform just clamped away from down to the new end.
-     *
-     * <p>{@code distancePx} is the amount the layout clamp removed from {@code scrollY}. The
-     * scroll itself is already at the new maximum, so the offset is applied as a translation: the
-     * content starts exactly where it was before the removal and eases into the new end. A second
-     * clamp while a settle is running stacks on the remaining offset, keeping the frame
-     * continuous.</p>
-     */
-    private void startShrinkSettle(float distancePx) {
-        if (!isFinite(distancePx) || distancePx <= 0f) return;
-        // A programmatic scroll may still be holding the grid away from the real offset. Fold
-        // that displacement into this settle so the frame does not snap when ownership changes.
-        cancelScrollSettleAnimator();
-        final float from = mShrinkSettlePx + distancePx - mScrollSettlePx;
-        mScrollSettlePx = 0f;
-        cancelShrinkSettleAnimator();
-        mShrinkSettlePx = from;
-        applyContentTranslation();
-
-        final ValueAnimator animator = ValueAnimator.ofFloat(from, 0f);
-        animator.setDuration(SHRINK_SETTLE_DURATION_MS);
-        animator.setInterpolator(SHRINK_SETTLE_INTERPOLATOR);
-        animator.addUpdateListener(animation -> {
-            if (mShrinkSettle != animation) return;
-            mShrinkSettlePx = (Float) animation.getAnimatedValue();
-            applyContentTranslation();
-        });
-        animator.addListener(new AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                if (mShrinkSettle != animation) return;
-                mShrinkSettle = null;
-                mShrinkSettlePx = 0f;
-                applyContentTranslation();
-            }
-        });
-        mShrinkSettle = animator;
-        animator.start();
-    }
-
-    /** Stop the settle animator without touching the offset it has reached. */
-    private void cancelShrinkSettleAnimator() {
-        final ValueAnimator settle = mShrinkSettle;
-        mShrinkSettle = null;
-        if (settle == null) return;
-        settle.removeAllUpdateListeners();
-        settle.removeAllListeners();
-        settle.cancel();
     }
 
     /** Stop the programmatic-scroll animator without touching the offset it has reached. */

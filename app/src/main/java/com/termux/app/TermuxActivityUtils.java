@@ -5,8 +5,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.termux.app.activities.SettingsActivity;
 import com.termux.shared.activity.ActivityUtils;
@@ -28,10 +33,15 @@ public final class TermuxActivityUtils {
     /**
      * Apply the rotation mode of the window the given activity is drawn in.
      *
-     * <p>The full-screen window obeys Settings → Screen orientation. The bubble's window must not:
-     * it is a floating window drawn in the device's orientation, so a fixed-orientation request
-     * cannot resize it — the platform letterboxes the content instead. The request is cleared
-     * there, only when it differs (idempotent; see the MIUI/HyperOS hazard in
+     * <p>The full-screen window obeys Settings → Screen orientation, but never at the expense of
+     * the system rotation lock: while the lock is on, the locked orientation wins over every app
+     * mode, including the explicit Portrait/Landscape choices. See
+     * {@link #resolveScreenOrientation(String, boolean, boolean)} for the mapping.</p>
+     *
+     * <p>The bubble's window must not take part in any of this: it is a floating window drawn in
+     * the device's orientation, so a fixed-orientation request cannot resize it — the platform
+     * letterboxes the content instead. The request is cleared there, only when it differs
+     * (idempotent; see the MIUI/HyperOS hazard in
      * {@link TermuxActivity#onWindowFocusChanged(boolean)}). Every screen opened from the bubble
      * is letterboxed the same way, so all of them ask this — from onCreate and onWindowFocusChanged.
      */
@@ -48,28 +58,113 @@ public final class TermuxActivityUtils {
         final boolean isTablet = activity.getResources().getConfiguration().smallestScreenWidthDp >= 600;
         final String value = prefs.getString(TermuxAppConstants.Preferences.SCREEN_ORIENTATION,
                 isTablet ? "sensor" : "portrait");
-        final int orientation;
-        switch (value) {
-            case "portrait":
-                orientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-                break;
-            case "landscape":
-                orientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-                break;
-            case "portrait_follow_sensor":
-                orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
-                break;
-            case "landscape_follow_sensor":
-                orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
-                break;
-            case "sensor":
-                orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR;
-                break;
-            default:
-                orientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-                break;
+        final int orientation = resolveScreenOrientation(value, isTablet,
+                isSystemAutoRotateEnabled(activity));
+        // setRequestedOrientation() is not free on some ROMs (see the MIUI/HyperOS note in
+        // onWindowFocusChanged()), and this runs on every focus. Only request a real change.
+        if (activity.getRequestedOrientation() != orientation) {
+            activity.setRequestedOrientation(orientation);
         }
-        activity.setRequestedOrientation(orientation);
+    }
+
+    /**
+     * Resolve the value stored by Settings → Screen orientation to an {@link ActivityInfo}
+     * orientation request.
+     *
+     * <p>The sensor-following modes use the {@code USER} family, not the {@code SENSOR} family.
+     * {@code SENSOR}, {@code SENSOR_PORTRAIT} and {@code SENSOR_LANDSCAPE} explicitly ignore the
+     * user's system rotation lock, so the app kept rotating with auto-rotate turned off.
+     * {@code USER}, {@code USER_PORTRAIT} and {@code USER_LANDSCAPE} use the sensor only while
+     * sensor-based rotation is enabled and otherwise keep the locked orientation.</p>
+     *
+     * <p>While the system lock is on, every mode resolves to {@link
+     * ActivityInfo#SCREEN_ORIENTATION_USER}: the lock is the user's instruction for the whole
+     * display, so it also outranks the app's explicit Portrait/Landscape choices. Once the lock is
+     * turned off, the stored app mode applies again (the observer in {@link
+     * SystemRotationLockObserver} re-applies it without waiting for a restart).</p>
+     *
+     * <p>Package-private and free of Android calls so the mapping is unit-testable.</p>
+     */
+    static int resolveScreenOrientation(@Nullable String value, boolean isTablet,
+                                        boolean systemAutoRotateEnabled) {
+        final String mode = value != null ? value : (isTablet ? "sensor" : "portrait");
+
+        if (!systemAutoRotateEnabled) {
+            return ActivityInfo.SCREEN_ORIENTATION_USER;
+        }
+
+        switch (mode) {
+            case "portrait":
+                return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            case "landscape":
+                return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            case "portrait_follow_sensor":
+                return ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT;
+            case "landscape_follow_sensor":
+                return ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
+            case "sensor":
+                return ActivityInfo.SCREEN_ORIENTATION_USER;
+            default:
+                return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        }
+    }
+
+    /**
+     * Whether sensor-based rotation is enabled in system settings. The rotation lock is stored as
+     * {@link Settings.System#ACCELEROMETER_ROTATION} == 0. If the setting cannot be read (some
+     * vendor ROMs), assume rotation is enabled so the app's own mode still works.
+     */
+    static boolean isSystemAutoRotateEnabled(@NonNull Context context) {
+        try {
+            return Settings.System.getInt(context.getContentResolver(),
+                    Settings.System.ACCELEROMETER_ROTATION, 1) == 1;
+        } catch (SecurityException e) {
+            Logger.logDebug(LOG_TAG, "Cannot read system auto-rotate setting: " + e.getMessage());
+            return true;
+        }
+    }
+
+    /**
+     * Re-applies the screen orientation when the system rotation lock is toggled while the activity
+     * is visible.
+     *
+     * <p>The platform re-evaluates {@code USER} requests by itself, but an app-level fixed request
+     * (Portrait/Landscape) keeps forcing its orientation after the lock is turned on. The reverse
+     * is true as well: a {@code USER} request made while locked starts following the sensor instead
+     * of the stored app mode after the lock is turned off. Re-resolving on every change keeps the
+     * two in step without waiting for a restart or a focus round-trip.</p>
+     */
+    public static final class SystemRotationLockObserver {
+        private final Activity mActivity;
+        private final ContentObserver mObserver;
+        private boolean mStarted;
+
+        public SystemRotationLockObserver(@NonNull Activity activity) {
+            mActivity = activity;
+            mObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    // A change dispatched just before stop() can still be queued on the main
+                    // thread. Do not touch a window that is stopped or already going away.
+                    if (mStarted && !mActivity.isFinishing() && !mActivity.isDestroyed())
+                        applyScreenOrientation(mActivity);
+                }
+            };
+        }
+
+        public void start() {
+            if (mStarted) return;
+            mActivity.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION),
+                    false, mObserver);
+            mStarted = true;
+        }
+
+        public void stop() {
+            if (!mStarted) return;
+            mActivity.getContentResolver().unregisterContentObserver(mObserver);
+            mStarted = false;
+        }
     }
 
     /**

@@ -164,9 +164,10 @@
              newly launched activity (falling back to the device/sensor orientation) and only then
              does SettingsActivity.onCreate request the real value — one visible rotation to the
              "wrong" orientation and back. With "behind" the first frame is already correct.
-             The runtime call in SettingsActivity.onCreate stays as the authority for the remaining
-             cases: launched from a launcher shortcut (no activity below), or the user changing the
-             setting from the Display screen while this activity is alive.
+             The runtime call in SettingsActivity.onCreate stays as the app-level authority for the
+             remaining cases: launched from a launcher shortcut (no activity below), or the user
+             changing the setting from the Display screen while this activity is alive. The system
+             rotation lock, when on, still outranks it (see TermuxActivityUtils).
 
              configChanges mirrors TermuxActivity: an actual orientation change then resizes this
              activity instead of destroying and recreating it, so the preference list keeps its

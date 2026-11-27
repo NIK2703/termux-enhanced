@@ -442,6 +442,13 @@ public class TermuxActivity extends AppCompatActivity implements TextInputPanelC
      */
     private int mLastConfigurationOrientation = Configuration.ORIENTATION_UNDEFINED;
 
+    /**
+     * Re-applies this window's rotation mode when the system rotation lock is toggled while the
+     * window is visible. The system lock outranks every app mode, so the request has to be
+     * re-resolved instead of waiting for a restart (see TermuxActivityUtils).
+     */
+    @Nullable private TermuxActivityUtils.SystemRotationLockObserver mRotationLockObserver;
+
     /** IME visibility as reported by {@link WindowInsetsCompat.Type#ime()} (insets method).
      *  AUTHORITY over the visible-frame method on API 30+ (see {@link #computeImeVisibility()}),
      *  which fixes the keyboard intent being poisoned by a visible-frame false positive:
@@ -961,6 +968,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         // Apply this window's rotation mode: the user's screen-orientation choice for the
         // full-screen window, no preference at all for the bubble. See applyWindowOrientation().
         applyWindowOrientation();
+        // Keep it in step if the user toggles the system rotation lock while this window is up.
+        mRotationLockObserver = new TermuxActivityUtils.SystemRotationLockObserver(this);
 
         // Load termux shared preferences
         // This will also fail if TermuxConstants.TERMUX_PACKAGE_NAME does not equal applicationId
@@ -1189,6 +1198,12 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
         if (mIsInvalidState) return;
 
         mIsVisible = true;
+
+        // The system rotation lock may have been toggled while this window was in the background.
+        // Observe first, then re-resolve before the first visible frame: a change racing this
+        // start is then either observed or read by the explicit apply, never missed.
+        if (mRotationLockObserver != null) mRotationLockObserver.start();
+        applyWindowOrientation();
 
         // The channels the terminal's notifications go on, created here rather than at the first
         // post so a notification raised in the background already has one. NOT about the Android 13
@@ -1485,6 +1500,8 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     protected void onStop() {
         super.onStop();
 
+        if (mRotationLockObserver != null) mRotationLockObserver.stop();
+
         // Keep an open overview across a trip to the background: it is part of the activity's
         // visible state, not a transient dialog, so returning must land on the same grid. Only
         // release it when this instance is actually going away (finish or configuration change),
@@ -1564,6 +1581,7 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
 
     @Override
     public void onDestroy() {
+        if (mRotationLockObserver != null) mRotationLockObserver.stop();
         super.onDestroy();
 
         // A destroyed instance cannot resume its overlay. Release card bitmaps and transition
@@ -2287,9 +2305,11 @@ if (!TermuxInstaller.isBootstrapInstalled(this)) {
     /**
      * Apply the user-selected screen orientation to the given activity.
      * Reads "screen_orientation" from the "termux_prefs" file (written by the
-     * Settings screen-orientation list). Valid values: "sensor", "portrait",
-     * "landscape". Default is "sensor" on tablets (smallestScreenWidthDp >= 600)
-     * and "portrait" on phones.
+     * Settings screen-orientation list). Valid values: "sensor",
+     * "portrait_follow_sensor", "landscape_follow_sensor", "portrait", "landscape".
+     * Default is "sensor" on tablets (smallestScreenWidthDp >= 600) and "portrait"
+     * on phones. The system rotation lock outranks the preference; see
+     * {@link TermuxActivityUtils#applyScreenOrientation(Activity)}.
      */
     public static void applyScreenOrientation(@NonNull Activity activity) {
         TermuxActivityUtils.applyScreenOrientation(activity);

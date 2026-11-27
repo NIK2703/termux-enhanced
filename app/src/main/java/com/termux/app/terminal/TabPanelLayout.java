@@ -8,6 +8,7 @@ import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.widget.LinearLayout;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /**
@@ -48,19 +49,22 @@ public class TabPanelLayout extends LinearLayout {
         /**
          * Called on the release that ends the gesture which opened the overview.
          *
-         * @param rawX screen x of the release, usable for hit-testing the card grid
-         * @param rawY screen y of the release
+         * @param windowX x of the release in the window's coordinate space, the same space
+         *                {@link android.view.View#getGlobalVisibleRect} uses for the cards
+         * @param windowY y of the release in the window's coordinate space
          */
-        void onOverviewGestureReleased(float rawX, float rawY);
+        void onOverviewGestureReleased(float windowX, float windowY);
 
         /** Called while the finger moves over the open overview, for hover highlighting. */
-        void onOverviewGestureHover(float rawX, float rawY);
+        void onOverviewGestureHover(float windowX, float windowY);
 
         /** Called when the opened gesture is cancelled before release. */
         void onOverviewGestureCancelled();
     }
 
     private final int mTouchSlop;
+    /** Reused buffer for {@link #notifyOverviewPoint(Listener, MotionEvent, boolean)}. */
+    private final int[] mLocationInWindow = new int[2];
     private float mDownX;
     private float mDownY;
     private boolean mTracking;
@@ -142,7 +146,7 @@ public class TabPanelLayout extends LinearLayout {
                 final Listener listener = mListener;
                 if (mOverviewOpened && listener != null && event.getPointerCount() == 1
                         && event.getPointerId(0) == mOverviewPointerId) {
-                    listener.onOverviewGestureHover(event.getRawX(), event.getRawY());
+                    notifyOverviewPoint(listener, event, false);
                 }
             } else if (action == MotionEvent.ACTION_UP) {
                 final Listener listener = mListener;
@@ -151,7 +155,7 @@ public class TabPanelLayout extends LinearLayout {
                     // The finger never left the screen: let the controller select whatever card
                     // is under it now. The card itself never received ACTION_DOWN, so its own
                     // click handler cannot do this.
-                    listener.onOverviewGestureReleased(event.getRawX(), event.getRawY());
+                    notifyOverviewPoint(listener, event, true);
                 }
                 resetOverviewGesture();
             } else if (action == MotionEvent.ACTION_CANCEL) {
@@ -161,6 +165,29 @@ public class TabPanelLayout extends LinearLayout {
             return true;
         }
         return super.onTouchEvent(event);
+    }
+
+    /**
+     * Forward the gesture point to the listener in window coordinates.
+     *
+     * <p>The overview hit-tests cards with {@link android.view.View#getGlobalVisibleRect}, which
+     * reports the root view's coordinate space. {@link MotionEvent#getRawX()} reports the device
+     * display's space instead, so the two only agree while the window fills the screen. A bubble
+     * or any other floating window is offset on the display, and passing raw coordinates made the
+     * overview select a card away from the finger. The event's local coordinates plus this view's
+     * position in the window stay in the hit-test's space in every window mode.</p>
+     */
+    private void notifyOverviewPoint(@NonNull Listener listener, @NonNull MotionEvent event,
+                                     boolean released) {
+        final int[] location = mLocationInWindow;
+        getLocationInWindow(location);
+        final float windowX = location[0] + event.getX();
+        final float windowY = location[1] + event.getY();
+        if (released) {
+            listener.onOverviewGestureReleased(windowX, windowY);
+        } else {
+            listener.onOverviewGestureHover(windowX, windowY);
+        }
     }
 
 

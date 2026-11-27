@@ -1,6 +1,6 @@
 <resources>
   <string name="paste_text">Вставить</string>
   <string name="copy_text">Копировать</string>
-  <string name="copy_text_one_line">Одной строкой</string>
+  <string name="copy_text_one_line">Копировать в одну строку</string>
   <string name="text_selection_more">Ещё…</string>
 </resources>

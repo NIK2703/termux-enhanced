@@ -95,6 +95,9 @@ public final class SessionOverviewController {
     private final List<Card> mCards = new ArrayList<>();
     @Nullable
     private final SessionOverviewDragController mDragController;
+    /** Owns the single card+scroll structural transition for add/remove while the grid is open. */
+    @Nullable
+    private final SessionOverviewLayoutTransitionController mLayoutTransition;
     private int mTabCornerRadius;
     /** Card stroke shared by resting cards and flying terminal frames. */
     private int mCardStrokeWidth;
@@ -337,9 +340,9 @@ public final class SessionOverviewController {
     /** True once the opening gesture is old enough to hit-test and select cards. */
     private boolean mGestureSelectionArmed;
     private final Runnable mArmGestureSelectionRunnable = this::armGestureSelection;
-    /** Last hover point, reused after every auto-scroll step. */
-    private float mHoverRawX;
-    private float mHoverRawY;
+    /** Last hover point, in the window's coordinate space, reused after every auto-scroll step. */
+    private float mHoverWindowX;
+    private float mHoverWindowY;
     /** Finger release that arrived while the opening was still waiting for the full terminal. */
     private boolean mPendingGestureRelease;
     private float mPendingGestureReleaseX;
@@ -374,8 +377,6 @@ public final class SessionOverviewController {
     @Nullable
     private Configuration mLastConfiguration;
     /** Last viewport sampled by the post-rotation refresh; -1 means no sample yet. */
-    private int mLastAspectRefreshWidth = -1;
-    private int mLastAspectRefreshHeight = -1;
 
     @Nullable
     private View mPreviousFocus;
@@ -478,6 +479,12 @@ public final class SessionOverviewController {
                 })
                 : null;
 
+        mLayoutTransition = mGrid != null
+                ? new SessionOverviewLayoutTransitionController(mGrid,
+                        mScrollView instanceof SessionOverviewScrollView
+                                ? (SessionOverviewScrollView) mScrollView : null)
+                : null;
+
         if (mOverlay != null) {
             // The window/decor background is the backdrop. Keeping the overlay transparent lets
             // the wallpaper and its system blur stay visible while the live content is hidden.
@@ -490,17 +497,32 @@ public final class SessionOverviewController {
             // close the overview, matching the old "tap outside a card" behaviour.
             mScrollView.setOnClickListener(v -> hide());
             if (mScrollView instanceof SessionOverviewScrollView) {
-                ((SessionOverviewScrollView) mScrollView)
-                        .setOnScrollListener(scrollY -> onOverviewScrolled());
+                final SessionOverviewScrollView overviewScrollView =
+                        (SessionOverviewScrollView) mScrollView;
+                final SessionOverviewLayoutTransitionController layoutTransition = mLayoutTransition;
+                overviewScrollView.setOnScrollListener(scrollY -> onOverviewScrolled());
+                overviewScrollView.setOnContentClampListener((before, after) -> {
+                    if (layoutTransition != null) {
+                        layoutTransition.onContentClamped(before, after);
+                    }
+                });
+                overviewScrollView.setOnTouchDownListener(() -> {
+                    // The gesture takes ownership of the viewport: land the structural plan,
+                    // stop a reveal settle, and cancel a reveal that was waiting for layout.
+                    if (layoutTransition != null) layoutTransition.finishNow();
+                    overviewScrollView.finishContentTransition();
+                    mPendingRevealCard = null;
+                    mPendingRevealAttempts = 0;
+                });
             }
         }
         if (mGrid != null) {
-            mGrid.setOnGridLayoutListener((cardWidth, cardHeight, columns, rows) -> {
+            mGrid.setOnGridLayoutListener(layout -> {
                 if (mDragController != null && mDragController.isActive()) {
                     mDragController.cancelForModelChange();
                 }
-                mCardWidth = cardWidth;
-                mCardHeight = cardHeight;
+                mCardWidth = layout.cardWidth;
+                mCardHeight = layout.cardHeight;
                 if (!mShowing) return;
                 scrollToActiveCard();
                 // One render request per traversal: the layout listener below owns dirty marking.
@@ -538,8 +560,8 @@ public final class SessionOverviewController {
                 }
 
                 @Override
-                public void onOverviewGestureHover(float rawX, float rawY) {
-                    updateGestureHover(rawX, rawY);
+                public void onOverviewGestureHover(float windowX, float windowY) {
+                    updateGestureHover(windowX, windowY);
                 }
 
                 @Override
@@ -551,8 +573,8 @@ public final class SessionOverviewController {
                 }
 
                 @Override
-                public void onOverviewGestureReleased(float rawX, float rawY) {
-                    selectTargetUnderFinger(rawX, rawY);
+                public void onOverviewGestureReleased(float windowX, float windowY) {
+                    selectTargetUnderFinger(windowX, windowY);
                 }
             });
         }
@@ -1427,20 +1449,48 @@ public final class SessionOverviewController {
     private void releaseTerminalAddGridHold(boolean settle) {
         if (!mTerminalAddGridHeld) return;
         mTerminalAddGridHeld = false;
-        for (Card card : mCards) {
-            card.root.animate().cancel();
-            if (!settle) {
+        if (!settle) {
+            for (Card card : mCards) {
+                card.root.animate().cancel();
                 card.root.setTranslationX(0f);
                 card.root.setTranslationY(0f);
-                continue;
             }
-            if (card.root.getTranslationX() == 0f && card.root.getTranslationY() == 0f) {
-                continue;
+            // The closing cleanup is the last owner of the held snapshot. Any structural offset
+            // that was part of that snapshot must be dropped with the translations.
+            if (mScrollView instanceof SessionOverviewScrollView) {
+                ((SessionOverviewScrollView) mScrollView).finishContentTransition();
             }
-            OverviewAppearanceAnimation.animator(card.root)
-                    .translationX(0f)
-                    .translationY(0f)
-                    .start();
+            return;
+        }
+
+        // The abort leaves the grid at the post-add layout with the old snapshot held by card
+        // translations. Hand those translations to the same structural coordinator so the
+        // abort settles with the normal 160 ms card-only path instead of a second animator.
+        if (mLayoutTransition != null && !mCards.isEmpty()) {
+            final int count = mCards.size();
+            final List<View> views = new ArrayList<>(count);
+            final float[] fromX = new float[count];
+            final float[] fromY = new float[count];
+            final float[] targetX = new float[count];
+            final float[] targetY = new float[count];
+            for (int i = 0; i < count; i++) {
+                final View root = mCards.get(i).root;
+                root.animate().cancel();
+                views.add(root);
+                fromX[i] = root.getLeft() + root.getWidth() / 2f + root.getTranslationX();
+                fromY[i] = root.getTop() + root.getHeight() / 2f + root.getTranslationY();
+                targetX[i] = root.getLeft() + root.getWidth() / 2f;
+                targetY[i] = root.getTop() + root.getHeight() / 2f;
+            }
+            mLayoutTransition.seed(views, fromX, fromY, targetX, targetY,
+                    mScrollView != null ? mScrollView.getScrollY() : 0, false);
+            return;
+        }
+
+        for (Card card : mCards) {
+            card.root.animate().cancel();
+            card.root.setTranslationX(0f);
+            card.root.setTranslationY(0f);
         }
     }
 
@@ -2188,12 +2238,12 @@ public final class SessionOverviewController {
         // enough for recognition when it lifted, select now that the cards have bounds. If it is
         // still down, apply the hover point that was collected while the grid did not exist.
         if (mPendingGestureRelease) {
-            final float rawX = mPendingGestureReleaseX;
-            final float rawY = mPendingGestureReleaseY;
+            final float windowX = mPendingGestureReleaseX;
+            final float windowY = mPendingGestureReleaseY;
             mPendingGestureRelease = false;
             mGrid.post(() -> {
                 if (mShowing && !mOpeningPreparationPending) {
-                    selectTargetUnderFinger(rawX, rawY);
+                    selectTargetUnderFinger(windowX, windowY);
                 }
             });
         } else if (mGestureSelectionArmed) {
@@ -2313,8 +2363,9 @@ public final class SessionOverviewController {
         cancelPendingClosingSelection();
         cancelClosingTransition();
         if (mScrollView instanceof SessionOverviewScrollView) {
-            ((SessionOverviewScrollView) mScrollView).cancelContentShrinkSettle();
+            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
         }
+        if (mLayoutTransition != null) mLayoutTransition.finishNow();
 
         // The resume path pre-empted the platform's window-focus IME show. Undo that mode before
         // the focus hand-off below, or an explicit show after closing the overview is ignored by
@@ -2448,36 +2499,6 @@ public final class SessionOverviewController {
         mScrollRestoreObserver = null;
         if (listener != null && observer != null && observer.isAlive()) {
             observer.removeOnGlobalLayoutListener(listener);
-        }
-    }
-
-    /**
-     * Recompute the card grid after a configuration change has actually been laid out.
-     *
-     * <p>{@link #onConfigurationChanged(Configuration)} runs before the window traversal, so the
-     * pager can still report the previous orientation for one or more frames. Sampling on
-     * animation frames and stopping only after the viewport repeats makes the update follow the
-     * real window shape. {@link #currentGridViewport()} uses the measured overlay as the primary
-     * orientation guard and the dispatched configuration only while the overlay has no size, so
-     * even a viewport that never updates cannot keep the old orientation.</p>
-     */
-    private void refreshGridAspectAfterLayout(int attemptsLeft) {
-        if (!mShowing || mGrid == null) return;
-        final int[] viewport = currentGridViewport();
-        final int width = viewport[0];
-        final int height = viewport[1];
-        if (width > 0 && height > 0) {
-            updateGridAspect();
-            markResizedPreviewsDirty();
-            requestPreviewRender();
-            final boolean stable = width == mLastAspectRefreshWidth
-                    && height == mLastAspectRefreshHeight;
-            mLastAspectRefreshWidth = width;
-            mLastAspectRefreshHeight = height;
-            if (stable) return;
-        }
-        if (attemptsLeft > 0) {
-            mGrid.postOnAnimation(() -> refreshGridAspectAfterLayout(attemptsLeft - 1));
         }
     }
 
@@ -2669,6 +2690,9 @@ public final class SessionOverviewController {
                                   @Nullable LiftStart liftStart) {
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null
                 || mClosingCardAnimation != null) return false;
+        // Keep the card where it is currently drawn so the closing ghost starts from the same
+        // bounds; do not finish the transition and teleport the card first.
+        if (mLayoutTransition != null) mLayoutTransition.cancelForModelChange();
 
         // Apply the target profile now, while the overview still hides the panel. Doing it at
         // selection time also lets the following layout pass size the panel before the closing
@@ -2683,10 +2707,10 @@ public final class SessionOverviewController {
             if (opening.started) applyTransitionProgress(opening, 1f);
             cleanupTransition(opening);
         }
-        // The same rule applies to a removal settle: its translation would keep moving the grid
-        // while the closing flight reads the card geometry. Land it before capturing targets.
+        // Stop any remaining scroll settle without moving the grid. The closing flight must
+        // capture the bounds that are actually drawn, not the final scroll position.
         if (mScrollView instanceof SessionOverviewScrollView) {
-            ((SessionOverviewScrollView) mScrollView).cancelContentShrinkSettle();
+            ((SessionOverviewScrollView) mScrollView).freezeContentTransition();
         }
 
         final Card card = findCard(session);
@@ -3003,6 +3027,7 @@ public final class SessionOverviewController {
                 && mGrid.getChildCount() == mCards.size();
 
         cancelTransition();
+        if (mLayoutTransition != null) mLayoutTransition.cancelForModelChange();
         if (mDragController != null) mDragController.cancelForModelChange();
 
         // A structural change in the middle of an add-session flight would move/remove the
@@ -3091,16 +3116,19 @@ public final class SessionOverviewController {
             hide(false);
             return;
         }
-        // A pure removal can leave the grid shorter than the current scroll offset. The platform
-        // clamps the scroll in the next layout; arm the scroll view to slide to the new end
-        // instead of jumping there. The opening restore owns the offset until it has run, so a
-        // removal in that first frame must not start a second, competing animation.
-        if (pureRemoval && !mRestoreScrollOnOpen
-                && mScrollView instanceof SessionOverviewScrollView) {
-            ((SessionOverviewScrollView) mScrollView).armContentShrinkSettle();
-        }
+        // Seed the one structural transition before the new layout is drawn. The scroll clamp is
+        // folded into the same plan, so no second settle is started after the cards begin to move.
+        // The opening restore still owns the viewport during its first frame, so a removal there
+        // simply snaps to the final layout.
         mGrid.requestLayout();
-        if (pureRemoval && !oldCenters.isEmpty()) animateRemovalSettle(oldCenters);
+        final boolean seededRemoval = pureRemoval && !mRestoreScrollOnOpen
+                && !oldCenters.isEmpty() && mLayoutTransition != null
+                && animateRemovalSettle(oldCenters);
+        if (!seededRemoval) {
+            // A rebuild/reorder, an opening removal, or a removal with no usable old/new
+            // geometry has no seeded plan. Snap the new layout and clear the old offset.
+            resetStructuralVisuals();
+        }
         schedulePreviewRender();
     }
 
@@ -3253,12 +3281,15 @@ public final class SessionOverviewController {
         OverviewAppearanceAnimation.arm(card.root);
     }
 
-    /** Clear the reveal flag and force the final visual values in case an animation was cut short. */
+    /**
+     * Clear the reveal flag and force the final alpha/scale values in case an animation was cut
+     * short. Translation is deliberately not touched: after the layout-transition coordinator
+     * exists it owns card positions, and an appearance end callback must not snap a card back to
+     * its slot while that transition is still running.
+     */
     private static void finishCardAppearance(@NonNull Card card) {
         card.appearing = false;
         OverviewAppearanceAnimation.reset(card.root);
-        card.root.setTranslationX(0f);
-        card.root.setTranslationY(0f);
     }
 
     /** True while a newly appended card is still fading and growing into its slot. */
@@ -3333,18 +3364,21 @@ public final class SessionOverviewController {
                     for (Card card : cards) finishCardAppearance(card);
                     applyOverviewBackgroundAfterReveal();
                 }
+                // No structural plan will consume the old offset in this path.
+                resetStructuralVisuals();
                 return;
             }
 
             // The add-button flight may already have been cancelled between arming this
             // runnable and the layout pass. In that case there is no closing snapshot to hold
-            // for; fall through to the ordinary settle so the grid does not stay offset.
+            // for; fall through to the ordinary transition so the grid does not stay offset.
             final boolean hold = holdSurvivors && mTerminalAddFlight != null;
 
             final float[] fromX = new float[count];
             final float[] fromY = new float[count];
             final float[] targetX = new float[count];
             final float[] targetY = new float[count];
+            final List<View> views = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 final Card card = mCards.get(i);
                 final View root = card.root;
@@ -3355,14 +3389,30 @@ public final class SessionOverviewController {
                 fromY[i] = oldCenter != null ? oldCenter[1] : centerY;
                 targetX[i] = centerX;
                 targetY[i] = centerY;
-                root.animate().cancel();
-                root.setTranslationX(fromX[i] - targetX[i]);
-                root.setTranslationY(fromY[i] - targetY[i]);
+                views.add(root);
+                // A card that is still fading in owns its alpha/scale animator. Cancel only
+                // positional animators here; cancelling the shared ViewPropertyAnimator would
+                // freeze an in-flight appearance at its current alpha/scale.
+                if (!card.appearing) root.animate().cancel();
                 if (card.appearing && card != flightCard) {
                     OverviewAppearanceAnimation.pivotToCenter(root);
                 }
             }
-            if (hold) mTerminalAddGridHeld = true;
+            if (hold) {
+                // The closing expansion fades the grid as one snapshot. Keep the survivors at
+                // their old centres and finish appearance without touching their translation.
+                mTerminalAddGridHeld = true;
+                for (int i = 0; i < count; i++) {
+                    final Card card = mCards.get(i);
+                    final View root = card.root;
+                    root.setTranslationX(fromX[i] - targetX[i]);
+                    root.setTranslationY(fromY[i] - targetY[i]);
+                    if (card.appearing) {
+                        card.appearing = false;
+                        OverviewAppearanceAnimation.reset(root);
+                    }
+                }
+            }
 
             // Paint the new thumbnail before its first visible frame; the throttled preview
             // pass may still be a few frames away.
@@ -3370,37 +3420,35 @@ public final class SessionOverviewController {
             final Typeface typeface = previewTypeface();
             for (Card card : cards) renderCard(card, textSize, typeface);
 
-            // A fifth and later tab starts below the viewport. Reveal the newest one with the
-            // platform's smooth scroll so the grid glides instead of snapping to the new row.
-            if (revealNewest) smoothScrollToCard(cards.get(cards.size() - 1));
-
-            for (int i = 0; i < count; i++) {
-                final Card card = mCards.get(i);
-                if (card == flightCard) continue;
-                if (hold) {
-                    // The closing expansion owns the grid from the next frame and fades it as
-                    // one snapshot. Settling the survivors into the new top-aligned slots now
-                    // would pull the old centred rows upward while the terminal is still
-                    // expanding. Finish an in-flight reveal without touching the translation.
-                    if (card.appearing) {
-                        card.appearing = false;
-                        OverviewAppearanceAnimation.reset(card.root);
-                    }
-                    continue;
+            int scrollTarget = mScrollView != null ? mScrollView.getScrollY() : 0;
+            if (!hold && revealNewest && mLayoutTransition != null) {
+                if (mRestoreScrollOnOpen) {
+                    mPendingRevealCard = cards.get(cards.size() - 1);
+                    mPendingRevealAttempts = 0;
+                } else {
+                    scrollTarget = revealTargetFor(cards.get(cards.size() - 1));
                 }
-                final ViewPropertyAnimator animator =
-                        OverviewAppearanceAnimation.animator(card.root)
-                                .translationX(0f)
-                                .translationY(0f);
-                // Surviving cards were already restored to rest by cancelForModelChange();
-                // only the new ones need their opacity and size to animate.
-                if (card.appearing) {
+            }
+            if (!hold && !mRestoreScrollOnOpen && mLayoutTransition != null) {
+                mLayoutTransition.seed(views, fromX, fromY, targetX, targetY,
+                        scrollTarget, false);
+            } else if (!hold) {
+                // Opening owns the viewport, or there is no coordinator: apply the final layout
+                // immediately and drop any offset left by an interrupted transition.
+                resetStructuralVisuals();
+            }
+
+            if (!hold) {
+                for (Card card : cards) {
+                    if (card == flightCard || !card.appearing) continue;
+                    final ViewPropertyAnimator animator =
+                            OverviewAppearanceAnimation.animator(card.root);
                     animator.withEndAction(() -> {
                         finishCardAppearance(card);
                         applyOverviewBackgroundAfterReveal();
                     });
+                    animator.start();
                 }
-                animator.start();
             }
 
             if (flightCard != null) beginAddTabFlight(flightCard);
@@ -3414,13 +3462,50 @@ public final class SessionOverviewController {
         grid.post(start);
     }
 
+    /** Scroll target that reveals a just-appended card, using its real laid-out rectangle. */
+    private int revealTargetFor(@NonNull Card card) {
+        final SessionOverviewGridMath.Layout layout = mGrid.getGridLayout();
+        if (mScrollView == null || layout == null || !layout.hasCards()
+                || card.root.getHeight() <= 0) {
+            return mScrollView != null ? mScrollView.getScrollY() : 0;
+        }
+        final int viewportHeight = mScrollView.getHeight();
+        if (viewportHeight <= 0) return mScrollView.getScrollY();
+        final int topInset = mGrid.getPaddingTop();
+        // The grid lays children at paddingTop + slot.top, so the child's own top already
+        // includes the status-bar strip. Adding topInset here would double it and over-scroll.
+        final int cardTop = card.root.getTop();
+        final int maxScroll = Math.max(0, mGrid.getHeight() - viewportHeight);
+        return SessionOverviewScrollMath.scrollForAppendedCard(
+                mScrollView.getScrollY(), viewportHeight, topInset, maxScroll,
+                cardTop, cardTop + card.root.getHeight(), layout.outerGap);
+    }
+
+    /**
+     * Snap the grid out of any old structural offset when the current model change will not build
+     * a new transition. The coordinator is cancelled before a rebuild/reorder, so its state is
+     * gone; the scroll offset it left behind must not survive into the rebuilt layout.
+     */
+    private void resetStructuralVisuals() {
+        if (mLayoutTransition != null) mLayoutTransition.finishNow();
+        if (mScrollView instanceof SessionOverviewScrollView) {
+            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
+        }
+        for (Card card : mCards) {
+            card.root.setTranslationX(0f);
+            card.root.setTranslationY(0f);
+        }
+    }
+
     /** Visual centres of the cards currently in the grid, keyed by their sessions. */
     @NonNull
-    private static Map<TerminalSession, float[]> captureCardCenters(@NonNull List<Card> cards) {
+    private Map<TerminalSession, float[]> captureCardCenters(@NonNull List<Card> cards) {
         final Map<TerminalSession, float[]> centers = new IdentityHashMap<>();
         for (Card card : cards) {
             final View root = card.root;
             if (root.getWidth() <= 0 || root.getHeight() <= 0) continue;
+            // Content coordinates: the laid-out centre plus any card translation. The structural
+            // scroll offset is deliberately excluded; the transition carries it separately.
             centers.put(card.session, new float[]{
                     root.getLeft() + root.getWidth() / 2f + root.getTranslationX(),
                     root.getTop() + root.getHeight() / 2f + root.getTranslationY()
@@ -3434,29 +3519,31 @@ public final class SessionOverviewController {
      * into the reflowed grid. The controller seeds the translations before the next layout and
      * re-applies them against the actual laid-out bounds before starting the animation.
      */
-    private void animateRemovalSettle(@NonNull Map<TerminalSession, float[]> oldCenters) {
-        if (mDragController == null || mGrid == null || mCards.isEmpty()) return;
+    private boolean animateRemovalSettle(@NonNull Map<TerminalSession, float[]> oldCenters) {
+        if (mLayoutTransition == null || mGrid == null || mCards.isEmpty()) return false;
         final int count = mCards.size();
-        final float[] slotCenters = mGrid.getSlotCenters(count);
-        if (slotCenters == null || slotCenters.length != count * 2) return;
+        final float[] targetCentres = mGrid.getSlotCenters(count);
+        if (targetCentres == null || targetCentres.length != count * 2) return false;
 
-        final List<SessionOverviewCardView> cards = new ArrayList<>(count);
-        final float[] fromCenterXs = new float[count];
-        final float[] fromCenterYs = new float[count];
-        final float[] targetCenterXs = new float[count];
-        final float[] targetCenterYs = new float[count];
+        final List<View> views = new ArrayList<>(count);
+        final float[] fromX = new float[count];
+        final float[] fromY = new float[count];
+        final float[] targetX = new float[count];
+        final float[] targetY = new float[count];
         for (int i = 0; i < count; i++) {
             final Card card = mCards.get(i);
             final float[] oldCenter = oldCenters.get(card.session);
-            if (oldCenter == null) return;
-            cards.add(card.root);
-            fromCenterXs[i] = oldCenter[0];
-            fromCenterYs[i] = oldCenter[1];
-            targetCenterXs[i] = slotCenters[i * 2];
-            targetCenterYs[i] = slotCenters[i * 2 + 1];
+            if (oldCenter == null) return false;
+            views.add(card.root);
+            fromX[i] = oldCenter[0];
+            fromY[i] = oldCenter[1];
+            targetX[i] = targetCentres[i * 2];
+            targetY[i] = targetCentres[i * 2 + 1];
         }
-        mDragController.animateLayoutChange(cards, fromCenterXs, fromCenterYs,
-                targetCenterXs, targetCenterYs);
+        // The platform's layout clamp supplies the scroll target. Folding it into this plan keeps
+        // the removal from running a second settle after the cards have already started moving.
+        mLayoutTransition.seed(views, fromX, fromY, targetX, targetY, 0, true);
+        return true;
     }
 
     /**
@@ -3647,7 +3734,7 @@ public final class SessionOverviewController {
             }
         }
         if (mScrollView instanceof SessionOverviewScrollView) {
-            ((SessionOverviewScrollView) mScrollView).cancelContentShrinkSettle();
+            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
         }
         mActivity.keepExtraKeysPanelHiddenForOverview();
         if (mDragController != null) mDragController.cancelForModelChange();
@@ -6026,6 +6113,9 @@ public final class SessionOverviewController {
         // owns the grid only while it is on screen; drop that snapshot before restoring the
         // final card geometry. The reset below then leaves the grid in its post-add layout.
         releaseTerminalAddGridHold(false);
+        if (mScrollView instanceof SessionOverviewScrollView) {
+            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
+        }
 
         transition.card.preview.setAlpha(1f);
         transition.card.preview.setVisibility(View.VISIBLE);
@@ -6165,10 +6255,12 @@ public final class SessionOverviewController {
      * Select the card under the release point of the gesture that opened the overview.
      *
      * <p>The card never received this gesture's {@code ACTION_DOWN}, so its own click handler
-     * cannot be used. Screen coordinates and {@link View#getGlobalVisibleRect} keep the hit-test
-     * correct with window insets, card translations during the opening flight and RTL layouts.</p>
+     * cannot be used. The point and the card bounds are both read in the window's coordinate
+     * space ({@link View#getGlobalVisibleRect}), so window insets, card translations during the
+     * opening flight, RTL layouts and a window that does not fill the screen, such as a bubble,
+     * keep the hit-test correct.</p>
      */
-    private void selectTargetUnderFinger(float rawX, float rawY) {
+    private void selectTargetUnderFinger(float windowX, float windowY) {
         if (mActivityStopped) return;
         if (mOpeningPreparationPending) {
             // The finger can lift while the keyboard is still hiding. Remember the point only
@@ -6176,8 +6268,8 @@ public final class SessionOverviewController {
             // quick flick that would not select in the immediately-shown overview either.
             if (mGestureSelectionArmed) {
                 mPendingGestureRelease = true;
-                mPendingGestureReleaseX = rawX;
-                mPendingGestureReleaseY = rawY;
+                mPendingGestureReleaseX = windowX;
+                mPendingGestureReleaseY = windowY;
                 if (mGrid != null) {
                     mGrid.removeCallbacks(mArmGestureSelectionRunnable);
                 }
@@ -6204,7 +6296,7 @@ public final class SessionOverviewController {
         // underneath it. The hover flag also accepts a release a pixel outside the layout
         // bounds after the finger has already lifted the button.
         final boolean addTarget = isAddButtonHoverTarget()
-                && (mAddButtonHovered || findAddButtonAtScreenPoint(rawX, rawY));
+                && (mAddButtonHovered || findAddButtonAtWindowPoint(windowX, windowY));
         if (addTarget) {
             stopAutoScroll();
             if (mHoverCard != null) {
@@ -6216,7 +6308,7 @@ public final class SessionOverviewController {
             return;
         }
         if (mAddButtonHovered) resetAddButtonHover();
-        final Card hit = mHoverCard != null ? mHoverCard : findCardAtScreenPoint(rawX, rawY);
+        final Card hit = mHoverCard != null ? mHoverCard : findCardAtWindowPoint(windowX, windowY);
         stopAutoScroll();
         // A lift from the opening gesture can still be animating at release. Stop it without
         // applying its endpoint, then capture the whole visual state so the ghost, its tabs and
@@ -6235,7 +6327,7 @@ public final class SessionOverviewController {
             SessionOverviewCardView.resetVisual(hit.root);
         }
         if (hit == null) return;
-        if (containsScreenPoint(hit.close, rawX, rawY)) {
+        if (containsWindowPoint(hit.close, windowX, windowY)) {
             closeSessionFromButton(hit);
             return;
         }
@@ -6266,18 +6358,18 @@ public final class SessionOverviewController {
     }
 
     /** Track the finger, highlight the drop target and scroll the list at its edges. */
-    private void updateGestureHover(float rawX, float rawY) {
+    private void updateGestureHover(float windowX, float windowY) {
         if (!mShowing || mActivityStopped || mClosingTransition != null
                 || mPendingClosingCard != null || mClosingCardAnimation != null) return;
         // Remember the point even while recognition is delayed, so the first eligible frame can
         // highlight the card the finger is actually over.
-        mHoverRawX = rawX;
-        mHoverRawY = rawY;
+        mHoverWindowX = windowX;
+        mHoverWindowY = windowY;
         // The grid does not exist yet while the terminal is growing. Keep the point; showNow()
         // applies it once the cards have been laid out.
         if (mOpeningPreparationPending) return;
         if (!mGestureSelectionArmed) return;
-        updateAutoScrollEdge(rawX, rawY);
+        updateAutoScrollEdge(windowX, windowY);
         applyHoverTarget();
     }
 
@@ -6285,7 +6377,7 @@ public final class SessionOverviewController {
     private void applyHoverTarget() {
         // The button is painted above the grid, so it is the first target. Its hover stops edge
         // auto-scroll: the button is fixed in the corner and must not slide under the finger.
-        if (findAddButtonAtScreenPoint(mHoverRawX, mHoverRawY)) {
+        if (findAddButtonAtWindowPoint(mHoverWindowX, mHoverWindowY)) {
             if (mHoverCard != null) {
                 final Card previous = mHoverCard;
                 mHoverCard = null;
@@ -6296,7 +6388,7 @@ public final class SessionOverviewController {
             return;
         }
         setAddButtonHovered(false);
-        final Card card = findCardAtScreenPoint(mHoverRawX, mHoverRawY);
+        final Card card = findCardAtWindowPoint(mHoverWindowX, mHoverWindowY);
         if (card == mHoverCard) return;
         clearGestureHover();
         mHoverCard = card;
@@ -6334,8 +6426,8 @@ public final class SessionOverviewController {
     }
 
     /** True when the finger is inside the add button's visible, clipped bounds. */
-    private boolean findAddButtonAtScreenPoint(float rawX, float rawY) {
-        return isAddButtonHoverTarget() && containsScreenPoint(mAddButton, rawX, rawY);
+    private boolean findAddButtonAtWindowPoint(float windowX, float windowY) {
+        return isAddButtonHoverTarget() && containsWindowPoint(mAddButton, windowX, windowY);
     }
 
     /**
@@ -6433,10 +6525,10 @@ public final class SessionOverviewController {
      * Start the edge auto-scroll loop at most once per gesture. The loop decides on every frame
      * whether the finger is still inside an edge band, exactly like the input-history popup.
      */
-    private void updateAutoScrollEdge(float rawX, float rawY) {
+    private void updateAutoScrollEdge(float windowX, float windowY) {
         // The button is fixed in the corner and paints above the grid; scrolling the grid under
         // it would move the drop target out from under the finger.
-        if (findAddButtonAtScreenPoint(rawX, rawY)) {
+        if (findAddButtonAtWindowPoint(windowX, windowY)) {
             stopAutoScroll();
             return;
         }
@@ -6463,12 +6555,12 @@ public final class SessionOverviewController {
             stopAutoScroll();
             return;
         }
-        if (findAddButtonAtScreenPoint(mHoverRawX, mHoverRawY)) {
+        if (findAddButtonAtWindowPoint(mHoverWindowX, mHoverWindowY)) {
             stopAutoScroll();
             return;
         }
 
-        mScrollView.getLocationOnScreen(mScratchLocation);
+        mScrollView.getLocationInWindow(mScratchLocation);
         final int viewportHeight = mScrollView.getHeight();
         final long now = SystemClock.uptimeMillis();
         final float frameRatio = SessionOverviewReorderMath.frameRatio(
@@ -6476,7 +6568,7 @@ public final class SessionOverviewController {
         mAutoScrollLastTimeMs = now;
 
         final int step = SessionOverviewReorderMath.autoScrollStep(
-                mHoverRawY - mScratchLocation[1], viewportHeight,
+                mHoverWindowY - mScratchLocation[1], viewportHeight,
                 mAutoScrollBandPx, mAutoScrollMaxStepPx, frameRatio);
         if (step == 0) {
             stopAutoScroll();
@@ -6544,24 +6636,24 @@ public final class SessionOverviewController {
                 top + Math.round(child.getHeight() * scaleY));
     }
 
-    /** Topmost card whose preview contains the given screen point, or null. */
+    /** Topmost card whose preview contains the given window point, or null. */
     @Nullable
-    private Card findCardAtScreenPoint(float rawX, float rawY) {
+    private Card findCardAtWindowPoint(float windowX, float windowY) {
         for (int i = mCards.size() - 1; i >= 0; i--) {
             final Card card = mCards.get(i);
             if (card.root.getVisibility() != View.VISIBLE) continue;
             // The preview is temporarily hidden while the opening flight covers it, so the card
             // root is the stable hit target for the whole gesture.
-            if (containsScreenPoint(card.root, rawX, rawY)) return card;
+            if (containsWindowPoint(card.root, windowX, windowY)) return card;
         }
         return null;
     }
 
-    /** True when the view is visible and the screen point falls inside its clipped bounds. */
-    private boolean containsScreenPoint(@NonNull View view, float rawX, float rawY) {
+    /** True when the view is visible and the window point falls inside its clipped bounds. */
+    private boolean containsWindowPoint(@NonNull View view, float windowX, float windowY) {
         if (!view.getGlobalVisibleRect(mScratchHitRect) || mScratchHitRect.isEmpty()) return false;
-        return rawX >= mScratchHitRect.left && rawX < mScratchHitRect.right
-                && rawY >= mScratchHitRect.top && rawY < mScratchHitRect.bottom;
+        return windowX >= mScratchHitRect.left && windowX < mScratchHitRect.right
+                && windowY >= mScratchHitRect.top && windowY < mScratchHitRect.bottom;
     }
 
 
@@ -6586,6 +6678,7 @@ public final class SessionOverviewController {
         // The closing snapshot already captured the viewport. A pending reveal that fires
         // after the snapshot would scroll the grid under the expanding terminal.
         if (mClosingTransition != null || mPendingClosingCard != null) return;
+        if (mLayoutTransition != null && mLayoutTransition.isActive()) return;
         // The add-button release opens a terminal outside the grid. Keep the viewport exactly
         // where the gesture left it until the expansion owns the screen; a reveal scroll here
         // would move the whole grid in the first frames of the closing animation.
@@ -6598,7 +6691,7 @@ public final class SessionOverviewController {
             return;
         }
         final SessionOverviewGridMath.Layout layout = mGrid.getGridLayout();
-        if (layout == null || layout.columns <= 0 || layout.cardHeight <= 0) {
+        if (layout == null || !layout.hasCards() || layout.cardHeight <= 0) {
             mPendingRevealCard = card;
             if (++mPendingRevealAttempts <= 20) mGrid.post(this::revealPendingCard);
             else mPendingRevealCard = null;
@@ -6616,14 +6709,19 @@ public final class SessionOverviewController {
             if (mPendingRevealCard == card) mPendingRevealCard = null;
             return;
         }
+        final SessionOverviewGridMath.Slot slot = layout.slot(index);
+        if (slot == null) {
+            mPendingRevealCard = card;
+            if (++mPendingRevealAttempts <= 20) mGrid.post(this::revealPendingCard);
+            else mPendingRevealCard = null;
+            return;
+        }
         mPendingRevealCard = null;
         mPendingRevealAttempts = 0;
 
         final int topInset = mGrid.getPaddingTop();
         final int maxScroll = Math.max(0, mGrid.getHeight() - viewportHeight);
-        final int row = index / layout.columns;
-        final int rowTop = layout.top + row * (layout.cardHeight + layout.gap);
-        final int cardTop = topInset + rowTop;
+        final int cardTop = topInset + slot.top;
         // Stop one outer gutter past the card's bottom edge, not flush with the viewport. The
         // larger top/bottom spacing is part of the layout now, so the extra travel uses the same
         // outer gutter; the helper still clamps it to the real content end.
@@ -6673,12 +6771,13 @@ public final class SessionOverviewController {
         // A newly appended card owns the scroll until its reveal has finished. A layout pass in
         // that window (the new session's terminal geometry can resize every card) would otherwise
         // call scrollTo() and teleport the grid to the active card in one frame.
+        if (mLayoutTransition != null && mLayoutTransition.isActive()) return;
         if (mScrollView instanceof SessionOverviewScrollView
                 && ((SessionOverviewScrollView) mScrollView).isContentSettling()) {
             return;
         }
         final SessionOverviewGridMath.Layout layout = mGrid.getGridLayout();
-        if (layout == null || layout.columns <= 0 || layout.cardHeight <= 0) return;
+        if (layout == null || !layout.hasCards() || layout.cardHeight <= 0) return;
         final int viewportHeight = mScrollView.getHeight();
         if (viewportHeight <= 0) return;
 
@@ -6693,13 +6792,12 @@ public final class SessionOverviewController {
                     ? Math.max(0, mRememberedScrollY) : currentScroll;
             target = Math.max(0, Math.min(maxScroll, preferred));
         } else {
-            final int row = index / layout.columns;
-            // The row's top in the grid's coordinate space, excluding the status-bar strip.
-            final int rowTop = layout.top + row * (layout.cardHeight + layout.gap);
+            final SessionOverviewGridMath.Slot slot = layout.slot(index);
+            if (slot == null) return;
             final int preferred = mRestoreScrollOnOpen
-                    ? (mRememberedScrollY >= 0 ? mRememberedScrollY : rowTop)
+                    ? (mRememberedScrollY >= 0 ? mRememberedScrollY : slot.top)
                     : currentScroll;
-            final int cardTop = topInset + rowTop;
+            final int cardTop = topInset + slot.top;
             // While a new card is revealing, this layout-driven path must land on the same
             // offset as the explicit append scroll: one outer gutter below the card, clamped to
             // the content end. Otherwise a layout pass could leave the card flush with the edge.
@@ -6797,7 +6895,18 @@ public final class SessionOverviewController {
         // of the opening transition itself, and the morph's layout listener follows any bottom-
         // strip shift, so the flight can retarget instead of ending on the first IME frame.
         cancelCardCloseAnimation();
+        if (mLayoutTransition != null) mLayoutTransition.finishNow();
+        // A viewport change cancels every positional animation, including the independent
+        // opening/reveal scroll settle, before the new geometry is applied.
+        if (mScrollView instanceof SessionOverviewScrollView) {
+            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
+        }
         if (mDragController != null) mDragController.cancelForModelChange();
+        // Notify the grid explicitly: no polling of a layout pass is needed to discover the new
+        // viewport shape. Card sizing keeps the stable height; centring follows the visible one.
+        if (mGrid != null && mScrollView != null) {
+            mGrid.onOverviewViewportChanged(mScrollView.getHeight(), mScrollView.getHeight());
+        }
         // The add-session source was captured in the old geometry; drop the ghost and reveal
         // the card normally in the new layout.
         cancelAddTabFlight(true, true);
@@ -6809,12 +6918,6 @@ public final class SessionOverviewController {
         applyOverviewBackground();
         updateGridAspect();
         markResizedPreviewsDirty();
-        // The pager can still report the old orientation during this callback. Refresh again on
-        // the next frames until its measured viewport stops changing, so cards cannot keep the
-        // previous orientation's grid.
-        mLastAspectRefreshWidth = -1;
-        mLastAspectRefreshHeight = -1;
-        refreshGridAspectAfterLayout(20);
         final TerminalSession current = mActivity.getCurrentSession();
         for (Card card : mCards) {
             applyTabMetrics(card);
@@ -7338,6 +7441,23 @@ public final class SessionOverviewController {
             return;
         }
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null) return;
+        // The activity reports this after the real terminal viewport has been laid out. Apply the
+        // new shape immediately and drop any positional animation instead of polling frames.
+        if (mGrid != null && mScrollView != null) {
+            final int visibleHeight = mScrollView.getHeight();
+            mGrid.onOverviewViewportChanged(visibleHeight, visibleHeight);
+        }
+        if (mLayoutTransition != null) mLayoutTransition.finishNow();
+        if (mScrollView instanceof SessionOverviewScrollView) {
+            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
+        }
+        // Reaching MAX_SESSIONS hides the tab-strip "+", which shrinks the tab panel and changes
+        // the terminal viewport. That can land in the middle of the add-button morph. The flight
+        // card must stay at alpha 0 until the ghost lands; skip only its visual reset here.
+        if (mDragController != null) {
+            mDragController.cancelForModelChange(
+                    mAddTabFlightCard != null ? mAddTabFlightCard.root : null);
+        }
         updateGridAspect();
         markResizedPreviewsDirty();
         schedulePreviewRender();

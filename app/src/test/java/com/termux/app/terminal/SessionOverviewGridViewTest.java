@@ -38,7 +38,7 @@ public class SessionOverviewGridViewTest {
             Assert.assertEquals(count, grid.getChildCount());
             Assert.assertEquals(count, layout.sessionCount);
             Assert.assertEquals(2, layout.columns);
-            Assert.assertEquals(Math.max(2, (count + 1) / 2), layout.rows);
+            Assert.assertEquals((count + 1) / 2, layout.rows);
             Assert.assertEquals(layout.columns * layout.rows - count, layout.emptySlots);
             Assert.assertTrue(layout.hasCards());
 
@@ -193,7 +193,18 @@ public class SessionOverviewGridViewTest {
 
         Assert.assertEquals(cardWidth, grid.getCardWidth());
         Assert.assertEquals(cardHeight, grid.getCardHeight());
-        Assert.assertTrue(grid.getMeasuredHeight() >= HEIGHT);
+        final SessionOverviewGridMath.Layout keyboardLayout = grid.getGridLayout();
+        Assert.assertNotNull(keyboardLayout);
+        // The content no longer reserves the keyboard-hidden height. It is tall enough to hold
+        // the cards plus both outer gutters and is scrollable inside the shorter viewport.
+        Assert.assertTrue("gridHeight=" + keyboardLayout.gridHeight
+                        + " visibleHeight=" + keyboardLayout.visibleHeight
+                        + " contentHeight=" + keyboardLayout.contentHeight
+                        + " outerGap=" + keyboardLayout.outerGap
+                        + " measuredHeight=" + grid.getMeasuredHeight(),
+                keyboardLayout.isScrollable());
+        Assert.assertTrue(grid.getMeasuredHeight()
+                >= keyboardLayout.contentHeight + keyboardLayout.outerGap * 2);
 
         // A width change is a new window shape and is allowed to recompute the cards.
         grid.setViewportHeight(HEIGHT / 2);
@@ -253,23 +264,19 @@ public class SessionOverviewGridViewTest {
     public void listenerReportsTheSizeThatWasLaidOut() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         SessionOverviewGridView grid = newGrid(activity, 5);
-        final int[] reported = {-1, -1, -1, -1};
-        grid.setOnGridLayoutListener((w, h, columns, rows) -> {
-            reported[0] = w;
-            reported[1] = h;
-            reported[2] = columns;
-            reported[3] = rows;
-        });
+        final SessionOverviewGridMath.Layout[] reported = new SessionOverviewGridMath.Layout[1];
+        grid.setOnGridLayoutListener(layout -> reported[0] = layout);
 
         grid.measure(View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY));
         grid.layout(0, 0, WIDTH, HEIGHT);
 
         SessionOverviewGridMath.Layout layout = grid.getGridLayout();
-        Assert.assertEquals(layout.cardWidth, reported[0]);
-        Assert.assertEquals(layout.cardHeight, reported[1]);
-        Assert.assertEquals(2, reported[2]);
-        Assert.assertEquals(3, reported[3]);
+        Assert.assertNotNull(reported[0]);
+        Assert.assertEquals(layout.cardWidth, reported[0].cardWidth);
+        Assert.assertEquals(layout.cardHeight, reported[0].cardHeight);
+        Assert.assertEquals(2, reported[0].columns);
+        Assert.assertEquals(3, reported[0].rows);
     }
 
     @Test

@@ -814,6 +814,18 @@ final class SessionOverviewDragController {
      * the cards, so reset everything immediately instead of animating.
      */
     void cancelForModelChange() {
+        cancelForModelChange(null);
+    }
+
+    /**
+     * As {@link #cancelForModelChange()}, but leaves {@code skipResetView} untouched.
+     *
+     * <p>A viewport update can arrive while the add-session flight is still running. The flight
+     * card is deliberately at alpha 0 until the ghost lands, and its reveal is owned by that
+     * flight; a generic drag reset must not make it visible early. The caller passes that card
+     * here instead of teaching this controller about flight state.</p>
+     */
+    void cancelForModelChange(@Nullable View skipResetView) {
         final SessionOverviewCardView card = mCard;
         cancelDropFlight(false);
         if (card != null) card.removeCallbacks(mLongPressRunnable);
@@ -824,7 +836,7 @@ final class SessionOverviewDragController {
         for (int i = 0; i < mGrid.getChildCount(); i++) {
             final View child = mGrid.getChildAt(i);
             child.animate().cancel();
-            SessionOverviewCardView.resetVisual(child);
+            if (child != skipResetView) SessionOverviewCardView.resetVisual(child);
         }
         if (card != null) disallowIntercept(card, false);
         resetGesture();
