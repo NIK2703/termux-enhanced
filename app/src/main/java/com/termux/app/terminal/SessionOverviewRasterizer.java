@@ -40,8 +40,10 @@ final class SessionOverviewRasterizer {
     private volatile boolean mReleased;
 
     SessionOverviewRasterizer() {
+        // Preview work is small and bounded, but background priority can starve it for
+        // hundreds of milliseconds. DEFAULT stays below the UI/RenderThread and avoids that.
         mPreviewExecutor = Executors.newSingleThreadExecutor(new LaneThreadFactory(
-                "overview-preview-raster", Process.THREAD_PRIORITY_BACKGROUND));
+                "overview-preview-raster", Process.THREAD_PRIORITY_DEFAULT));
         mFrameExecutor = Executors.newSingleThreadExecutor(new LaneThreadFactory(
                 "overview-frame-raster", Process.THREAD_PRIORITY_DEFAULT));
     }

@@ -3676,6 +3676,9 @@ public final class SessionOverviewController {
         if (mClosingTransition == null) cancelTerminalAddFlight(false, false);
         if (!mShowing) return;
         mActivityStopped = true;
+        // A delayed retry cannot render while stopped; cancel it instead of waking the main
+        // looper only to hit the mActivityStopped guard. Resume re-marks dirty cards.
+        cancelPreviewRetries();
         disarmGestureSelection();
         resetAddButtonHover();
         mActivity.cancelOverviewAddButtonMorph();
@@ -7330,12 +7333,15 @@ public final class SessionOverviewController {
 
         final int topRow = scrollTopRow(card.session);
         final TerminalRenderSnapshot snapshot;
+        Trace.beginSection("overview.preview.card.snapshot");
         try {
             snapshot = TerminalRenderSnapshot.capture(emulator, topRow);
         } catch (RuntimeException ignored) {
             // The emulator may have been resized between the size read and the copy. The next
             // output/layout callback will request again.
             return;
+        } finally {
+            Trace.endSection();
         }
 
         card.previewDirty = false;
@@ -7360,6 +7366,16 @@ public final class SessionOverviewController {
         };
         card.previewRetryRunnable = retry;
         mGrid.postDelayed(retry, delayMs);
+    }
+
+    /** Cancel pending preview retries; dirty cards are re-requested when the overview resumes. */
+    private void cancelPreviewRetries() {
+        for (Card card : mCards) {
+            card.previewRetryPosted = false;
+            if (mGrid != null && card.previewRetryRunnable != null) {
+                mGrid.removeCallbacks(card.previewRetryRunnable);
+            }
+        }
     }
 
     /** Select the offscreen buffer for the next render. It is never the bitmap on screen. */
@@ -7529,18 +7545,29 @@ public final class SessionOverviewController {
         }
         if (!mShowing || mClosingTransition != null || mPendingClosingCard != null) return;
         // The activity reports this after the real terminal viewport has been laid out. Apply the
-        // new shape immediately and drop any positional animation instead of polling frames.
+        // new shape immediately; positional animations are dropped below unless a structural
+        // transition is still using the viewport.
         if (mGrid != null && mScrollView != null) {
             final int visibleHeight = mScrollView.getHeight();
             mGrid.onOverviewViewportChanged(visibleHeight, visibleHeight);
         }
-        if (mLayoutTransition != null) mLayoutTransition.finishNow();
-        if (mScrollView instanceof SessionOverviewScrollView) {
-            ((SessionOverviewScrollView) mScrollView).finishContentTransition();
+        // Reaching MAX_SESSIONS toggles the tab-strip "+", which changes the tab panel height and
+        // therefore the terminal viewport. That can land in the middle of an add or removal
+        // transition. The transition owns the viewport until it lands: finishing it here would
+        // snap the grid to the final scroll position in one frame instead of gliding to it.
+        final boolean transitionOwnsViewport =
+                (mLayoutTransition != null && mLayoutTransition.isActive())
+                || (hasAppearingCards()
+                    && mScrollView instanceof SessionOverviewScrollView
+                    && ((SessionOverviewScrollView) mScrollView).isContentSettling());
+        if (!transitionOwnsViewport) {
+            if (mLayoutTransition != null) mLayoutTransition.finishNow();
+            if (mScrollView instanceof SessionOverviewScrollView) {
+                ((SessionOverviewScrollView) mScrollView).finishContentTransition();
+            }
         }
-        // Reaching MAX_SESSIONS hides the tab-strip "+", which shrinks the tab panel and changes
-        // the terminal viewport. That can land in the middle of the add-button morph. The flight
-        // card must stay at alpha 0 until the ghost lands; skip only its visual reset here.
+        // The flight card must stay at alpha 0 until the ghost lands; skip only its visual reset
+        // here.
         if (mDragController != null) {
             mDragController.cancelForModelChange(
                     mAddTabFlightCard != null ? mAddTabFlightCard.root : null);
