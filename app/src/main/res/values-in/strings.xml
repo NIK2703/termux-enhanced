@@ -147,8 +147,8 @@
 <string name="notification_wake_lock_held"> (wakelock ditahan)</string>
 <string name="per_directory_input_history_summary">Menyimpan riwayat input terpisah untuk setiap direktori kerja. Jika dinonaktifkan, semua sesi berbagi riwayat global.</string>
 <string name="per_directory_input_history_title">Riwayat input per direktori</string>
-<string name="input_history_absorb_prefixes_title">Serap prefiks saat menambahkan ke riwayat input</string>
-<string name="input_history_absorb_prefixes_summary">Saat menambahkan item yang diperluas dari item yang sudah ada ke riwayat input, hapus varian yang lebih pendek. Untuk memasukkan prefiks, geser ke kanan pada item di jendela riwayat/pelengkapan otomatis.</string>
+<string name="input_history_absorb_prefixes_title">Hapus prefiks pendek saat menambahkan ke riwayat input</string>
+<string name="input_history_absorb_prefixes_summary">Saat item yang lebih panjang ditambahkan ke riwayat input, prefiksnya yang lebih pendek akan dihapus. Untuk memasukkan prefiks, geser ke kanan pada item di jendela riwayat/pelengkapan otomatis.</string>
 <string name="permission_run_command_description">menjalankan perintah apa pun di lingkungan Termux dan mengakses file</string>
 <string name="permission_run_command_label">Menjalankan perintah di lingkungan Termux</string>
 <string name="restore_preference_title">Pemulihan kontainer Termux</string>

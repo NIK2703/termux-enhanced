@@ -147,8 +147,8 @@ Der $PREFIX-Pfad ist in den kompilierten Binärdateien von &TERMUX_APP_NAME; fes
     <string name="notification_wake_lock_held"> (Wakelock aktiv)</string>
     <string name="per_directory_input_history_summary">Für jedes Arbeitsverzeichnis einen separaten Eingabeverlauf führen. Wenn deaktiviert, verwenden alle Sitzungen einen gemeinsamen Verlauf.</string>
     <string name="per_directory_input_history_title">Eingabeverlauf pro Verzeichnis</string>
-    <string name="input_history_absorb_prefixes_title">Präfixe beim Hinzufügen zum Eingabeverlauf absorbieren</string>
-    <string name="input_history_absorb_prefixes_summary">Beim Hinzufügen eines erweiterten Elements aus den vorhandenen zum Eingabeverlauf die kürzere Variante löschen. Um ein Präfix einzugeben, im Verlauf-/Autovervollständigungsfenster ein Element nach rechts wischen.</string>
+    <string name="input_history_absorb_prefixes_title">Kurze Präfixe beim Hinzufügen zum Eingabeverlauf entfernen</string>
+    <string name="input_history_absorb_prefixes_summary">Beim Hinzufügen eines längeren Eintrags zum Eingabeverlauf werden seine kürzeren Präfixe entfernt. Um ein Präfix einzugeben, wischen Sie im Fenster für Verlauf/Autovervollständigung einen Eintrag nach rechts.</string>
     <string name="permission_run_command_description">beliebige Befehle in der Termux-Umgebung ausführen und auf Dateien zugreifen</string>
     <string name="permission_run_command_label">Befehle in der Termux-Umgebung ausführen</string>
     <string name="restore_preference_title">Termux-Container wiederherstellen</string>

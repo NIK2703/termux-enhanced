@@ -138,8 +138,8 @@
     <string name="input_history_max_popup_limit_summary">輸入紀錄彈出視窗中僅顯示前 %1$d 筆項目，其餘項目可透過自動補全使用。</string>
     <string name="per_directory_input_history_title">依目錄分別儲存輸入紀錄</string>
     <string name="per_directory_input_history_summary">為每個工作目錄分別儲存輸入紀錄。關閉後，所有工作階段共用同一個全域紀錄。</string>
-    <string name="input_history_absorb_prefixes_title">新增至輸入紀錄時吸收前綴</string>
-    <string name="input_history_absorb_prefixes_summary">將現有項目的擴充項目新增至輸入紀錄時，刪除較短的版本。若要輸入前綴，請在紀錄/自動完成視窗中向右滑動項目。</string>
+    <string name="input_history_absorb_prefixes_title">新增至輸入紀錄時刪除較短前綴</string>
+    <string name="input_history_absorb_prefixes_summary">將較長的項目新增至輸入紀錄時，會刪除其較短的前綴。若要輸入前綴，請在紀錄/自動補全彈出視窗中向右滑動某個項目。</string>
     <string name="text_input_append_enter_title">傳送時附加 Enter</string>
     <string name="directory_history_max_title">工作目錄紀錄的最大項目數</string>
     <string name="restore_tabs_title">啟動時還原分頁</string>
@@ -443,9 +443,9 @@
     <string name="action_open">開啟</string>
 
     <string name="fullscreen_title">全螢幕</string>
-    <string name="fullscreen_mode_entry_off">停用</string>
-    <string name="fullscreen_mode_entry_landscape">橫向時啟用</string>
-    <string name="fullscreen_mode_entry_on">啟用</string>
+    <string name="fullscreen_mode_entry_off">關閉</string>
+    <string name="fullscreen_mode_entry_landscape">橫向時開啟</string>
+    <string name="fullscreen_mode_entry_on">開啟</string>
     <string name="extend_into_cutout_title">延伸至瀏海區域</string>
     <string name="bubble_on_background_title">背景氣泡</string>
     <string name="bubble_on_background_summary">進入背景時顯示氣泡，以便在其他應用程式上方快速存取終端機</string>

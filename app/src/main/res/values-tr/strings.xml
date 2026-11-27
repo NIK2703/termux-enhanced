@@ -129,8 +129,8 @@
 <string name="input_history_max_popup_limit_summary">Giriş geçmişi açılır penceresinde yalnızca ilk %1$d giriş gösterilir; geri kalanına otomatik tamamlama yoluyla ulaşılabilir.</string>
 <string name="per_directory_input_history_title">Dizin başına giriş geçmişi</string>
 <string name="per_directory_input_history_summary">Her çalışma dizini için ayrı bir giriş geçmişi tutun. Kapalıyken tüm oturumlar ortak bir geçmiş kullanır.</string>
-<string name="input_history_absorb_prefixes_title">Giriş geçmişine eklerken önekleri em</string>
-<string name="input_history_absorb_prefixes_summary">Giriş geçmişine mevcut öğelerden genişletilmiş bir öğe eklerken kısa sürümü sil. Önek girmek için geçmiş/otomatik tamamlama penceresindeki bir öğenin üzerinde sağa kaydır.</string>
+<string name="input_history_absorb_prefixes_title">Giriş geçmişine eklerken kısa önekleri kaldır</string>
+<string name="input_history_absorb_prefixes_summary">Giriş geçmişine daha uzun bir öğe eklendiğinde, bu öğenin daha kısa önekleri kaldırılır. Önek girmek için geçmiş/otomatik tamamlama penceresindeki bir öğenin üzerinde sağa kaydırın.</string>
 <string name="text_input_append_enter_title">Gönderirken Enter ekle</string>
 <string name="directory_history_max_title">Geçmişte tutulacak en fazla dizin sayısı</string>
 <string name="restore_tabs_title">Başlatıldığında sekmeleri geri yükle</string>

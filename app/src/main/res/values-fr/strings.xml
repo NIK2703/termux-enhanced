@@ -124,8 +124,8 @@
     <string name="input_history_max_popup_limit_summary">Seules les %1$d premières entrées sont affichées dans la fenêtre de l’historique de saisie ; les autres sont accessibles via la saisie semi-automatique.</string>
     <string name="per_directory_input_history_title">Historique de saisie par répertoire</string>
     <string name="per_directory_input_history_summary">Conserver un historique de saisie distinct pour chaque répertoire de travail. Lorsque l\'option est désactivée, toutes les sessions partagent un historique commun.</string>
-    <string name="input_history_absorb_prefixes_title">Absorber les préfixes lors de l’ajout à l’historique de saisie</string>
-    <string name="input_history_absorb_prefixes_summary">Lors de l’ajout à l’historique de saisie d’un élément étendu parmi ceux déjà présents, supprimer la variante courte. Pour saisir un préfixe, balayez vers la droite sur un élément dans la fenêtre d’historique/d’autocomplétion.</string>
+    <string name="input_history_absorb_prefixes_title">Supprimer les préfixes courts lors de l’ajout à l’historique de saisie</string>
+    <string name="input_history_absorb_prefixes_summary">Lorsqu’un élément plus long est ajouté à l’historique de saisie, ses préfixes plus courts sont supprimés. Pour saisir un préfixe, balayez vers la droite sur un élément dans la fenêtre d’historique/d’autocomplétion.</string>
     <string name="text_input_append_enter_title">Ajouter la touche Entrée lors de l\'envoi</string>
     <string name="directory_history_max_title">Nombre maximal de répertoires de travail dans l\'historique</string>
     <string name="restore_tabs_title">Restaurer les onglets au démarrage</string>

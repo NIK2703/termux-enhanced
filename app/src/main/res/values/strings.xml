@@ -190,13 +190,13 @@
                 <string name="termux_tab_panel_position_title">Tab panel position</string>
                 <string name="termux_tab_panel_position_top">Top</string>
                 <string name="termux_tab_panel_position_bottom">Bottom</string>
-                <string name="termux_tab_panel_position_bottom_landscape_top">Bottom, top in landscape orientation</string>
+                <string name="termux_tab_panel_position_bottom_landscape_top">Bottom; top in landscape orientation</string>
 
                 <!-- Tab height mode -->
                 <string name="termux_tab_height_mode_title">Tab height</string>
                 <string name="termux_tab_height_mode_single">Single line</string>
                 <string name="termux_tab_height_mode_double">Two lines</string>
-                <string name="termux_tab_height_mode_double_landscape_single">Two lines, one line in landscape orientation</string>
+                <string name="termux_tab_height_mode_double_landscape_single">Two lines; one line in landscape orientation</string>
 
                 <!-- Extra keys special button mode -->
                 <string name="extra_keys_special_button_mode_title">Special keys behavior</string>
@@ -290,8 +290,8 @@
     <string name="input_history_max_popup_limit_summary">Only the first %1$d entries are shown in the input history popup; the rest are available through autocomplete.</string>
     <string name="per_directory_input_history_title">Per-directory input history</string>
     <string name="per_directory_input_history_summary">Keep a separate input history for each working directory. When off, all sessions share one global history.</string>
-    <string name="input_history_absorb_prefixes_title">Absorb prefixes when adding to input history</string>
-    <string name="input_history_absorb_prefixes_summary">When an expanded item from the existing ones is added to the input history, delete its shorter variant. To enter a prefix, swipe right on an item in the history/autocomplete window.</string>
+    <string name="input_history_absorb_prefixes_title">Remove shorter prefixes when adding to input history</string>
+    <string name="input_history_absorb_prefixes_summary">When a longer item is added to the input history, its shorter prefixes are removed. To enter a prefix, swipe right on an item in the history/autocomplete window.</string>
 
     <!-- Text input preferences -->
     <string name="input_panel_title">Input panel</string>

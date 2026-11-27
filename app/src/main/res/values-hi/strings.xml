@@ -150,8 +150,8 @@
     <string name="notification_wake_lock_held"> (वेक लॉक सक्रिय)</string>
     <string name="per_directory_input_history_summary">प्रत्येक कार्य निर्देशिका के लिए अलग इनपुट इतिहास रखें। अक्षम होने पर सभी सत्र एक साझा इतिहास का उपयोग करते हैं।</string>
     <string name="per_directory_input_history_title">निर्देशिका-वार इनपुट इतिहास</string>
-    <string name="input_history_absorb_prefixes_title">इनपुट इतिहास में जोड़ते समय उपसर्गों को समाहित करें</string>
-    <string name="input_history_absorb_prefixes_summary">इनपुट इतिहास में पहले से मौजूद विस्तारित आइटम जोड़ते समय छोटा संस्करण हटाएँ। उपसर्ग दर्ज करने के लिए इतिहास/ऑटोकम्प्लीट विंडो में किसी आइटम पर दाएँ स्वाइप करें।</string>
+    <string name="input_history_absorb_prefixes_title">इनपुट इतिहास में जोड़ते समय छोटे उपसर्ग हटाएँ</string>
+    <string name="input_history_absorb_prefixes_summary">जब इनपुट इतिहास में कोई लंबी प्रविष्टि जोड़ी जाती है, तो उसके छोटे उपसर्ग हटा दिए जाते हैं। उपसर्ग दर्ज करने के लिए इतिहास/ऑटोकम्प्लीट विंडो में किसी प्रविष्टि पर दाएँ स्वाइप करें।</string>
     <string name="permission_run_command_description">Termux वातावरण में कोई भी कमांड चलाना और फ़ाइलों तक पहुँचना</string>
     <string name="permission_run_command_label">Termux वातावरण में कमांड चलाना</string>
     <string name="restore_preference_title">Termux कंटेनर पुनर्स्थापित करें</string>
@@ -293,7 +293,7 @@
     <string name="extra_keys_visibility_title">अतिरिक्त बटन पैनल दिखाएँ</string>
     <string name="extra_keys_visibility_always">हमेशा</string>
     <string name="extra_keys_visibility_keyboard">केवल जब कीबोर्ड खुला हो</string>
-    <string name="extra_keys_visibility_keyboard_landscape">हमेशा; लैंडस्केप में केवल जब कीबोर्ड खुला हो</string>
+    <string name="extra_keys_visibility_keyboard_landscape">हमेशा, लैंडस्केप में केवल जब कीबोर्ड खुला हो</string>
     <string name="extra_keys_visibility_never">कभी नहीं</string>
 
     

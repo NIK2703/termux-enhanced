@@ -173,8 +173,8 @@
     <string name="notification_wake_lock_held"> (قفل الاستيقاظ مفعّل)</string>
     <string name="per_directory_input_history_summary">الاحتفاظ بسجل إدخال منفصل لكل دليل عمل. عند الإيقاف، تشارك جميع الجلسات سجلًا واحدًا عامًا.</string>
     <string name="per_directory_input_history_title">سجل الإدخال حسب الدليل</string>
-    <string name="input_history_absorb_prefixes_title">امتصاص البادئات عند الإضافة إلى سجل الإدخال</string>
-    <string name="input_history_absorb_prefixes_summary">عند إضافة عنصر موسّع من العناصر الموجودة إلى سجل الإدخال، احذف النسخة الأقصر. لإدخال بادئة، اسحب لليمين على عنصر في نافذة السجل/الإكمال التلقائي.</string>
+    <string name="input_history_absorb_prefixes_title">حذف البادئات القصيرة عند الإضافة إلى سجل الإدخال</string>
+    <string name="input_history_absorb_prefixes_summary">عند إضافة عنصر أطول إلى سجل الإدخال، تُحذف بادئاته الأقصر. لإدخال بادئة، اسحب لليمين على عنصر في نافذة السجل/الإكمال التلقائي.</string>
     <string name="permission_run_command_description">تنفيذ أوامر اعتباطية داخل بيئة Termux والوصول إلى الملفات</string>
     <string name="permission_run_command_label">تشغيل الأوامر في بيئة Termux</string>
     <string name="restore_preference_title">استعادة حاوية Termux</string>
@@ -310,7 +310,7 @@
     <string name="extra_keys_visibility_title">إظهار لوحة الأزرار الإضافية</string>
     <string name="extra_keys_visibility_always">دائمًا</string>
     <string name="extra_keys_visibility_keyboard">فقط عند فتح لوحة المفاتيح</string>
-    <string name="extra_keys_visibility_keyboard_landscape">دائمًا؛ وفي الوضع الأفقي، فقط عند فتح لوحة المفاتيح</string>
+    <string name="extra_keys_visibility_keyboard_landscape">دائمًا؛ في الوضع الأفقي، فقط عند فتح لوحة المفاتيح</string>
     <string name="extra_keys_visibility_never">أبدًا</string>
 
     

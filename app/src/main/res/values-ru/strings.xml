@@ -213,8 +213,8 @@
     <string name="input_history_max_popup_limit_summary">В окне истории ввода отображаются только первые %1$d элементов; остальные доступны через автодополнение.</string>
     <string name="per_directory_input_history_title">История ввода по директориям</string>
     <string name="per_directory_input_history_summary">Вести отдельную историю ввода для каждой рабочей директории. При выключении все сеансы используют одну общую историю.</string>
-    <string name="input_history_absorb_prefixes_title">Поглощать префиксы при добавлении в историю ввода</string>
-    <string name="input_history_absorb_prefixes_summary">При добавлении в историю ввода расширенного элемента из уже имеющихся удалять короткий вариант. Для ввода префикса используйте жест вправо по элементу в контекстном окне истории/автодополнения</string>
+    <string name="input_history_absorb_prefixes_title">Удалять короткие префиксы при добавлении в историю ввода</string>
+    <string name="input_history_absorb_prefixes_summary">При добавлении в историю ввода более длинного элемента его более короткие префиксы удаляются. Чтобы ввести префикс, смахните вправо по элементу в окне истории/автодополнения.</string>
 
     
     <string name="input_panel_title">Панель ввода</string>
@@ -575,7 +575,7 @@
     
     <string name="extra_keys_visibility_always">Всегда</string>
     <string name="extra_keys_visibility_keyboard">Только при открытой клавиатуре</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Всегда; в ландшафтной ориентации — только при открытой клавиатуре</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Всегда, в ландшафтной ориентации — только при открытой клавиатуре</string>
     <string name="extra_keys_visibility_never">Никогда</string>
 
     

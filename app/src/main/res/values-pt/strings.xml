@@ -151,8 +151,8 @@
     <string name="notification_wake_lock_held"> (wakelock ativo)</string>
     <string name="per_directory_input_history_summary">Manter um histórico de entrada separado para cada diretório de trabalho. Quando desativado, todas as sessões compartilham um histórico global.</string>
     <string name="per_directory_input_history_title">Histórico de entrada por diretório</string>
-    <string name="input_history_absorb_prefixes_title">Absorver prefixos ao adicionar ao histórico de entrada</string>
-    <string name="input_history_absorb_prefixes_summary">Ao adicionar ao histórico de entrada um item expandido dos já existentes, remover a variante mais curta. Para inserir um prefixo, deslize para a direita sobre um item na janela de histórico/autocompletar.</string>
+    <string name="input_history_absorb_prefixes_title">Remover prefixos curtos ao adicionar ao histórico de entrada</string>
+    <string name="input_history_absorb_prefixes_summary">Quando um item mais longo é adicionado ao histórico de entrada, seus prefixos mais curtos são removidos. Para inserir um prefixo, deslize para a direita sobre um item na janela de histórico/autocompletar.</string>
     <string name="permission_run_command_description">executar comandos arbitrários no ambiente do Termux e acessar arquivos</string>
     <string name="permission_run_command_label">Executar comandos no ambiente do Termux</string>
     <string name="restore_preference_title">Restauração do contêiner do Termux</string>
