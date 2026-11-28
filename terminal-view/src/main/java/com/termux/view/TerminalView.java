@@ -24,6 +24,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.ActionMode;
 import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
@@ -56,6 +57,8 @@ import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TextStyle;
 
 import com.termux.view.textselection.TextSelectionCursorController;
+
+import java.lang.reflect.Method;
 
 /** View displaying and interacting with a {@link TerminalSession}. */
 public final class TerminalView extends View {
@@ -623,7 +626,13 @@ public final class TerminalView extends View {
         // System maximum: fling physics now runs in px/s, so no boost factor is needed.
         // (GestureDetector already clamps to this value; this is just a belt-and-braces clamp.)
         mMaxFlingVelocity = vc.getScaledMaximumFlingVelocity();
-        mWheelScrollFactorPx = vc.getScaledVerticalScrollFactor();
+        // getScaledVerticalScrollFactor() only exists since API 26; calling it unguarded throws
+        // NoSuchMethodError while inflating TerminalView on older devices.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mWheelScrollFactorPx = vc.getScaledVerticalScrollFactor();
+        } else {
+            mWheelScrollFactorPx = getLegacyWheelScrollFactor(context);
+        }
 
         mDensity = context.getResources().getDisplayMetrics().density;
 
@@ -638,6 +647,27 @@ public final class TerminalView extends View {
         mScrollbarThumbStrokePaint.setStyle(Paint.Style.STROKE);
         mScrollbarThumbStrokePaint.setStrokeWidth(0.5f * mDensity);
         mScrollbarThumbStrokePaint.setColor(0xBBFFFFFF);
+    }
+
+    /**
+     * System wheel scroll factor for API < 26, where the vertical/horizontal split accessors do
+     * not exist. API 25 has the hidden legacy method; older releases only expose the theme's
+     * preferred list item height, which is what AndroidX uses as its fallback as well.
+     */
+    private static float getLegacyWheelScrollFactor(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            try {
+                Method method = ViewConfiguration.class.getDeclaredMethod("getScaledScrollFactor");
+                return (Integer) method.invoke(ViewConfiguration.get(context));
+            } catch (ReflectiveOperationException ignored) {
+                // Fall through to the theme attribute below.
+            }
+        }
+        TypedValue value = new TypedValue();
+        if (context.getTheme().resolveAttribute(android.R.attr.listPreferredItemHeight, value, true)) {
+            return value.getDimension(context.getResources().getDisplayMetrics());
+        }
+        return 0f;
     }
 
     /** Density-independent pixels to physical pixels, rounded to nearest. */
