@@ -575,7 +575,7 @@
     
     <string name="extra_keys_visibility_always">Всегда</string>
     <string name="extra_keys_visibility_keyboard">Только при открытой клавиатуре</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Всегда, в ландшафтной ориентации — только при открытой клавиатуре</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Всегда, в ландшафтной ориентации только при открытой клавиатуре</string>
     <string name="extra_keys_visibility_never">Никогда</string>
 
     

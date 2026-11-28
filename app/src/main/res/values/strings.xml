@@ -630,7 +630,7 @@
     <!-- Extra keys visibility entries -->
     <string name="extra_keys_visibility_always">Always</string>
     <string name="extra_keys_visibility_keyboard">Only when the keyboard is open</string>
-    <string name="extra_keys_visibility_keyboard_landscape">Always; in landscape orientation — only when the keyboard is open</string>
+    <string name="extra_keys_visibility_keyboard_landscape">Always; in landscape orientation, only when the keyboard is open</string>
     <string name="extra_keys_visibility_never">Never</string>
 
     <!-- Extra keys editor signal entries -->
